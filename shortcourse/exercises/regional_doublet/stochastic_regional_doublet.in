@@ -7,12 +7,25 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -27,21 +40,10 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-END
 
-NEWTON_SOLVER FLOW
-  ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
-END
 
-LINEAR_SOLVER FLOW
-END
 
-NEWTON_SOLVER TRANSPORT
-END
 
-LINEAR_SOLVER TRANSPORT
-END
 
 #=========================== discretization ===================================
 GRID

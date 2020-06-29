@@ -13,6 +13,23 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-12
+    RTOL 1D-8
+    STOL 1D-30
+    ITOL 1D-7
+    MAXIMUM_NUMBER_OF_ITERATIONS 25
+  /
+
+END
+
 #=== make sure CO2_DATABASE points to the right path =========================
 CO2_DATABASE ../../../database/co2data0.dat
 
@@ -28,17 +45,7 @@ GRID
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-END
 
-NEWTON_SOLVER FLOW
-  ATOL 1D-12
-  RTOL 1D-8
-  STOL 1D-30
-  ITOL 1D-7
-  MAXIT 25
-END
 
 #=========================== times ============================================
 TIME

@@ -581,7 +581,7 @@ subroutine CreepClosureRead(this,input,option)
         internal_units = 'sec'
         call InputReadWord(input2,option,word,PETSC_TRUE) 
         call InputErrorMsg(input2,option,'UNITS','CONDITION')   
-        call StringToLower(word)
+        call StringToUpper(word)
         time_units_conversion = UnitsConvertToInternal(word, &
                                 internal_units,option)
       case('TIME')

@@ -147,7 +147,8 @@ module Input_Aux_module
             InputReadCard, &
             InputPushCard, &
             InputPushBlock, &
-            InputPopBlock
+            InputPopBlock, &
+            InputKeywordDeprecated
 
 contains
 
@@ -1966,11 +1967,11 @@ subroutine InputGetCommandLineTruth(string,truth_value,found,option)
         truth_value = PETSC_TRUE
         exit
       endif
-      call StringToLower(word)
+      call StringToUpper(word)
       select case(trim(word))
-        case('yes','true','1','on')
+        case('YES','TRUE','1','ON')
           truth_value = PETSC_TRUE
-        case('no','false','0','off')
+        case('NO','FALSE','0','OFF')
           truth_value = PETSC_FALSE
         case default
           option%io_buffer = 'Truth argument for command line argument "' // &
@@ -2675,6 +2676,30 @@ subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
   call PrintErrMsg(option)
   
 end subroutine InputKeywordUnrecognized2
+
+! ************************************************************************** !
+
+subroutine InputKeywordDeprecated(old_keyword,new_keyword,option)
+  ! 
+  ! Prints an error message indicated that an keyword has been deprecated
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/16/20
+  ! 
+  use Option_module
+  
+  implicit none
+  
+  character(len=*) :: old_keyword
+  character(len=*) :: new_keyword
+  type(option_type) :: option
+  
+  option%io_buffer = 'Keyword "' // trim(adjustl(old_keyword)) // &
+    '" has been deprecated. Please use "' // trim(adjustl(new_keyword)) // &
+    '" instead.'
+  call PrintErrMsg(option)
+  
+end subroutine InputKeywordDeprecated
 
 ! ************************************************************************** !
 

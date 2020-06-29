@@ -5,16 +5,25 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    !  SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     4
     8
@@ -147,7 +156,7 @@ CHEMISTRY
     UO2H3PO4++
     UO2PO4-
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
   /
   MINERALS
@@ -239,12 +248,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-NEWTON_SOLVER TRANSPORT
-END
 
-LINEAR_SOLVER TRANSPORT
-!  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

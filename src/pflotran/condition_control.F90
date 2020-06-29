@@ -1534,6 +1534,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   use Condition_module
   use Transport_Constraint_NWT_module
   use Grid_module
+  use Global_Aux_module
   use Patch_module
   use NW_Transport_module
   use NW_Transport_Aux_module
@@ -1560,6 +1561,8 @@ subroutine CondControlAssignNWTranInitCond(realization)
   type(patch_type), pointer :: cur_patch
   class(reaction_nw_type), pointer :: reaction_nw
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   class(tran_constraint_coupler_nwt_type), pointer :: constraint_coupler
   class(tran_constraint_nwt_type), pointer :: constraint
 
@@ -1585,6 +1588,8 @@ subroutine CondControlAssignNWTranInitCond(realization)
 
     grid => cur_patch%grid
     material_auxvars => cur_patch%aux%Material%auxvars
+    global_auxvars => cur_patch%aux%Global%auxvars
+    nwt_auxvars => cur_patch%aux%NWT%auxvars
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)   
     xx_p = UNINITIALIZED_DOUBLE
@@ -1603,26 +1608,27 @@ subroutine CondControlAssignNWTranInitCond(realization)
         local_id = initial_condition%region%cell_ids(icell)
         ghosted_id = grid%nL2G(local_id)
 
-        call NWTEquilibrateConstraint(reaction_nw,constraint, &
-                                      constraint_coupler%nwt_auxvar, &
-                                      constraint_coupler%global_auxvar, &
-                                      material_auxvars(ghosted_id), &
-                                      option)
-        
-      
         iend = local_id*option%ntrandof
         ibegin = iend-option%ntrandof+1
+
         if (cur_patch%imat(ghosted_id) <= 0) then
           xx_p(ibegin:iend) = 1.d-200
           cycle
         endif
+
+        call NWTEquilibrateConstraint(reaction_nw,constraint, &
+                                      nwt_auxvars(ghosted_id), &
+                                      global_auxvars(ghosted_id), &
+                                      material_auxvars(ghosted_id), &
+                                      option)
+        
+      
         ! ibegin is the local non-ghosted offset: (local_id-1)*option%ntrandof+1
         offset = ibegin - 1
         
         ! species concentrations
         do idof = 1, reaction_nw%params%nspecies 
-          xx_p(offset+idof) = &
-            constraint_coupler%nwt_auxvar%total_bulk_conc(idof)
+          xx_p(offset+idof) = nwt_auxvars(ghosted_id)%total_bulk_conc(idof)
         enddo
 
       enddo ! icell=1,initial_condition%region%num_cells

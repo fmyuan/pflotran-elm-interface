@@ -17,7 +17,7 @@ END
 SUBSURFACE
 
   REGRESSION
-    CELLS
+  CELL_IDS
       1
       2
       3

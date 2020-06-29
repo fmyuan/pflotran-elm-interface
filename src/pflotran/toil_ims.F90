@@ -1,6 +1,6 @@
 module TOilIms_module
 ! Brief description for the module
-! Pimary variables for ToilIms: oil_pressure, oil_saturation, temperature
+! Pimary variables for TOilIms: oil_pressure, oil_saturation, temperature
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
@@ -70,7 +70,7 @@ module TOilIms_module
             TOilImsInitializeTimestep, &
             TOilImsComputeMassBalance, &
             TOilImsResidual, &
-            ToilImsJacobian, &
+            TOilImsJacobian, &
             TOilImsUpdateSolution, &
             TOilImsTimeCut, &
             TOilImsMapBCAuxVarsToGlobal, &
@@ -117,6 +117,7 @@ subroutine TOilImsSetup(realization)
   PetscInt :: i, idof, count
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscErrorCode :: ierr
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   !type(fluid_property_type), pointer :: cur_fluid_property
@@ -141,12 +142,12 @@ subroutine TOilImsSetup(realization)
 
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil heat capacity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil thermal conductivity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   
@@ -161,34 +162,37 @@ subroutine TOilImsSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'Non-initialized cell volume.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
         flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'Non-initialized tortuosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'Non-initialized soil particle density.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'Non-initialized permeability.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       flag(5) = 1
     endif
   enddo
 
-  if (error_found .or. maxval(flag) > 0) then
+  error_found = error_found .or. (maxval(flag) > 0)
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (error_found) then
     option%io_buffer = 'Material property errors found in TOilImsSetup.'
     call PrintErrMsg(option)
   endif
@@ -2565,7 +2569,7 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
 
   if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
 
-    !print *, 'ToilImsAccumDerivative'
+    !print *, 'TOilImsAccumDerivative'
 
     !write(*,"('acc sat01 derivB = ',e10.4)"), toil_auxvar(0)%den(2)
     !write(*,"('acc sat11 derivB = ',e10.4)"), toil_auxvar(1)%den(2) 
@@ -2643,7 +2647,7 @@ end subroutine TOilImsAccumDerivative
 
 ! ************************************************************************** !
 
-subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
+subroutine TOilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
                                  material_auxvar_up, &
                                  thermal_conductivity_up, &
                                  toil_auxvar_dn,global_auxvar_dn, &
@@ -2696,9 +2700,9 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
 
   if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
   
-    !geh:print *, 'ToilImsFluxDerivative'
+    !geh:print *, 'TOilImsFluxDerivative'
     option%iflag = -2
-    call ToilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+    call TOilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                      material_auxvar_up, &
                      thermal_conductivity_up, &
                      toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
@@ -2709,7 +2713,7 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
                              
     ! upgradient derivatives
     do idof = 1, option%nflowdof
-      call ToilImsFlux(toil_auxvar_up(idof),global_auxvar_up, &
+      call TOilImsFlux(toil_auxvar_up(idof),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
                        toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
@@ -2725,7 +2729,7 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
 
     ! downgradient derivatives
     do idof = 1, option%nflowdof
-      call ToilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+      call TOilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
                        toil_auxvar_dn(idof),global_auxvar_dn, &
@@ -2802,11 +2806,11 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
     Jdn = Jdn_alt
   endif
   
-end subroutine ToilImsFluxDerivative
+end subroutine TOilImsFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
+subroutine TOilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    toil_auxvar_up, &
                                    global_auxvar_up, &
                                    toil_auxvar_dn,global_auxvar_dn, &
@@ -2861,7 +2865,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
 
     option%iflag = -2
-    call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
+    call TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                        toil_auxvar_up,global_auxvar_up, &
                        toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
@@ -2870,7 +2874,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                        option,v_darcy,res,Jdum,PETSC_FALSE)
     ! downgradient derivatives
     do idof = 1, option%nflowdof
-      call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
+      call TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
                          toil_auxvar_dn(idof),global_auxvar_dn, &
                          material_auxvar_dn, &
@@ -2898,7 +2902,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   if (toil_analytical_derivatives) then 
 
-    call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
+    call TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                        toil_auxvar_up,global_auxvar_up, &
                        toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
@@ -2917,7 +2921,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
        call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
 
-      call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
+      call TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
                          toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                          material_auxvar_dn, &
@@ -2935,12 +2939,12 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
     endif
   
-end subroutine ToilImsBCFluxDerivative
+end subroutine TOilImsBCFluxDerivative
 
 
 ! ************************************************************************** !
 
-subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
+subroutine TOilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
                                     global_auxvar,scale,Jac)
   ! 
   ! Computes the source/sink terms for the residual
@@ -3034,7 +3038,7 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
     Jac = j_alt
   endif
 
-end subroutine ToilImsSrcSinkDerivative
+end subroutine TOilImsSrcSinkDerivative
 
 ! ************************************************************************** !
 
@@ -3135,7 +3139,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   !New auxvar data structure
   !toil_auxvars => patch%aux%TOil_ims%auxvars
   !toil_auxvars_bc => patch%aux%TOil_ims%auxvars_bc
-  !toil_parameter => patch%aux%Toil_ims%parameter
+  !toil_parameter => patch%aux%TOil_ims%parameter
   toil_parameter => patch%aux%TOil_ims%parameter
 
   global_auxvars => patch%aux%Global%auxvars
@@ -3394,8 +3398,8 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   endif
 
   if (patch%aux%TOil_ims%inactive_cells_exist) then
-    do i=1,patch%aux%TOil_ims%n_inactive_rows
-      r_p(patch%aux%TOil_ims%inactive_rows_local(i)) = 0.d0
+    do i=1,patch%aux%TOil_ims%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%TOil_ims%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
   
@@ -3791,15 +3795,16 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   ! zero out isothermal and inactive cells
   if (patch%aux%TOil_ims%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%TOil_ims%n_inactive_rows, &
-                          patch%aux%TOil_ims%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,patch%aux%TOil_ims%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%TOil_ims%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 
   if (toil_ims_isothermal) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%Toil_ims%row_zeroing_array
+    zeros => patch%aux%TOil_ims%matrix_zeroing%row_zeroing_array
     ! zero energy residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -3861,7 +3866,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
 !  endif
 !#endif
 
-end subroutine ToilImsJacobian
+end subroutine TOilImsJacobian
 
 ! ************************************************************************** !
 

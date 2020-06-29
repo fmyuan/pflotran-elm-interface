@@ -4240,6 +4240,7 @@ end subroutine isCPG
 ! *************************************************************************** !
 
 subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
+                                  permxy_p, permxz_p, permyz_p, &
                                   inatsend, nlmax, option)
   !
   ! Perm and porosity values from the grdecl file are known on the IO rank
@@ -4256,6 +4257,9 @@ subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
   PetscReal, pointer :: permx_p (:)
   PetscReal, pointer :: permy_p (:)
   PetscReal, pointer :: permz_p (:)
+  PetscReal, pointer :: permxy_p (:)
+  PetscReal, pointer :: permxz_p (:)
+  PetscReal, pointer :: permyz_p (:)
   PetscInt , pointer :: inatsend(:)
   PetscInt, intent(in) :: nlmax
   type(option_type) :: option
@@ -4320,6 +4324,11 @@ subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
           permx_p(ilt) = wperm(ibp+1)
           permy_p(ilt) = wperm(ibp+2)
           permz_p(ilt) = wperm(ibp+3)
+          if (option%flow%full_perm_tensor) then
+            permxy_p(ilt) = 0.d0
+            permxz_p(ilt) = 0.d0
+            permyz_p(ilt) = 0.d0
+          endif
         enddo
 
         ! Free buffers

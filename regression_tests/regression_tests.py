@@ -51,13 +51,14 @@ _MAJOR_FAILURE = 2
 #errors
 _NULL_ERROR = 0
 _GENERAL_ERROR = 1
-_USER_ERROR = 2
-_CODE_CRASH_ERROR = 3
-_CONFIG_ERROR = 4
-_MISSING_INFO_ERROR = 5
-_PRE_PROCESS_ERROR = 6
-_POST_PROCESS_ERROR = 7
-_TIMEOUT_ERROR = 8
+_PFLOTRAN_USER_ERROR = 2
+_PFLOTRAN_CRASH = 3
+_PFLOTRAN_FAILURE = 4
+_CONFIG_ERROR = 5
+_MISSING_INFO_ERROR = 6
+_PRE_PROCESS_ERROR = 7
+_POST_PROCESS_ERROR = 8
+_TIMEOUT_ERROR = 9
 
 class TestStatus(object):
     """
@@ -111,6 +112,7 @@ class RegressionTest(object):
         self._TOL_MAX_THRESHOLD = 3
         self._PFLOTRAN_SUCCESS = 86
         self._PFLOTRAN_USER_ERROR = 87
+        self._PFLOTRAN_FAILURE = 88
         self._RESTART_PREFIX = "tmp-restart"
         # misc test parameters
         self._pprint = pprint.PrettyPrinter(indent=2)
@@ -131,7 +133,8 @@ class RegressionTest(object):
         self._skip_check_regression = False
         self._check_performance = False
         self._test_name = None
-        self._ascii_output_filenames = None
+        self._diff_ascii_output_filenames = None
+        self._compare_ascii_output_filenames = None
         self._output_files = None
         # assign default tolerances for different classes of variables
         # absolute min and max thresholds for determining whether to
@@ -219,7 +222,7 @@ class RegressionTest(object):
                     self._run_test(mpiexec, executable, restart_name, 
                                    dry_run, status, testlog)
                 elif not status.skipped:
-                    status.error = _USER_ERROR
+                    status.error = _PFLOTRAN_USER_ERROR
                     message = self._txtwrap.fill(
                         "ERROR: restart test '{0}' did not generate a "
                         "required checkpoint file. This can occur if the "
@@ -377,10 +380,14 @@ class RegressionTest(object):
             else:
                 if pflotran_status == self._PFLOTRAN_USER_ERROR:
                     # error was caught and the code properly shut down
-                    status.error = _USER_ERROR
-                    string = 'failed due to user error'
-                else:
-                    status.error = _CODE_CRASH_ERROR
+                    status.error = _PFLOTRAN_USER_ERROR
+                    string = 'failed due to a user error'
+                elif pflotran_status == self._PFLOTRAN_FAILURE:
+                    # error was caught and the code properly shut down
+                    status.error = _PFLOTRAN_FAILURE
+                    string = 'failed due to an internal error (e.g. convergence issues, etc.)'
+                else: # implicitly PFLOTRAN_CRASH
+                    status.error = _PFLOTRAN_CRASH
                     string = 'crashed'
                 message = self._txtwrap.fill(
                     "ERROR : {name} : pflotran returned an error "
@@ -525,45 +532,60 @@ class RegressionTest(object):
                                            status,testlog)
 
         # Compare ascii output files
-        if self._ascii_output_filenames is not None:
-            if self._stochastic_realizations is not None:
-                print("Skipping comparison of ASCII output for stochastic run.",
-                      file=testlog)
-            else:
-                filenames = self._ascii_output_filenames.split()
-                for current_filename in filenames:
-                    if not os.path.isfile(current_filename):
-                        message = self._txtwrap.fill(
-                            "ERROR: could not find ASCII output test file "
-                            "'{0}'. Please check the standard output file "
-                            "for errors.".format(current_filename))
-                        print("".join(['\n', message, '\n']), file=testlog)
-                        status.error = _MISSING_INFO_ERROR
-                        return
-                    else:
-                        with open(current_filename, 'rU') as current_file:
-                            current_output = current_file.readlines()
+        if self._diff_ascii_output_filenames is not None:
+            self._check_ascii_files(self._diff_ascii_output_filenames,testlog,
+                                   status)
+        if self._compare_ascii_output_filenames is not None:
+            self._check_ascii_files(self._compare_ascii_output_filenames,
+                                    testlog,status,diff=False)                   
 
-                    gold_filename = current_filename + ".gold"
-                    if not os.path.isfile(gold_filename):
-                        message = self._txtwrap.fill(
-                            "ERROR: could not find ASCII output gold file "
-                            "'{0}'.".format(gold_filename))
-                        print("".join(['\n', message, '\n']), file=testlog)
-                        status.error = _MISSING_INFO_ERROR
-                        return
-                    else:
-                        with open(gold_filename, 'rU') as gold_file:
-                            gold_output = gold_file.readlines()
 
-                    print("    diff {0} {1}".format(gold_filename, 
-                          current_filename), file=testlog)
+    def _check_ascii_files(self,ascii_filenames,testlog,status,diff=True):
+        if self._stochastic_realizations is not None:
+            print("Skipping comparison of ASCII output for stochastic run.",
+                     file=testlog)
+        else:
+            filenames = ascii_filenames.split()
+            for current_filename in filenames:
+                if not os.path.isfile(current_filename):
+                    message = self._txtwrap.fill(
+                        "ERROR: could not find ASCII output test file "
+                        "'{0}'. Please check the standard output file "
+                        "for errors.".format(current_filename))
+                    print("".join(['\n', message, '\n']), file=testlog)
+                    status.error = _MISSING_INFO_ERROR
+                    return
+                else:
+                    with open(current_filename, 'rU') as current_file:
+                        current_output = current_file.readlines()
+
+                gold_filename = current_filename + ".gold"
+                if not os.path.isfile(gold_filename):
+                    message = self._txtwrap.fill(
+                        "ERROR: could not find ASCII output gold file "
+                        "'{0}'.".format(gold_filename))
+                    print("".join(['\n', message, '\n']), file=testlog)
+                    status.error = _MISSING_INFO_ERROR
+                    return
+                else:
+                    with open(gold_filename, 'rU') as gold_file:
+                        gold_output = gold_file.readlines()
+
+                print("    diff {0} {1}".format(gold_filename, 
+                      current_filename), file=testlog)
+                
+                if diff:
+                    self._diff_ascii_output(current_output, gold_output, 
+                                            status, testlog)
+                else:
                     self._compare_ascii_output(current_output, gold_output, 
                                                status, testlog)
+            if diff:
                 if status.error == _NULL_ERROR and status.fail == _NULL_FAILURE:
                     print("    Passed ASCII output comparison check.", 
                           file=testlog)
-
+                    
+    
     def _compare_regression_files(self, current_filename, gold_filename, 
                                   status, testlog):
         """
@@ -810,10 +832,10 @@ class RegressionTest(object):
 
         if status.fail == _NULL_FAILURE and status.error == _NULL_ERROR:
             print("    Passed hdf5 check.", file=testlog)
-
-    def _compare_ascii_output(self, ascii_current, ascii_gold, status, testlog):
-        """Check that ascii file output has not changed from the baseline.
+    def _diff_ascii_output(self, ascii_current, ascii_gold, status, testlog):
+        """Diff ascii file output has not changed from the baseline.
         """
+                        
         diff = difflib.ndiff(ascii_current,ascii_gold,
                              charjunk=difflib.IS_CHARACTER_JUNK)
         count = 0
@@ -826,6 +848,56 @@ class RegressionTest(object):
             diff_lines = difflib.context_diff(ascii_current,ascii_gold)
             for line in list(diff_lines):
                 testlog.write('      '+line)
+        
+        
+    def _compare_ascii_output(self, ascii_current, ascii_gold, status, testlog):
+        """Compare ascii file output headers and values has not changed from 
+           the baseline.
+        """
+        
+        if ascii_gold[0] != ascii_current[0]:
+            print("    FAIL: Headers do not match in ascii output", file=testlog)
+            status.fail = _MINOR_FAILURE
+        else:
+            headers = ascii_gold[0].split(',')
+            ascii_gold.pop(0)
+            ascii_current.pop(0)
+
+            for i in range(len(ascii_gold)):
+                gold_values = ascii_gold[i].split()
+                current_values = ascii_current[i].split() 
+                tol = self._tolerance[self._GENERIC]
+                tolerance_type = tol[self._TOL_TYPE]
+                tolerance = tol[self._TOL_VALUE]
+                            
+                for k in range(len(gold_values)):
+                    name = headers[k]
+    
+                    current = float(current_values[k])
+                    previous = float(gold_values[k])
+    
+                    if tolerance_type == self._ABSOLUTE:
+                        delta = abs(previous - current)
+                    elif (tolerance_type == self._RELATIVE or
+                        tolerance_type == self._PERCENT):
+                        if previous != 0:
+                            delta = abs((previous - current) / previous)
+                        elif current != 0:
+                            delta = abs((previous - current) / current)
+                        else:
+                        # both are zero
+                            delta = 0.0
+                            if tolerance_type == self._PERCENT:
+                                delta *= 100.0
+                    
+                    if delta > tolerance:
+                        print("    FAIL: {0} : {1} > {2} [{3}]".format(
+                              name, delta, tolerance, tolerance_type), file=testlog)
+                        status.fail = _MINOR_FAILURE
+                    elif self._debug:                                
+                        print("    PASS: {0} : {1} <= {2} [{3}]".format(
+                              name, delta, tolerance, tolerance_type), file=testlog)
+
 
     def update(self, status, testlog):
         """
@@ -1239,8 +1311,12 @@ class RegressionTest(object):
         if timeout:
             self._timeout = float(timeout[0])
 
-        # compare these ascii output files wiht gold standards
-        self._ascii_output_filenames = test_data.pop('compare_ascii_output', 
+        # compare these ascii output files with gold standards
+        self._diff_ascii_output_filenames = test_data.pop('diff_ascii_output', 
+                                                     None)
+        
+        # compare these ascii output files with gold standards
+        self._compare_ascii_output_filenames = test_data.pop('compare_ascii_output', 
                                                      None)
 
         # list of output files that must exist at end of simulation
@@ -1555,9 +1631,11 @@ class RegressionTestManager(object):
 #            print('error {}'.format(status.error))
             if status.error == _GENERAL_ERROR:
                 print("G", end='', file=sys.stdout)
-            elif status.error == _USER_ERROR:
+            elif status.error == _PFLOTRAN_USER_ERROR:
                 print("U", end='', file=sys.stdout)
-            elif status.error == _CODE_CRASH_ERROR:
+            elif status.error == _PFLOTRAN_FAILURE:
+                print("V", end='', file=sys.stdout)
+            elif status.error == _PFLOTRAN_CRASH:
                 print("X", end='', file=sys.stdout)
             elif status.error == _CONFIG_ERROR:
                 print("C", end='', file=sys.stdout)
@@ -1619,7 +1697,9 @@ class RegressionTestManager(object):
         """
         Add the current test status to the overall status for the file.
         """
-        self._file_status.fail += status.fail
+        # status.fail may be greater than 1
+        if (status.fail > 0):
+          self._file_status.fail += 1
         self._file_status.warning += status.warning
         # status.error may be greater than 1
         if (status.error > 0):
@@ -1752,11 +1832,10 @@ class RegressionTestManager(object):
             u_tests = self._available_tests
         else:
             # check that the processed user supplied names are valid
-            # convert user supplied names to lower case
             u_suites = []
             for suite in user_suites:
-                if suite.lower() in self._available_suites:
-                    u_suites.append(suite.lower())
+                if suite in self._available_suites:
+                    u_suites.append(suite)
                 else:
                     message = self._txtwrap.fill(
                         "WARNING : {0} : Skipping requested suite '{1}' (not "
@@ -1767,7 +1846,7 @@ class RegressionTestManager(object):
             u_tests = []
             for test in user_tests:
                 if test in self._available_tests:
-                    u_tests.append(test.lower())
+                    u_tests.append(test)
                 else:
                     message = self._txtwrap.fill(
                         "WARNING : {0} : Skipping test '{1}' (not present or "
@@ -2112,7 +2191,7 @@ def summary_report(run_time, report, dry_run, outfile):
 
     print("\n", file=outfile)
 
-    return num_failures
+    return num_failures + num_errors
 
 
 def append_command_to_log(command, testlog, tempfile):
@@ -2236,12 +2315,13 @@ def main(options):
     print("    M - failed regression test (results are FAR outside error tolerances)")
     print("    G - general error")
     print("    U - user error")
-    print("    X - code crashed")
+    print("    V - simulator failure (e.g. failure to converge)")
+    print("    X - simulator crash")
     print("    T - time out error")
     print("    C - configuration file [.cfg] error")
     print("    I - missing information (e.g. missing files)")
-    print("    A - pre-processing error (e.g. error in simulation setup scripts")
-    print("    B - post-processing error (e.g. error in solution comparison)")
+    print("    B - pre-processing error (e.g. error in simulation setup scripts")
+    print("    A - post-processing error (e.g. error in solution comparison)")
     print("    S - test skipped")
     print("    W - warning")
     print("    ? - unknown\n")

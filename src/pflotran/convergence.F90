@@ -248,6 +248,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
  
     ! This is to check if the secondary continuum residual convergences
     ! for nonlinear problems specifically transport
+    !TODO(geh): move to PMRTCheckConvergence
     if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
        reason > 0 .and. i_iteration > 0) then
       if (option%infnorm_res_sec < solver%newton_inf_res_tol_sec) then

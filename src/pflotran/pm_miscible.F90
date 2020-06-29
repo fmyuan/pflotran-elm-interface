@@ -12,7 +12,8 @@ module PM_Miscible_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_miscible_type
   contains
-    procedure, public :: ReadSimulationBlock => PMMiscibleRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMMiscibleReadSimOptionsBlock
     procedure, public :: InitializeTimestep => PMMiscibleInitializeTimestep
     procedure, public :: Residual => PMMiscibleResidual
     procedure, public :: Jacobian => PMMiscibleJacobian
@@ -58,7 +59,7 @@ function PMMiscibleCreate()
 
   allocate(miscible_pm)
 
-  call PMSubsurfaceFlowCreate(miscible_pm)
+  call PMSubsurfaceFlowInit(miscible_pm)
   miscible_pm%name = 'Miscible Flow'
   miscible_pm%header = 'MISCIBLE FLOW'
 
@@ -68,7 +69,7 @@ end function PMMiscibleCreate
 
 ! ************************************************************************** !
 
-subroutine PMMiscibleRead(this,input)
+subroutine PMMiscibleReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Miscible process model
   ! 
@@ -108,8 +109,8 @@ subroutine PMMiscibleRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -119,7 +120,7 @@ subroutine PMMiscibleRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMMiscibleRead
+end subroutine PMMiscibleReadSimOptionsBlock
 
 ! ************************************************************************** !
 
@@ -294,7 +295,7 @@ end subroutine PMMiscibleJacobian
 
 ! ************************************************************************** !
 
-subroutine PMMiscibleCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMMiscibleCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -305,19 +306,19 @@ subroutine PMMiscibleCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_miscible_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call MiscibleCheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
+  call MiscibleCheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMMiscibleCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMMiscibleCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMMiscibleCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                   X1_changed,ierr)
   ! 
   ! Author: Gautam Bisht
@@ -329,7 +330,7 @@ subroutine PMMiscibleCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_miscible_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -337,7 +338,7 @@ subroutine PMMiscibleCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call MiscibleCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
+  call MiscibleCheckUpdatePost(snes,X0,dX,X1,dX_changed, &
                                X1_changed,this%realization,ierr)
 
 end subroutine PMMiscibleCheckUpdatePost

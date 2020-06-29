@@ -4,12 +4,35 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 0
+  /
+
+  NEWTON_SOLVER
+    PRECONDITIONER_MATRIX_TYPE AIJ
+    RTOL 1.d-12
+    ATOL 1.d-12
+    STOL 1.d-30
+    #NO_INFINITY_NORM
+    #NO_PRINT_CONVERGENCE
+    #PRINT_DETAILED_CONVERGENCE
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -47,9 +70,6 @@ CHEMISTRY
 REFERENCE_POROSITY 0.25d0
 
 # == time stepping ============================================================
-TIMESTEPPER TRANSPORT
-  TS_ACCELERATION 0
-/
 
 # == discretization ===========================================================
 GRID
@@ -62,19 +82,7 @@ GRID
 /
 
 # == transport solvers ========================================================
-NEWTON_SOLVER TRANSPORT
-  PRECONDITIONER_MATRIX_TYPE AIJ
-  RTOL 1.d-12
-  ATOL 1.d-12
-  STOL 1.d-30
-#NO_INFINITY_NORM
-#NO_PRINT_CONVERGENCE
-#PRINT_DETAILED_CONVERGENCE
-/
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-/
 
 # == fluid properties =========================================================
 FLUID_PROPERTY

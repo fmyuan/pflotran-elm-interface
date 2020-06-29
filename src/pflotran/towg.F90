@@ -182,14 +182,14 @@ module TOWG_module
       PetscBool :: analytical_derivatives
     end subroutine TOWGSrcSinkDummy
 
-    subroutine TOWGCheckUpdatePreDummy(line_search,X,dX,changed,realization, &
+    subroutine TOWGCheckUpdatePreDummy(snes,X,dX,changed,realization, &
                                        max_it_before_damping,damping_factor, &
                                        max_pressure_change,ierr)
       use Realization_Subsurface_class
 #include "petsc/finclude/petscsnes.h"
       use petscsnes
       implicit none
-      SNESLineSearch :: line_search
+      SNES :: snes
       Vec :: X
       Vec :: dX
       PetscBool :: changed
@@ -310,6 +310,7 @@ subroutine TOWGSetup(realization)
   PetscInt :: i, idof, count
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscErrorCode :: ierr
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   !type(fluid_property_type), pointer :: cur_fluid_property
@@ -368,12 +369,12 @@ subroutine TOWGSetup(realization)
 
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil heat capacity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil thermal conductivity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   
@@ -388,34 +389,37 @@ subroutine TOWGSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'Non-initialized cell volume.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
         flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'Non-initialized tortuosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'Non-initialized soil particle density.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'Non-initialized permeability.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       flag(5) = 1
     endif
   enddo
 
-  if (error_found .or. maxval(flag) > 0) then
+  error_found = error_found .or. (maxval(flag) > 0)
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (error_found) then
     option%io_buffer = 'Material property errors found in TOWGSetup.'
     call PrintErrMsg(option)
   endif
@@ -992,7 +996,7 @@ end subroutine TOWGTimeCut
 subroutine TOWGZeroMassBalanceDelta(realization)
   ! 
   ! Zeros mass balance delta array  
-  ! PO: identical for many flow modes (Genral, Toil_Ims, TOWG), where can it 
+  ! PO: identical for many flow modes (Genral, TOil_Ims, TOWG), where can it 
   !     be located to be shared?? flow_mode_common.F90 ?
   ! 
   ! Author: Paolo Orsini
@@ -5152,8 +5156,8 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   endif
 
   if (towg%inactive_cells_exist) then
-    do i = 1,towg%n_inactive_rows
-      r_p(towg%inactive_rows_local(i)) = 0.d0
+    do i = 1,towg%matrix_zeroing%n_inactive_rows
+      r_p(towg%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
   
@@ -5570,15 +5574,15 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   ! zero out isothermal and inactive cells
   if (towg%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,towg%n_inactive_rows, &
-                          towg%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,towg%matrix_zeroing%n_inactive_rows, &
+                          towg%matrix_zeroing%inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 
   if (towg_isothermal) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => towg%row_zeroing_array
+    zeros => towg%matrix_zeroing%row_zeroing_array
     ! zero energy residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -5591,7 +5595,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
 
   if (towg_no_oil) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => towg%row_zeroing_array
+    zeros => towg%matrix_zeroing%row_zeroing_array
     ! zero gas component mass balance residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -5604,7 +5608,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
 
   if (towg_no_gas) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => towg%row_zeroing_array
+    zeros => towg%matrix_zeroing%row_zeroing_array
     ! zero gas component mass balance residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -5656,7 +5660,7 @@ end subroutine TOWGJacobian
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
+subroutine TOWGImsTLCheckUpdatePre(snes,X,dX,changed,realization, &
                                    max_it_before_damping,damping_factor, &
                                    max_pressure_change,ierr)
   ! 
@@ -5671,7 +5675,7 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   implicit none
 
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -5705,7 +5709,6 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
   PetscInt :: newton_iteration
 
   
@@ -5714,7 +5717,6 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   field => realization%field
   patch => realization%patch
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -5833,7 +5835,7 @@ end subroutine TOWGImsTLCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
+subroutine TOWGBlackOilCheckUpdatePre(snes,X,dX,changed,realization, &
                                       max_it_before_damping,damping_factor, &
                                       max_pressure_change,ierr)
 !------------------------------------------------------------------------------
@@ -5851,7 +5853,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   implicit none
 
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -5883,7 +5885,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
   PetscInt :: newton_iteration,istate
 
   PetscReal :: scand
@@ -5900,7 +5901,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   global_auxvars => patch%aux%Global%auxvars
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)

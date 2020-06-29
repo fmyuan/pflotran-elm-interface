@@ -19,10 +19,8 @@ module Simulation_Subsurface_class
   type, public, extends(simulation_base_type) :: simulation_subsurface_type
     ! pointer to flow process model coupler
     class(pmc_subsurface_type), pointer :: flow_process_model_coupler
-    ! pointer to reactive transport process model coupler
-    class(pmc_subsurface_type), pointer :: rt_process_model_coupler
-    ! pointer to nuclear waste transport process model coupler
-    class(pmc_subsurface_type), pointer :: nwt_process_model_coupler
+    ! pointer to transport process model coupler
+    class(pmc_subsurface_type), pointer :: tran_process_model_coupler
     ! pointer to realization object shared by flow and reactive transport
     class(realization_subsurface_type), pointer :: realization 
     ! regression object
@@ -92,8 +90,7 @@ subroutine SubsurfaceSimulationInit(this,option)
   
   call SimulationBaseInit(this,option)
   nullify(this%flow_process_model_coupler)
-  nullify(this%rt_process_model_coupler)
-  nullify(this%nwt_process_model_coupler)
+  nullify(this%tran_process_model_coupler)
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()
@@ -249,11 +246,8 @@ subroutine SubsurfaceSimulationJumpStart(this)
   if (associated(this%flow_process_model_coupler)) then
     flow_timestepper => this%flow_process_model_coupler%timestepper
   endif
-  if (associated(this%rt_process_model_coupler)) then
-    tran_timestepper => this%rt_process_model_coupler%timestepper
-  endif
-  if (associated(this%nwt_process_model_coupler)) then
-    tran_timestepper => this%nwt_process_model_coupler%timestepper
+  if (associated(this%tran_process_model_coupler)) then
+    tran_timestepper => this%tran_process_model_coupler%timestepper
   endif
   
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
@@ -267,6 +261,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
     call PrintMsg(option)
     call PrintMsg(option,'')
     option%status = DONE
+    this%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
 
@@ -292,6 +287,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
     call PrintMsg(option)
     call PrintMsg(option,'')
     option%status = DONE
+    this%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
 
@@ -339,6 +335,10 @@ subroutine SubsurfaceSimulationJumpStart(this)
 
   if (this%realization%debug%print_couplers) then
     call OutputPrintCouplers(this%realization,ZERO_INTEGER)
+    if (this%realization%discretization%itype == UNSTRUCTURED_GRID .and. &
+        this%realization%patch%grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+      call OutputPrintCouplersH5(this%realization,ZERO_INTEGER)
+    endif
   endif  
 
 end subroutine SubsurfaceSimulationJumpStart
@@ -383,17 +383,19 @@ subroutine SubsurfaceFinalizeRun(this)
     call WIPPDestroy()
     call KlinkenbergDestroy()
   endif
-  if (associated(this%rt_process_model_coupler)) then
-    tran_timestepper => this%rt_process_model_coupler%timestepper
-    call RSandboxDestroy()
-    call RCLMRxnDestroy()
+  if (associated(this%tran_process_model_coupler)) then
+    tran_timestepper => this%tran_process_model_coupler%timestepper
+    if (this%option%itranmode == RT_MODE) then
+      call RSandboxDestroy()
+      call RCLMRxnDestroy()
+    endif
   endif
-  if (associated(this%nwt_process_model_coupler)) then
-    tran_timestepper => this%nwt_process_model_coupler%timestepper
-  endif
-  
-  call RegressionOutput(this%regression,this%realization, &
-                        flow_timestepper,tran_timestepper)  
+
+  select case(this%stop_flag)
+    case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
+      call RegressionOutput(this%regression,this%realization, &
+                            flow_timestepper,tran_timestepper)
+  end select
   
 end subroutine SubsurfaceFinalizeRun
 

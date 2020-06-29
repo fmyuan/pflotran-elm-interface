@@ -4,8 +4,8 @@ SIMULATION
   
   PROCESS_MODELS
   
-    NUCLEAR_WASTE_TRANSPORT  nw_trans
-      GLOBAL_IMPLICIT
+    SUBSURFACE_TRANSPORT  nw_trans
+      MODE NWT
     END
     
   END
@@ -13,12 +13,27 @@ END
 
 !==============================================================================
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 30
+    DT_FACTOR 2. 2. 2. 2. 2. 2. 2. 2. 2. 2. 1.8 1.6 1.4 1.2 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.
+  /
+
+  NEWTON_SOLVER
+    RTOL 1.0d-06
+    ATOL 1.0d-25
+  /
+
+END
 !==============================================================================
 
 !=========================== REGRESSION =======================================
 
 REGRESSION
-  CELLS
+  CELL_IDS
     1
   /
 END
@@ -111,15 +126,7 @@ END
 
 !=========================== solver options ===================================
 
-NEWTON_SOLVER TRANSPORT
-  RTOL 1.0d-06
-  ATOL 1.0d-25
-END
 
-TIMESTEPPER TRANSPORT
-  TS_ACCELERATION 30
-  DT_FACTOR 2. 2. 2. 2. 2. 2. 2. 2. 2. 2. 1.8 1.6 1.4 1.2 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.
-END
 
 !=========================== times ============================================
 

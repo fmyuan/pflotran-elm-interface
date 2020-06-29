@@ -18,6 +18,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  MAX_STEPS 1
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 4
@@ -47,9 +56,6 @@ GRID
 END
 
 #=========================== timestepper ======================================
-TIMESTEPPER FLOW
-#  MAX_STEPS 1
-END
 
 #=========================== times ============================================
 TIME

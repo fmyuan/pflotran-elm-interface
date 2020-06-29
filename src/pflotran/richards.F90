@@ -133,10 +133,12 @@ subroutine RichardsSetupPatch(realization)
 
   PetscInt :: local_id, ghosted_id, iconn, sum_connection
   PetscInt :: ivertex, nvert, region_id, vertex_id
-  PetscInt :: i, ierr
+  PetscInt :: i
   PetscBool :: error_found, found
   PetscInt :: flag(10)
   PetscReal :: minz, maxz, zcenter, zface
+  PetscReal :: tempreal
+  PetscErrorCode :: ierr
   type(material_parameter_type), pointer :: material_parameter
   class(material_auxvar_type), pointer :: material_auxvars(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars(:)  
@@ -164,23 +166,26 @@ subroutine RichardsSetupPatch(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
         flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
-    if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
-        flag(5) == 0) then
+    tempreal = minval(material_auxvars(ghosted_id)%permeability)
+    if (Uninitialized(tempreal) .and. flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       flag(5) = 1
     endif
   enddo
 
-  if (error_found .or. maxval(flag) > 0) then
+  error_found = error_found .or. (maxval(flag) > 0)
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (error_found) then
     option%io_buffer = 'Material property errors found in RichardsSetup.'
     call PrintErrMsg(option)
   endif
@@ -1917,8 +1922,8 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   enddo
 
   if (patch%aux%Richards%inactive_cells_exist) then
-    do i=1,patch%aux%Richards%n_zero_rows
-      r_p(patch%aux%Richards%zero_rows_local(i)) = 0.d0
+    do i=1,patch%aux%Richards%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%Richards%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
 
@@ -2842,8 +2847,10 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   if (option%use_matrix_buffer) then
     if (patch%aux%Richards%inactive_cells_exist) then
       call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer, &
-                                patch%aux%Richards%n_zero_rows, &
-                                patch%aux%Richards%zero_rows_local_ghosted)
+                                patch%aux%Richards%matrix_zeroing% &
+                                  n_inactive_rows, &
+                                patch%aux%Richards%matrix_zeroing% &
+                                  inactive_rows_local_ghosted)
     endif
     call MatrixBufferSetValues(A,patch%aux%Richards%matrix_buffer)
   endif
@@ -2858,8 +2865,10 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
 #endif
     if (patch%aux%Richards%inactive_cells_exist) then
       qsrc = 1.d0 ! solely a temporary variable in this conditional
-      call MatZeroRowsLocal(A,patch%aux%Richards%n_zero_rows, &
-                            patch%aux%Richards%zero_rows_local_ghosted, &
+      call MatZeroRowsLocal(A,patch%aux%Richards%matrix_zeroing% &
+                              n_inactive_rows, &
+                            patch%aux%Richards%matrix_zeroing% &
+                              inactive_rows_local_ghosted, &
                             qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                             ierr);CHKERRQ(ierr)
     endif

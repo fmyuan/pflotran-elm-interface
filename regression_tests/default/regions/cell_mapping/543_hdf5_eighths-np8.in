@@ -5,7 +5,7 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
@@ -35,9 +35,6 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-END
 
 #=========================== discretization ===================================
 GRID

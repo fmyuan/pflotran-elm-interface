@@ -16,7 +16,11 @@ module PM_TOilIms_class
     PetscInt, pointer :: max_change_isubvar(:)
   contains
     ! all the routines below needs to be replaced, uncomment as I develop them
-    procedure, public :: ReadSimulationBlock => PMTOilImsRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMTOilImsReadSimOptionsBlock
+    procedure, public :: ReadTSBlock => PMTOilImsReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMTOilImsReadNewtonSelectCase
+    procedure, public :: InitializeSolver => PMTOilImsInitializeSolver
     procedure, public :: InitializeRun => PMTOilImsInitializeRun
     procedure, public :: InitializeTimestep => PMTOilImsInitializeTimestep
     procedure, public :: Residual => PMTOilImsResidual
@@ -37,7 +41,7 @@ module PM_TOilIms_class
     procedure, public :: Destroy => PMTOilImsDestroy
   end type pm_toil_ims_type
   
-  public :: PMToilImsCreate
+  public :: PMTOilImsCreate
   
 contains
 
@@ -55,7 +59,7 @@ function PMTOilImsCreate()
   use TOilIms_module, only : TOilImsDefaultSetup
   implicit none
   
-  class(pm_toil_ims_type), pointer :: PMToilImsCreate
+  class(pm_toil_ims_type), pointer :: PMTOilImsCreate
 
   class(pm_toil_ims_type), pointer :: toil_ims_pm
 
@@ -67,7 +71,7 @@ function PMTOilImsCreate()
   allocate(toil_ims_pm%max_change_isubvar(4))
   toil_ims_pm%max_change_isubvar = [0,0,0,0]
   
-  call PMSubsurfaceFlowCreate(toil_ims_pm)
+  call PMSubsurfaceFlowInit(toil_ims_pm)
   toil_ims_pm%name = 'TOilIms Flow'
   toil_ims_pm%header = 'TOIL_IMS FLOW'
 
@@ -79,7 +83,7 @@ end function PMTOilImsCreate
 
 ! ************************************************************************** !
 
-subroutine PMTOilImsRead(this,input)
+subroutine PMTOilImsReadSimOptionsBlock(this,input)
   ! 
   ! Reads input specific to pm_toil_Ims.
   ! 
@@ -121,58 +125,13 @@ subroutine PMTOilImsRead(this,input)
     call StringToUpper(keyword)   
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                        error_string,option)    
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)    
     if (found) cycle
           
     select case(trim(keyword))
-      case('ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,toil_ims_itol_scaled_res)
-        call InputDefaultMsg(input,option,'toil_ims_itol_scaled_res')
-        this%check_post_convergence = PETSC_TRUE
-      case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,toil_ims_itol_rel_update)
-        call InputDefaultMsg(input,option,'toil_ims_itol_rel_update')
-        this%check_post_convergence = PETSC_TRUE        
-      case('TOUGH2_ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,tempreal)
-        call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e1')
-        toil_ims_tgh2_itol_scld_res_e1 = tempreal
-        call InputReadDouble(input,option,toil_ims_tgh2_itol_scld_res_e2)
-        call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e2')
-        toil_ims_tough2_conv_criteria = PETSC_TRUE
-        this%check_post_convergence = PETSC_TRUE
-      case('WINDOW_EPSILON') 
-        call InputReadDouble(input,option,toil_ims_window_epsilon)
-        call InputErrorMsg(input,option,'window epsilon',error_string)
       case('ISOTHERMAL')
         toil_ims_isothermal = PETSC_TRUE
-      case('MAXIMUM_PRESSURE_CHANGE')
-        call InputReadDouble(input,option,toil_ims_max_pressure_change)
-        call InputErrorMsg(input,option,'maximum pressure change', &
-                           error_string)
-      case('MAX_ITERATION_BEFORE_DAMPING')
-        call InputReadInt(input,option,toil_ims_max_it_before_damping)
-        call InputErrorMsg(input,option,'maximum iteration before damping', &
-                           error_string)
-      case('DAMPING_FACTOR')
-        call InputReadDouble(input,option,toil_ims_damping_factor)
-        call InputErrorMsg(input,option,'damping factor',error_string)
-#if 0
-      case('GOVERN_MAXIMUM_PRESSURE_CHANGE')
-        call InputReadDouble(input,option,this%pressure_change_governor)
-        call InputErrorMsg(input,option,'maximum allowable pressure change', &
-                           error_string)
-      case('GOVERN_MAXIMUM_TEMPERATURE_CHANGE')
-        call InputReadDouble(input,option,this%temperature_change_governor)
-        call InputErrorMsg(input,option, &
-                           'maximum allowable temperature change', &
-                           error_string)
-      case('GOVERN_MAXIMUM_SATURATION_CHANGE')
-        call InputReadDouble(input,option,this%saturation_change_governor)
-        call InputErrorMsg(input,option,'maximum allowable saturation change', &
-                           error_string)
-#endif
       case('DEBUG_CELL')
         call InputReadInt(input,option,toil_ims_debug_cell_id)
         call InputErrorMsg(input,option,'debug cell id',error_string)
@@ -185,6 +144,9 @@ subroutine PMTOilImsRead(this,input)
       !  general_harmonic_diff_density = PETSC_FALSE
       case('FLUX_DIPC')
         call TOilImsFluxDipcSetup()
+      case('WINDOW_EPSILON') 
+        call InputReadDouble(input,option,toil_ims_window_epsilon)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,'TOIL_IMS Mode',option)
     end select
@@ -192,7 +154,137 @@ subroutine PMTOilImsRead(this,input)
   enddo  
   call InputPopBlock(input,option)
   
-end subroutine PMTOilImsRead
+end subroutine PMTOilImsReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMTOilImsReadTSSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  ! 
+  ! Read timestepper settings specific to the TOIL_IMS process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+
+  implicit none
+
+  class(pm_toil_ims_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  found = PETSC_TRUE
+  call PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine PMTOilImsReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMTOilImsReadNewtonSelectCase(this,input,keyword,found, &
+                                         error_string,option)
+  ! 
+  ! Reads input file parameters associated with the TOIL_IMS process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Option_module
+  use PM_TOilIms_Aux_module
+ 
+  implicit none
+  
+  class(pm_toil_ims_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  PetscReal :: tempreal
+
+  option => this%option
+
+  error_string = 'TOIL_IMS Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,toil_ims_itol_scaled_res)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE
+    case('ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,toil_ims_itol_rel_update)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE        
+    case('TOUGH2_ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E1', &
+                         error_string)
+      toil_ims_tgh2_itol_scld_res_e1 = tempreal
+      call InputReadDouble(input,option,toil_ims_tgh2_itol_scld_res_e2)
+      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E2', &
+                         error_string)
+      toil_ims_tough2_conv_criteria = PETSC_TRUE
+      this%check_post_convergence = PETSC_TRUE
+    case('MAXIMUM_PRESSURE_CHANGE')
+      call InputReadDouble(input,option,toil_ims_max_pressure_change)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ITERATION_BEFORE_DAMPING')
+      call InputReadInt(input,option,toil_ims_max_it_before_damping)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('DAMPING_FACTOR')
+      call InputReadDouble(input,option,toil_ims_damping_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMTOilImsReadNewtonSelectCase
+
+! ************************************************************************** !
+
+subroutine PMTOilImsInitializeSolver(this)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Solver_module
+
+  implicit none
+
+  class(pm_toil_ims_type) :: this
+
+  call PMBaseInitializeSolver(this)
+
+  ! helps accommodate rise in residual due to change in state
+  this%solver%newton_dtol = 1.d20
+
+end subroutine PMTOilImsInitializeSolver
 
 ! ************************************************************************** !
 
@@ -419,7 +511,7 @@ subroutine PMTOilImsJacobian(this,snes,xx,A,B,ierr)
   ! Date: 11/07/15
   ! 
 
-  use TOilIms_module, only : ToilImsJacobian
+  use TOilIms_module, only : TOilImsJacobian
 
   implicit none
   
@@ -436,7 +528,7 @@ end subroutine PMTOilImsJacobian
 
 ! ************************************************************************** !
 
-!subroutine PMTOilImsCheckUpdatePre(this,line_search,P,dP,changed,ierr)
+!subroutine PMTOilImsCheckUpdatePre(this,snes,P,dP,changed,ierr)
 !  ! 
 !  ! Author: Paolo Orsini (OGS)
 !  ! Date: 10/22/15
@@ -447,19 +539,19 @@ end subroutine PMTOilImsJacobian
 !  implicit none
 !  
 !  class(pm_toil_ims_type) :: this
-!  SNESLineSearch :: line_search
+!  SNES :: snes
 !  Vec :: P
 !  Vec :: dP
 !  PetscBool :: changed
 !  PetscErrorCode :: ierr
 !  
-!  call TOilImsCheckUpdatePre(line_search,P,dP,changed,this%realization,ierr)
+!  call TOilImsCheckUpdatePre(snes,P,dP,changed,this%realization,ierr)
 !
 !end subroutine PMTOilImsCheckUpdatePre
 
 ! ************************************************************************** !
 ! use function below when switching to latest code
-subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMTOilImsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Paolo Orsini (OGS)
   ! Date: 11/09/15
@@ -477,7 +569,7 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_toil_ims_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -507,7 +599,6 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
   PetscInt :: newton_iteration
 
   PetscReal :: slc, soc, ds_out_l, ds_out_o, del_sat_cand, sat_fac, &
@@ -531,7 +622,6 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
 
   patch => this%realization%patch
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -654,7 +744,7 @@ end subroutine PMTOilImsCheckUpdatePre
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-!subroutine PMTOilImsCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
+!subroutine PMTOilImsCheckUpdatePost(this,snes,P0,dP,P1,dP_changed, &
 !                                    P1_changed,ierr)
 !  ! 
 !  ! Author: Paolo Orsini
@@ -666,7 +756,7 @@ end subroutine PMTOilImsCheckUpdatePre
 !  implicit none
 !  
 !  class(pm_toil_ims_type) :: this
-!  SNESLineSearch :: line_search
+!  SNES :: snes
 !  Vec :: P0
 !  Vec :: dP
 !  Vec :: P1
@@ -674,14 +764,14 @@ end subroutine PMTOilImsCheckUpdatePre
 !  PetscBool :: P1_changed
 !  PetscErrorCode :: ierr
 !  
-!  call TOilImsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
+!  call TOilImsCheckUpdatePost(snes,P0,dP,P1,dP_changed, &
 !                                   P1_changed,this%realization,ierr)
 !
 !end subroutine PMTOilImsCheckUpdatePost
 
 ! ************************************************************************** !
 ! use function below when switching to the latest code
-subroutine PMTOilImsCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMTOilImsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Paolo Orsini
@@ -703,7 +793,7 @@ subroutine PMTOilImsCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_toil_ims_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -893,7 +983,7 @@ end subroutine PMTOilImsTimeCut
 
 subroutine PMTOilImsMaxChange(this)
   ! 
-  ! Not needed given ToilImsMaxChange is called in PostSolve
+  ! Not needed given TOilImsMaxChange is called in PostSolve
   ! 
   ! Author: Paolo Orsini
   ! Date: 11/09/15
@@ -905,7 +995,6 @@ subroutine PMTOilImsMaxChange(this)
   use Field_module
   use Grid_module
   use Global_Aux_module
-  !use General_Aux_module
   use Variables_module, only : LIQUID_PRESSURE, OIL_PRESSURE, OIL_SATURATION, &
                                TEMPERATURE
   implicit none

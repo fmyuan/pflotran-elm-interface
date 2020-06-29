@@ -1,5 +1,7 @@
 module Miscible_Aux_module
+
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -37,8 +39,6 @@ type, public :: Miscible_auxvar_elem_type
   end type Miscible_parameter_type
     
   type, public :: Miscible_type
-     PetscInt :: n_zero_rows
-     PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
      PetscBool :: auxvars_up_to_date
      PetscBool :: inactive_cells_exist
      PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -46,6 +46,7 @@ type, public :: Miscible_auxvar_elem_type
      type(Miscible_auxvar_type), pointer :: auxvars(:)
      type(Miscible_auxvar_type), pointer :: auxvars_bc(:)
      type(Miscible_auxvar_type), pointer :: auxvars_ss(:)
+     type(matrix_zeroing_type), pointer :: matrix_zeroing
      PetscReal, pointer :: Resold_AR(:,:)
      PetscReal, pointer :: Resold_BC(:,:)
      PetscReal, pointer :: Resold_FL(:,:)
@@ -85,13 +86,11 @@ function MiscibleAuxCreate()
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_zero_rows = 0
+  nullify(aux%matrix_zeroing)
   allocate(aux%Miscible_parameter)
   nullify(aux%Miscible_parameter%sir)
   nullify(aux%Miscible_parameter%ckwet)
   nullify(aux%Miscible_parameter%dencpr)
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
   nullify(aux%Resold_AR)
   nullify(aux%Resold_BC)
   nullify(aux%Resold_FL)
@@ -419,10 +418,8 @@ subroutine MiscibleAuxDestroy(aux)
   endif
 #endif
 
-  if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
-  nullify(aux%zero_rows_local)
-  if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)
-  nullify(aux%zero_rows_local_ghosted)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
+
   if (associated(aux%miscible_parameter)) then
     if (associated(aux%miscible_parameter%dencpr)) deallocate(aux%miscible_parameter%dencpr)
     nullify(aux%miscible_parameter%dencpr)

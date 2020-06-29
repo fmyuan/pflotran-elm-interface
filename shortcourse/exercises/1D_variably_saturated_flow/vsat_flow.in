@@ -11,10 +11,16 @@ END
 
 SUBSURFACE
 
-#=========================== solver options ===================================
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
 END
+
+#=========================== solver options ===================================
 
 #=========================== discretization ===================================
 GRID

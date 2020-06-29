@@ -129,7 +129,9 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
 
   string = 'ZONE T="' // &
            trim(StringFormatDouble(option%time/output_option%tconv)) // &
-           '"'
+           '"' // &
+           ', STRANDID=1, SOLUTIONTIME=' // &
+           trim(StringFormatDouble(option%time/output_option%tconv))
   string2 = ''
   select case(tecplot_format)
     case (TECPLOT_POINT_FORMAT)
@@ -141,7 +143,9 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
                   ', K=' // &
                   trim(StringFormatInt(grid%structured_grid%nz))
       else
-        string2 = 'POINT format currently not supported for unstructured'
+        option%io_buffer = &
+          'POINT format currently not supported for unstructured'
+        call PrintErrMsg(option)
       endif  
       string2 = trim(string2) // &
               ', DATAPACKING=POINT'
@@ -245,10 +249,10 @@ subroutine OutputTecplotBlock(realization_base)
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
   PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: tempint(0:3)
   Vec :: global_vec
   Vec :: natural_vec
   PetscInt :: ivar, isubvar, var_type
-  PetscBool :: include_gas_phase
   PetscErrorCode :: ierr
   
   discretization => realization_base%discretization
@@ -323,74 +327,84 @@ subroutine OutputTecplotBlock(realization_base)
     call OutputVelocitiesTecplotBlock(realization_base)
   endif
   
-  include_gas_phase = PETSC_FALSE
   if (output_option%print_tecplot_vel_face .and. &
       realization_base%discretization%itype == STRUCTURED_GRID) then
+    tempint = 0
     select case(option%iflowmode)
       case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
-        include_gas_phase = PETSC_TRUE
+        tempint(0) =  2
+        tempint(1) = LIQUID_PHASE
+        tempint(2) = GAS_PHASE
+      case(RICHARDS_MODE,TH_MODE)
+        tempint(0) =  1
+        tempint(1) = LIQUID_PHASE
       case(NULL_MODE)
-        if (option%transport%nphase > 1) include_gas_phase = PETSC_TRUE
+        if (option%transport%nphase > 1) then
+          tempint(0) =  2
+          tempint(1) = LIQUID_PHASE
+          tempint(2) = GAS_PHASE
+        endif
     end select
     if (grid%structured_grid%nx > 1) then
-      call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
-                                          X_DIRECTION,PETSC_FALSE)
-      if (include_gas_phase) then
-        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+      do i = 1, tempint(0)
+        call OutputFluxVelocitiesTecplotBlk(realization_base,tempint(i), &
                                             X_DIRECTION,PETSC_FALSE)
-      endif
+      enddo
     endif
     if (grid%structured_grid%ny > 1) then
-      call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
-                                          Y_DIRECTION,PETSC_FALSE)
-      if (include_gas_phase) then
-        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+      do i = 1, tempint(0)
+        call OutputFluxVelocitiesTecplotBlk(realization_base,tempint(i), &
                                             Y_DIRECTION,PETSC_FALSE)
-      endif
+      enddo
     endif
     if (grid%structured_grid%nz > 1) then
-      call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
-                                          Z_DIRECTION,PETSC_FALSE)
-      if (include_gas_phase) then
-        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+      do i = 1, tempint(0)
+        call OutputFluxVelocitiesTecplotBlk(realization_base,tempint(i), &
                                             Z_DIRECTION,PETSC_FALSE)
-      endif
+      enddo
     endif
   endif
+
   if (output_option%print_fluxes .and. &
       realization_base%discretization%itype == STRUCTURED_GRID) then
+    tempint = 0
+    select case(option%iflowmode)
+      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+        tempint(0) =  3
+        tempint(1) = LIQUID_PHASE
+        tempint(2) = GAS_PHASE
+        tempint(3) = THREE_INTEGER
+      case(RICHARDS_MODE)
+        tempint(0) =  1
+        tempint(1) = LIQUID_PHASE
+      case(TH_MODE)
+        tempint(0) =  2
+        tempint(1) = LIQUID_PHASE
+        tempint(2) = THREE_INTEGER
+      case(NULL_MODE)
+        if (option%transport%nphase > 1) then
+          tempint(0) =  2
+          tempint(1) = LIQUID_PHASE
+          tempint(2) = GAS_PHASE
+        endif
+    end select
     if (grid%structured_grid%nx > 1) then
-      select case(option%iflowmode)
-        case(G_MODE,H_MODE,WF_MODE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
-                                              X_DIRECTION,PETSC_TRUE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
-                                              X_DIRECTION,PETSC_TRUE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,THREE_INTEGER, &
-                                              X_DIRECTION,PETSC_TRUE)
-      end select
+      do i = 1, tempint(0)
+        call OutputFluxVelocitiesTecplotBlk(realization_base,tempint(i), &
+                                            X_DIRECTION,PETSC_TRUE)
+      enddo
     endif
     if (grid%structured_grid%ny > 1) then
-      select case(option%iflowmode)
-        case(G_MODE,H_MODE,WF_MODE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
-                                              Y_DIRECTION,PETSC_TRUE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
-                                              Y_DIRECTION,PETSC_TRUE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,THREE_INTEGER, &
-                                              Y_DIRECTION,PETSC_TRUE)
-      end select
+      do i = 1, tempint(0)
+        call OutputFluxVelocitiesTecplotBlk(realization_base,tempint(i), &
+                                            Y_DIRECTION,PETSC_TRUE)
+      enddo
     endif
     if (grid%structured_grid%nz > 1) then
-      select case(option%iflowmode)
-        case(G_MODE,H_MODE,WF_MODE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
-                                              Z_DIRECTION,PETSC_TRUE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
-                                              Z_DIRECTION,PETSC_TRUE)
-          call OutputFluxVelocitiesTecplotBlk(realization_base,THREE_INTEGER, &
-                                              Z_DIRECTION,PETSC_TRUE)
-      end select
+      do i = 1, tempint(0)
+        call OutputFluxVelocitiesTecplotBlk(realization_base,tempint(i), &
+                                            Z_DIRECTION,PETSC_TRUE)
+      enddo
     endif
   endif
       
@@ -608,6 +622,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: flux_unit
   
   PetscInt :: local_size, global_size
   PetscInt :: nx_local, ny_local, nz_local
@@ -616,6 +631,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   PetscInt :: local_id, ghosted_id
   PetscInt :: adjusted_size
   PetscInt :: count
+  PetscInt :: dof_to_label
   PetscReal, pointer :: array(:)
   PetscInt, allocatable :: indices(:)
   PetscErrorCode :: ierr
@@ -645,13 +661,20 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   endif
   
   if (output_flux) then
-    select case(iphase)
+    dof_to_label = iphase
+    if (iphase == 2 .and. option%iflowmode == TH_MODE) then
+      dof_to_label = 3
+    endif
+    ! iphase here is really idof
+    flux_unit = 'kmol/'
+    select case(dof_to_label)
       case(ONE_INTEGER)
         filename = trim(filename) // 'qw'
       case(TWO_INTEGER)
         filename = trim(filename) // 'qa'
       case(THREE_INTEGER)
         filename = trim(filename) // 'qh'
+        flux_unit = 'MJ/'
     end select
   else
     select case(iphase)
@@ -692,13 +715,13 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
              '"Z [m]",'
              
     if (output_flux) then
-      select case(iphase)
+      select case(dof_to_label)
         case(ONE_INTEGER)
-          filename = trim(filename) // 'Water'
+          string = trim(string) // '"Water'
         case(TWO_INTEGER)
-          filename = trim(filename) // 'Air'
+          string = trim(string) // '"Air'
         case(THREE_INTEGER)
-          filename = trim(filename) // 'Energy'
+          string = trim(string) // '"Energy'
       end select
     else
       select case(iphase)
@@ -720,7 +743,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
     
     ! mass units
     if (output_flux) then
-      string = trim(string) // 'kmol/'
+      string = trim(string) // flux_unit
     else
       string = trim(string) // 'm/'
     endif

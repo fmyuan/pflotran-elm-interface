@@ -28,6 +28,7 @@ module PMC_Base_class
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: stage
     PetscBool :: is_master
+    PetscLogDouble :: cumulative_time
     type(option_type), pointer :: option
     type(checkpoint_option_type), pointer :: checkpoint_option
     class(timestepper_base_type), pointer :: timestepper
@@ -40,12 +41,15 @@ module PMC_Base_class
     procedure(Output), nopass, pointer :: Output
   contains
     procedure, public :: Init => PMCBaseInit
+    procedure, public :: ReadNumericalMethods => PMCBaseReadNumericalMethods
     procedure, public :: InitializeRun
+    procedure, public :: SetWaypointPtr => PMCBaseSetWaypointPtr
     procedure, public :: InputRecord => PMCBaseInputRecord
     procedure, public :: CastToBase => PMCCastToBase
     procedure, public :: SetTimestepper => PMCBaseSetTimestepper
     procedure, public :: SetupSolvers => PMCBaseSetupSolvers
     procedure, public :: RunToTime => PMCBaseRunToTime
+    procedure, public :: StepDT => PMCBaseStepDT
     procedure, public :: Checkpoint => PMCBaseCheckpoint
     procedure, public :: CheckpointBinary => PMCBaseCheckpointBinary
     procedure, public :: RestartBinary => PMCBaseRestartBinary
@@ -148,6 +152,7 @@ subroutine PMCBaseInit(this)
   this%name = 'PMCBase'
   this%stage = 0
   this%is_master = PETSC_FALSE
+  this%cumulative_time = 0.d0
   nullify(this%option)
   nullify(this%checkpoint_option)
   nullify(this%timestepper)
@@ -162,6 +167,107 @@ subroutine PMCBaseInit(this)
   nullify(this%pm_ptr%pm)
   
 end subroutine PMCBaseInit
+
+! ************************************************************************** !
+
+subroutine PMCBaseReadNumericalMethods(this,input)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/09/20
+  ! 
+  use Input_Aux_module
+  use Solver_module
+  use String_module
+
+  implicit none
+  
+  class(pmc_base_type) :: this
+  type(input_type), pointer :: input
+
+  type(option_type), pointer :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found, found2
+
+  option => this%option
+
+  if (.not.associated(this%timestepper)) then
+    option%io_buffer = 'No time integrator is used with process model "' // &
+      trim(this%pm_list%name) // '". Therefore, a NUMERICAL_METHODS card &
+      &may not be used.'
+  endif
+
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    error_string = 'SUBSURFACE,NUMERICAL_METHODS'
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+      case ('TIMESTEPPER')
+        error_string = trim(error_string) // ',TIMESTEPPER'
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          call InputReadCard(input,option,keyword)
+          call InputErrorMsg(input,option,'keyword',error_string)
+          call StringToUpper(keyword)
+
+          ! leave in this order as PM overrides TS
+          found = PETSC_TRUE
+          call this%pm_list%ReadTSBlock(input,keyword,found, &
+                                        error_string,option)
+          if (.not.found) then
+            found = PETSC_TRUE
+            call this%timestepper%ReadSelectCase(input,keyword,found, &
+                                                 error_string,option)
+          endif
+          if (.not.found) then
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+          endif
+        enddo
+        call InputPopBlock(input,option)
+      case ('NEWTON_SOLVER')
+        error_string = trim(error_string) // ',NEWTON_SOLVER'
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          call InputReadCard(input,option,keyword)
+          call InputErrorMsg(input,option,'keyword',error_string)
+          call StringToUpper(keyword)
+
+          ! leave in this order as PM overrides TS
+          found = PETSC_TRUE
+          call this%pm_list%ReadNewtonBlock(input,keyword,found, &
+                                            error_string,option)
+          if (.not.found) then
+            found = PETSC_TRUE
+            call SolverReadNewtonSelectCase(this%timestepper%solver,input, &
+                                            keyword,found,error_string,option)
+          endif
+          if (.not.found) then 
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+          endif
+        enddo
+        call InputPopBlock(input,option)
+      case ('LINEAR_SOLVER')
+        call SolverReadLinear(this%timestepper%solver,input,option)
+      case default
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine PMCBaseReadNumericalMethods
 
 ! ************************************************************************** !
 
@@ -211,6 +317,29 @@ recursive subroutine PMCBaseInputRecord(this)
   endif
   
 end subroutine PMCBaseInputRecord
+
+! ************************************************************************** !
+
+subroutine PMCBaseSetWaypointPtr(this,outer_waypoint_list)
+  ! 
+  ! Initializes the timestepper for the simulation.  This is more than just
+  ! initializing parameters.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/21/14
+  ! 
+
+  use Option_module
+
+  implicit none
+
+  class(pmc_base_type) :: this
+  type(waypoint_list_type), pointer :: outer_waypoint_list
+
+  call this%timestepper%SetWaypointPtr(outer_waypoint_list, &
+                                       this%is_master,this%option)
+
+end subroutine PMCBaseSetWaypointPtr
 
 ! ************************************************************************** !
 
@@ -477,7 +606,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
                                         observation_plot_at_this_time_flag, &
                                         massbal_plot_at_this_time_flag, &
                                         checkpoint_at_this_time_flag)
-    call this%timestepper%StepDT(this%pm_list,local_stop_flag)
+    call this%StepDT(local_stop_flag)
     if (this%timestepper%time_step_cut_flag) then
       ! if timestep has been cut, all the I/O flags set above in 
       ! %SetTargetTime, which are based on waypoints times, not time step,
@@ -607,6 +736,29 @@ end subroutine PMCBaseRunToTime
 
 ! ************************************************************************** !
 
+subroutine PMCBaseStepDT(this,stop_flag)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/06/19
+  ! 
+  implicit none
+
+  class(pmc_base_type) :: this
+  PetscInt :: stop_flag
+
+  PetscLogDouble :: log_start_time
+  PetscLogDouble :: log_end_time
+  PetscErrorCode :: ierr
+
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
+  call this%timestepper%StepDT(this%pm_list,stop_flag)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+  this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
+
+end subroutine PMCBaseStepDT
+
+! ************************************************************************** !
+
 recursive subroutine PMCBaseUpdateSolution(this)
   ! 
   ! Author: Glenn Hammond
@@ -643,6 +795,7 @@ recursive subroutine FinalizeRun(this)
   ! Author: Glenn Hammond
   ! Date: 03/18/13
   ! 
+  use Option_module
 
   implicit none
   
@@ -653,6 +806,11 @@ recursive subroutine FinalizeRun(this)
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCBase%FinalizeRun()')
 #endif
+
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'(/,a,/," Total Time: ", es12.4, " [sec]")') &
+            trim(this%name), this%cumulative_time
+  endif  
   
   if (associated(this%timestepper)) then
     call this%timestepper%FinalizeRun(this%option)
@@ -661,6 +819,9 @@ recursive subroutine FinalizeRun(this)
   if (associated(this%pm_list)) then
     call this%pm_list%FinalizeRun()
   endif
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'("----------")')
+  endif  
 
   if (associated(this%child)) then
     call this%child%FinalizeRun()

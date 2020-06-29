@@ -12,7 +12,8 @@ module PM_Immis_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_immis_type
   contains
-    procedure, public :: ReadSimulationBlock => PMImmisRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMImmisReadSimOptionsBlock
     procedure, public :: InitializeTimestep => PMImmisInitializeTimestep
     procedure, public :: Residual => PMImmisResidual
     procedure, public :: Jacobian => PMImmisJacobian
@@ -54,7 +55,7 @@ function PMImmisCreate()
   
   allocate(immis_pm)
 
-  call PMSubsurfaceFlowCreate(immis_pm)
+  call PMSubsurfaceFlowInit(immis_pm)
   immis_pm%name = 'Immisible Flow'
   immis_pm%header = 'IMMISCIBLE FLOW'
 
@@ -64,7 +65,7 @@ end function PMImmisCreate
 
 ! ************************************************************************** !
 
-subroutine PMImmisRead(this,input)
+subroutine PMImmisReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Immis process model
   ! 
@@ -104,8 +105,8 @@ subroutine PMImmisRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -115,7 +116,7 @@ subroutine PMImmisRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMImmisRead
+end subroutine PMImmisReadSimOptionsBlock
 
 ! ************************************************************************** !
 
@@ -284,7 +285,7 @@ end subroutine PMImmisJacobian
 
 ! ************************************************************************** !
 
-subroutine PMImmisCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMImmisCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -295,19 +296,19 @@ subroutine PMImmisCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_immis_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call ImmisCheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
+  call ImmisCheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMImmisCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMImmisCheckUpdatePost(this,line_search,P0,dP,P1,dX_changed, &
+subroutine PMImmisCheckUpdatePost(this,snes,P0,dP,P1,dX_changed, &
                                   X1_changed,ierr)
   ! 
   ! Author: Gautam Bisht
@@ -319,7 +320,7 @@ subroutine PMImmisCheckUpdatePost(this,line_search,P0,dP,P1,dX_changed, &
   implicit none
   
   class(pm_immis_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: P0
   Vec :: dP
   Vec :: P1
@@ -327,8 +328,8 @@ subroutine PMImmisCheckUpdatePost(this,line_search,P0,dP,P1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call ImmisCheckUpdatePost(line_search,P0,dP,P1,dX_changed, &
-                               X1_changed,this%realization,ierr)
+  call ImmisCheckUpdatePost(snes,P0,dP,P1,dX_changed, &
+                            X1_changed,this%realization,ierr)
 
 end subroutine PMImmisCheckUpdatePost
 #endif

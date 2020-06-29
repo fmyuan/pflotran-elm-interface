@@ -11,15 +11,19 @@ module PFLOTRAN_Constants_module
 
   private
 
+  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 3
+  PetscInt, parameter :: PFLOTRAN_VERSION_MINOR = 0
+  PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = -1 ! (alpha < -1; beta = -1)
+
 #define VMAJOR 3
-#define VMINOR 11
-#define VSUBMINOR 3
+#define VMINOR 13
+#define VSUBMINOR 0
 #if (PETSC_VERSION_MAJOR < VMAJOR ||                    \
      (PETSC_VERSION_MAJOR == VMAJOR &&                  \
       (PETSC_VERSION_MINOR < VMINOR ||                  \
        (PETSC_VERSION_MINOR == VMINOR &&                \
         (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
-#error "Please use PETSc version 3.11.3: 'git checkout v3.11.3' in $PETSC_DIR"
+#error "Please use PETSc version 3.13: 'git checkout v3.13' in $PETSC_DIR"
 #endif
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS 
   ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
@@ -46,6 +50,7 @@ module PFLOTRAN_Constants_module
   ! EXIT codes
   PetscInt, parameter, public :: EXIT_SUCCESS = 0
   PetscInt, parameter, public :: EXIT_USER_ERROR = 87
+  PetscInt, parameter, public :: EXIT_FAILURE = 88
   
   ! formula weights
   PetscReal, parameter, public :: FMWNACL = 58.44277d0
@@ -110,6 +115,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: X_DIRECTION = 1
   PetscInt, parameter, public :: Y_DIRECTION = 2
   PetscInt, parameter, public :: Z_DIRECTION = 3
+  PetscInt, parameter, public :: XY_DIRECTION = 4
+  PetscInt, parameter, public :: XZ_DIRECTION = 5
+  PetscInt, parameter, public :: YZ_DIRECTION = 6
   PetscInt, parameter, public :: LOWER = 1
   PetscInt, parameter, public :: UPPER = 2
   
@@ -359,7 +367,8 @@ module PFLOTRAN_Constants_module
   
   public :: Initialized, &
             Uninitialized, &
-            UninitializedMessage
+            UninitializedMessage, &
+            GetVersion
   
 contains
 
@@ -506,5 +515,35 @@ function UninitializedMessage(variable_name,routine_name)
   endif
   
 end function UninitializedMessage
+
+! ************************************************************************** !
+
+function GetVersion()
+  ! 
+  ! Returns the PFLOTRAN version in string format using semantic versioning
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/23/20
+  !
+  implicit none
+  
+  character(len=MAXWORDLENGTH) :: GetVersion
+  
+  character(len=MAXWORDLENGTH) :: word
+  
+  write(word,*) PFLOTRAN_VERSION_MAJOR
+  GetVersion = 'PFLOTRAN v' // trim(adjustl(word))
+  write(word,*) PFLOTRAN_VERSION_MINOR
+  GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
+  if (PFLOTRAN_VERSION_PATCH >= 0) then
+    write(word,*) PFLOTRAN_VERSION_PATCH
+    GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
+  else if (PFLOTRAN_VERSION_PATCH < -1) then
+    GetVersion = trim(GetVersion) // '-alpha'
+  else
+    GetVersion = trim(GetVersion) // '-beta'
+  endif
+  
+end function GetVersion
 
 end module PFLOTRAN_Constants_module

@@ -11,9 +11,18 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    MAXIMUM_NUMBER_OF_TIMESTEPS 1
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     63
     131
@@ -27,9 +36,6 @@ REGRESSION
 END
 
 #=========================== timestepper ======================================
-TIMESTEPPER FLOW
-  MAXIMUM_NUMBER_OF_TIMESTEPS 1
-END
 
 #=========================== discretization ===================================
 GRID

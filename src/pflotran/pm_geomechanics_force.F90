@@ -445,6 +445,7 @@ subroutine PMGeomechForceDestroy(this)
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
+  call PMBaseDestroy(this)
 
 #ifdef PM_GEOMECH_FORCE_DEBUG
   call PrintMsg(this%option,'PMGeomechForce%Destroy()')

@@ -47,6 +47,7 @@ subroutine GeneralSetup(realization)
   use Fluid_module
   use Material_Aux_class
   use Output_Aux_module
+  use Matrix_Zeroing_module
  
   implicit none
   
@@ -63,6 +64,7 @@ subroutine GeneralSetup(realization)
   PetscInt :: i, idof, count, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(general_auxvar_type), pointer :: gen_auxvars(:,:)
   type(general_auxvar_type), pointer :: gen_auxvars_bc(:)
@@ -85,12 +87,12 @@ subroutine GeneralSetup(realization)
 
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil heat capacity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   
@@ -104,34 +106,37 @@ subroutine GeneralSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
         flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'ERROR: Non-initialized tortuosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'ERROR: Non-initialized soil particle density.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       flag(5) = 1
     endif
   enddo
   
-  if (error_found .or. maxval(flag) > 0) then
+  error_found = error_found .or. (maxval(flag) > 0)
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (error_found) then
     option%io_buffer = 'Material property errors found in GeneralSetup.'
     call PrintErrMsg(option)
   endif
@@ -185,8 +190,10 @@ subroutine GeneralSetup(realization)
   patch%aux%General%num_aux_ss = sum_connection
 
   ! create array for zeroing Jacobian entries if isothermal and/or no air
-  allocate(patch%aux%General%row_zeroing_array(grid%nlmax))
-  patch%aux%General%row_zeroing_array = 0
+  if (general_isothermal .or. general_no_air) then
+    call MatrixZeroingInitRowZeroing(patch%aux%General%matrix_zeroing, &
+                                     grid%nlmax)
+  endif
   
   ! initialize parameters
   cur_fluid_property => realization%fluid_properties
@@ -1476,8 +1483,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   enddo
   
   if (patch%aux%General%inactive_cells_exist) then
-    do i=1,patch%aux%General%n_inactive_rows
-      r_p(patch%aux%General%inactive_rows_local(i)) = 0.d0
+    do i=1,patch%aux%General%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%General%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
   
@@ -1876,15 +1883,16 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   ! zero out isothermal and inactive cells
   if (patch%aux%General%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%General%n_inactive_rows, &
-                          patch%aux%General%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,patch%aux%General%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%General%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 
   if (general_isothermal) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%General%row_zeroing_array
+    zeros => patch%aux%General%matrix_zeroing%row_zeroing_array
     ! zero energy residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -1897,7 +1905,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
   if (general_no_air) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%General%row_zeroing_array
+    zeros => patch%aux%General%matrix_zeroing%row_zeroing_array
     ! zero gas component mass balance residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)

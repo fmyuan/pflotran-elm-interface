@@ -50,6 +50,7 @@ subroutine WIPPFloSetup(realization)
   use Output_Aux_module
   use Characteristic_Curves_module
   use WIPP_Characteristic_Curve_module
+  use Matrix_Zeroing_module
  
   implicit none
   
@@ -66,6 +67,7 @@ subroutine WIPPFloSetup(realization)
   PetscReal :: dist(3)
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
@@ -94,23 +96,26 @@ subroutine WIPPFloSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
         flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       flag(5) = 1
     endif
   enddo
   
-  if (error_found .or. maxval(flag) > 0) then
+  error_found = error_found .or. (maxval(flag) > 0)
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (error_found) then
     option%io_buffer = 'Material property errors found in WIPPFloSetup.'
     call PrintErrMsg(option)
   endif
@@ -149,10 +154,6 @@ subroutine WIPPFloSetup(realization)
   endif
   patch%aux%WIPPFlo%num_aux_ss = sum_connection
 
-  ! create array for zeroing Jacobian entries if inactive
-  allocate(patch%aux%WIPPFlo%row_zeroing_array(grid%nlmax))
-  patch%aux%WIPPFlo%row_zeroing_array = 0
-  
   list => realization%output_option%output_snap_variable_list
   call WIPPFloSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
@@ -1247,8 +1248,8 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   endif
 
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
-    do i=1,patch%aux%WIPPFlo%n_inactive_rows
-      r_p(patch%aux%WIPPFlo%inactive_rows_local(i)) = 0.d0
+    do i=1,patch%aux%WIPPFlo%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%WIPPFlo%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
   
@@ -1669,8 +1670,9 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   ! zero out inactive cells
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%WIPPFlo%n_inactive_rows, &
-                          patch%aux%WIPPFlo%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,patch%aux%WIPPFlo%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%WIPPFlo%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif

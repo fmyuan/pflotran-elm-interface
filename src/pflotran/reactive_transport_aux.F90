@@ -6,6 +6,7 @@ module Reactive_Transport_Aux_module
   ! this module cannot depend on any other modules besides Option_module
   ! and Matrix_Block_Aux_module
   use Matrix_Block_Aux_module
+  use Matrix_Zeroing_module
 
   use PFLOTRAN_Constants_module
 
@@ -87,6 +88,7 @@ module Reactive_Transport_Aux_module
     PetscInt :: offset_collcomp
     PetscInt :: offset_immobile
     PetscInt :: offset_auxiliary
+    PetscBool :: species_dependent_diffusion
     PetscInt, pointer :: pri_spec_to_coll_spec(:)
     PetscInt, pointer :: coll_spec_to_pri_spec(:)
     PetscReal, pointer :: diffusion_coefficient(:,:)
@@ -126,13 +128,12 @@ module Reactive_Transport_Aux_module
 
   type, public :: reactive_transport_type
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
-    PetscInt :: n_zero_rows
     PetscBool :: inactive_cells_exist
     type(reactive_transport_param_type), pointer :: rt_parameter
     type(reactive_transport_auxvar_type), pointer :: auxvars(:)
     type(reactive_transport_auxvar_type), pointer :: auxvars_bc(:)
     type(reactive_transport_auxvar_type), pointer :: auxvars_ss(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type reactive_transport_type
 
   interface RTAuxVarDestroy
@@ -172,9 +173,7 @@ function RTAuxCreate(naqcomp,nphase)
   nullify(aux%auxvars)      ! rt_auxvars for local and ghosted grid cells
   nullify(aux%auxvars_bc)   ! rt_auxvars for boundary connections
   nullify(aux%auxvars_ss)   ! rt_auxvars for source/sinks
-  aux%n_zero_rows = 0    ! number of zeroed rows in Jacobian for inactive cells
-  nullify(aux%zero_rows_local)  ! ids of zero rows in local, non-ghosted numbering
-  nullify(aux%zero_rows_local_ghosted) ! ids of zero rows in ghosted numbering
+  nullify(aux%matrix_zeroing)
   aux%inactive_cells_exist = PETSC_FALSE
 
   allocate(aux%rt_parameter)
@@ -194,6 +193,7 @@ function RTAuxCreate(naqcomp,nphase)
   aux%rt_parameter%offset_collcomp = 0
   aux%rt_parameter%offset_immobile = 0
   aux%rt_parameter%offset_auxiliary = 0
+  aux%rt_parameter%species_dependent_diffusion = PETSC_FALSE
   nullify(aux%rt_parameter%pri_spec_to_coll_spec)
   nullify(aux%rt_parameter%coll_spec_to_pri_spec)
   aux%rt_parameter%calculate_transverse_dispersion = PETSC_FALSE
@@ -686,8 +686,7 @@ subroutine RTAuxDestroy(aux)
   call RTAuxVarDestroy(aux%auxvars)
   call RTAuxVarDestroy(aux%auxvars_bc)
   call RTAuxVarDestroy(aux%auxvars_ss)
-  call DeallocateArray(aux%zero_rows_local)
-  call DeallocateArray(aux%zero_rows_local_ghosted)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%rt_parameter)) then
     call DeallocateArray(aux%rt_parameter%diffusion_coefficient)

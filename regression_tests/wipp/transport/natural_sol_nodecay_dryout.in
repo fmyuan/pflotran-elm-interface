@@ -11,29 +11,11 @@ SIMULATION
         HARMONIC_PERMEABILITY_ONLY
         DEFAULT_ALPHA
         GAS_COMPONENT_FORMULA_WEIGHT     2.01588D0 ! H2 kg/kmol
-        LIQUID_RESIDUAL_INFINITY_TOL     1.d-6
-        GAS_RESIDUAL_INFINITY_TOL        1.d-6
-        MAX_ALLOW_REL_LIQ_PRES_CHANG_NI  1.d-5
-        MAX_ALLOW_REL_GAS_SAT_CHANGE_NI  1.d-4
-        REL_GAS_SATURATION_PERTURBATION  1.d-8
-        REL_LIQ_PRESSURE_PERTURBATION    1.d-8
-        MIN_GAS_SATURATION_PERTURBATION  1.d-10
-        MIN_LIQ_PRESSURE_PERTURBATION    1.d-2
-        GAS_SAT_THRESH_FORCE_EXTRA_NI    1.d-3
-        GAS_SAT_THRESH_FORCE_TS_CUT      0.20d0
-        MAX_ALLOW_GAS_SAT_CHANGE_TS      1.0d0
-        GAS_SAT_CHANGE_TS_GOVERNOR       3.d-1
-        GAS_SAT_GOV_SWITCH_ABS_TO_REL    1.d0
-        MIN_LIQ_PRES_FORCE_TS_CUT       -1.d8   ! Pa
-        MAX_ALLOW_LIQ_PRES_CHANGE_TS     1.d7   ! Pa
-        LIQ_PRES_CHANGE_TS_GOVERNOR      5.d5   ! Pa
-        JACOBIAN_PRESSURE_DERIV_SCALE    1.d7
-        SCALE_JACOBIAN
       END
     END
     
-    NUCLEAR_WASTE_TRANSPORT  nw_trans
-      GLOBAL_IMPLICIT
+    SUBSURFACE_TRANSPORT  nw_trans
+      MODE NWT
     END
     
   END
@@ -41,12 +23,43 @@ END
 
 !==============================================================================
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25d0
+    TIMESTEP_REDUCTION_FACTOR 5.0d-1
+    GAS_SAT_CHANGE_TS_GOVERNOR       3.d-1
+    GAS_SAT_GOV_SWITCH_ABS_TO_REL    1.d0
+    LIQ_PRES_CHANGE_TS_GOVERNOR      5.d5   ! Pa
+  /
+
+  NEWTON_SOLVER
+    LIQUID_RESIDUAL_INFINITY_TOL     1.d-6
+    GAS_RESIDUAL_INFINITY_TOL        1.d-6
+    MAX_ALLOW_REL_LIQ_PRES_CHANG_NI  1.d-5
+    MAX_ALLOW_REL_GAS_SAT_CHANGE_NI  1.d-4
+    REL_GAS_SATURATION_PERTURBATION  1.d-8
+    REL_LIQ_PRESSURE_PERTURBATION    1.d-8
+    MIN_GAS_SATURATION_PERTURBATION  1.d-10
+    MIN_LIQ_PRESSURE_PERTURBATION    1.d-2
+    GAS_SAT_THRESH_FORCE_EXTRA_NI    1.d-3
+    GAS_SAT_THRESH_FORCE_TS_CUT      0.20d0
+    MAX_ALLOW_GAS_SAT_CHANGE_TS      1.0d0
+    MIN_LIQ_PRES_FORCE_TS_CUT       -1.d8   ! Pa
+    MAX_ALLOW_LIQ_PRES_CHANGE_TS     1.d7   ! Pa
+    JACOBIAN_PRESSURE_DERIV_SCALE    1.d7
+    SCALE_JACOBIAN
+  /
+
+END
 !==============================================================================
 
 !=========================== REGRESSION =======================================
 
 REGRESSION
-  CELLS
+  CELL_IDS
     3
   /
 END
@@ -199,10 +212,6 @@ END
 noskip
 !=========================== times ============================================
 
-TIMESTEPPER FLOW
-  TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25d0
-  TIMESTEP_REDUCTION_FACTOR 5.0d-1
-END
 
 TIME
   FINAL_TIME 5.0 yr

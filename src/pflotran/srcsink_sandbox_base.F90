@@ -140,11 +140,6 @@ subroutine SSSandboxBaseSelectCase(this,input,option,keyword,found)
   
   found = PETSC_TRUE
   select case(trim(keyword))
-    case('REGION')
-      option%io_buffer = 'The REGION card has been deprecated in &
-        &Source/Sink Sandbox.  Please switch to using a COORDINATE and &
-        &defining one Src/Sink block for each coordinate.'
-      call PrintErrMsg(option)
     case('COORDINATE')
       call GeometryReadCoordinate(input,option,this%coordinate,error_string)
     case('CELL_ID')

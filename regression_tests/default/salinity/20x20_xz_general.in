@@ -8,7 +8,7 @@ SIMULATION
       MODE GENERAL
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
     AUXILIARY SALINITY
       SPECIES Tracer 58.442469d0
@@ -23,12 +23,29 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #NUMERICAL_JACOBIAN_FLOW
 
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
-  CELLS
+  CELL_IDS
     200
   /
 END
@@ -48,22 +65,10 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-END
 
-NEWTON_SOLVER FLOW
-END
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
-NEWTON_SOLVER TRANSPORT
-END
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

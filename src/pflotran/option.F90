@@ -19,9 +19,8 @@ module Option_module
     type(transport_option_type), pointer :: transport
 
     PetscInt :: id                         ! id of realization
-    PetscInt :: successful_exit_code       ! code passed out of PFLOTRAN
-                                           ! indicating successful completion
-                                           ! of simulation
+    PetscInt :: exit_code                  ! code passed out of PFLOTRAN
+                                           ! at end of simulation
     PetscMPIInt :: global_comm             ! MPI_COMM_WORLD
     PetscMPIInt :: global_rank             ! rank in MPI_COMM_WORLD
     PetscMPIInt :: global_commsize         ! size of MPI_COMM_WORLD
@@ -300,6 +299,7 @@ module Option_module
             OptionCreateProcessorGroups, &
             OptionBeginTiming, &
             OptionEndTiming, &
+            OptionPrintPFLOTRANHeader, &
             OptionSetBlocking, &
             OptionCheckNonBlockingError, &
             OptionFinalize, &
@@ -358,7 +358,7 @@ subroutine OptionInitAll(option)
   call OptionTransportInitAll(option%transport)
 
   option%id = 0
-  option%successful_exit_code = 0
+  option%exit_code = 0
 
   option%global_comm = 0
   option%global_rank = 0
@@ -716,7 +716,12 @@ subroutine PrintErrMsg2(option,string)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
-    call exit(EXIT_USER_ERROR)
+    select case(option%exit_code)
+      case(EXIT_FAILURE)
+        call exit(option%exit_code)
+      case default
+        call exit(EXIT_USER_ERROR)
+    end select
   else
     option%error_while_nonblocking = PETSC_TRUE
   endif
@@ -1392,6 +1397,40 @@ end subroutine OptionInitPetsc
 
 ! ************************************************************************** !
 
+subroutine OptionPrintPFLOTRANHeader(option)
+  !
+  ! Start outer timing.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/20/20
+  !
+
+  implicit none
+
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: version
+  character(len=MAXSTRINGLENGTH) :: string
+
+  version = GetVersion()
+  if (option%myrank == option%io_rank) then
+    write(string,*) len_trim(version)+4
+    string = trim(adjustl(string)) // '("=")'
+    string = '(/,' // trim(string) // ',/,"  '// &
+             trim(version) // &
+             '",/,' // trim(string) // ',/)'
+    if (option%print_to_screen) then
+      write(*,string)
+    endif
+    if (option%print_to_file) then
+      write(option%fid_out,string)
+    endif
+  endif
+
+end subroutine OptionPrintPFLOTRANHeader
+
+! ************************************************************************** !
+
 subroutine OptionBeginTiming(option)
   !
   ! Start outer timing.
@@ -1602,7 +1641,7 @@ subroutine OptionFinalize(option)
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             '-objects_left','yes',ierr);CHKERRQ(ierr)
   call MPI_Barrier(option%global_comm,ierr)
-  iflag = option%successful_exit_code
+  iflag = option%exit_code
   call OptionDestroy(option)
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)

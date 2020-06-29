@@ -6,7 +6,7 @@ END
 SUBSURFACE
 EXTERNAL_FILE subsurface_common_block.txt
 EXTERNAL_FILE ../common/2x2x2_uge.txt
-EXTERNAL_FILE ../integral_flux/integral_flux_block_z.txt
+EXTERNAL_FILE ./integral_flux_block_z.txt
 
 #=========================== boundary and initial conditions ==================
 BOUNDARY_CONDITION top

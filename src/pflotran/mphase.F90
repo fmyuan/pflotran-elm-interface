@@ -2073,6 +2073,7 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Material_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
+  use Global_module
 
   implicit none
 
@@ -2122,6 +2123,7 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
   ! These 3 must be called before MphaseUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
+  call GlobalUpdateState(realization)
 
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                PERMEABILITY_X,ZERO_INTEGER)
@@ -3102,8 +3104,8 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
 
   if (mphase%inactive_cells_exist) then
-    do i=1,mphase%n_zero_rows
-      r_p(mphase%zero_rows_local(i)) = 0.d0
+    do i=1,mphase%matrix_zeroing%n_inactive_rows
+      r_p(mphase%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
 
@@ -3762,12 +3764,14 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 ! zero out isothermal and inactive cells
 #ifdef ISOTHERMAL
   zero = 0.d0
-  call MatZeroRowsLocal(A,n_zero_rows,zero_rows_local_ghosted,zero, &
+  call MatZeroRowsLocal(A,mphase%matrix_zeroing%n_inactive_rows, &
+                        mphase%matrix_zeroing%inactive_rows_local_ghosted, &
+                        zero, &
                         PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
   do i=1, n_zero_rows
-    ii = mod(zero_rows_local(i),option%nflowdof)
-    ip1 = zero_rows_local_ghosted(i)
+    ii = mod(mphase%matrix_zeroing%inactive_rows_local(i),option%nflowdof)
+    ip1 = mphase%matrix_zeroing%inactive_rows_local_ghosted(i)
     if (ii == 0) then
       ip2 = ip1-1
     elseif (ii == option%nflowdof-1) then
@@ -3787,8 +3791,9 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
   if (mphase%inactive_cells_exist) then
     f_up = 1.d0
-    call MatZeroRowsLocal(A,mphase%n_zero_rows, &
-                          mphase%zero_rows_local_ghosted,f_up, &
+    call MatZeroRowsLocal(A,mphase%matrix_zeroing%n_inactive_rows, &
+                          mphase%matrix_zeroing%inactive_rows_local_ghosted, &
+                          f_up, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif

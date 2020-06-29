@@ -12,13 +12,27 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+  /
+
+  LINEAR_SOLVER
+    KSP_TYPE PREONLY
+    PC_TYPE LU
+  /
+
+END
+
 #=========================== dbase ============================================
 DBASE_FILENAME 543_dbase.txt
 
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 2
-  CELLS
+  CELL_IDS
     29
   /
 END
@@ -26,17 +40,8 @@ END
 #=========================== flow mode ========================================
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-END
 
-NEWTON_SOLVER FLOW
-END
 
-LINEAR_SOLVER FLOW
-  KSP_TYPE PREONLY
-  PC_TYPE LU
-END
 
 #=========================== discretization ===================================
 GRID

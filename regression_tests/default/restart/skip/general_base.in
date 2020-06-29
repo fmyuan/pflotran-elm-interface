@@ -5,12 +5,9 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE GENERAL
-      OPTIONS
-        MAX_CFL 50.d0
-      /
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
   CHECKPOINT

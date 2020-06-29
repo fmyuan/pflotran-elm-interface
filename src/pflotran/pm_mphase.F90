@@ -12,7 +12,9 @@ module PM_Mphase_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_mphase_type
   contains
-    procedure, public :: ReadSimulationBlock => PMMphaseRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMMphaseReadSimOptionsBlock
+    procedure, public :: InitializeSolver => PMMphaseInitializeSolver
     procedure, public :: InitializeTimestep => PMMphaseInitializeTimestep
     procedure, public :: Residual => PMMphaseResidual
     procedure, public :: Jacobian => PMMphaseJacobian
@@ -54,7 +56,7 @@ function PMMphaseCreate()
 
   allocate(mphase_pm)
 
-  call PMSubsurfaceFlowCreate(mphase_pm)
+  call PMSubsurfaceFlowInit(mphase_pm)
   mphase_pm%name = 'Mphase CO2 Flow'
   mphase_pm%header = 'MPHASE CO2 FLOW'
 
@@ -64,7 +66,7 @@ end function PMMphaseCreate
 
 ! ************************************************************************** !
 
-subroutine PMMphaseRead(this,input)
+subroutine PMMphaseReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Mphase process model
   ! 
@@ -104,8 +106,8 @@ subroutine PMMphaseRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -115,7 +117,27 @@ subroutine PMMphaseRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMMphaseRead
+end subroutine PMMphaseReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMMphaseInitializeSolver(this)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Solver_module
+
+  implicit none
+
+  class(pm_mphase_type) :: this
+
+  call PMBaseInitializeSolver(this)
+
+  ! helps accommodate rise in residual due to change in state
+  this%solver%newton_dtol = 1.d9
+
+end subroutine PMMphaseInitializeSolver
 
 ! ************************************************************************** !
 
@@ -377,7 +399,7 @@ end subroutine PMMphaseJacobian
 
 ! ************************************************************************** !
 
-subroutine PMMphaseCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMMphaseCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -388,19 +410,19 @@ subroutine PMMphaseCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_mphase_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call MphaseCheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
+  call MphaseCheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMMphaseCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMMphaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMMphaseCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                    X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
@@ -412,7 +434,7 @@ subroutine PMMphaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_mphase_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -420,7 +442,7 @@ subroutine PMMphaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call MphaseCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
+  call MphaseCheckUpdatePost(snes,X0,dX,X1,dX_changed, &
                                X1_changed,this%realization,ierr)
 
 end subroutine PMMphaseCheckUpdatePost

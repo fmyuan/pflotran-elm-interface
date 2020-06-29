@@ -668,7 +668,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     if (.not.associated(observation)) exit
     next_observation => observation%next
     select case(observation%itype)
-      case(OBSERVATION_SCALAR)
+      case(OBSERVATION_SCALAR,OBSERVATION_AGGREGATE)
         ! pointer to region
         observation%region => RegionGetPtrFromList(observation%linkage_name, &
                                                     patch%region_list)
@@ -689,13 +689,14 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
             &model domain.'
           call PrintErrMsg(option)
         endif
-        if (observation%region%num_cells == 0) then
+        if (observation%region%num_cells == 0 .and. observation%itype == &
+            OBSERVATION_SCALAR) then
           ! remove the observation object
           call ObservationRemoveFromList(observation,patch%observation_list)
         endif
       case(OBSERVATION_FLUX)
         coupler => CouplerGetPtrFromList(observation%linkage_name, &
-                                         patch%boundary_condition_list)
+                                         patch%boundary_condition_list,option)
         if (associated(coupler)) then
           observation%connection_set => coupler%connection_set
         else
@@ -6749,26 +6750,46 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
             patch%aux%NWT%auxvars(grid%nL2G(local_id))%total_bulk_conc(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
         case(AQUEOUS_EQ_CONC)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
-            patch%aux%NWT%auxvars(grid%nL2G(local_id))%aqueous_eq_conc(isubvar)
+              patch%aux%NWT%auxvars(grid%nL2G(local_id))%aqueous_eq_conc(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
         case(MNRL_EQ_CONC)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%NWT%auxvars(grid%nL2G(local_id))%mnrl_eq_conc(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
         case(SORB_EQ_CONC)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%NWT%auxvars(grid%nL2G(local_id))%sorb_eq_conc(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
         case(MNRL_VOLUME_FRACTION)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%NWT%auxvars(grid%nL2G(local_id))%mnrl_vol_frac(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
       end select
     
@@ -6984,9 +7005,15 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             enddo
           endif
         case(GAS_CONCENTRATION)
+          iphase = 2
           do local_id=1,grid%nlmax
-            vec_ptr(local_id) = &
-              patch%aux%RT%auxvars(grid%nL2G(local_id))%gas_pp(isubvar)
+            ghosted_id = grid%nL2G(local_id)
+            if (patch%aux%Global%auxvars(ghosted_id)%sat(iphase) > 0.d0) then
+              vec_ptr(local_id) = &
+                patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
+            else
+              vec_ptr(local_id) = 0.d0
+            endif
           enddo
         case(MINERAL_VOLUME_FRACTION)
           do local_id=1,grid%nlmax
@@ -8246,7 +8273,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case(MNRL_VOLUME_FRACTION)
           value = patch%aux%NWT%auxvars(ghosted_id)%mnrl_vol_frac(isubvar)
       end select
-    
+      if ( (patch%aux%NWT%truncate_output) .and. &
+           ((value < 1.d-99) .and. (value > 0.d0)) ) then
+        value = 1.d-99
+      endif
+          
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY, TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_VOLUME_FRACTION,MINERAL_RATE,MINERAL_SATURATION_INDEX, &
@@ -8383,7 +8414,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             endif
           endif
         case(GAS_CONCENTRATION)
-          value = patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
+          iphase = 2
+          if (patch%aux%Global%auxvars(ghosted_id)%sat(iphase) > 0.d0) then
+            value = patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
+          else
+            value = 0.d0
+          endif
         case(MINERAL_VOLUME_FRACTION)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_volfrac(isubvar)
         case(MINERAL_SURFACE_AREA)
@@ -10081,6 +10117,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   type(plane_type), pointer :: plane
   PetscReal,pointer :: coordinates_and_directions(:,:)
   PetscInt,pointer :: vertices(:,:)
+  PetscInt,pointer :: by_cell_ids(:,:)
   type(grid_type), pointer :: grid
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
@@ -10130,11 +10167,19 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   plane => integral_flux%plane
   coordinates_and_directions => integral_flux%coordinates_and_directions
   vertices => integral_flux%vertices
+  by_cell_ids => integral_flux%cell_ids
   num_to_be_found = 0
+
+  error_string = 'error string missing in PatchGetIntegralFluxConnections'
+
+  if (associated(plane)) then
+    error_string = 'plane coincides with an internal cell boundary &
+      &or a boundary condition'
+  endif
 
   if (associated(polygon)) then
     error_string = 'polygon coincides with an internal cell boundary &
-      &or a boundary condition.'
+      &or a boundary condition'
     ! determine orientation of polygon
     allocate(plane)
     if (size(polygon) > 2) then
@@ -10198,7 +10243,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
 
   if (associated(coordinates_and_directions)) then
     error_string = 'coordinates and directions coincide with an internal &
-      &cell boundary or a boundary condition.'
+      &cell boundary or a boundary condition'
     num_to_be_found = size(coordinates_and_directions,2)
     allocate(yet_to_be_found(num_to_be_found))
     yet_to_be_found = PETSC_TRUE
@@ -10217,6 +10262,13 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
     allocate(yet_to_be_found(num_to_be_found))
     yet_to_be_found = PETSC_TRUE
   endif
+  
+  if (associated(by_cell_ids)) then
+    error_string = 'cell ids match the an actual face between these cells'
+    num_to_be_found = size(by_cell_ids,2)
+    allocate(yet_to_be_found(num_to_be_found))
+    yet_to_be_found = PETSC_TRUE
+  endif
 
   array_size = 100
   allocate(connections(array_size))
@@ -10231,13 +10283,17 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         sum_connection = 0
         icount = 0
       case(2) ! boundary connections
-        ! sets up first boundayr condition in list
+        ! sets up first boundary condition in list
         if (.not.associated(boundary_condition)) then
           boundary_condition => patch%boundary_condition_list%first
           sum_connection = 0
           icount = 0
         endif
-        cur_connection_set => boundary_condition%connection_set
+        if (associated(boundary_condition)) then
+          cur_connection_set => boundary_condition%connection_set
+        else
+          nullify(cur_connection_set)
+        endif
     end select
     do
       if (.not.associated(cur_connection_set)) exit
@@ -10326,7 +10382,12 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
           enddo
         endif
         if (.not.found .and. associated(vertices)) then
-          face_id = grid%unstructured_grid%connection_to_face(iconn)
+          select case(ipass)
+            case(1) ! internal connections
+              face_id = grid%unstructured_grid%connection_to_face(iconn)
+            case(2) ! boundary connections
+              face_id = boundary_condition%connection_set%face_id(iconn)
+          end select
           do ivert = 1, MAX_VERT_PER_FACE
             face_vertices_natural(ivert) = &
               grid%unstructured_grid% &
@@ -10398,6 +10459,27 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
             endif
           enddo
         endif
+        if (.not.found .and. associated(by_cell_ids)) then
+          select case(ipass)
+            case(1) ! internal connections
+              do i = 1, num_to_be_found
+                if (natural_id_dn == by_cell_ids(1,i) .and. &
+                    natural_id_up == by_cell_ids(2,i)) then
+                  yet_to_be_found(i) = PETSC_FALSE
+                  same_direction = PETSC_FALSE
+                  found = PETSC_TRUE
+                  exit
+                elseif (natural_id_up == by_cell_ids(1,i) .and. &
+                        natural_id_dn == by_cell_ids(2,i)) then
+                  yet_to_be_found(i) = PETSC_FALSE
+                  found = PETSC_TRUE
+                  exit
+                endif
+              enddo
+            case(2) ! boundary connections
+              ! not yet supported
+          end select
+        endif
         if (found) then
           icount = icount + 1
           if (icount > size(connections)) then
@@ -10421,7 +10503,9 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         icount = 0
         ipass = ipass + 1
       case(2) ! boundary connections
-        boundary_condition => boundary_condition%next
+        if (associated(boundary_condition)) then
+          boundary_condition => boundary_condition%next
+        endif
         if (.not.associated(boundary_condition)) then
           if (icount > 0) then
             allocate(integral_flux%boundary_connections(icount))
@@ -10585,9 +10669,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
                                     global_total_mass)
   !
   ! Calculates the total mass (aqueous, sorbed, and precipitated) in a region
-  ! in units of mol.
+  ! in units of kg. [modified to kg from mol by Heeho]
   !
-  ! Author: Jenn Frederick
+  ! Author: Jenn Frederick, Heeho Park
   ! Date: 04/25/2016
   !
   use Global_Aux_module
@@ -10642,9 +10726,13 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! aqueous species; units [mol/L-water]*[m^3-water]*[1000L/m^3-water]=[mol]
       aq_species_mass = rt_auxvars(ghosted_id)%total(j,LIQUID_PHASE) * &
                         m3_water * 1.0d3
+      ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
+      aq_species_mass = aq_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
       if (associated(rt_auxvars(ghosted_id)%total_sorb_eq)) then
         ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
         sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
+        ! sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
+        sorb_species_mass = sorb_species_mass * reaction%eqcplx_molar_wt(j) * 1.0d-3
       else
         sorb_species_mass = 0.d0
       endif
@@ -10657,6 +10745,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! precip. species; units [m^3-mnrl/m^3-bulk]*[m^3-bulk]/[m^3-mnrl/mol-mnrl]=[mol]
       ppt_species_mass = rt_auxvars(ghosted_id)%mnrl_volfrac(m) * m3_bulk / &
                          reaction%mineral%kinmnrl_molar_vol(m)
+      ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
+      ppt_species_mass = ppt_species_mass * reaction%mineral%kinmnrl_molar_wt(j) * &
+                         1.0d-3
       local_total_mass = local_total_mass + ppt_species_mass
     enddo
   enddo ! Cell loop
@@ -10674,7 +10765,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   !
   ! Calculates the water mass in a region in kg
   !
-  ! Author: Satish Karra
+  ! Author: Satish Karra, Heeho Park
   ! Date: 09/20/2016
   !
   use Global_Aux_module
@@ -10709,10 +10800,10 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
     ghosted_id = patch%grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     m3_water = material_auxvars(ghosted_id)%porosity * &         ! [-]
-               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
+               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water %]
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     kg_water = m3_water*global_auxvars(ghosted_id)% &            ! [m^3-water]
-               den(LIQUID_PHASE)                                 ! [kg/m^3-water]
+               den_kg(LIQUID_PHASE)                              ! [kg/m^3-water]
     local_water_mass = local_water_mass + kg_water
   enddo ! Cell loop
 

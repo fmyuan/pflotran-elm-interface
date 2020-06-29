@@ -1,0 +1,216 @@
+#Description: 1D tracer problem.  Run until tracer breakthrough at midpoint.
+#             Tests a transport max time step that is smaller than flow
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    INITIAL_TIMESTEP_SIZE 0.1d0 y
+    MAXIMUM_TIMESTEP_SIZE 0.25d0 y
+    MAXIMUM_TIMESTEP_SIZE 0.125d0 y AT 1.d0 y
+    MAXIMUM_TIMESTEP_SIZE 0.25d0 y AT 2.d0 y
+  /
+
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d0
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    MAXIMUM_TIMESTEP_SIZE 0.125d0 y
+    MAXIMUM_TIMESTEP_SIZE 0.25d0 y AT 2.d0 y
+    MAXIMUM_TIMESTEP_SIZE 0.125d0 y AT 5.d0 y
+    MAXIMUM_TIMESTEP_SIZE 0.25d0 y AT 7.d0 y
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 2
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+  /
+  USE_FULL_GEOCHEMISTRY
+  DATABASE ../../../database/hanford.dat
+  OUTPUT
+    TOTAL
+    ALL
+  /
+END
+
+#=========================== solver options ===================================
+
+
+
+
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 100 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    100.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES default
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+
+#=========================== output options ===================================
+OUTPUT
+#  TIMES y 5. 10. 15. 20.
+#  FORMAT TECPLOT POINT
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 12.5d0 y            ! tracer at 50m midpoint
+#  INITIAL_TIMESTEP_SIZE 0.20d0 y ! this should throw an error
+#  MAXIMUM_TIMESTEP_SIZE 0.20d0 y ! this should throw an error
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    100.d0 0.d0 0.d0
+    100.d0 1.d0 1.d0
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE DIRICHLET
+  /
+  PRESSURE 201325.d0
+END
+
+FLOW_CONDITION inlet
+  TYPE
+    FLUX NEUMANN
+  /
+  FLUX 1.d0 m/y
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+TRANSPORT_CONDITION inlet
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 inlet
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial
+  CONCENTRATIONS
+    Tracer 1.d-7  T
+  /
+END
+
+CONSTRAINT inlet
+  CONCENTRATIONS
+    Tracer 1.d-3  T
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION outlet
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION east
+END
+
+BOUNDARY_CONDITION inlet
+  FLOW_CONDITION inlet
+  TRANSPORT_CONDITION inlet
+  REGION west
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+
+END_SUBSURFACE

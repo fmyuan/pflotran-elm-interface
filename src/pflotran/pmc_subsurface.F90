@@ -23,7 +23,9 @@ module PMC_Subsurface_class
     procedure, public :: Destroy => PMCSubsurfaceDestroy
   end type pmc_subsurface_type
   
-  public :: PMCSubsurfaceCreate
+  public :: PMCSubsurfaceCreate, &
+            PMCSubsurfaceInit, &
+            PMCSubsurfaceStrip
   
 contains
 
@@ -44,10 +46,6 @@ function PMCSubsurfaceCreate()
   
   class(pmc_subsurface_type), pointer :: pmc
 
-#ifdef DEBUG
-  print *, 'PMCSubsurface%Create()'
-#endif
-  
   allocate(pmc)
   call pmc%Init()
   
@@ -70,10 +68,6 @@ subroutine PMCSubsurfaceInit(this)
   implicit none
   
   class(pmc_subsurface_type) :: this
-  
-#ifdef DEBUG
-  print *, 'PMCSubsurface%Init()'
-#endif
   
   call PMCBaseInit(this)
   this%name = 'PMCSubsurface'
@@ -162,10 +156,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   SNESType :: snes_type
   PetscErrorCode :: ierr
 
-#ifdef DEBUG
-  call PrintMsg(this%option,'PMCSubsurface%SetupSolvers()')
-#endif
-
   option => this%option
   solver => this%timestepper%solver
   
@@ -176,17 +166,15 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   NWT = 2
 
   call SolverCreateSNES(solver,option%mycomm)
-  call SNESGetLineSearch(this%timestepper%solver%snes,linesearch, &
+  call SNESGetLineSearch(solver%snes,linesearch, &
                          ierr);CHKERRQ(ierr)
-  ! set solver pointer within pm for convergence purposes
-  call this%pm_ptr%pm%SetSolver(solver)
+
   select type(pm => this%pm_ptr%pm)
   ! ----- subsurface flow
     class is(pm_subsurface_flow_type)
       call PrintMsg(option,"  Beginning setup of FLOW SNES ")
       if (solver%J_mat_type == MATAIJ .and. &
           option%iflowmode /= RICHARDS_MODE) then
-
         option%io_buffer = 'AIJ matrix not supported for current &
           &mode: '// option%flowmode
         call PrintErrMsg(option)
@@ -216,15 +204,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
           case(TOIL_IMS_MODE)   
         end select
       endif
-
-      select case(option%iflowmode)
-        case(G_MODE)
-          call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
-          if (trim(snes_type) == 'newtontr') then
-            general_using_newtontr = PETSC_TRUE
-          endif
-      end select
-
+      
+      call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
       call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
 
@@ -266,16 +247,16 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
 
-            if (solver%Jpre_mat_type == solver%J_mat_type) then
+      if (solver%Jpre_mat_type == solver%J_mat_type) then
         solver%J = solver%Jpre
-            else
-              call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                                NFLOWDOF, &
-                                                solver%J_mat_type, &
-                                                solver%J, &
-                                                option)
+      else
+        call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                          NFLOWDOF, &
+                                          solver%J_mat_type, &
+                                          solver%J, &
+                                          option)
 
-              call MatSetOptionsPrefix(solver%J,"flow_",ierr);CHKERRQ(ierr)
+        call MatSetOptionsPrefix(solver%J,"flow_",ierr);CHKERRQ(ierr)
       endif
 
       if (solver%use_galerkin_mg) then
@@ -319,25 +300,23 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
 
       call SNESSetConvergenceTest(solver%snes, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                  PMCheckConvergence, &
-                                  this%pm_ptr%pm, &
-#else
-                                        PMCheckConvergencePtr, &
-                                        this%pm_ptr, &
-#endif
+                                  PMCheckConvergencePtr, &
+                                  this%pm_ptr, &
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
 
       if (pm%check_post_convergence) then
-        call SNESLineSearchSetPostCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                        PMCheckUpdatePost, &
-                                        this%pm_ptr%pm, &
-#else
-                                        PMCheckUpdatePostPtr, &
-                                        this%pm_ptr, &
-#endif
-                                        ierr);CHKERRQ(ierr)
+        select case(snes_type)
+          case(SNESNEWTONTR)
+            call SNESNewtonTRSetPostCheck(solver%snes, &
+                                          PMCheckUpdatePostTRPtr, &
+                                          this%pm_ptr, &
+                                          ierr);CHKERRQ(ierr)
+          case default
+            call SNESLineSearchSetPostCheck(linesearch, &
+                                            PMCheckUpdatePostPtr, &
+                                            this%pm_ptr, &
+                                            ierr);CHKERRQ(ierr)
+        end select
         !geh: it is possible that the other side has not been set
         pm%check_post_convergence = PETSC_TRUE
       endif
@@ -365,19 +344,20 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
           endif
       end select
 
-        if (add_pre_check) then
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-            call SNESLineSearchSetPreCheck(linesearch, &
-                                           PMCheckUpdatePre, &
-                                           this%pm_ptr%pm, &
-                                           ierr);CHKERRQ(ierr)
-#else
+      if (add_pre_check) then
+        select case(snes_type)
+          case(SNESNEWTONTR)
+            call SNESNewtonTRSetPreCheck(solver%snes, &
+                                         PMCheckUpdatePreTRPtr, &
+                                         this%pm_ptr, &
+                                         ierr);CHKERRQ(ierr)
+          case default
             call SNESLineSearchSetPreCheck(linesearch, &
                                            PMCheckUpdatePrePtr, &
                                            this%pm_ptr, &
                                            ierr);CHKERRQ(ierr)
-#endif
-        endif
+        end select
+      endif
 
       call PrintMsg(option,"  Finished setting up FLOW SNES ")
   ! ----- subsurface reactive transport
@@ -495,25 +475,15 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
     if (trans_coupling == GLOBAL_IMPLICIT) then
       call SNESSetConvergenceTest(solver%snes, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                  PMCheckConvergence, &
-                                  this%pm_ptr%pm, &
-#else
                                   PMCheckConvergencePtr, &
                                   this%pm_ptr, &
-#endif
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
     endif
     if (this%pm_ptr%pm%print_EKG .or. option%use_mc .or. &
         check_post_convergence) then
       call SNESLineSearchSetPostCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                      PMCheckUpdatePost, &
-                                      this%pm_ptr%pm, &
-#else
                                       PMCheckUpdatePostPtr, &
                                       this%pm_ptr, &
-#endif
                                       ierr);CHKERRQ(ierr)
       if (this%pm_ptr%pm%print_EKG) then
         check_post_convergence = PETSC_TRUE
@@ -521,13 +491,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
     endif
     if (check_update) then
       call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                     PMCheckUpdatePre, &
-                                     this%pm_ptr%pm, &
-#else
                                      PMCheckUpdatePrePtr, &
                                      this%pm_ptr, &
-#endif
                                      ierr);CHKERRQ(ierr)
     endif
     call PrintMsg(option,"  Finished setting up TRAN SNES ")
@@ -535,26 +500,16 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   endif ! RT or NWT
       
 
-  call SNESSetFunction(this%timestepper%solver%snes, &
+  call SNESSetFunction(solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                       PMResidual, &
-                       this%pm_ptr%pm, &
-#else
                        PMResidualPtr, &
                        this%pm_ptr, &
-#endif
                        ierr);CHKERRQ(ierr)
-  call SNESSetJacobian(this%timestepper%solver%snes, &
+  call SNESSetJacobian(solver%snes, &
                        solver%J, &
                        solver%Jpre, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                       PMJacobian, &
-                       this%pm_ptr%pm, &
-#else
                        PMJacobianPtr, &
                        this%pm_ptr, &
-#endif
                        ierr);CHKERRQ(ierr)
   call SolverSetSNESOptions(solver,option)
 
@@ -606,9 +561,6 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
                         ierr);CHKERRQ(ierr)
 
   call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
-
-  ! set solver pointer within pm for convergence purposes
-  call this%pm_ptr%pm%SetSolver(solver)
 
   select type(pm => this%pm_ptr%pm)
 
@@ -693,6 +645,11 @@ subroutine PMCSubsurfaceGetAuxData(this)
 
   class(pmc_subsurface_type) :: this
 
+  !TODO(geh): create a class for get/set and add it to a dynamic linked list
+  !           based on the process models involved. there is no need to
+  !           extend this class just to override this function as there
+  !           may be more than one PM for which to apply get/set. the 
+  !           proposed accomplishes the task.
   if (this%option%surf_flow_on) call PMCSubsurfaceGetAuxDataFromSurf(this)
   if (this%option%ngeomechdof > 0) call PMCSubsurfaceGetAuxDataFromGeomech(this)
 
@@ -1302,12 +1259,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 end subroutine PMCSubsurfaceSetAuxDataForGeomech
 
 ! ************************************************************************** !
-!
-! PMCSubsurfaceFinalizeRun: Finalizes the time stepping
-! author: Glenn Hammond
-! date: 03/18/13
-!
-! ************************************************************************** !
+
 recursive subroutine PMCSubsurfaceFinalizeRun(this)
   ! 
   ! Finalizes the time stepping
@@ -1361,10 +1313,17 @@ subroutine CPRWorkersCreate(pm, solver, option)
                                     cpr_ap_mat_type, &
                                     solver%cprstash%Ap, &
                                     option)
-
+  call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                    ONEDOF, &
+                                    cpr_ap_mat_type, &
+                                    solver%cprstash%As, &
+                                    option)
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%T1r, &
                                   GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%T3r, &
+                                  GLOBAL, option)                                  
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%r2, &
                                   GLOBAL, option)
@@ -1381,6 +1340,9 @@ subroutine CPRWorkersCreate(pm, solver, option)
                                   GLOBAL, option)
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%factors2vec, &
+                                  GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%factors3vec, &
                                   GLOBAL, option)
 end subroutine CPRWorkersCreate
 

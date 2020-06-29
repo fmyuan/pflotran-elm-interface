@@ -509,10 +509,9 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   
   !-------aqueous concentration (equilibrium)
   if (.not.dry_out) then
-    nwt_auxvar%aqueous_eq_conc(:) = (nwt_auxvar%total_bulk_conc(:)/(sat*por))* &
-                                    (1.d0/(1.d0+(ele_kd(:)/(sat*por))))
+    nwt_auxvar%aqueous_eq_conc(:) = (nwt_auxvar%total_bulk_conc(:)/(sat*por))
   else
-    nwt_auxvar%aqueous_eq_conc(:) = 1.0d-20
+    nwt_auxvar%aqueous_eq_conc(:) = 0.d0
   endif
   ! check aqueous concentration against solubility limit and update
   do ispecies = 1,reaction_nw%params%nspecies
@@ -574,6 +573,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Logging_module
   use Debug_module
+  use WIPP_Flow_Aux_module
 
   implicit none
 
@@ -594,6 +594,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   class(reaction_nw_type), pointer :: reaction_nw
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_ss(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
@@ -610,6 +611,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   PetscReal :: Res(realization%reaction_nw%params%nspecies)
   PetscReal :: Res_up(realization%reaction_nw%params%nspecies)
   PetscReal :: Res_dn(realization%reaction_nw%params%nspecies)
+  PetscReal :: area
   PetscViewer :: viewer  
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -631,6 +633,12 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   material_auxvars_bc => realization%patch%aux%Material%auxvars
   nphase = reaction_nw%params%nphase
   nspecies = reaction_nw%params%nspecies
+  
+  ! Strictly used to check if alpha needs to be considered in the area
+  nullify(wippflo_auxvars)
+  if (associated(realization%patch%aux%WIPPFlo)) then
+    wippflo_auxvars => realization%patch%aux%WIPPFlo%auxvars
+  endif
 
   ! Communication -----------------------------------------
   if (realization%reaction_nw%use_log_formulation) then
@@ -771,8 +779,21 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       
       ghosted_id_up = cur_connection_set%id_up(iconn)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
+      
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
+      
+      area = cur_connection_set%area(iconn)
+      !WRITE(*,*)  '      area = ', area
+      if (associated(wippflo_auxvars)) then
+        !WRITE(*,*)  'alpha_up = ', wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha
+        !WRITE(*,*)  'alpha_dn = ', wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha
+        area = area * 0.5d0 * &
+               (wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha + &
+                wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha)
+      endif
+      
+      !WRITE(*,*)  'area*alpha = ', area
       
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id_up) <= 0 .or.  &
@@ -784,7 +805,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
                       global_auxvars(ghosted_id_dn), &
                       material_auxvars(ghosted_id_up), &
                       material_auxvars(ghosted_id_dn), &
-                      cur_connection_set%area(iconn), &
+                      area, &
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%internal_velocities(:,sum_connection), &
                       reaction_nw,option,bc,Res_up,Res_dn)
@@ -829,6 +850,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
+      
+      area = cur_connection_set%area(iconn)
 
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id) <= 0) cycle
@@ -839,7 +862,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
                       global_auxvars(ghosted_id), &
                       material_auxvars_bc(sum_connection), &
                       material_auxvars(ghosted_id), &
-                      cur_connection_set%area(iconn), &
+                      area, &
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%boundary_velocities(:,sum_connection), &
                       reaction_nw,option,bc,Res_up,Res_dn)
@@ -1337,7 +1360,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   use Logging_module
   use Debug_module
   use Connection_module
-  use Coupler_module  
+  use Coupler_module 
+  use WIPP_Flow_Aux_module 
 
   implicit none
 
@@ -1354,6 +1378,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   type(option_type), pointer :: option
   type(grid_type),  pointer :: grid
   class(reaction_nw_type), pointer :: reaction_nw
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -1377,6 +1402,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                      realization%reaction_nw%params%nspecies)
   PetscReal :: JacDn(realization%reaction_nw%params%nspecies, &
                      realization%reaction_nw%params%nspecies)
+  PetscReal :: area
   PetscReal :: rdum
     
   option => realization%option
@@ -1390,6 +1416,12 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   material_auxvars => realization%patch%aux%Material%auxvars
   ! note: there is no realization%patch%aux%Material%auxvars_bc
   material_auxvars_bc => realization%patch%aux%Material%auxvars
+  
+  ! Strictly used to check if alpha needs to be considered in the area
+  nullify(wippflo_auxvars)
+  if (associated(realization%patch%aux%WIPPFlo)) then
+    wippflo_auxvars => realization%patch%aux%WIPPFlo%auxvars
+  endif
   
   iphase = LIQUID_PHASE
 
@@ -1493,6 +1525,13 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
       
+      area = cur_connection_set%area(iconn)
+      if (associated(wippflo_auxvars)) then
+        area = area * 0.5d0 * &
+               (wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha + &
+                wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha)
+      endif
+      
       if (realization%patch%imat(ghosted_id_up) <= 0 .or.  &
           realization%patch%imat(ghosted_id_dn) <= 0) cycle
           
@@ -1502,7 +1541,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                       global_auxvars(ghosted_id_dn), &
                       material_auxvars(ghosted_id_up), &
                       material_auxvars(ghosted_id_dn), &
-                      cur_connection_set%area(iconn), &
+                      area, &
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%internal_velocities(:,sum_connection), &
                       reaction_nw,option,JacUp,JacDn)
@@ -1538,6 +1577,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       
+      area = cur_connection_set%area(iconn)
+      
       if (realization%patch%imat(ghosted_id) <= 0) cycle
       
       call NWTJacobianFlux(nwt_auxvars_bc(sum_connection), &
@@ -1546,7 +1587,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                       global_auxvars(ghosted_id), &
                       material_auxvars_bc(sum_connection), &
                       material_auxvars(ghosted_id), &
-                      cur_connection_set%area(iconn), &
+                      area, &
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%boundary_velocities(:,sum_connection), &
                       reaction_nw,option,JacUp,JacDn)

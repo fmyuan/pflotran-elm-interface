@@ -87,7 +87,7 @@ module PM_UFD_Decay_class
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMUFDDecayInit
-    procedure, public :: ReadPMBlock => PMUFDDecayRead
+    procedure, public :: ReadPMBlock => PMUFDDecayReadPMBlock
     procedure, public :: SetRealization => PMUFDDecaySetRealization
     procedure, public :: InitializeRun => PMUFDDecayInitializeRun
 !!    procedure, public :: FinalizeRun => PMUFDDecayFinalizeRun
@@ -231,7 +231,7 @@ end function PMUFDDecayCreate
 
 ! ************************************************************************** !
 
-subroutine PMUFDDecayRead(this,input)
+subroutine PMUFDDecayReadPMBlock(this,input)
   ! 
   ! Reads input file parameters associated with the ufd decay process model
   ! 
@@ -283,7 +283,6 @@ subroutine PMUFDDecayRead(this,input)
   character(len=MAXWORDLENGTH) :: Kd_material_name(MAX_KD_SIZE)
   PetscReal :: Kd(MAX_KD_SIZE)
   PetscReal :: tempreal
-  PetscBool :: found
 ! -------------------------------------------------------------
 
   option => this%option
@@ -305,10 +304,6 @@ subroutine PMUFDDecayRead(this,input)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
-    found = PETSC_FALSE
-    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
-    if (found) cycle
-    
     select case(trim(word))
       case('ELEMENT')
         error_string = 'UFD Decay, Element'
@@ -441,7 +436,7 @@ subroutine PMUFDDecayRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMUFDDecayRead
+end subroutine PMUFDDecayReadPMBlock
 
 
 ! ************************************************************************** !
@@ -1884,6 +1879,8 @@ subroutine PMUFDDecayDestroy(this)
   type(daughter_type), pointer :: cur_daughter, prev_daughter
 ! -----------------------------------------------------------
     
+  call PMBaseDestroy(this)
+
   call DeallocateArray(this%element_isotopes)
   call DeallocateArray(this%isotope_to_primary_species)
   call DeallocateArray(this%isotope_to_mineral)

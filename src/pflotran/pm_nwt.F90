@@ -57,7 +57,10 @@ module PM_NWT_class
     type(pm_nwt_params_type), pointer :: params
   contains
     procedure, public :: Setup => PMNWTSetup 
-    procedure, public :: ReadSimulationBlock => PMNWTReadSimulationBlock
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMNWTReadSimOptionsBlock
+    procedure, public :: ReadTSBlock => PMNWTReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMNWTReadNewtonSelectCase
     procedure, public :: SetRealization => PMNWTSetRealization 
     procedure, public :: InitializeRun => PMNWTInitializeRun  
     procedure, public :: FinalizeRun => PMNWTFinalizeRun
@@ -155,7 +158,7 @@ end function PMNWTCreate
 
 ! ************************************************************************** !
 
-subroutine PMNWTReadSimulationBlock(this,input)
+subroutine PMNWTReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the nuclear waste transport 
   ! process model in the SIMULATION block.
@@ -194,44 +197,107 @@ subroutine PMNWTReadSimulationBlock(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+    call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                        error_string,option)
     if (found) cycle
 
     select case(trim(keyword))
-      case('GLOBAL_IMPLICIT')
-        option%transport%nw_transport_coupling = GLOBAL_IMPLICIT
-      case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
-      case('MAX_VOLUME_FRACTION_CHANGE')
-        call InputReadDouble(input,option,this%controls%volfrac_change_governor)
-        call InputErrorMsg(input,option,'MAX_VOLUME_FRACTION_CHANGE', &
-                           'NUCLEAR_WASTE_TRANSPORT OPTIONS')
-      case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,nwt_itol_rel_update)
-        call InputErrorMsg(input,option,'ITOL_RELATIVE_UPDATE', &
-                           'NUCLEAR_WASTE_TRANSPORT OPTIONS')
-        this%controls%check_post_convergence = PETSC_TRUE
-      case('MINIMUM_SATURATION')
-        call InputReadDouble(input,option,nwt_min_saturation)
-        call InputErrorMsg(input,option,'MINIMUM_SATURATION', &
-                           'NUCLEAR_WASTE_TRANSPORT OPTIONS')
-      case('NUMERICAL_JACOBIAN')
-        option%transport%numerical_derivatives = PETSC_TRUE
-      !TODO(jenn) Why is temperature_dependent_diffusion in the SIMULATION block read?
-      case('TEMPERATURE_DEPENDENT_DIFFUSION')
-        this%params%temperature_dependent_diffusion = PETSC_TRUE
-      case('MAX_CFL')
-        call InputReadDouble(input,option,this%controls%cfl_governor)
-        call InputErrorMsg(input,option,'MAX_CFL', &
-                           'NUCLEAR_WASTE_TRANSPORT OPTIONS')
-      case('MULTIPLE_CONTINUUM')
-        option%use_mc = PETSC_TRUE          
+!geh: yet to be implemented
+!      case('TEMPERATURE_DEPENDENT_DIFFUSION')
+!        this%temperature_dependent_diffusion = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMNWTReadSimulationBlock
+end subroutine PMNWTReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMNWTReadTSSelectCase(this,input,keyword,found, &
+                                 error_string,option)
+  ! 
+  ! Read timestepper settings specific to this process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use Option_module
+ 
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+!  found = PETSC_TRUE
+!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('CFL_GOVERNOR')
+      call InputReadDouble(input,option,this%controls%cfl_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('VOLUME_FRACTION_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%controls%volfrac_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMNWTReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
+                                    error_string,option)
+  ! 
+  ! Reads input file parameters associated with the NWT process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/25/20
+
+  use Input_Aux_module
+  use Option_module
+ 
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+
+  option => this%option
+  
+!  found = PETSC_TRUE
+!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+!geh: these have not been implemented
+!    case('NUMERICAL_JACOBIAN')
+!      option%transport%numerical_derivatives = PETSC_TRUE
+!    case('ITOL_RELATIVE_UPDATE')
+!      call InputReadDouble(input,option,this%controls%newton_inf_rel_update_tol)
+!      call InputErrorMsg(input,option,keyword,error_string)
+!      this%controls%check_post_convergence = PETSC_TRUE
+  case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMNWTReadNewtonSelectCase
 
 ! ************************************************************************** !
   
@@ -311,7 +377,12 @@ subroutine PMNWTInitializeRun(this)
   call RealizUnInitializedVarsTran(this%realization)
   
   ! update the boundary conditions
-  call NWTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
+  !geh: need to update cells also, as the flow solution may have changed
+  !     during restart and transport may have been skipped
+  call NWTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_TRUE)
+  
+  this%realization%patch%aux%NWT%truncate_output = &
+    this%realization%reaction_nw%truncate_output
   
   call PMNWTUpdateSolution(this)
   
@@ -645,7 +716,7 @@ end subroutine PMNWTCheckConvergence
 
 ! ************************************************************************** !
 
-subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! In the case of the log formulation, ensures that the update
   ! vector does not exceed a prescribed tolerance
@@ -661,7 +732,7 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_nwt_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -758,7 +829,7 @@ end subroutine PMNWTCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMNWTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                 X1_changed,ierr)
   ! 
   ! Checks convergence after the solution update
@@ -776,7 +847,7 @@ subroutine PMNWTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_nwt_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -1162,6 +1233,7 @@ subroutine PMNWTDestroy(this)
   call DeallocateArray(this%controls%max_concentration_change)
   call DeallocateArray(this%controls%max_volfrac_change)
 
+  call PMBaseDestroy(this)
   call NWTDestroy(this%realization)
  
   nullify(this%comm1) ! already destroyed in realization

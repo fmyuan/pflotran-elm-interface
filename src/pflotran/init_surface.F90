@@ -292,7 +292,6 @@ subroutine InitSurfaceSetupSolvers(surf_realization,solver,final_time)
   
   type(option_type), pointer :: option
   type(convergence_context_type), pointer :: convergence_context
-  SNESLineSearch :: linesearch
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
   

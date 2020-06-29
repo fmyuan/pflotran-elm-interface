@@ -7,17 +7,39 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  INITIALIZE_TO_STEADY_STATE
+    #  RUN_AS_STEADY_STATE
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 32
+  /
+
+  NEWTON_SOLVER
+    DTOL 1.d6
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
-  CELLS
+  CELL_IDS
     16
   /
 END
@@ -74,7 +96,7 @@ CHEMISTRY
     FeSO4+
     Fe(SO4)2-
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
     O2(g)
   /
@@ -157,14 +179,8 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-#  INITIALIZE_TO_STEADY_STATE
-#  RUN_AS_STEADY_STATE
-END
 
-TIMESTEPPER TRANSPORT
-  TS_ACCELERATION 32
-END
+
 
 #=========================== discretization ===================================
 GRID

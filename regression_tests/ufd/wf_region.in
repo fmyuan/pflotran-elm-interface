@@ -9,7 +9,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
     WASTE_FORM general
       TYPE GENERAL
@@ -20,7 +20,7 @@ END
 SUBSURFACE
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     5 19 32 49
   /
 END

@@ -232,10 +232,13 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
         geomech_timestepper => ts
     end select
   endif
-  call GeomechanicsRegressionOutput(this%geomech_regression, &
-                                    this%geomech_realization, &
-                                    geomech_timestepper)  
 
+  select case(this%stop_flag)
+    case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
+      call GeomechanicsRegressionOutput(this%geomech_regression, &
+                                        this%geomech_realization, &
+                                        geomech_timestepper)
+  end select
 
 end subroutine GeomechanicsSimulationFinalizeRun
 

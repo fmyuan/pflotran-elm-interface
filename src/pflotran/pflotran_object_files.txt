@@ -11,6 +11,7 @@ util_obj  = \
 	${common_src}option_flow.o \
 	${common_src}option_transport.o \
 	${common_src}output_aux.o \
+	${common_src}matrix_zeroing.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
@@ -53,6 +54,7 @@ mode_aux_obj = \
 	${common_src}miscible_aux.o \
 	${common_src}mphase_aux.o \
         ${common_src}nw_transport_aux.o \
+	${common_src}kdtree.o \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
@@ -68,6 +70,7 @@ mode_aux_obj = \
         ${common_src}pm_nwt.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \
+	${common_src}pm_osrt.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_surface_flow.o \
@@ -247,6 +250,7 @@ misc_obj = \
 	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
 	${common_src}pmc_subsurface.o \
+	${common_src}pmc_subsurface_osrt.o \
 	${common_src}pmc_third_party.o \
 	${common_src}realization_base.o \
 	${common_src}realization_subsurface.o \
@@ -260,6 +264,7 @@ misc_obj = \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
+	${common_src}timestepper_KSP.o \
 	${common_src}timestepper_BE.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
