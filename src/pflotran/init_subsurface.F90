@@ -266,6 +266,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   class(realization_subsurface_type) :: realization
   
   PetscReal, pointer :: icap_loc_p(:)
+  PetscReal, pointer :: itcc_loc_p(:)
   PetscReal, pointer :: ithrm_loc_p(:)
   PetscReal, pointer :: por0_p(:)
   PetscReal, pointer :: tor0_p(:)
@@ -307,6 +308,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   null_material_property => MaterialPropertyCreate()
   if (option%nflowdof > 0) then
     call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%itcc_loc,itcc_loc_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
@@ -414,6 +416,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
       patch%kT_func_id(ghosted_id) = &  
            material_property%thermal_conductivity_function_id
       icap_loc_p(ghosted_id) = material_property%saturation_function_id
+      itcc_loc_p(ghosted_id) = &
+           material_property%thermal_conductivity_function_id
       ithrm_loc_p(ghosted_id) = abs(material_property%internal_id)
       perm_xx_p(local_id) = material_property%permeability(1,1)
       perm_yy_p(local_id) = material_property%permeability(2,2)
@@ -500,6 +504,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
 
   if (option%nflowdof > 0) then
     call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%itcc_loc,itcc_loc_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
@@ -590,6 +595,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
     call DiscretizationLocalToLocal(discretization,field%icap_loc, &
                                     field%icap_loc,ONEDOF)
+    call DiscretizationLocalToLocal(discretization,field%itcc_loc, &
+                                    field%itcc_loc,ONEDOF)                            
     call DiscretizationLocalToLocal(discretization,field%ithrm_loc, &
                                     field%ithrm_loc,ONEDOF)
     call RealLocalToLocalWithArray(realization,SATURATION_FUNCTION_ID_ARRAY)

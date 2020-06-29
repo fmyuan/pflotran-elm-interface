@@ -283,7 +283,10 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   if (.not.associated(material_parameter)) then
     allocate(material_parameter)
     allocate(material_parameter%soil_heat_capacity(1))
+    allocate(material_parameter%soil_thermal_conductivity(2,1))
     material_parameter%soil_heat_capacity(1) = 850.d0
+    material_parameter%soil_thermal_conductivity(1,1) = 0.5d0
+    material_parameter%soil_thermal_conductivity(2,1) = 2.d0
   endif
   if (.not.associated(thermal_characteristic_curves)) then
     thermal_characteristic_curves => CharacteristicCurvesThermalCreate()
