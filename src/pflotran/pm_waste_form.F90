@@ -5212,6 +5212,8 @@ subroutine PMWFDestroy(this)
   ! Author: Glenn Hammond
   ! Date: 08/26/15
 
+  use String_module
+  
   implicit none
   
 ! INPUT ARGUMENTS:
@@ -5222,10 +5224,11 @@ subroutine PMWFDestroy(this)
 ! ---------------------------------
   character(len=MAXWORDLENGTH) :: word
 
-  write(word,'(es12.4)') this%cumulative_time
-  
-  write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
-  
+  if (OptionPrintToScreen(this%option)) then
+    word = StringWrite('(es12.4)',this%cumulative_time)
+    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+  endif
+
   call PMBaseDestroy(this)
   call PMWFStrip(this)
   
