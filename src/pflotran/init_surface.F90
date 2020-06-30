@@ -377,6 +377,8 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
       ! also allocate saturation function id
       allocate(cur_patch%sat_func_id(cur_patch%grid%ngmax))
       cur_patch%sat_func_id = UNINITIALIZED_INTEGER
+      allocate(cur_patch%kT_func_id(cur_patch%grid%ngmax))
+      cur_patch%kT_func_id = UNINITIALIZED_INTEGER
     endif
     cur_patch => cur_patch%next
   enddo
