@@ -745,15 +745,13 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal :: ratio, min_ratio
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i, n
+  PetscInt :: i, n, k 
   
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
   
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
   
-  !WRITE(*,*)  '         dC_p = ', dC_p(:)
-
   if (reaction_nw%use_log_formulation) then
     ! C and dC are actually lnC and dlnC
     dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),this%controls%max_dlnC)
@@ -769,9 +767,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   else
     call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-    
-    !WRITE(*,*)  '          C_p = ', C_p(:)
-    
+        
     if (Initialized(reaction_nw%params%truncated_concentration)) then
       dC_p = min(dC_p,C_p-reaction_nw%params%truncated_concentration)
     else
@@ -784,14 +780,20 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
       min_ratio = 1.d0/maxval(dC_p/C_p)
 #else
       min_ratio = 1.d20 ! large number
+      k = 0
       do i = 1, n
         if (C_p(i) <= dC_p(i)) then
+          WRITE(*,*)  ' i =', i, '  C_p(i) =', C_p(i), '  dC_p(i) =', dC_p(i)
           ratio = abs(C_p(i)/dC_p(i))
-          if (ratio < min_ratio) min_ratio = ratio
+          if (ratio < min_ratio) then
+            min_ratio = ratio
+            k = i
+          endif
         endif
       enddo
 #endif
       ratio = min_ratio
+      WRITE(*,*)  ' location of min_ratio =', k, '   min_ratio =', min_ratio
     
       ! get global minimum
       call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
@@ -821,7 +823,13 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
     endif
     call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
   endif
-
+  call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+  WRITE(*,*)  '       C_p(723) = ', C_p(723)
+  WRITE(*,*)  '       C_p(791) = ', C_p(791)
+  call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+  
+  WRITE(*,*)  '        dC_p(723) = ', dC_p(723)
+  WRITE(*,*)  '        dC_p(791) = ', dC_p(791)
   call VecRestoreArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
 

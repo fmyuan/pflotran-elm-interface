@@ -22,6 +22,7 @@ module NW_Transport_module
             NWTUpdateFixedAccumulation, &
             NWTResidual, &
             NWTJacobian, &
+            NWTZeroMassBalanceDelta, &
             NWTComputeMassBalance, &
             NWTUpdateMassBalance, &
             NWTDestroy
@@ -151,10 +152,7 @@ subroutine NWTSetup(realization)
       'Material property errors found in NWTSetup (Nuclear Waste Transport).'
     call PrintErrMsg(option)
   endif
-  
-  !TODO(jenn) Should we make this compatible with secondary continuum?
-  ! Look at reactive_transport.F90 lines 254-271.
-  
+    
   ! allocate auxvar data structures for all grid cells
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
   option%iflag = 1 ! allocate mass_balance array
@@ -236,7 +234,7 @@ subroutine NWTSetup(realization)
   
 end subroutine NWTSetup
 
-! ************************************************************************** ! 
+! ************************************************************************** !
 
 subroutine NWTProcessConstraint(reaction_nw,constraint_name, &
                                 nwt_species_constraint,option)
@@ -339,7 +337,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   PetscInt :: istart, iend
   PetscReal, pointer :: xx_loc_p(:)
   PetscInt, parameter :: iphase = 1
-  PetscInt :: offset
+  PetscInt :: offset, fake
   PetscErrorCode :: ierr
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)  
@@ -379,6 +377,10 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
       iend = offset + reaction_nw%params%nspecies
       
       nwt_auxvars(ghosted_id)%total_bulk_conc = xx_loc_p(istart:iend)
+
+      if (ghosted_id == 791) then
+        fake = 0  ! just a fake line for ddt to catch
+      endif
 
       call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -481,6 +483,7 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   
   type(species_type), pointer :: cur_species
   PetscReal :: solubility(reaction_nw%params%nspecies)  ! [mol/m^3-liq]
+  PetscReal :: aq_mass(reaction_nw%params%nspecies)     ! [mol/m^3-liq]
   PetscReal :: ppt_mass(reaction_nw%params%nspecies)    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass(reaction_nw%params%nspecies)   ! [mol/m^3-bulk]
   PetscReal :: mnrl_molar_density(reaction_nw%params%nspecies)  ! [mol/m^3-mnrl]
@@ -489,10 +492,10 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: ispecies
   PetscReal :: sat, por
 
-  sat = global_auxvar%sat(LIQUID_PHASE)
+  sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   por = material_auxvar%porosity
   
-  if (sat > 0.d0) then
+  if (global_auxvar%sat(LIQUID_PHASE) > 0.d0) then
     dry_out = PETSC_FALSE
   else
     dry_out = PETSC_TRUE
@@ -507,20 +510,17 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
     cur_species => cur_species%next
   enddo
   
-  !-------aqueous concentration (equilibrium)
-  if (.not.dry_out) then
-    nwt_auxvar%aqueous_eq_conc(:) = (nwt_auxvar%total_bulk_conc(:)/(sat*por))
-  else
-    nwt_auxvar%aqueous_eq_conc(:) = 0.d0
-  endif
-  ! check aqueous concentration against solubility limit and update
+  ! calculate the equilibrium state and partition the total_bulk_conc
   do ispecies = 1,reaction_nw%params%nspecies
     call NWTEqDissPrecipSorb(solubility(ispecies),material_auxvar, &
                              global_auxvar,dry_out,ele_kd(ispecies), &
                              nwt_auxvar%total_bulk_conc(ispecies), &
-                             nwt_auxvar%aqueous_eq_conc(ispecies), &
-                             ppt_mass(ispecies),sorb_mass(ispecies))
+                             aq_mass(ispecies),ppt_mass(ispecies), &
+                             sorb_mass(ispecies))
   enddo
+
+  !-------aqueous concentration (equilibrium)
+  nwt_auxvar%aqueous_eq_conc(:) = aq_mass(:)
                      
   !-------sorbed concentration (equilibrium)
   nwt_auxvar%sorb_eq_conc(:) = sorb_mass(:)
@@ -661,13 +661,10 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   
   ! Zero out the residual pointer
   r_p = 0.d0
-  !WRITE(*,*)  '       r_p(1) = ', r_p(:)
   
   ! Update the auxiliary variables
   call NWTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
-  
-  !WRITE(*,*)  'fixed_accum_p = ', fixed_accum_p(:)
-  
+    
 #if 1
   !== Accumulation Terms ======================================
   if (.not.option%steady_state) then
@@ -677,6 +674,10 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
 
       !WRITE(*,*)  '  auxvars_aqc = ', nwt_auxvars(ghosted_id)%aqueous_eq_conc(:) 
+
+      if (ghosted_id == 791) then
+        area = 0.d0  ! just a fake line to catch in ddt
+      endif
        
       call NWTResidualAccum(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -694,7 +695,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 #endif
 
   !WRITE(*,*)  '     ResAccum = ', Res(:)
-  !WRITE(*,*)  '       r_p(2) = ', r_p(:)
+  WRITE(*,*)  '       r_p(2) = ', r_p(723), '     loc = 723'
+  WRITE(*,*)  '       r_p(2) = ', r_p(791), '     loc = 791'
   
 #if 1
   !== Source/Sink Terms =======================================
@@ -763,8 +765,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 #if 1
   !== Fluxes ==================================================
   if (option%compute_mass_balance_new) then
-    !TODO(jenn) Create NWTZeroMassBalanceDelta(realization)
-    !call RTZeroMassBalanceDelta(realization)
+    call NWTZeroMassBalanceDelta(realization)
   endif
   
   ! Interior Flux Terms ---------------------------------------
@@ -779,22 +780,21 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       
       ghosted_id_up = cur_connection_set%id_up(iconn)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
+
+      if ((ghosted_id_up == 791) .or. (ghosted_id_dn == 791)) then
+        area = 0.d0  ! just a fake line to catch in ddt
+      endif
       
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
       
       area = cur_connection_set%area(iconn)
-      !WRITE(*,*)  '      area = ', area
       if (associated(wippflo_auxvars)) then
-        !WRITE(*,*)  'alpha_up = ', wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha
-        !WRITE(*,*)  'alpha_dn = ', wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha
         area = area * 0.5d0 * &
                (wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha + &
                 wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha)
       endif
-      
-      !WRITE(*,*)  'area*alpha = ', area
-      
+            
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id_up) <= 0 .or.  &
           realization%patch%imat(ghosted_id_dn) <= 0) cycle
@@ -825,17 +825,22 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       endif
       
       if (associated(realization%patch%internal_tran_fluxes)) then
-      !TODO(jenn) Not sure how to handle internal_tran_fluxes = Res, because
-      ! I have a Res_up and Res_dn, not just Res.
-      !  realization%patch%internal_tran_fluxes(1:reaction_nw%params%nspecies,iconn) = &
-      !      Res(1:reaction_nw%params%nspecies)
+      ! NOTE: (jenn)
+      ! Res_dn and Res_up are equal and opposite. I have chosen to consistently
+      ! assign Res_dn for the internal transport flux value for the integral
+      ! flux calculation.
+        realization%patch%internal_tran_fluxes(1:nspecies,iconn) = &
+            Res_dn(1:nspecies)
       endif
       
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
-  
-  !WRITE(*,*)  '       r_p(5) = ', r_p(:)
+   
+  WRITE(*,*)  '       r_p(5) = ', r_p(723), '     loc = 723'
+  WRITE(*,*)  '       r_p(5) = ', r_p(791), '     loc = 791'
+
+  WRITE(*,*)  '   g_sat(790) = ', (1.0 - global_auxvars(790)%sat(LIQUID_PHASE))
   
   ! Boundary Flux Terms ---------------------------------------
   boundary_condition => realization%patch%boundary_condition_list%first
@@ -876,17 +881,19 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       
       if (option%compute_mass_balance_new) then
       ! contribution to boundary
-      !TODO(jenn) Not sure how to handle mass_balance_delta = Res, because
-      ! I have a Res_up and Res_dn, not just Res.
-      !  nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
-      !    nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res
+        iphase = LIQUID_PHASE
+        nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
+          nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) -  &
+          Res_dn(1:nspecies)
       endif  
                  
       if (associated(realization%patch%boundary_tran_fluxes)) then
-      !TODO(jenn) Not sure how to handle boundary_tran_fluxes = Res, because
-      ! I have a Res_up and Res_dn, not just Res.
-      !  realization%patch%boundary_tran_fluxes(1:reaction_nw%params%nspecies,sum_connection) = &
-      !      Res(1:reaction_nw%params%nspecies)
+      ! NOTE: (jenn)
+      ! Res_dn and Res_up are equal and opposite. I have chosen to consistently
+      ! assign Res_dn for the internal transport flux value for the integral
+      ! flux calculation.
+        realization%patch%boundary_tran_fluxes(1:nspecies,sum_connection) = &
+            Res_dn(1:nspecies)
       endif
     enddo
     boundary_condition => boundary_condition%next
@@ -951,6 +958,7 @@ subroutine NWTUpdateFixedAccumulation(realization)
   PetscReal, pointer :: xx_p(:), fixed_accum_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: dof_offset, istart, iend
+  PetscInt :: fake
   PetscErrorCode :: ierr
   
   option => realization%option
@@ -982,6 +990,10 @@ subroutine NWTUpdateFixedAccumulation(realization)
 
     ! copy primary dependent variable
     nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
+
+    if (ghosted_id == 791) then
+        fake = 0  ! just a fake line to catch in ddt
+    endif
     
     call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
                           global_auxvars(ghosted_id), &
@@ -1033,7 +1045,7 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   ! saturation in [m^3-liq/m^3-void]
   ! volume in [m^3-bulk]
   por = material_auxvar%porosity
-  sat = global_auxvar%sat(LIQUID_PHASE)
+  sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   volume = material_auxvar%volume
       
   istart = 1
@@ -1271,8 +1283,8 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   harmonic_D_over_dist(:) = 0.d0
   diffusive_flux(:) = 0.d0
   
-  sat_up = global_auxvar_up%sat(LIQUID_PHASE)
-  sat_dn = global_auxvar_dn%sat(LIQUID_PHASE)
+  sat_up = max(MIN_LIQ_SAT,global_auxvar_up%sat(LIQUID_PHASE))
+  sat_dn = max(MIN_LIQ_SAT,global_auxvar_dn%sat(LIQUID_PHASE))
   
   diffusion_coefficient => reaction_nw%diffusion_coefficient
   molecular_diffusion_up(:) = diffusion_coefficient(:,LIQUID_PHASE)
@@ -1297,7 +1309,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! All residual entries for flux terms should be in [mol-species].
   
   ! Diffusive fluxes:
-  diffusive_flux(:) = harmonic_D_over_dist(:) * &
+  diffusive_flux(:) = harmonic_D_over_dist(:) * &    
                       (nwt_auxvar_dn%aqueous_eq_conc(:) &
                        - nwt_auxvar_up%aqueous_eq_conc(:))
                        
@@ -1716,9 +1728,11 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   PetscInt :: istart, iend, ispecies
   PetscReal :: qsrc, u, vol
   PetscReal :: coef_in
+  PetscReal :: sat
   PetscBool :: dry_out
   
   Jac = 0.d0
+  sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   
   if (global_auxvar%sat(LIQUID_PHASE) > 0.d0) then
     dry_out = PETSC_FALSE
@@ -1739,7 +1753,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   ! units of saturation = [m^3-liq/m^3-void]
   ! units of u = [m^3-bulk/sec]
   if (.not.dry_out) then
-    u = qsrc / (material_auxvar%porosity * global_auxvar%sat(LIQUID_PHASE))
+    u = qsrc / (material_auxvar%porosity * sat)
   else
     u = 0.d0
   endif
@@ -1911,8 +1925,8 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   allocate(diffusivity_dn(nspecies))
   harmonic_D_over_dist(:) = 0.d0
   
-  sat_up = global_auxvar_up%sat(LIQUID_PHASE)
-  sat_dn = global_auxvar_dn%sat(LIQUID_PHASE)
+  sat_up = max(MIN_LIQ_SAT,global_auxvar_up%sat(LIQUID_PHASE))
+  sat_dn = max(MIN_LIQ_SAT,global_auxvar_dn%sat(LIQUID_PHASE))
   por_up = material_auxvar_up%porosity
   por_dn = material_auxvar_dn%porosity
   ps_up = por_up*sat_up
@@ -1933,7 +1947,7 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
                           molecular_diffusion_dn(:), 1.d-40)
                           
   ! weighted harmonic average of diffusivity divided by distance
-   harmonic_D_over_dist(:) = (diffusivity_up(:)*diffusivity_dn(:))/ &
+   harmonic_D_over_dist(:) = (diffusivity_up(:)*diffusivity_dn(:))/ & 
                       (diffusivity_up(:)*dist_up + diffusivity_dn(:)*dist_dn)
                        
   ! Note: For dispersion, do a git pull - Glenn updated transport.F90 
@@ -1942,20 +1956,22 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! with the cell centered velocities. Also, the boundary cells may need
   ! their own calculation for dispersion (There is a TDispersionBC).
    
-  if (sat_up > 0.d0) then
+  if (global_auxvar_up%sat(LIQUID_PHASE) > 0.d0) then
     dry_out_up = PETSC_FALSE
   else
     dry_out_up = PETSC_TRUE
   endif
- if (sat_dn > 0.d0) then
+ if (global_auxvar_dn%sat(LIQUID_PHASE) > 0.d0) then
     dry_out_dn = PETSC_FALSE
   else
     dry_out_dn = PETSC_TRUE
   endif
   
   ! units of unit_n = [-] unitless
-  unit_n_up = -1 
-  unit_n_dn = +1
+  unit_n_up = -1  ! original
+  unit_n_dn = +1  ! original
+  !unit_n_up = +1  ! test 
+  !unit_n_dn = -1  ! test 
                 
   ! units of q = [m-liq/s]
   ! units of u = [m-bulk/s]
@@ -2008,6 +2024,54 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
                     
 end subroutine NWTJacobianFlux
 
+! ************************************************************************** ! 
+
+subroutine NWTZeroMassBalanceDelta(realization)
+  ! 
+  ! Zero's out the mass balance delta array.
+  ! 
+  ! Author: Jennifer Frederick
+  ! Date: 06/30/2020
+  ! 
+ 
+  use Realization_Subsurface_class
+  use Option_module
+  use Patch_module
+  use Grid_module
+ 
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars_ss(:)
+
+  PetscInt :: iconn
+
+  option => realization%option
+  patch => realization%patch
+
+  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
+  nwt_auxvars_ss => patch%aux%NWT%auxvars_ss
+
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+  do iconn = 1, patch%aux%NWT%num_aux
+    patch%aux%NWT%auxvars(iconn)%mass_balance_delta = 0.d0
+  enddo
+#endif
+
+  do iconn = 1, patch%aux%NWT%num_aux_bc
+    nwt_auxvars_bc(iconn)%mass_balance_delta = 0.d0
+  enddo
+
+  do iconn = 1, patch%aux%NWT%num_aux_ss
+    nwt_auxvars_ss(iconn)%mass_balance_delta = 0.d0
+  enddo
+
+end subroutine NWTZeroMassBalanceDelta
+
 ! ************************************************************************** !
 
 subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
@@ -2042,7 +2106,7 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id, ghosted_id
-  PetscInt :: ncomp
+  PetscInt :: nspecies
   PetscReal :: liquid_saturation, porosity, volume
 
   option => realization%option
@@ -2061,9 +2125,7 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   sum_mol_sb = 0.d0
   sum_mol_mnrl = 0.d0
 
-  !TODO(jenn): Add MASS_BALANCE to OUTPUT block and you will see that the
-  !            code fails
-  ncomp = reaction_nw%params%ncomp
+  nspecies = reaction_nw%params%nspecies
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -2075,18 +2137,17 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
     volume = material_auxvars(ghosted_id)%volume ! [m^3]
     
     ! aqueous (sum_mol_aq) [mol]
-    sum_mol_aq(1:ncomp) = sum_mol_aq(1:ncomp) + &
+    sum_mol_aq(1:nspecies) = sum_mol_aq(1:nspecies) + &
            nwt_auxvars(ghosted_id)%aqueous_eq_conc(:) * &  ! [mol/m^3-liq]
            liquid_saturation*porosity*volume               ! [m^3-liq]
 
     ! equilibrium sorption (sum_mol_sb) [mol]
-    sum_mol_sb(1:ncomp) = sum_mol_sb(1:ncomp) + &
+    sum_mol_sb(1:nspecies) = sum_mol_sb(1:nspecies) + &
             nwt_auxvars(ghosted_id)%sorb_eq_conc(:) * &    ! [mol/m^3-bulk]
             volume                                         ! [m^3-bulk]
-    ! jenn:tod Is this the correct calc for sum_mol_sb? Is volume right?
 
     ! mineral volume fractions (sum_mol_mnrl) [mol]
-    sum_mol_mnrl(1:ncomp) = sum_mol_mnrl(1:ncomp) + &
+    sum_mol_mnrl(1:nspecies) = sum_mol_mnrl(1:nspecies) + &
             nwt_auxvars(ghosted_id)%mnrl_eq_conc(:) * &    ! [mol/m^3-mnrl]
             nwt_auxvars(ghosted_id)%mnrl_vol_frac(:) * &   ! [m^3-mnrl/m^3-void]
             porosity*volume                     ! [m^3-void/m^3-bulk * m^3-bulk]
