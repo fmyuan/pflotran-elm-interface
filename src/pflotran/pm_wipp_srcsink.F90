@@ -246,9 +246,11 @@ module PM_WIPP_SrcSink_class
     PetscInt, pointer :: element_id(:)
     PetscReal, pointer :: half_life(:)
     PetscReal, pointer :: atomic_wt(:)
-    PetscReal, pointer :: mass(:)
+    PetscReal, pointer :: initial_inventory(:)
     PetscReal, pointer :: solubility(:)
     PetscReal, pointer :: disintegration_energy(:)
+    PetscReal, pointer :: current_mass(:,:)
+    PetscReal, pointer :: new_mass(:,:)
     type(rad_inventory_type), pointer :: next
   end type rad_inventory_type
 
@@ -343,7 +345,6 @@ module PM_WIPP_SrcSink_class
     character(len=MAXWORDLENGTH) :: canister_inventory_name
 
     type(rad_inventory_type), pointer :: rad_inventory
-    type(rad_inventory_type), pointer :: new_rad_inventory
     PetscInt :: n_isotopes
 
     PetscReal, pointer :: scaling_factor(:)        
@@ -614,9 +615,7 @@ function PMWSSWastePanelCreate()
   call PMWSSInventoryInit(panel%canister_inventory)
   
   nullify(panel%rad_inventory)
-  nullify(panel%new_rad_inventory)
   call PMWSSRadInventoryInit(panel%rad_inventory)
-  call PMWSSRadInventoryInit(panel%new_rad_inventory)
   
   panel%name = ''
   panel%region_name = ''
@@ -723,9 +722,11 @@ function PMWSSRadInventoryCreate()
   nullify(rad_inventory%element_id)
   nullify(rad_inventory%half_life)
   nullify(rad_inventory%atomic_wt)
-  nullify(rad_inventory%mass)
+  nullify(rad_inventory%initial_inventory)
   nullify(rad_inventory%solubility)
   nullify(rad_inventory%disintegration_energy)
+  nullify(rad_inventory%current_mass)
+  nullify(rad_inventory%new_mass)
   
   rad_inventory%name = ''
   
@@ -813,9 +814,10 @@ subroutine PMWSSRadInventoryInit(rad_inventory)
   nullify(rad_inventory%element_id)
   nullify(rad_inventory%half_life)
   nullify(rad_inventory%atomic_wt)
-  
-  nullify(rad_inventory%mass)
+  nullify(rad_inventory%initial_inventory)
   nullify(rad_inventory%solubility)
+  nullify(rad_inventory%current_mass)
+  nullify(rad_inventory%new_mass)
 
 end subroutine PMWSSRadInventoryInit
 
@@ -1065,9 +1067,7 @@ subroutine PMWSSAssociateRadInventory(this)
       if (StringCompare(cur_rad_inventory%name, cur_waste_panel% &
                         rad_inventory%name)) then
         call PMWSSCopyRadInv(cur_rad_inventory,cur_waste_panel%rad_inventory)
-        call PMWSSCopyRadInv(cur_rad_inventory,cur_waste_panel%&
-                             new_rad_inventory)
-        cur_waste_panel%new_rad_inventory%name = cur_waste_panel%&
+        cur_waste_panel%rad_inventory%name = cur_waste_panel%&
                                                  rad_inventory%name
         exit
         
@@ -1093,18 +1093,20 @@ subroutine PMWSSCopyRadInv(rad_inventory,wp_rad_inventory)
   
   type(rad_inventory_type), pointer :: rad_inventory
   type(rad_inventory_type), pointer :: wp_rad_inventory
+  PetscInt :: num_cells
   
   PetscInt :: num_species
   
    num_species = rad_inventory%num_species
-   wp_rad_inventory%num_species = num_species
-    
+
+   wp_rad_inventory%num_species = num_species    
+
    allocate(wp_rad_inventory%id(num_species))
    allocate(wp_rad_inventory%daughter_id(num_species))
    allocate(wp_rad_inventory%element_id(num_species))
    allocate(wp_rad_inventory%half_life(num_species))
    allocate(wp_rad_inventory%atomic_wt(num_species))
-   allocate(wp_rad_inventory%mass(num_species))
+   allocate(wp_rad_inventory%initial_inventory(num_species))
    allocate(wp_rad_inventory%solubility(num_species))
    allocate(wp_rad_inventory%disintegration_energy(num_species))
     
@@ -1113,7 +1115,8 @@ subroutine PMWSSCopyRadInv(rad_inventory,wp_rad_inventory)
    wp_rad_inventory%element_id(:) = rad_inventory%element_id(:)
    wp_rad_inventory%half_life(:) = rad_inventory%half_life(:)
    wp_rad_inventory%atomic_wt(:) = rad_inventory%atomic_wt(:)
-   wp_rad_inventory%mass(:) = rad_inventory%mass(:)
+   wp_rad_inventory%initial_inventory(:) = rad_inventory% &
+                                           initial_inventory(:)
    wp_rad_inventory%solubility(:) = rad_inventory%solubility(:)
    wp_rad_inventory%disintegration_energy(:) = &
                     rad_inventory%disintegration_energy(:)
@@ -1455,7 +1458,7 @@ subroutine PMWSSReadPMBlock(this,input)
         !if (InputCheckExit(input,option)) exit
     !-----------------------------------------
     !-----------------------------------------
-      case('RADIOLYSIS') !MAN: radionuclide inventory for radiolysis
+      case('RADIOLYSIS') !radionuclide inventory for radiolysis
         wippflo_radiolysis = PETSC_TRUE
         do
           call InputReadPflotranString(input,option)
@@ -1510,7 +1513,7 @@ subroutine PMWSSReadPMBlock(this,input)
             allocate(cur_rad_inventory%element_id(1))
             allocate(cur_rad_inventory%half_life(1))
             allocate(cur_rad_inventory%atomic_wt(1))
-            allocate(cur_rad_inventory%mass(1))
+            allocate(cur_rad_inventory%initial_inventory(1))
             allocate(cur_rad_inventory%solubility(1))
             allocate(cur_rad_inventory%disintegration_energy(1))
             temp_rad_inventory => cur_rad_inventory
@@ -1566,7 +1569,7 @@ subroutine PMWSSReadPMBlock(this,input)
                       case('MASS')
                         call InputReadDouble(input,option,input_double)
                         call InputErrorMsg(input,option,'MASS',error_string2)
-                        temp_rad_inventory%mass(1) = input_double
+                        temp_rad_inventory%initial_inventory(1) = input_double
                       case('SOLUBILITY')
                         call InputReadDouble(input,option,input_double)
                         call InputErrorMsg(input,option,'SOLUBILITY',error_string2)
@@ -1588,7 +1591,7 @@ subroutine PMWSSReadPMBlock(this,input)
               allocate(temp_rad_inventory%next%element_id(1))
               allocate(temp_rad_inventory%next%half_life(1))
               allocate(temp_rad_inventory%next%atomic_wt(1))
-              allocate(temp_rad_inventory%next%mass(1))
+              allocate(temp_rad_inventory%next%initial_inventory(1))
               allocate(temp_rad_inventory%next%solubility(1))
               allocate(temp_rad_inventory%next%disintegration_energy(1))
               temp_rad_inventory => temp_rad_inventory%next
@@ -1599,7 +1602,7 @@ subroutine PMWSSReadPMBlock(this,input)
             allocate(new_rad_inventory%element_id(k))
             allocate(new_rad_inventory%half_life(k))
             allocate(new_rad_inventory%atomic_wt(k))
-            allocate(new_rad_inventory%mass(k))
+            allocate(new_rad_inventory%initial_inventory(k))
             allocate(new_rad_inventory%solubility(k))
             allocate(new_rad_inventory%disintegration_energy(k))
             temp_rad_inventory => cur_rad_inventory
@@ -1609,7 +1612,8 @@ subroutine PMWSSReadPMBlock(this,input)
               new_rad_inventory%element_id(i) = temp_rad_inventory%element_id(1)
               new_rad_inventory%half_life(i) = temp_rad_inventory%half_life(1)
               new_rad_inventory%atomic_wt(i) = temp_rad_inventory%atomic_wt(1)
-              new_rad_inventory%mass(i) = temp_rad_inventory%mass(1)
+              new_rad_inventory%initial_inventory(i) = temp_rad_inventory% &
+                                                       initial_inventory(1)
               new_rad_inventory%solubility(i) = temp_rad_inventory%solubility(1)
               new_rad_inventory%disintegration_energy(i) = &
                                   temp_rad_inventory%disintegration_energy(1)
@@ -1633,7 +1637,7 @@ subroutine PMWSSReadPMBlock(this,input)
             call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         enddo
-      case('INVENTORY') !MAN: should change to CANISTER_INVENTORY
+      case('INVENTORY')
         error_string = trim(error_string) // ',INVENTORY'
         allocate(new_canister_inventory)
         new_canister_inventory => PMWSSPreInventoryCreate()
@@ -2334,7 +2338,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   PetscReal :: D_c 
   PetscReal :: D_m 
   PetscReal :: D_s
-  PetscInt :: i
+  PetscInt :: i,j
 ! -------------------------------------------------
   
   !-----PROBDEG-calculations-----------------------------------------------
@@ -2407,10 +2411,27 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
         inventory%Sulfate_in_panel*vol_scaling_factor      ! [kg]
     if (associated(rad_inventory)) then
       do i = 1,rad_inventory%num_species
-        rad_inventory%mass(i) = rad_inventory%mass(i) * vol_scaling_factor
+        rad_inventory%initial_inventory(i) = &
+         rad_inventory%initial_inventory(i) * vol_scaling_factor
       enddo
     endif
   endif
+
+  if (associated(rad_inventory)) then
+    allocate(rad_inventory%current_mass(rad_inventory%num_species, &
+                                        waste_panel%region%num_cells))
+    allocate(rad_inventory%new_mass(rad_inventory%num_species, &
+                                        waste_panel%region%num_cells))
+    do i = 1,rad_inventory%num_species
+      do j = 1,waste_panel%region%num_cells
+        rad_inventory%current_mass(i,j) = rad_inventory% &
+         initial_inventory(i) * waste_panel%scaling_factor(j)
+      enddo
+    enddo
+    rad_inventory%new_mass = rad_inventory%current_mass
+
+  endif
+
   !-----(see equation PA.76, PA.75, PA.93, section PA-4.2.5)---------------
   !-----mass-concentrations----------------------------------units---------
   D_c = inventory%Biodegs_in_panel / &                     ! [kg]
@@ -3035,9 +3056,9 @@ subroutine PMWSSUpdateRadInventory(wp)
 
   type(srcsink_panel_type) :: wp
 
-  if (.not.associated(wp%rad_inventory%mass)) return
+  if (.not.associated(wp%rad_inventory%new_mass)) return
 
-  wp%rad_inventory%mass(:) = wp%new_rad_inventory%mass(:)
+  wp%rad_inventory%current_mass = wp%rad_inventory%new_mass
 
 end subroutine PMWSSUpdateRadInventory
  
@@ -3520,18 +3541,31 @@ end subroutine PMWSSUpdateChemSpecies
         if (wippflo_radiolysis) then
           h2_produced_rad = 0.d0
           brine_consumed_rad = 0.d0
-          call Radiolysis(cwp,wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
-                          material_auxvars(ghosted_id), option%time, dt, &
+          cwp%rad_inventory%new_mass(:,i) = cwp%rad_inventory%current_mass(:,i)
+          select case(k)
+            case(PERT_WRT_SG)  ! 2 in auxvars; k = 1
+              call Radiolysis(cwp%rad_inventory, &
+                          wippflo_auxvars(WIPPFLO_GAS_SATURATION_DOF, &
+                          ghosted_id),material_auxvars(ghosted_id), &
+                          dt, this%radiolysis_parameters, &
+                          this%salt_wtpercent, h2_produced_rad, &
+                          brine_consumed_rad,i,option)
+            case(UNPERT)  ! 0 in auxvars; k = 0
+              call Radiolysis(cwp%rad_inventory, &
+                          wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
+                          material_auxvars(ghosted_id),dt, &
                           this%radiolysis_parameters, &
                           this%salt_wtpercent, h2_produced_rad, &
-                          brine_consumed_rad)
+                          brine_consumed_rad,i,option)
+          end select
+
+          !--[mol-H2/m3-bulk/sec]--!
           cwp%gas_generation_rate(i) = cwp%gas_generation_rate(i) + &
-                                     h2_produced_rad / MW_H2 * &
-                                     cwp%scaling_factor(i)
+                                     h2_produced_rad / MW_H2
           ! Only takes water out of the brine
+          !--[mol-H2O/m3-bulk/sec]--!
           cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) + &
-                                        brine_consumed_rad / MW_H2O * &
-                                        cwp%scaling_factor(i)
+                                        brine_consumed_rad / MW_H2O
         endif
 
       !------source-term-calculation--------------------------------------------
@@ -4711,9 +4745,9 @@ end subroutine PMWSSChemSpeciesDeallocate
 
 ! *************************************************************************** !
 
-subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
+subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
                       radiolysis_parameters, salt_wtpercent, &
-                      h2_produced, brine_consumed)
+                      h2_produced, brine_consumed, cell_index, option)
 
   ! Computes H2 production and brine consumption by radiolysis as a 
   ! function of radionuclide inventory in the waste form, and  
@@ -4723,61 +4757,59 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   !
   ! Author: Michael Nole
   ! Date: 10/08/19
-  
+ 
+  use Option_module
   use WIPP_Flow_Aux_module
   use Material_Aux_class
 
   implicit none
 
+  type(rad_inventory_type), pointer :: rad_inventory
   type(wippflo_auxvar_type) :: wippflo_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(srcsink_panel_type) :: wp
-  PetscReal :: time, dt
+  PetscReal :: dt
   type(radiolysis_parameter_type) :: radiolysis_parameters
   PetscReal :: salt_wtpercent, h2_produced, brine_consumed
-  
-  type(rad_inventory_type), pointer :: rad_inventory
-
+  PetscInt :: cell_index
+  type(option_type), pointer :: option
+ 
   PetscReal :: vol_brine, n_isotopes
   PetscInt :: i,j,im
 ! 
   PetscReal :: radiolysis_start
+  PetscReal :: time
+  PetscInt :: gid
 
-  !MAN: need to make all of these variable names more descriptive and
-  !     organize them better
   PetscReal :: wmbrrad,brine_vol
 
-  ! MAN: not sure this is the most elegant way...
-  PetscReal :: rthalf(wp%rad_inventory%num_species), &
-               radex(wp%rad_inventory%num_species), &
-               xold(wp%rad_inventory%num_species), &
-               xnew(wp%rad_inventory%num_species), &
-               xavg(wp%rad_inventory%num_species), &
-               xtot(wp%rad_inventory%num_species), &
-               xmol(wp%rad_inventory%num_species), &
-               H(wp%rad_inventory%num_species)
+  PetscReal :: rthalf(rad_inventory%num_species), &
+               radex(rad_inventory%num_species), &
+               xold(rad_inventory%num_species), &
+               xnew(rad_inventory%num_species), &
+               xavg(rad_inventory%num_species), &
+               xtot(rad_inventory%num_species), &
+               xmol(rad_inventory%num_species), &
+               H(rad_inventory%num_species)
   PetscReal :: xmult, brine_saturation
   PetscReal :: h2_source
   PetscReal :: isotope_in_solution, isotope_in_solid, isotope_mf
 
   PetscInt :: nx,ny,nz
   PetscInt :: idni,id1,id2,id3,id4,idx,idx1
-  PetscInt :: lid
  
   PetscInt :: num_species
- 
-  wp%new_rad_inventory%mass(:) = wp%rad_inventory%mass(:)
-  rad_inventory => wp%new_rad_inventory
-      
-  radiolysis_start = 0.d0 ! TIMEICRESET in Bragflo
-  lid = 1
+
+  time = option%time
+  gid = option%gas_phase
+
+  radiolysis_start = 1.d0 ! TIMEICRESET in Bragflo
   
   if (time < radiolysis_start .or. rad_inventory%name == '') return
   
   num_species = rad_inventory%num_species
-  brine_saturation = wippflo_auxvar%sat(lid)
+  brine_saturation = 1.d0 - wippflo_auxvar%sat(gid)
 
-  xold(:) = rad_inventory%mass(:)
+  xold(:) = rad_inventory%new_mass(:,cell_index)
   xnew(:) = xold(:)
   
     ! [kg brine/kg H20] * [kg H20/mol H20] = kg brine/molH20]
@@ -4788,7 +4820,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   radex = exp(-dt*rthalf)
   
   brine_vol = material_auxvar%volume * material_auxvar%porosity * &
-         wippflo_auxvar%sat(lid)
+         brine_saturation
   
          
    ! Execute RADIOLYSIS subroutine from Bragflo 
@@ -4806,7 +4838,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   
   do i = 1,num_species
   
-    if (rad_inventory%mass(i) > 0.d0) then
+    if (rad_inventory%new_mass(i,cell_index) > 0.d0) then
     
       ! Execute WHICH subroutine in Bragflo
       ! CALL WHICH(TIME, I, IDN, ID1, ID2, ID3, ID4)
@@ -5066,7 +5098,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   do i = 1,num_species
   
     if (xtot(rad_inventory%element_id(i)) > 0.d0 .and. rad_inventory% &
-        mass(i) > 0.d0) then
+        new_mass(i,cell_index) > 0.d0) then
       
       ! total amount of H2 produced over a time step [mol]
 
@@ -5094,14 +5126,14 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
  
   ! Calculate gas produced and brine consumed
   
-  ! MAN: need to be able to revert to inventories at previous time step
-  ! when N-R doesn't converge
-  
-  where (xold>0.d0) 
-    rad_inventory%mass=xnew*rad_inventory%mass/xold
-  elsewhere
-    rad_inventory%mass=xnew
-  end where
+  do i = 1,rad_inventory%num_species
+    if (xold(i)>0.d0) then
+      rad_inventory%new_mass(i,cell_index)=xnew(i)*rad_inventory% &
+                                           new_mass(i,cell_index)/xold(i)
+    else
+      rad_inventory%new_mass(i,cell_index)=xnew(i)
+    endif
+  enddo
   
   xold = xnew
   
