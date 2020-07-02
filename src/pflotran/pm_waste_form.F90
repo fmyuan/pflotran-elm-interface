@@ -275,14 +275,16 @@ module PM_Waste_Form_class
     PetscInt :: iO2
     PetscInt :: iFe_2p
     PetscInt :: iH2
-    PetscReal, dimension(6,64) :: input_hidden1_weights
-    PetscReal, dimension(64) :: input_hidden1_bias
-    PetscReal, dimension(64,64) :: hidden1_hidden2_weights
-    PetscReal, dimension(64) :: hidden1_hidden2_bias
-    PetscReal, dimension(64) :: hidden2_output_weights
+    ! ANN parameters
+    PetscReal :: input_hidden1_weights(6,64)
+    PetscReal :: input_hidden1_bias(64)
+    PetscReal :: hidden1_hidden2_weights(64,64)
+    PetscReal :: hidden1_hidden2_bias(64)
+    PetscReal :: hidden2_output_weights(64)
     PetscReal :: hidden2_output_bias
-    PetscReal, dimension(6) :: scaler_offsets
-    PetscReal, dimension(6) :: scaler_scales
+    PetscReal :: scaler_offsets(6)
+    PetscReal :: scaler_scales(6)
+    ! kNNr variables
     PetscInt :: num_nearest_neighbor
     type(kdtree), pointer :: tree
     PetscReal, pointer :: knnr_array(:,:)
@@ -5879,17 +5881,18 @@ subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
   class(wf_mechanism_fmdm_surrogate_type) :: this
   PetscReal, intent(in) :: sTme
   PetscReal, intent(in) :: current_temp_C 
+  ! constants
+  PetscInt, parameter :: num_features = 6 ! number of inputs to ANN
+  PetscInt, parameter :: N = 64 ! number of nodes per hidden layer
+  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
   
   ! local variables
   PetscReal :: yTme
   PetscInt :: i
-  PetscInt :: N ! number of nodes in ANN
   ! features
-  PetscReal, dimension(6) :: f
+  PetscReal :: f(6)
   ! hidden layer nodes values
-  PetscReal, dimension(64) :: h1, h2
-  ! constants
-  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+  PetscReal :: h1(64), h2(64)
 
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
@@ -5902,11 +5905,9 @@ subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
   f(6) = log10(dose_rate(yTme,this%decay_time,this%burnup))
 
   ! standardize
-  do i = 1,6
+  do i = 1,num_features
     f(i) = (f(i) - this%scaler_offsets(i))/this%scaler_scales(i)
   enddo
-
-  N = 64 ! 64 nodes in each layer
 
   ! Input - Hidden Layer 1
   do i = 1,N
