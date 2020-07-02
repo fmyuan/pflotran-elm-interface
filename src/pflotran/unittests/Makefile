@@ -25,6 +25,9 @@ PFLOTRAN_OBJS = \
         $(EXE_DIR)/characteristic_curves_owg.o \
         $(EXE_DIR)/characteristic_curves_wipp.o \
 	$(EXE_DIR)/characteristic_curves_table.o \
+	$(EXE_DIR)/dataset_ascii.o \
+	$(EXE_DIR)/dataset_base.o \
+	$(EXE_DIR)/time_storage.o \
 	$(EXE_DIR)/eos_database.o \
 	$(EXE_DIR)/eos_gas.o \
 	$(EXE_DIR)/eos_water.o \
