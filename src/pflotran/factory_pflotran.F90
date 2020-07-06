@@ -68,6 +68,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Output_Aux_module
   use Logging_module
   use EOS_module
+  use HDF5_Aux_module
   use PM_Surface_class
   use PM_Geomechanics_Force_class
   use PM_Subsurface_Flow_class
@@ -91,6 +92,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   call PetscLogEventBegin(logging%event_init,ierr);CHKERRQ(ierr)
 
   call EOSInit()
+  call HDF5Init(option)
   filename = trim(option%global_prefix) // trim(option%group_prefix) // &
              '.out'
   if (option%myrank == option%io_rank .and. option%print_to_file) then
@@ -529,6 +531,7 @@ subroutine PFLOTRANFinalize(option)
   use Option_module
   use Logging_module
   use Output_EKG_module
+  use HDF5_Aux_module
   
   implicit none
   
@@ -537,6 +540,7 @@ subroutine PFLOTRANFinalize(option)
   
   ! pushed in FinalizeRun()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
+  call HDF5Finalize(option)
   call OptionEndTiming(option)
   if (OptionPrintToFile(option)) then
     close(option%fid_out)

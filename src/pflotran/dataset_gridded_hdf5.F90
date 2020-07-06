@@ -543,7 +543,6 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 #ifdef BROADCAST_DATASET
   endif
 #endif

@@ -280,8 +280,6 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   
   h5fopen_err = 0
   if (option%myrank == option%io_rank) then
-    ! open the file
-    call h5open_f(hdf5_err)
     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
     call PrintMsg(option)
   
@@ -382,7 +380,6 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
     call PrintMsg(option)
     call h5fclose_f(file_id,hdf5_err)
-    call h5close_f(hdf5_err) 
     internal_units = 'sec'
     time_storage%times = time_storage%times * &
       UnitsConvertToInternal(time_units,internal_units,option)

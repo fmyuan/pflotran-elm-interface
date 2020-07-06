@@ -149,10 +149,10 @@ factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          simulation_subsurface.o solver.o string.o \
                          timestepper_steady.o units.o utility.o waypoint.o
 factory_pflotran.o : checkpoint.o eos.o factory_geomechanics.o \
-                     factory_subsurface.o factory_surfsubsurface.o input_aux.o \
-                     logging.o multisimulation.o option.o output_aux.o \
-                     output_ekg.o pflotran_constants.o pm_auxiliary.o \
-                     pm_base.o pm_geomechanics_force.o pm_rt.o \
+                     factory_subsurface.o factory_surfsubsurface.o hdf5_aux.o \
+                     input_aux.o logging.o multisimulation.o option.o \
+                     output_aux.o output_ekg.o pflotran_constants.o \
+                     pm_auxiliary.o pm_base.o pm_geomechanics_force.o pm_rt.o \
                      pm_subsurface_flow.o pm_surface.o pm_surface_flow.o \
                      pm_surface_th.o pmc_base.o simulation_base.o \
                      simulation_geomechanics.o simulation_subsurface.o \

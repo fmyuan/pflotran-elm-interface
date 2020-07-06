@@ -1320,7 +1320,6 @@ recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   if (this%is_master) then
     call h5gclose_f(h5_chk_grp_id, hdf5_err)
     call h5fclose_f(h5_file_id,hdf5_err)
-    call h5close_f(hdf5_err)
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
           '("      Seconds to write to checkpoint file: ", f10.2)') &
@@ -1470,7 +1469,6 @@ recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   if (this%is_master) then
     call h5gclose_f(h5_chk_grp_id, hdf5_err)
     call h5fclose_f(h5_file_id, hdf5_err)
-    call h5close_f(hdf5_err)
     call PetscTime(tend,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer, &
           '("      Seconds to read from restart file: ", f10.2)') &
