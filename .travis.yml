@@ -17,10 +17,10 @@ addons:
     packages:
       - cmake
 
-branches:
-  only:
-    - master
-#    - next
+#branches:
+#  only:
+#    - master
+##    - next
 
 matrix:
   include:
