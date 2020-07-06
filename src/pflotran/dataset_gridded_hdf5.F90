@@ -324,6 +324,13 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
     else if (this%max_buffer_size < 0) then
       this%max_buffer_size = default_max_buffer_size
     endif
+    if (this%interpolation_method /= INTERPOLATION_STEP .and. &
+        this%max_buffer_size < 2) then
+      option%io_buffer = 'Dataset "Max Buffer Size" is set to ' // &
+        trim(StringWrite(this%max_buffer_size)) // &
+        ', but must be greater than 1 for non-STEP time interpolation.'
+      call PrintErrMsg(option)
+    endif
   endif ! this%data_dim == DIM_NULL
 
 #ifdef BROADCAST_DATASET
