@@ -275,10 +275,16 @@ module PM_Waste_Form_class
     PetscInt :: iO2
     PetscInt :: iFe_2p
     PetscInt :: iH2
-    PetscReal, pointer :: outer_weights(:)
-    PetscReal, pointer :: inner_weights(:,:)
-    PetscReal, pointer :: scaler_means(:)
-    PetscReal, pointer :: scaler_variances(:)
+    ! ANN parameters
+    PetscReal :: input_hidden1_weights(6,64)
+    PetscReal :: input_hidden1_bias(64)
+    PetscReal :: hidden1_hidden2_weights(64,64)
+    PetscReal :: hidden1_hidden2_bias(64)
+    PetscReal :: hidden2_output_weights(64)
+    PetscReal :: hidden2_output_bias
+    PetscReal :: scaler_offsets(6)
+    PetscReal :: scaler_scales(6)
+    ! kNNr variables
     PetscInt :: num_nearest_neighbor
     type(kdtree), pointer :: tree
     PetscReal, pointer :: knnr_array(:,:)
@@ -743,25 +749,7 @@ function PMWFMechanismFMDMSurrogateCreate(option)
     surrfmdm%num_nearest_neighbor = FMDM_surrogate_knnr_nn
     call KnnrInit(surrfmdm,option)
   else
-    allocate(surrfmdm%outer_weights(101))
-    open(IUNIT_TEMP,file="ann_surrogate/outer_weights.txt")
-    read(IUNIT_TEMP,*) surrfmdm%outer_weights
-    close(IUNIT_TEMP)
-
-    allocate(surrfmdm%inner_weights(7,100))
-    open(IUNIT_TEMP,file="ann_surrogate/inner_weights.txt")
-    read(IUNIT_TEMP,*) surrfmdm%inner_weights
-    close(IUNIT_TEMP)
-
-    allocate(surrfmdm%scaler_means(6))
-    open(IUNIT_TEMP,file="ann_surrogate/means.txt")
-    read(IUNIT_TEMP,*) surrfmdm%scaler_means
-    close(IUNIT_TEMP)
-
-    allocate(surrfmdm%scaler_variances(6))
-    open(IUNIT_TEMP,file="ann_surrogate/vars.txt")
-    read(IUNIT_TEMP,*) surrfmdm%scaler_variances
-    close(IUNIT_TEMP)
+    call ANNReadH5File(surrfmdm,option)
   endif
 
   PMWFMechanismFMDMSurrogateCreate => surrfmdm
@@ -1573,7 +1561,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 call InputErrorMsg(input,option,'DECAY_TIME', &
                                    error_string)
                 call InputReadAndConvertUnits(input, &
-                  new_mechanism%decay_time,'day','DECAY_TIME', &
+                  new_mechanism%decay_time,'year','DECAY_TIME', &
                   option)
               class default
                 option%io_buffer = 'ERROR: DECAY_TIME cannot be &
@@ -4028,13 +4016,9 @@ subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
   if (FMDM_surrogate_knnr) then
     call KnnrQuery(this, time, avg_temp_global)
   else
-    call AMP_surrogate_step(this%burnup, time, avg_temp_global, &
-                          this%concentration, this%decay_time, &
-                          this%outer_weights, &
-                          this%inner_weights, this%scaler_means, &
-                          this%scaler_variances, this%dissolution_rate)
+    call AMP_ann_surrogate_step(this, time, avg_temp_global)
   endif
-  
+
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
@@ -5154,11 +5138,6 @@ subroutine PMWFMechanismStrip(this)
           call DeallocateArray(prev_mechanism%knnr_array)
           call DeallocateArray(prev_mechanism%table_data)
           call KdtreeDestroy(prev_mechanism%tree)
-        else
-          call DeallocateArray(prev_mechanism%outer_weights)
-          call DeallocateArray(prev_mechanism%inner_weights)
-          call DeallocateArray(prev_mechanism%scaler_means)
-          call DeallocateArray(prev_mechanism%scaler_variances)
         endif
     end select
     deallocate(prev_mechanism)
@@ -5871,45 +5850,29 @@ end subroutine CriticalityStrip
 
 ! ************************************************************************** !
 
-subroutine AMP_surrogate_step (burnup, sTme, current_temp_C, &
-                               conc, decay_time, &
-                               outer_weights, inner_weights, &
-                               scaler_means, scaler_variances, &
-                               fuelDisRate)
+function relu(x)
+! Rectified linear unit
   implicit none
-  PetscReal, intent(in) :: sTme
-  PetscReal, intent(in) :: burnup
-  PetscReal, intent(in) :: current_temp_C 
-  PetscReal, intent(in) :: decay_time
-  ! four environmental concentrations
-  PetscReal, intent(in) :: conc(:)
-  ! ANN weights
-  PetscReal, intent(in) :: outer_weights(:)
-  PetscReal, intent(in) :: inner_weights(:,:)
-  ! standardization scaler parameters
-  PetscReal, intent(in) :: scaler_means(:)
-  PetscReal, intent(in) :: scaler_variances(:)
-  ! output
-  PetscReal, intent(out) :: fuelDisRate ! g/m2/yr
-  
-  ! local variables
-  PetscReal :: yTme
+  PetscReal :: relu
+  PetscReal, intent(in) :: x
+  if (x >= 0.0d0) then
+    relu = x
+  else
+    relu = 0.0d0
+  endif
+end function relu
+
+! ************************************************************************** !
+
+function dose_rate(years_time, decay_time, burnup)
+! Computes the dose rate at the fuel surface
+  implicit none
+  PetscReal :: dose_rate
+  PetscReal, intent(in) :: years_time, decay_time, burnup
   PetscReal :: f1, f2, f3, f4, f5
-  PetscReal :: AOF, rad0a, rad0
-  PetscReal :: node_sum
-  PetscInt :: i
-  PetscInt :: N ! number of nodes in ANN
-  ! features
-  PetscReal, dimension(6) :: f
-  ! hidden layer nodes values
-  PetscReal, dimension(100) :: h
-  ! constants
-  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+  PetscReal :: AOF, rad0a
 
-  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
-
-  ! calculate dose rate at the fuel surface (rad0)
-  AOF = yTme + decay_time
+  AOF = years_time + decay_time
 
   f2 = log(AOF)
   f1 = f2**2.0d0
@@ -5920,35 +5883,206 @@ subroutine AMP_surrogate_step (burnup, sTme, current_temp_C, &
   rad0a = -206.0634818750711d0   - 0.7631591788870090d0*f1 &
         + 20.97112373957833d0*f2 + 678.8463343193430d0*f3 &
         - 506.7149017370657d0*f4 + 0.1555448893425319d0*f5
-  rad0 = max(exp(rad0a),5.0d-3)
+  dose_rate = max(exp(rad0a),5.0d-3)
+end function dose_rate
+
+! ************************************************************************** !
+subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
+  
+  implicit none
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  PetscReal, intent(in) :: sTme
+  PetscReal, intent(in) :: current_temp_C 
+  ! constants
+  PetscInt, parameter :: num_features = 6 ! number of inputs to ANN
+  PetscInt, parameter :: N = 64 ! number of nodes per hidden layer
+  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+  
+  ! local variables
+  PetscReal :: yTme
+  PetscInt :: i
+  ! features
+  PetscReal :: f(6)
+  ! hidden layer nodes values
+  PetscReal :: h1(64), h2(64)
+
+  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
   ! features
   f(1) = current_temp_C + 273.15d0
-  f(2) = log10(conc(1)) ! Env_CO3_2n
-  f(3) = log10(conc(2)) ! Env_O2
-  f(4) = log10(conc(3)) ! Env_Fe_2p
-  f(5) = log10(conc(4)) ! Env_H2
-  f(6) = log10(rad0)
+  f(2) = log10(this%concentration(1)) ! Env_CO3_2n
+  f(3) = log10(this%concentration(2)) ! Env_O2
+  f(4) = log10(this%concentration(3)) ! Env_Fe_2p
+  f(5) = log10(this%concentration(4)) ! Env_H2
+  f(6) = log10(dose_rate(yTme,this%decay_time,this%burnup))
 
   ! standardize
-  do i = 1,6
-    f(i) = (f(i) - scaler_means(i))/sqrt(scaler_variances(i))
+  do i = 1,num_features
+    f(i) = (f(i) - this%scaler_offsets(i))/this%scaler_scales(i)
   enddo
 
-  N = 100 ! 100 nodes
-
+  ! Input - Hidden Layer 1
   do i = 1,N
-    node_sum = dot_product(f, inner_weights(1:6,i)) + inner_weights(7,i)
-    if (node_sum < 0.0d0) then
-      node_sum = 0.0d0
-    endif
-    h(i) = node_sum
+    h1(i) = relu(dot_product(f, this%input_hidden1_weights(:,i)) &
+          + this%input_hidden1_bias(i))
   enddo
 
-  fuelDisRate= 10**(dot_product(h,outer_weights(1:N)) + &
-                          outer_weights(101))*UO2_molar_mass
+  ! Hidden Layer 1 - Hidden Layer 2
+  do i = 1,N
+    h2(i) = relu(dot_product(h1, this%hidden1_hidden2_weights(:,i)) &
+          + this%hidden1_hidden2_bias(i))
+  enddo
 
-end subroutine AMP_surrogate_step
+  ! Hidden Layer 2 - Output
+  this%dissolution_rate = 10**(dot_product(h2, this%hidden2_output_weights) &
+                        + this%hidden2_output_bias)*UO2_molar_mass
+
+end subroutine AMP_ann_surrogate_step
+
+! ************************************************************************** !
+
+subroutine ANNReadH5File(this, option)
+
+  use hdf5
+  use HDF5_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  
+  character(len=MAXSTRINGLENGTH) :: h5_name = 'fmdm_ann_coeffs.h5'
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: group_name = '/'
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+
+  integer(HID_T) :: prop_id
+  integer(HID_T) :: file_id
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+
+  integer(HSIZE_T), allocatable :: dims_h5(:)
+
+  PetscMPIInt :: hdf5_err
+ 
+  call h5open_f(hdf5_err)
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option)
+
+  dataset_name = 'input_hidden1_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_weights, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'input_hidden1_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_bias,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden1_hidden2_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_weights, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden1_hidden2_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_bias, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden2_output_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_weights,dims_h5, &
+                   hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden2_output_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_bias,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'scaler_offsets'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_offsets,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'scaler_scales'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_scales,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  call h5gclose_f(group_id,hdf5_err)
+  call h5fclose_f(file_id,hdf5_err)
+  call h5pclose_f(prop_id,hdf5_err)
+
+end subroutine ANNReadH5File
+
+! ************************************************************************** !
+
+subroutine ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id,&
+                               dims_h5)
+ 
+  use hdf5
+  
+  implicit none
+
+  type(option_type) :: option
+  
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
+
+  PetscInt :: i
+  PetscInt :: ndims_h5
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: h5_name
+  PetscMPIInt :: hdf5_err
+
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  endif
+ 
+  call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+  call h5sget_simple_extent_ndims_f(file_space_id,ndims_h5,hdf5_err)
+
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  
+  call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
+
+  deallocate(max_dims_h5)
+
+end subroutine ANNGetH5DatasetInfo
 
 ! ************************************************************************** !
 
@@ -6000,8 +6134,6 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   ! features
   PetscReal :: f(6)
   PetscReal :: yTme
-  PetscReal :: f1, f2, f3, f4, f5
-  PetscReal :: AOF, rad0a, rad0
 
   PetscReal :: qoi_ave
   PetscReal, parameter :: UO2_molar_mass = 270.0d0 !g/mol
@@ -6015,26 +6147,12 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
  
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR  
 
-  ! calculate dose rate at the fuel surface (rad0)
-  AOF = yTme + decay_time
-
-  f2 = log(AOF)
-  f1 = f2**2.0d0
-  f3 = 1.0d0/f2
-  f4 = f2/AOF
-  f5 = exp(burnup/25.26892627636246d0)
-
-  rad0a = -206.0634818750711d0   - 0.7631591788870090d0*f1 &
-        + 20.97112373957833d0*f2 + 678.8463343193430d0*f3 &
-        - 506.7149017370657d0*f4 + 0.1555448893425319d0*f5
-  rad0 = max(exp(rad0a),5.0d-3)
-
   f(1) = current_temp_C + 273.15d0
   f(2) = log10(conc(1)) ! Env_CO3_2n
   f(3) = log10(conc(2)) ! Env_O2
   f(4) = log10(conc(3)) ! Env_Fe_2p
   f(5) = log10(conc(4)) ! Env_H2
-  f(6) = log10(rad0)    ! Dose Rate
+  f(6) = log10(dose_rate(yTme,decay_time,burnup))
 
   allocate(knnr_results(nn))
 

@@ -1,9 +1,9 @@
 ##########
-# Make sure you copy the folder ann_surrogate that contains
+# Make sure you copy the file fmd_ann_coeffs.h5 that contains
 # the coefficients for the ann into the directory where PFLOTRAN is
 # executed, as these are read in.
 # This can be found in
-# $SRC/regression_tests/ufd/ann_surrogate
+# $SRC/regression_tests/ufd/
 SIMULATION
 
   SIMULATION_TYPE SUBSURFACE
