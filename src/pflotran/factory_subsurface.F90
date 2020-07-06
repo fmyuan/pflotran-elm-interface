@@ -1670,8 +1670,8 @@ subroutine SubsurfaceSetupRealization(simulation)
       ! SK 09/30/13, Added to check if Mphase is called with OS
       if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
           option%iflowmode == MPH_MODE) then
-        option%io_buffer = 'Operator split not implemented with MPHASE. &
-                           &Switching to Global Implicit.'
+        option%io_buffer = 'Operator splitting currently not implemented with &
+                   &MPHASE. Please switch reactive transport to MODE GIRT.'
         call PrintErrMsg(option)
         option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
       endif
