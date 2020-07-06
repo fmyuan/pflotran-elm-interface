@@ -429,6 +429,7 @@ function DatasetCommonHDF5Load(this,option)
   type(option_type) :: option
   
   PetscBool :: read_due_to_time
+  PetscInt :: end_of_buffer
   
   DatasetCommonHDF5Load = PETSC_FALSE
   
@@ -439,21 +440,22 @@ function DatasetCommonHDF5Load(this,option)
     ! DatasetCommonHDF5ReadTimes()
   endif
   
+  read_due_to_time = PETSC_FALSE
   if (associated(this%time_storage)) then
     this%time_storage%cur_time = option%time
     ! sets correct cur_time_index
     call TimeStorageUpdate(this%time_storage)
-    read_due_to_time = &
-      (this%time_storage%cur_time_index > 0 & 
-       .and. &
-       this%time_storage%cur_time_index >= &
-        ! both of the below will be zero initially
-         this%buffer_slice_offset + this%buffer_nslice &
-       .and. &
-       this%time_storage%cur_time_index < &
-         this%time_storage%max_time_index)
-  else
-    read_due_to_time = PETSC_FALSE
+    ! this > 0 conditional prevents repetitive loads of the same data
+    ! during initialization
+    if (this%time_storage%cur_time_index > 0) then
+                      ! both of the below will be zero initially
+      end_of_buffer = this%buffer_slice_offset + this%buffer_nslice
+      read_due_to_time = this%time_storage%cur_time_index >= &
+                         end_of_buffer .and. &
+                         ! this conditional prevents repetitive loads once
+                         ! max_time_index is reached
+                         end_of_buffer < this%time_storage%max_time_index
+    endif
   endif
   
   if (read_due_to_time .or. &
