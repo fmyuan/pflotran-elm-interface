@@ -3,13 +3,25 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
-      MODE GENERAL ! two-phase flow and energy
+      MODE GENERAL
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+      /
     /
   /
 END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+#    ANALYTICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+
+END
 
 #=========================== discretization ===================================
 GRID
