@@ -1271,7 +1271,7 @@ subroutine ReactionReadDecoupledSpecies(reaction,input,option)
     enddo
     
     if (.not.associated(cur_species)) then
-      option%io_buffer = 'Decoupled equlibrium reaction species "' // &
+      option%io_buffer = 'Decoupled equilibrium reaction species "' // &
         trim(name) // '" not found among primary species.'
       call PrintErrMsg(option)
     endif
