@@ -31,6 +31,7 @@ END
 
 #=========================== hydrate ==========================================
 HYDRATE
+  EFFECTIVE_SAT_SCALING
   ADJUST_SOLUBILITY_WITHIN_GHSZ
   HYDRATE_PHASE_BOUNDARY MORIDIS
 END
@@ -186,7 +187,7 @@ FLOW_CONDITION center
   TYPE
     RATE TOTAL_MASS_RATE
   /
-  RATE -1.d2 0.d0 0.d0 g/s g/s W
+  RATE -5.d2 0.d0 0.d0 g/s g/s W
 END
 
 

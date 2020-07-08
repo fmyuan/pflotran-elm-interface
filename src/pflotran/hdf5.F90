@@ -633,8 +633,6 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
 
   PetscBool :: grp_exists
 
-  ! initialize fortran hdf5 interface
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -664,7 +662,6 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   call h5gclose_f(grp_id2,hdf5_err)
   call h5gclose_f(grp_id,hdf5_err)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
 end subroutine HDF5QueryRegionDefinition
 
@@ -708,8 +705,6 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
   call PetscLogEventBegin(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
                           
-  ! initialize fortran hdf5 interface 
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -770,7 +765,6 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   call PetscLogEventEnd(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
 
@@ -827,9 +821,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   integer(HSIZE_T) :: length(2), offset(2)
   integer(SIZE_T) :: string_size
   integer :: ndims_h5
-
-  ! Initialize FORTRAN predefined datatypes
-  call h5open_f(hdf5_err)
 
   ! Setup file access property with parallel I/O access
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -941,7 +932,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   call h5sclose_f(data_space_id,hdf5_err)
   call h5dclose_f(data_set_id,hdf5_err)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
 end subroutine HDF5ReadRegionDefinedByVertex
 
@@ -1006,8 +996,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   call PetscLogEventBegin(logging%event_cell_indx_int_read_hdf5, &
                           ierr);CHKERRQ(ierr)
   
- ! initialize fortran hdf5 interface
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -1076,7 +1064,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   call PetscLogEventEnd(logging%event_cell_indx_int_read_hdf5, &
                         ierr);CHKERRQ(ierr)
@@ -1143,8 +1130,6 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   call PetscLogEventBegin(logging%event_cell_indx_real_read_hdf5, &
                           ierr);CHKERRQ(ierr)
 
-  ! initialize fortran hdf5 interface
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -1211,7 +1196,6 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   call PetscLogEventEnd(logging%event_cell_indx_real_read_hdf5, &
                         ierr);CHKERRQ(ierr)

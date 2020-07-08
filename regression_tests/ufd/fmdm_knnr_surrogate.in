@@ -1,9 +1,6 @@
 ##########
-# Make sure you copy the file fmd_ann_coeffs.h5 that contains
-# the coefficients for the ann into the directory where PFLOTRAN is
-# executed, as these are read in.
-# This can be found in
-# $SRC/regression_tests/ufd/
+# Make sure you copy the h5 file containing the FMD generated data as these are
+#read in
 SIMULATION
 
   SIMULATION_TYPE SUBSURFACE
@@ -158,7 +155,7 @@ END_SUBSURFACE
 ##################
 WASTE_FORM_GENERAL
 
-  MECHANISM FMDM_SURROGATE
+  MECHANISM FMDM_SURROGATE_KNNR
     NAME fmdm01
     MATRIX_DENSITY 10.97d3 kg/m^3
     BURNUP 60 #GWd/MTHM

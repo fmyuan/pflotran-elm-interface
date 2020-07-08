@@ -9720,7 +9720,8 @@ end subroutine PatchCountCells
 
 ! ************************************************************************** !
 
-subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
+subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1, &
+                                      max_pore_velocity)
   !
   ! Calculates largest time step to preserves a
   ! CFL # of 1 in a patch
@@ -9741,6 +9742,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   type(patch_type) :: patch
   type(option_type) :: option
   PetscReal :: max_dt_cfl_1
+  PetscReal :: max_pore_velocity
 
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -9756,7 +9758,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iphase
-
+  PetscReal :: tempreal(2)
   PetscReal :: dt_cfl_1
   PetscErrorCode :: ierr
 
@@ -9766,6 +9768,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   grid => patch%grid
 
   max_dt_cfl_1 = 1.d20
+  max_pore_velocity = 0.d0
 
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -9799,12 +9802,13 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
         v_darcy = patch%internal_velocities(iphase,sum_connection)
         v_pore_max = v_darcy / por_sat_min
         v_pore_ave = v_darcy / por_sat_ave
-        !geh: I use v_por_max to ensure that we limit the cfl based on the
+        !geh: I use v_pore_max to ensure that we limit the cfl based on the
         !     highest velocity through the face.  If porosity*saturation
         !     varies, the pore water velocity will be highest on the side
         !     of the face with the smalled value of porosity*saturation.
         dt_cfl_1 = distance / dabs(v_pore_max)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
+        max_pore_velocity = max(v_pore_max,max_pore_velocity)
       enddo
     enddo
     cur_connection_set => cur_connection_set%next
@@ -9823,16 +9827,27 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
       !geh: since on boundary, dist must be scaled by 2.d0
       distance = 2.d0*cur_connection_set%dist(0,iconn)
       do iphase = 1, option%nphase
+        ! the _ave variable is being reused. it is actually, max
         por_sat_ave = material_auxvars(ghosted_id_dn)%porosity* &
                       global_auxvars(ghosted_id_dn)%sat(iphase)
         v_darcy = patch%boundary_velocities(iphase,sum_connection)
         v_pore_ave = v_darcy / por_sat_ave
         dt_cfl_1 = distance / dabs(v_pore_ave)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
+        max_pore_velocity = max(v_pore_ave,max_pore_velocity)
       enddo
     enddo
     boundary_condition => boundary_condition%next
   enddo
+
+  tempreal(1) = max_dt_cfl_1
+  tempreal(2) = -max_pore_velocity
+  call MPI_Allreduce(MPI_IN_PLACE,tempreal,TWO_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MIN, &
+                     option%mycomm,ierr)
+
+  max_dt_cfl_1 = tempreal(1)
+  max_pore_velocity = -tempreal(2)
 
 end subroutine PatchCalculateCFL1Timestep
 
@@ -10669,9 +10684,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
                                     global_total_mass)
   !
   ! Calculates the total mass (aqueous, sorbed, and precipitated) in a region
-  ! in units of mol.
+  ! in units of kg. [modified to kg from mol by Heeho]
   !
-  ! Author: Jenn Frederick
+  ! Author: Jenn Frederick, Heeho Park
   ! Date: 04/25/2016
   !
   use Global_Aux_module
@@ -10726,9 +10741,13 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! aqueous species; units [mol/L-water]*[m^3-water]*[1000L/m^3-water]=[mol]
       aq_species_mass = rt_auxvars(ghosted_id)%total(j,LIQUID_PHASE) * &
                         m3_water * 1.0d3
+      ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
+      aq_species_mass = aq_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
       if (associated(rt_auxvars(ghosted_id)%total_sorb_eq)) then
         ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
         sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
+        ! sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
+        sorb_species_mass = sorb_species_mass * reaction%eqcplx_molar_wt(j) * 1.0d-3
       else
         sorb_species_mass = 0.d0
       endif
@@ -10741,6 +10760,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! precip. species; units [m^3-mnrl/m^3-bulk]*[m^3-bulk]/[m^3-mnrl/mol-mnrl]=[mol]
       ppt_species_mass = rt_auxvars(ghosted_id)%mnrl_volfrac(m) * m3_bulk / &
                          reaction%mineral%kinmnrl_molar_vol(m)
+      ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
+      ppt_species_mass = ppt_species_mass * reaction%mineral%kinmnrl_molar_wt(j) * &
+                         1.0d-3
       local_total_mass = local_total_mass + ppt_species_mass
     enddo
   enddo ! Cell loop
@@ -10758,7 +10780,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   !
   ! Calculates the water mass in a region in kg
   !
-  ! Author: Satish Karra
+  ! Author: Satish Karra, Heeho Park
   ! Date: 09/20/2016
   !
   use Global_Aux_module
@@ -10793,10 +10815,10 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
     ghosted_id = patch%grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     m3_water = material_auxvars(ghosted_id)%porosity * &         ! [-]
-               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
+               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water %]
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     kg_water = m3_water*global_auxvars(ghosted_id)% &            ! [m^3-water]
-               den(LIQUID_PHASE)                                 ! [kg/m^3-water]
+               den_kg(LIQUID_PHASE)                              ! [kg/m^3-water]
     local_water_mass = local_water_mass + kg_water
   enddo ! Cell loop
 
