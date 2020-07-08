@@ -210,7 +210,6 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
 
   ! open the file
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   
@@ -343,7 +342,6 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err) 
   
   istart = 0
   do i = 1, min(buffer_rank2_size,file_rank2_size-this%buffer_slice_offset)
