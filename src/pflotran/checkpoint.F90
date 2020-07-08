@@ -529,9 +529,6 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   filename = CheckpointFilename(append_name, option)
   filename = trim(filename) // '.h5'
 
-    ! initialize fortran interface
-  call h5open_f(hdf5_err)
-
   call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
@@ -573,9 +570,6 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
-
-  ! initialize fortran interface
-  call h5open_f(hdf5_err)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
 #ifndef SERIAL_HDF5
