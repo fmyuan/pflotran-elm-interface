@@ -897,6 +897,7 @@ class RegressionTest(object):
         check_z_values = True
         connectivity = False
         cell_center = False
+        pack_type = None 
         
         j = 0
         
@@ -924,7 +925,7 @@ class RegressionTest(object):
         
                     for word in words:
                         
-                        if " I=" in word:       
+                        if " I=" in word or re.match("^I=",word):       
                             index_x = word.strip().split('=')[-1] 
                             index_x=int(index_x)
                             if index_x == 1:
@@ -932,7 +933,7 @@ class RegressionTest(object):
                             else:
                                 index_x1 = index_x - 1
                                 
-                        if " J=" in word:
+                        if " J=" in word or re.match("^J=",word):
                             index_y = word.strip().split('=')[-1] 
                             index_y = int(index_y)
                             if index_y == 1:
@@ -940,7 +941,7 @@ class RegressionTest(object):
                             else:
                                 index_y1 = index_y - 1
                                
-                        if " K=" in word:
+                        if " K=" in word or re.match("^K=",word):
                             index_z = word.strip().split('=')[-1] 
                             index_z = int(index_z)
                            
