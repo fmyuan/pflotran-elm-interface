@@ -2417,7 +2417,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
         ! MAN: end Kris change
 
-        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp         
+        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
             
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
@@ -3794,7 +3794,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! heat_flux = k_eff * delta_temp * area = J/s
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
       dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
-      heat_flux = dheat_flux_ddelta_temp * delta_temp      
+      heat_flux = dheat_flux_ddelta_temp * delta_temp
       ! AS3 Kris changes
       ! dheat_flux_ddelta_temp = (dkeff_dn_dTdn * delta_temp - k_eff_ave) &
       !      * area * 1.d-6 ! J/s -> MJ/s

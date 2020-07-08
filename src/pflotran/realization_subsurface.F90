@@ -751,11 +751,11 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   class(realization_subsurface_type) :: realization
   
   PetscBool :: found
-  PetscInt :: i
+  PetscInt :: i, num_mat_prop
   type(option_type), pointer :: option
   type(material_property_type), pointer :: cur_material_property
   type(patch_type), pointer :: patch
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: string, verify_string
   class(dataset_base_type), pointer :: dataset
   class(cc_thermal_type), pointer :: default_thermal_cc
 
@@ -793,29 +793,55 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     call CharCurvesThermalConvertListToArray( &
          patch%thermal_characteristic_curves, &
          patch%thermal_characteristic_curves_array, option)
-  else
-    default_thermal_cc => CharacteristicCurvesThermalCreate()
-    default_thermal_cc%name = 'DEFAULT'
-    realization%material_properties% &
-      thermal_conductivity_function_name = 'DEFAULT' 
-    default_thermal_cc%thermal_conductivity_function => TCF_Default_Create()
-    call CharacteristicCurvesThermalAddToList( &
-      default_thermal_cc, &
-      realization%thermal_characteristic_curves)
-    nullify(default_thermal_cc)
-    patch%thermal_characteristic_curves => &
-         realization%thermal_characteristic_curves
-    call ThermalConductivityFunctionAssignDefault(realization%&
-      thermal_characteristic_curves%thermal_conductivity_function, &
-      realization%material_properties%thermal_conductivity_wet, &
-      realization%material_properties%thermal_conductivity_dry,&
-      option)
+  ! else if (associated(patch%material_property_array)) then
+else if (option%use_legacy_dry .or. option%use_legacy_wet) then
+    ! use default tcc curve for legacy thermal conductivity input by material
+    num_mat_prop = size(patch%material_property_array)
+    do i = 1, num_mat_prop
+      if (.not. option%iflowmode == G_MODE) then
+        ! some modes outside of general will only use one thermal conducitivity
+        ! if that is the case, use default values as fallback options
+        if(patch%material_property_array(i)%ptr%thermal_conductivity_wet == &
+          UNINITIALIZED_DOUBLE) then
+          patch%material_property_array(i)%ptr%thermal_conductivity_wet = 2.d0
+        end if
+        if(patch%material_property_array(i)%ptr%thermal_conductivity_dry == &
+          UNINITIALIZED_DOUBLE) then
+          patch%material_property_array(i)%ptr%thermal_conductivity_dry = 5.d-1
+        end if
+      end if 
+      default_thermal_cc => CharacteristicCurvesThermalCreate()
+      default_thermal_cc%name = 'DEFAULT'
+      default_thermal_cc%thermal_conductivity_function => TCF_Default_Create()    
+      call ThermalConductivityFunctionAssignDefault( & 
+        default_thermal_cc%thermal_conductivity_function, &
+        patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
+        patch%material_property_array(i)%ptr%thermal_conductivity_dry, &      
+        option)      
+      if (associated(default_thermal_cc%thermal_conductivity_function)) then
+        verify_string = 'THERMAL_CHARACTERISTIC_CURVES(' // & 
+          trim(default_thermal_cc%name) // '),'
+        call default_thermal_cc%thermal_conductivity_function% & 
+          Verify(verify_string,option)
+      else
+        option%io_buffer = 'A thermal conductivity function has &
+          &not been set under THERMAL_CHARACTERISTIC_CURVES "' // &
+          trim(default_thermal_cc%name) // '".'
+      endif
+      call CharacteristicCurvesThermalAddToList( &
+        default_thermal_cc, &
+        realization%thermal_characteristic_curves)  
+      nullify(default_thermal_cc)
+    enddo    
+    ! end legacy thermal conductivity input by material, proceed with normal TCC procedure
     if (associated(realization%thermal_characteristic_curves)) then
+      patch%thermal_characteristic_curves => &
+           realization%thermal_characteristic_curves
       call CharCurvesThermalConvertListToArray( &
          patch%thermal_characteristic_curves, &
          patch%thermal_characteristic_curves_array, option)
     else
-      option%io_buffer = 'Manual assignment of DEFAULT thermal '//&
+      option%io_buffer = 'Manual assignments of DEFAULT thermal '//&
                          'characteristic curve failed!'
       call PrintErrMsg(option)
     end if
@@ -857,16 +883,14 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     endif
 
     ! thermal conducitivity function id 
-    if(option%use_tcc .eqv. PETSC_FALSE)then 
-      cur_material_property%thermal_conductivity_function_name &
-        ='DEFAULT'
-    end if    
     if (associated(patch%thermal_characteristic_curves_array)) then
-      cur_material_property%thermal_conductivity_function_id = &
+      if(cur_material_property%thermal_conductivity_function_id < 1) then
+        cur_material_property%thermal_conductivity_function_id = &
            CharacteristicCurvesThermalGetID( &
            patch%thermal_characteristic_curves_array, &
            cur_material_property%thermal_conductivity_function_name, &
            cur_material_property%name,option)
+      end if
     end if
     if (cur_material_property%thermal_conductivity_function_id == 0) then
       option%io_buffer = 'Thermal characteristic curve "' // &
@@ -1124,7 +1148,7 @@ subroutine RealProcessFluidProperties(realization)
         call PrintErrMsg(option)
       endif
     else
-      option%io_buffer = 'TCNUM data but no CHARACTERISTIC CURVES'
+      option%io_buffer = 'TCNUM data but no THERMAL CHARACTERISTIC CURVES'
       call PrintErrMsg(option)
     end if
   endif  
@@ -2918,11 +2942,9 @@ subroutine RealizationStrip(this)
   call SaturationFunctionDestroy(this%saturation_functions)
   call CharacteristicCurvesDestroy(this%characteristic_curves)  
 
-  ! if(this%option%iflowmode == G_MODE)then
-    if (associated(this%thermal_characteristic_curves)) then
-      call ThermalCharacteristicCurvesDestroy(this%thermal_characteristic_curves)
-    end if
-  ! end if
+  if (associated(this%thermal_characteristic_curves)) then
+    call ThermalCharacteristicCurvesDestroy(this%thermal_characteristic_curves)
+  end if
   
   call DatasetDestroy(this%datasets)
   

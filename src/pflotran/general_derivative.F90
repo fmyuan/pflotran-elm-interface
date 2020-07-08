@@ -921,7 +921,7 @@ subroutine GeneralDerivativeDestroy(general_parameter, &
     nullify(material_parameter%soil_heat_capacity)
     if (associated(material_parameter%soil_thermal_conductivity)) &
       deallocate(material_parameter%soil_thermal_conductivity)
-    nullify(material_parameter%soil_thermal_conductivity)    
+    nullify(material_parameter%soil_thermal_conductivity)
     deallocate(material_parameter)
     nullify(material_parameter)    
   endif

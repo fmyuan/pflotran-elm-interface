@@ -91,13 +91,6 @@ subroutine GeneralSetup(realization)
     call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
-  !!! KLK <- replaced material_parameters by thermal characteristic curves,
-  !!! not sure how an analogous check would look
-  !!if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
-  !!  option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
-  !!  call PrintMsg(option)
-  !!  error_found = PETSC_TRUE
-  !!endif 
   
   if (.not. option%use_tcc) then  !If TCCs are present, error checks are present within each function; error message exists for combining TCCs and legacy input
     if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0)then
@@ -1330,7 +1323,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
 
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
-      
+
       ikT_up = patch%kT_func_id(ghosted_id_up)
       ikT_dn = patch%kT_func_id(ghosted_id_dn)
       

@@ -414,10 +414,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
       patch%sat_func_id(ghosted_id) = &
         material_property%saturation_function_id
       patch%kT_func_id(ghosted_id) = &  
-           material_property%thermal_conductivity_function_id
+        material_property%thermal_conductivity_function_id
       icap_loc_p(ghosted_id) = material_property%saturation_function_id
       itcc_loc_p(ghosted_id) = &
-           material_property%thermal_conductivity_function_id
+        material_property%thermal_conductivity_function_id
       ithrm_loc_p(ghosted_id) = abs(material_property%internal_id)
       perm_xx_p(local_id) = material_property%permeability(1,1)
       perm_yy_p(local_id) = material_property%permeability(2,2)

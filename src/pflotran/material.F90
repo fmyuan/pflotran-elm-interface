@@ -181,6 +181,7 @@ function MaterialPropertyCreate()
   material_property%tortuosity_pwr = 0.d0
   material_property%tortuosity_func_porosity_pwr = UNINITIALIZED_DOUBLE
   material_property%saturation_function_id = 0
+  material_property%thermal_conductivity_function_id = UNINITIALIZED_INTEGER
   material_property%saturation_function_name = ''
   material_property%rock_density = UNINITIALIZED_DOUBLE
   material_property%specific_heat = UNINITIALIZED_DOUBLE
@@ -260,6 +261,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word, internal_units
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: buffer_save
+  character(len=MAXSTRINGLENGTH) :: tcc_name
 
   PetscInt :: length
   PetscBool :: therm_k_frz
@@ -336,7 +338,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'transverse_dispersivity_v', &
                            'MATERIAL_PROPERTY')
       case('THERMAL_CONDUCTIVITY_DRY') 
-        material_property%thermal_conductivity_function_name = 'DEFAULT'
         option%use_tcc = PETSC_FALSE
         option%use_legacy_dry = PETSC_TRUE
         call InputReadDouble(input,option, &
@@ -346,8 +347,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadAndConvertUnits(input, &
                    material_property%thermal_conductivity_dry, &
                    'W/m-C','MATERIAL_PROPERTY,dry thermal conductivity',option)
+        write(tcc_name,*)material_property%external_id 
+        material_property%thermal_conductivity_function_name = "_TCC_"//&
+          trim(adjustl(tcc_name))
+        material_property%thermal_conductivity_function_id = &
+          material_property%external_id
       case('THERMAL_CONDUCTIVITY_WET') 
-        material_property%thermal_conductivity_function_name = 'DEFAULT'
         option%use_tcc = PETSC_FALSE
         option%use_legacy_wet = PETSC_TRUE
         call InputReadDouble(input,option, &
@@ -357,6 +362,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadAndConvertUnits(input, &
                    material_property%thermal_conductivity_wet, &
                    'W/m-C','MATERIAL_PROPERTY,wet thermal conductivity',option)
+      write(tcc_name,*)material_property%external_id 
+      material_property%thermal_conductivity_function_name = "_TCC_"//&
+         trim(adjustl(tcc_name))
+      material_property%thermal_conductivity_function_id = &
+         material_property%external_id
       case('THERMAL_COND_EXPONENT') 
         call InputReadDouble(input,option, &
                              material_property%alpha)
@@ -943,7 +953,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       &the MATERIAL_PROPERTY is coupled.'
     call PrintErrMsg(option)
   endif
-  
+
 end subroutine MaterialPropertyRead
 
 ! ************************************************************************** !
