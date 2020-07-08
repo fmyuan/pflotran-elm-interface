@@ -878,36 +878,12 @@ class RegressionTest(object):
                 for i in range(len(ascii_gold)):
                     gold_values = ascii_gold[i].split()
                     current_values = ascii_current[i].split() 
-
-                                
+                               
                     for k in range(len(gold_values)):
                         name = headers[k]
                         
                         self._check_ascii_numbers(current_values[k],gold_values[k],name,tolerance,tolerance_type,status,testlog)
-#                        current = float(current_values[k])
-#                        previous = float(gold_values[k])
-#        
-#                        if tolerance_type == self._ABSOLUTE:
-#                            delta = abs(previous - current)
-#                        elif (tolerance_type == self._RELATIVE or
-#                            tolerance_type == self._PERCENT):
-#                            if previous != 0:
-#                                delta = abs((previous - current) / previous)
-#                            elif current != 0:
-#                                delta = abs((previous - current) / current)
-#                            else:
-#                            # both are zero
-#                                delta = 0.0
-#                                if tolerance_type == self._PERCENT:
-#                                    delta *= 100.0
-#                        
-#                        if delta > tolerance:
-#                            print("    FAIL: {0} : {1} > {2} [{3}]".format(
-#                                  name, delta, tolerance, tolerance_type), file=testlog)
-#                            status.fail = _MINOR_FAILURE
-#                        elif self._debug:                                
-#                            print("    PASS: {0} : {1} <= {2} [{3}]".format(
-#                                  name, delta, tolerance, tolerance_type), file=testlog)
+
                             
     def _compare_ascii_tec_output(self, ascii_current, ascii_gold, status, testlog):
         tol = self._tolerance[self._GENERIC]
@@ -933,7 +909,7 @@ class RegressionTest(object):
                     status.fail = _MINOR_FAILURE
                     break
                 else:
-                    line = ascii_gold[i].strip()#.split(',')
+                    line = ascii_gold[i].strip()
                     words = re.split(',|=',line)
                     words = words[1:]
                     headers = [x.strip('"') for x in words]
@@ -948,14 +924,14 @@ class RegressionTest(object):
         
                     for word in words:
                         
-                        if " I=" in word:
-        
+                        if " I=" in word:       
                             index_x = word.strip().split('=')[-1] 
                             index_x=int(index_x)
                             if index_x == 1:
                                 index_x1 = index_x
                             else:
                                 index_x1 = index_x - 1
+                                
                         if " J=" in word:
                             index_y = word.strip().split('=')[-1] 
                             index_y = int(index_y)
@@ -976,6 +952,7 @@ class RegressionTest(object):
                             num_vertices = index_x*index_y*index_z                  
                             num_values = index_x1 * index_y1 * index_z1
                             values_left = num_vertices
+                            
                         if " N=" in word:
                             num_vertices = word.strip().split('=')[-1]
                             num_vertices = int(num_vertices)
@@ -1003,7 +980,7 @@ class RegressionTest(object):
                     if pack_type == "BLOCK":
                         if check_x_values:
                             
-                            for k in range(len(gold_values)):#(num_verticies):
+                            for k in range(len(gold_values)):
                                 self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
             
                             values_left = values_left - len(gold_values)
@@ -1014,7 +991,7 @@ class RegressionTest(object):
                                 j = j + 1
             
                         elif check_y_values:
-                            for k in range(len(gold_values)):#range(num_vertices):
+                            for k in range(len(gold_values)):
                                 self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
                             
                             values_left = values_left - len(gold_values)
@@ -1025,7 +1002,7 @@ class RegressionTest(object):
                           
             
                         elif check_z_values:
-                            for k in range(len(gold_values)):#range(num_vertices):
+                            for k in range(len(gold_values)):
                                 self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
             
                             values_left = values_left - len(gold_values)
@@ -1039,7 +1016,7 @@ class RegressionTest(object):
                             
                         else:
                             
-                            for k in range(len(gold_values)):#range(num_values):  
+                            for k in range(len(gold_values)):  
                                 self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
             
                             values_left = values_left - len(gold_values)
