@@ -1,18 +1,18 @@
 -- GENERIC: Temperature --
-      Max:   9.4991640666226E+01
-      Min:   4.9913938363220E+00
-     Mean:   4.9965332116954E+01
-        5:   5.4946546955884E+01
+      Max:   9.4993942445568E+01
+      Min:   4.9938116464532E+00
+     Mean:   4.9974988997073E+01
+        5:   5.4961414684082E+01
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
      Mean:   1.0000000000000E+00
         5:         1
 -- SOLUTION: Flow --
-   Time (seconds):   1.0072457799470E-01
-   Time Steps:           58
-   Newton Iterations:          335
-   Linear Solver Iterations:          337
+   Time (seconds):   1.0902261734009E-01
+   Time Steps:           59
+   Newton Iterations:          339
+   Linear Solver Iterations:          341
    Time Step Cuts:           14
-   Solution 2-Norm:   3.5235375461331E+05
-   Residual 2-Norm:   1.0048532722981E-09
+   Solution 2-Norm:   3.5233090058878E+05
+   Residual 2-Norm:   3.7906875365863E-10

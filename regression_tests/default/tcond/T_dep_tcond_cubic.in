@@ -1,4 +1,4 @@
-#Description: Test cubic polynomial thermal characteristic curve (file based on liquid_gas.in)
+#Description: Test cubic polynomial thermal characteristic curve
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE

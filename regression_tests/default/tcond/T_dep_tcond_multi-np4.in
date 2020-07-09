@@ -1,4 +1,4 @@
-#Description: Test power thermal characteristic curve
+#Description: Test multiple thermal characteristic curves in parallel
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -19,20 +19,20 @@ SUBSURFACE
 NUMERICAL_METHODS FLOW
 
   TIMESTEPPER
-    #  MAX_STEPS -1
+    # MAX_STEPS -1
     SATURATION_CHANGE_GOVERNOR 1.d0
     CONCENTRATION_CHANGE_GOVERNOR 0.5d0
   /
 
   NEWTON_SOLVER
-    MAXIMUM_NUMBER_OF_ITERATIONS 10
+    MAXIMUM_NUMBER_OF_ITERATIONS 20
     RTOL 1.d-8
     ATOL 1.d-8
     STOL 1.d-30
   /
 
   LINEAR_SOLVER
-    SOLVER DIRECT
+#    SOLVER DIRECT
   /
 
 END
@@ -40,8 +40,13 @@ END
 #=========================== regression =======================================
 REGRESSION
   CELL_IDS
-    5
+    3
+    8
+    13
+    18
+    23
   /
+  CELLS_PER_PROCESS 1
 END
 
 #=========================== flow mode ========================================
@@ -61,15 +66,14 @@ END
 GRID
   TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
-  NXYZ 10 1 1
+  NXYZ 25 1 1
   BOUNDS
     0.d0 0.d0 0.d0
-    10.d0 1.d0 1.d0
+    25.d0 1.d0 1.d0
   /
 END
 
 #=========================== solver options ===================================
-
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY
@@ -77,8 +81,68 @@ FLUID_PROPERTY
 /
 
 #=========================== material properties ==============================
-MATERIAL_PROPERTY soil
+MATERIAL_PROPERTY soil_default
   ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.0 kg/m^3
+  THERMAL_CHARACTERISTIC_CURVES cct_default
+  HEAT_CAPACITY 830.0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY soil_constant
+  ID 2
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.0 kg/m^3
+  THERMAL_CHARACTERISTIC_CURVES cct_constant
+  HEAT_CAPACITY 830.0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY soil_linear
+  ID 3
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.0 kg/m^3
+  THERMAL_CHARACTERISTIC_CURVES cct_linear_resistivity
+  HEAT_CAPACITY 830.0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY soil_cubic
+  ID 4
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.0 kg/m^3
+  THERMAL_CHARACTERISTIC_CURVES cct_cubic_polynomial
+  HEAT_CAPACITY 830.0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY soil_power
+  ID 5
   CHARACTERISTIC_CURVES cc1
   POROSITY 0.25
   TORTUOSITY 0.5
@@ -90,6 +154,41 @@ MATERIAL_PROPERTY soil
     PERM_Y 1.d-12
     PERM_Z 1.d-12
   /
+END
+
+THERMAL_CHARACTERISTIC_CURVES cct_default
+THERMAL_CONDUCTIVITY_FUNCTION DEFAULT
+THERMAL_CONDUCTIVITY_DRY 5.5000D+0 W/m-C
+THERMAL_CONDUCTIVITY_WET 7.0000D+0 W/m-C
+END
+TEST
+END
+
+THERMAL_CHARACTERISTIC_CURVES cct_constant
+THERMAL_CONDUCTIVITY_FUNCTION CONSTANT
+CONSTANT_THERMAL_CONDUCTIVITY 5.5000D+0 W/m-C
+END
+TEST
+END
+
+THERMAL_CHARACTERISTIC_CURVES cct_linear_resistivity
+THERMAL_CONDUCTIVITY_FUNCTION LINEAR_RESISTIVITY
+THERMAL_CONDUCTIVITY_DRY 5.5000D+0 W/m-C
+THERMAL_CONDUCTIVITY_WET 7.0000D+0 W/m-C
+#REFERENCE_TEMPERATURE 0.d0 ! default value
+LINEAR_RESISTIVITY_COEFFICIENTS 1.0d0 5.038D-3
+END
+TEST
+END
+
+THERMAL_CHARACTERISTIC_CURVES cct_cubic_polynomial
+THERMAL_CONDUCTIVITY_FUNCTION CUBIC_POLYNOMIAL
+THERMAL_CONDUCTIVITY_DRY 5.5000D+0 W/m-C
+THERMAL_CONDUCTIVITY_WET 7.0000D+0 W/m-C
+#REFERENCE_TEMPERATURE 0.d0 ! default value
+CUBIC_POLYNOMIAL_COEFFICIENTS -4.53398D-3 1.41580D-5 -1.94840D-8
+END
+TEST
 END
 
 THERMAL_CHARACTERISTIC_CURVES cct_power
@@ -137,7 +236,7 @@ OUTPUT
 #=========================== times ============================================
 TIME
   FINAL_TIME 1.0d+0 y
-  INITIAL_TIMESTEP_SIZE 1.0d-3 y
+  INITIAL_TIMESTEP_SIZE 1.0d-7 y
   MAXIMUM_TIMESTEP_SIZE 1.0d+0 y
 /
 
@@ -145,32 +244,72 @@ TIME
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
-    10.d0 1.d0 1.d0
+    25.d0 1.d0 1.d0
   /
 END
 
 REGION west
-  FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
   /
+  FACE WEST
 END
 
 REGION east
-  FACE EAST
   COORDINATES
-    10.d0 0.d0 0.d0
+    25.d0 0.d0 0.d0
+    25.d0 1.d0 1.d0
+  /
+  FACE EAST
+END
+
+REGION liquid_side
+  COORDINATE 0.5d0 0.5d0 0.5d0
+END
+
+REGION gas_side
+  COORDINATE 24.5d0 0.5d0 0.5d0
+END
+
+#FIRST SEGMENT
+REGION S1
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 1.d0 1.d0
+  /
+END
+
+#SECOND SEGMENT
+REGION S2
+  COORDINATES
+    5.d0 0.d0 0.d0
     10.d0 1.d0 1.d0
   /
 END
 
-REGION liquid_side
-  COORDINATE 0.25d0 0.5d0 0.5d0
+#THIRD SEGMENT
+REGION S3
+  COORDINATES
+    10.d0 0.d0 0.d0
+    15.d0 1.d0 1.d0
+  /
 END
 
-REGION gas_side
-  COORDINATE 9.75d0 0.5d0 0.5d0
+#FOURTH SEGMENT
+REGION S4
+  COORDINATES
+    15.d0 0.d0 0.d0
+    20.d0 1.d0 1.d0
+  /
+END
+
+#FIFTH SEGMENT
+REGION S5
+  COORDINATES
+    20.d0 0.d0 0.d0
+    25.d0 1.d0 1.d0
+  /
 END
 
 #=========================== observation points ===============================
@@ -229,22 +368,22 @@ FLOW_CONDITION gas_phase
   TEMPERATURE 0.d0
 /
 
-FLOW_CONDITION initial
-  TYPE
-    GAS_PRESSURE DIRICHLET
-    MOLE_FRACTION DIRICHLET
-    TEMPERATURE DIRICHLET
-  /
-  GAS_PRESSURE 111325.d0
-  MOLE_FRACTION 0.995
-  TEMPERATURE 0.d0
-END
+#FLOW_CONDITION initial
+#  TYPE
+#    GAS_PRESSURE DIRICHLET
+#    MOLE_FRACTION DIRICHLET
+#    TEMPERATURE DIRICHLET
+#  /
+#  GAS_PRESSURE 111325.d0
+#  MOLE_FRACTION 0.995
+#  TEMPERATURE 0.d0
+#END
 
 #=========================== condition couplers ===============================
-INITIAL_CONDITION
-  FLOW_CONDITION initial
-  REGION all
-END
+#INITIAL_CONDITION
+#  FLOW_CONDITION initial
+#  REGION all
+#END
 
 INITIAL_CONDITION
   FLOW_CONDITION liquid_phase
@@ -255,6 +394,32 @@ INITIAL_CONDITION
   FLOW_CONDITION gas_phase
   REGION east
 /
+
+INITIAL_CONDITION
+  FLOW_CONDITION gas_phase
+  REGION S1
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION gas_phase
+  REGION S2
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION gas_phase
+  REGION S3
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION gas_phase
+  REGION S4
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION gas_phase
+  REGION S5
+END
+
 
 #skip
 BOUNDARY_CONDITION west
@@ -270,8 +435,24 @@ BOUNDARY_CONDITION east
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL soil
-  REGION all
+  MATERIAL soil_default
+  REGION S1
+/
+STRATA
+  MATERIAL soil_constant
+  REGION S2
+/
+STRATA
+  MATERIAL soil_linear
+  REGION S3
+/
+STRATA
+  MATERIAL soil_cubic
+  REGION S4
+/
+STRATA
+  MATERIAL soil_power
+  REGION S5
 /
 
 END_SUBSURFACE

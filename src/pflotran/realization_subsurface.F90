@@ -793,8 +793,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     call CharCurvesThermalConvertListToArray( &
          patch%thermal_characteristic_curves, &
          patch%thermal_characteristic_curves_array, option)
-  ! else if (associated(patch%material_property_array)) then
-else if (option%use_legacy_dry .or. option%use_legacy_wet) then
+  else if (option%use_legacy_dry .or. option%use_legacy_wet) then
     ! use default tcc curve for legacy thermal conductivity input by material
     num_mat_prop = size(patch%material_property_array)
     do i = 1, num_mat_prop
@@ -833,7 +832,7 @@ else if (option%use_legacy_dry .or. option%use_legacy_wet) then
         realization%thermal_characteristic_curves)  
       nullify(default_thermal_cc)
     enddo    
-    ! end legacy thermal conductivity input by material, proceed with normal TCC procedure
+    ! afterwards, proceed with normal TCC procedure
     if (associated(realization%thermal_characteristic_curves)) then
       patch%thermal_characteristic_curves => &
            realization%thermal_characteristic_curves

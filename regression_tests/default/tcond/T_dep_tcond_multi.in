@@ -1,4 +1,4 @@
-#Description: Test multiple thermal characteristic curves (file based on liquid_gas.in)
+#Description: Test multiple thermal characteristic curves
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE

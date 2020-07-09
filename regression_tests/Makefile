@@ -81,6 +81,7 @@ STANDARD_CFG = \
 	default/regions/regions.cfg \
 	default/regions/cell_mapping/cell_mapping.cfg \
 	default/salinity/salinity.cfg \
+	default/tcond/T_dep_tcond.cfg \
 	default/timestepping/timestepping.cfg \
 	default/velocity/velocity.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\

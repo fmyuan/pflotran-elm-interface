@@ -1,4 +1,4 @@
-#Description: Test default thermal characteristic curve (file based on liquid_gas.in)
+#Description: Test default thermal characteristic curve
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
