@@ -1,0 +1,14 @@
+#=========================== discretization ===================================
+GRID
+  TYPE unstructured_explicit ./mesh.uge
+  DOMAIN_FILENAME output_xdmf.h5
+END
+
+REGION bc
+  FILE ./bc.ex
+END
+
+REGION obs_pt
+  FILE ./8.txt
+END
+
