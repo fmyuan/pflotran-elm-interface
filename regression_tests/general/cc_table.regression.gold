@@ -1,0 +1,88 @@
+-- PRESSURE: Capillary Pressure --
+      Max:   3.8688170376030E+03
+      Min:   0.0000000000000E+00
+     Mean:   1.7096168428892E+03
+        5:   1.7447604173746E+03
+-- PRESSURE: Liquid Pressure --
+      Max:   9.7338229152974E+04
+      Min:   7.6633526492430E+04
+     Mean:   8.6440104024753E+04
+        5:   8.0223387032572E+04
+-- SATURATION: Liquid Saturation --
+      Max:   1.0000000000000E+00
+      Min:   9.7916408808221E-01
+     Mean:   9.9143870209675E-01
+        5:   9.9148817309196E-01
+-- GENERIC: Liquid Density --
+      Max:   9.9716037394435E+02
+      Min:   9.9715030433202E+02
+     Mean:   9.9715476906778E+02
+        5:   9.9715203048674E+02
+-- GENERIC: Liquid Mobility --
+      Max:   1.1229972037705E+03
+      Min:   8.8774105876994E+01
+     Mean:   4.1346981520929E+02
+        5:   2.8882781817991E+02
+-- GENERIC: Liquid Relative Permeability --
+      Max:   1.0000000000000E+00
+      Min:   7.9047513545903E-02
+     Mean:   3.6818095590844E-01
+        5:   2.5718954891603E-01
+-- PRESSURE: Gas Pressure --
+      Max:   1.0120704619058E+05
+      Min:   0.0000000000000E+00
+     Mean:   7.8788626019221E+04
+        5:   8.1968147449946E+04
+-- SATURATION: Gas Saturation --
+      Max:   2.0835911917790E-02
+      Min:   0.0000000000000E+00
+     Mean:   8.5612979032527E-03
+        5:   8.5118269080406E-03
+-- GENERIC: Gas Density --
+      Max:   1.1684831308343E+00
+      Min:   0.0000000000000E+00
+     Mean:   9.0797208710763E-01
+        5:   9.4373253778513E-01
+-- GENERIC: Gas Mobility --
+      Max:   4.0606086899561E+03
+      Min:   0.0000000000000E+00
+     Mean:   1.8482610397128E+03
+        5:   1.9188834732907E+03
+-- GENERIC: Gas Relative Permeability --
+      Max:   7.4382349912145E-02
+      Min:   0.0000000000000E+00
+     Mean:   3.3838121063750E-02
+        5:   3.5113694842683E-02
+-- GENERIC: Permeability X --
+      Max:   1.0000000000000E-12
+      Min:   1.0000000000000E-12
+     Mean:   1.0000000000000E-12
+        5:   1.0000000000000E-12
+-- GENERIC: Porosity --
+      Max:   2.5000000000000E-01
+      Min:   2.5000000000000E-01
+     Mean:   2.5000000000000E-01
+        5:   2.5000000000000E-01
+-- GENERIC: Temperature --
+      Max:   2.4999919686006E+01
+      Min:   2.4997983542014E+01
+     Mean:   2.4998887887890E+01
+        5:   2.4998729516372E+01
+-- DISCRETE: Thermodynamic State --
+      Max:         3
+      Min:         1
+     Mean:   2.8000000000000E+00
+        5:         3
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        5:         1
+-- SOLUTION: Flow --
+   Time (seconds):   2.6996374130249E-02
+   Time Steps:           21
+   Newton Iterations:           90
+   Linear Solver Iterations:           90
+   Time Step Cuts:            4
+   Solution 2-Norm:   2.7990163884991E+05
+   Residual 2-Norm:   5.3661213388299E-14

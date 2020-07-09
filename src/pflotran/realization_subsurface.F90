@@ -2696,7 +2696,8 @@ end subroutine RealizationPrintGridStatistics
 
 ! ************************************************************************** !
 
-subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
+subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1, &
+                                            max_pore_velocity)
   ! 
   ! Calculates largest time step that
   ! preserves a CFL # of 1 in a realization
@@ -2709,21 +2710,13 @@ subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
 
   class(realization_subsurface_type) realization
   PetscReal :: max_dt_cfl_1
-  
-  type(patch_type), pointer :: patch
-  PetscReal :: max_dt_cfl_1_patch
-  PetscErrorCode :: ierr
+  PetscReal :: max_pore_velocity
   
   max_dt_cfl_1 = 1.d20
-  patch => realization%patch
-  call PatchCalculateCFL1Timestep(patch,realization%option, &
-                                  max_dt_cfl_1_patch)
-  max_dt_cfl_1 = min(max_dt_cfl_1,max_dt_cfl_1_patch)
-
-  ! get the minimum across all cores
-  call MPI_Allreduce(MPI_IN_PLACE,max_dt_cfl_1,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MIN, &
-                     realization%option%mycomm,ierr)
+  max_pore_velocity = 0.d0
+  call PatchCalculateCFL1Timestep(realization%patch,realization%option, &
+                                  max_dt_cfl_1, &
+                                  max_pore_velocity)
 
 end subroutine RealizationCalculateCFL1Timestep
 
@@ -2872,29 +2865,37 @@ subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt,dt_max)
   PetscReal :: dt_max
 
   PetscReal :: max_dt_cfl_1
+  PetscReal :: max_pore_velocity
   PetscReal :: prev_dt
+  PetscBool :: print_to_screen, print_to_file
+  character(len=MAXSTRINGLENGTH) :: string
   type(output_option_type), pointer :: output_option
 
   if (Initialized(cfl_governor)) then
-    call RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
+    call RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1, &
+                                          max_pore_velocity)
+    print_to_screen = OptionPrintToScreen(realization%option)
+    print_to_file = OptionPrintToFile(realization%option)
+    if (print_to_screen .or. print_to_file) then
+      output_option => realization%output_option
+      write(string,'(" Maximum Pore Velocity: ",1pe12.4," [m/",a,"]")') &
+        max_pore_velocity*output_option%tconv,trim(output_option%tunit)
+      if (print_to_screen) write(STDOUT_UNIT,'(a)') trim(string)
+      if (print_to_file) write(realization%option%fid_out,'(a)') trim(string)
+    endif
     if (dt/cfl_governor > max_dt_cfl_1) then
       prev_dt = dt
       dt = max_dt_cfl_1*cfl_governor
       ! have to set dt_max here so that timestepper%dt_max is truncated
       ! for timestepper_base%revert_dt in TimestepperBaseSetTargetTime
       dt_max = dt
-      output_option => realization%output_option
-      if (OptionPrintToScreen(realization%option)) then
-        write(*, &
-          '(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4," [",a,"]")') &
+      if (print_to_screen .or. print_to_file) then
+        write(string,'(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4, &
+              &" [",a,"]")') &
               cfl_governor,prev_dt/output_option%tconv, &
               dt/output_option%tconv,trim(output_option%tunit)
-      endif
-      if (OptionPrintToFile(realization%option)) then
-        write(realization%option%fid_out, &
-          '(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4," [",a,"]")') &
-              cfl_governor,prev_dt/output_option%tconv, &
-              dt/output_option%tconv,trim(output_option%tunit)
+        if (print_to_screen) write(STDOUT_UNIT,'(a)') trim(string)
+        if (print_to_file) write(realization%option%fid_out,'(a)') trim(string)
       endif
     endif
   endif

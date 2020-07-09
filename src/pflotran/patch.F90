@@ -9727,7 +9727,8 @@ end subroutine PatchCountCells
 
 ! ************************************************************************** !
 
-subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
+subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1, &
+                                      max_pore_velocity)
   !
   ! Calculates largest time step to preserves a
   ! CFL # of 1 in a patch
@@ -9748,6 +9749,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   type(patch_type) :: patch
   type(option_type) :: option
   PetscReal :: max_dt_cfl_1
+  PetscReal :: max_pore_velocity
 
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -9763,7 +9765,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iphase
-
+  PetscReal :: tempreal(2)
   PetscReal :: dt_cfl_1
   PetscErrorCode :: ierr
 
@@ -9773,6 +9775,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   grid => patch%grid
 
   max_dt_cfl_1 = 1.d20
+  max_pore_velocity = 0.d0
 
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -9806,12 +9809,13 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
         v_darcy = patch%internal_velocities(iphase,sum_connection)
         v_pore_max = v_darcy / por_sat_min
         v_pore_ave = v_darcy / por_sat_ave
-        !geh: I use v_por_max to ensure that we limit the cfl based on the
+        !geh: I use v_pore_max to ensure that we limit the cfl based on the
         !     highest velocity through the face.  If porosity*saturation
         !     varies, the pore water velocity will be highest on the side
         !     of the face with the smalled value of porosity*saturation.
         dt_cfl_1 = distance / dabs(v_pore_max)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
+        max_pore_velocity = max(v_pore_max,max_pore_velocity)
       enddo
     enddo
     cur_connection_set => cur_connection_set%next
@@ -9830,16 +9834,27 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
       !geh: since on boundary, dist must be scaled by 2.d0
       distance = 2.d0*cur_connection_set%dist(0,iconn)
       do iphase = 1, option%nphase
+        ! the _ave variable is being reused. it is actually, max
         por_sat_ave = material_auxvars(ghosted_id_dn)%porosity* &
                       global_auxvars(ghosted_id_dn)%sat(iphase)
         v_darcy = patch%boundary_velocities(iphase,sum_connection)
         v_pore_ave = v_darcy / por_sat_ave
         dt_cfl_1 = distance / dabs(v_pore_ave)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
+        max_pore_velocity = max(v_pore_ave,max_pore_velocity)
       enddo
     enddo
     boundary_condition => boundary_condition%next
   enddo
+
+  tempreal(1) = max_dt_cfl_1
+  tempreal(2) = -max_pore_velocity
+  call MPI_Allreduce(MPI_IN_PLACE,tempreal,TWO_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MIN, &
+                     option%mycomm,ierr)
+
+  max_dt_cfl_1 = tempreal(1)
+  max_pore_velocity = -tempreal(2)
 
 end subroutine PatchCalculateCFL1Timestep
 

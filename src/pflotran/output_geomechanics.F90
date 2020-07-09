@@ -1297,9 +1297,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   grid => patch%geomech_grid
 
-    ! initialize fortran interface
-  call h5open_f(hdf5_err)
-
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
     call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
@@ -1441,7 +1438,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   call h5gclose_f(grp_id,hdf5_err)
 
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   if (option%myrank == option%io_rank) then
     call OutputXMFFooterGeomech(OUTPUT_UNIT)
