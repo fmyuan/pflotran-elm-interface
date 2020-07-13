@@ -1023,6 +1023,7 @@ class RegressionTest(object):
         section_num_minor_fail = 0
         section_num_major_fail = 0
         section_num_error = 0
+        section_status = 0
         if self._check_performance is False and data_type.lower() == self._SOLUTION:
             # solution blocks contain platform dependent performance
             # metrics. We skip them unless they are explicitly
@@ -1032,7 +1033,7 @@ class RegressionTest(object):
             # if key in gold but not in current --> failed test
             for k in gold_section:
                 if k not in current_section:
-                    section_num_minor_error += 1
+                    section_num_error += 1
                     print("    ERROR: key '{0}' in section '{1}' found in gold "
                           "output but not current".format(
                               k, gold_section['name']), file=testlog)
@@ -1040,7 +1041,7 @@ class RegressionTest(object):
             # if key in current but not gold --> failed test
             for k in current_section:
                 if k not in gold_section:
-                    section_num_minor_error += 1
+                    section_num_error += 1
                     print("    ERROR: key '{0}' in section '{1}' found in current "
                           "output but not gold".format(k, current_section['name']),
                           file=testlog)
@@ -1055,7 +1056,7 @@ class RegressionTest(object):
                     gold = gold_section[k].split()
                     current = current_section[k].split()
                     if len(gold) != len(current):
-                        section_num_minor_error += 1
+                        section_num_error += 1
                         print("    ERROR: {0} : {1} : vector lengths not "
                               "equal. gold {2}, current {3}".format(
                                   name, k, len(gold), len(current)), file=testlog)
