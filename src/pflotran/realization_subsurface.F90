@@ -1831,7 +1831,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
     if (reaction%update_mnrl_surf_with_porosity) then
       ! placing the get/restore array calls within the condition will
       ! avoid improper access.
-      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     endif
 
     do local_id = 1, grid%nlmax
@@ -1840,7 +1840,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
 
         porosity_scale = 1.d0
         if (reaction%update_mnrl_surf_with_porosity) then
-          porosity_scale = vec_p(local_id)** &
+          porosity_scale = &
+            ((1.d0-material_auxvars(ghosted_id)%porosity_base) / &
+             (1.d0-porosity0_p(local_id)))** &
              reaction%mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
 !       geh: srf_area_vol_frac_pwr must be defined on a per mineral basis, not
 !       solely material type.
@@ -1912,7 +1914,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
     enddo
 
     if (reaction%update_mnrl_surf_with_porosity) then
-      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     endif
 !geh:remove
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
