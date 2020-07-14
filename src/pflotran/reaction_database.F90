@@ -144,6 +144,28 @@ subroutine DatabaseRead(reaction,option)
     enddo
   endif
 
+  found = PETSC_TRUE
+  if (reaction%use_geothermal_hpt) found = PETSC_FALSE 
+  if (reaction%num_dbase_temperatures == 8) then
+    if (dabs(reaction%dbase_temperatures(1)-0.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(2)-25.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(3)-60.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(4)-100.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(5)-150.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(6)-200.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(7)-250.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(8)-300.d0) < 1.d-40) then
+      found = PETSC_FALSE
+    endif
+  endif
+  if (found) then
+    option%io_buffer = 'The number of temperature and/or the database &
+      &temperatures do not match the hardwired values in PFLOTRAN for &
+      &Debye-Huckel. Please use 8 temperatures at 0, 25, 60, 100, 150, 200, &
+      &250 and 300 C.'
+    call PrintErrMsg(option)
+  endif
+
   num_nulls = 0
   null_name = 'null'
   do ! loop over every entry in the database
