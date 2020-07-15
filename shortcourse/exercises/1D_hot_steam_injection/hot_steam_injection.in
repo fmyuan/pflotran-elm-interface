@@ -4,9 +4,6 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE GENERAL
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-      /
     /
   /
 END
@@ -14,15 +11,6 @@ END
 SUBSURFACE
 
 #=========================== numerical methods ================================
-NUMERICAL_METHODS FLOW
-
-  NEWTON_SOLVER
-#    ANALYTICAL_JACOBIAN
-    USE_INFINITY_NORM_CONVERGENCE
-  /
-
-END
-
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED

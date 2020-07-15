@@ -550,17 +550,13 @@ END
 \begin{frame}[fragile]\frametitle{Edit the Input Deck (again)}
 
 \begin{semiverbatim}
+>Simulation block  remains the same
+>Add a numerical methods block 
+  >Newton Solver sub-block
 
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL ! two-phase flow and energy
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-      /
-    /
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
   /
 END
 
@@ -589,20 +585,15 @@ END
 \begin{frame}[fragile]\frametitle{Edit the Input Deck (again)}
 
 \begin{semiverbatim}
+>Simulation block remains the same
+>Edit numerical methods block
 
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL ! two-phase flow and energy
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
-      / 
-    / 
-  / 
-END 
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+END
 
 \end{semiverbatim}
 
