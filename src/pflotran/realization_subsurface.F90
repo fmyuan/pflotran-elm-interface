@@ -1092,7 +1092,7 @@ subroutine RealProcessFluidProperties(realization)
   ! Date: 01/21/09
   ! 
 
-  use Grid_Grdecl_module, only : GetSatnumSet, GetTcnumSet
+  use Grid_Grdecl_module, only : GetSatnumSet
 
   implicit none
 
@@ -1101,8 +1101,8 @@ subroutine RealProcessFluidProperties(realization)
   PetscBool :: found
   type(option_type), pointer :: option
   type(fluid_property_type), pointer :: cur_fluid_property
-  PetscInt :: icc, ncc, maxsatn, maxtcn
-  PetscBool :: satnum_set, ccset, tcnum_set
+  PetscInt :: icc, ncc, maxsatn
+  PetscBool :: satnum_set, ccset
 
   option => realization%option
 
@@ -1150,22 +1150,6 @@ subroutine RealProcessFluidProperties(realization)
     endif
   endif
   
-  tcnum_set = GetTcnumSet(maxtcn)
-  if( tcnum_set ) then
-    ccset = associated(realization%patch%thermal_characteristic_curves_array)
-    if (ccset) then
-      ncc = size(realization%patch%thermal_characteristic_curves_array(:))
-      if( maxtcn > ncc ) then
-        option%io_buffer = &
-         'TCNUM data does not match THERMAL CHARACTERISTIC CURVES count'
-        call PrintErrMsg(option)
-      endif
-    else
-      option%io_buffer = 'TCNUM data but no THERMAL CHARACTERISTIC CURVES'
-      call PrintErrMsg(option)
-    endif
-  endif  
-
 end subroutine RealProcessFluidProperties
 
 ! ************************************************************************** !
