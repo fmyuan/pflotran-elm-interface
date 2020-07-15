@@ -70,6 +70,7 @@ STANDARD_CFG = \
 	default/infiltrometer/infiltrometer.cfg \
 	default/numerical/numerical.cfg \
 	default/output/output.cfg \
+	default/output/compare/compare.cfg \
 	default/restart/restart.cfg \
 	default/restart/skip/skip.cfg \
 	default/steady/steady.cfg \
