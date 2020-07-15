@@ -25,7 +25,7 @@ NUMERICAL_METHODS FLOW
   /
 
   NEWTON_SOLVER
-    MAXIMUM_NUMBER_OF_ITERATIONS 10
+    MAXIMUM_NUMBER_OF_ITERATIONS 50
     RTOL 1.d-8
     ATOL 1.d-8
     STOL 1.d-30
@@ -127,6 +127,10 @@ OUTPUT
 #    TIMES s 8.64e4 6.05e5 2.68e6 2.89e7
     VARIABLES
       TEMPERATURE
+      LIQUID_PRESSURE
+      GAS_PRESSURE
+      LIQUID_SATURATION
+      GAS_SATURATION
     /
   /
 /
@@ -134,7 +138,7 @@ OUTPUT
 #=========================== times ============================================
 TIME
   FINAL_TIME 1.0d+0 y
-  INITIAL_TIMESTEP_SIZE 1.0d-3 y
+  INITIAL_TIMESTEP_SIZE 1.0d+0 s
   MAXIMUM_TIMESTEP_SIZE 1.0d+0 y
 /
 
