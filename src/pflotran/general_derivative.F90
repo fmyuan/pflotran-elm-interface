@@ -289,8 +289,8 @@ subroutine GeneralDerivativeSetup(general_parameter, &
     material_parameter%soil_thermal_conductivity(2,1) = 2.d0
   endif
   if (.not.associated(thermal_characteristic_curves)) then
-    thermal_characteristic_curves => CharacteristicCurvesThermalCreate()
-    tcf => TCF_Power_Create()
+    thermal_characteristic_curves => CharCurvesThermalCreate()
+    tcf => TCFPowerCreate()
     tcf%kT_wet = 2.d0
     tcf%kT_dry = 0.5d0
     tcf%gamma = -1.88d0
@@ -925,7 +925,7 @@ subroutine GeneralDerivativeDestroy(general_parameter, &
     deallocate(material_parameter)
     nullify(material_parameter)    
   endif
-  call ThermalCharacteristicCurvesDestroy(thermal_characteristic_curves)
+  call CharCurvesThermalDestroy(thermal_characteristic_curves)
   
 end subroutine GeneralDerivativeDestroy
 

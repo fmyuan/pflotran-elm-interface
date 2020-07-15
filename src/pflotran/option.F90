@@ -225,11 +225,6 @@ module Option_module
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
 
-    ! flag to use thermal characteristic characteristic_curves
-    PetscBool :: use_tcc
-    PetscBool :: use_legacy_dry
-    PetscBool :: use_legacy_wet
-
   end type option_type
 
   PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
@@ -580,9 +575,6 @@ subroutine OptionInitRealization(option)
   option%initialize_transport_filename = ''
 
   option%steady_state = PETSC_FALSE
-  option%use_tcc = PETSC_FALSE
-  option%use_legacy_dry = PETSC_FALSE
-  option%use_legacy_wet = PETSC_FALSE
 
   option%itable = 0
   option%co2eos = EOS_SPAN_WAGNER

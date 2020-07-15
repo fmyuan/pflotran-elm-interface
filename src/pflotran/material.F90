@@ -312,7 +312,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
       case('THERMAL_CHARACTERISTIC_CURVES')
-        option%use_tcc = PETSC_TRUE
         call InputReadWord(input,option, &
              material_property%thermal_conductivity_function_name,PETSC_TRUE)
       case('ROCK_DENSITY') 
@@ -338,8 +337,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'transverse_dispersivity_v', &
                            'MATERIAL_PROPERTY')
       case('THERMAL_CONDUCTIVITY_DRY') 
-        option%use_tcc = PETSC_FALSE
-        option%use_legacy_dry = PETSC_TRUE
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_dry)
         call InputErrorMsg(input,option,'dry thermal conductivity', &
@@ -353,8 +350,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         material_property%thermal_conductivity_function_id = &
           material_property%external_id
       case('THERMAL_CONDUCTIVITY_WET') 
-        option%use_tcc = PETSC_FALSE
-        option%use_legacy_wet = PETSC_TRUE
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_wet)
         call InputErrorMsg(input,option,'wet thermal conductivity', &
@@ -362,11 +357,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadAndConvertUnits(input, &
                    material_property%thermal_conductivity_wet, &
                    'W/m-C','MATERIAL_PROPERTY,wet thermal conductivity',option)
-      write(tcc_name,*)material_property%external_id 
-      material_property%thermal_conductivity_function_name = "_TCC_"//&
-         trim(adjustl(tcc_name))
-      material_property%thermal_conductivity_function_id = &
-         material_property%external_id
+        write(tcc_name,*)material_property%external_id 
+        material_property%thermal_conductivity_function_name = "_TCC_"//&
+           trim(adjustl(tcc_name))
+        material_property%thermal_conductivity_function_id = &
+           material_property%external_id
       case('THERMAL_COND_EXPONENT') 
         call InputReadDouble(input,option, &
                              material_property%alpha)

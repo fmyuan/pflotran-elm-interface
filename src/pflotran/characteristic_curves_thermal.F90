@@ -58,7 +58,7 @@ module Characteristic_Curves_Thermal_module
   contains
     procedure, public :: Verify => TCFLinearResistivityVerify
     procedure, public :: kT_eff => TCFLinearResistivityConductivity
- end type kT_linear_resistivity_type
+  end type kT_linear_resistivity_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
@@ -73,23 +73,22 @@ module Characteristic_Curves_Thermal_module
     class(cc_thermal_type), pointer :: ptr
   end type cc_thermal_ptr_type
 
-  public :: CharacteristicCurvesThermalCreate, &
-            CharacteristicCurvesThermalGetID, &
-            CharacteristicCurvesThermalRead, &
-            CharacteristicCurvesThermalAddToList, &
+  public :: CharCurvesThermalCreate, &
+            CharCurvesThermalGetID, &
+            CharCurvesThermalRead, &
+            CharCurvesThermalAddToList, &
             CharCurvesThermalConvertListToArray, &
             CharCurvesThermalInputRecord, &
-            ThermalCharacteristicCurvesDestroy, &
-            TCF_Default_Create, &
-            TCF_Constant_Create, &
-            TCF_Power_Create, &
-            TCF_Cubic_Polynomial_Create, &
-            TCF_Linear_Resistivity_Create, &
-            ThermalConductivityFunctionAssignDefault
+            CharCurvesThermalDestroy, &
+            TCFDefaultCreate, &
+            TCFConstantCreate, &
+            TCFPowerCreate, &
+            TCFCubicPolynomialCreate, &
+            TCFLinearResistivityCreate, &
+            TCFAssignDefault
 
 contains
 
-! ************************************************************************** !
 ! ************************************************************************** !
 
 subroutine TCFBaseVerify(this,name,option)
@@ -187,8 +186,8 @@ subroutine TCFBaseTest(this,tcc_name,option)
            kT_sat_pert,unused1,unused2,option)
 
       dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/(sat_vec(j)*perturbation)
-    end do
-  end do
+    enddo
+  enddo
 
   write(string,*) tcc_name
   string = trim(tcc_name) // '_kT_vs_sat_and_temp.dat'
@@ -200,15 +199,15 @@ subroutine TCFBaseTest(this,tcc_name,option)
       write(86,'(7(ES14.6))') temp_vec(i), sat_vec(j), &
            kT(i,j), dkT_dsat(i,j), dkT_dtemp(i,j), &
            dkT_dsat_numerical(i,j), dkT_dtemp_numerical(i,j)
-    end do
-  end do
+    enddo
+  enddo
   close(86)
 
 end subroutine TCFBaseTest
 
 ! ************************************************************************** !
 
-subroutine ThermalConductivityFunctionDestroy(tcf)
+subroutine TCFDestroy(tcf)
 
   implicit none
 
@@ -218,22 +217,21 @@ subroutine ThermalConductivityFunctionDestroy(tcf)
   deallocate(tcf)
   nullify(tcf)
 
-end subroutine ThermalConductivityFunctionDestroy
+end subroutine TCFDestroy
 
 ! ************************************************************************** !
-! ************************************************************************** !
 
-function TCF_Default_Create()
+function TCFDefaultCreate()
 
   implicit none
 
-  class(kT_default_type), pointer :: TCF_Default_Create
+  class(kT_default_type), pointer :: TCFDefaultCreate
 
-  allocate(TCF_Default_Create)
-  TCF_Default_Create%kT_wet = UNINITIALIZED_DOUBLE
-  TCF_Default_Create%kT_dry = UNINITIALIZED_DOUBLE
+  allocate(TCFDefaultCreate)
+  TCFDefaultCreate%kT_wet = UNINITIALIZED_DOUBLE
+  TCFDefaultCreate%kT_dry = UNINITIALIZED_DOUBLE
 
-end function TCF_Default_Create
+end function TCFDefaultCreate
 
 ! ************************************************************************** !
 
@@ -298,33 +296,20 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
     dkT_dsatl = 0.d0
   endif
 
-!  if (liquid_saturation <= 0.d0) then
-!    thermal_conductivity = this%kT_dry
-!    dkT_dsatl = 0.d0 ! deriv is infinity, but is likely below residual sat
-!  elseif (liquid_saturation >= 1.d0) then
-!    thermal_conductivity = this%kT_wet
-!    dkT_dsatl = 0.5d0 * (this%kT_wet - this%kT_dry) ! avoid sqrt()
-!  else
-!    tempreal = sqrt(liquid_saturation) * (this%kT_wet - this%kT_dry)
-!    thermal_conductivity = this%kT_dry + tempreal
-!    dkT_dsatl = 0.5d0 * tempreal / liquid_saturation
-!  end if
-
 end subroutine TCFDefaultConductivity
 
 ! ************************************************************************** !
-! ************************************************************************** !
 
-function TCF_Constant_Create()
+function TCFConstantCreate()
 
   implicit none
 
-  class(kT_constant_type), pointer :: TCF_Constant_Create
+  class(kT_constant_type), pointer :: TCFConstantCreate
 
-  allocate(TCF_Constant_Create)
-  TCF_Constant_Create%constant_thermal_conductivity = UNINITIALIZED_DOUBLE
+  allocate(TCFConstantCreate)
+  TCFConstantCreate%constant_thermal_conductivity = UNINITIALIZED_DOUBLE
 
-end function TCF_Constant_Create
+end function TCFConstantCreate
 
 ! ************************************************************************** !
 
@@ -376,21 +361,20 @@ subroutine TCFConstantConductivity(this,liquid_saturation,temperature, &
 end subroutine TCFConstantConductivity
 
 ! ************************************************************************** !
-! ************************************************************************** !
 
-function TCF_Power_Create()
+function TCFPowerCreate()
 
   implicit none
 
-  class(kT_power_type), pointer :: TCF_Power_Create
+  class(kT_power_type), pointer :: TCFPowerCreate
 
-  allocate(TCF_Power_Create)
-  TCF_Power_Create%kT_wet = UNINITIALIZED_DOUBLE
-  TCF_Power_Create%kT_dry = UNINITIALIZED_DOUBLE
-  TCF_Power_Create%ref_temp = -273.15d0
-  TCF_Power_Create%gamma = UNINITIALIZED_DOUBLE
+  allocate(TCFPowerCreate)
+  TCFPowerCreate%kT_wet = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_dry = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%ref_temp = -273.15d0
+  TCFPowerCreate%gamma = UNINITIALIZED_DOUBLE
 
-end function TCF_Power_Create
+end function TCFPowerCreate
 
 ! ************************************************************************** !
 
@@ -459,23 +443,22 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
 end subroutine TCFPowerConductivity
 
 ! ************************************************************************** !
-! ************************************************************************** !
 
-function TCF_Cubic_Polynomial_Create()
+function TCFCubicPolynomialCreate()
 
   implicit none
 
-  class(kT_cubic_polynomial_type), pointer :: TCF_Cubic_Polynomial_Create
+  class(kT_cubic_polynomial_type), pointer :: TCFCubicPolynomialCreate
 
-  allocate(TCF_Cubic_Polynomial_Create)
-  TCF_Cubic_Polynomial_Create%kT_wet = UNINITIALIZED_DOUBLE
-  TCF_Cubic_Polynomial_Create%kT_dry = UNINITIALIZED_DOUBLE
-  TCF_Cubic_Polynomial_Create%ref_temp = 0.d0
-  TCF_Cubic_Polynomial_Create%beta = [ UNINITIALIZED_DOUBLE, &
+  allocate(TCFCubicPolynomialCreate)
+  TCFCubicPolynomialCreate%kT_wet = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_dry = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%ref_temp = 0.d0
+  TCFCubicPolynomialCreate%beta = [ UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE ]
 
-end function TCF_Cubic_Polynomial_Create
+end function TCFCubicPolynomialCreate
 
 ! ************************************************************************** !
 
@@ -553,22 +536,21 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
 end subroutine TCFCubicPolyConductivity
 
 ! ************************************************************************** !
-! ************************************************************************** !
 
-function TCF_Linear_Resistivity_Create()
+function TCFLinearResistivityCreate()
 
   implicit none
 
-  class(kT_linear_resistivity_type), pointer :: TCF_Linear_Resistivity_Create
+  class(kT_linear_resistivity_type), pointer :: TCFLinearResistivityCreate
 
-  allocate(TCF_Linear_Resistivity_Create)
-  TCF_Linear_Resistivity_Create%kT_wet = UNINITIALIZED_DOUBLE
-  TCF_Linear_Resistivity_Create%kT_dry = UNINITIALIZED_DOUBLE
-  TCF_Linear_Resistivity_Create%ref_temp = 0.d0
-  TCF_Linear_Resistivity_Create%a = [ UNINITIALIZED_DOUBLE, &
+  allocate(TCFLinearResistivityCreate)
+  TCFLinearResistivityCreate%kT_wet = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_dry = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%ref_temp = 0.d0
+  TCFLinearResistivityCreate%a = [ UNINITIALIZED_DOUBLE, &
                                       UNINITIALIZED_DOUBLE]
 
-end function TCF_Linear_Resistivity_Create
+end function TCFLinearResistivityCreate
 
 ! ************************************************************************** !
 
@@ -641,13 +623,12 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation,temperature, 
 end subroutine TCFLinearResistivityConductivity
 
 ! ************************************************************************** !
-! ************************************************************************** !
 
-function CharacteristicCurvesThermalCreate()
+function CharCurvesThermalCreate()
 
   implicit none
 
-  class(cc_thermal_type), pointer :: CharacteristicCurvesThermalCreate
+  class(cc_thermal_type), pointer :: CharCurvesThermalCreate
   class(cc_thermal_type), pointer :: thermal_characteristic_curves
 
   allocate(thermal_characteristic_curves)
@@ -657,13 +638,13 @@ function CharacteristicCurvesThermalCreate()
   nullify(thermal_characteristic_curves%thermal_conductivity_function)
   nullify(thermal_characteristic_curves%next)
 
-  CharacteristicCurvesThermalCreate => thermal_characteristic_curves
+  CharCurvesThermalCreate => thermal_characteristic_curves
 
-end function CharacteristicCurvesThermalCreate
+end function CharCurvesThermalCreate
 
 ! ************************************************************************** !
 
-subroutine CharacteristicCurvesThermalRead(this,input,option)
+subroutine CharCurvesThermalRead(this,input,option)
 
   use Option_module
   use Input_Aux_module
@@ -703,20 +684,20 @@ subroutine CharacteristicCurvesThermalRead(this,input,option)
       call StringToUpper(word)
       select case(word)
       case('CONSTANT')
-        this%thermal_conductivity_function => TCF_Constant_Create()
+        this%thermal_conductivity_function => TCFConstantCreate()
       case('DEFAULT')
-        this%thermal_conductivity_function => TCF_Default_Create()
+        this%thermal_conductivity_function => TCFDefaultCreate()
       case('POWER')
-        this%thermal_conductivity_function => TCF_Power_Create()
+        this%thermal_conductivity_function => TCFPowerCreate()
       case('CUBIC_POLYNOMIAL')
-        this%thermal_conductivity_function => TCF_Cubic_Polynomial_Create()
+        this%thermal_conductivity_function => TCFCubicPolynomialCreate()
       case('LINEAR_RESISTIVITY')
-        this%thermal_conductivity_function => TCF_Linear_Resistivity_Create()
+        this%thermal_conductivity_function => TCFLinearResistivityCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
              'THERMAL_CONDUCTIVITY_FUNCTION',option)
       end select
-      call ThermalConductivityFunctionRead( &
+      call TCFRead( &
            this%thermal_conductivity_function,input,option)
     case('TEST')
       this%test = PETSC_TRUE
@@ -738,11 +719,11 @@ subroutine CharacteristicCurvesThermalRead(this,input,option)
          &block must be specified.'
   endif
 
-end subroutine CharacteristicCurvesThermalRead
+end subroutine CharCurvesThermalRead
 
-!-----------------------------------------------------------------------
+! ************************************************************************** !
 
-subroutine ThermalConductivityFunctionAssignDefault(thermal_conductivity_function,&
+subroutine TCFAssignDefault(thermal_conductivity_function,&
                                                  kwet,kdry,option)
 
   use Option_module
@@ -760,12 +741,11 @@ subroutine ThermalConductivityFunctionAssignDefault(thermal_conductivity_functio
       tcf%kT_wet = kwet
   end select
 
-end subroutine ThermalConductivityFunctionAssignDefault
+end subroutine TCFAssignDefault
 
-!-----------------------------------------------------------------------
+! ************************************************************************** !
 
-subroutine ThermalConductivityFunctionRead( &
-     thermal_conductivity_function,input,option)
+subroutine TCFRead(thermal_conductivity_function,input,option)
   !
   ! Reads in contents of a THERMAL_CONDUCTIVITY_FUNCTION block
   !
@@ -899,8 +879,8 @@ subroutine ThermalConductivityFunctionRead( &
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'temp-dependent (cubic polynomial) thermal conductivity',option)
-     end select
-           !------------------------------------------
+      end select
+      !------------------------------------------
     class is(kT_linear_resistivity_type)
       select case(keyword)
       case('THERMAL_CONDUCTIVITY_WET')
@@ -935,14 +915,14 @@ subroutine ThermalConductivityFunctionRead( &
            // trim(error_string) // '.'
       call PrintErrMsg(option)
     end select
-  end do
+  enddo
   call InputPopBlock(input,option)
 
-end subroutine ThermalConductivityFunctionRead
+end subroutine TCFRead
 
 ! ************************************************************************** !
 
-subroutine CharacteristicCurvesThermalAddToList(new_thermal_cc,list)
+subroutine CharCurvesThermalAddToList(new_thermal_cc,list)
 
   implicit none
 
@@ -963,7 +943,7 @@ subroutine CharacteristicCurvesThermalAddToList(new_thermal_cc,list)
     list => new_thermal_cc
   endif
 
-end subroutine CharacteristicCurvesThermalAddToList
+end subroutine CharCurvesThermalAddToList
 
 ! ************************************************************************** !
 
@@ -1004,7 +984,7 @@ subroutine CharCurvesThermalConvertListToArray(list,array,option)
         if (associated(cur_thermal_cc%thermal_conductivity_function)) then
           call cur_thermal_cc%thermal_conductivity_function%Test( &
                cur_thermal_cc%name,option)
-        end if
+        endif
       endif
       call OptionSetBlocking(option,PETSC_TRUE)
       call OptionCheckNonBlockingError(option)
@@ -1016,7 +996,7 @@ end subroutine CharCurvesThermalConvertListToArray
 
 ! ************************************************************************** !
 
-function CharacteristicCurvesThermalGetID(cc_thermal_array, &
+function CharCurvesThermalGetID(cc_thermal_array, &
      cc_thermal_name, material_property_name, option)
 
   use Option_module
@@ -1028,27 +1008,27 @@ function CharacteristicCurvesThermalGetID(cc_thermal_array, &
   character(len=MAXWORDLENGTH) :: material_property_name
   type(option_type) :: option
 
-  PetscInt :: CharacteristicCurvesThermalGetID
+  PetscInt :: CharCurvesThermalGetID
   PetscInt :: i, j
   
   do i = 1, size(cc_thermal_array)
       test1 = cc_thermal_array(i)%ptr%name
       do j = 1, size(cc_thermal_array)
-        if(i == j)cycle
+        if (i == j) cycle
         test2 = cc_thermal_array(j)%ptr%name
-        if(test1 .eq. test2)then
+        if (test1 == test2) then
           option%io_buffer = 'Duplicate thermal characteristic curve '//&
                              trim(test2)//&
                              ' has been detected.'
           call PrintErrMsg(option)
-        end if
-      end do
+        endif
+      enddo
   enddo
 
-  CharacteristicCurvesThermalGetID = 0
-  do CharacteristicCurvesThermalGetID = 1, size(cc_thermal_array)
+  CharCurvesThermalGetID = 0
+  do CharCurvesThermalGetID = 1, size(cc_thermal_array)
     if (StringCompare(cc_thermal_name, &
-         cc_thermal_array(CharacteristicCurvesThermalGetID)%ptr%name)) then
+         cc_thermal_array(CharCurvesThermalGetID)%ptr%name)) then
       return
     endif
   enddo
@@ -1059,7 +1039,7 @@ function CharacteristicCurvesThermalGetID(cc_thermal_array, &
        '" not found among available thermal characteristic curves.'
   call PrintErrMsg(option)
 
-end function CharacteristicCurvesThermalGetID
+end function CharCurvesThermalGetID
 
 ! ************************************************************************** !
 
@@ -1167,10 +1147,9 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
 
 end subroutine CharCurvesThermalInputRecord
 
-
 ! ************************************************************************** !
 
-recursive subroutine ThermalCharacteristicCurvesDestroy(tcc)
+recursive subroutine CharCurvesThermalDestroy(tcc)
 
   implicit none
 
@@ -1178,13 +1157,13 @@ recursive subroutine ThermalCharacteristicCurvesDestroy(tcc)
 
   if (.not.associated(tcc)) return
 
-  call ThermalCharacteristicCurvesDestroy(tcc%next)
+  call CharCurvesThermalDestroy(tcc%next)
 
-  call ThermalConductivityFunctionDestroy(tcc%thermal_conductivity_function)
+  call TCFDestroy(tcc%thermal_conductivity_function)
 
   deallocate(tcc)
   nullify(tcc)
 
-end subroutine ThermalCharacteristicCurvesDestroy
+end subroutine CharCurvesThermalDestroy
 
 end module Characteristic_Curves_Thermal_module

@@ -91,12 +91,12 @@ subroutine GeneralSetup(realization)
     call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif  
-  if (.not. option%use_tcc) then
+  if ( .not. associated(realization%thermal_characteristic_curves)) then
     if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0)then
       option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
       call PrintMsg(option)
       error_found = PETSC_TRUE
-    end if
+    endif
   endif 
   
   material_auxvars => patch%aux%Material%auxvars

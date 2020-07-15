@@ -2893,27 +2893,17 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
 
-      case ('THERMAL_CHARACTERISTIC_CURVES')
-        if (.not. option%iflowmode == G_MODE) then
-          option%io_buffer = "THERMAL_CHARACTERSTIC_CURVES &
-               &only valid in GENERAL mode."
-          call PrintErrMsg(option)
-        end if
-        if (option%use_legacy_dry .or. option%use_legacy_wet) then
-          option%io_buffer = 'Cannot combine legacy thermal conductivity '//&
-                             'input format with thermal characteristic curves.'
-          call PrintErrMsg(option)
-        end if        
-        thermal_characteristic_curves => CharacteristicCurvesThermalCreate()
+      case ('THERMAL_CHARACTERISTIC_CURVES')       
+        thermal_characteristic_curves => CharCurvesThermalCreate()
         call InputReadWord(input,option, &
              thermal_characteristic_curves%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','THERMAL_CHARACTERISTIC_CURVES')
         option%io_buffer = '  Name :: ' // &
              trim(thermal_characteristic_curves%name)
         call PrintMsg(option)
-        call CharacteristicCurvesThermalRead( &
+        call CharCurvesThermalRead( &
              thermal_characteristic_curves,input,option)
-        call CharacteristicCurvesThermalAddToList( &
+        call CharCurvesThermalAddToList( &
              thermal_characteristic_curves, &
              realization%thermal_characteristic_curves)
         nullify(thermal_characteristic_curves)

@@ -330,9 +330,6 @@ function GetTcnumSet(maxtcn)
   !
   ! Get flag indicating that TCNUM array is being used
   !
-  ! Author: AS3
-  ! Date: 06/26/2020
-  !
 
   implicit none
 
