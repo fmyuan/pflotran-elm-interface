@@ -1808,30 +1808,12 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call RealizationCalcMineralPorosity(realization)
   endif
   
-  if ((porosity_updated .and. &
-       (reaction%update_tortuosity .or. &
-        reaction%update_permeability)) .or. &
-      ! if porosity ratio is used in mineral surface area update, we must
-      ! recalculate it every time.
-      (reaction%update_mineral_surface_area .and. &
-       reaction%update_mnrl_surf_with_porosity)) then
-    call VecGetArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      vec_p(local_id) = material_auxvars(ghosted_id)%porosity_base / &
-                        porosity0_p(local_id)
-    enddo
-    call VecRestoreArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-  endif      
-
   if (reaction%update_mineral_surface_area) then
 
     if (reaction%update_mnrl_surf_with_porosity) then
       ! placing the get/restore array calls within the condition will
       ! avoid improper access.
-      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     endif
 
     do local_id = 1, grid%nlmax
@@ -1840,7 +1822,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
 
         porosity_scale = 1.d0
         if (reaction%update_mnrl_surf_with_porosity) then
-          porosity_scale = vec_p(local_id)** &
+          porosity_scale = &
+            ((1.d0-material_auxvars(ghosted_id)%porosity_base) / &
+             (1.d0-porosity0_p(local_id)))** &
              reaction%mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
 !       geh: srf_area_vol_frac_pwr must be defined on a per mineral basis, not
 !       solely material type.
@@ -1912,7 +1896,8 @@ subroutine RealizationUpdatePropertiesTS(realization)
     enddo
 
     if (reaction%update_mnrl_surf_with_porosity) then
-      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                  ierr);CHKERRQ(ierr)
     endif
 !geh:remove
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
@@ -1924,18 +1909,19 @@ subroutine RealizationUpdatePropertiesTS(realization)
   endif
       
   if (reaction%update_tortuosity) then
-    call VecGetArrayF90(field%tortuosity0,tortuosity0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tortuosity0,tortuosity0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      scale = vec_p(local_id)** &
+      scale = (material_auxvars(ghosted_id)%porosity_base / &
+               porosity0_p(local_id))** &
         material_property_array(patch%imat(ghosted_id))%ptr%tortuosity_pwr
       material_auxvars(ghosted_id)%tortuosity = &
         tortuosity0_p(local_id)*scale
     enddo
-    call VecRestoreArrayF90(field%tortuosity0,tortuosity0_p, &
+    call VecRestoreArrayReadF90(field%tortuosity0,tortuosity0_p, &
                             ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  TORTUOSITY,ZERO_INTEGER)
     call DiscretizationLocalToLocal(discretization,field%work_loc, &
@@ -1945,10 +1931,10 @@ subroutine RealizationUpdatePropertiesTS(realization)
   endif
       
   if (reaction%update_permeability) then
-    call VecGetArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       imat = patch%imat(ghosted_id)
@@ -1981,9 +1967,10 @@ subroutine RealizationUpdatePropertiesTS(realization)
         perm0_zz_p(local_id)*scale
 #endif
     enddo
-    call VecRestoreArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
 
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_X,ZERO_INTEGER)
