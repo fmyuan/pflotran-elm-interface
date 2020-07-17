@@ -11,9 +11,10 @@ module PFLOTRAN_Constants_module
 
   private
 
+  PetscBool, parameter :: PFLOTRAN_RELEASE = PETSC_FALSE
   PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 3
   PetscInt, parameter :: PFLOTRAN_VERSION_MINOR = 0
-  PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = -1 ! (alpha < -1; beta = -1)
+  PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = 0 ! (alpha < -1; beta = -1)
 
 #define VMAJOR 3
 #define VMINOR 13
@@ -531,17 +532,21 @@ function GetVersion()
   
   character(len=MAXWORDLENGTH) :: word
   
-  write(word,*) PFLOTRAN_VERSION_MAJOR
-  GetVersion = 'PFLOTRAN v' // trim(adjustl(word))
-  write(word,*) PFLOTRAN_VERSION_MINOR
-  GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
-  if (PFLOTRAN_VERSION_PATCH >= 0) then
-    write(word,*) PFLOTRAN_VERSION_PATCH
+  if (PFLOTRAN_RELEASE) then
+    write(word,*) PFLOTRAN_VERSION_MAJOR
+    GetVersion = 'PFLOTRAN v' // trim(adjustl(word))
+    write(word,*) PFLOTRAN_VERSION_MINOR
     GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
-  else if (PFLOTRAN_VERSION_PATCH < -1) then
-    GetVersion = trim(GetVersion) // '-alpha'
+    if (PFLOTRAN_VERSION_PATCH > 0) then
+      write(word,*) PFLOTRAN_VERSION_PATCH
+      GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
+    else if (PFLOTRAN_VERSION_PATCH < -1) then
+      GetVersion = trim(GetVersion) // '-alpha'
+    else if (PFLOTRAN_VERSION_PATCH < 0) then
+      GetVersion = trim(GetVersion) // '-beta'
+    endif
   else
-    GetVersion = trim(GetVersion) // '-beta'
+    GetVersion = 'PFLOTRAN Development Version'
   endif
   
 end function GetVersion
