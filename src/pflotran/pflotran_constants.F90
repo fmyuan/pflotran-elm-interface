@@ -13,7 +13,7 @@ module PFLOTRAN_Constants_module
 
   PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 3
   PetscInt, parameter :: PFLOTRAN_VERSION_MINOR = 0
-  PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = -1 ! (alpha < -1; beta = -1)
+  PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = 0 ! (alpha < -1; beta = -1)
 
 #define VMAJOR 3
 #define VMINOR 13
@@ -532,12 +532,12 @@ function GetVersion()
   GetVersion = 'PFLOTRAN v' // trim(adjustl(word))
   write(word,*) PFLOTRAN_VERSION_MINOR
   GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
-  if (PFLOTRAN_VERSION_PATCH >= 0) then
+  if (PFLOTRAN_VERSION_PATCH > 0) then
     write(word,*) PFLOTRAN_VERSION_PATCH
     GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
   else if (PFLOTRAN_VERSION_PATCH < -1) then
     GetVersion = trim(GetVersion) // '-alpha'
-  else
+  else if (PFLOTRAN_VERSION_PATCH < 0) then
     GetVersion = trim(GetVersion) // '-beta'
   endif
   
