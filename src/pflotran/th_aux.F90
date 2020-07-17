@@ -1032,7 +1032,57 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   enddo
 
 end subroutine THAuxVarCompute2ndOrderDeriv  
+
+! ************************************************************************** !
+
+subroutine THPrintAuxVars(file_unit,th_auxvar,global_auxvar, &
+                          material_auxvar,natural_id,string,option)
   
+  ! Prints the content of an TH auxvar to the designated file unit
+
+  ! Author: Glenn Hammond
+  ! Date: 07/16/20
+
+  use Global_Aux_module
+  use Material_Aux_class
+  use Option_module
+
+  implicit none
+
+  PetscInt :: file_unit
+  type(th_auxvar_type) :: th_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
+  character(len=*) :: string
+  type(option_type) :: option
+
+  PetscReal ::  liquid_mass
+
+  liquid_mass = material_auxvar%volume*material_auxvar%porosity* &
+                global_auxvar%sat(1)*global_auxvar%den(1)
+
+  write(file_unit,*) '--------------------------------------------------------'
+  if (len_trim(string) > 0) write(file_unit,*) trim(string)
+  write(file_unit,*) '                  cell id: ', natural_id
+  write(file_unit,*) '       liquid mass [kmol]: ', liquid_mass
+  write(file_unit,*) '          liquid pressure: ', global_auxvar%pres(1)
+  write(file_unit,*) '       capillary pressure: ', th_auxvar%pc
+  write(file_unit,*) '          temperature [C]: ', global_auxvar%pres(1)
+  write(file_unit,*) '          liquid enthalpy: ', th_auxvar%h
+  write(file_unit,*) '   liquid internal energy: ', th_auxvar%u
+  write(file_unit,*) '         liquid viscosity: ', th_auxvar%vis
+  write(file_unit,*) '          liquid mobility: ', th_auxvar%kvr
+  write(file_unit,*) '     liquid relative perm: ', th_auxvar%kvr * &
+                                                    th_auxvar%vis
+  write(file_unit,*) '    liquid_density [kmol]: ', global_auxvar%den(1)
+  write(file_unit,*) '      liquid_density [kg]: ', global_auxvar%den_kg(1)
+  write(file_unit,*) 'eff. thermal conductivity: ', th_auxvar%Dk_eff
+  write(file_unit,*) '                porosity : ', material_auxvar%porosity
+  write(file_unit,*) '             volume [m^3]: ', material_auxvar%volume
+  write(file_unit,*) '--------------------------------------------------------'
+
+end subroutine THPrintAuxVars
   
 ! ************************************************************************** !
 

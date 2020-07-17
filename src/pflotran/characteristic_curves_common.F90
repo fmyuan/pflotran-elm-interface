@@ -108,7 +108,7 @@ module Characteristic_Curves_Common_module
   contains
     procedure, public :: Init => RPF_Mualem_VG_Liq_Init
     procedure, public :: Verify => RPF_Mualem_VG_Liq_Verify
-    procedure, public :: SetupPolynomials => RPF_Mualem_SetupPolynomials
+    procedure, public :: SetupPolynomials => RPF_Mualem_VG_SetupPolynomials
     procedure, public :: RelativePermeability => RPF_Mualem_VG_Liq_RelPerm
   end type rpf_Mualem_VG_liq_type
   !---------------------------------------------------------------------------
@@ -158,6 +158,7 @@ module Characteristic_Curves_Common_module
   contains
     procedure, public :: Init => RPF_Burdine_VG_Liq_Init
     procedure, public :: Verify => RPF_Burdine_VG_Liq_Verify
+    procedure, public :: SetupPolynomials => RPF_Burdine_VG_SetupPolynomials
     procedure, public :: RelativePermeability => RPF_Burdine_VG_Liq_RelPerm
   end type rpf_Burdine_VG_liq_type
   !---------------------------------------------------------------------------
@@ -2025,9 +2026,10 @@ end subroutine RPF_Mualem_VG_Liq_Verify
 
 ! ************************************************************************** !
 
-subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
+subroutine RPF_Mualem_VG_SetupPolynomials(this,option,error_string)
 
-  ! Sets up polynomials for smoothing Mualem permeability function
+  ! Sets up polynomials for smoothing Mualem - van Genuchten relative 
+  ! permeability function
 
   use Option_module
   use Utility_module
@@ -2061,7 +2063,7 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
   
   this%poly%coefficients(1:4) = b(1:4)
   
-end subroutine RPF_Mualem_SetupPolynomials
+end subroutine RPF_Mualem_VG_SetupPolynomials
 
 ! ************************************************************************** !
 
@@ -3241,6 +3243,45 @@ end subroutine RPF_Burdine_VG_Liq_Verify
 
 ! ************************************************************************** !
 
+subroutine RPF_Burdine_VG_SetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing Burdine - van Genuchten relative 
+  ! permeability function
+
+  use Option_module
+  use Utility_module
+  
+  implicit none
+  
+  class(rpf_Burdine_VG_liq_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+  
+  PetscReal :: b(4)
+  PetscReal :: one_over_m, Se_one_over_m, m
+
+  this%poly => PolynomialCreate()
+  ! fill matix with values
+  this%poly%low = 0.99d0  ! just below saturated
+  this%poly%high = 1.d0   ! saturated
+  
+  m = this%m
+  one_over_m = 1.d0/m
+  Se_one_over_m = this%poly%low**one_over_m
+  b(1) = 1.d0
+  b(2) = this%poly%low*this%poly%low*(1.d0-(1.d0-Se_one_over_m)**this%m)
+  b(3) = 0.d0
+  b(4) = 2.d0*b(2)/this%poly%low + &
+         this%poly%low*Se_one_over_m*(1.d0-Se_one_over_m)**(this%m-1.d0)
+
+  call CubicPolynomialSetup(this%poly%high,this%poly%low,b)
+  
+  this%poly%coefficients(1:4) = b(1:4)
+  
+end subroutine RPF_Burdine_VG_SetupPolynomials
+
+! ************************************************************************** !
+
 subroutine RPF_Burdine_VG_Liq_RelPerm(this,liquid_saturation, &
                               relative_permeability,dkr_sat,option)
   ! 
@@ -3284,6 +3325,14 @@ subroutine RPF_Burdine_VG_Liq_RelPerm(this,liquid_saturation, &
     return
   endif
   
+  if (associated(this%poly)) then
+    if (Se > this%poly%low) then
+      call CubicPolynomialEvaluate(this%poly%coefficients, &
+                                   Se,relative_permeability,dkr_Se)
+      return
+    endif
+  endif
+
   one_over_m = 1.d0/this%m
   Se_one_over_m = Se**one_over_m
   relative_permeability = Se*Se*(1.d0-(1.d0-Se_one_over_m)**this%m)
