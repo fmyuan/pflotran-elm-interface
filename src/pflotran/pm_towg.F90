@@ -559,6 +559,8 @@ subroutine PMTOWGPreSolve(this)
 
   class(pm_towg_type) :: this
 
+  call PMSubsurfaceFlowPreSolve(this)
+
 end subroutine PMTOWGPreSolve
 
 ! ************************************************************************** !

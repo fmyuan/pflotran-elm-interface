@@ -41,6 +41,8 @@ module PM_Subsurface_Flow_class
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
     PetscInt :: logging_verbosity
+    ! for tracking convergence history to catch and report oscillator behavior
+    PetscReal :: norm_history(3,10)
 
   contains
 !geh: commented out subroutines can only be called externally
@@ -858,7 +860,8 @@ subroutine PMSubsurfaceFlowPreSolve(this)
   implicit none
   
   class(pm_subsurface_flow_type) :: this
-  
+
+  this%norm_history = 0.d0
   call DataMediatorUpdate(this%realization%flow_data_mediator_list, &
                           this%realization%field%flow_mass_transfer, &
                           this%realization%option)
@@ -903,9 +906,37 @@ subroutine PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   SNESConvergedReason :: reason
   PetscErrorCode :: ierr
 
+  PetscReal, parameter :: tol = 1.d-2
+  PetscReal, parameter :: pert = 1.d-40
+  PetscBool :: found
+  PetscInt :: i
+
   call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
                        this%realization%patch%grid, &
                        this%option,this%solver,ierr)
+  this%norm_history = cshift(this%norm_history,shift=-1,dim=2)
+  this%norm_history(1,1) = fnorm
+  this%norm_history(2,1) = xnorm
+  this%norm_history(3,1) = unorm
+  if (this%norm_history(1,5) > 0.d0) then
+    found = PETSC_FALSE
+    do i = 2, 7
+      if (maxval(dabs((this%norm_history(:,1)-this%norm_history(:,i))/ &
+                      (this%norm_history(:,1)+pert))) < tol) then
+        ! check next 2 sets of numbers
+        if (maxval(dabs((this%norm_history(:,2)-this%norm_history(:,i+1))/ &
+                        (this%norm_history(:,2)+pert))) < tol .and. &
+            maxval(dabs((this%norm_history(:,3)-this%norm_history(:,i+2))/ &
+                        (this%norm_history(:,3)+pert))) < tol) then
+          found = PETSC_TRUE
+        endif
+      endif
+    enddo
+    if (found) then
+      this%option%io_buffer = 'Potential oscillatory convergence'
+      call PrintWrnMsg(this%option)
+    endif
+  endif
   
 end subroutine PMSubsurfaceFlowCheckConvergence
 
