@@ -1094,7 +1094,7 @@ subroutine HydrateUpdateFixedAccum(realization)
     call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id),patch%grid% &
-                             z(ghosted_id),maxval(grid%z), &
+                             z(ghosted_id),grid%z_max_global, &
                              hydrate_parameter,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
@@ -1628,7 +1628,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
     call HydrateAccumDerivative(hyd_auxvars(:,ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
-                              grid%z(ghosted_id),maxval(grid%z), &
+                              grid%z(ghosted_id),grid%z_max_global, &
                               hydrate_parameter, &
                               material_parameter%soil_heat_capacity(imat), &
                               option,Jup) 
