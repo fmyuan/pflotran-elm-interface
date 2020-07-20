@@ -840,10 +840,10 @@ function StringCenter(string,center_column,center_characters)
     icol = center_column - index(string,center_characters)
     if (icol > 0) then
       buffer(1:icol) = ''
-      string = buffer(1:icol) // string
+      string = trim(buffer(1:icol)) // string
     endif
   else if (len(center_characters) > 0) then
-    string = center_characters // string
+    string = trim(center_characters) // string
   endif
 
   StringCenter = string
