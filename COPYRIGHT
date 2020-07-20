@@ -2,6 +2,12 @@
 ! PFLOTRAN v3.X
 !===============================================================================
 
+! Copyright 2020 National Technology & Engineering Solutions of Sandia, LLC 
+! (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. 
+! Government retains certain rights in this software.
+
+! See file LICENSE for details of the open source GNU LGPL 3.0 license.
+
 !===============================================================================
 ! PFLOTRAN v2.X LA-CC-09-047
 !===============================================================================
