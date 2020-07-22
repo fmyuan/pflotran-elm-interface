@@ -1979,7 +1979,7 @@ subroutine GetOWGCriticalAndConnateSats(this,swcr,sgcr,socr,sowcr,sogcr,swco,&
      sowcr = this%ow_rel_perm_func_owg%GetCriticalSaturation(option)
      socr = sowcr
      sogcr = 0.0
-  else if ( associated(this%oil_rel_perm_func_owg) ) then
+  elseif ( associated(this%oil_rel_perm_func_owg) ) then
     socr = this%oil_rel_perm_func_owg%GetCriticalSaturation(option)
     sowcr = this%oil_rel_perm_func_owg%GetSowcr(option)
     sogcr = this%oil_rel_perm_func_owg%GetSogcr(option)
@@ -2519,7 +2519,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
       class is (sat_func_xw_table_type)
         call sf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
-  else if (wat_gas_interface_present) then !attempt to create from list of cc_tables
+  elseif (wat_gas_interface_present) then !attempt to create from list of cc_tables
     error_string_search = trim(error_string) // 'searching for PC_GW,'
     call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCXW, &
                                     table_name,error_string_search,option)
@@ -2534,7 +2534,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
       class is (sat_func_og_table_type)
         call sf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
-  else if (oil_gas_interface_present) then !attempt to create from list of cc_tables
+  elseif (oil_gas_interface_present) then !attempt to create from list of cc_tables
     error_string_search = trim(error_string) // 'searching for PC_OG,'
     call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCOG, &
                                      table_name,error_string_search,option)
@@ -2564,7 +2564,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
      class is (RPF_gas_owg_table_type)
        call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
-  else if(gas_present) then !attempt to create from list of cc_tables
+  elseif (gas_present) then !attempt to create from list of cc_tables
     error_string_search = trim(error_string) // 'searching for KRG,'
     call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KRG, &
                                     table_name,error_string_search,option)
@@ -2579,7 +2579,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
       class is (rel_perm_ow_owg_table_type)
         call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
-  else if (oil_perm_2ph_ow) then !attempt to create from list of cc_tables
+  elseif (oil_perm_2ph_ow) then !attempt to create from list of cc_tables
     error_string_search = trim(error_string) // 'searching for KROW,'
     call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROW, &
                                     table_name,error_string_search,option)
@@ -2602,7 +2602,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
           call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
        end select
     end if   
-  else if(oil_perm_3ph_owg) then
+  elseif (oil_perm_3ph_owg) then
     !default to eclipse - user must enter the KRO block to define different 
     !models when available
     cc%oil_rel_perm_func_owg => RPF_oil_ecl_Create()

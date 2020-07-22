@@ -897,7 +897,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
 
     ! thermal conducitivity function id 
     if (associated(patch%thermal_characteristic_curves_array)) then
-      if(cur_material_property%thermal_conductivity_function_id < 1) then
+      if (cur_material_property%thermal_conductivity_function_id < 1) then
         cur_material_property%thermal_conductivity_function_id = &
            CharCurvesThermalGetID( &
            patch%thermal_characteristic_curves_array, &
@@ -1131,11 +1131,11 @@ subroutine RealProcessFluidProperties(realization)
   ! check that matches characteristic curves count
 
   satnum_set = GetSatnumSet(maxsatn)
-  if( satnum_set ) then
+  if ( satnum_set ) then
     ccset = associated(realization%patch%characteristic_curves_array)
     if (ccset) then
       ncc = size(realization%patch%characteristic_curves_array(:))
-      if( maxsatn > ncc ) then
+      if ( maxsatn > ncc ) then
         option%io_buffer = &
          'SATNUM data does not match CHARACTERISTIC CURVES count'
         call PrintErrMsg(option)

@@ -19,21 +19,21 @@ module Characteristic_Curves_Thermal_module
   contains
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
-    procedure, public :: kT_eff => TCFBaseConductivity
+    procedure, public :: CalculateTCond => TCFBaseConductivity
   end type thermal_conductivity_base_type
   !---------------------------------------------------------------------------
   type, public, extends(thermal_conductivity_base_type) :: kT_default_type
     PetscReal :: kT_wet, kT_dry
   contains
     procedure, public :: Verify => TCFDefaultVerify
-    procedure, public :: kT_eff => TCFDefaultConductivity
+    procedure, public :: CalculateTCond => TCFDefaultConductivity
   end type kT_default_type
   !---------------------------------------------------------------------------
   type, public, extends(thermal_conductivity_base_type) :: kT_constant_type
     PetscReal :: constant_thermal_conductivity
   contains
     procedure, public :: Verify => TCFConstantVerify
-    procedure, public :: kT_eff => TCFConstantConductivity
+    procedure, public :: CalculateTCond => TCFConstantConductivity
   end type kT_constant_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_power_type
@@ -41,7 +41,7 @@ module Characteristic_Curves_Thermal_module
     PetscReal :: gamma  ! T^gamma
   contains
     procedure, public :: Verify => TCFPowerVerify
-    procedure, public :: kT_eff => TCFPowerConductivity
+    procedure, public :: CalculateTCond => TCFPowerConductivity
   end type kT_power_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_cubic_polynomial_type
@@ -49,7 +49,7 @@ module Characteristic_Curves_Thermal_module
     PetscReal :: beta(3) ! (T,T^2,T^3)
   contains
     procedure, public :: Verify => TCFCubicPolyVerify
-    procedure, public :: kT_eff => TCFCubicPolyConductivity
+    procedure, public :: CalculateTCond => TCFCubicPolyConductivity
   end type kT_cubic_polynomial_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_linear_resistivity_type
@@ -57,7 +57,7 @@ module Characteristic_Curves_Thermal_module
     PetscReal :: a(2)  ! 1/(a(1) + a(2)*T)
   contains
     procedure, public :: Verify => TCFLinearResistivityVerify
-    procedure, public :: kT_eff => TCFLinearResistivityConductivity
+    procedure, public :: CalculateTCond => TCFLinearResistivityConductivity
   end type kT_linear_resistivity_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
@@ -171,18 +171,18 @@ subroutine TCFBaseTest(this,tcc_name,option)
   do i = 1,nt
     do j = 1,ns
       ! base case with analytical derivatives
-      call this%kT_eff(sat_vec(j),temp_vec(i), &
+      call this%CalculateTCond(sat_vec(j),temp_vec(i), &
            kT(i,j),dkT_dsat(i,j),dkT_dtemp(i,j),option)
 
       ! calculate numerical derivatives via finite differences
       perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
-      call this%kT_eff(sat_vec(j),perturbed_temp, &
+      call this%CalculateTCond(sat_vec(j),perturbed_temp, &
            kT_temp_pert,unused1,unused2,option)
 
       dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/(temp_vec(i)*perturbation)
 
       perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
-      call this%kT_eff(perturbed_sat,temp_vec(i), &
+      call this%CalculateTCond(perturbed_sat,temp_vec(i), &
            kT_sat_pert,unused1,unused2,option)
 
       dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/(sat_vec(j)*perturbation)
@@ -429,7 +429,7 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
   PetscReal :: tempreal, kT_base, shifted_temp, unused
 
   ! saturation behavior from default function
-  call this%kT_default_type%kT_eff(liquid_saturation,0.d0, &
+  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0, &
        kT_base,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
@@ -516,7 +516,7 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
   PetscReal :: kT_base, shifted_temp, unused, tempreal
 
   ! saturation behavior from default function
-  call this%kT_default_type%kT_eff(liquid_saturation,0.d0, &
+  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0, &
        kT_base,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
@@ -606,7 +606,7 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation,temperature, 
   PetscReal :: relkT, shifted_temp, tempreal, unused
 
   ! saturation behavior from default function
-  call this%kT_default_type%kT_eff(liquid_saturation,0.d0, &
+  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0, &
        relkT,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp

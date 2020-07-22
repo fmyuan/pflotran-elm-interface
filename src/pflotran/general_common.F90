@@ -2336,10 +2336,10 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
 
   ! thermal conductivity a function of temperature and liquid saturation
-  call thermal_cc_up%thermal_conductivity_function%kT_eff(sat_up, &
+  call thermal_cc_up%thermal_conductivity_function%CalculateTCond(sat_up, &
        gen_auxvar_up%temp,k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
   
-  call thermal_cc_dn%thermal_conductivity_function%kT_eff(sat_dn, &
+  call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
        gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
@@ -3782,7 +3782,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   select case (ibndtype(GENERAL_ENERGY_EQUATION_INDEX))
     case (DIRICHLET_BC)
       sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
-      call thermal_cc_dn%thermal_conductivity_function%kT_eff(sat_dn, &
+      call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
            gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
       dkeff_ave_dkeffdn = 1.d0 / dist(0)

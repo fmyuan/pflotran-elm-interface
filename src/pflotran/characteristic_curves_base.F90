@@ -422,7 +422,7 @@ subroutine RPF_Base_Test(this,cc_name,phase,option)
                                 + liquid_saturation(i)*perturbation
     call this%RelativePermeability(liquid_saturation_pert(i),kr_pert(i), &
                                    dummy_real(i),option)
-    if( i>1 ) then
+    if ( i>1 ) then
       dkr_dsat_numerical(i) = (kr_pert(i) - kr(i))/ &
                               (liquid_saturation(i)*perturbation)
     else
