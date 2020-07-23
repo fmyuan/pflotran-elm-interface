@@ -1714,7 +1714,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
                
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, ithrm_up, ithrm_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -1992,7 +1992,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icap_dn = int(icap_loc_p(ghosted_id))  
+      icc_dn = int(icap_loc_p(ghosted_id))  
 ! Then need fill up increments for BCs
        do idof = 1, option%nflowdof
          select case(boundary_condition%flow_condition%itype(idof))
@@ -2020,7 +2020,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
          auxvars(ghosted_id)%auxvar_elem(0), &
          porosity_loc_p(ghosted_id), &
          tortuosity_loc_p(ghosted_id), &
-         immis_parameter%sir(:,icap_dn), &
+         immis_parameter%sir(:,icc_dn), &
          cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
          cur_connection_set%area(iconn), &
          distance_gravity,option, &
@@ -2096,17 +2096,17 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
 
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = int(icap_loc_p(ghosted_id_up))
+      icc_dn = int(icap_loc_p(ghosted_id_dn))
    
       D_up = immis_parameter%ckwet(ithrm_up)
       D_dn = immis_parameter%ckwet(ithrm_dn)
 
       call ImmisFlux(auxvars(ghosted_id_up)%auxvar_elem(0),porosity_loc_p(ghosted_id_up), &
-                tortuosity_loc_p(ghosted_id_up),immis_parameter%sir(:,icap_up), &
+                tortuosity_loc_p(ghosted_id_up),immis_parameter%sir(:,icc_up), &
                 dd_up,perm_up,D_up, &
                 auxvars(ghosted_id_dn)%auxvar_elem(0),porosity_loc_p(ghosted_id_dn), &
-                tortuosity_loc_p(ghosted_id_dn),immis_parameter%sir(:,icap_dn), &
+                tortuosity_loc_p(ghosted_id_dn),immis_parameter%sir(:,icc_dn), &
                 dd_dn,perm_dn,D_dn, &
                 cur_connection_set%area(iconn),distance_gravity, &
                 upweight,option,v_darcy,Res)
@@ -2272,7 +2272,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
                           xx_loc_p(:), tortuosity_loc_p(:),&
                           perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,icap_up,icap_dn
+  PetscInt :: icap,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
@@ -2494,7 +2494,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
       distance_gravity = cur_connection_set%dist(0,iconn) * &
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = int(icap_loc_p(ghosted_id))
 
 ! Then need fill up increments for BCs
       delxbc=0.D0;
@@ -2533,7 +2533,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
           auxvars(ghosted_id)%auxvar_elem(nvar), &
           porosity_loc_p(ghosted_id), &
           tortuosity_loc_p(ghosted_id), &
-          immis_parameter%sir(:,icap_dn), &
+          immis_parameter%sir(:,icc_dn), &
           cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
           cur_connection_set%area(iconn), &
           distance_gravity,option, &
@@ -2637,25 +2637,25 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
       D_up = immis_parameter%ckwet(ithrm_up)
       D_dn = immis_parameter%ckwet(ithrm_dn)
     
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = int(icap_loc_p(ghosted_id_up))
+      icc_dn = int(icap_loc_p(ghosted_id_dn))
       
       do nvar = 1, option%nflowdof 
          call ImmisFlux(auxvars(ghosted_id_up)%auxvar_elem(nvar),porosity_loc_p(ghosted_id_up), &
-                          tortuosity_loc_p(ghosted_id_up),immis_parameter%sir(:,icap_up), &
+                          tortuosity_loc_p(ghosted_id_up),immis_parameter%sir(:,icc_up), &
                           dd_up,perm_up,D_up, &
                           auxvars(ghosted_id_dn)%auxvar_elem(0),porosity_loc_p(ghosted_id_dn), &
-                          tortuosity_loc_p(ghosted_id_dn),immis_parameter%sir(:,icap_dn), &
+                          tortuosity_loc_p(ghosted_id_dn),immis_parameter%sir(:,icc_dn), &
                           dd_dn,perm_dn,D_dn, &
                           cur_connection_set%area(iconn),distance_gravity, &
                           upweight, option, vv_darcy, Res)
             ra(:,nvar)= (Res(:)-patch%aux%Immis%res_old_FL(iconn,:))/patch%aux%Immis%delx(nvar,ghosted_id_up)
 
          call ImmisFlux(auxvars(ghosted_id_up)%auxvar_elem(0),porosity_loc_p(ghosted_id_up), &
-                          tortuosity_loc_p(ghosted_id_up),immis_parameter%sir(:,icap_up), &
+                          tortuosity_loc_p(ghosted_id_up),immis_parameter%sir(:,icc_up), &
                           dd_up,perm_up,D_up, &
                           auxvars(ghosted_id_dn)%auxvar_elem(nvar),porosity_loc_p(ghosted_id_dn),&
-                          tortuosity_loc_p(ghosted_id_dn),immis_parameter%sir(:,icap_dn), &
+                          tortuosity_loc_p(ghosted_id_dn),immis_parameter%sir(:,icc_dn), &
                           dd_dn,perm_dn,D_dn, &
                           cur_connection_set%area(iconn),distance_gravity, &
                           upweight, option, vv_darcy, Res)

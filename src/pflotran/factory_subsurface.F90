@@ -2231,7 +2231,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(fluid_property_type), pointer :: fluid_property
   type(saturation_function_type), pointer :: saturation_function
   class(characteristic_curves_type), pointer :: characteristic_curves
-  class(cc_thermal_type), pointer :: thermal_characteristic_curves
+  class(cc_thermal_type), pointer :: characteristic_curves_thermal
   class(creep_closure_type), pointer :: creep_closure
 
   class(realization_subsurface_type), pointer :: realization
@@ -2894,19 +2894,19 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('THERMAL_CHARACTERISTIC_CURVES')       
-        thermal_characteristic_curves => CharCurvesThermalCreate()
+        characteristic_curves_thermal => CharCurvesThermalCreate()
         call InputReadWord(input,option, &
-             thermal_characteristic_curves%name,PETSC_TRUE)
+             characteristic_curves_thermal%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','THERMAL_CHARACTERISTIC_CURVES')
         option%io_buffer = '  Name :: ' // &
-             trim(thermal_characteristic_curves%name)
+             trim(characteristic_curves_thermal%name)
         call PrintMsg(option)
         call CharCurvesThermalRead( &
-             thermal_characteristic_curves,input,option)
+             characteristic_curves_thermal,input,option)
         call CharCurvesThermalAddToList( &
-             thermal_characteristic_curves, &
-             realization%thermal_characteristic_curves)
-        nullify(thermal_characteristic_curves)
+             characteristic_curves_thermal, &
+             realization%characteristic_curves_thermal)
+        nullify(characteristic_curves_thermal)
 
 !....................
 

@@ -88,10 +88,10 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       ! initialize to "unset"
       cur_patch%imat = UNINITIALIZED_INTEGER
       ! also allocate saturation function id
-      allocate(cur_patch%sat_func_id(grid%ngmax))
-      cur_patch%sat_func_id = UNINITIALIZED_INTEGER
-      allocate(cur_patch%kT_func_id(grid%ngmax)) 
-      cur_patch%kT_func_id = UNINITIALIZED_INTEGER
+      allocate(cur_patch%cc_id(grid%ngmax))
+      cur_patch%cc_id = UNINITIALIZED_INTEGER
+      allocate(cur_patch%cct_id(grid%ngmax)) 
+      cur_patch%cct_id = UNINITIALIZED_INTEGER
     endif
     
     cur_patch%aux%Material => MaterialAuxCreate()
@@ -408,9 +408,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
       call PrintErrMsgByRank(option)
     endif
     if (option%nflowdof > 0) then
-      patch%sat_func_id(ghosted_id) = &
+      patch%cc_id(ghosted_id) = &
         material_property%saturation_function_id
-      patch%kT_func_id(ghosted_id) = &  
+      patch%cct_id(ghosted_id) = &  
         material_property%thermal_conductivity_function_id
       icap_loc_p(ghosted_id) = material_property%saturation_function_id
       itcc_loc_p(ghosted_id) = &
@@ -455,7 +455,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   !  Set satnums on this proc
           isatnum = GetSatnumValue(natural_id)
           if (option%nflowdof > 0) then
-             patch%sat_func_id(ghosted_id) = isatnum
+             patch%cc_id(ghosted_id) = isatnum
           endif
         endif
                 
@@ -472,7 +472,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                 perm_xy_p,perm_xz_p,perm_yz_p, &
                                 inatsend,grid%nlmax,option)
     if( satnum_set ) then
-      call SatnumExchangeAndSet(patch%sat_func_id, &
+      call SatnumExchangeAndSet(patch%cc_id, &
                                 inatsend, grid%nlmax, grid%nL2G, option)
     endif  
     if (option%myrank .ne. option%io_rank) then

@@ -1437,7 +1437,7 @@ subroutine MiscibleResidualPatch1(snes,xx,r,realization,ierr)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, ithrm_up, ithrm_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -1541,7 +1541,7 @@ subroutine MiscibleResidualPatch1(snes,xx,r,realization,ierr)
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icap_dn = int(icap_loc_p(ghosted_id))  
+      icc_dn = int(icap_loc_p(ghosted_id))  
 ! Then need fill up increments for BCs
       do idof =1, option%nflowdof   
         select case(boundary_condition%flow_condition%itype(idof))
@@ -2229,7 +2229,7 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,realization,ierr)
                           xx_loc_p(:), tortuosity_loc_p(:),&
                           perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
+  PetscInt :: icap,iphas,iphas_up,iphas_dn,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
@@ -2366,7 +2366,7 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,realization,ierr)
       distance_gravity = cur_connection_set%dist(0,iconn) * &
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = int(icap_loc_p(ghosted_id))
 
 ! Then need fill up increments for BCs
       delxbc=0.D0;
@@ -2506,8 +2506,8 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,realization,ierr)
       D_up = Miscible_parameter%ckwet(ithrm_up)
       D_dn = Miscible_parameter%ckwet(ithrm_dn)
     
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = int(icap_loc_p(ghosted_id_up))
+      icc_dn = int(icap_loc_p(ghosted_id_dn))
       
       do nvar = 1, option%nflowdof 
         call MiscibleFlux(auxvars(ghosted_id_up)%auxvar_elem(nvar),porosity_loc_p(ghosted_id_up), &
@@ -2623,7 +2623,7 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
                           xx_loc_p(:), tortuosity_loc_p(:),&
                           perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
+  PetscInt :: icap,iphas,iphas_up,iphas_dn,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1

@@ -3911,7 +3911,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, ithrm_up, ithrm_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -4011,8 +4011,8 @@ subroutine THResidualInternalConn(r,realization,ierr)
         
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = int(icap_loc_p(ghosted_id_up))
+      icc_dn = int(icap_loc_p(ghosted_id_dn))
    
       D_up = TH_parameter%ckwet(ithrm_up)
       D_dn = TH_parameter%ckwet(ithrm_dn)
@@ -4045,8 +4045,8 @@ subroutine THResidualInternalConn(r,realization,ierr)
                   D_dn, &
                   cur_connection_set%area(iconn), &
                   cur_connection_set%dist(:,iconn), &
-                  upweight,TH_parameter%sir(1,icap_up), &
-                  TH_parameter%sir(1,icap_dn), &
+                  upweight,TH_parameter%sir(1,icc_up), &
+                  TH_parameter%sir(1,icc_dn), &
                   option,v_darcy,Dk_dry_up, &
                   Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                   alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -4114,7 +4114,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, ithrm_up, ithrm_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -4216,7 +4216,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = int(icap_loc_p(ghosted_id))
   
       call THBCFlux(boundary_condition%flow_condition%itype, &
                     boundary_condition%flow_aux_real_var(:,iconn), &
@@ -4228,7 +4228,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
                     D_dn, &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(-1:3,iconn), &
-                    TH_parameter%sir(1,icap_dn), &
+                    TH_parameter%sir(1,icc_dn), &
                     option, &
                     v_darcy, &
                     fluxe_bulk, fluxe_cond, &
@@ -4428,7 +4428,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, ithrm_up, ithrm_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -4776,7 +4776,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
 
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: icap,iphas,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: qsrc1,csrc1
@@ -4889,8 +4889,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
       alpha_up = TH_parameter%alpha(ithrm_up)
       alpha_dn = TH_parameter%alpha(ithrm_dn)
 
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = int(icap_loc_p(ghosted_id_up))
+      icc_dn = int(icap_loc_p(ghosted_id_dn))
 
       if (th_use_freezing) then
          Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
@@ -4899,8 +4899,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
          alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
 
-         sf_up => patch%saturation_function_array(icap_up)%ptr
-         sf_dn => patch%saturation_function_array(icap_dn)%ptr
+         sf_up => patch%saturation_function_array(icc_up)%ptr
+         sf_dn => patch%saturation_function_array(icc_dn)%ptr
       else
          Dk_ice_up = Dk_dry_up
          Dk_ice_dn = Dk_dry_dn
@@ -4908,8 +4908,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
          alpha_fr_up = alpha_up
          alpha_fr_dn = alpha_dn
 
-         cc_up => patch%characteristic_curves_array(icap_up)%ptr
-         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr 
+         cc_up => patch%characteristic_curves_array(icc_up)%ptr
+         cc_dn => patch%characteristic_curves_array(icc_dn)%ptr 
       endif
 
 
@@ -4926,8 +4926,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
                             cur_connection_set%area(iconn), &
                             cur_connection_set%dist(-1:3,iconn), &
                             upweight, &
-                            TH_parameter%sir(1,icap_up), &
-                            TH_parameter%sir(1,icap_dn), &
+                            TH_parameter%sir(1,icc_up), &
+                            TH_parameter%sir(1,icc_dn), &
                             option, &
                             sf_up,sf_dn,cc_up,cc_dn, &
                             Dk_dry_up,Dk_dry_dn, &
@@ -5007,7 +5007,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
 
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: icap,iphas,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: qsrc1,csrc1
@@ -5097,18 +5097,18 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
       Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
       alpha_dn  = TH_parameter%alpha(ithrm_dn)
 
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = int(icap_loc_p(ghosted_id))
 
       if (th_use_freezing) then
          DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
 
-         sf_dn => patch%saturation_function_array(icap_dn)%ptr
+         sf_dn => patch%saturation_function_array(icc_dn)%ptr
       else
          Dk_ice_dn = Dk_dry_dn
          alpha_fr_dn = alpha_dn
 
-         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr
+         cc_dn => patch%characteristic_curves_array(icc_dn)%ptr
       endif
 
       call THBCFluxDerivative(boundary_condition%flow_condition%itype, &
@@ -5121,7 +5121,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               D_dn, &
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
-                              TH_parameter%sir(1,icap_dn), &
+                              TH_parameter%sir(1,icc_dn), &
                               option, &
                               sf_dn,cc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &
@@ -5341,7 +5341,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: icap,iphas,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: qsrc1,csrc1
@@ -6561,7 +6561,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   PetscInt :: local_id
   PetscInt :: sum_connection
   PetscInt :: iconn
-  PetscInt :: icap_dn
+  PetscInt :: icc_dn
   PetscInt :: iphase
 
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -6646,16 +6646,16 @@ subroutine THComputeCoeffsForSurfFlux(realization)
         Dq = perm_dn / dist(0)
         area = cur_connection_set%area(iconn)
 
-        icap_dn = patch%sat_func_id(ghosted_id)
-        sir_dn = th_parameter%sir(1,icap_dn)
+        icc_dn = patch%cc_id(ghosted_id)
+        sir_dn = th_parameter%sir(1,icc_dn)
 
         ithrm_up = int(ithrm_loc_p(ghosted_id))
         ithrm_dn = int(ithrm_loc_p(ghosted_id))
 
         if (th_use_freezing) then
-          sat_func => patch%saturation_function_array(icap_dn)%ptr
+          sat_func => patch%saturation_function_array(icc_dn)%ptr
         else
-          characteristic_curves => patch%characteristic_curves_array(icap_dn)%ptr
+          characteristic_curves => patch%characteristic_curves_array(icc_dn)%ptr
         endif
 
         ! Compute coeff

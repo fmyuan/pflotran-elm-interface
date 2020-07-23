@@ -2519,7 +2519,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, ithrm_up, ithrm_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -2889,7 +2889,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icap_dn = int(icap_loc_p(ghosted_id))  
+      icc_dn = int(icap_loc_p(ghosted_id))  
 ! Then need fill up increments for BCs
       do idof =1, option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
@@ -2946,7 +2946,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
          auxvars(ghosted_id)%auxvar_elem(0), &
          material_auxvars(ghosted_id)%porosity, &
          material_auxvars(ghosted_id)%tortuosity, &
-         mphase_parameter%sir(:,icap_dn), &
+         mphase_parameter%sir(:,icc_dn), &
          cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
          cur_connection_set%area(iconn), &
          distance_gravity,option, &
@@ -3020,8 +3020,8 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = int(icap_loc_p(ghosted_id_up))
+      icc_dn = int(icap_loc_p(ghosted_id_dn))
    
       D_up = mphase_parameter%ckwet(ithrm_up)
       D_dn = mphase_parameter%ckwet(ithrm_dn)
@@ -3030,12 +3030,12 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       call MphaseFlux(auxvars(ghosted_id_up)%auxvar_elem(0), &
           material_auxvars(ghosted_id_up)%porosity, &
           material_auxvars(ghosted_id_up)%tortuosity, &
-          mphase_parameter%sir(:,icap_up), &
+          mphase_parameter%sir(:,icc_up), &
           dd_up,perm_up,D_up, &
           auxvars(ghosted_id_dn)%auxvar_elem(0), &
           material_auxvars(ghosted_id_dn)%porosity, &
           material_auxvars(ghosted_id_dn)%tortuosity, &
-          mphase_parameter%sir(:,icap_dn), &
+          mphase_parameter%sir(:,icc_dn), &
           dd_dn,perm_dn,D_dn, &
           cur_connection_set%area(iconn),distance_gravity, &
           upweight,option,v_darcy,vol_frac_prim,Res)
@@ -3238,7 +3238,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
+  PetscInt :: icap,iphas,iphas_up,iphas_dn,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
@@ -3480,7 +3480,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       distance_gravity = cur_connection_set%dist(0,iconn) * &
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = int(icap_loc_p(ghosted_id))
 
 ! Then need fill up increments for BCs
       delxbc = 0.D0;
@@ -3529,7 +3529,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
             auxvars(ghosted_id)%auxvar_elem(nvar), &
             material_auxvars(ghosted_id)%porosity, &
             material_auxvars(ghosted_id)%tortuosity, &
-            mphase_parameter%sir(:,icap_dn), &
+            mphase_parameter%sir(:,icc_dn), &
             cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
             cur_connection_set%area(iconn), &
             distance_gravity,option, &
@@ -3655,20 +3655,20 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       D_up = mphase_parameter%ckwet(ithrm_up)
       D_dn = mphase_parameter%ckwet(ithrm_dn)
     
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = int(icap_loc_p(ghosted_id_up))
+      icc_dn = int(icap_loc_p(ghosted_id_dn))
 
       
       do nvar = 1, option%nflowdof 
         call MphaseFlux(auxvars(ghosted_id_up)%auxvar_elem(nvar), &
                          material_auxvars(ghosted_id_up)%porosity, &
                          material_auxvars(ghosted_id_up)%tortuosity, &
-                         mphase_parameter%sir(:,icap_up), &
+                         mphase_parameter%sir(:,icc_up), &
                          dd_up,perm_up,D_up, &
                          auxvars(ghosted_id_dn)%auxvar_elem(0), &
                          material_auxvars(ghosted_id_dn)%porosity, &
                          material_auxvars(ghosted_id_dn)%tortuosity, &
-                         mphase_parameter%sir(:,icap_dn), &
+                         mphase_parameter%sir(:,icc_dn), &
                          dd_dn,perm_dn,D_dn, &
                          cur_connection_set%area(iconn), &
                          distance_gravity, &
@@ -3680,12 +3680,12 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
         call MphaseFlux(auxvars(ghosted_id_up)%auxvar_elem(0), &
                          material_auxvars(ghosted_id_up)%porosity, &
                          material_auxvars(ghosted_id_up)%tortuosity, &
-                         mphase_parameter%sir(:,icap_up), &
+                         mphase_parameter%sir(:,icc_up), &
                          dd_up,perm_up,D_up, &
                          auxvars(ghosted_id_dn)%auxvar_elem(nvar), &
                          material_auxvars(ghosted_id_dn)%porosity,&
                          material_auxvars(ghosted_id_dn)%tortuosity, &
-                         mphase_parameter%sir(:,icap_dn), &
+                         mphase_parameter%sir(:,icc_dn), &
                          dd_dn,perm_dn,D_dn, &
                          cur_connection_set%area(iconn),distance_gravity, &
                          upweight, option, vv_darcy, vol_frac_prim, Res)
