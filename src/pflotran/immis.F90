@@ -669,7 +669,8 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
+  PetscInt :: icc
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscErrorCode :: ierr
   
@@ -688,7 +689,6 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
 
   
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -698,13 +698,14 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
     endif
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    if (.not. associated(patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr))then
-       print*, 'error!!! saturation function not allocated', ghosted_id,icap_loc_p(ghosted_id)
+    icc = patch%cc_id(ghosted_id)
+    if (.not. associated(patch%saturation_function_array(icc)%ptr))then
+       print*, 'error!!! saturation function not allocated', ghosted_id, icc
     endif
    
     call ImmisAuxVarCompute_NINC(xx_loc_p(istart:iend), &
                        auxvars(ghosted_id)%auxvar_elem(0), &
-                       patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+                       patch%saturation_function_array(icc)%ptr, &
                        realization%fluid_properties,option)
 
  ! update global variables
@@ -756,7 +757,7 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
       enddo
  
       call ImmisAuxVarCompute_NINC(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0), &
-              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+              patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
                          realization%fluid_properties, option)
 
       if (associated(global_auxvars_bc)) then
@@ -801,7 +802,6 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
 
 
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
   
   patch%aux%Immis%auxvars_up_to_date = PETSC_TRUE
 
@@ -995,9 +995,9 @@ subroutine ImmisUpdateFixedAccumPatch(realization)
   type(Immis_auxvar_type), pointer :: auxvars(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend
-  PetscReal, pointer :: xx_p(:), icap_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: porosity_loc_p(:), tortuosity_loc_p(:), volume_p(:), &
-                        ithrm_loc_p(:), accum_p(:)
+                        accum_p(:)
                           
   PetscErrorCode :: ierr
   
@@ -1012,12 +1012,9 @@ subroutine ImmisUpdateFixedAccumPatch(realization)
   auxvars => patch%aux%Immis%auxvars
     
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 !geh: refactor  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 !geh: refactor  call VecGetArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
 !geh: refactor  call VecGetArrayF90(field%volume,volume_p,ierr)
-  call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
-
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
@@ -1032,16 +1029,14 @@ subroutine ImmisUpdateFixedAccumPatch(realization)
     call ImmisAccumulation(auxvars(ghosted_id)%auxvar_elem(0), &
                               porosity_loc_p(ghosted_id), &
                               volume_p(local_id), &
-                              immis_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                              immis_parameter%dencpr(patch%cct_id(ghosted_id)), &
                               option,ZERO_INTEGER, accum_p(istart:iend)) 
   enddo
 
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 !geh refactor  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 !geh refactor  call VecRestoreArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
 !geh refactor  call VecRestoreArrayF90(field%volume,volume_p,ierr)
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -1656,12 +1651,10 @@ subroutine ImmisResidual(snes,xx,r,realization,ierr)
   ! Communication -----------------------------------------
   ! These 3 must be called before ImmisUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
 
 !geh refactor  call DiscretizationLocalToLocal(discretization,field%perm_xx_loc,field%perm_xx_loc,ONEDOF)
 !geh refactor  call DiscretizationLocalToLocal(discretization,field%perm_yy_loc,field%perm_yy_loc,ONEDOF)
 !geh refactor  call DiscretizationLocalToLocal(discretization,field%perm_zz_loc,field%perm_zz_loc,ONEDOF)
-  call DiscretizationLocalToLocal(discretization,field%ithrm_loc,field%ithrm_loc,ONEDOF)
   
   cur_patch => realization%patch_list%first
   do
@@ -1711,10 +1704,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
                tortuosity_loc_p(:),&
                perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
                           
-               
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-
-  PetscInt :: icc_up, icc_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -1793,9 +1783,6 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
 !geh refactor  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
 !geh refactor  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
 !geh refactor  call VecGetArrayF90(field%volume, volume_p, ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
- 
  
 ! Multiphase flash calculation is more expensive, so calculate once per iteration
 #if 1
@@ -1808,7 +1795,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
         
     istart = (ng-1)*option%nflowdof + 1; iend = istart - 1 + option%nflowdof
     call ImmisAuxVarCompute_Ninc(xx_loc_p(istart:iend),auxvars(ng)%auxvar_elem(0), &
-      patch%saturation_function_array(int(icap_loc_p(ng)))%ptr, &
+      patch%saturation_function_array(patch%cc_id(ng))%ptr, &
       realization%fluid_properties,option)
 
     if (option%flow%numerical_derivatives) then
@@ -1834,7 +1821,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
       endif
       call ImmisAuxVarCompute_Winc(xx_loc_p(istart:iend),patch%aux%Immis%delx(:,ng), &
           auxvars(ng)%auxvar_elem(1:option%nflowdof), &
-          patch%saturation_function_array(int(icap_loc_p(ng)))%ptr, &
+          patch%saturation_function_array(patch%cc_id(ng))%ptr, &
           realization%fluid_properties,option)
     endif
   enddo
@@ -1858,7 +1845,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
     istart = iend-option%nflowdof+1
     call ImmisAccumulation(auxvars(ghosted_id)%auxvar_elem(0),porosity_loc_p(ghosted_id), &
                               volume_p(local_id), &
-                              immis_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                              immis_parameter%dencpr(patch%cct_id(ghosted_id)), &
                               option,ONE_INTEGER,Res) 
     r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
     !print *,'REs, acm: ', res
@@ -1978,8 +1965,8 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = immis_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = immis_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
       perm_dn = perm_xx_loc_p(ghosted_id)*abs(cur_connection_set%dist(1,iconn))+ &
@@ -1992,7 +1979,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icc_dn = int(icap_loc_p(ghosted_id))  
+      icc_dn = patch%cc_id(ghosted_id)  
 ! Then need fill up increments for BCs
        do idof = 1, option%nflowdof
          select case(boundary_condition%flow_condition%itype(idof))
@@ -2011,7 +1998,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
 
  
       call ImmisAuxVarCompute_Ninc(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0),&
-         patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+         patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
          realization%fluid_properties, option)
 
       call ImmisBCFlux(boundary_condition%flow_condition%itype, &
@@ -2094,13 +2081,13 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
                 perm_yy_loc_p(ghosted_id_dn)*abs(cur_connection_set%dist(2,iconn))+ &
                 perm_zz_loc_p(ghosted_id_dn)*abs(cur_connection_set%dist(3,iconn))
 
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icc_up = int(icap_loc_p(ghosted_id_up))
-      icc_dn = int(icap_loc_p(ghosted_id_dn))
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
    
-      D_up = immis_parameter%ckwet(ithrm_up)
-      D_dn = immis_parameter%ckwet(ithrm_dn)
+      D_up = immis_parameter%ckwet(icct_up)
+      D_dn = immis_parameter%ckwet(icct_dn)
 
       call ImmisFlux(auxvars(ghosted_id_up)%auxvar_elem(0),porosity_loc_p(ghosted_id_up), &
                 tortuosity_loc_p(ghosted_id_up),immis_parameter%sir(:,icc_up), &
@@ -2184,8 +2171,6 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
 !geh refactor  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
 !geh refactor  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
 !geh refactor  call VecRestoreArrayF90(field%volume, volume_p, ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
   if (realization%debug%vecview_residual) then
     string = 'Iresidual'
@@ -2265,14 +2250,13 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: i
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: porosity_loc_p(:), volume_p(:), &
                           xx_loc_p(:), tortuosity_loc_p(:),&
                           perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,icc_up,icc_dn
+  PetscInt :: icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
@@ -2292,6 +2276,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
             Jdn(1:realization%option%nflowdof,1:realization%option%nflowdof)
   
   PetscInt :: istart, iend
+  PetscInt :: icct_up, icct_dn
   
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
@@ -2362,9 +2347,6 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
 !geh refactor  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
 !geh refactor  call VecGetArrayF90(field%volume, volume_p, ierr)
 
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-
  ResInc = 0.D0
 #if 1
   ! Accumulation terms ------------------------------------
@@ -2376,13 +2358,11 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
      endif
      iend = local_id*option%nflowdof
      istart = iend-option%nflowdof+1
-     icap = int(icap_loc_p(ghosted_id))
-     
      do nvar =1, option%nflowdof
         call ImmisAccumulation(auxvars(ghosted_id)%auxvar_elem(nvar), &
              porosity_loc_p(ghosted_id), &
              volume_p(local_id), &
-             immis_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+             immis_parameter%dencpr(patch%cct_id(ghosted_id)), &
              option,ONE_INTEGER, res) 
         ResInc( local_id,:,nvar) =  ResInc(local_id,:,nvar) + Res(:)
      enddo
@@ -2481,8 +2461,8 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = immis_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = immis_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
       perm_dn = perm_xx_loc_p(ghosted_id)*abs(cur_connection_set%dist(1,iconn))+ &
@@ -2494,7 +2474,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
       distance_gravity = cur_connection_set%dist(0,iconn) * &
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
-      icc_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = patch%cc_id(ghosted_id)
 
 ! Then need fill up increments for BCs
       delxbc=0.D0;
@@ -2519,11 +2499,11 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
 
  
       call ImmisAuxVarCompute_Ninc(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0),&
-         patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+         patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
          realization%fluid_properties, option)
       call ImmisAuxVarCompute_Winc(xxbc,delxbc,&
          auxvars_bc(sum_connection)%auxvar_elem(1:option%nflowdof),&
-         patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+         patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
          realization%fluid_properties,option)
     
       do nvar=1,option%nflowdof
@@ -2632,14 +2612,14 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
                 perm_yy_loc_p(ghosted_id_dn)*abs(cur_connection_set%dist(2,iconn))+ &
                 perm_zz_loc_p(ghosted_id_dn)*abs(cur_connection_set%dist(3,iconn))
     
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      D_up = immis_parameter%ckwet(ithrm_up)
-      D_dn = immis_parameter%ckwet(ithrm_dn)
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
+
+      D_up = immis_parameter%ckwet(icct_up)
+      D_dn = immis_parameter%ckwet(icct_dn)
     
-      icc_up = int(icap_loc_p(ghosted_id_up))
-      icc_dn = int(icap_loc_p(ghosted_id_dn))
-      
       do nvar = 1, option%nflowdof 
          call ImmisFlux(auxvars(ghosted_id_up)%auxvar_elem(nvar),porosity_loc_p(ghosted_id_up), &
                           tortuosity_loc_p(ghosted_id_up),immis_parameter%sir(:,icc_up), &
@@ -2728,9 +2708,6 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
 !geh refactor  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
 !geh refactor  call VecRestoreArrayF90(field%volume, volume_p, ierr)
 
-   
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 ! print *,'end jac'
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)

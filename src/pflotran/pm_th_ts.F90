@@ -124,10 +124,9 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   type(th_parameter_type), pointer :: th_parameter
   PetscInt :: ghosted_id,local_id,istart,iend
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:),ithrm_loc_p(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscInt :: ithrm,icap
+  PetscInt :: icc, icct
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -146,8 +145,6 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   !    dmass_dtime
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
   
   
   do ghosted_id = 1, grid%ngmax
@@ -156,8 +153,8 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
     if (patch%imat(ghosted_id) <= 0) cycle 
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    icap = int(icap_loc_p(ghosted_id))
-    ithrm = int(ithrm_loc_p(ghosted_id))
+    icc = patch%cc_id(ghosted_id)
+    icct = patch%cct_id(ghosted_id)
 
     th_auxvars(ghosted_id)%dpres_dtime = & 
       xxdot_loc_p((ghosted_id-1)*option%nflowdof+1)
@@ -166,13 +163,11 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
     call THAuxVarCompute2ndOrderDeriv(TH_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id), &
-                                  th_parameter,ithrm, &
-                                  patch%characteristic_curves_array(icap)%ptr, &
+                                  th_parameter,icct, &
+                                  patch%characteristic_curves_array(icc)%ptr, &
                                   option)
   enddo
 
-  call VecRestoreArrayReadF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
                               ierr);CHKERRQ(ierr)
@@ -273,7 +268,6 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   PetscReal :: dsat_dP, dsat_dt
   PetscReal  :: du_dP, du_dt
   PetscReal :: rock_dencpr
-  PetscReal, pointer :: ithrm_loc_p(:)
   
   option => realization%option
   grid => realization%patch%grid
@@ -285,7 +279,6 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   th_parameter => patch%aux%TH%th_parameter
 
   call VecGetArrayF90(F, f_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -310,7 +303,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
     dsat_dt = TH_auxvars(ghosted_id)%dsat_dt
     du_dP = TH_auxvars(ghosted_id)%du_dp
     du_dt = TH_auxvars(ghosted_id)%du_dt
-    rock_dencpr = th_parameter%dencpr(int(ithrm_loc_p(ghosted_id)))
+    rock_dencpr = th_parameter%dencpr(patch%cct_id(ghosted_id))
 
     ! A_M = d(rho*phi*s)/dP * dP_dtime *Vol + d(rho*phi*s)/dT * dT_dtime *Vol
     dmass_dP = den     * dpor_dP * sat     + &
@@ -354,8 +347,6 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   enddo
     
   call VecRestoreArrayF90(F, f_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
-    
     
 end subroutine IFunctionAccumulation
 
@@ -471,7 +462,6 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   PetscReal :: Jlocal(2,2)
   PetscReal :: temp
   PetscReal :: rock_dencpr
-  PetscReal, pointer :: ithrm_loc_p(:)
 
   option => realization%option
   grid => realization%patch%grid
@@ -482,9 +472,6 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars  
   th_parameter => patch%aux%TH%th_parameter
 
-
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
@@ -501,7 +488,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     sat = global_auxvars(ghosted_id)%sat(1)
     temp = global_auxvars(ghosted_id)%temp
     u = TH_auxvars(ghosted_id)%u
-    rock_dencpr = th_parameter%dencpr(int(ithrm_loc_p(ghosted_id)))
+    rock_dencpr = th_parameter%dencpr(patch%cct_id(ghosted_id))
     dden_dP = TH_auxvars(ghosted_id)%dden_dp
     dsat_dP = TH_auxvars(ghosted_id)%dsat_dp
     dpor_dt = 0.d0
@@ -703,8 +690,6 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     
   enddo
     
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
-  
   call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
