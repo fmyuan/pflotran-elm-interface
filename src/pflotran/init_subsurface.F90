@@ -87,11 +87,17 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       allocate(cur_patch%imat(grid%ngmax))
       ! initialize to "unset"
       cur_patch%imat = UNINITIALIZED_INTEGER
-      ! also allocate saturation function id
-      allocate(cur_patch%cc_id(grid%ngmax))
-      cur_patch%cc_id = UNINITIALIZED_INTEGER
-      allocate(cur_patch%cct_id(grid%ngmax)) 
-      cur_patch%cct_id = UNINITIALIZED_INTEGER
+      select case(option%iflowmode)
+        case(NULL_MODE)
+        case(RICHARDS_MODE,WF_MODE)
+          allocate(cur_patch%cc_id(grid%ngmax))
+          cur_patch%cc_id = UNINITIALIZED_INTEGER
+        case default
+          allocate(cur_patch%cc_id(grid%ngmax))
+          cur_patch%cc_id = UNINITIALIZED_INTEGER
+          allocate(cur_patch%cct_id(grid%ngmax)) 
+          cur_patch%cct_id = UNINITIALIZED_INTEGER
+      end select
     endif
     
     cur_patch%aux%Material => MaterialAuxCreate()
@@ -264,9 +270,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
 
   class(realization_subsurface_type) :: realization
   
-  PetscReal, pointer :: icap_loc_p(:)
-  PetscReal, pointer :: itcc_loc_p(:)
-  PetscReal, pointer :: ithrm_loc_p(:)
   PetscReal, pointer :: por0_p(:)
   PetscReal, pointer :: tor0_p(:)
   PetscReal, pointer :: perm_xx_p(:)
@@ -306,9 +309,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! create null material property for inactive cells
   null_material_property => MaterialPropertyCreate()
   if (option%nflowdof > 0) then
-    call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%itcc_loc,itcc_loc_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
@@ -410,12 +410,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
     if (option%nflowdof > 0) then
       patch%cc_id(ghosted_id) = &
         material_property%saturation_function_id
-      patch%cct_id(ghosted_id) = &  
-        material_property%thermal_conductivity_function_id
-      icap_loc_p(ghosted_id) = material_property%saturation_function_id
-      itcc_loc_p(ghosted_id) = &
-        material_property%thermal_conductivity_function_id
-      ithrm_loc_p(ghosted_id) = abs(material_property%internal_id)
+      if (associated(patch%cct_id)) then
+        patch%cct_id(ghosted_id) = &  
+          material_property%thermal_conductivity_function_id
+      endif
       perm_xx_p(local_id) = material_property%permeability(1,1)
       perm_yy_p(local_id) = material_property%permeability(2,2)
       perm_zz_p(local_id) = material_property%permeability(3,3)
@@ -488,9 +486,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   call MaterialPropertyDestroy(null_material_property)
 
   if (option%nflowdof > 0) then
-    call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%itcc_loc,itcc_loc_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%perm0_zz,perm_zz_p,ierr);CHKERRQ(ierr)
@@ -578,15 +573,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
       call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                    PERMEABILITY_YZ,ZERO_INTEGER)
     endif
-    call DiscretizationLocalToLocal(discretization,field%icap_loc, &
-                                    field%icap_loc,ONEDOF)
-    call DiscretizationLocalToLocal(discretization,field%itcc_loc, &
-                                    field%itcc_loc,ONEDOF)                            
-    call DiscretizationLocalToLocal(discretization,field%ithrm_loc, &
-                                    field%ithrm_loc,ONEDOF)
-    call RealLocalToLocalWithArray(realization,SATURATION_FUNCTION_ID_ARRAY)
-    
-    call RealLocalToLocalWithArray(realization,TCC_ID_ARRAY)
+
+    call RealLocalToLocalWithArray(realization,CC_ID_ARRAY)
+    if (associated(patch%cct_id)) then
+      call RealLocalToLocalWithArray(realization,CCT_ID_ARRAY)
+    endif
     
     if (soil_compressibility_index > 0) then
       call DiscretizationGlobalToLocal(discretization,field%compressibility0, &

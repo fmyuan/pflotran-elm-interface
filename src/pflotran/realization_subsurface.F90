@@ -269,12 +269,8 @@ subroutine RealizationCreateDiscretization(realization)
     endif
 
     ! 1-dof local
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%ithrm_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%icap_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%itcc_loc)
+    !call DiscretizationDuplicateVector(discretization,field%work_loc, &
+    !                                   field%xyz)
     
     ! ndof degrees of freedom, global
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx, &
@@ -2424,10 +2420,10 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(MATERIAL_ID_ARRAY)
       call GridCopyIntegerArrayToVec(grid,patch%imat,field%work_loc, &
                                      grid%ngmax)
-    case(SATURATION_FUNCTION_ID_ARRAY)
+    case(CC_ID_ARRAY)
       call GridCopyIntegerArrayToVec(grid,patch%cc_id, &
                                      field%work_loc, grid%ngmax)
-    case(TCC_ID_ARRAY)
+    case(CCT_ID_ARRAY)
       call GridCopyIntegerArrayToVec(grid,patch%cct_id, &
                                      field%work_loc, grid%ngmax)
   end select
@@ -2439,10 +2435,10 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(MATERIAL_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%imat,field%work_loc, &
                                       grid%ngmax)
-    case(SATURATION_FUNCTION_ID_ARRAY)
+    case(CC_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%cc_id, &
                                       field%work_loc, grid%ngmax)
-    case(TCC_ID_ARRAY)
+    case(CCT_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%cct_id, &
                                       field%work_loc, grid%ngmax)
   end select
