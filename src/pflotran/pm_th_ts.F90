@@ -121,7 +121,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(TH_auxvar_type), pointer :: TH_auxvars(:) 
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   PetscInt :: ghosted_id,local_id,istart,iend
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:),ithrm_loc_p(:)
@@ -135,7 +135,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   patch => realization%patch
   grid => patch%grid
   TH_auxvars => patch%aux%TH%auxvars
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   
@@ -166,7 +166,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
     call THAuxVarCompute2ndOrderDeriv(TH_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id), &
-                                  TH_parameter,ithrm, &
+                                  th_parameter,ithrm, &
                                   patch%characteristic_curves_array(icap)%ptr, &
                                   option)
   enddo
@@ -259,7 +259,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   PetscInt :: local_id, ghosted_id
 
   PetscInt :: istart, iend
@@ -282,7 +282,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   TH_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
 
   call VecGetArrayF90(F, f_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
@@ -310,7 +310,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
     dsat_dt = TH_auxvars(ghosted_id)%dsat_dt
     du_dP = TH_auxvars(ghosted_id)%du_dp
     du_dt = TH_auxvars(ghosted_id)%du_dt
-    rock_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id)))
+    rock_dencpr = th_parameter%dencpr(int(ithrm_loc_p(ghosted_id)))
 
     ! A_M = d(rho*phi*s)/dP * dP_dtime *Vol + d(rho*phi*s)/dT * dT_dtime *Vol
     dmass_dP = den     * dpor_dP * sat     + &
@@ -452,7 +452,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: istart, iend
@@ -480,7 +480,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   TH_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars  
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
 
 
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
@@ -501,7 +501,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     sat = global_auxvars(ghosted_id)%sat(1)
     temp = global_auxvars(ghosted_id)%temp
     u = TH_auxvars(ghosted_id)%u
-    rock_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id)))
+    rock_dencpr = th_parameter%dencpr(int(ithrm_loc_p(ghosted_id)))
     dden_dP = TH_auxvars(ghosted_id)%dden_dp
     dsat_dP = TH_auxvars(ghosted_id)%dsat_dp
     dpor_dt = 0.d0

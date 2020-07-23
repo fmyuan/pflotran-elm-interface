@@ -1016,7 +1016,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                           material_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
                           patch%characteristic_curves_array( &
-                          patch%cc_id(ghosted_id))%ptr, &
+                            patch%cc_id(ghosted_id))%ptr, &
                           grid%nG2A(ghosted_id), &
                           scale, Res_dummy, Jac_dummy, &
                           general_analytical_derivatives, &
@@ -1196,7 +1196,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
-  PetscInt :: icc_up, icc_dn, icct_up, icct_dn
+  PetscInt :: icct_up, icct_dn
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal :: Jac_dummy(realization%option%nflowdof, &
                          realization%option%nflowdof)
@@ -1320,9 +1320,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       imat_dn = patch%imat(ghosted_id_dn) 
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
-      icc_up = patch%cc_id(ghosted_id_up)
-      icc_dn = patch%cc_id(ghosted_id_dn)
-
       icct_up = patch%cct_id(ghosted_id_up)
       icct_dn = patch%cct_id(ghosted_id_dn)
       
@@ -1388,7 +1385,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
         stop
       endif
 
-      icc_dn = patch%cc_id(ghosted_id)
       icct_dn = patch%cct_id(ghosted_id)
 
       call GeneralBCFlux(boundary_condition%flow_bc_type, &
@@ -1463,7 +1459,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                           material_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
                           patch%characteristic_curves_array( &
-                          patch%cc_id(ghosted_id))%ptr, &
+                            patch%cc_id(ghosted_id))%ptr, &
                           grid%nG2A(ghosted_id), &
                           scale,Res,Jac_dummy, &
                           general_analytical_derivatives, &
@@ -1595,7 +1591,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: norm
   PetscViewer :: viewer
 
-  PetscInt :: icc_up,icc_dn
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
@@ -1728,19 +1723,16 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
    
-      icc_up = patch%cc_id(ghosted_id_up)
-      icc_dn = patch%cc_id(ghosted_id_dn)
-                              
       call GeneralFluxDerivative(gen_auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
                      patch%char_curves_thermal_array( &
-                     patch%cct_id(ghosted_id_up))%ptr, &
+                       patch%cct_id(ghosted_id_up))%ptr, &
                      gen_auxvars(:,ghosted_id_dn), &
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
                      patch%char_curves_thermal_array( &
-                     patch%cct_id(ghosted_id_up))%ptr, &
+                       patch%cct_id(ghosted_id_up))%ptr, &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
@@ -1797,8 +1789,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      icc_dn = patch%cc_id(ghosted_id)
-
       call GeneralBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &
                       boundary_condition%flow_aux_real_var(:,iconn), &
@@ -1808,7 +1798,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                       global_auxvars(ghosted_id), &
                       material_auxvars(ghosted_id), &
                       patch%char_curves_thermal_array( &
-                      patch%cct_id(ghosted_id))%ptr, &
+                        patch%cct_id(ghosted_id))%ptr, &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &
@@ -1862,7 +1852,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                         global_auxvars(ghosted_id), &
                         global_auxvars_ss(sum_connection), &
                         patch%characteristic_curves_array( &
-                        patch%cc_id(ghosted_id))%ptr, &
+                          patch%cc_id(ghosted_id))%ptr, &
                         grid%nG2A(ghosted_id),material_auxvars(ghosted_id), &
                         scale,Jup)
 
