@@ -1732,7 +1732,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
                      patch%char_curves_thermal_array( &
-                       patch%cct_id(ghosted_id_up))%ptr, &
+                       patch%cct_id(ghosted_id_dn))%ptr, &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
