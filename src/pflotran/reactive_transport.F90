@@ -963,7 +963,7 @@ subroutine RTUpdateFixedAccumulation(realization)
     call RTAuxVarCompute(rt_auxvars(ghosted_id), &
                          global_auxvars(ghosted_id), &
                          material_auxvars(ghosted_id), &
-                         reaction,option)
+                         reaction,grid%nG2A(ghosted_id),option)
     call RTAccumulation(rt_auxvars(ghosted_id), &
                         global_auxvars(ghosted_id), &
                         material_auxvars(ghosted_id), &
@@ -4050,7 +4050,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
       call RTAuxVarCompute(rt_auxvars(ghosted_id), &
                            global_auxvars(ghosted_id), &
                            patch%aux%Material%auxvars(ghosted_id), &
-                           reaction,option)
+                           reaction,grid%nG2A(ghosted_id),option)
     enddo
 
     call PetscLogEventEnd(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
@@ -4193,7 +4193,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
           call RTAuxVarCompute(rt_auxvars_bc(sum_connection), &
                                global_auxvars_bc(sum_connection), &
                                patch%aux%Material%auxvars(ghosted_id), &
-                               reaction,option)
+                               reaction,grid%nG2A(ghosted_id),option)
         else
           equilibrate_constraint = PETSC_TRUE
         ! Chuan needs to fill this in.
