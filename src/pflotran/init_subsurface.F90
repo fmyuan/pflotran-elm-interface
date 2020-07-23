@@ -290,11 +290,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(material_type), pointer :: Material
   PetscInt :: local_id, ghosted_id, material_id,natural_id,i
   PetscReal :: tempreal, poro, permx, permy, permz
-  PetscInt :: tempint, isatnum, maxsatn, itcnum, maxtcn
+  PetscInt :: tempint, isatnum, maxsatn
   PetscErrorCode :: ierr
   PetscViewer :: viewer
   PetscInt ,pointer,dimension(:)::inatsend
-  PetscBool :: write_ecl, satnum_set, tcnum_set
+  PetscBool :: write_ecl, satnum_set
 
   option => realization%option
   discretization => realization%discretization
