@@ -638,9 +638,9 @@ subroutine RealizationProcessCouplers(realization)
   
   class(realization_subsurface_type) :: realization
   
-  call PatchProcessCouplers( realization%patch,realization%flow_conditions, &
-                             realization%transport_conditions, &
-                             realization%option)
+  call PatchProcessCouplers(realization%patch,realization%flow_conditions, &
+                            realization%transport_conditions, &
+                            realization%option)
   
 end subroutine RealizationProcessCouplers
 
@@ -790,7 +790,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     endif
   enddo  
   if (associated(realization%characteristic_curves_thermal)) then
-    if ( maxval(check_thermal_conductivity(:,:)) >= 0.d0 ) then
+    if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
       option%io_buffer = 'Cannot combine material-based thermal conductivity'//&
                          ' input format with thermal characteristic curves. '//&
                          'Use TCC with "DEFAULT" specification instead.' 
@@ -801,7 +801,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     call CharCurvesThermalConvertListToArray( &
          patch%characteristic_curves_thermal, &
          patch%char_curves_thermal_array, option)
-  else if ( maxval(check_thermal_conductivity(:,:)) >= 0.d0 ) then
+  else if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
     ! use default tcc curve for legacy thermal conductivity input by material
     do i = 1, num_mat_prop
       if (.not. option%iflowmode == G_MODE) then
@@ -1127,11 +1127,11 @@ subroutine RealProcessFluidProperties(realization)
   ! check that matches characteristic curves count
 
   satnum_set = GetSatnumSet(maxsatn)
-  if ( satnum_set ) then
+  if (satnum_set) then
     ccset = associated(realization%patch%characteristic_curves_array)
     if (ccset) then
       ncc = size(realization%patch%characteristic_curves_array(:))
-      if ( maxsatn > ncc ) then
+      if (maxsatn > ncc) then
         option%io_buffer = &
          'SATNUM data does not match CHARACTERISTIC CURVES count'
         call PrintErrMsg(option)
