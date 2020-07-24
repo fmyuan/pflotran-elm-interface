@@ -411,8 +411,8 @@ subroutine TCFDryConditionsConductivity(this,liquid_saturation,temperature, &
   
   primary = this%kT_dry + power
   
-  dkT_dtemp = this%kT_alpha_base * this%kT_alpha_exp * temperature * &
-              (this%kT_alpha_exp - 1.0d0)
+  dkT_dtemp = this%kT_alpha_base * this%kT_alpha_exp * &
+    (temperature ** (this%kT_alpha_exp - 1.0d0))
   
   if (liquid_saturation > 0.d0) then
     tempreal = sqrt(liquid_saturation) * &
@@ -637,8 +637,8 @@ subroutine TCFYMRConditionsConductivity(this,liquid_saturation,temperature, &
   
   primary = this%kT_dry + power
   
-  dkT_dtemp = this%kT_alpha_base * this%kT_alpha_exp * temperature * &
-              (this%kT_alpha_exp - 1.0d0)
+  dkT_dtemp = this%kT_alpha_base * this%kT_alpha_exp * &
+    (temperature ** (this%kT_alpha_exp - 1.0d0))
   
   if (liquid_saturation > 0.d0) then
     tempreal = sqrt(liquid_saturation) * &
