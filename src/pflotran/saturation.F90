@@ -15,7 +15,7 @@ contains
 ! ************************************************************************** !
 
 subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
-                                   sat_func_id)
+                                   cc_id)
   ! 
   ! Computes the pressures for a saturation
   ! initial/boundary condition
@@ -38,7 +38,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
   type(option_type) :: option
   type(grid_type) :: grid
   type(saturation_function_ptr_type) :: saturation_functions(:)
-  PetscInt :: sat_func_id(:)
+  PetscInt :: cc_id(:)
 
   PetscInt :: local_id, ghosted_id, iconn
   PetscReal :: saturation
@@ -64,7 +64,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
     ghosted_id = grid%nL2G(local_id)
     call SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
                      option%reference_temperature, &
-                     saturation_functions(sat_func_id(ghosted_id))%ptr,option)
+                     saturation_functions(cc_id(ghosted_id))%ptr,option)
     liquid_pressure = option%reference_pressure - capillary_pressure
     coupler%flow_aux_real_var(1,iconn) = liquid_pressure
   enddo

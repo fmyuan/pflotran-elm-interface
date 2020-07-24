@@ -490,7 +490,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
                        patch%characteristic_curves_array( &
-                         patch%sat_func_id(ghosted_id))%ptr, &
+                         patch%cc_id(ghosted_id))%ptr, &
                        natural_id, &
                        option)
   enddo
@@ -571,7 +571,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                  patch%cc_id(ghosted_id))%ptr, &
                                 natural_id, &
                                 option)
     enddo
@@ -650,7 +650,7 @@ subroutine WIPPFloUpdateFixedAccum(realization)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               patch%characteristic_curves_array( &
-                                patch%sat_func_id(ghosted_id))%ptr, &
+                                patch%cc_id(ghosted_id))%ptr, &
                               natural_id, &
                               option)
     call WIPPFloAccumulation(wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -757,7 +757,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
                            wippflo_sat_min_pert)
         if (1.d0 - vec_p(idof) - &
             patch%characteristic_curves_array( &
-              patch%sat_func_id(icell))%ptr% &
+              patch%cc_id(icell))%ptr% &
               saturation_function%Sr < 0.d0) then
           if (vec_p(idof) + perturbation > 1.d0) then
             perturbation = -1.d0 * perturbation
@@ -895,7 +895,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: k
 
-  PetscInt :: icap_up, icap_dn
+  PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal :: temp_Res(realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
@@ -1016,8 +1016,8 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       imat_dn = patch%imat(ghosted_id_dn) 
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
 
       if (wippflo_jacobian_test) then
         !if (wippflo_jacobian_test_rdof > 0 .and. &
@@ -1135,7 +1135,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
       imat_dn = patch%imat(ghosted_id)
       if (imat_dn <= 0) cycle
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call XXBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
@@ -1337,7 +1337,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   MatType :: mat_type
   PetscReal :: norm
 
-  PetscInt :: icap_up,icap_dn
+  PetscInt :: icc_up,icc_dn
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
@@ -1404,7 +1404,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               patch%characteristic_curves_array( &
-                                patch%sat_func_id(ghosted_id))%ptr, &
+                                patch%cc_id(ghosted_id))%ptr, &
                               natural_id,option)
   enddo
   
@@ -1460,8 +1460,8 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
    
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
                               
       if (wippflo_jacobian_test) then
         !if (wippflo_jacobian_test_rdof > 0 .and. &
@@ -1563,7 +1563,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
       imat_dn = patch%imat(ghosted_id)
       if (imat_dn <= 0) cycle
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &

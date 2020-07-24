@@ -629,16 +629,16 @@ function CharCurvesThermalCreate()
   implicit none
 
   class(cc_thermal_type), pointer :: CharCurvesThermalCreate
-  class(cc_thermal_type), pointer :: thermal_characteristic_curves
+  class(cc_thermal_type), pointer :: characteristic_curves_thermal
 
-  allocate(thermal_characteristic_curves)
-  thermal_characteristic_curves%name = ''
-  thermal_characteristic_curves%print_me = PETSC_FALSE
-  thermal_characteristic_curves%test = PETSC_FALSE
-  nullify(thermal_characteristic_curves%thermal_conductivity_function)
-  nullify(thermal_characteristic_curves%next)
+  allocate(characteristic_curves_thermal)
+  characteristic_curves_thermal%name = ''
+  characteristic_curves_thermal%print_me = PETSC_FALSE
+  characteristic_curves_thermal%test = PETSC_FALSE
+  nullify(characteristic_curves_thermal%thermal_conductivity_function)
+  nullify(characteristic_curves_thermal%next)
 
-  CharCurvesThermalCreate => thermal_characteristic_curves
+  CharCurvesThermalCreate => characteristic_curves_thermal
 
 end function CharCurvesThermalCreate
 

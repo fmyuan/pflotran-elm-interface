@@ -497,7 +497,7 @@ subroutine TOilImsUpdateAuxVars(realization)
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
                        patch%characteristic_curves_array( &
-                         patch%sat_func_id(ghosted_id))%ptr, &
+                         patch%cc_id(ghosted_id))%ptr, &
                        natural_id, &
                        option)
    ! if TOilImsAuxVarCompute becomes a member function of auxvar_toil_ims
@@ -506,7 +506,7 @@ subroutine TOilImsUpdateAuxVars(realization)
    !                   global_auxvars(ghosted_id), &
    !                   material_auxvars(ghosted_id), &
    !                   patch%characteristic_curves_array( &
-   !                   patch%sat_func_id(ghosted_id))%ptr, &
+   !                   patch%cc_id(ghosted_id))%ptr, &
    !                   natural_id, &
    !                   option)
    ! we will be forced to have a Compute member common to all modes
@@ -559,7 +559,7 @@ subroutine TOilImsUpdateAuxVars(realization)
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                  patch%cc_id(ghosted_id))%ptr, &
                                 natural_id, &
                                 option)
     enddo
@@ -652,7 +652,7 @@ subroutine TOilImsUpdateFixedAccum(realization)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               patch%characteristic_curves_array( &
-                                patch%sat_func_id(ghosted_id))%ptr, &
+                                patch%cc_id(ghosted_id))%ptr, &
                               ghosted_id, &
                               option)
     !call TOilImsAccumulation(toil_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -3126,7 +3126,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
-  PetscInt :: icap_up, icap_dn
+  PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
  
@@ -3230,8 +3230,8 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
       imat_dn = patch%imat(ghosted_id_dn) 
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
 
       call TOilImsFlux(patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
@@ -3288,7 +3288,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call TOilImsBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
@@ -3483,7 +3483,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: norm
   PetscViewer :: viewer
 
-  PetscInt :: icap_up,icap_dn
+  PetscInt :: icc_up,icc_dn
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id
@@ -3560,7 +3560,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                patch%sat_func_id(ghosted_id))%ptr, &
+                                patch%cc_id(ghosted_id))%ptr, &
                                 ghosted_id,option)
     endif
   enddo
@@ -3630,8 +3630,8 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
    
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
       ! if issues in passing auxvars, pass the entire TOil_ims and 
       ! ghosted_id_up, ghosted_id_dn
 
@@ -3697,7 +3697,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call TOilImsBCFluxDerivative(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &

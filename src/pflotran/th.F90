@@ -154,17 +154,17 @@ subroutine THSetupPatch(realization)
   patch%aux%TH => THAuxCreate(option)
   patch%aux%SC_heat => SecondaryAuxHeatCreate(option)
 
-! option%io_buffer = 'Before TH can be run, the TH_parameter object ' // &
+! option%io_buffer = 'Before TH can be run, the th_parameter object ' // &
 !                    'must be initialized with the proper variables ' // &
 !                    'THAuxCreate() is called anywhere.'
 
 ! call printErrMsg(option)
 
   if (th_use_freezing) then
-    allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
+    allocate(patch%aux%TH%th_parameter%sir(option%nphase, &
               size(patch%saturation_function_array)))
   else
-    allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
+    allocate(patch%aux%TH%th_parameter%sir(option%nphase, &
               size(patch%characteristic_curves_array)))
     
   endif
@@ -172,19 +172,19 @@ subroutine THSetupPatch(realization)
 
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only 
   !single value in the array <modified pcl 1-13-11>
-  allocate(patch%aux%TH%TH_parameter%dencpr( &
+  allocate(patch%aux%TH%th_parameter%dencpr( &
              size(patch%material_property_array)))
-  allocate(patch%aux%TH%TH_parameter%ckwet(size(patch%material_property_array)))
-  allocate(patch%aux%TH%TH_parameter%ckdry(size(patch%material_property_array)))
-  allocate(patch%aux%TH%TH_parameter%alpha(size(patch%material_property_array))) 
+  allocate(patch%aux%TH%th_parameter%ckwet(size(patch%material_property_array)))
+  allocate(patch%aux%TH%th_parameter%ckdry(size(patch%material_property_array)))
+  allocate(patch%aux%TH%th_parameter%alpha(size(patch%material_property_array))) 
   if (th_use_freezing) then
-   allocate(patch%aux%TH%TH_parameter%ckfrozen( &
+   allocate(patch%aux%TH%th_parameter%ckfrozen( &
               size(patch%material_property_array)))
-   allocate(patch%aux%TH%TH_parameter%alpha_fr( &
+   allocate(patch%aux%TH%th_parameter%alpha_fr( &
               size(patch%material_property_array)))
   endif
 
-  !Copy the values in the TH_parameter from the global realization 
+  !Copy the values in the th_parameter from the global realization 
   error_found = PETSC_FALSE
   do i = 1, size(patch%material_property_array)
     word = patch%material_property_array(i)%ptr%name 
@@ -228,29 +228,29 @@ subroutine THSetupPatch(realization)
     endif
     material_id = abs(patch%material_property_array(i)%ptr%internal_id)
     ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J = MJ/m^3-K
-    patch%aux%TH%TH_parameter%dencpr(material_id) = &
+    patch%aux%TH%th_parameter%dencpr(material_id) = &
       patch%material_property_array(i)%ptr%rock_density*option%scale* &
         patch%material_property_array(i)%ptr%specific_heat
-    patch%aux%TH%TH_parameter%ckwet(material_id) = &
+    patch%aux%TH%th_parameter%ckwet(material_id) = &
       patch%material_property_array(i)%ptr%thermal_conductivity_wet* &
       option%scale  
-    patch%aux%TH%TH_parameter%ckdry(material_id) = &
+    patch%aux%TH%th_parameter%ckdry(material_id) = &
       patch%material_property_array(i)%ptr%thermal_conductivity_dry* &
       option%scale
-    patch%aux%TH%TH_parameter%alpha(material_id) = &
+    patch%aux%TH%th_parameter%alpha(material_id) = &
       patch%material_property_array(i)%ptr%alpha
-    if (patch%aux%TH%TH_parameter%ckwet(material_id) < 1.d-40 .and. &
-        patch%aux%TH%TH_parameter%ckdry(material_id) < 1.d-40) then
+    if (patch%aux%TH%th_parameter%ckwet(material_id) < 1.d-40 .and. &
+        patch%aux%TH%th_parameter%ckdry(material_id) < 1.d-40) then
       option%io_buffer = 'ERROR: Either the wet or dry thermal conductivity &
         &must be non-zero in material: ' // trim(word)
       call PrintMsgByRank(option)
       error_found = PETSC_TRUE
     endif
     if (th_use_freezing) then
-      patch%aux%TH%TH_parameter%ckfrozen(material_id) = &
+      patch%aux%TH%th_parameter%ckfrozen(material_id) = &
         patch%material_property_array(i)%ptr%thermal_conductivity_frozen* &
         option%scale
-      patch%aux%TH%TH_parameter%alpha_fr(material_id) = &
+      patch%aux%TH%th_parameter%alpha_fr(material_id) = &
         patch%material_property_array(i)%ptr%alpha_fr
     endif
 
@@ -265,7 +265,7 @@ subroutine THSetupPatch(realization)
 
   if (th_use_freezing) then
     do i = 1, size(patch%saturation_function_array)
-      patch%aux%TH%TH_parameter% &
+      patch%aux%TH%th_parameter% &
         sir(:,patch%saturation_function_array(i)%ptr%id) = &
         patch%saturation_function_array(i)%ptr%Sr(:)
     enddo
@@ -684,17 +684,16 @@ subroutine THUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
   PetscInt :: iphasebc, iphase
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscReal, pointer :: xx(:)
   PetscReal :: tsrc1
   PetscErrorCode :: ierr
-  PetscInt :: ithrm
-  PetscReal, pointer :: ithrm_loc_p(:)
+  PetscInt :: icct
 
   !!
 !  PetscReal, allocatable :: gradient(:,:)
@@ -717,11 +716,9 @@ subroutine THUpdateAuxVarsPatch(realization)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -730,23 +727,23 @@ subroutine THUpdateAuxVarsPatch(realization)
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
     iphase = global_auxvars(ghosted_id)%istate
-    ithrm = int(ithrm_loc_p(ghosted_id))
+    icct = patch%cct_id(ghosted_id)
 
     if (th_use_freezing) then
        call THAuxVarComputeFreezing(xx_loc_p(istart:iend), &
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-            TH_parameter, ithrm, &
+            patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+            th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
     else
        call THAuxVarComputeNoFreezing(xx_loc_p(istart:iend), &
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-            TH_parameter, ithrm, &
+            patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
+            th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
     endif
 
@@ -763,7 +760,7 @@ subroutine THUpdateAuxVarsPatch(realization)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-      ithrm = int(ithrm_loc_p(ghosted_id))
+      icct = patch%cct_id(ghosted_id)
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
@@ -794,18 +791,16 @@ subroutine THUpdateAuxVarsPatch(realization)
                                       global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
-              patch%saturation_function_array( &
-                int(icap_loc_p(ghosted_id)))%ptr, &
-              TH_parameter, ithrm, &
+              patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+              th_parameter, icct, &
               -grid%nG2A(ghosted_id),PETSC_FALSE,option)
       else
          call THAuxVarComputeNoFreezing(xxbc,TH_auxvars_bc(sum_connection), &
               global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
-              patch%characteristic_curves_array( &
-                int(icap_loc_p(ghosted_id)))%ptr, &
-              TH_parameter, ithrm, &
+              patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
+              th_parameter, icct, &
               -grid%nG2A(ghosted_id),PETSC_FALSE,option)
       endif
     enddo
@@ -824,7 +819,7 @@ subroutine THUpdateAuxVarsPatch(realization)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-      ithrm = int(ithrm_loc_p(ghosted_id))
+      icct = patch%cct_id(ghosted_id)
 
       iend = ghosted_id*option%nflowdof
       istart = iend-option%nflowdof+1
@@ -854,8 +849,8 @@ subroutine THUpdateAuxVarsPatch(realization)
                                       material_auxvars(ghosted_id), &
                                       iphase, &
                                       patch%saturation_function_array( &
-                                        int(icap_loc_p(ghosted_id)))%ptr, &
-                                      TH_parameter, ithrm, &
+                                        patch%cc_id(ghosted_id))%ptr, &
+                                      th_parameter, icct, &
                                       -grid%nG2A(ghosted_id),PETSC_FALSE,option)
       else
          call THAuxVarComputeNoFreezing(xx, &
@@ -864,8 +859,8 @@ subroutine THUpdateAuxVarsPatch(realization)
                                       material_auxvars(ghosted_id), &
                                       iphase, &
                                       patch%characteristic_curves_array( &
-                                        int(icap_loc_p(ghosted_id)))%ptr, &
-                                      TH_parameter, ithrm, &
+                                        patch%cc_id(ghosted_id))%ptr, &
+                                      th_parameter, icct, &
                                       -grid%nG2A(ghosted_id),PETSC_FALSE,option)
       endif
     enddo
@@ -874,8 +869,6 @@ subroutine THUpdateAuxVarsPatch(realization)
   deallocate(xx)
 
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   patch%aux%TH%auxvars_up_to_date = PETSC_TRUE
 
@@ -967,7 +960,7 @@ subroutine THUpdateSolutionPatch(realization)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
@@ -976,15 +969,15 @@ subroutine THUpdateSolutionPatch(realization)
   PetscInt :: local_id, ghosted_id
   ! secondary continuum variables
   PetscReal :: sec_dencpr
+  PetscInt :: icct
   PetscErrorCode :: ierr
-  PetscReal, pointer :: ithrm_loc_p(:)
 
   patch => realization%patch
   grid => patch%grid
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   
@@ -997,7 +990,6 @@ subroutine THUpdateSolutionPatch(realization)
   endif
 
   if (option%use_mc) then
-    call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -1005,16 +997,16 @@ subroutine THUpdateSolutionPatch(realization)
       istart = iend-option%nflowdof+1
     
       ! secondary rho*c_p same as primary for now
-      sec_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(local_id))) 
+      icct = patch%cct_id(ghosted_id)
+      sec_dencpr = th_parameter%dencpr(icct) 
         
       call THSecHeatAuxVarCompute(TH_sec_heat_vars(local_id), &
                             global_auxvars(ghosted_id), &
-                            TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
+                            th_parameter%ckwet(icct), &
                             sec_dencpr, &
                             option)
                             
     enddo 
-    call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
   endif
 
 
@@ -1081,15 +1073,15 @@ subroutine THUpdateFixedAccumPatch(realization)
   type(field_type), pointer :: field
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, iphase
-  PetscReal, pointer :: xx_p(:), icap_loc_p(:)
-  PetscReal, pointer :: ithrm_loc_p(:), accum_p(:)
+  PetscReal, pointer :: xx_p(:)
+  PetscReal, pointer :: accum_p(:)
   PetscReal :: vol_frac_prim
-  PetscInt :: ithrm
+  PetscInt :: icct
                           
   PetscErrorCode :: ierr
   
@@ -1098,15 +1090,13 @@ subroutine THUpdateFixedAccumPatch(realization)
   patch => realization%patch
   grid => patch%grid
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   TH_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -1120,23 +1110,23 @@ subroutine THUpdateFixedAccumPatch(realization)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
     iphase = global_auxvars(ghosted_id)%istate
-    ithrm = int(ithrm_loc_p(ghosted_id))
+    icct = patch%cct_id(ghosted_id)
 
     if (th_use_freezing) then
        call THAuxVarComputeFreezing(xx_p(istart:iend), &
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
-            TH_parameter, ithrm, &
+            patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+            th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
     else
        call THAuxVarComputeNoFreezing(xx_p(istart:iend), &
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
-            TH_parameter, ithrm, &
+            patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
+            th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
     endif
 
@@ -1148,13 +1138,11 @@ subroutine THUpdateFixedAccumPatch(realization)
     global_auxvars(ghosted_id)%istate = iphase
     call THAccumulation(TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                         material_auxvars(ghosted_id), &
-                        TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                        th_parameter%dencpr(patch%cct_id(ghosted_id)), &
                         option,vol_frac_prim,accum_p(istart:iend)) 
   enddo
 
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -1263,7 +1251,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                              material_auxvar, &
                              rock_dencpr, &
                              th_parameter, &
-                             ithrm, &
+                             icct, &
                              option,sat_func, &
                              characteristic_curves, &
                              vol_frac_prim,J)
@@ -1290,8 +1278,8 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: vol,por,rock_dencpr
-  type(TH_parameter_type) :: th_parameter
-  PetscInt :: ithrm
+  type(th_parameter_type) :: th_parameter
+  PetscInt :: icct
   class(characteristic_curves_type) :: characteristic_curves
   type(saturation_function_type) :: sat_func
   PetscReal :: J(option%nflowdof,option%nflowdof)
@@ -1471,13 +1459,13 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
          call THAuxVarComputeFreezing(x_pert,TH_auxvar_pert, &
                                  global_auxvar_pert,material_auxvar_pert, &
                                  iphase,sat_func, &
-                                 TH_parameter, ithrm, &
+                                 th_parameter, icct, &
                                  -999,PETSC_TRUE,option)
       else
          call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                               global_auxvar_pert,material_auxvar_pert,&
                               iphase,characteristic_curves, &
-                              TH_parameter,ithrm, &
+                              th_parameter,icct, &
                               -999,PETSC_TRUE,option)
       endif
 
@@ -1571,11 +1559,11 @@ end subroutine THAccumulation
 subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                             material_auxvar_up, &
                             Dk_up, &
-                            ithrm_up, &
+                            icct_up, &
                             auxvar_dn,global_auxvar_dn, &
                             material_auxvar_dn, &
                             Dk_dn, &
-                            ithrm_dn, &
+                            icct_dn, &
                             area, &
                             dist, upweight, &
                             sir_up,sir_dn, &
@@ -1616,12 +1604,12 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: Dk_ice_up, Dk_ice_dn
   PetscReal :: alpha_up, alpha_dn
   PetscReal :: alpha_fr_up, alpha_fr_dn
-  PetscInt :: ithrm_up, ithrm_dn
+  PetscInt :: icct_up, icct_dn
   PetscReal :: v_darcy, area
   PetscReal :: dist(-1:3)
   type(saturation_function_type), pointer :: sf_up, sf_dn 
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
-  type(TH_parameter_type) :: th_parameter
+  type(th_parameter_type) :: th_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
      
@@ -2161,23 +2149,23 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
         call THAuxVarComputeFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
              iphase,sf_up, &
-             TH_parameter,ithrm_up, &
+             th_parameter,icct_up, &
              -999,PETSC_TRUE,option)
         call THAuxVarComputeFreezing(x_pert_dn,auxvar_pert_dn, &
              global_auxvar_pert_dn, material_auxvar_pert_up, &
              iphase,sf_dn, &
-             TH_parameter,ithrm_up, &
+             th_parameter,icct_up, &
              -999,PETSC_TRUE,option)
       else
         call THAuxVarComputeNoFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
              iphase,cc_up, &
-             TH_parameter,ithrm_up, &
+             th_parameter,icct_up, &
              -999,PETSC_TRUE,option)
         call THAuxVarComputeNoFreezing(x_pert_dn,auxvar_pert_dn, &
              global_auxvar_pert_dn,material_auxvar_pert_dn, &
              iphase,cc_dn, &
-             TH_parameter,ithrm_dn, &
+             th_parameter,icct_dn, &
              -999,PETSC_TRUE,option)
       endif
 
@@ -3152,13 +3140,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             global_auxvar_dn, &
             material_auxvar_dn, &
             iphase,sf_dn, &
-            TH_parameter,ithrm_up, &
+            th_parameter,icct_up, &
             -999,PETSC_TRUE,option) ! do not perturb boundary porosity
        call THAuxVarComputeFreezing(x_up,auxvar_up, &
             global_auxvar_up, &
             material_auxvar_up, &
             iphase,sf_dn, &
-            TH_parameter,ithrm_up, &
+            th_parameter,icct_up, &
             -999,PETSC_FALSE,option)
     else
        call THAuxVarComputeNoFreezing(x_dn,auxvar_dn, &
@@ -3847,11 +3835,6 @@ subroutine THUpdateLocalVecs(xx,realization,ierr)
    ! Communication -----------------------------------------
   ! These 3 must be called before THUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationLocalToLocal(discretization,field%icap_loc, &
-                                  field%icap_loc,ONEDOF)
-
-  call DiscretizationLocalToLocal(discretization,field%ithrm_loc, &
-                                  field%ithrm_loc,ONEDOF)
   
   call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
                                PERMEABILITY_X,ZERO_INTEGER)
@@ -3908,10 +3891,9 @@ subroutine THResidualInternalConn(r,realization,ierr)
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -3931,7 +3913,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -3957,7 +3939,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
@@ -3965,8 +3947,6 @@ subroutine THResidualInternalConn(r,realization,ierr)
   
 ! now assign access pointer to local variables
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
  
    ! Interior Flux Terms -----------------------------------
@@ -4009,26 +3989,26 @@ subroutine THResidualInternalConn(r,realization,ierr)
       ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
       upweight = dd_dn/(dd_up+dd_dn)
         
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
    
-      D_up = TH_parameter%ckwet(ithrm_up)
-      D_dn = TH_parameter%ckwet(ithrm_dn)
+      D_up = th_parameter%ckwet(icct_up)
+      D_dn = th_parameter%ckwet(icct_dn)
       
-      Dk_dry_up = TH_parameter%ckdry(ithrm_up)
-      Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
+      Dk_dry_up = th_parameter%ckdry(icct_up)
+      Dk_dry_dn = th_parameter%ckdry(icct_dn)
       
-      alpha_up = TH_parameter%alpha(ithrm_up)
-      alpha_dn = TH_parameter%alpha(ithrm_dn)
+      alpha_up = th_parameter%alpha(icct_up)
+      alpha_dn = th_parameter%alpha(icct_dn)
 
       if (th_use_freezing) then
-         Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
-         DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
+         Dk_ice_up = th_parameter%ckfrozen(icct_up)
+         DK_ice_dn = th_parameter%ckfrozen(icct_dn)
       
-         alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
-         alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
+         alpha_fr_up = th_parameter%alpha_fr(icct_up)
+         alpha_fr_dn = th_parameter%alpha_fr(icct_dn)
       else
          Dk_ice_up = Dk_dry_up
          Dk_ice_dn = Dk_dry_dn
@@ -4045,8 +4025,8 @@ subroutine THResidualInternalConn(r,realization,ierr)
                   D_dn, &
                   cur_connection_set%area(iconn), &
                   cur_connection_set%dist(:,iconn), &
-                  upweight,TH_parameter%sir(1,icap_up), &
-                  TH_parameter%sir(1,icap_dn), &
+                  upweight,th_parameter%sir(1,icc_up), &
+                  th_parameter%sir(1,icc_dn), &
                   option,v_darcy,Dk_dry_up, &
                   Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                   alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -4072,8 +4052,6 @@ subroutine THResidualInternalConn(r,realization,ierr)
   enddo    
 
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
   
 end subroutine THResidualInternalConn
@@ -4111,10 +4089,9 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -4134,7 +4111,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:), auxvars_bc(:)
   type(TH_auxvar_type), pointer :: auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
@@ -4171,7 +4148,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   auxvars_bc => patch%aux%TH%auxvars_bc
   auxvars_ss => patch%aux%TH%auxvars_ss
@@ -4183,8 +4160,6 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   
 ! now assign access pointer to local variables
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
  
  
@@ -4209,14 +4184,14 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = TH_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = th_parameter%ckwet(icct_dn)
 
       distance_gravity = cur_connection_set%dist(0,iconn) * &
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = patch%cc_id(ghosted_id)
   
       call THBCFlux(boundary_condition%flow_condition%itype, &
                     boundary_condition%flow_aux_real_var(:,iconn), &
@@ -4228,7 +4203,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
                     D_dn, &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(-1:3,iconn), &
-                    TH_parameter%sir(1,icap_dn), &
+                    th_parameter%sir(1,icc_dn), &
                     option, &
                     v_darcy, &
                     fluxe_bulk, fluxe_cond, &
@@ -4253,8 +4228,6 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   enddo
 
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine THResidualBoundaryConn  
 
@@ -4292,7 +4265,6 @@ subroutine THResidualAccumulation(r,realization,ierr)
   PetscReal, pointer :: accum_p(:)
   PetscReal, pointer :: accum2_p(:)
   PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: ithrm_loc_p(:)
 
   PetscReal :: Res(realization%option%nflowdof)
   PetscViewer :: viewer
@@ -4301,7 +4273,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -4315,13 +4287,14 @@ subroutine THResidualAccumulation(r,realization,ierr)
   PetscReal :: sec_density
   PetscReal :: sec_dencpr
   PetscReal :: res_sec_heat
+  PetscInt :: icct
 
   patch => realization%patch
   grid => patch%grid
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
@@ -4329,7 +4302,6 @@ subroutine THResidualAccumulation(r,realization,ierr)
   
 ! now assign access pointer to local variables
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
@@ -4353,7 +4325,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
 
     call THAccumulation(auxvars(ghosted_id),global_auxvars(ghosted_id), &
                         material_auxvars(ghosted_id), &
-                        TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                        th_parameter%dencpr(patch%cct_id(ghosted_id)), &
                         option,vol_frac_prim,Res)
     r_p(istart:iend) = r_p(istart:iend) + Res
     accum2_p(istart:iend) = Res
@@ -4370,12 +4342,12 @@ subroutine THResidualAccumulation(r,realization,ierr)
       istart = iend-option%nflowdof+1
     
       ! secondary rho*c_p same as primary for now
-      sec_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(local_id))) 
+      icct = patch%cct_id(ghosted_id)
+      sec_dencpr = th_parameter%dencpr(icct)
         
       call THSecondaryHeat(TH_sec_heat_vars(local_id), &
                           global_auxvars(ghosted_id), &
-!                         TH_parameter%ckdry(int(ithrm_loc_p(local_id))), &
-                          TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
+                          th_parameter%ckwet(icct), &
                           sec_dencpr, &
                           option,res_sec_heat)
 
@@ -4384,7 +4356,6 @@ subroutine THResidualAccumulation(r,realization,ierr)
   endif
 
   call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -4425,10 +4396,9 @@ subroutine THResidualSourceSink(r,realization,ierr)
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: xx_loc_p(:), yy_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -4450,7 +4420,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:), auxvars_bc(:)
   type(TH_auxvar_type), pointer :: auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
@@ -4487,7 +4457,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   auxvars_bc => patch%aux%TH%auxvars_bc
   auxvars_ss => patch%aux%TH%auxvars_ss
@@ -4501,7 +4471,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
   call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
  
 
@@ -4659,7 +4628,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine THResidualSourceSink
 
@@ -4771,12 +4739,11 @@ subroutine THJacobianInternalConn(A,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: icct_up, icct_dn, i
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: iphas,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: qsrc1,csrc1
@@ -4809,7 +4776,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option 
   type(field_type), pointer :: field 
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -4818,7 +4785,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: ithrm
+  PetscInt :: icct
 
   PetscViewer :: viewer
   Vec :: debug_vec
@@ -4828,14 +4795,12 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
   
   ! Interior Flux Terms -----------------------------------  
   connection_set_list => grid%internal_connection_set_list
@@ -4877,30 +4842,30 @@ subroutine THJacobianInternalConn(A,realization,ierr)
       ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
       upweight = dd_dn/(dd_up+dd_dn)
     
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
       
-      D_up = TH_parameter%ckwet(ithrm_up)
-      D_dn = TH_parameter%ckwet(ithrm_dn)
+      D_up = th_parameter%ckwet(icct_up)
+      D_dn = th_parameter%ckwet(icct_dn)
     
-      Dk_dry_up = TH_parameter%ckdry(ithrm_up)
-      Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
+      Dk_dry_up = th_parameter%ckdry(icct_up)
+      Dk_dry_dn = th_parameter%ckdry(icct_dn)
       
-      alpha_up = TH_parameter%alpha(ithrm_up)
-      alpha_dn = TH_parameter%alpha(ithrm_dn)
+      alpha_up = th_parameter%alpha(icct_up)
+      alpha_dn = th_parameter%alpha(icct_dn)
 
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
 
       if (th_use_freezing) then
-         Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
-         DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
+         Dk_ice_up = th_parameter%ckfrozen(icct_up)
+         DK_ice_dn = th_parameter%ckfrozen(icct_dn)
       
-         alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
-         alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
+         alpha_fr_up = th_parameter%alpha_fr(icct_up)
+         alpha_fr_dn = th_parameter%alpha_fr(icct_dn)
 
-         sf_up => patch%saturation_function_array(icap_up)%ptr
-         sf_dn => patch%saturation_function_array(icap_dn)%ptr
+         sf_up => patch%saturation_function_array(icc_up)%ptr
+         sf_dn => patch%saturation_function_array(icc_dn)%ptr
       else
          Dk_ice_up = Dk_dry_up
          Dk_ice_dn = Dk_dry_dn
@@ -4908,8 +4873,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
          alpha_fr_up = alpha_up
          alpha_fr_dn = alpha_dn
 
-         cc_up => patch%characteristic_curves_array(icap_up)%ptr
-         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr 
+         cc_up => patch%characteristic_curves_array(icc_up)%ptr
+         cc_dn => patch%characteristic_curves_array(icc_dn)%ptr 
       endif
 
 
@@ -4917,23 +4882,23 @@ subroutine THJacobianInternalConn(A,realization,ierr)
                             global_auxvars(ghosted_id_up), &
                             material_auxvars(ghosted_id_up), &
                             D_up, &
-                            ithrm_up, &
+                            icct_up, &
                             auxvars(ghosted_id_dn), &
                             global_auxvars(ghosted_id_dn), &
                             material_auxvars(ghosted_id_dn), &                
                             D_dn, &
-                            ithrm_dn, &
+                            icct_dn, &
                             cur_connection_set%area(iconn), &
                             cur_connection_set%dist(-1:3,iconn), &
                             upweight, &
-                            TH_parameter%sir(1,icap_up), &
-                            TH_parameter%sir(1,icap_dn), &
+                            th_parameter%sir(1,icc_up), &
+                            th_parameter%sir(1,icc_dn), &
                             option, &
                             sf_up,sf_dn,cc_up,cc_dn, &
                             Dk_dry_up,Dk_dry_dn, &
                             Dk_ice_up,Dk_ice_dn, &
                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
-                            TH_parameter, &
+                            th_parameter, &
                             Jup,Jdn)
       
 !  scale by the volume of the cell                      
@@ -5002,12 +4967,11 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: icct_up, icct_dn, i
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: iphas,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: qsrc1,csrc1
@@ -5041,7 +5005,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option 
   type(field_type), pointer :: field 
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars_bc(:), auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -5049,7 +5013,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   class(characteristic_curves_type), pointer :: cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: ithrm
+  PetscInt :: icct
 
   PetscViewer :: viewer
   Vec :: debug_vec
@@ -5059,7 +5023,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   auxvars_bc => patch%aux%TH%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
@@ -5068,8 +5032,6 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
 
 
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
@@ -5092,23 +5054,23 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
         stop
       endif
 
-      ithrm_dn  = int(ithrm_loc_p(ghosted_id))
-      D_dn      = TH_parameter%ckwet(ithrm_dn)
-      Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
-      alpha_dn  = TH_parameter%alpha(ithrm_dn)
+      icct_dn   = patch%cct_id(ghosted_id)
+      D_dn      = th_parameter%ckwet(icct_dn)
+      Dk_dry_dn = th_parameter%ckdry(icct_dn)
+      alpha_dn  = th_parameter%alpha(icct_dn)
 
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = patch%cc_id(ghosted_id)
 
       if (th_use_freezing) then
-         DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
-         alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
+         DK_ice_dn = th_parameter%ckfrozen(icct_dn)
+         alpha_fr_dn = th_parameter%alpha_fr(icct_dn)
 
-         sf_dn => patch%saturation_function_array(icap_dn)%ptr
+         sf_dn => patch%saturation_function_array(icc_dn)%ptr
       else
          Dk_ice_dn = Dk_dry_dn
          alpha_fr_dn = alpha_dn
 
-         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr
+         cc_dn => patch%characteristic_curves_array(icc_dn)%ptr
       endif
 
       call THBCFluxDerivative(boundary_condition%flow_condition%itype, &
@@ -5121,7 +5083,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               D_dn, &
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
-                              TH_parameter%sir(1,icap_dn), &
+                              th_parameter%sir(1,icc_dn), &
                               option, &
                               sf_dn,cc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &
@@ -5148,8 +5110,6 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   endif
   
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine THJacobianBoundaryConn
 
@@ -5186,8 +5146,6 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: zero, norm
@@ -5198,7 +5156,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof)
   
   PetscInt :: istart, iend
-  
+  PetscInt :: icc 
   PetscInt :: iconn, idof
   PetscInt :: sum_connection  
   PetscReal :: distance, fraction_upwind
@@ -5207,7 +5165,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option 
   type(field_type), pointer :: field 
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -5219,7 +5177,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   
   type(sec_heat_type), pointer :: sec_heat_vars(:)
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: ithrm
+  PetscInt :: icct
 
   PetscViewer :: viewer
   Vec :: debug_vec
@@ -5234,7 +5192,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
@@ -5242,8 +5200,6 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
   
   vol_frac_prim = 1.d0
 
@@ -5254,31 +5210,31 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     if (patch%imat(ghosted_id) <= 0) cycle
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    icap = int(icap_loc_p(ghosted_id))
+    icc = patch%cc_id(ghosted_id)
     
     if (option%use_mc) then    
       vol_frac_prim = sec_heat_vars(local_id)%epsilon
     endif
 
-    ithrm = int(ithrm_loc_p(ghosted_id))
+    icct = patch%cct_id(ghosted_id)
 
     if (th_use_freezing) then
-      sat_func => patch%saturation_function_array(icap)%ptr
+      sat_func => patch%saturation_function_array(icc)%ptr
     else
-      characteristic_curves => patch%characteristic_curves_array(icap)%ptr
+      characteristic_curves => patch%characteristic_curves_array(icc)%ptr
     endif
     
     call THAccumDerivative(auxvars(ghosted_id),global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id), &
-                            TH_parameter%dencpr(ithrm), &
-                            TH_parameter, ithrm, option, &
+                            th_parameter%dencpr(icct), &
+                            th_parameter, icct, option, &
                             sat_func, characteristic_curves, &
                             vol_frac_prim,Jup) 
 
     if (option%use_mc) then
       call THSecondaryHeatJacobian(sec_heat_vars(local_id), &
-                        TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
-                        TH_parameter%dencpr(int(ithrm_loc_p(local_id))), &
+                        th_parameter%ckwet(icct), &
+                        th_parameter%dencpr(icct), &
                         option,jac_sec_heat)
                         
       Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
@@ -5304,8 +5260,6 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
  
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine THJacobianAccumulation
 
@@ -5336,12 +5290,11 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: icct_up, icct_dn, i
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: iphas,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: qsrc1,csrc1
@@ -5375,13 +5328,13 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option 
   type(field_type), pointer :: field 
-  type(TH_parameter_type), pointer :: TH_parameter
+  type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:), auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: ithrm
+  PetscInt :: icct
 
   PetscViewer :: viewer
   Vec :: debug_vec
@@ -5391,15 +5344,13 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   option => realization%option
   field => realization%field
 
-  TH_parameter => patch%aux%TH%TH_parameter
+  th_parameter => patch%aux%TH%th_parameter
   auxvars => patch%aux%TH%auxvars
   auxvars_ss => patch%aux%TH%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
   
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first 
@@ -5483,8 +5434,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 
  
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -6561,7 +6510,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   PetscInt :: local_id
   PetscInt :: sum_connection
   PetscInt :: iconn
-  PetscInt :: icap_dn
+  PetscInt :: icc_dn
   PetscInt :: iphase
 
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -6578,9 +6527,8 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   PetscReal :: num, den
   PetscErrorCode :: ierr
   PetscReal, pointer :: xx_p(:)
-  PetscReal, pointer :: ithrm_loc_p(:)
-  PetscInt :: ithrm_up
-  PetscInt :: ithrm_dn
+  PetscInt :: icct_up
+  PetscInt :: icct_dn
 
   option => realization%option
   patch => realization%patch
@@ -6596,7 +6544,6 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
 
   call VecGetArrayF90(field%flow_yy, xx_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   ! boundary conditions
   boundary_condition => patch%boundary_condition_list%first
@@ -6646,27 +6593,27 @@ subroutine THComputeCoeffsForSurfFlux(realization)
         Dq = perm_dn / dist(0)
         area = cur_connection_set%area(iconn)
 
-        icap_dn = patch%sat_func_id(ghosted_id)
-        sir_dn = th_parameter%sir(1,icap_dn)
+        icc_dn = patch%cc_id(ghosted_id)
+        sir_dn = th_parameter%sir(1,icc_dn)
 
-        ithrm_up = int(ithrm_loc_p(ghosted_id))
-        ithrm_dn = int(ithrm_loc_p(ghosted_id))
+        icct_up = patch%cct_id(ghosted_id)
+        icct_dn = patch%cct_id(ghosted_id)
 
         if (th_use_freezing) then
-          sat_func => patch%saturation_function_array(icap_dn)%ptr
+          sat_func => patch%saturation_function_array(icc_dn)%ptr
         else
-          characteristic_curves => patch%characteristic_curves_array(icap_dn)%ptr
+          characteristic_curves => patch%characteristic_curves_array(icc_dn)%ptr
         endif
 
         ! Compute coeff
         call ComputeCoeffsForApprox(global_auxvar_up%pres(1), &
                                     global_auxvar_up%temp, &
-                                    ithrm_up, &
+                                    icct_up, &
                                     global_auxvar_dn%pres(1), &
                                     global_auxvar_dn%temp, &
-                                    ithrm_dn, &
+                                    icct_dn, &
                                     material_auxvars(ghosted_id), &
-                                    TH_parameter, &
+                                    th_parameter, &
                                     iphase, &
                                     sat_func, &
                                     characteristic_curves, &
@@ -6684,12 +6631,12 @@ subroutine THComputeCoeffsForSurfFlux(realization)
 
         call ComputeCoeffsForApprox(global_auxvar_up%pres(1), &
                                    global_auxvar_up%temp, &
-                                   ithrm_up, &
+                                   icct_up, &
                                    global_auxvar_dn%pres(1), &
                                    global_auxvar_dn%temp + temp_pert, &
-                                   ithrm_dn, &
+                                   icct_dn, &
                                    material_auxvars(ghosted_id), &
-                                   TH_parameter, &
+                                   th_parameter, &
                                    iphase, &
                                    sat_func, &
                                    characteristic_curves, &
@@ -6752,15 +6699,14 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   enddo
 
   call VecRestoreArrayF90(field%flow_yy, xx_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine THComputeCoeffsForSurfFlux
 
 
 ! ************************************************************************** !
 
-subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
-                                  P_dn, T_dn, ithrm_dn, &
+subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
+                                  P_dn, T_dn, icct_dn, &
                                   material_auxvar, &
                                   th_parameter, &
                                   iphase, sat_func, &
@@ -6794,11 +6740,11 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   implicit none
 
   PetscReal :: P_up, T_up
-  PetscInt :: ithrm_up
+  PetscInt :: icct_up
   PetscReal :: P_dn, T_dn
-  PetscInt :: ithrm_dn
+  PetscInt :: icct_dn
   class(material_auxvar_type) :: material_auxvar
-  type(TH_parameter_type) :: th_parameter
+  type(th_parameter_type) :: th_parameter
   PetscInt :: iphase
   class(characteristic_curves_type) :: characteristic_curves
   type(saturation_function_type) :: sat_func
@@ -6861,7 +6807,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                  iphase, &
                                  sat_func, &
                                  th_parameter, &
-                                 ithrm_up, &
+                                 icct_up, &
                                  -999,PETSC_FALSE,option)
 
     xx(1) = P_dn
@@ -6873,7 +6819,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                  iphase, &
                                  sat_func, &
                                  th_parameter, &
-                                 ithrm_up, &
+                                 icct_up, &
                                  -999,PETSC_FALSE,option)
   else
 
@@ -6886,7 +6832,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    iphase, &
                                    characteristic_curves, &
                                    th_parameter, &
-                                   ithrm_up, &
+                                   icct_up, &
                                    -999,PETSC_FALSE,option)
 
     xx(1) = P_dn
@@ -6898,7 +6844,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    iphase, &
                                    characteristic_curves, &
                                    th_parameter, &
-                                   ithrm_dn, &
+                                   icct_dn, &
                                    -999,PETSC_FALSE,option)
   endif
 
@@ -6938,7 +6884,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                  iphase, &
                                  sat_func, &
                                  th_parameter, &
-                                 ithrm_up, &
+                                 icct_up, &
                                  -999,PETSC_FALSE,option)
   else
 
@@ -6951,7 +6897,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    iphase, &
                                    characteristic_curves, &
                                    th_parameter, &
-                                   ithrm_dn, &
+                                   icct_dn, &
                                    -999,PETSC_FALSE,option)
   endif
 
