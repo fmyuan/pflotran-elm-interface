@@ -701,7 +701,7 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
                         global_auxvars(ghosted_id), &
                         material_auxvars(ghosted_id), &
                         patch%characteristic_curves_array( &
-                        patch%sat_func_id(ghosted_id))%ptr, &
+                        patch%cc_id(ghosted_id))%ptr, &
                        natural_id, &
                        option)
   enddo
@@ -819,7 +819,7 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                  patch%cc_id(ghosted_id))%ptr, &
                                 natural_id, &
                                 option)
     enddo
@@ -1794,7 +1794,7 @@ subroutine TOWGUpdateFixedAccum(realization)
                            global_auxvars(ghosted_id), &
                            material_auxvars(ghosted_id), &
                            patch%characteristic_curves_array( &
-                           patch%sat_func_id(ghosted_id))%ptr, &
+                           patch%cc_id(ghosted_id))%ptr, &
                            natural_id, &
                            option)
     call TOWGAccumulation(towg%auxvars(ZERO_INTEGER,ghosted_id), &
@@ -4861,7 +4861,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
-  PetscInt :: icap_up, icap_dn
+  PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
   !PetscReal :: Jac_dummy(realization%option%nflowdof, &
   !                       realization%option%nflowdof)
@@ -4988,8 +4988,8 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       imat_dn = patch%imat(ghosted_id_dn) 
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
 
       call TOWGFlux(towg%auxvars(ZERO_INTEGER,ghosted_id_up), &
                     global_auxvars(ghosted_id_up), &
@@ -5049,7 +5049,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call TOWGBCFlux(boundary_condition%flow_bc_type, &
                     boundary_condition%flow_aux_mapping, & 
@@ -5272,7 +5272,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: norm
   PetscViewer :: viewer
 
-  PetscInt :: icap_up,icap_dn
+  PetscInt :: icc_up,icc_dn
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
@@ -5358,7 +5358,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
                              patch%characteristic_curves_array( &
-                             patch%sat_func_id(ghosted_id))%ptr, &
+                             patch%cc_id(ghosted_id))%ptr, &
                              natural_id,option)
     endif
 
@@ -5410,8 +5410,8 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
    
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
                               
       call TOWGFluxDerivative(towg%auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
@@ -5475,7 +5475,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call TOWGBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &

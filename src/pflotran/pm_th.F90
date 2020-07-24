@@ -362,10 +362,6 @@ subroutine PMTHInitializeTimestep(this)
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
   ! update porosity
-  call this%comm1%LocalToLocal(this%realization%field%icap_loc, &
-                               this%realization%field%icap_loc)
-  call this%comm1%LocalToLocal(this%realization%field%ithrm_loc, &
-                               this%realization%field%ithrm_loc)
 
   call THInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)

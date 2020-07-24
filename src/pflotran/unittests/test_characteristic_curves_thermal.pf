@@ -1,0 +1,359 @@
+module Test_Characteristic_Curves_Thermal_module
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  use pFUnit_mod
+  use Option_module
+  use Characteristic_Curves_Thermal_module
+
+  implicit none
+
+  public :: Test_Characteristic_Curves_Thermal
+
+  interface Test_Characteristic_Curves_Thermal
+    module procedure newTest_Characteristic_Curves_Thermal
+  end interface Test_Characteristic_Curves_Thermal
+
+! ************************************************************************** !
+  @TestCase
+  type, extends(TestCase) :: Test_Characteristic_Curves_Thermal
+      type(option_type), pointer :: option
+      class(cc_thermal_type), pointer :: cct_default
+      class(cc_thermal_type), pointer :: cct_constant
+      class(cc_thermal_type), pointer :: cct_power
+      class(cc_thermal_type), pointer :: cct_cubic_poly
+      class(cc_thermal_type), pointer :: cct_linear_res
+      procedure(runMethod), pointer :: userMethod => null()
+    contains
+      procedure :: setUp
+      procedure :: tearDown
+      procedure :: runMethod
+  end type Test_Characteristic_Curves_Thermal
+
+contains
+
+! ************************************************************************** !
+
+  function newTest_Characteristic_Curves_Thermal(name, userMethod) result(test)
+
+    implicit none
+
+    character(len=*), intent(in) :: name
+    procedure(runMethod) :: userMethod
+
+    type(Test_Characteristic_Curves_Thermal) :: test
+
+    call test%setName(name)
+    test%userMethod => userMethod
+
+  end function newTest_Characteristic_Curves_Thermal
+
+! ************************************************************************** !
+
+  subroutine setUp(This)
+
+    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH
+
+    implicit none
+
+    class(Test_Characteristic_Curves_thermal), intent(inout) :: this
+    character(len=MAXSTRINGLENGTH) :: error_string
+
+    this%option => OptionCreate()
+
+    ! Setting up default thermal CC
+    this%cct_default => CharCurvesThermalCreate()
+    this%cct_default%thermal_conductivity_function => TCFDefaultCreate()
+    select type (tcf => this%cct_default%thermal_conductivity_function)
+      class is (kT_default_type)
+        tcf%kT_wet = 1.9d0
+        tcf%kT_dry = 6.d-1
+      class default
+        print *, 'not Default type'
+    end select
+
+    ! Setting up constant thermal CC
+    this%cct_constant => CharCurvesThermalCreate()
+    this%cct_constant%thermal_conductivity_function => TCFConstantCreate()
+    select type (tcf => this%cct_constant%thermal_conductivity_function)
+      class is (kT_constant_type)
+        tcf%constant_thermal_conductivity = 1.9d0
+      class default
+        print *, 'not Constant type'
+    end select
+
+    ! Setting up power law thermal CC
+    this%cct_power => CharCurvesThermalCreate()
+    this%cct_power%thermal_conductivity_function => TCFPowerCreate()
+    select type (tcf => this%cct_power%thermal_conductivity_function)
+      class is (kT_power_type)
+        tcf%kT_dry = 6.d-1
+        tcf%kT_wet = 1.9d0
+        tcf%ref_temp = -273.15d0
+        tcf%gamma = -1.18d0
+      class default
+        print *, 'not Power type'
+    end select
+
+    ! Setting up cubic polynomial thermal CC
+    this%cct_cubic_poly => CharCurvesThermalCreate()
+    this%cct_cubic_poly%thermal_conductivity_function => &
+                        TCFCubicPolynomialCreate()
+    select type (tcf => this%cct_cubic_poly%thermal_conductivity_function)
+      class is (kT_cubic_polynomial_type)
+        tcf%kT_dry = 6.d-1
+        tcf%kT_wet = 1.9d0
+        tcf%ref_temp = 0.d0
+        tcf%beta = [-4.53398d-3, 1.41580d-5, -1.94840d-8]
+      class default
+        print *, 'not Cubic Polynomial type'
+    end select
+
+    ! Setting up linear resistivity thermal CC
+    this%cct_linear_res => CharCurvesThermalCreate()
+    this%cct_linear_res%thermal_conductivity_function => &
+                        TCFLinearResistivityCreate()
+    select type (tcf => this%cct_linear_res%thermal_conductivity_function)
+      class is (kT_linear_resistivity_type)
+        tcf%kT_dry = 6.d-1
+        tcf%kT_wet = 1.9d0
+        tcf%ref_temp = 0.d0
+        tcf%a = [1.0d0, 5.038d-3]
+      class default
+        print *, 'not Linear Resistivity type'
+    end select
+
+  end subroutine setUp
+
+! ************************************************************************** !
+
+  subroutine tearDown(this)
+
+    implicit none
+
+    class (Test_Characteristic_Curves_Thermal), intent (inout) :: this
+
+    call OptionDestroy(this%option)
+    call CharCurvesThermalDestroy(this%cct_default)
+
+  end subroutine tearDown
+
+! ************************************************************************** !
+
+  subroutine runMethod(this)
+
+    implicit none
+
+    class (Test_Characteristic_Curves_Thermal), intent(inout) :: this
+    
+    call this%userMethod()
+
+  end subroutine runMethod
+
+! ************************************************************************** !
+
+  @Test
+  subroutine test_tcf_Default(this)
+    
+    implicit none
+
+    class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
+
+    PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
+                 dkT_dsatl, dkT_dtemp
+    PetscReal :: value
+    PetscReal, parameter :: tolerance = 1.d-8
+    character(len=128) :: string
+
+    select type (tcf => this%cct_default%thermal_conductivity_function)
+      class is(kT_default_type)
+        liquid_saturation = 0.5d0
+        temperature = 25.d0
+      class default
+        print *, 'not default type in test_tcf_Default'
+    end select
+
+    call this%cct_default%thermal_conductivity_function% &
+                          CalculateTCond(liquid_saturation,temperature, &
+                          thermal_conductivity,dkT_dsatl, &
+                          dkT_dtemp,this%option)
+    string = 'Default thermal characteristic curve thermal conductivity'
+    value =  1.51923881554d0
+    @assertEqual(value, thermal_conductivity, dabs(value)*tolerance, string)
+    string = 'Default thermal characteristic curve derivative of tcond with &
+             &respect to saturation'
+    value = 0.91923881554d0
+    @assertEqual(value, dkT_dsatl, dabs(value)*tolerance, string) 
+    string = 'Default thermal characteristic curve derivative of tcond with &
+             &respect to temperature'
+    value = 0.d0
+    @assertEqual(value, dkT_dtemp, dabs(value)*tolerance, string)
+
+  end subroutine test_tcf_Default
+
+! ************************************************************************** !
+
+  @Test
+  subroutine test_tcf_Constant(this)
+
+    implicit none
+
+    class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
+
+    PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
+                 dkT_dsatl, dkT_dtemp
+    PetscReal :: value
+    PetscReal, parameter :: tolerance = 1.d-8
+    character(len=128) :: string
+
+    select type (tcf => this%cct_constant%thermal_conductivity_function)
+      class is(kT_constant_type)
+      class default
+        print *, 'not constant type in test_tcf_Constant'
+    end select
+
+    call this%cct_constant%thermal_conductivity_function% &
+                           CalculateTCond(liquid_saturation,temperature, &
+                           thermal_conductivity,dkT_dsatl, &
+                           dkT_dtemp,this%option)
+    string = 'Constant thermal characteristic curve thermal conductivity'
+    value = 1.9d0
+    @assertEqual(value, thermal_conductivity, dabs(value)*tolerance, string)
+    string = 'Constant thermal characteristic curve derivative of tcond with &
+             &respect to saturation'
+    value = 0.d0
+    @assertEqual(value, dkT_dsatl, dabs(value)*tolerance, string)
+    string = 'Constant thermal characteristic curve derivative of tcond with &
+             &respect to temperature'
+    value = 0.d0
+    @assertEqual(value, dkT_dtemp, dabs(value)*tolerance, string)
+
+  end subroutine test_tcf_Constant
+
+! ************************************************************************** !
+
+  @Test
+  subroutine test_tcf_Power(this)
+
+    implicit none
+
+    class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
+
+    PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
+                 dkT_dsatl, dkT_dtemp
+    PetscReal :: value
+    PetscReal, parameter :: tolerance = 1.d-8
+    character(len=128) :: string
+
+    select type (tcf => this%cct_power%thermal_conductivity_function)
+      class is(kT_power_type)
+        liquid_saturation = 0.5d0
+        temperature = 25.d0
+      class default
+        print *, 'not power type in test_tcf_Power'
+    end select
+
+    call this%cct_power%thermal_conductivity_function% &
+                        CalculateTCond(liquid_saturation,temperature, &
+                        thermal_conductivity,dkT_dsatl, &
+                        dkT_dtemp,this%option)
+    string = 'Power law thermal characteristic curve thermal conductivity'
+    value =  1.53036860685d0
+    @assertEqual(value, thermal_conductivity, dabs(value)*tolerance, string)
+    string = 'Power law thermal characteristic curve derivative of tcond with &
+             &respect to saturation'
+    value =  0.92597306698d0
+    @assertEqual(value, dkT_dsatl, dabs(value)*tolerance, string)
+    string = 'Power law thermal characteristic curve derivative of tcond with &
+             &respect to temperature'
+    value =  -0.00605680012d0
+    @assertEqual(value, dkT_dtemp, dabs(value)*tolerance, string)
+
+  end subroutine test_tcf_Power
+
+! ************************************************************************** !
+
+  @Test
+  subroutine test_tcf_CubicPolynomial(this)
+
+    implicit none
+
+    class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
+
+    PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
+                 dkT_dsatl, dkT_dtemp
+    PetscReal :: value
+    PetscReal, parameter :: tolerance = 1.d-7
+    character(len=128) :: string
+
+    select type (tcf => this%cct_cubic_poly%thermal_conductivity_function)
+      class is(kT_cubic_polynomial_type)
+        liquid_saturation = 0.5d0
+        temperature = 25.d0
+      class default
+        print *, 'not cubic polynomial type in test_tcf_CubicPolynomial'
+    end select
+
+    call this%cct_cubic_poly%thermal_conductivity_function% &
+                             CalculateTCond(liquid_saturation,temperature, &
+                             thermal_conductivity,dkT_dsatl, &
+                             dkT_dtemp,this%option)
+    string = 'Cubic Poly thermal characteristic curve thermal conductivity'
+    value =  1.36001470662d0
+    @assertEqual(value, thermal_conductivity, dabs(value)*tolerance, string)
+    string = 'Cubic Poly thermal characteristic curve derivative of tcond with &
+             &respect to saturation'
+    value = 0.82289781912d0
+    @assertEqual(value, dkT_dsatl, dabs(value)*tolerance, string)
+    string = 'Cubic Poly thermal characteristic curve derivative of tcond with &
+             &respect to temperature'
+    value = -0.00586823083
+    @assertEqual(value, dkT_dtemp, dabs(value)*tolerance, string)
+
+  end subroutine test_tcf_CubicPolynomial
+
+! ************************************************************************** !
+
+  @Test
+  subroutine test_tcf_LinearResistivity(this)
+
+    implicit none
+
+    class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
+
+    PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
+                 dkT_dsatl, dkT_dtemp
+    PetscReal :: value
+    PetscReal, parameter :: tolerance = 1.d-8
+    character(len=128) :: string
+
+    select type (tcf => this%cct_linear_res%thermal_conductivity_function)
+      class is(kT_linear_resistivity_type)
+        liquid_saturation = 0.5d0
+        temperature = 25.d0
+      class default
+        print *, 'not Linear Resistivity type in test_tcf_LinearResistivity'
+    end select
+
+    call this%cct_linear_res%thermal_conductivity_function% &
+                             CalculateTCond(liquid_saturation,temperature, &
+                             thermal_conductivity,dkT_dsatl, &
+                             dkT_dtemp,this%option)
+    string = 'Linear Resistivity thermal characteristic curve thermal &
+             &conductivity'
+    value =  1.34929509795d0
+    @assertEqual(value, thermal_conductivity, dabs(value)*tolerance, string)
+    string = 'Linear Resistivity thermal characteristic curve derivative &
+             of tcond with respect to saturation'
+    value = 0.81641175499d0
+    @assertEqual(value, dkT_dsatl, dabs(value)*tolerance, string)
+    string = 'Linear Resistivity thermal characteristic curve derivative &
+             &of tcond with respect to temperature'
+    value =  -0.00603734508d0
+    @assertEqual(value, dkT_dtemp, dabs(value)*tolerance, string)
+
+  end subroutine test_tcf_LinearResistivity
+
+! ************************************************************************** !
+
+end module Test_Characteristic_Curves_Thermal_module

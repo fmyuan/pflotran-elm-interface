@@ -5,6 +5,7 @@ module General_module
   use General_Aux_module
   use General_Common_module
   use Global_Aux_module
+  use Option_module
 
   use PFLOTRAN_Constants_module
 
@@ -89,12 +90,14 @@ subroutine GeneralSetup(realization)
     option%io_buffer = 'ERROR: Non-initialized soil heat capacity.'
     call PrintMsgByRank(option)
     error_found = PETSC_TRUE
-  endif
-  if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
-    option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
-    call PrintMsgByRank(option)
-    error_found = PETSC_TRUE
-  endif
+  endif  
+  if ( .not. associated(realization%characteristic_curves_thermal)) then
+    if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0)then
+      option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
+      call PrintMsg(option)
+      error_found = PETSC_TRUE
+    endif
+  endif 
   
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
@@ -749,7 +752,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
                        patch%characteristic_curves_array( &
-                         patch%sat_func_id(ghosted_id))%ptr, &
+                         patch%cc_id(ghosted_id))%ptr, &
                        natural_id, &
                        option)
     if (update_state) then
@@ -758,7 +761,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                     global_auxvars(ghosted_id), &
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
-                                      patch%sat_func_id(ghosted_id))%ptr, &
+                                      patch%cc_id(ghosted_id))%ptr, &
                                     natural_id, &  ! for debugging
                                     option)
     endif
@@ -911,7 +914,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                  patch%cc_id(ghosted_id))%ptr, &
                                 natural_id, &
                                 option)
       if (update_state_bc) then
@@ -921,7 +924,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                                       global_auxvars_bc(sum_connection), &
                                       material_auxvars(ghosted_id), &
                                       patch%characteristic_curves_array( &
-                                        patch%sat_func_id(ghosted_id))%ptr, &
+                                        patch%cc_id(ghosted_id))%ptr, &
                                       natural_id,option)
       endif
     enddo
@@ -1013,7 +1016,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                           material_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
                           patch%characteristic_curves_array( &
-                          patch%sat_func_id(ghosted_id))%ptr, &
+                            patch%cc_id(ghosted_id))%ptr, &
                           grid%nG2A(ghosted_id), &
                           scale, Res_dummy, Jac_dummy, &
                           general_analytical_derivatives, &
@@ -1098,7 +1101,7 @@ subroutine GeneralUpdateFixedAccum(realization)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               patch%characteristic_curves_array( &
-                                patch%sat_func_id(ghosted_id))%ptr, &
+                                patch%cc_id(ghosted_id))%ptr, &
                               natural_id, &
                               option)
     call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -1138,7 +1141,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Debug_module
   use Material_Aux_class
   use Upwind_Direction_module
-
+  
 !#define DEBUG_WITH_TECPLOT
 #ifdef DEBUG_WITH_TECPLOT
   use Output_Tecplot_module
@@ -1193,7 +1196,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
-  PetscInt :: icap_up, icap_dn
+  PetscInt :: icct_up, icct_dn
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal :: Jac_dummy(realization%option%nflowdof, &
                          realization%option%nflowdof)
@@ -1317,17 +1320,17 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       imat_dn = patch%imat(ghosted_id_dn) 
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
-
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
+      
       call GeneralFlux(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
-                       material_parameter%soil_thermal_conductivity(:,imat_up), &
+                       patch%char_curves_thermal_array(icct_up)%ptr, &
                        gen_auxvars(ZERO_INTEGER,ghosted_id_dn), &
                        global_auxvars(ghosted_id_dn), &
                        material_auxvars(ghosted_id_dn), &
-                       material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                       patch%char_curves_thermal_array(icct_dn)%ptr, &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
                        patch%flow_upwind_direction(:,iconn), &
@@ -1382,7 +1385,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icct_dn = patch%cct_id(ghosted_id)
 
       call GeneralBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
@@ -1392,7 +1395,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                      gen_auxvars(ZERO_INTEGER,ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
-                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                     patch%char_curves_thermal_array(icct_dn)%ptr, &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction_bc(:,iconn), &
@@ -1456,7 +1459,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                           material_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
                           patch%characteristic_curves_array( &
-                          patch%sat_func_id(ghosted_id))%ptr, &
+                            patch%cc_id(ghosted_id))%ptr, &
                           grid%nG2A(ghosted_id), &
                           scale,Res,Jac_dummy, &
                           general_analytical_derivatives, &
@@ -1588,7 +1591,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: norm
   PetscViewer :: viewer
 
-  PetscInt :: icap_up,icap_dn
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
@@ -1665,7 +1667,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                  patch%cc_id(ghosted_id))%ptr, &
                                 natural_id,option)
     enddo
   endif
@@ -1721,17 +1723,16 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
    
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
-                              
       call GeneralFluxDerivative(gen_auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
-                     material_parameter%soil_thermal_conductivity(:,imat_up), &
+                     patch%char_curves_thermal_array( &
+                       patch%cct_id(ghosted_id_up))%ptr, &
                      gen_auxvars(:,ghosted_id_dn), &
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
-                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                     patch%char_curves_thermal_array( &
+                       patch%cct_id(ghosted_id_dn))%ptr, &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
@@ -1788,8 +1789,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
-
       call GeneralBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &
                       boundary_condition%flow_aux_real_var(:,iconn), &
@@ -1798,7 +1797,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                       gen_auxvars(:,ghosted_id), &
                       global_auxvars(ghosted_id), &
                       material_auxvars(ghosted_id), &
-                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                      patch%char_curves_thermal_array( &
+                        patch%cct_id(ghosted_id))%ptr, &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &
@@ -1852,7 +1852,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                         global_auxvars(ghosted_id), &
                         global_auxvars_ss(sum_connection), &
                         patch%characteristic_curves_array( &
-                        patch%sat_func_id(ghosted_id))%ptr, &
+                          patch%cc_id(ghosted_id))%ptr, &
                         grid%nG2A(ghosted_id),material_auxvars(ghosted_id), &
                         scale,Jup)
 

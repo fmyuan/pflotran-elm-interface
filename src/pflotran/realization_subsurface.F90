@@ -15,6 +15,7 @@ module Realization_Subsurface_class
   use Material_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Dataset_Base_class
   use Fluid_module
   use Patch_module
@@ -40,6 +41,7 @@ private
     type(fluid_property_type), pointer :: fluid_property_array(:)
     type(saturation_function_type), pointer :: saturation_functions
     class(characteristic_curves_type), pointer :: characteristic_curves
+    class(cc_thermal_type), pointer :: characteristic_curves_thermal
     class(dataset_base_type), pointer :: datasets
     
     class(dataset_base_type), pointer :: uniform_velocity_dataset
@@ -156,6 +158,7 @@ function RealizationCreate2(option)
   nullify(realization%fluid_property_array)
   nullify(realization%saturation_functions)
   nullify(realization%characteristic_curves)
+  nullify(realization%characteristic_curves_thermal)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
@@ -266,10 +269,8 @@ subroutine RealizationCreateDiscretization(realization)
     endif
 
     ! 1-dof local
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%ithrm_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%icap_loc)
+    !call DiscretizationDuplicateVector(discretization,field%work_loc, &
+    !                                   field%xyz)
     
     ! ndof degrees of freedom, global
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx, &
@@ -637,9 +638,9 @@ subroutine RealizationProcessCouplers(realization)
   
   class(realization_subsurface_type) :: realization
   
-  call PatchProcessCouplers( realization%patch,realization%flow_conditions, &
-                             realization%transport_conditions, &
-                             realization%option)
+  call PatchProcessCouplers(realization%patch,realization%flow_conditions, &
+                            realization%transport_conditions, &
+                            realization%option)
   
 end subroutine RealizationProcessCouplers
 
@@ -740,17 +741,20 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   use Dataset_Common_HDF5_class
   use Dataset_module
   
+  
   implicit none
   
   class(realization_subsurface_type) :: realization
   
   PetscBool :: found
-  PetscInt :: i
+  PetscInt :: i, num_mat_prop
   type(option_type), pointer :: option
   type(material_property_type), pointer :: cur_material_property
+  PetscReal, allocatable :: check_thermal_conductivity(:,:)
   type(patch_type), pointer :: patch
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: string, verify_string, mat_string
   class(dataset_base_type), pointer :: dataset
+  class(cc_thermal_type), pointer :: default_thermal_cc
 
   option => realization%option
   patch => realization%patch
@@ -773,13 +777,91 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                                       patch%characteristic_curves_array, &
                                       option)
   endif
-                                      
+
+  ! set up analogous mapping to thermal characteristic curves, if used    
+  num_mat_prop = size(patch%material_property_array)
+  allocate(check_thermal_conductivity(2,num_mat_prop))
+  do i = 1, num_mat_prop
+    if (associated(patch%material_property_array(i)%ptr)) then
+      check_thermal_conductivity(1,i) = &
+        patch%material_property_array(i)%ptr%thermal_conductivity_dry
+      check_thermal_conductivity(2,i) = &
+        patch%material_property_array(i)%ptr%thermal_conductivity_wet
+    endif
+  enddo  
+  if (associated(realization%characteristic_curves_thermal)) then
+    if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
+      option%io_buffer = 'Cannot combine material-based thermal conductivity'//&
+                         ' input format with thermal characteristic curves. '//&
+                         'Use TCC with "DEFAULT" specification instead.' 
+      call PrintErrMsg(option)
+    endif
+    patch%characteristic_curves_thermal => &
+         realization%characteristic_curves_thermal
+    call CharCurvesThermalConvertListToArray( &
+         patch%characteristic_curves_thermal, &
+         patch%char_curves_thermal_array, option)
+  else if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
+    ! use default tcc curve for legacy thermal conductivity input by material
+    do i = 1, num_mat_prop
+      if (.not. option%iflowmode == G_MODE) then
+        ! some modes outside of general will only use one thermal conducitivity
+        ! if that is the case, use default values as fallback options
+        if (patch%material_property_array(i)%ptr%thermal_conductivity_wet == &
+          UNINITIALIZED_DOUBLE) then
+          patch%material_property_array(i)%ptr%thermal_conductivity_wet = 2.d0
+        endif
+        if (patch%material_property_array(i)%ptr%thermal_conductivity_dry == &
+          UNINITIALIZED_DOUBLE) then
+          patch%material_property_array(i)%ptr%thermal_conductivity_dry = 5.d-1
+        endif
+      endif 
+      default_thermal_cc => CharCurvesThermalCreate()
+      default_thermal_cc%name = 'DEFAULT'
+      default_thermal_cc%thermal_conductivity_function => TCFDefaultCreate()    
+      call TCFAssignDefault(default_thermal_cc%thermal_conductivity_function, &
+        patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
+        patch%material_property_array(i)%ptr%thermal_conductivity_dry, &      
+        option)      
+      if (associated(default_thermal_cc%thermal_conductivity_function)) then
+        write (mat_string,*) patch%material_property_array(i)%ptr%external_id
+        verify_string = 'THERMAL_CHARACTERISTIC_CURVES(' // & 
+          trim(default_thermal_cc%name) // ') used for material ID #'// &
+          trim(adjustl(mat_string)) // '. '
+        call default_thermal_cc%thermal_conductivity_function% & 
+          Verify(verify_string,option)
+      else
+        write (mat_string,*) patch%material_property_array(i)%ptr%external_id
+        option%io_buffer = 'A thermal conductivity function has &
+          &not been set under THERMAL_CHARACTERISTIC_CURVES "' // &
+          trim(default_thermal_cc%name) // '" intended for material ID #'// &
+          trim(adjustl(mat_string)) // '. '
+      endif
+      call CharCurvesThermalAddToList(default_thermal_cc, &
+        realization%characteristic_curves_thermal)  
+      nullify(default_thermal_cc)
+    enddo    
+    ! afterwards, proceed with normal TCC procedure
+    if (associated(realization%characteristic_curves_thermal)) then
+      patch%characteristic_curves_thermal => &
+           realization%characteristic_curves_thermal
+      call CharCurvesThermalConvertListToArray( &
+         patch%characteristic_curves_thermal, &
+         patch%char_curves_thermal_array, option)
+    else
+      option%io_buffer = 'Manual assignments of DEFAULT thermal '//&
+                         'characteristic curve failed!'
+      call PrintErrMsg(option)
+    endif
+  endif
+  deallocate(check_thermal_conductivity)
+  
   ! create mapping of internal to external material id
   call MaterialCreateIntToExtMapping(patch%material_property_array, &
                                      patch%imat_internal_to_external)
-    
-  cur_material_property => realization%material_properties                            
-  do                                      
+
+  cur_material_property => realization%material_properties
+  do
     if (.not.associated(cur_material_property)) exit
 
     ! obtain saturation function id
@@ -805,10 +887,27 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         if (associated(patch%characteristic_curves_array)) then
           call CharCurvesProcessTables(patch%characteristic_curves_array(  &
                         cur_material_property%saturation_function_id)%ptr,option)
-        end if                
-      end if
+        endif
+      endif
     endif
-    
+
+    ! thermal conducitivity function id 
+    if (associated(patch%char_curves_thermal_array)) then
+      if (cur_material_property%thermal_conductivity_function_id < 1) then
+        cur_material_property%thermal_conductivity_function_id = &
+           CharCurvesThermalGetID( &
+           patch%char_curves_thermal_array, &
+           cur_material_property%thermal_conductivity_function_name, &
+           cur_material_property%name,option)
+      endif
+    endif
+    if (cur_material_property%thermal_conductivity_function_id == 0) then
+      option%io_buffer = 'Thermal characteristic curve "' // &
+        trim(cur_material_property%thermal_conductivity_function_name) // &
+        '" not found.'
+        call PrintErrMsg(option)
+    endif
+
     ! if named, link dataset to property
     if (associated(cur_material_property%porosity_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
@@ -1028,11 +1127,11 @@ subroutine RealProcessFluidProperties(realization)
   ! check that matches characteristic curves count
 
   satnum_set = GetSatnumSet(maxsatn)
-  if( satnum_set ) then
+  if (satnum_set) then
     ccset = associated(realization%patch%characteristic_curves_array)
     if (ccset) then
       ncc = size(realization%patch%characteristic_curves_array(:))
-      if( maxsatn > ncc ) then
+      if (maxsatn > ncc) then
         option%io_buffer = &
          'SATNUM data does not match CHARACTERISTIC CURVES count'
         call PrintErrMsg(option)
@@ -1044,9 +1143,9 @@ subroutine RealProcessFluidProperties(realization)
     else
       option%io_buffer = 'SATNUM data but no CHARACTERISTIC CURVES'
       call PrintErrMsg(option)
-    end if
+    endif
   endif
-
+  
 end subroutine RealProcessFluidProperties
 
 ! ************************************************************************** !
@@ -2308,8 +2407,11 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(MATERIAL_ID_ARRAY)
       call GridCopyIntegerArrayToVec(grid,patch%imat,field%work_loc, &
                                      grid%ngmax)
-    case(SATURATION_FUNCTION_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%sat_func_id, &
+    case(CC_ID_ARRAY)
+      call GridCopyIntegerArrayToVec(grid,patch%cc_id, &
+                                     field%work_loc, grid%ngmax)
+    case(CCT_ID_ARRAY)
+      call GridCopyIntegerArrayToVec(grid,patch%cct_id, &
                                      field%work_loc, grid%ngmax)
   end select
 
@@ -2320,8 +2422,11 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(MATERIAL_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%imat,field%work_loc, &
                                       grid%ngmax)
-    case(SATURATION_FUNCTION_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%sat_func_id, &
+    case(CC_ID_ARRAY)
+      call GridCopyVecToIntegerArray(grid,patch%cc_id, &
+                                      field%work_loc, grid%ngmax)
+    case(CCT_ID_ARRAY)
+      call GridCopyVecToIntegerArray(grid,patch%cct_id, &
                                       field%work_loc, grid%ngmax)
   end select
 
@@ -2818,6 +2923,10 @@ subroutine RealizationStrip(this)
   call SaturationFunctionDestroy(this%saturation_functions)
   call CharacteristicCurvesDestroy(this%characteristic_curves)  
 
+  if (associated(this%characteristic_curves_thermal)) then
+    call CharCurvesThermalDestroy(this%characteristic_curves_thermal)
+  endif
+  
   call DatasetDestroy(this%datasets)
   
   call DatasetDestroy(this%uniform_velocity_dataset)

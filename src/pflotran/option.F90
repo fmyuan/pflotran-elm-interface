@@ -224,7 +224,6 @@ module Option_module
     PetscBool :: inline_surface_flow
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
-    
 
   end type option_type
 
@@ -605,7 +604,7 @@ subroutine OptionInitRealization(option)
   option%inline_surface_flow           = PETSC_FALSE
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
-  
+
 
 end subroutine OptionInitRealization
 
@@ -858,8 +857,8 @@ end subroutine PrintErrMsgNoStopByRank2
 
 subroutine PrintErrMsgToDev(option,string)
   !
-  ! Prints the error message from p0, appends a request to submit input 
-  ! deck to pflotran-dev, and stops.  The reverse order of arguments is 
+  ! Prints the error message from p0, appends a request to submit input
+  ! deck to pflotran-dev, and stops.  The reverse order of arguments is
   ! to avoid conflict with variants of PrintErrMsg()
   !
   ! Author: Glenn Hammond
@@ -1017,7 +1016,7 @@ subroutine PrintMsgAnyRank2(string)
   implicit none
 
   character(len=*) :: string
-  
+
   print *, trim(string)
 
 end subroutine PrintMsgAnyRank2

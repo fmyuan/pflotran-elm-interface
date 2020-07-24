@@ -17,6 +17,7 @@ module Patch_module
   use Material_module
   use Field_module
   use Saturation_Function_module
+  use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_module
   use Surface_Field_module
   use Surface_Material_module
@@ -42,7 +43,8 @@ module Patch_module
     ! go in the auxiliary data stucture for that mode
     PetscInt, pointer :: imat(:)
     PetscInt, pointer :: imat_internal_to_external(:)
-    PetscInt, pointer :: sat_func_id(:)
+    PetscInt, pointer :: cc_id(:)    ! characteristic curves id
+    PetscInt, pointer :: cct_id(:)   ! thermal characteristic curves id
 
     PetscReal, pointer :: internal_velocities(:,:)
     PetscReal, pointer :: boundary_velocities(:,:)
@@ -79,7 +81,9 @@ module Patch_module
     type(saturation_function_ptr_type), pointer :: saturation_function_array(:)
     class(characteristic_curves_type), pointer :: characteristic_curves
     type(characteristic_curves_ptr_type), pointer :: characteristic_curves_array(:)
-
+    class(cc_thermal_type), pointer :: characteristic_curves_thermal
+    type(cc_thermal_ptr_type), pointer :: char_curves_thermal_array(:)
+    
     type(strata_list_type), pointer :: strata_list
     type(observation_list_type), pointer :: observation_list
     type(integral_flux_list_type), pointer :: integral_flux_list
@@ -171,7 +175,8 @@ function PatchCreate()
   patch%surf_or_subsurf_flag = SUBSURFACE
   nullify(patch%imat)
   nullify(patch%imat_internal_to_external)
-  nullify(patch%sat_func_id)
+  nullify(patch%cc_id)
+  nullify(patch%cct_id)
   nullify(patch%internal_velocities)
   nullify(patch%boundary_velocities)
   nullify(patch%internal_tran_coefs)
@@ -206,6 +211,8 @@ function PatchCreate()
   nullify(patch%saturation_function_array)
   nullify(patch%characteristic_curves)
   nullify(patch%characteristic_curves_array)
+  nullify(patch%characteristic_curves_thermal)
+  nullify(patch%char_curves_thermal_array)
 
   allocate(patch%observation_list)
   call ObservationInitList(patch%observation_list)
@@ -1964,7 +1971,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   GENERAL_AIR_PRESSURE_INDEX),iconn) = &
                     gas_pressure - p_sat ! air pressure
             endif
-            call patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))% &
+            call patch%characteristic_curves_array(patch%cc_id(ghosted_id))% &
                    ptr%saturation_function%Saturation(p_cap,s_liq, &
                    dummy_real,option)
             ! %flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) set to 3 in hydrostatic
@@ -3187,7 +3194,7 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
     if (toil_ims%pressure%itype == HYDROSTATIC_BC) then
       dof2 = PETSC_TRUE
       call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
-                   patch%characteristic_curves_array,patch%sat_func_id, &
+                   patch%characteristic_curves_array,patch%cc_id, &
                    patch%imat)
       coupler%flow_bc_type(TOIL_IMS_OIL_EQUATION_INDEX) = HYDROSTATIC_BC
       coupler%flow_bc_type(TOIL_IMS_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
@@ -3404,7 +3411,7 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
             coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = DIRICHLET_BC
           case(HYDROSTATIC_BC)
             call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
-                         patch%characteristic_curves_array,patch%sat_func_id, &
+                         patch%characteristic_curves_array,patch%cc_id, &
                          patch%imat)
             dof1 = PETSC_TRUE
             dof2 = PETSC_TRUE
@@ -3842,7 +3849,7 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsMPH
@@ -3944,7 +3951,7 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsIMS
@@ -4045,7 +4052,7 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsFLASH2
@@ -4321,7 +4328,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsTH
@@ -4495,7 +4502,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
   if (associated(flow_condition%rate)) then
     select case(flow_condition%rate%itype)
@@ -11175,7 +11182,8 @@ subroutine PatchDestroy(patch)
 
   call DeallocateArray(patch%imat)
   call DeallocateArray(patch%imat_internal_to_external)
-  call DeallocateArray(patch%sat_func_id)
+  call DeallocateArray(patch%cc_id)
+  call DeallocateArray(patch%cct_id)
   call DeallocateArray(patch%internal_velocities)
   call DeallocateArray(patch%boundary_velocities)
   call DeallocateArray(patch%internal_tran_coefs)
@@ -11210,6 +11218,11 @@ subroutine PatchDestroy(patch)
   ! Since this linked list will be destroyed by realization, just nullify here
   nullify(patch%characteristic_curves)
 
+  if (associated(patch%char_curves_thermal_array)) &
+       deallocate(patch%char_curves_thermal_array)
+  nullify(patch%char_curves_thermal_array)
+  nullify(patch%characteristic_curves_thermal)
+  
   nullify(patch%surf_field)
   if (associated(patch%surf_material_property_array)) &
     deallocate(patch%surf_material_property_array)
