@@ -828,13 +828,13 @@ end subroutine pflotranModelSetICs
 
     do ghosted_id = 1, grid%ngmax
 
-      if (patch%sat_func_id(ghosted_id) < 1) cycle
+      if (patch%cc_id(ghosted_id) < 1) cycle
 
       local_id = grid%nG2L(ghosted_id)
 
       select case(pflotran_model%option%iflowmode)
       case(RICHARDS_MODE)
-         characteristic_curve => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
+         characteristic_curve => patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr
 
          select type(sf => characteristic_curve%saturation_function)
          class is(sat_func_VG_type)
@@ -851,7 +851,7 @@ end subroutine pflotranModelSetICs
             call PrintErrMsg(pflotran_model%option)
          end select
       case(TH_MODE)
-         saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+         saturation_function = patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr
          th_aux_var => th_aux_vars(ghosted_id)
          bc_alpha  = saturation_function%alpha
          select case(saturation_function%saturation_function_itype)
