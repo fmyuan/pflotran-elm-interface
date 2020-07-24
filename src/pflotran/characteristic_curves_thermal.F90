@@ -68,6 +68,15 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateTCond => TCFDryConditionsConductivity
   end type kT_dry_conditions_type
   !---------------------------------------------------------------------------
+  type, public, extends(kT_default_type) :: kT_water_filled_conditions_type
+    PetscReal :: kT_water
+    PetscReal :: kT_solid
+    PetscReal :: porosity_asm
+  contains
+    procedure, public :: Verify => TCFWaterFilledConditionsVerify
+    procedure, public :: CalculateTCond => TCFWaterFilledConditionsConductivity
+  end type kT_water_filled_conditions_type
+  !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
@@ -352,6 +361,10 @@ subroutine TCFDryConditionsVerify(this,name,option)
     option%io_buffer = UninitializedMessage('DRY_CONDITIONS_EXPONENT',string)
     call PrintErrMsg(option)
   endif
+  if (Uninitialized(this%kT_dry)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_DRY',string)
+    call PrintErrMsg(option)
+  endif
 
 end subroutine TCFDryConditionsVerify
 
@@ -399,6 +412,101 @@ subroutine TCFDryConditionsConductivity(this,liquid_saturation,temperature, &
   endif
 
 end subroutine TCFDryConditionsConductivity
+
+! ************************************************************************** !
+
+function TCFWaterFilledConditionsCreate()
+
+  implicit none
+
+  class(kT_water_filled_conditions_type), pointer :: & 
+    TCFWaterFilledConditionsCreate
+
+  allocate(TCFWaterFilledConditionsCreate)
+  ! User doesn't need to initialize wet or dry thermal conditivities for this case
+  TCFWaterFilledConditionsCreate%kT_wet         = 0.0d0 
+  TCFWaterFilledConditionsCreate%kT_dry         = 0.0d0
+  TCFWaterFilledConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
+
+end function TCFWaterFilledConditionsCreate
+
+! ************************************************************************** !
+
+subroutine TCFWaterFilledConditionsVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_water_filled_conditions_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // &
+      'THERMAL_CONDUCTIVITY_FUNCTION,WATER_FILLED_CONDITIONS'
+  endif
+  call TCFBaseVerify(this,string,option)
+  if (Uninitialized(this%kT_water)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_WATER',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kT_solid)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_SOLID',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%porosity_asm)) then
+    option%io_buffer = & 
+      UninitializedMessage('POROSITY_ASSEMBLY',string)
+    call PrintErrMsg(option)
+  endif  
+
+end subroutine TCFWaterFilledConditionsVerify
+
+! ************************************************************************** !
+
+subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation,temperature, &
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_water_filled_conditions_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: lamda, v1, v2, ratio
+
+  ! Function from equation 15 in Cheng and Hsu, 1999
+  
+  lamda = this%kT_water / this%kT_solid
+  
+  v1 = sqrt(1 - this%porosity_asm)
+  
+  v2 = 1 + (lamda - 1) * v1
+  
+  ratio = 1 - v1 + ( v1 / v2 ) 
+  
+  this%kT_wet = ratio * this%kT_water
+  
+  this%kT_dry = this%kT_wet !better to initialize as a non-zero number just in case
+  
+  thermal_conductivity = this%kT_wet
+  
+  dkT_dtemp = 0.0d0
+  
+  dkT_dsatl = 0.0d0
+
+end subroutine TCFWaterFilledConditionsConductivity
 
 ! ************************************************************************** !
 
@@ -797,6 +905,8 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFLinearResistivityCreate()
       case('DRY_CONDITIONS')
         this%thermal_conductivity_function => TCFDryConditionsCreate()
+      case('WATER_FILLED_CONDITIONS')
+        this%thermal_conductivity_function => TCFWaterFilledConditionsCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
              'THERMAL_CONDUCTIVITY_FUNCTION',option)
@@ -987,12 +1097,6 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       !------------------------------------------
     class is(kT_dry_conditions_type)
       select case(keyword)
-      ! case('THERMAL_CONDUCTIVITY_WET')
-      !   call InputReadDouble(input,option,tcf%kT_wet)
-      !   call InputErrorMsg(input,option,'thermal conductivity wet', &
-      !        error_string)
-      !   call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-      !        'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
       case('THERMAL_CONDUCTIVITY_DRY')
         call InputReadDouble(input,option,tcf%kT_dry)
         call InputErrorMsg(input,option,'thermal conductivity dry', &
@@ -1017,7 +1121,31 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
                error_string)
       case default
         call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (cubic polynomial) thermal conductivity',option)
+             'temp-dependent (dry conditions) thermal conductivity',option)
+      end select
+      !------------------------------------------
+    class is(kT_water_filled_conditions_type)
+      select case(keyword)
+      case('THERMAL_CONDUCTIVITY_WATER')
+        call InputReadDouble(input,option,tcf%kT_water)
+        call InputErrorMsg(input,option,'thermal conductivity water', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_water,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity water',option)
+      case('THERMAL_CONDUCTIVITY_SOLID')
+        call InputReadDouble(input,option,tcf%kT_solid)
+        call InputErrorMsg(input,option,'thermal conductivity solid', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_solid,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity solid',option)
+      case('POROSITY_ASSEMBLY')
+        call InputReadDouble(input,option,tcf%porosity_asm)
+        call InputErrorMsg(input,option, &
+             'water-filled conditions assembly porosity', &
+             error_string)
+      case default
+        call InputKeywordUnrecognized(input,keyword, &
+             'thermal conductivity for water-filled conditions',option)
       end select
       !------------------------------------------
     class is(kT_linear_resistivity_type)
@@ -1252,6 +1380,18 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'exponent: '
         write(word1,*) tcf%kT_alpha_exp
+        write(id,'(a)') adjustl(trim(word1))
+        !---------------------------------
+      class is (kT_water_filled_conditions_type)
+        write(id,'(a)') 'not sat.- or temp.-dependent (water-filled conditions)'
+        write(id,'(a29)',advance='no') 'kT_water: '
+        write(word1,*) tcf%kT_water
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'kT_solid:'
+        write(word1,*) tcf%kT_solid
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'Assembly porosity: '
+        write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
       class is (kT_cubic_polynomial_type)
