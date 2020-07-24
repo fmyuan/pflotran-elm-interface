@@ -60,6 +60,14 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateTCond => TCFLinearResistivityConductivity
   end type kT_linear_resistivity_type
   !---------------------------------------------------------------------------
+  type, public, extends(kT_default_type) :: kT_dry_conditions_type
+    PetscReal :: kT_alpha_base
+    PetscReal :: kT_alpha_exp
+  contains
+    procedure, public :: Verify => TCFDryConditionsVerify
+    procedure, public :: CalculateTCond => TCFDryConditionsConductivity
+  end type kT_dry_conditions_type
+  !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
@@ -85,6 +93,7 @@ module Characteristic_Curves_Thermal_module
             TCFPowerCreate, &
             TCFCubicPolynomialCreate, &
             TCFLinearResistivityCreate, &
+            TCFDryConditionsCreate, &
             TCFAssignDefault
 
 contains
@@ -297,6 +306,99 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   endif
 
 end subroutine TCFDefaultConductivity
+
+! ************************************************************************** !
+
+function TCFDryConditionsCreate()
+
+  implicit none
+
+  class(kT_dry_conditions_type), pointer :: TCFDryConditionsCreate
+
+  allocate(TCFDryConditionsCreate)
+  ! User doesn't need to initialize wet thermal conditivity for this case
+  TCFDryConditionsCreate%kT_wet         = 0.0d0 
+  TCFDryConditionsCreate%kT_dry         = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
+
+end function TCFDryConditionsCreate
+
+! ************************************************************************** !
+
+subroutine TCFDryConditionsVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_dry_conditions_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,DRY_CONDITIONS'
+  endif
+  call TCFBaseVerify(this,string,option)
+  if (Uninitialized(this%kT_alpha_base)) then
+    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_BASE',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kT_alpha_exp)) then
+    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_EXPONENT',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine TCFDryConditionsVerify
+
+! ************************************************************************** !
+
+subroutine TCFDryConditionsConductivity(this,liquid_saturation,temperature, &
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_dry_conditions_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: tempreal, primary, power
+
+  ! function provided by Scott Painter for Yucca Mountain Project
+  ! Reference: Spent Nuclear Fuel Effective Thermal Conductivity
+  !            Report DI: BBA000000-017 17-5705-00010 REV 00
+  
+  ! If user did not initialize wet thermal condutcitivty, make it equal to dry
+  if (this%kT_wet == 0.0d0) then
+    this%kT_wet = this%kT_dry
+  end if
+  
+  power = this%kT_alpha_base * (temperature ** this%kT_alpha_exp)
+  
+  primary = this%kT_dry + power
+  
+  dkT_dtemp = this%kT_alpha_base * this%kT_alpha_exp * temperature * &
+              (this%kT_alpha_exp - 1.0d0)
+  
+  if (liquid_saturation > 0.d0) then
+    tempreal = sqrt(liquid_saturation) * &
+                   (this%kT_wet - primary)
+    thermal_conductivity = primary + tempreal
+    dkT_dsatl = 0.5d0 * tempreal / liquid_saturation
+  else
+    thermal_conductivity = primary
+    dkT_dsatl = 0.d0
+  endif
+
+end subroutine TCFDryConditionsConductivity
 
 ! ************************************************************************** !
 
@@ -693,6 +795,8 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFCubicPolynomialCreate()
       case('LINEAR_RESISTIVITY')
         this%thermal_conductivity_function => TCFLinearResistivityCreate()
+      case('DRY_CONDITIONS')
+        this%thermal_conductivity_function => TCFDryConditionsCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
              'THERMAL_CONDUCTIVITY_FUNCTION',option)
@@ -876,6 +980,41 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadNDoubles(input,option,tcf%beta,3)
         call InputErrorMsg(input,option, &
              'thermal conductivity polynomial coefficients',error_string)
+      case default
+        call InputKeywordUnrecognized(input,keyword, &
+             'temp-dependent (cubic polynomial) thermal conductivity',option)
+      end select
+      !------------------------------------------
+    class is(kT_dry_conditions_type)
+      select case(keyword)
+      ! case('THERMAL_CONDUCTIVITY_WET')
+      !   call InputReadDouble(input,option,tcf%kT_wet)
+      !   call InputErrorMsg(input,option,'thermal conductivity wet', &
+      !        error_string)
+      !   call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+      !        'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
+      case('THERMAL_CONDUCTIVITY_DRY')
+        call InputReadDouble(input,option,tcf%kT_dry)
+        call InputErrorMsg(input,option,'thermal conductivity dry', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
+      case('THERMAL_CONDUCTIVITY_WET')
+        call InputReadDouble(input,option,tcf%kT_wet)
+        call InputErrorMsg(input,option,'thermal conductivity wet', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
+      case('DRY_CONDITIONS_BASE')
+        call InputReadDouble(input,option,tcf%kT_alpha_base)
+        call InputErrorMsg(input,option, &
+             'dry conditions thermal conductivity temperature coefficient', &
+             error_string)
+      case('DRY_CONDITIONS_EXPONENT')
+        call InputReadDouble(input,option,tcf%kT_alpha_exp)
+        call InputErrorMsg(input,option, &
+             'dry conditions thermal conductivity temperature exponent', &
+               error_string)
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'temp-dependent (cubic polynomial) thermal conductivity',option)
@@ -1098,6 +1237,21 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'exponent: '
         write(word1,*) tcf%gamma
+        write(id,'(a)') adjustl(trim(word1))
+        !---------------------------------
+      class is (kT_dry_conditions_type)
+        write(id,'(a)') 'temp.-dependent/optional sat. (dry conditions)'
+        write(id,'(a29)',advance='no') 'kT_wet: '
+        write(word1,*) tcf%kT_wet
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'kT_dry: '
+        write(word1,*) tcf%kT_dry
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'temperature coefficient: '
+        write(word1,*) tcf%kT_alpha_base
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'exponent: '
+        write(word1,*) tcf%kT_alpha_exp
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
       class is (kT_cubic_polynomial_type)
