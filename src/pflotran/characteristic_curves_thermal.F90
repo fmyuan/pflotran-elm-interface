@@ -77,16 +77,16 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateTCond => TCFWaterFilledConditionsConductivity
   end type kT_water_filled_conditions_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_YMR_conditions_type
+  type, public, extends(kT_default_type) :: kT_ASM_conditions_type
     PetscReal :: kT_alpha_base
     PetscReal :: kT_alpha_exp
     PetscReal :: kT_water
     PetscReal :: kT_solid
     PetscReal :: porosity_asm
   contains
-    procedure, public :: Verify => TCFYMRConditionsVerify
-    procedure, public :: CalculateTCond => TCFYMRConditionsConductivity
-  end type kT_YMR_conditions_type
+    procedure, public :: Verify => TCFASMConditionsVerify
+    procedure, public :: CalculateTCond => TCFASMConditionsConductivity
+  end type kT_ASM_conditions_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
@@ -115,7 +115,7 @@ module Characteristic_Curves_Thermal_module
             TCFLinearResistivityCreate, &
             TCFDryConditionsCreate, &
             TCFWaterFilledConditionsCreate, &
-            TCFYMRConditionsCreate, &
+            TCFASMConditionsCreate, &
             TCFAssignDefault
 
 contains
@@ -398,7 +398,6 @@ subroutine TCFDryConditionsConductivity(this,liquid_saturation,temperature, &
 
   PetscReal :: tempreal, primary, power
 
-  ! function provided by Scott Painter for Yucca Mountain Project
   ! Reference: Spent Nuclear Fuel Effective Thermal Conductivity
   !            Report DI: BBA000000-017 17-5705-00010 REV 00
   
@@ -499,7 +498,7 @@ subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation,temperatu
 
   PetscReal :: lamda, v1, v2, ratio
 
-  ! Function from equation 15 in Cheng and Hsu, 1999
+  ! Reference: equation 15 in Cheng and Hsu, 1999
   
   lamda = this%kT_water / this%kT_solid
   
@@ -523,33 +522,33 @@ end subroutine TCFWaterFilledConditionsConductivity
 
 ! ************************************************************************** !
 
-function TCFYMRConditionsCreate()
+function TCFASMConditionsCreate()
 
   implicit none
 
-  class(kT_YMR_conditions_type), pointer :: TCFYMRConditionsCreate
+  class(kT_ASM_conditions_type), pointer :: TCFASMConditionsCreate
 
-  allocate(TCFYMRConditionsCreate)
+  allocate(TCFASMConditionsCreate)
   ! User doesn't need to initialize wet thermal conditivity for this case
-  TCFYMRConditionsCreate%kT_wet         = 0.0d0 
-  TCFYMRConditionsCreate%kT_dry         = UNINITIALIZED_DOUBLE
-  TCFYMRConditionsCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
-  TCFYMRConditionsCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
-  TCFYMRConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
-  TCFYMRConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
-  TCFYMRConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_wet         = 0.0d0 
+  TCFASMConditionsCreate%kT_dry         = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
 
-end function TCFYMRConditionsCreate
+end function TCFASMConditionsCreate
 
 ! ************************************************************************** !
 
-subroutine TCFYMRConditionsVerify(this,name,option)
+subroutine TCFASMConditionsVerify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_YMR_conditions_type) :: this
+  class(kT_ASM_conditions_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -558,7 +557,7 @@ subroutine TCFYMRConditionsVerify(this,name,option)
   if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
     string = name
   else
-    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,YMR_CONDITIONS'
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,ASM_CONDITIONS'
   endif
   call TCFBaseVerify(this,string,option)
   if (Uninitialized(this%kT_alpha_base)) then
@@ -587,18 +586,18 @@ subroutine TCFYMRConditionsVerify(this,name,option)
     call PrintErrMsg(option)
   end if
 
-end subroutine TCFYMRConditionsVerify
+end subroutine TCFASMConditionsVerify
 
 ! ************************************************************************** !
 
-subroutine TCFYMRConditionsConductivity(this,liquid_saturation,temperature, &
+subroutine TCFASMConditionsConductivity(this,liquid_saturation,temperature, &
      thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_YMR_conditions_type) :: this
+  class(kT_ASM_conditions_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -609,7 +608,7 @@ subroutine TCFYMRConditionsConductivity(this,liquid_saturation,temperature, &
 
   ! Calculation of wet thermal conductivity 
   
-  ! Function from equation 15 in Cheng and Hsu, 1999
+  ! Reference: equation 15 in Cheng and Hsu, 1999
   
   lamda = this%kT_water / this%kT_solid
   
@@ -623,13 +622,12 @@ subroutine TCFYMRConditionsConductivity(this,liquid_saturation,temperature, &
 
   ! Calculation of dry thermal conductivity
    
-  ! Function provided by Scott Painter for Yucca Mountain Project
   ! Reference: Spent Nuclear Fuel Effective Thermal Conductivity
   !            Report DI: BBA000000-017 17-5705-00010 REV 00
   
   if (this%kT_wet <= 0.0d0) then
     option%io_buffer = 'Error in wet thermal conductivity derivation' &
-                    //' for YMR conditions'
+                    //' for assembly conditions'
     call PrintErrMsg(option)
   end if
   
@@ -650,7 +648,7 @@ subroutine TCFYMRConditionsConductivity(this,liquid_saturation,temperature, &
     dkT_dsatl = 0.d0
   endif
 
-end subroutine TCFYMRConditionsConductivity
+end subroutine TCFASMConditionsConductivity
 
 ! ************************************************************************** !
 
@@ -1052,7 +1050,7 @@ subroutine CharCurvesThermalRead(this,input,option)
       case('WATER_FILLED_CONDITIONS')
         this%thermal_conductivity_function => TCFWaterFilledConditionsCreate()
       case('YMR_CONDITIONS')
-        this%thermal_conductivity_function => TCFYMRConditionsCreate()
+        this%thermal_conductivity_function => TCFASMConditionsCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
              'THERMAL_CONDUCTIVITY_FUNCTION',option)
@@ -1140,8 +1138,8 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
     error_string = trim(error_string) // 'DRY_CONDITIONS'
   class is(kT_water_filled_conditions_type)
     error_string = trim(error_string) // 'WATER_FILLED_CONDITIONS'
-  class is(kT_YMR_conditions_type)
-    error_string = trim(error_string) // 'YMR_CONDITIONS'
+  class is(kT_ASM_conditions_type)
+    error_string = trim(error_string) // 'ASM_CONDITIONS'
   end select
 
   call InputPushBlock(input,option)
@@ -1300,7 +1298,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
              'thermal conductivity for water-filled conditions',option)
       end select
       !------------------------------------------
-    class is(kT_YMR_conditions_type)
+    class is(kT_ASM_conditions_type)
       select case(keyword)
       case('THERMAL_CONDUCTIVITY_DRY')
         call InputReadDouble(input,option,tcf%kT_dry)
@@ -1317,12 +1315,12 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       case('DRY_CONDITIONS_BASE')
         call InputReadDouble(input,option,tcf%kT_alpha_base)
         call InputErrorMsg(input,option, &
-             'dry conditions thermal conductivity temperature coefficient', &
+             'assembly conditions temperature coefficient', &
              error_string)
       case('DRY_CONDITIONS_EXPONENT')
         call InputReadDouble(input,option,tcf%kT_alpha_exp)
         call InputErrorMsg(input,option, &
-             'dry conditions thermal conductivity temperature exponent', &
+             'assembly conditions temperature exponent', &
                error_string)
       case('THERMAL_CONDUCTIVITY_WATER')
         call InputReadDouble(input,option,tcf%kT_water)
@@ -1339,11 +1337,11 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       case('POROSITY_ASSEMBLY')
         call InputReadDouble(input,option,tcf%porosity_asm)
         call InputErrorMsg(input,option, &
-             'water-filled conditions assembly porosity', &
+             'assembly porosity', &
              error_string)
       case default
         call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (dry conditions) thermal conductivity',option)
+             'temp-dependent (assembly conditions) thermal conductivity',option)
       end select
       !------------------------------------------
     class is(kT_linear_resistivity_type)
@@ -1585,25 +1583,22 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a29)',advance='no') 'kT_water: '
         write(word1,*) tcf%kT_water
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'kT_solid:'
+        write(id,'(a29)',advance='no') 'kT_solid: '
         write(word1,*) tcf%kT_solid
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'Assembly porosity: '
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_YMR_conditions_type)
-        write(id,'(a)') 'temp.- and sat.-dependent. (YMR conditions)'
-        write(id,'(a29)',advance='no') 'kT_wet: '
-        write(word1,*) tcf%kT_wet
-        write(id,'(a)') adjustl(trim(word1))
+      class is (kT_ASM_conditions_type)
+        write(id,'(a)') 'temp.- and sat.-dependent. (assembly conditions)'
         write(id,'(a29)',advance='no') 'kT_dry: '
         write(word1,*) tcf%kT_dry
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'kT_water: '
         write(word1,*) tcf%kT_water
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'kT_solid:'
+        write(id,'(a29)',advance='no') 'kT_solid: '
         write(word1,*) tcf%kT_solid
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'temperature coefficient: '
