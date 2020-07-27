@@ -20,6 +20,7 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
     procedure, public :: CalculateTCond => TCFBaseConductivity
+    procedure, public :: TensorOp => ThermalConductivityTensorToScalar
   end type thermal_conductivity_base_type
   !---------------------------------------------------------------------------
   type, public, extends(thermal_conductivity_base_type) :: kT_default_type
@@ -1163,6 +1164,125 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
   end select
 
 end subroutine TCFCheckAnisotropy
+
+! ************************************************************************** !
+
+subroutine ThermalConductivityTensorToScalar(this,dist,option)
+  !
+  ! Transform thermal conductivity tensor to a scalar via dot product
+  !
+  use Option_module
+
+  implicit none
+
+  class(thermal_conductivity_base_type) :: this
+  type(option_type) :: option
+  ! -1 = fraction upwind
+  ! 0 = magnitude
+  ! 1 = unit x-dir
+  ! 2 = unit y-dir
+  ! 3 = unit z-dir
+  PetscReal, intent(in) :: dist(-1:3)
+
+  PetscReal :: kxw, kyw, kzw, kxyw, kxzw, kyzw
+  PetscReal :: kxd, kyd, kzd, kxyd, kxzd, kyzd
+  
+  select type(tcf => this)
+  class is(kT_default_type)
+    kxd = tcf%kT(1,1,1)
+    kyd = tcf%kT(1,2,2)
+    kzd = tcf%kT(1,3,3)
+    kxw = tcf%kT(2,1,1)
+    kyw = tcf%kT(2,2,2)
+    kzw = tcf%kT(2,3,3)
+    
+    if (tcf%full_tensor) then
+      kxyd = tcf%kT(1,1,2)
+      kxzd = tcf%kT(1,1,3)
+      kyzd = tcf%kT(1,2,3)
+      kxyw = tcf%kT(2,1,2)
+      kxzw = tcf%kT(2,1,3)
+      kyzw = tcf%kT(2,2,3)
+      tcf%kT_dry = &
+        FullThermalConductivityTensorToScalar(kxd,kyd,kzd,kxyd,kxzd,kyzd,&
+        dist,option) 
+      tcf%kT_wet = &
+        FullThermalConductivityTensorToScalar(kxw,kyw,kzw,kxyw,kxzw,kyzw,&
+        dist,option) 
+    else if (.not. tcf%isotropic) then
+      tcf%kT_dry = &
+        DiagThermalConductivityTensorToScalar(kxd,kyd,kzd,&
+        dist,option) 
+      tcf%kT_wet = &
+        DiagThermalConductivityTensorToScalar(kxw,kyw,kzw,&
+        dist,option) 
+      ! write(*,*)"DRY:",tcf%kT_dry," WET: ",tcf%kT_wet
+    else
+      ! leave user inputs for WET and DRY alone
+    end if
+  end select
+  
+end subroutine ThermalConductivityTensorToScalar
+
+! ************************************************************************** !
+
+function FullThermalConductivityTensorToScalar(kx,ky,kz,kxy,kxz,kyz,dist,&
+  option)
+  !
+  ! Full tensor analysis
+  !
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  ! -1 = fraction upwind
+  ! 0 = magnitude
+  ! 1 = unit x-dir
+  ! 2 = unit y-dir
+  ! 3 = unit z-dir
+  PetscReal :: FullThermalConductivityTensorToScalar
+  PetscReal, intent(in)  :: dist(-1:3)
+
+  PetscReal :: kx,ky,kz,kxy,kxz,kyz
+  
+  FullThermalConductivityTensorToScalar = &
+                                kx*dabs(dist(1))**2.0 + &
+                                ky*dabs(dist(2))**2.0 + &
+                                kz*dabs(dist(3))**2.0 + &
+                                2*kxy*dist(1)*dist(2) + &
+                                2*kxz*dist(1)*dist(3) + &
+                                2*kyz*dist(2)*dist(3)
+  
+end function FullThermalConductivityTensorToScalar
+
+! ************************************************************************** !
+
+function DiagThermalConductivityTensorToScalar(kx,ky,kz,dist,&
+  option)
+  !
+  ! Diagonal tensor analysis
+  !
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  ! -1 = fraction upwind
+  ! 0 = magnitude
+  ! 1 = unit x-dir
+  ! 2 = unit y-dir
+  ! 3 = unit z-dir
+  PetscReal :: DiagThermalConductivityTensorToScalar
+  PetscReal, intent(in)  :: dist(-1:3)
+
+  PetscReal :: kx,ky,kz
+  
+  DiagThermalConductivityTensorToScalar = kx*dabs(dist(1))**2.0 + &
+                                          ky*dabs(dist(2))**2.0 + &
+                                          kz*dabs(dist(3))**2.0
+  
+end function DiagThermalConductivityTensorToScalar
 
 ! ************************************************************************** !
 
