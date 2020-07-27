@@ -805,7 +805,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     ! use default tcc curve for legacy thermal conductivity input by material
     do i = 1, num_mat_prop
       if (.not. option%iflowmode == G_MODE) then
-        ! some modes outside of general will only use one thermal conducitivity
+        ! some modes outside of general will only use one thermal conductivity
         ! if that is the case, use default values as fallback options
         if (patch%material_property_array(i)%ptr%thermal_conductivity_wet == &
           UNINITIALIZED_DOUBLE) then
