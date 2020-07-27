@@ -124,7 +124,8 @@ function PMNWTCreate()
   nwt_pm%controls%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
   nwt_pm%controls%max_dlnC = 5.0d0
   nwt_pm%controls%check_post_converged = PETSC_FALSE
-  nwt_pm%controls%check_post_convergence = PETSC_FALSE
+  ! set to true so that itol_relative_update always gets checked:
+  nwt_pm%controls%check_post_convergence = PETSC_TRUE
   nwt_pm%controls%check_update = PETSC_TRUE
 #ifdef OS_STATISTICS
   nwt_pm%controls%newton_call_count = 0
@@ -279,19 +280,20 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
 
   option => this%option
   
-!  found = PETSC_TRUE
-!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
-!  if (found) return
+  !found = PETSC_TRUE
+  !call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+  !if (found) return
     
   found = PETSC_TRUE
   select case(trim(keyword))
 !geh: these have not been implemented
 !    case('NUMERICAL_JACOBIAN')
 !      option%transport%numerical_derivatives = PETSC_TRUE
-!    case('ITOL_RELATIVE_UPDATE')
-!      call InputReadDouble(input,option,this%controls%newton_inf_rel_update_tol)
-!      call InputErrorMsg(input,option,keyword,error_string)
-!      this%controls%check_post_convergence = PETSC_TRUE
+    case('ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,this%controls%newton_inf_rel_update_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! change the default value to the user specified value:
+      nwt_itol_rel_update = this%controls%newton_inf_rel_update_tol
   case default
       found = PETSC_FALSE
 
@@ -708,9 +710,51 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   SNESConvergedReason :: reason
   PetscErrorCode :: ierr
 
+  PetscReal, pointer :: dC_p(:) ! SOLUTION UPDATE STEP
+  PetscReal, pointer :: C_p(:) ! CURRENT SOLUTION 
+  Vec :: update_vec, curr_solution_vec
+  PetscReal :: max_relative_change
+  PetscReal :: max_update
+  PetscBool :: converged_due_to_rel_update
+  PetscInt :: converged_flag, temp_int
+
   call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
                        this%realization%patch%grid, &
                        this%option,this%solver,ierr)
+
+  ! if (Initialized(nwt_itol_rel_update)) then
+  !   call SNESGetSolution(snes,curr_solution_vec,ierr);CHKERRQ(ierr)
+  !   call SNESGetSolutionUpdate(snes,update_vec,ierr);CHKERRQ(ierr)
+  !   call VecGetArrayReadF90(curr_solution_vec,C_p,ierr);CHKERRQ(ierr)
+  !   call VecGetArrayReadF90(update_vec,dC_p,ierr);CHKERRQ(ierr)
+
+  !   max_update = maxval(dabs(dC_p(:)))
+  !   max_relative_change = maxval(dabs(dC_p(:)/C_p(:)))
+  !   !WRITE(*,*)  '     max_abs(update) = ', max_update
+  !   WRITE(*,*)  'max_relative_change = ', max_relative_change
+
+  !   converged_due_to_rel_update = (max_relative_change < nwt_itol_rel_update)
+  !   converged_flag = 0
+  !   if (converged_due_to_rel_update) converged_flag = 1
+
+  !   ! get global minimum
+  !   call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
+  !                      MPI_MIN,this%realization%option%mycomm,ierr)
+
+  !   ! this will override all previous convergence criteria to keep iterating
+  !   if (temp_int /= 1) then  ! means ITOL_RELATIVE_UPDATE was not satisfied:
+  !     this%realization%option%converged = PETSC_FALSE
+  !     this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
+  !     WRITE(*,*)  '--> CONVERGENCE_KEEP_ITERATING due to &
+  !                  &ITOL_RELATIVE_UPDATE not satisfied.'
+  !   else  ! means ITOL_RELATIVE_UPDATE was satisfied, but the previous
+  !         ! criteria were not met
+  !     ! do nothing - let the instruction proceed based on previous criteria
+  !   endif
+  
+  !   call VecRestoreArrayReadF90(curr_solution_vec,C_p,ierr);CHKERRQ(ierr)
+  !   call VecRestoreArrayReadF90(update_vec,dC_p,ierr);CHKERRQ(ierr)
+  ! endif
 
 end subroutine PMNWTCheckConvergence
 
@@ -824,12 +868,12 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
     call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
   endif
   call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-  WRITE(*,*)  '       C_p(723) = ', C_p(723)
-  WRITE(*,*)  '       C_p(791) = ', C_p(791)
+  !WRITE(*,*)  '       C_p(723) = ', C_p(723)
+  !WRITE(*,*)  '       C_p(791) = ', C_p(791)
   call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
   
-  WRITE(*,*)  '        dC_p(723) = ', dC_p(723)
-  WRITE(*,*)  '        dC_p(791) = ', dC_p(791)
+  !WRITE(*,*)  '        dC_p(723) = ', dC_p(723)
+  !WRITE(*,*)  '        dC_p(791) = ', dC_p(791)
   call VecRestoreArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
 
@@ -870,13 +914,14 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: C0_p(:)
   PetscReal, pointer :: dC_p(:)
   PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: accum_p(:)  
+  PetscReal, pointer :: accum_p(:)
   PetscBool :: converged_due_to_rel_update
   PetscBool :: converged_due_to_residual
   PetscReal :: max_relative_change
   PetscReal :: max_scaled_residual
+  PetscReal :: rel_update
   PetscInt :: converged_flag
-  PetscInt :: temp_int
+  PetscInt :: temp_int, maxloc, i
   PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
   PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
   PetscMPIInt :: mpi_int
@@ -898,6 +943,18 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
     max_relative_change = maxval(dabs(dC_p(:)/C0_p(:)))
+
+    temp_int = 0
+    maxloc = -1
+    do i=1,size(C0_p(:))
+      rel_update = dabs(dC_p(i)/C0_p(i))
+      if (rel_update > nwt_itol_rel_update) then
+        WRITE(*,*)  '   problem cell = ', temp_int, 'rel_update = ', rel_update
+      endif
+      if (rel_update >= max_relative_change) maxloc = temp_int
+      temp_int = temp_int + 1
+    enddo
+    
     call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
@@ -913,16 +970,25 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       converged_flag = 1
     endif
   endif
+
+  WRITE(*,*)  ' max_relative_change = ', max_relative_change
+  WRITE(*,*)  '              maxloc = ', maxloc
+  WRITE(*,*)  '      converged_flag = ', converged_flag
+
   
   ! get global minimum
   call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
                      MPI_MIN,this%realization%option%mycomm,ierr)
-
-  option%converged = PETSC_FALSE
-  if (temp_int == 1) then
-    option%converged = PETSC_TRUE
-  endif
   
+  ! this will override all previous convergence criteria to keep iterating
+    if (temp_int /= 1) then  ! means ITOL_RELATIVE_UPDATE was not satisfied:
+      this%realization%option%converged = PETSC_FALSE
+      this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP !CONVERGENCE_KEEP_ITERATING
+    else  ! means ITOL_RELATIVE_UPDATE was satisfied, but the previous
+          ! criteria were not met
+      ! do nothing - let the instruction proceed based on previous criteria
+    endif
+
   if (this%print_ekg) then
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
@@ -953,7 +1019,8 @@ end subroutine PMNWTCheckUpdatePost
 
 function PMNWTAcceptSolution(this)
   ! 
-  ! Right now this does nothing.
+  ! Right now this does nothing, but if it did spit out PETSC_FALSE, it would
+  ! prompt a time step cut and start the solution process over again.
   ! 
   ! Author: Jenn Frederick
   ! Date: 03/14/13
@@ -965,7 +1032,7 @@ function PMNWTAcceptSolution(this)
   
   PetscBool :: PMNWTAcceptSolution
   
-  ! do nothing
+  ! no nothing
   PMNWTAcceptSolution = PETSC_TRUE
   
 end function PMNWTAcceptSolution

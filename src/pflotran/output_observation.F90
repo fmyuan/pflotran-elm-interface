@@ -2712,7 +2712,7 @@ subroutine OutputMassBalance(realization_base)
           call OutputWriteToHeader(fid,string,'kg','',icol)
           if (option%ntrandof > 0) then
             string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass'
-            call OutputWriteToHeader(fid,string,'kg','',icol)
+            call OutputWriteToHeader(fid,string,'mol','',icol)
           endif
           cur_mbr => cur_mbr%next
         enddo

@@ -12,7 +12,7 @@ module NW_Transport_Aux_module
 
 
   PetscReal, public :: nwt_itol_scaled_res = UNINITIALIZED_DOUBLE
-  PetscReal, public :: nwt_itol_rel_update = UNINITIALIZED_DOUBLE
+  PetscReal, public :: nwt_itol_rel_update = 1.d-1
   PetscReal, public :: MIN_LIQ_SAT = 1.0d-20
     
   type, public :: nw_transport_auxvar_type

@@ -695,8 +695,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 #endif
 
   !WRITE(*,*)  '     ResAccum = ', Res(:)
-  WRITE(*,*)  '       r_p(2) = ', r_p(723), '     loc = 723'
-  WRITE(*,*)  '       r_p(2) = ', r_p(791), '     loc = 791'
+  !WRITE(*,*)  '       r_p(2) = ', r_p(723), '     loc = 723'
+  !WRITE(*,*)  '       r_p(2) = ', r_p(791), '     loc = 791'
   
 #if 1
   !== Source/Sink Terms =======================================
@@ -837,10 +837,13 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
    
-  WRITE(*,*)  '       r_p(5) = ', r_p(723), '     loc = 723'
-  WRITE(*,*)  '       r_p(5) = ', r_p(791), '     loc = 791'
+  !WRITE(*,*)  '       r_p(5) = ', r_p(723), '     loc = 723'
+  !WRITE(*,*)  '       r_p(5) = ', r_p(791), '     loc = 791'
+  !WRITE(*,*)  '     int_flux = ', r_p(723)*option%tran_dt, '     loc = 723'
+  !WRITE(*,*)  '     int_flux = ', r_p(791)*option%tran_dt, '     loc = 791'
 
-  WRITE(*,*)  '   g_sat(790) = ', (1.0 - global_auxvars(790)%sat(LIQUID_PHASE))
+  !WRITE(*,*)  '   g_sat(792) = ', (1.0 - global_auxvars(792)%sat(LIQUID_PHASE))
+  !WRITE(*,*)  ' aq_conc(792) = ', nwt_auxvars(792)%aqueous_eq_conc(:)
   
   ! Boundary Flux Terms ---------------------------------------
   boundary_condition => realization%patch%boundary_condition_list%first
@@ -883,7 +886,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       ! contribution to boundary
         iphase = LIQUID_PHASE
         nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
-          nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) -  &
+          nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) +  &
           Res_dn(1:nspecies)
       endif  
                  
