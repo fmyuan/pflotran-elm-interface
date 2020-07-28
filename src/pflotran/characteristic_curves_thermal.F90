@@ -301,7 +301,7 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
 
   dkT_dtemp = 0.d0 ! only a function of saturation
-  write(*,*)this%kT_dry,this%kT_wet
+  
   if (liquid_saturation > 0.d0) then
     tempreal = sqrt(liquid_saturation) * &
                    (this%kT_wet - this%kT_dry)

@@ -2336,14 +2336,16 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
 
   ! derive wet and dry conductivities with anisotropy tensor and direction
-  ! thermal conductivity a function of temperature and liquid saturation
   call thermal_cc_up%thermal_conductivity_function%TensorOp(&
   dist,option)
+  
+  call thermal_cc_dn%thermal_conductivity_function%TensorOp(&
+  dist,option)
+  
+  ! thermal conductivity a function of temperature and liquid saturation
   call thermal_cc_up%thermal_conductivity_function%CalculateTCond(sat_up, &
        gen_auxvar_up%temp,k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
   
-  call thermal_cc_dn%thermal_conductivity_function%TensorOp(&
-             dist,option)
   call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
        gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
