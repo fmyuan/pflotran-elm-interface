@@ -301,7 +301,7 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
 
   dkT_dtemp = 0.d0 ! only a function of saturation
-
+  write(*,*)this%kT_dry,this%kT_wet
   if (liquid_saturation > 0.d0) then
     tempreal = sqrt(liquid_saturation) * &
                    (this%kT_wet - this%kT_dry)
@@ -389,6 +389,14 @@ function TCFPowerCreate()
   TCFPowerCreate%kT_dry = UNINITIALIZED_DOUBLE
   TCFPowerCreate%ref_temp = -273.15d0
   TCFPowerCreate%gamma = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%isotropic   = PETSC_TRUE
+  TCFPowerCreate%full_tensor = PETSC_FALSE
+  TCFPowerCreate%kT_X   = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_Y   = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_Z   = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_XY  = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_XZ  = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_YZ  = UNINITIALIZED_DOUBLE
 
 end function TCFPowerCreate
 
@@ -473,6 +481,14 @@ function TCFCubicPolynomialCreate()
   TCFCubicPolynomialCreate%beta = [ UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE ]
+  TCFCubicPolynomialCreate%isotropic  = PETSC_TRUE
+  TCFCubicPolynomialCreate%full_tensor= PETSC_FALSE
+  TCFCubicPolynomialCreate%kT_X   = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_Y   = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_Z   = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_XY  = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_XZ  = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_YZ  = UNINITIALIZED_DOUBLE
 
 end function TCFCubicPolynomialCreate
 
@@ -565,6 +581,14 @@ function TCFLinearResistivityCreate()
   TCFLinearResistivityCreate%ref_temp = 0.d0
   TCFLinearResistivityCreate%a = [ UNINITIALIZED_DOUBLE, &
                                       UNINITIALIZED_DOUBLE]
+  TCFLinearResistivityCreate%isotropic  = PETSC_TRUE
+  TCFLinearResistivityCreate%full_tensor= PETSC_FALSE
+  TCFLinearResistivityCreate%kT_X   = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_Y   = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_Z   = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_XY  = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_XZ  = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_YZ  = UNINITIALIZED_DOUBLE
 
 end function TCFLinearResistivityCreate
 
@@ -1189,6 +1213,10 @@ subroutine ThermalConductivityTensorToScalar(this,dist,option)
   
   select type(tcf => this)
   class is(kT_default_type)
+    if (tcf%isotropic) then 
+      return
+    end if
+    
     kxd = tcf%kT(1,1,1)
     kyd = tcf%kT(1,2,2)
     kzd = tcf%kT(1,3,3)
@@ -1216,10 +1244,8 @@ subroutine ThermalConductivityTensorToScalar(this,dist,option)
       tcf%kT_wet = &
         DiagThermalConductivityTensorToScalar(kxw,kyw,kzw,&
         dist,option) 
-      ! write(*,*)"DRY:",tcf%kT_dry," WET: ",tcf%kT_wet
-    else
-      ! leave user inputs for WET and DRY alone
     end if
+    
   end select
   
 end subroutine ThermalConductivityTensorToScalar
