@@ -6147,7 +6147,7 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
  
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR  
 
-  f(1) = current_temp_C + 273.15d0
+  f(1) = log10(current_temp_C + 273.15d0)
   f(2) = log10(conc(1)) ! Env_CO3_2n
   f(3) = log10(conc(2)) ! Env_O2
   f(4) = log10(conc(3)) ! Env_Fe_2p
@@ -6253,7 +6253,7 @@ subroutine KnnrReadH5File(this, option)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
-
+  this%table_data(1,:) = log10(this%table_data(1,:))
   this%table_data(2,:) = log10(this%table_data(2,:))
   this%table_data(3,:) = log10(this%table_data(3,:))
   this%table_data(4,:) = log10(this%table_data(4,:))
@@ -6324,8 +6324,8 @@ subroutine KnnrInverseDistance(knnr_results,nn,table_data,n,eps,qoi_ave)
 
   do i_d = 1,nn
     knnr_qoi = knnr_results(i_d)
-    
-    qoi_i = table_data(n+1,knnr_qoi%idx)
+
+    qoi_i = log10(table_data(n+1,knnr_qoi%idx))
 
     dis = knnr_qoi%dis
 
@@ -6352,6 +6352,7 @@ subroutine KnnrInverseDistance(knnr_results,nn,table_data,n,eps,qoi_ave)
   enddo
  
   qoi_ave = qoi_sum/qoi_weights
+  qoi_ave = 10**(qoi_ave)
   
 end subroutine KnnrInverseDistance
 
