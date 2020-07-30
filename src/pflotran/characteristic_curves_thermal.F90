@@ -445,8 +445,7 @@ function TCFWaterFilledConditionsCreate()
     TCFWaterFilledConditionsCreate
 
   allocate(TCFWaterFilledConditionsCreate)
-  ! User doesn't need to initialize wet or dry thermal conditivities for this case
-  TCFWaterFilledConditionsCreate%kT_wet         = 0.0d0 
+  ! User doesn't need to initialize dry thermal conditivity for this case
   TCFWaterFilledConditionsCreate%kT_dry         = 0.0d0
   TCFWaterFilledConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
@@ -505,7 +504,7 @@ subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation,temperatu
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
-  PetscReal :: lamda, v1, v2, ratio
+  PetscReal :: tempreal, lamda, v1, v2, ratio
 
   ! Reference: equation 15 in Cheng and Hsu, 1999
   
@@ -519,14 +518,23 @@ subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation,temperatu
   
   this%kT_wet = ratio * this%kT_water
   
-  this%kT_dry = this%kT_wet !better to initialize as a non-zero number just in case
+  ! Allow user to impart saturation dependence
+  if (this%kT_dry == 0.0d0) then
+    this%kT_dry = this%kT_wet ! remove saturation dependence if user does not input
+  end if
   
-  thermal_conductivity = this%kT_wet
+  if (liquid_saturation > 0.d0) then
+    tempreal = sqrt(liquid_saturation) * &
+                   (this%kT_wet - this%kT_dry)
+    thermal_conductivity = this%kT_dry + tempreal
+    dkT_dsatl = 0.5d0 * tempreal / liquid_saturation
+  else
+    thermal_conductivity = this%kT_dry
+    dkT_dsatl = 0.d0
+  endif
   
   dkT_dtemp = 0.0d0
   
-  dkT_dsatl = 0.0d0
-
 end subroutine TCFWaterFilledConditionsConductivity
 
 ! ************************************************************************** !
@@ -1371,6 +1379,12 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       !------------------------------------------
     class is(kT_water_filled_conditions_type)
       select case(keyword)
+      case('THERMAL_CONDUCTIVITY_DRY')
+        call InputReadDouble(input,option,tcf%kT_dry)
+        call InputErrorMsg(input,option,'thermal conductivity dry', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case('THERMAL_CONDUCTIVITY_WATER')
         call InputReadDouble(input,option,tcf%kT_water)
         call InputErrorMsg(input,option,'thermal conductivity water', &
@@ -1699,6 +1713,9 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         !---------------------------------
       class is (kT_water_filled_conditions_type)
         write(id,'(a)') 'not sat.- or temp.-dependent (water-filled conditions)'
+        write(id,'(a29)',advance='no') 'kT_dry: '
+        write(word1,*) tcf%kT_dry
+        write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'kT_water: '
         write(word1,*) tcf%kT_water
         write(id,'(a)') adjustl(trim(word1))
