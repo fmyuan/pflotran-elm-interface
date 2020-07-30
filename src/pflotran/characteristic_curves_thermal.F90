@@ -88,6 +88,15 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateTCond => TCFASMConditionsConductivity
   end type kT_ASM_conditions_type
   !---------------------------------------------------------------------------
+  type, public, extends(kT_default_type) :: kT_axial_conditions_type
+    PetscReal :: kT_water
+    PetscReal :: kT_solid
+    PetscReal :: porosity_asm
+  contains
+    procedure, public :: Verify => TCFAxialConditionsVerify
+    procedure, public :: CalculateTCond => TCFAxialConditionsConductivity
+  end type kT_axial_conditions_type
+  !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
@@ -116,6 +125,7 @@ module Characteristic_Curves_Thermal_module
             TCFDryConditionsCreate, &
             TCFWaterFilledConditionsCreate, &
             TCFASMConditionsCreate, &
+            TCFAxialConditionsCreate, &
             TCFAssignDefault
 
 contains
@@ -474,8 +484,7 @@ subroutine TCFWaterFilledConditionsVerify(this,name,option)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%porosity_asm)) then
-    option%io_buffer = & 
-      UninitializedMessage('POROSITY_ASSEMBLY',string)
+    option%io_buffer = UninitializedMessage('POROSITY_ASSEMBLY',string)
     call PrintErrMsg(option)
   endif  
 
@@ -649,6 +658,88 @@ subroutine TCFASMConditionsConductivity(this,liquid_saturation,temperature, &
   endif
 
 end subroutine TCFASMConditionsConductivity
+
+! ************************************************************************** !
+
+function TCFAxialConditionsCreate()
+
+  implicit none
+
+  class(kT_axial_conditions_type), pointer :: TCFAxialConditionsCreate
+
+  allocate(TCFAxialConditionsCreate)
+  ! User doesn't need to initialize wet thermal conditivity for this case
+  TCFAxialConditionsCreate%kT_solid      = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%kT_water      = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%porosity_asm  = UNINITIALIZED_DOUBLE
+
+end function TCFAxialConditionsCreate
+
+! ************************************************************************** !
+
+subroutine TCFAxialConditionsVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_axial_conditions_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,AXIAL_CONDITIONS'
+  endif
+  call TCFBaseVerify(this,string,option)
+  if (Uninitialized(this%kT_water)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_WATER',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kT_solid)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_SOLID',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%porosity_asm)) then
+    option%io_buffer = UninitializedMessage('POROSITY_ASSEMBLY',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine TCFAxialConditionsVerify
+
+! ************************************************************************** !
+
+subroutine TCFAxialConditionsConductivity(this,liquid_saturation,temperature, &
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_axial_conditions_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: tempreal, k1, k2
+
+  ! Assumes parallel heat condition of DPC internals and water
+  
+  k1 = this%kT_solid * (1 - this%porosity_asm)
+  
+  k2 = this%porosity_asm * this%kT_water * liquid_saturation
+  
+  thermal_conductivity = k1 + k2
+  
+  dkT_dtemp = 0.d0
+  
+  dkT_dsatl = this%porosity_asm * this%kT_water
+
+end subroutine TCFAxialConditionsConductivity
 
 ! ************************************************************************** !
 
@@ -1051,6 +1142,8 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFWaterFilledConditionsCreate()
       case('YMR_CONDITIONS')
         this%thermal_conductivity_function => TCFASMConditionsCreate()
+      case('AXIAL_CONDITIONS')
+        this%thermal_conductivity_function => TCFAxialConditionsCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
              'THERMAL_CONDUCTIVITY_FUNCTION',option)
@@ -1140,6 +1233,8 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
     error_string = trim(error_string) // 'WATER_FILLED_CONDITIONS'
   class is(kT_ASM_conditions_type)
     error_string = trim(error_string) // 'ASM_CONDITIONS'
+  class is(kT_axial_conditions_type)
+    error_string = trim(error_string) // 'AXIAL_CONDITIONS'
   end select
 
   call InputPushBlock(input,option)
@@ -1342,6 +1437,30 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'temp-dependent (assembly conditions) thermal conductivity',option)
+      end select
+      !------------------------------------------
+    class is(kT_Axial_conditions_type)
+      select case(keyword)
+      case('THERMAL_CONDUCTIVITY_WATER')
+        call InputReadDouble(input,option,tcf%kT_water)
+        call InputErrorMsg(input,option,'thermal conductivity water', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_water,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity water',option)
+      case('THERMAL_CONDUCTIVITY_SOLID')
+        call InputReadDouble(input,option,tcf%kT_solid)
+        call InputErrorMsg(input,option,'thermal conductivity solid', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_solid,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity solid',option)
+      case('POROSITY_ASSEMBLY')
+        call InputReadDouble(input,option,tcf%porosity_asm)
+        call InputErrorMsg(input,option, &
+             'assembly porosity', &
+             error_string)
+      case default
+        call InputKeywordUnrecognized(input,keyword, &
+             'temp-dependent (axial conditions) thermal conductivity',option)
       end select
       !------------------------------------------
     class is(kT_linear_resistivity_type)
@@ -1606,6 +1725,18 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'exponent: '
         write(word1,*) tcf%kT_alpha_exp
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'Assembly porosity: '
+        write(word1,*) tcf%porosity_asm
+        write(id,'(a)') adjustl(trim(word1))
+        !---------------------------------
+      class is (kT_axial_conditions_type)
+        write(id,'(a)') 'sat.-dependent. (axial conditions)'
+        write(id,'(a29)',advance='no') 'kT_water: '
+        write(word1,*) tcf%kT_water
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'kT_solid: '
+        write(word1,*) tcf%kT_solid
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'Assembly porosity: '
         write(word1,*) tcf%porosity_asm
