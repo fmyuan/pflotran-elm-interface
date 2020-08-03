@@ -347,8 +347,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         write(tcc_name,*)material_property%external_id 
         material_property%thermal_conductivity_function_name = "_TCC_"//&
           trim(adjustl(tcc_name))
-        material_property%thermal_conductivity_function_id = &
-          material_property%external_id
       case('THERMAL_CONDUCTIVITY_WET') 
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_wet)
@@ -360,8 +358,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         write(tcc_name,*)material_property%external_id 
         material_property%thermal_conductivity_function_name = "_TCC_"//&
            trim(adjustl(tcc_name))
-        material_property%thermal_conductivity_function_id = &
-           material_property%external_id
       case('THERMAL_COND_EXPONENT') 
         call InputReadDouble(input,option, &
                              material_property%alpha)
