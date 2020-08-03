@@ -817,7 +817,8 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         endif
       endif 
       default_thermal_cc => CharCurvesThermalCreate()
-      default_thermal_cc%name = 'DEFAULT'
+      default_thermal_cc%name = patch%material_property_array(i)%ptr% &
+                                thermal_conductivity_function_name
       default_thermal_cc%thermal_conductivity_function => TCFDefaultCreate()    
       call TCFAssignDefault(default_thermal_cc%thermal_conductivity_function, &
         patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
