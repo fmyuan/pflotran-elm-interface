@@ -26,7 +26,8 @@ module Characteristic_Curves_Thermal_module
   type, public, extends(thermal_conductivity_base_type) :: kT_default_type
     PetscReal :: kT_wet, kT_dry
     PetscReal :: kT_X, kT_Y, kT_Z, kT_XY, kT_XZ, kT_YZ
-    PetscReal, dimension(2,3,3) :: kT
+    PetscReal, dimension(2,3,3) :: kT   ! thermal conductivity tensor
+    PetscReal, dimension(3,3)   :: kTf  ! anisotropy ratio tensor
     
     PetscBool :: isotropic
     PetscBool :: full_tensor
@@ -235,6 +236,8 @@ function TCFDefaultCreate()
   class(kT_default_type), pointer :: TCFDefaultCreate
 
   allocate(TCFDefaultCreate)
+  TCFDefaultCreate%isotropic  = PETSC_TRUE
+  TCFDefaultCreate%full_tensor= PETSC_FALSE
   TCFDefaultCreate%kT_wet = UNINITIALIZED_DOUBLE
   TCFDefaultCreate%kT_dry = UNINITIALIZED_DOUBLE
   TCFDefaultCreate%kT_X   = UNINITIALIZED_DOUBLE
@@ -243,9 +246,6 @@ function TCFDefaultCreate()
   TCFDefaultCreate%kT_XY  = UNINITIALIZED_DOUBLE
   TCFDefaultCreate%kT_XZ  = UNINITIALIZED_DOUBLE
   TCFDefaultCreate%kT_YZ  = UNINITIALIZED_DOUBLE
-  
-  TCFDefaultCreate%isotropic  = PETSC_TRUE
-  TCFDefaultCreate%full_tensor= PETSC_FALSE
 
 end function TCFDefaultCreate
 
@@ -1022,6 +1022,7 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
 
   error_string = 'THERMAL_CHARACTERISTIC_CURVES,&
        & THERMAL_CONDUCTIVITY_FUNCTION,'
+  
   select type(tcf => thermal_conductivity_function)
   class is(kT_default_type)
     error_string = trim(error_string) // ' DEFAULT'
@@ -1046,6 +1047,8 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
                // trim(error_string) // '.'
           call PrintErrMsg(option)
         end if
+        tcf%kTf(1,1) = tcf%kT_X
+        tcf%kTf(1,1) = tcf%kT_X
         tcf%kT(1,1,1) = tcf%kT_dry * tcf%kT_X
         tcf%kT(2,1,1) = tcf%kT_wet * tcf%kT_X
       else
@@ -1060,6 +1063,8 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
                // trim(error_string) // '.'
           call PrintErrMsg(option)
         end if
+        tcf%kTf(2,2) = tcf%kT_Y
+        tcf%kTf(2,2) = tcf%kT_Y
         tcf%kT(1,2,2) = tcf%kT_dry * tcf%kT_Y
         tcf%kT(2,2,2) = tcf%kT_wet * tcf%kT_Y
       else
@@ -1074,6 +1079,8 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
                // trim(error_string) // '.'
           call PrintErrMsg(option)
         end if
+        tcf%kTf(3,3) = tcf%kT_Z
+        tcf%kTf(3,3) = tcf%kT_Z
         tcf%kT(1,3,3) = tcf%kT_dry * tcf%kT_Z
         tcf%kT(2,3,3) = tcf%kT_wet * tcf%kT_Z
       else
@@ -1097,8 +1104,14 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
           call PrintErrMsg(option)
         end if
         tcf%isotropic = PETSC_FALSE
+        tcf%kTf(1,2) = tcf%kT_XY
+        tcf%kTf(1,2) = tcf%kT_XY
+        tcf%kTf(2,1) = tcf%kT_XY
+        tcf%kTf(2,1) = tcf%kT_XY
         tcf%kT(1,1,2) = tcf%kT_dry * tcf%kT_XY
         tcf%kT(2,1,2) = tcf%kT_wet * tcf%kT_XY
+        tcf%kT(1,2,1) = tcf%kT_dry * tcf%kT_XY
+        tcf%kT(2,2,1) = tcf%kT_wet * tcf%kT_XY
       end if
       
       if (Initialized(tcf%kT_XZ)) then
@@ -1115,8 +1128,14 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
           call PrintErrMsg(option)
         end if
         tcf%isotropic = PETSC_FALSE
+        tcf%kTf(1,3) = tcf%kT_XZ
+        tcf%kTf(1,3) = tcf%kT_XZ
+        tcf%kTf(3,1) = tcf%kT_XZ
+        tcf%kTf(3,1) = tcf%kT_XZ
         tcf%kT(1,1,3) = tcf%kT_dry * tcf%kT_XZ
         tcf%kT(2,1,3) = tcf%kT_wet * tcf%kT_XZ
+        tcf%kT(1,3,1) = tcf%kT_dry * tcf%kT_XZ
+        tcf%kT(2,3,1) = tcf%kT_wet * tcf%kT_XZ
       end if
       
       if (Initialized(tcf%kT_YZ)) then
@@ -1133,8 +1152,14 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
           call PrintErrMsg(option)
         end if
         tcf%isotropic = PETSC_FALSE
+        tcf%kTf(2,3) = tcf%kT_YZ
+        tcf%kTf(2,3) = tcf%kT_YZ
+        tcf%kTf(3,2) = tcf%kT_YZ
+        tcf%kTf(3,2) = tcf%kT_YZ
         tcf%kT(1,2,3) = tcf%kT_dry * tcf%kT_YZ
         tcf%kT(2,2,3) = tcf%kT_wet * tcf%kT_YZ
+        tcf%kT(1,3,2) = tcf%kT_dry * tcf%kT_YZ
+        tcf%kT(2,3,2) = tcf%kT_wet * tcf%kT_YZ
       end if
       
       ! check for isotropy and fully initialize tensor
@@ -1145,8 +1170,13 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
           tcf%full_tensor = PETSC_TRUE
         else
           tcf%isotropic = PETSC_TRUE
-          tcf%kT(1,:,:) = tcf%kT_dry
-          tcf%kT(2,:,:) = tcf%kT_wet
+          tcf%kT(:,:,:) = 0.0d0
+          tcf%kT(1,1,1) = tcf%kT_dry
+          tcf%kT(1,2,2) = tcf%kT_dry
+          tcf%kT(1,3,3) = tcf%kT_dry
+          tcf%kT(2,1,1) = tcf%kT_wet
+          tcf%kT(2,2,2) = tcf%kT_wet
+          tcf%kT(2,3,3) = tcf%kT_wet
           option%io_buffer = 'Thermal conductivity will be treated as' &
                // ' isotropic in '&
                // trim(error_string) // '.'
@@ -1164,6 +1194,15 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
           tcf%kT(:,1,2) = 0.0d0
           tcf%kT(:,1,3) = 0.0d0
           tcf%kT(:,2,3) = 0.0d0
+          tcf%kT(:,2,1) = 0.0d0
+          tcf%kT(:,3,1) = 0.0d0
+          tcf%kT(:,3,2) = 0.0d0
+          tcf%kTf(1,2) = 0.0d0
+          tcf%kTf(1,3) = 0.0d0
+          tcf%kTf(2,3) = 0.0d0
+          tcf%kTf(2,1) = 0.0d0
+          tcf%kTf(3,1) = 0.0d0
+          tcf%kTf(3,2) = 0.0d0
         end if
       end if
       
@@ -1181,8 +1220,24 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
       end if
     else
       tcf%isotropic = PETSC_TRUE
-      tcf%kT(1,:,:) = tcf%kT_dry
-      tcf%kT(2,:,:) = tcf%kT_wet
+      tcf%kT(:,:,:) = 0.0d0
+      tcf%kT(1,1,1) = tcf%kT_dry
+      tcf%kT(1,2,2) = tcf%kT_dry
+      tcf%kT(1,3,3) = tcf%kT_dry
+      tcf%kT(2,1,1) = tcf%kT_wet
+      tcf%kT(2,2,2) = tcf%kT_wet
+      tcf%kT(2,3,3) = tcf%kT_wet
+      tcf%kTf(:,:) = 0.0d0
+      tcf%kTf(1,1) = 1.0d0
+      tcf%kTf(2,2) = 1.0d0
+      tcf%kTf(3,3) = 1.0d0
+      tcf%kTf(1,1) = 1.0d0
+      tcf%kTf(2,2) = 1.0d0
+      tcf%kTf(3,3) = 1.0d0
+    end if
+    
+    if (tcf%full_tensor) then
+      call FullTensorCheckEigenvalues(tcf%kTf,option)
     end if
     
   end select
@@ -1309,6 +1364,137 @@ function DiagThermalConductivityTensorToScalar(kx,ky,kz,dist,&
                                           kz*dabs(dist(3))**2.0
   
 end function DiagThermalConductivityTensorToScalar
+
+! ************************************************************************** !
+
+subroutine FullTensorCheckEigenvalues(kTR,option)
+  !
+  ! Check if full tensor is positive semi-definite
+  !
+  use Option_module
+  
+  implicit none
+  
+  type(option_type) :: option
+  PetscReal, dimension(3,3) :: kTR ! anistropy ratios
+  
+  PetscReal :: a, b, c, d ! characteristic function coefficients
+  PetscReal :: kx,ky,kz,kxy,kxz,kyz ! symmetric tensor components
+  PetscReal :: check
+  PetscReal :: l(3) ! eigenvalues
+  PetscInt  :: i
+  
+  ! symmetric tensor components
+  kx  = kTR(1,1)
+  ky  = kTR(2,2)
+  kz  = kTR(3,3)
+  kxy = kTR(1,2)
+  kxz = kTR(1,3)
+  kyz = kTR(2,3)
+  
+  l = 0.0d0
+  
+  ! cubic polynomial coefficients for characteristic function of tensor
+  ! det(K - I.l) = f(l) = a l^3 + b l^2 + c l + d = 0
+  ! l is an eigenvalue
+  a = -1.0d0
+  b = kx + ky + kz
+  c = (kxy**2 + kxz**2 - kx*ky + kxy*kyz - kx*kz - ky*kz)
+  d = (kxy**2)*kxz - (kxz**2)*ky - kx*kxy*kyz + kxy*kxz*kyz - (kxy**2)*kz + &
+    kx*ky*kz
+  
+  call  CubicFormula(l,a,b,c,d,option)
+  
+  do i=1,3
+    check = FullTensorCharacteristicFunction(l(i),kTR)
+    if (l(i) < 0.0d0) then
+      option%io_buffer = 'Thermal conductivity tensor is not positive'&
+                       //' semi-definite.'
+      call PrintErrMsg(option)
+    end if
+    if (l(i) > 1.0d0) then
+      option%io_buffer = 'Eigenvalues of thermal conductivity tensor '&
+                       //' indicate user input values may be exceeded '&
+                       //' along principal axes.'
+      call PrintMsg(option)
+    end if
+    if (check > 1.0d-1) then
+      option%io_buffer = 'Could not determine positive semi-definite'&
+                       //' thermal conductivity tensor.'
+      call PrintMsg(option)
+    end if
+  end do
+  
+end subroutine FullTensorCheckEigenvalues
+
+function FullTensorCharacteristicFunction(l,kT)
+  !
+  ! Check eigenvalues in characteristic function of tensor
+  !
+  implicit none
+  PetscReal, dimension(3,3) :: kT
+  PetscReal :: l,kx,ky,kz,kxy,kxz,kyz ! symmetric tensor components
+  PetscReal :: FullTensorCharacteristicFunction
+  
+  ! symmetric tensor components
+  kx  = kT(1,1)
+  ky  = kT(2,2)
+  kz  = kT(3,3)
+  kxy = kT(1,2)
+  kxz = kT(1,3)
+  kyz = kT(2,3)
+  
+  ! characteristic function of tensor
+  ! det(K - I.l) = f(l) = a l^3 + b l^2 + c l + d = 0
+  
+  FullTensorCharacteristicFunction = & 
+    kxy**2*kxz - kxz**2*ky - kx*kxy*kyz + kxy*kxz*kyz - kxy**2*kz + kx*ky*kz + &
+    (kxy**2 + kxz**2 - kx*ky + kxy*kyz - kx*kz - ky*kz)*l + &
+    (kx + ky + kz)*l**2 - l**3
+  
+end function FullTensorCharacteristicFunction
+
+! ************************************************************************** !
+
+subroutine CubicFormula(roots,a,b,c,d,option)
+  !
+  ! Find solutions to general cubic formula and provide real solutions
+  !
+  use Option_module
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal, intent(in)    :: a, b, c, d
+  PetscReal, intent(inout) :: roots(3)  
+  PetscReal :: p, q, t, x, y
+  PetscInt  :: k
+  
+  ! François Viète's trigonometric formula for three-real-roots 
+  ! of cubic equation
+  
+  p = (3.0d0*a*c - b**2)/(3.0d0*(a**2))
+  q = (2.0d0*(b**3)-9.0d0*a*b*c+27.0d0*d*(a**2))/(27.0d0*(a**3))
+  
+  ! Check if three real roots are applicable
+  ! This must be true for thermal conductivity tensor
+  y = 4.0d0*(p**3)+27.0d0*(q**2)
+  
+  if ( y >= 0 ) then
+    option%io_buffer = 'Thermal conductivity tensor does not have three'&
+                     //' real eigenvalues.'
+    call PrintErrMsg(option)
+  end if
+  
+  do k = 0,2,1
+    t = 2.0d0*sqrt(-1*p/3.0d0)*cos((1.0d0/3.0d0)* &
+      acos((3.0d0*q/(2.0d0*p))*sqrt(-3.0d0/p))-(2.0d0*pi*k/3.0d0))
+    x = t - (b/(3.0d0*a))
+    roots(k+1) = x
+  end do
+  
+end subroutine CubicFormula
 
 ! ************************************************************************** !
 
