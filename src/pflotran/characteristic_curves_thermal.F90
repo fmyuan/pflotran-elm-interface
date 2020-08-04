@@ -1376,12 +1376,12 @@ subroutine FullTensorCheckEigenvalues(kTR,option)
   implicit none
   
   type(option_type) :: option
-  PetscReal, dimension(3,3) :: kTR ! anistropy ratios
+  PetscReal, dimension(3,3) :: kTR  ! anistropy ratios
   
-  PetscReal :: a, b, c, d ! characteristic function coefficients
+  PetscReal :: a, b, c, d           ! characteristic function coefficients
   PetscReal :: kx,ky,kz,kxy,kxz,kyz ! symmetric tensor components
-  PetscReal :: check
-  PetscReal :: l(3) ! eigenvalues
+  PetscReal :: l(3)   ! eigenvalues
+  PetscReal :: check  ! check eigenvalues in original characteristic function
   PetscInt  :: i
   
   ! symmetric tensor components
@@ -1427,6 +1427,8 @@ subroutine FullTensorCheckEigenvalues(kTR,option)
   
 end subroutine FullTensorCheckEigenvalues
 
+! ************************************************************************** !
+
 function FullTensorCharacteristicFunction(l,kT)
   !
   ! Check eigenvalues in characteristic function of tensor
@@ -1471,17 +1473,17 @@ subroutine CubicFormula(roots,a,b,c,d,option)
   PetscReal :: p, q, t, x, y
   PetscInt  :: k
   
-  ! François Viète's trigonometric formula for three-real-roots 
+  ! François Viète's trigonometric formula for three real roots 
   ! of cubic equation
   
   p = (3.0d0*a*c - b**2)/(3.0d0*(a**2))
-  q = (2.0d0*(b**3)-9.0d0*a*b*c+27.0d0*d*(a**2))/(27.0d0*(a**3))
+  q = (2.0d0*(b**3) - 9.0d0*a*b*c + 27.0d0*d*(a**2))/(27.0d0*(a**3))
   
   ! Check if three real roots are applicable
   ! This must be true for thermal conductivity tensor
-  y = 4.0d0*(p**3)+27.0d0*(q**2)
+  y = 4.0d0*(p**3) + 27.0d0*(q**2)
   
-  if ( y >= 0 ) then
+  if ( y >= 0.0d0 ) then
     option%io_buffer = 'Thermal conductivity tensor does not have three'&
                      //' real eigenvalues.'
     call PrintErrMsg(option)
