@@ -23,26 +23,24 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: TensorOp => ThermalConductivityTensorToScalar
   end type thermal_conductivity_base_type
   !---------------------------------------------------------------------------
-  type, public, extends(thermal_conductivity_base_type) :: kT_default_type
-    PetscReal :: kT_wet, kT_dry
-    PetscReal :: kT_X, kT_Y, kT_Z, kT_XY, kT_XZ, kT_YZ
-    PetscReal, dimension(2,3,3) :: kT   ! thermal conductivity tensor
-    PetscReal, dimension(3,3)   :: kTf  ! anisotropy ratio tensor
-    
-    PetscBool :: isotropic
-    PetscBool :: full_tensor
-    
-  contains
-    procedure, public :: Verify => TCFDefaultVerify
-    procedure, public :: CalculateTCond => TCFDefaultConductivity
-  end type kT_default_type
-  !---------------------------------------------------------------------------
   type, public, extends(thermal_conductivity_base_type) :: kT_constant_type
     PetscReal :: constant_thermal_conductivity
   contains
     procedure, public :: Verify => TCFConstantVerify
     procedure, public :: CalculateTCond => TCFConstantConductivity
   end type kT_constant_type
+  !---------------------------------------------------------------------------
+  type, public, extends(thermal_conductivity_base_type) :: kT_default_type
+    PetscReal :: kT_wet, kT_dry
+    PetscReal :: kT_X, kT_Y, kT_Z, kT_XY, kT_XZ, kT_YZ
+    PetscReal, dimension(2,3,3) :: kT   ! thermal conductivity tensor
+    PetscReal, dimension(3,3)   :: kTf  ! anisotropy ratio tensor    
+    PetscBool :: isotropic
+    PetscBool :: full_tensor
+  contains
+    procedure, public :: Verify => TCFDefaultVerify
+    procedure, public :: CalculateTCond => TCFDefaultConductivity
+  end type kT_default_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_power_type
     PetscReal :: ref_temp
@@ -847,80 +845,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       end select
       !------------------------------------------
     class is(kT_default_type)
-      select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
-      case('THERMAL_CONDUCTIVITY_X')
-        call InputReadDouble(input,option,tcf%kT_X)
-        call InputErrorMsg(input,option, & 
-           'anisotropic thermal conductivity kT_X', error_string)
-        call InputReadAndConvertUnits(input, tcf%kT_X, 'W/m-C', &
-           'CHARACTERISTIC_CURVES_THERMAL, anisotropic thm. cond. kT_X', &
-           option)
-      case('THERMAL_CONDUCTIVITY_Y')
-        call InputReadDouble(input,option,tcf%kT_Y)
-        call InputErrorMsg(input,option, & 
-           'anisotropic thermal conductivity kT_Y', error_string)
-        call InputReadAndConvertUnits(input, tcf%kT_Y, 'W/m-C', &
-           'CHARACTERISTIC_CURVES_THERMAL, anisotropic thm. cond. kT_Y', &
-           option)
-      case('THERMAL_CONDUCTIVITY_Z')
-        call InputReadDouble(input,option,tcf%kT_Z)
-        call InputErrorMsg(input,option, & 
-           'anisotropic thermal conductivity kT_Z', error_string)
-        call InputReadAndConvertUnits(input, tcf%kT_Z, 'W/m-C', &
-           'CHARACTERISTIC_CURVES_THERMAL, anisotropic thm. cond. kT_Z', &
-           option)
-      case('THERMAL_CONDUCTIVITY_XY')
-        call InputReadDouble(input,option,tcf%kT_XY)
-        call InputErrorMsg(input,option, & 
-           'anisotropic thermal conductivity kT_XY', error_string)
-        call InputReadAndConvertUnits(input, tcf%kT_XY, 'W/m-C', &
-           'CHARACTERISTIC_CURVES_THERMAL, anisotropic thm. cond. kT_XY', &
-           option)
-      case('THERMAL_CONDUCTIVITY_XZ')
-        call InputReadDouble(input,option,tcf%kT_XZ)
-        call InputErrorMsg(input,option, & 
-           'anisotropic thermal conductivity kT_XZ', error_string)
-        call InputReadAndConvertUnits(input, tcf%kT_XZ, 'W/m-C', &
-           'CHARACTERISTIC_CURVES_THERMAL, anisotropic thm. cond. kT_XZ', &
-           option)
-      case('THERMAL_CONDUCTIVITY_YZ')
-        call InputReadDouble(input,option,tcf%kT_YZ)
-        call InputErrorMsg(input,option, & 
-           'anisotropic thermal conductivity kT_YZ', error_string)
-        call InputReadAndConvertUnits(input, tcf%kT_YZ, 'W/m-C', &
-           'CHARACTERISTIC_CURVES_THERMAL, anisotropic thm. cond. kT_YZ', &
-           option)
-      case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'saturation-dependent thermal conductivity',option)
-      end select
+      call TCFDefaultRead(tcf,input,keyword,error_string,'default',option)
       !------------------------------------------
     class is(kT_power_type)
       select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
@@ -932,24 +860,11 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputErrorMsg(input,option,'thermal conductivity exponent', &
              error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (power) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string,'power',option)
       end select
       !------------------------------------------
     class is(kT_cubic_polynomial_type)
       select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
@@ -961,24 +876,12 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputErrorMsg(input,option, &
              'thermal conductivity polynomial coefficients',error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (cubic polynomial) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string, &
+          'cubic polynomial',option)
       end select
       !------------------------------------------
     class is(kT_linear_resistivity_type)
-      select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)        
+      select case(keyword)      
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
@@ -990,8 +893,8 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputErrorMsg(input,option, &
              'linear thermal resistivity coefficients',error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (linear resistivity) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string, &
+          'linear resistivity',option)
       end select
 
     class default
@@ -1003,6 +906,68 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
   call InputPopBlock(input,option)
 
 end subroutine TCFRead
+
+! ************************************************************************** !
+
+subroutine TCFDefaultRead(tcf,input,keyword,error_string,kind,option)
+  !
+  ! Reads in contents of THERMAL_CONDUCTIVITY_FUNCTION block for dervived 
+  ! types of thermal conductivity default base class
+  !
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  
+  class(kT_default_type) :: tcf
+  type(input_type) :: input
+  character(len=MAXWORDLENGTH)   :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=*)  :: kind
+  type(option_type) :: option
+  
+  select case(keyword)
+  case('THERMAL_CONDUCTIVITY_WET')
+    call InputReadDouble(input,option,tcf%kT_wet)
+    call InputErrorMsg(input,option,'thermal conductivity wet', &
+         error_string)
+    call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+         'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
+  case('THERMAL_CONDUCTIVITY_DRY')
+    call InputReadDouble(input,option,tcf%kT_dry)
+    call InputErrorMsg(input,option,'thermal conductivity dry', &
+         error_string)
+    call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+         'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
+  case('THERMAL_CONDUCTIVITY_X')
+    call InputReadDouble(input,option,tcf%kT_X)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity X component', error_string)
+  case('THERMAL_CONDUCTIVITY_Y')
+    call InputReadDouble(input,option,tcf%kT_Y)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity Y component', error_string)
+  case('THERMAL_CONDUCTIVITY_Z')
+    call InputReadDouble(input,option,tcf%kT_Z)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity Z component', error_string)
+  case('THERMAL_CONDUCTIVITY_XY')
+    call InputReadDouble(input,option,tcf%kT_XY)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity XY component', error_string)
+  case('THERMAL_CONDUCTIVITY_XZ')
+    call InputReadDouble(input,option,tcf%kT_XZ)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity XZ component', error_string)
+  case('THERMAL_CONDUCTIVITY_YZ')
+    call InputReadDouble(input,option,tcf%kT_YZ)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity YZ component', error_string)
+  case default
+     call InputKeywordUnrecognized(input,keyword, &
+          'temp-dependent ('//trim(kind)//') thermal conductivity',option)
+  end select
+  
+end subroutine
 
 ! ************************************************************************** !
 
@@ -1431,7 +1396,7 @@ end subroutine FullTensorCheckEigenvalues
 
 function FullTensorCharacteristicFunction(l,kT)
   !
-  ! Check eigenvalues in characteristic function of tensor
+  ! Check eigenvalues in characteristic function of symmetric tensor
   !
   implicit none
   PetscReal, dimension(3,3) :: kT
@@ -1460,7 +1425,7 @@ end function FullTensorCharacteristicFunction
 
 subroutine CubicFormula(roots,a,b,c,d,option)
   !
-  ! Find solutions to general cubic formula and provide real solutions
+  ! Find real solutions of general cubic formula
   !
   use Option_module
   use PFLOTRAN_Constants_module
@@ -1474,13 +1439,13 @@ subroutine CubicFormula(roots,a,b,c,d,option)
   PetscInt  :: k
   
   ! François Viète's trigonometric formula for three real roots 
-  ! of cubic equation
+  ! of cubic polynomial
   
   p = (3.0d0*a*c - b**2)/(3.0d0*(a**2))
   q = (2.0d0*(b**3) - 9.0d0*a*b*c + 27.0d0*d*(a**2))/(27.0d0*(a**3))
   
   ! Check if three real roots are applicable
-  ! This must be true for thermal conductivity tensor
+  ! This must be true for the thermal conductivity tensor
   y = 4.0d0*(p**3) + 27.0d0*(q**2)
   
   if ( y >= 0.0d0 ) then
