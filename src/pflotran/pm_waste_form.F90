@@ -33,7 +33,7 @@ module PM_Waste_Form_class
 
   PetscBool, public :: bypass_warning_message = PETSC_FALSE
   PetscBool, public :: FMDM_surrogate_knnr = PETSC_FALSE
-  PetscInt, public :: FMDM_surrogate_knnr_nn = 7
+  PetscInt, public :: FMDM_surrogate_knnr_nn = 60
 
 ! OBJECT rad_species_type:
 ! ========================
