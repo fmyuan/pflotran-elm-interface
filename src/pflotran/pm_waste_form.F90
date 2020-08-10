@@ -33,7 +33,7 @@ module PM_Waste_Form_class
 
   PetscBool, public :: bypass_warning_message = PETSC_FALSE
   PetscBool, public :: FMDM_surrogate_knnr = PETSC_FALSE
-  PetscInt, public :: FMDM_surrogate_knnr_nn = 60
+  PetscInt, public :: FMDM_surrogate_knnr_nn 
 
 ! OBJECT rad_species_type:
 ! ========================
@@ -6205,6 +6205,10 @@ subroutine KnnrReadH5File(this, option)
   !hdf5groupopen
   call HDF5GroupOpen(file_id,group_name,group_id,option)
 
+  !Get Nearest Neighbors
+  call KnnrGetNearestNeighbors(this,group_id,h5_name,option)
+
+  !Read features
   dataset_name = 'Temp'
   call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
  
@@ -6262,6 +6266,51 @@ subroutine KnnrReadH5File(this, option)
 
 end subroutine KnnrReadH5File
 
+! ************************************************************************** !
+
+subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
+
+  use hdf5
+
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+!  integer(HSIZE_T),allocatable :: dims_h5(:)
+  integer(HSIZE_T) :: dims_h5(1) = 1
+
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: h5_name
+  PetscMPIInt :: hdf5_err
+
+  dataset_name = 'Nearest Neighbors Num'
+
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  else
+!!     call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+
+     call h5dread_f(dataset_id,H5T_NATIVE_INTEGER, FMDM_surrogate_knnr_nn, dims_h5, &
+       hdf5_err)
+ 
+     call h5dclose_f(dataset_id,hdf5_err)
+
+  endif
+
+  print *, "nn=", FMDM_surrogate_knnr_nn
+     
+end subroutine KnnrGetNearestNeighbors    
+  
 ! ************************************************************************** !
 
 subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i)
