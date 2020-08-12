@@ -1,0 +1,35 @@
+#Description: Test thermal conductivity anisotropy
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        CHECK_MAX_DPL_LIQ_STATE_ONLY
+        GAS_STATE_AIR_MASS_DOF WATER_MOL_FRAC
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE subsurface_block_anisotropic.txt
+
+NUMERICAL_METHODS FLOW
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+END
+
+REGRESSION
+  CELL_IDS
+    1
+    6
+    19
+    24
+  /
+END
+
+END_SUBSURFACE
