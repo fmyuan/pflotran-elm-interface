@@ -128,7 +128,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
                                        global_auxvars(ghosted_id), &
                                        material_auxvars(ghosted_id), &
                                        patch%characteristic_curves_array( &
-                                         patch%sat_func_id(ghosted_id))%ptr, &
+                                         patch%cc_id(ghosted_id))%ptr, &
                                        option)
   enddo
 

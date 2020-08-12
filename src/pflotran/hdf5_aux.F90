@@ -31,9 +31,37 @@ module HDF5_Aux_module
             HDF5MakeStringCompatible, &
             HDF5ReadDbase, &
             HDF5OpenFileReadOnly, &
-            HDF5GroupOpen
+            HDF5GroupOpen, &
+            HDF5Init, &
+            HDF5Finalize 
 
 contains
+
+! ************************************************************************** !
+
+subroutine HDF5Init(option)
+  ! 
+  ! From the HDF5 library documentation:
+  !
+  ! When the HDF5 Library is employed in a Fortran90 application, h5open_f 
+  ! initializes global variables (for example, predefined types) and performs
+  ! other tasks required to initialize the HDF5 Fortran Library. h5open_f and
+  ! h5close_f are required calls in HDF5 Fortran applications.
+  ! 
+  ! It only needs to be called once, but no damage if more than once
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/06/20
+  ! 
+  use Option_module
+  
+  type(option_type) :: option
+  
+  integer :: hdf5_err
+
+  call h5open_f(hdf5_err)
+  
+end subroutine HDF5Init
 
 ! ************************************************************************** !
 
@@ -45,7 +73,6 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   ! Author: Glenn Hammond
   ! Date: 01/13/10
   ! 
-  use hdf5
   use Option_module
   
   implicit none
@@ -143,7 +170,6 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
   ! Date: 05/13/2010
   ! 
 
-  use hdf5
   use Option_module
   
   implicit none
@@ -225,7 +251,6 @@ subroutine HDF5GroupOpen(parent_id,group_name,group_id,option)
   ! Date: 06/28/18
   ! 
 
-  use hdf5
   use Option_module
   
   implicit none
@@ -256,8 +281,6 @@ function HDF5GroupExists(filename,group_name,option)
   ! Author: Glenn Hammond
   ! Date: 03/26/2012
   ! 
-
-  use hdf5
   use Option_module
   
   implicit none
@@ -274,13 +297,12 @@ function HDF5GroupExists(filename,group_name,option)
   
   PetscBool :: HDF5GroupExists
 
-  ! open the file
-  call h5open_f(hdf5_err)
   ! set read file access property
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
+  ! open the file
   call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   call h5pclose_f(prop_id,hdf5_err)
 
@@ -307,7 +329,6 @@ function HDF5GroupExists(filename,group_name,option)
   call PrintMsg(option)
 
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)  
 
 end function HDF5GroupExists
 
@@ -320,8 +341,6 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
   ! Author: Gautam Bisht
   ! Date: 04/30/2015
   !
-
-  use hdf5
   use Option_module
 
   implicit none
@@ -348,13 +367,12 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
     group_name_local = trim(group_name) // "/" // CHAR(0)
   endif
 
-  ! open the file
-  call h5open_f(hdf5_err)
   ! set read file access property
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
+  ! open the file
   call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   call h5pclose_f(prop_id,hdf5_err)
 
@@ -382,7 +400,6 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
   if (group_exists) call h5gclose_f(grp_id,hdf5_err)
 
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
 end function HDF5DatasetExists
 
@@ -466,7 +483,6 @@ subroutine HDF5ReadDbase(filename,option)
   PetscInt :: num_reals
   PetscInt :: num_words
 
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -666,7 +682,6 @@ subroutine HDF5ReadDbase(filename,option)
     endif
   enddo
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
       
 end subroutine HDF5ReadDbase
 
@@ -680,7 +695,6 @@ subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   ! Author: Glenn Hammond
   ! Date: 06/22/15
   ! 
-  use hdf5
   use Option_module
   
   character(len=*) :: filename  ! must be of variable length
@@ -697,5 +711,22 @@ subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   endif
   
 end subroutine HDF5OpenFileReadOnly
+
+! ************************************************************************** !
+
+subroutine HDF5Finalize(option)
+  ! 
+  ! Closes the HDF5 library interface for Fortran.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/06/20
+  ! 
+  use Option_module
+  
+  type(option_type) :: option
+  
+  call h5close_f(hdf5_err)
+  
+end subroutine HDF5Finalize
 
 end module HDF5_Aux_module

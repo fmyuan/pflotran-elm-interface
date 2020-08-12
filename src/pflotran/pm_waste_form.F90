@@ -22,6 +22,7 @@ module PM_Waste_Form_class
   use Dataset_Ascii_class
   use Region_module
   use Checkpoint_module
+  use Kdtree_module
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -31,6 +32,8 @@ module PM_Waste_Form_class
   private
 
   PetscBool, public :: bypass_warning_message = PETSC_FALSE
+  PetscBool, public :: FMDM_surrogate_knnr = PETSC_FALSE
+  PetscInt, public :: FMDM_surrogate_knnr_nn = 7
 
 ! OBJECT rad_species_type:
 ! ========================
@@ -244,7 +247,7 @@ module PM_Waste_Form_class
 ! ---------------------------------------------------------------------------
 ! Description:  Defines the dissolution behavior of uranium dioxide high
 ! level nuclear waste through coupling to a single-layer feed-forward
-! artificial neural network SURROGATE APPROXIMATION
+! artificial neural network or k nearest neighbors SURROGATE APPROXIMATION
 ! of an external model called the Fuel Matrix Degradation Model (FMDM). This 
 ! object extends the base mechanism object.
 ! ---------------------------------------------------------------------------
@@ -272,10 +275,22 @@ module PM_Waste_Form_class
     PetscInt :: iO2
     PetscInt :: iFe_2p
     PetscInt :: iH2
-    PetscReal, pointer :: outer_weights(:)
-    PetscReal, pointer :: inner_weights(:,:)
-    PetscReal, pointer :: scaler_means(:)
-    PetscReal, pointer :: scaler_variances(:)
+    ! ANN parameters
+    PetscReal :: input_hidden1_weights(6,64)
+    PetscReal :: input_hidden1_bias(64)
+    PetscReal :: hidden1_hidden2_weights(64,64)
+    PetscReal :: hidden1_hidden2_bias(64)
+    PetscReal :: hidden2_output_weights(64)
+    PetscReal :: hidden2_output_bias
+    PetscReal :: scaler_offsets(6)
+    PetscReal :: scaler_scales(6)
+    ! kNNr variables
+    PetscInt :: num_nearest_neighbor
+    type(kdtree), pointer :: tree
+    PetscReal, pointer :: knnr_array(:,:)
+    PetscInt :: num_qoi 
+    PetscReal, pointer :: table_data(:,:)
+    PetscReal :: knnr_eps 
   contains
     procedure, public :: Dissolution => WFMechFMDMSurrogateDissolution
   end type wf_mechanism_fmdm_surrogate_type
@@ -683,7 +698,7 @@ end function PMWFMechanismFMDMCreate
 
 ! ************************************************************************** !
 
-function PMWFMechanismFMDMSurrogateCreate()
+function PMWFMechanismFMDMSurrogateCreate(option)
   ! 
   ! Creates the FMDM surrogate waste form mechanism package
   ! 
@@ -691,6 +706,8 @@ function PMWFMechanismFMDMSurrogateCreate()
   ! Date: 03/05/2019
 
   implicit none
+
+  type(option_type) :: option
 
 ! LOCAL VARIABLES:
 ! ================
@@ -727,25 +744,13 @@ function PMWFMechanismFMDMSurrogateCreate()
   surrfmdm%mapping_surrfmdm = [surrfmdm%iO2,surrfmdm%iCO3_2n, &
                                surrfmdm%iH2,surrfmdm%iFe_2p]
 
-  allocate(surrfmdm%outer_weights(101))
-  open(IUNIT_TEMP,file="ann_surrogate/outer_weights.txt")
-  read(IUNIT_TEMP,*) surrfmdm%outer_weights
-  close(IUNIT_TEMP)
-
-  allocate(surrfmdm%inner_weights(7,100))
-  open(IUNIT_TEMP,file="ann_surrogate/inner_weights.txt")
-  read(IUNIT_TEMP,*) surrfmdm%inner_weights
-  close(IUNIT_TEMP)
-
-  allocate(surrfmdm%scaler_means(6))
-  open(IUNIT_TEMP,file="ann_surrogate/means.txt")
-  read(IUNIT_TEMP,*) surrfmdm%scaler_means
-  close(IUNIT_TEMP)
-
-  allocate(surrfmdm%scaler_variances(6))
-  open(IUNIT_TEMP,file="ann_surrogate/vars.txt")
-  read(IUNIT_TEMP,*) surrfmdm%scaler_variances
-  close(IUNIT_TEMP)
+  if (FMDM_surrogate_knnr) then
+    surrfmdm%knnr_eps = tiny (0.0d0)
+    surrfmdm%num_nearest_neighbor = FMDM_surrogate_knnr_nn
+    call KnnrInit(surrfmdm,option)
+  else
+    call ANNReadH5File(surrfmdm,option)
+  endif
 
   PMWFMechanismFMDMSurrogateCreate => surrfmdm
 
@@ -1170,6 +1175,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   PetscInt :: k, j
   PetscReal :: double
   PetscInt :: integer
+  PetscErrorCode :: ierr
+  PetscLogDouble :: log_start_time, log_end_time
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',MECHANISM'
@@ -1223,7 +1230,19 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         case('FMDM_SURROGATE')
           error_string = trim(error_string) // ' FMDM_SURROGATE'
           allocate(new_mechanism)
-          new_mechanism => PMWFMechanismFMDMSurrogateCreate()
+          call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+          new_mechanism => PMWFMechanismFMDMSurrogateCreate(option)
+          call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+          this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
+      !---------------------------------
+        case('FMDM_SURROGATE_KNNR')
+          FMDM_surrogate_knnr = PETSC_TRUE
+          error_string = trim(error_string) // ' FMDM_SURROGATE_KNNR'
+          allocate(new_mechanism)
+          call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+          new_mechanism => PMWFMechanismFMDMSurrogateCreate(option)
+          call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+          this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
       !---------------------------------
         case('CUSTOM')
           error_string = trim(error_string) // ' CUSTOM'
@@ -1542,7 +1561,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 call InputErrorMsg(input,option,'DECAY_TIME', &
                                    error_string)
                 call InputReadAndConvertUnits(input, &
-                  new_mechanism%decay_time,'day','DECAY_TIME', &
+                  new_mechanism%decay_time,'year','DECAY_TIME', &
                   option)
               class default
                 option%io_buffer = 'ERROR: DECAY_TIME cannot be &
@@ -1551,6 +1570,34 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 num_errors = num_errors + 1
             end select
         !--------------------------
+          case('NEAREST_NEIGHBOR')
+            select type(new_mechanism)
+              type is(wf_mechanism_fmdm_surrogate_type)
+               call InputReadInt(input,option, &
+                     new_mechanism%num_nearest_neighbor)
+                call InputErrorMsg(input,option,'NEAREST_NEIGHBOR', &
+                                   error_string)
+              class default
+                option%io_buffer = 'ERROR: NEAREST_NEIGHBOR cannot be &
+                                   &specified for ' // trim(error_string)
+                call PrintMsg(option)
+                num_errors = num_errors + 1
+             end select
+        !--------------------------
+          case('KNNR_EPS')
+            select type(new_mechanism)
+              type is(wf_mechanism_fmdm_surrogate_type)
+               call InputReadDouble(input,option, &
+                     new_mechanism%knnr_eps)
+                call InputErrorMsg(input,option,'KNNR_EPS', &
+                                   error_string)
+              class default
+                option%io_buffer = 'ERROR: KNNR_EPS cannot be &
+                                   &specified for ' // trim(error_string)
+                call PrintMsg(option)
+                num_errors = num_errors + 1
+             end select
+        !--------------------------     
           case('SPECIES')
             do
               call InputReadPflotranString(input,option)
@@ -3966,11 +4013,11 @@ subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
   call CalcParallelSUM(option,waste_form%rank_list,avg_temp_local, &
                        avg_temp_global)
 
-  call AMP_surrogate_step(this%burnup, time, avg_temp_global, &
-                          this%concentration, this%decay_time, &
-                          this%outer_weights, &
-                          this%inner_weights, this%scaler_means, &
-                          this%scaler_variances, this%dissolution_rate)
+  if (FMDM_surrogate_knnr) then
+    call KnnrQuery(this, time, avg_temp_global)
+  else
+    call AMP_ann_surrogate_step(this, time, avg_temp_global)
+  endif
 
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
@@ -5087,10 +5134,11 @@ subroutine PMWFMechanismStrip(this)
         call DeallocateArray(prev_mechanism%concentration)
         call DeallocateArray(prev_mechanism%mapping_surrfmdm)
         call DeallocateArray(prev_mechanism%mapping_surrfmdm_to_pflotran)
-        call DeallocateArray(prev_mechanism%outer_weights)
-        call DeallocateArray(prev_mechanism%inner_weights)
-        call DeallocateArray(prev_mechanism%scaler_means)
-        call DeallocateArray(prev_mechanism%scaler_variances)
+        if (FMDM_surrogate_knnr) then
+          call DeallocateArray(prev_mechanism%knnr_array)
+          call DeallocateArray(prev_mechanism%table_data)
+          call KdtreeDestroy(prev_mechanism%tree)
+        endif
     end select
     deallocate(prev_mechanism)
     nullify(prev_mechanism)
@@ -5143,6 +5191,8 @@ subroutine PMWFDestroy(this)
   ! Author: Glenn Hammond
   ! Date: 08/26/15
 
+  use String_module
+  
   implicit none
   
 ! INPUT ARGUMENTS:
@@ -5153,9 +5203,11 @@ subroutine PMWFDestroy(this)
 ! ---------------------------------
   character(len=MAXWORDLENGTH) :: word
 
-  write(word,'(f12.1)') this%cumulative_time
-  
-  write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+  if (OptionPrintToScreen(this%option)) then
+    word = StringWrite('(es12.4)',this%cumulative_time)
+    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+  endif
+
   call PMBaseDestroy(this)
   call PMWFStrip(this)
   
@@ -5798,45 +5850,29 @@ end subroutine CriticalityStrip
 
 ! ************************************************************************** !
 
-subroutine AMP_surrogate_step (burnup, sTme, current_temp_C, &
-                               conc, decay_time, &
-                               outer_weights, inner_weights, &
-                               scaler_means, scaler_variances, &
-                               fuelDisRate)
+function relu(x)
+! Rectified linear unit
   implicit none
-  PetscReal, intent(in) :: sTme
-  PetscReal, intent(in) :: burnup
-  PetscReal, intent(in) :: current_temp_C 
-  PetscReal, intent(in) :: decay_time
-  ! four environmental concentrations
-  PetscReal, intent(in) :: conc(:)
-  ! ANN weights
-  PetscReal, intent(in) :: outer_weights(:)
-  PetscReal, intent(in) :: inner_weights(:,:)
-  ! standardization scaler parameters
-  PetscReal, intent(in) :: scaler_means(:)
-  PetscReal, intent(in) :: scaler_variances(:)
-  ! output
-  PetscReal, intent(out) :: fuelDisRate ! g/m2/yr
-  
-  ! local variables
-  PetscReal :: yTme
+  PetscReal :: relu
+  PetscReal, intent(in) :: x
+  if (x >= 0.0d0) then
+    relu = x
+  else
+    relu = 0.0d0
+  endif
+end function relu
+
+! ************************************************************************** !
+
+function dose_rate(years_time, decay_time, burnup)
+! Computes the dose rate at the fuel surface
+  implicit none
+  PetscReal :: dose_rate
+  PetscReal, intent(in) :: years_time, decay_time, burnup
   PetscReal :: f1, f2, f3, f4, f5
-  PetscReal :: AOF, rad0a, rad0
-  PetscReal :: node_sum
-  PetscInt :: i
-  PetscInt :: N ! number of nodes in ANN
-  ! features
-  PetscReal, dimension(6) :: f
-  ! hidden layer nodes values
-  PetscReal, dimension(100) :: h
-  ! constants
-  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+  PetscReal :: AOF, rad0a
 
-  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
-
-  ! calculate dose rate at the fuel surface (rad0)
-  AOF = yTme + decay_time
+  AOF = years_time + decay_time
 
   f2 = log(AOF)
   f1 = f2**2.0d0
@@ -5847,35 +5883,497 @@ subroutine AMP_surrogate_step (burnup, sTme, current_temp_C, &
   rad0a = -206.0634818750711d0   - 0.7631591788870090d0*f1 &
         + 20.97112373957833d0*f2 + 678.8463343193430d0*f3 &
         - 506.7149017370657d0*f4 + 0.1555448893425319d0*f5
-  rad0 = max(exp(rad0a),5.0d-3)
+  dose_rate = max(exp(rad0a),5.0d-3)
+end function dose_rate
+
+! ************************************************************************** !
+subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
+  
+  implicit none
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  PetscReal, intent(in) :: sTme
+  PetscReal, intent(in) :: current_temp_C 
+  ! constants
+  PetscInt, parameter :: num_features = 6 ! number of inputs to ANN
+  PetscInt, parameter :: N = 64 ! number of nodes per hidden layer
+  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+  
+  ! local variables
+  PetscReal :: yTme
+  PetscInt :: i
+  ! features
+  PetscReal :: f(6)
+  ! hidden layer nodes values
+  PetscReal :: h1(64), h2(64)
+
+  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
   ! features
+  f(1) = current_temp_C + 273.15d0
+  f(2) = log10(this%concentration(1)) ! Env_CO3_2n
+  f(3) = log10(this%concentration(2)) ! Env_O2
+  f(4) = log10(this%concentration(3)) ! Env_Fe_2p
+  f(5) = log10(this%concentration(4)) ! Env_H2
+  f(6) = log10(dose_rate(yTme,this%decay_time,this%burnup))
+
+  ! standardize
+  do i = 1,num_features
+    f(i) = (f(i) - this%scaler_offsets(i))/this%scaler_scales(i)
+  enddo
+
+  ! Input - Hidden Layer 1
+  do i = 1,N
+    h1(i) = relu(dot_product(f, this%input_hidden1_weights(:,i)) &
+          + this%input_hidden1_bias(i))
+  enddo
+
+  ! Hidden Layer 1 - Hidden Layer 2
+  do i = 1,N
+    h2(i) = relu(dot_product(h1, this%hidden1_hidden2_weights(:,i)) &
+          + this%hidden1_hidden2_bias(i))
+  enddo
+
+  ! Hidden Layer 2 - Output
+  this%dissolution_rate = 10**(dot_product(h2, this%hidden2_output_weights) &
+                        + this%hidden2_output_bias)*UO2_molar_mass
+
+end subroutine AMP_ann_surrogate_step
+
+! ************************************************************************** !
+
+subroutine ANNReadH5File(this, option)
+
+  use hdf5
+  use HDF5_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  
+  character(len=MAXSTRINGLENGTH) :: h5_name = 'fmdm_ann_coeffs.h5'
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: group_name = '/'
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+
+  integer(HID_T) :: prop_id
+  integer(HID_T) :: file_id
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+
+  integer(HSIZE_T), allocatable :: dims_h5(:)
+
+  PetscMPIInt :: hdf5_err
+ 
+  call h5open_f(hdf5_err)
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option)
+
+  dataset_name = 'input_hidden1_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_weights, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'input_hidden1_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_bias,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden1_hidden2_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_weights, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden1_hidden2_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_bias, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden2_output_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_weights,dims_h5, &
+                   hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden2_output_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_bias,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'scaler_offsets'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_offsets,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'scaler_scales'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_scales,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  call h5gclose_f(group_id,hdf5_err)
+  call h5fclose_f(file_id,hdf5_err)
+  call h5pclose_f(prop_id,hdf5_err)
+
+end subroutine ANNReadH5File
+
+! ************************************************************************** !
+
+subroutine ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id,&
+                               dims_h5)
+ 
+  use hdf5
+  
+  implicit none
+
+  type(option_type) :: option
+  
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
+
+  PetscInt :: i
+  PetscInt :: ndims_h5
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: h5_name
+  PetscMPIInt :: hdf5_err
+
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  endif
+ 
+  call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+  call h5sget_simple_extent_ndims_f(file_space_id,ndims_h5,hdf5_err)
+
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  
+  call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
+
+  deallocate(max_dims_h5)
+
+end subroutine ANNGetH5DatasetInfo
+
+! ************************************************************************** !
+
+subroutine KnnrInit(this,option)
+  
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  PetscInt :: i_n, i_d, d
+  PetscInt :: data_array_shape(2)
+
+  call KnnrReadH5File(this, option)
+
+  data_array_shape = shape(this%table_data)
+  ! Quantities of Interest (QoI) is not part of the search query of the search query.
+  this%num_qoi = data_array_shape(1)-1
+  d = data_array_shape(2)
+
+  allocate(this%knnr_array(this%num_qoi,d))
+
+  do i_d = 1, this%num_qoi
+    this%knnr_array(i_d,:) = this%table_data(i_d,:)
+  end do
+ 
+  this%tree => KdtreeCreate()
+
+  call KdtreeConstruct(this%tree,this%knnr_array,sort=PETSC_FALSE,rearrange=PETSC_FALSE)  
+
+end subroutine KnnrInit
+
+! ************************************************************************** !
+
+subroutine KnnrQuery(this,sTme,current_temp_C)
+
+  implicit none
+
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+
+  PetscReal :: current_temp_C
+  PetscReal :: decay_time 
+  PetscReal, allocatable :: conc(:)
+  PetscReal :: burnup 
+  PetscReal :: sTme
+  PetscInt :: nn 
+
+  PetscReal :: fuelDisRate 
+
+  ! features
+  PetscReal :: f(6)
+  PetscReal :: yTme
+
+  PetscReal :: qoi_ave
+  PetscReal, parameter :: UO2_molar_mass = 270.0d0 !g/mol
+      
+  type(kdtree_result), allocatable :: knnr_results(:)
+
+  decay_time = this%decay_time
+  conc = this%concentration
+  burnup = this%burnup
+  nn = this%num_nearest_neighbor
+ 
+  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR  
+
   f(1) = current_temp_C + 273.15d0
   f(2) = log10(conc(1)) ! Env_CO3_2n
   f(3) = log10(conc(2)) ! Env_O2
   f(4) = log10(conc(3)) ! Env_Fe_2p
   f(5) = log10(conc(4)) ! Env_H2
-  f(6) = log10(rad0)
+  f(6) = log10(dose_rate(yTme,decay_time,burnup))
 
-  ! standardize
-  do i = 1,6
-    f(i) = (f(i) - scaler_means(i))/sqrt(scaler_variances(i))
-  enddo
+  allocate(knnr_results(nn))
 
-  N = 100 ! 100 nodes
+  call kdtreeNNearest(tp=this%tree,qv=f,nn=nn,results=knnr_results)
 
-  do i = 1,N
-    node_sum = dot_product(f, inner_weights(1:6,i)) + inner_weights(7,i)
-    if (node_sum < 0.0d0) then
-      node_sum = 0.0d0
+  call KnnrInverseDistance(knnr_results,nn,this%table_data,this%num_qoi,this%knnr_eps,qoi_ave)
+
+  this%dissolution_rate = (qoi_ave) * UO2_molar_mass !convert units
+
+end subroutine KnnrQuery
+
+! ************************************************************************** !
+
+subroutine KnnrReadH5File(this, option)
+
+  use hdf5
+  use HDF5_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  
+  character(len=MAXSTRINGLENGTH) :: h5_name = 'FMDM_knnr_data.h5'
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: group_name = '/'
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+
+  integer(HID_T) :: prop_id
+  integer(HID_T) :: file_id
+  integer(HID_T) :: parent_id
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
+
+  PetscInt :: ndims_h5
+  
+  PetscMPIInt :: hdf5_err
+ 
+  call h5open_f(hdf5_err)
+ 
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+ 
+  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
+
+  call h5pclose_f(prop_id,hdf5_err)
+
+  !hdf5groupopen
+  call HDF5GroupOpen(file_id,group_name,group_id,option)
+
+  dataset_name = 'Temp'
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+ 
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  endif
+ 
+  ! get dataspace ID
+  call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+ 
+  call h5sget_simple_extent_ndims_f(file_space_id,ndims_h5,hdf5_err)
+
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  
+  call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
+
+  allocate(this%table_data(7,dims_h5(1)))
+
+
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(1,:), dims_h5, &
+                   hdf5_err)
+
+  call h5dclose_f(dataset_id,hdf5_err)
+
+  dataset_name = 'Env_CO3_2n'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,2)
+  dataset_name = 'Env_O2'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,3)
+  dataset_name = 'Env_Fe_2p'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,4)
+  dataset_name = 'Env_H2'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,5)
+  dataset_name = 'Dose Rate d0'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,6)
+  dataset_name = 'UO2 Surface Flux'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,7)
+
+  deallocate(dims_h5)
+  deallocate(max_dims_h5)
+
+  
+  call h5gclose_f(group_id,hdf5_err)
+  call h5fclose_f(file_id,hdf5_err)
+  call h5close_f(hdf5_err)
+
+
+  this%table_data(2,:) = log10(this%table_data(2,:))
+  this%table_data(3,:) = log10(this%table_data(3,:))
+  this%table_data(4,:) = log10(this%table_data(4,:))
+  this%table_data(5,:) = log10(this%table_data(5,:))
+  this%table_data(6,:) = log10(this%table_data(6,:))
+
+end subroutine KnnrReadH5File
+
+! ************************************************************************** !
+
+subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i)
+
+  use hdf5
+  
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T),allocatable :: dims_h5(:)
+
+  PetscInt :: i
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: h5_name
+  PetscMPIInt :: hdf5_err
+
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  endif
+ 
+  ! get dataspace ID
+  call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(i,:), dims_h5, &
+       hdf5_err)
+  
+  call h5dclose_f(dataset_id,hdf5_err)
+
+
+end subroutine KnnrReadH5Dataset
+
+! ************************************************************************** !
+
+subroutine KnnrInverseDistance(knnr_results,nn,table_data,n,eps,qoi_ave)
+
+  implicit none
+
+  PetscReal :: qoi_i, qoi_sum, qoi_ave, qoi_weights, weight, dis
+ 
+  type(kdtree_result), allocatable :: knnr_results(:)
+  PetscReal :: eps, table_data(:,:)
+  PetscInt :: n
+
+  type(kdtree_result) :: knnr_qoi
+  PetscInt :: i_d,nn
+
+  qoi_weights = 0.0
+  qoi_sum = 0.0
+
+  do i_d = 1,nn
+    knnr_qoi = knnr_results(i_d)
+    
+    qoi_i = table_data(n+1,knnr_qoi%idx)
+
+    dis = knnr_qoi%dis
+
+    if (abs(dis) <= eps) then
+      qoi_weights = 1.0
+      qoi_sum = qoi_i
+
+      exit
+    elseif (KnnrIsInfinite(abs(1/dis))) then
+      qoi_weights = 1.0
+      qoi_sum = qoi_i
+         
+      exit
+    else 
+
+       weight = 1 / dis
+
+       qoi_sum = qoi_sum + qoi_i * weight
+
+       qoi_weights = qoi_weights + weight
+
     endif
-    h(i) = node_sum
+
   enddo
+ 
+  qoi_ave = qoi_sum/qoi_weights
+  
+end subroutine KnnrInverseDistance
 
-  fuelDisRate= 10**(dot_product(h,outer_weights(1:N)) + &
-                          outer_weights(101))*UO2_molar_mass
+! ************************************************************************** !
 
-end subroutine AMP_surrogate_step
+function KnnrIsInfinite(value1)
+
+  implicit none
+
+  PetscBool :: KnnrIsInfinite
+  PetscReal :: value1
+  PetscReal :: infinity
+
+  KnnrIsInfinite = PETSC_FALSE
+    
+  infinity = huge(0.0d0)
+ 
+  if (value1 >= infinity) then
+    KnnrIsInfinite = PETSC_TRUE
+  endif
+ 
+end function KnnrIsInfinite
 
 ! ************************************************************************** !
 

@@ -1,0 +1,15 @@
+SIMULATION
+  EXTERNAL_FILE simulation/general.txt
+END
+
+SUBSURFACE
+  OUTPUT
+    EXTERNAL_FILE output/general_th_variables.txt
+    FORMAT TECPLOT BLOCK
+    VELOCITY_AT_FACE
+    FLUXES
+  /
+  EXTERNAL_FILE grid/structured.txt
+  EXTERNAL_FILE subsurface/all.txt
+  EXTERNAL_FILE subsurface/general.txt
+END_SUBSURFACE

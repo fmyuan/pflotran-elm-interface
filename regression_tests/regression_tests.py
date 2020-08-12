@@ -559,6 +559,11 @@ class RegressionTest(object):
                     with open(current_filename, 'rU') as current_file:
                         current_output = current_file.readlines()
 
+                if current_filename.endswith('tec'):
+                    tec = True
+                else:
+                    tec = False
+                    
                 gold_filename = current_filename + ".gold"
                 if not os.path.isfile(gold_filename):
                     message = self._txtwrap.fill(
@@ -579,7 +584,7 @@ class RegressionTest(object):
                                             status, testlog)
                 else:
                     self._compare_ascii_output(current_output, gold_output, 
-                                               status, testlog)
+                                               status, testlog, tec)
             if diff:
                 if status.error == _NULL_ERROR and status.fail == _NULL_FAILURE:
                     print("    Passed ASCII output comparison check.", 
@@ -850,54 +855,218 @@ class RegressionTest(object):
                 testlog.write('      '+line)
         
         
-    def _compare_ascii_output(self, ascii_current, ascii_gold, status, testlog):
+    def _compare_ascii_output(self, ascii_current, ascii_gold, status, testlog,tec):
         """Compare ascii file output headers and values has not changed from 
            the baseline.
-        """
-        
-        if ascii_gold[0] != ascii_current[0]:
-            print("    FAIL: Headers do not match in ascii output", file=testlog)
-            status.fail = _MINOR_FAILURE
+        """               
+        if tec:
+            self._compare_ascii_tec_output(ascii_current, ascii_gold, status, testlog)
         else:
-            headers = ascii_gold[0].split(',')
-            ascii_gold.pop(0)
-            ascii_current.pop(0)
-
-            for i in range(len(ascii_gold)):
-                gold_values = ascii_gold[i].split()
-                current_values = ascii_current[i].split() 
+            
+            if ascii_gold[0] != ascii_current[0]:
+                print("    FAIL: Headers do not match in ascii output", file=testlog)
+                status.fail = _MINOR_FAILURE
+            else:
                 tol = self._tolerance[self._GENERIC]
                 tolerance_type = tol[self._TOL_TYPE]
                 tolerance = tol[self._TOL_VALUE]
-                            
-                for k in range(len(gold_values)):
-                    name = headers[k]
+        
+                headers = ascii_gold[0].split(',')
+                ascii_gold.pop(0)
+                ascii_current.pop(0)
     
-                    current = float(current_values[k])
-                    previous = float(gold_values[k])
-    
-                    if tolerance_type == self._ABSOLUTE:
-                        delta = abs(previous - current)
-                    elif (tolerance_type == self._RELATIVE or
-                        tolerance_type == self._PERCENT):
-                        if previous != 0:
-                            delta = abs((previous - current) / previous)
-                        elif current != 0:
-                            delta = abs((previous - current) / current)
-                        else:
-                        # both are zero
-                            delta = 0.0
-                            if tolerance_type == self._PERCENT:
-                                delta *= 100.0
-                    
-                    if delta > tolerance:
-                        print("    FAIL: {0} : {1} > {2} [{3}]".format(
-                              name, delta, tolerance, tolerance_type), file=testlog)
-                        status.fail = _MINOR_FAILURE
-                    elif self._debug:                                
-                        print("    PASS: {0} : {1} <= {2} [{3}]".format(
-                              name, delta, tolerance, tolerance_type), file=testlog)
+                for i in range(len(ascii_gold)):
+                    gold_values = ascii_gold[i].split()
+                    current_values = ascii_current[i].split() 
+                               
+                    for k in range(len(gold_values)):
+                        name = headers[k]
+                        
+                        self._check_ascii_numbers(current_values[k],gold_values[k],name,tolerance,tolerance_type,status,testlog)
 
+                            
+    def _compare_ascii_tec_output(self, ascii_current, ascii_gold, status, testlog):
+        tol = self._tolerance[self._GENERIC]
+        tolerance_type = tol[self._TOL_TYPE]
+        tolerance = tol[self._TOL_VALUE]
+                
+        num_vertices = 0
+        num_values = 0
+        check_x_values = True
+        check_y_values = True
+        check_z_values = True
+        connectivity = False
+        cell_center = False
+        pack_type = None 
+        
+        j = 0
+        
+        for i in range(len(ascii_gold)):
+
+            number = False
+            if ('VARIABLES' in ascii_gold[i]): 
+                if ascii_gold[i] != ascii_current[i]:                    
+                    print("    FAIL: Headers do not match in ascii output", file=testlog)
+                    status.fail = _MINOR_FAILURE
+                    break
+                else:
+                    line = ascii_gold[i].strip()
+                    words = re.split(',|=',line)
+                    words = words[1:]
+                    headers = [x.strip('"') for x in words]
+
+            elif ('ZONE' in ascii_gold[i]):
+                if ascii_gold[i] != ascii_current[i]:
+                    print("    FAIL: Headers do not match in ascii output", file=testlog)
+                    status.fail = _MINOR_FAILURE
+                    break
+                else:
+                    words = ascii_gold[i].strip().split(",")
+        
+                    for word in words:
+                        
+                        if " I=" in word or re.match("^I=",word):       
+                            index_x = word.strip().split('=')[-1] 
+                            index_x=int(index_x)
+                            if index_x == 1:
+                                index_x1 = index_x
+                            else:
+                                index_x1 = index_x - 1
+                                
+                        if " J=" in word or re.match("^J=",word):
+                            index_y = word.strip().split('=')[-1] 
+                            index_y = int(index_y)
+                            if index_y == 1:
+                                index_y1 = index_y
+                            else:
+                                index_y1 = index_y - 1
+                               
+                        if " K=" in word or re.match("^K=",word):
+                            index_z = word.strip().split('=')[-1] 
+                            index_z = int(index_z)
+                           
+                            if index_z == 1:
+                               index_z1 = index_z
+                            else:
+                               index_z1 = index_z - 1
+                           
+                            num_vertices = index_x*index_y*index_z                  
+                            num_values = index_x1 * index_y1 * index_z1
+                            values_left = num_vertices
+                            
+                        if " N=" in word:
+                            num_vertices = word.strip().split('=')[-1]
+                            num_vertices = int(num_vertices)
+                            values_left = num_vertices
+                        if " E=" in word:
+                            num_values = word.strip().split('=')[-1]
+                            num_values = int(num_values)   
+                        if "DATAPACKING" in word:
+                            pack_type = word.strip().split('=')[-1]
+                            
+                        if "VARLOCATION" in word:
+                            if word.strip().split('=')[-1] == "CELLCENTERED)":
+                                cell_center = True
+            else:
+                gold_values = ascii_gold[i].strip().split()
+                current_values = ascii_current[i].strip().split()
+        
+                try:
+                    float(gold_values[0])
+                    number = True
+                except:
+                    number = False
+                if number and not connectivity: 
+
+                    if pack_type == "BLOCK":
+                        if check_x_values:
+                            
+                            for k in range(len(gold_values)):
+                                self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
+            
+                            values_left = values_left - len(gold_values)
+            
+                            if values_left  == 0:
+                                check_x_values = False
+                                values_left = num_vertices
+                                j = j + 1
+            
+                        elif check_y_values:
+                            for k in range(len(gold_values)):
+                                self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
+                            
+                            values_left = values_left - len(gold_values)
+                            if values_left  == 0:
+                                check_y_values = False
+                                values_left = num_vertices
+                                j = j + 1
+                          
+            
+                        elif check_z_values:
+                            for k in range(len(gold_values)):
+                                self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
+            
+                            values_left = values_left - len(gold_values)
+                            if values_left  == 0:
+                                check_z_values = False
+                                if cell_center:
+                                    values_left = num_values
+                                else:
+                                    values_left = num_vertices
+                                j = j + 1
+                            
+                        else:
+                            
+                            for k in range(len(gold_values)):  
+                                self._check_ascii_numbers(current_values[k],gold_values[k],headers[j],tolerance,tolerance_type,status,testlog)
+            
+                            values_left = values_left - len(gold_values)
+                            if values_left  == 0:
+                                if cell_center:
+                                    values_left = num_values
+                                else:
+                                    values_left = num_vertices
+                                j = j + 1
+                        if j == len(headers):
+                            connectivity = True
+                    else:
+                        for k in range(len(gold_values)):
+                            name = headers[k]
+                            self._check_ascii_numbers(current_values[k],gold_values[k],name,tol,tolerance_type,status,testlog)
+                        j = j + 1
+                        if j == num_vertices:
+                            connectivity = True
+                else:
+                    if ascii_gold[i] != ascii_current[i]:                        
+                        print("    FAIL: Headers do not match in ascii output", file=testlog)
+                        status.fail = _MINOR_FAILURE
+                        break
+                    
+    def _check_ascii_numbers(self,current,previous,name,tolerance,tolerance_type,status,testlog):
+        current = float(current)
+        previous = float(previous)
+        
+        if tolerance_type == self._ABSOLUTE:
+            delta = abs(previous - current)
+        elif (tolerance_type == self._RELATIVE or
+            tolerance_type == self._PERCENT):
+            if previous != 0:
+                delta = abs((previous - current) / previous)
+            elif current != 0:
+                delta = abs((previous - current) / current)
+            else:
+            # both are zero
+                delta = 0.0
+                if tolerance_type == self._PERCENT:
+                    delta *= 100.0
+        
+        if delta > tolerance:
+            print("    FAIL: {0} : {1} > {2} [{3}]".format(
+                  name, delta, tolerance, tolerance_type), file=testlog)
+            status.fail = _MINOR_FAILURE
+        elif self._debug:                                
+            print("    PASS: {0} : {1} <= {2} [{3}]".format(
+                  name, delta, tolerance, tolerance_type), file=testlog)
 
     def update(self, status, testlog):
         """
@@ -1023,6 +1192,7 @@ class RegressionTest(object):
         section_num_minor_fail = 0
         section_num_major_fail = 0
         section_num_error = 0
+        section_status = 0
         if self._check_performance is False and data_type.lower() == self._SOLUTION:
             # solution blocks contain platform dependent performance
             # metrics. We skip them unless they are explicitly
@@ -1032,7 +1202,7 @@ class RegressionTest(object):
             # if key in gold but not in current --> failed test
             for k in gold_section:
                 if k not in current_section:
-                    section_num_minor_error += 1
+                    section_num_error += 1
                     print("    ERROR: key '{0}' in section '{1}' found in gold "
                           "output but not current".format(
                               k, gold_section['name']), file=testlog)
@@ -1040,7 +1210,7 @@ class RegressionTest(object):
             # if key in current but not gold --> failed test
             for k in current_section:
                 if k not in gold_section:
-                    section_num_minor_error += 1
+                    section_num_error += 1
                     print("    ERROR: key '{0}' in section '{1}' found in current "
                           "output but not gold".format(k, current_section['name']),
                           file=testlog)
@@ -1055,7 +1225,7 @@ class RegressionTest(object):
                     gold = gold_section[k].split()
                     current = current_section[k].split()
                     if len(gold) != len(current):
-                        section_num_minor_error += 1
+                        section_num_error += 1
                         print("    ERROR: {0} : {1} : vector lengths not "
                               "equal. gold {2}, current {3}".format(
                                   name, k, len(gold), len(current)), file=testlog)

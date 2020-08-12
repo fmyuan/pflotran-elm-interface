@@ -17,6 +17,7 @@ module Patch_module
   use Material_module
   use Field_module
   use Saturation_Function_module
+  use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_module
   use Surface_Field_module
   use Surface_Material_module
@@ -42,7 +43,8 @@ module Patch_module
     ! go in the auxiliary data stucture for that mode
     PetscInt, pointer :: imat(:)
     PetscInt, pointer :: imat_internal_to_external(:)
-    PetscInt, pointer :: sat_func_id(:)
+    PetscInt, pointer :: cc_id(:)    ! characteristic curves id
+    PetscInt, pointer :: cct_id(:)   ! thermal characteristic curves id
 
     PetscReal, pointer :: internal_velocities(:,:)
     PetscReal, pointer :: boundary_velocities(:,:)
@@ -79,7 +81,9 @@ module Patch_module
     type(saturation_function_ptr_type), pointer :: saturation_function_array(:)
     class(characteristic_curves_type), pointer :: characteristic_curves
     type(characteristic_curves_ptr_type), pointer :: characteristic_curves_array(:)
-
+    class(cc_thermal_type), pointer :: characteristic_curves_thermal
+    type(cc_thermal_ptr_type), pointer :: char_curves_thermal_array(:)
+    
     type(strata_list_type), pointer :: strata_list
     type(observation_list_type), pointer :: observation_list
     type(integral_flux_list_type), pointer :: integral_flux_list
@@ -171,7 +175,8 @@ function PatchCreate()
   patch%surf_or_subsurf_flag = SUBSURFACE
   nullify(patch%imat)
   nullify(patch%imat_internal_to_external)
-  nullify(patch%sat_func_id)
+  nullify(patch%cc_id)
+  nullify(patch%cct_id)
   nullify(patch%internal_velocities)
   nullify(patch%boundary_velocities)
   nullify(patch%internal_tran_coefs)
@@ -206,6 +211,8 @@ function PatchCreate()
   nullify(patch%saturation_function_array)
   nullify(patch%characteristic_curves)
   nullify(patch%characteristic_curves_array)
+  nullify(patch%characteristic_curves_thermal)
+  nullify(patch%char_curves_thermal_array)
 
   allocate(patch%observation_list)
   call ObservationInitList(patch%observation_list)
@@ -1964,7 +1971,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   GENERAL_AIR_PRESSURE_INDEX),iconn) = &
                     gas_pressure - p_sat ! air pressure
             endif
-            call patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))% &
+            call patch%characteristic_curves_array(patch%cc_id(ghosted_id))% &
                    ptr%saturation_function%Saturation(p_cap,s_liq, &
                    dummy_real,option)
             ! %flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) set to 3 in hydrostatic
@@ -3187,7 +3194,7 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
     if (toil_ims%pressure%itype == HYDROSTATIC_BC) then
       dof2 = PETSC_TRUE
       call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
-                   patch%characteristic_curves_array,patch%sat_func_id, &
+                   patch%characteristic_curves_array,patch%cc_id, &
                    patch%imat)
       coupler%flow_bc_type(TOIL_IMS_OIL_EQUATION_INDEX) = HYDROSTATIC_BC
       coupler%flow_bc_type(TOIL_IMS_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
@@ -3404,7 +3411,7 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
             coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = DIRICHLET_BC
           case(HYDROSTATIC_BC)
             call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
-                         patch%characteristic_curves_array,patch%sat_func_id, &
+                         patch%characteristic_curves_array,patch%cc_id, &
                          patch%imat)
             dof1 = PETSC_TRUE
             dof2 = PETSC_TRUE
@@ -3842,7 +3849,7 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsMPH
@@ -3944,7 +3951,7 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsIMS
@@ -4045,7 +4052,7 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsFLASH2
@@ -4321,7 +4328,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsTH
@@ -4495,7 +4502,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
   if (associated(flow_condition%rate)) then
     select case(flow_condition%rate%itype)
@@ -9720,7 +9727,8 @@ end subroutine PatchCountCells
 
 ! ************************************************************************** !
 
-subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
+subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1, &
+                                      max_pore_velocity)
   !
   ! Calculates largest time step to preserves a
   ! CFL # of 1 in a patch
@@ -9741,6 +9749,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   type(patch_type) :: patch
   type(option_type) :: option
   PetscReal :: max_dt_cfl_1
+  PetscReal :: max_pore_velocity
 
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -9756,7 +9765,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iphase
-
+  PetscReal :: tempreal(2)
   PetscReal :: dt_cfl_1
   PetscErrorCode :: ierr
 
@@ -9766,6 +9775,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   grid => patch%grid
 
   max_dt_cfl_1 = 1.d20
+  max_pore_velocity = 0.d0
 
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -9799,12 +9809,13 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
         v_darcy = patch%internal_velocities(iphase,sum_connection)
         v_pore_max = v_darcy / por_sat_min
         v_pore_ave = v_darcy / por_sat_ave
-        !geh: I use v_por_max to ensure that we limit the cfl based on the
+        !geh: I use v_pore_max to ensure that we limit the cfl based on the
         !     highest velocity through the face.  If porosity*saturation
         !     varies, the pore water velocity will be highest on the side
         !     of the face with the smalled value of porosity*saturation.
         dt_cfl_1 = distance / dabs(v_pore_max)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
+        max_pore_velocity = max(v_pore_max,max_pore_velocity)
       enddo
     enddo
     cur_connection_set => cur_connection_set%next
@@ -9823,16 +9834,27 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
       !geh: since on boundary, dist must be scaled by 2.d0
       distance = 2.d0*cur_connection_set%dist(0,iconn)
       do iphase = 1, option%nphase
+        ! the _ave variable is being reused. it is actually, max
         por_sat_ave = material_auxvars(ghosted_id_dn)%porosity* &
                       global_auxvars(ghosted_id_dn)%sat(iphase)
         v_darcy = patch%boundary_velocities(iphase,sum_connection)
         v_pore_ave = v_darcy / por_sat_ave
         dt_cfl_1 = distance / dabs(v_pore_ave)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
+        max_pore_velocity = max(v_pore_ave,max_pore_velocity)
       enddo
     enddo
     boundary_condition => boundary_condition%next
   enddo
+
+  tempreal(1) = max_dt_cfl_1
+  tempreal(2) = -max_pore_velocity
+  call MPI_Allreduce(MPI_IN_PLACE,tempreal,TWO_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MIN, &
+                     option%mycomm,ierr)
+
+  max_dt_cfl_1 = tempreal(1)
+  max_pore_velocity = -tempreal(2)
 
 end subroutine PatchCalculateCFL1Timestep
 
@@ -10669,9 +10691,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
                                     global_total_mass)
   !
   ! Calculates the total mass (aqueous, sorbed, and precipitated) in a region
-  ! in units of mol.
+  ! in units of kg. [modified to kg from mol by Heeho]
   !
-  ! Author: Jenn Frederick
+  ! Author: Jenn Frederick, Heeho Park
   ! Date: 04/25/2016
   !
   use Global_Aux_module
@@ -10780,7 +10802,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   !
   ! Calculates the water mass in a region in kg
   !
-  ! Author: Satish Karra
+  ! Author: Satish Karra, Heeho Park
   ! Date: 09/20/2016
   !
   use Global_Aux_module
@@ -10815,10 +10837,10 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
     ghosted_id = patch%grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     m3_water = material_auxvars(ghosted_id)%porosity * &         ! [-]
-               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
+               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water %]
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     kg_water = m3_water*global_auxvars(ghosted_id)% &            ! [m^3-water]
-               den(LIQUID_PHASE)                                 ! [kg/m^3-water]
+               den_kg(LIQUID_PHASE)                              ! [kg/m^3-water]
     local_water_mass = local_water_mass + kg_water
   enddo ! Cell loop
 
@@ -11175,7 +11197,8 @@ subroutine PatchDestroy(patch)
 
   call DeallocateArray(patch%imat)
   call DeallocateArray(patch%imat_internal_to_external)
-  call DeallocateArray(patch%sat_func_id)
+  call DeallocateArray(patch%cc_id)
+  call DeallocateArray(patch%cct_id)
   call DeallocateArray(patch%internal_velocities)
   call DeallocateArray(patch%boundary_velocities)
   call DeallocateArray(patch%internal_tran_coefs)
@@ -11210,6 +11233,11 @@ subroutine PatchDestroy(patch)
   ! Since this linked list will be destroyed by realization, just nullify here
   nullify(patch%characteristic_curves)
 
+  if (associated(patch%char_curves_thermal_array)) &
+       deallocate(patch%char_curves_thermal_array)
+  nullify(patch%char_curves_thermal_array)
+  nullify(patch%characteristic_curves_thermal)
+  
   nullify(patch%surf_field)
   if (associated(patch%surf_material_property_array)) &
     deallocate(patch%surf_material_property_array)

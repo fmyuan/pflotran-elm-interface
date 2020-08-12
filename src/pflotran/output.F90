@@ -503,9 +503,16 @@ subroutine OutputFileRead(input,realization,output_option, &
             end select
             if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
                  .and. option%mycommsize > 1) then
+              option%io_buffer = 'TECPLOT POINT format not supported in &
+                &parallel. Switching to TECPLOT BLOCK.'
+              call PrintMsg(option)
               output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
             endif
             if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+              option%io_buffer = 'TECPLOT FEBRICK is the only supported &
+                &TECPLOT format for implicit unstructured grids. &
+                &Switching to TECPLOT FEBRICK.'
+              call PrintMsg(option)
               output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
             endif
         !.............

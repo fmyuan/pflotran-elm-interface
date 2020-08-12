@@ -42,6 +42,8 @@ module Material_module
     PetscBool :: tortuosity_function_of_porosity
     PetscInt :: saturation_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
+    PetscInt :: thermal_conductivity_function_id
+    character(len=MAXWORDLENGTH) :: thermal_conductivity_function_name
     PetscReal :: rock_density ! kg/m^3
     PetscReal :: specific_heat ! J/kg-K
     PetscReal :: thermal_conductivity_dry
@@ -179,6 +181,7 @@ function MaterialPropertyCreate()
   material_property%tortuosity_pwr = 0.d0
   material_property%tortuosity_func_porosity_pwr = UNINITIALIZED_DOUBLE
   material_property%saturation_function_id = 0
+  material_property%thermal_conductivity_function_id = UNINITIALIZED_INTEGER
   material_property%saturation_function_name = ''
   material_property%rock_density = UNINITIALIZED_DOUBLE
   material_property%specific_heat = UNINITIALIZED_DOUBLE
@@ -258,6 +261,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word, internal_units
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: buffer_save
+  character(len=MAXSTRINGLENGTH) :: tcc_name
 
   PetscInt :: length
   PetscBool :: therm_k_frz
@@ -307,6 +311,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            material_property%saturation_function_name)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
+      case('THERMAL_CHARACTERISTIC_CURVES')
+        call InputReadWord(input,option, &
+             material_property%thermal_conductivity_function_name,PETSC_TRUE)
       case('ROCK_DENSITY') 
         call InputReadDouble(input,option,material_property%rock_density)
         call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')
@@ -337,6 +344,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadAndConvertUnits(input, &
                    material_property%thermal_conductivity_dry, &
                    'W/m-C','MATERIAL_PROPERTY,dry thermal conductivity',option)
+        write(tcc_name,*)material_property%external_id 
+        material_property%thermal_conductivity_function_name = "_TCC_"//&
+          trim(adjustl(tcc_name))
       case('THERMAL_CONDUCTIVITY_WET') 
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_wet)
@@ -345,6 +355,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadAndConvertUnits(input, &
                    material_property%thermal_conductivity_wet, &
                    'W/m-C','MATERIAL_PROPERTY,wet thermal conductivity',option)
+        write(tcc_name,*)material_property%external_id 
+        material_property%thermal_conductivity_function_name = "_TCC_"//&
+           trim(adjustl(tcc_name))
       case('THERMAL_COND_EXPONENT') 
         call InputReadDouble(input,option, &
                              material_property%alpha)
@@ -2224,7 +2237,12 @@ subroutine MaterialPropInputRecord(material_property_list)
     
     write(id,'(a29)',advance='no') 'cc / saturation function: '
     write(id,'(a)') adjustl(trim(cur_matprop%saturation_function_name))
-    
+
+    if (Initialized(cur_matprop%thermal_conductivity_function_id)) then
+      write(id,'(a29)',advance='no') 'thermal char. curve: '
+      write(id,'(a)') adjustl(trim(cur_matprop%thermal_conductivity_function_name))
+    end if
+  
     write(id,'(a29)') '---------------------------: '
     cur_matprop => cur_matprop%next
   enddo

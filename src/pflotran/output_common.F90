@@ -1711,7 +1711,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   PetscInt :: sum_connection, count
   Vec :: vec_proc
   PetscInt :: idof
-  PetscInt :: icap_up, icap_dn
+  PetscInt :: icc_up, icc_dn
   PetscReal :: sir_up, sir_dn
   PetscReal, parameter :: eps = 1.D-8
   PetscReal :: upweight
@@ -1740,8 +1740,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_up = grid%nG2L(ghosted_id_up)
       local_id_dn = grid%nG2L(ghosted_id_dn) 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
       if (option%myrank == int(vec_proc_ptr(sum_connection))) then
         count = count + 1
 

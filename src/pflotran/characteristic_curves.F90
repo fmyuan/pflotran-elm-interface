@@ -168,6 +168,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SF_KRP12_Create()
           case('IGHCC2_COMP')
             this%saturation_function => SF_IGHCC2_Comp_Create()
+          case('LOOKUP_TABLE')
+            this%saturation_function => SF_Table_Create()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
                                           option)
@@ -383,6 +385,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('IGHCC2_COMP_GAS')
             rel_perm_function_ptr => RPF_IGHCC2_Comp_Gas_Create()
             phase_keyword = 'GAS'
+          case('TABLE_LIQ')
+            rel_perm_function_ptr => RPF_TABLE_Liq_Create()
+            phase_keyword = 'LIQUID'
+          case('TABLE_GAS')
+            rel_perm_function_ptr => RPF_TABLE_Gas_Create()
+            phase_keyword = 'GAS'
           case('CONSTANT')
             rel_perm_function_ptr => RPF_Constant_Create()
             ! phase_keyword = 'NONE'
@@ -593,6 +601,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Dataset_Ascii_class
 
   implicit none
   
@@ -600,8 +609,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: keyword, internal_units
+  character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
 
@@ -639,6 +648,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       error_string = trim(error_string) // 'BRAGFLO_KRP12'
     class is(sat_func_IGHCC2_Comp_type)
       error_string = trim(error_string) // 'IGHCC2_COMP'
+    class is (sat_func_Table_type) 
+      error_string = trim(error_string) // 'LOOKUP_TABLE'
   end select
   
   call InputPushBlock(input,option)
@@ -971,6 +982,15 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputKeywordUnrecognized(input,keyword, &
                    'saturation function IGHCC2 Comparison',option)
         end select
+      class is (sat_func_Table_type)
+        select case(keyword)
+          case('FILE')
+            internal_units = 'unitless , Pa'
+            call InputReadFilename(input,option,table_name)
+            call DatasetAsciiReadFile(sf%pc_dataset,table_name, &
+                                      temp_string, internal_units, &
+                                      error_string,option)
+        end select
     !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for ' &
@@ -1025,6 +1045,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
   use Option_module
   use Input_Aux_module
   use String_module
+  use Dataset_Ascii_class
 
   implicit none
   
@@ -1034,7 +1055,9 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, new_phase_keyword
+  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
 
@@ -1113,6 +1136,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'IGHCC2_COMP_LIQ'
     class is(rpf_IGHCC2_Comp_gas_type)
       error_string = trim(error_string) // 'IGHCC2_COMP_GAS'
+    class is(rpf_Table_liq_type)
+      error_string = trim(error_string) // 'LOOKUP_TABLE_LIQ'
+    class is(rpf_Table_gas_type)
+      error_string = trim(error_string) // 'LOOKUP_TABLE_GAS'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
   end select
@@ -1609,6 +1636,37 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
+      class is(rpf_Table_liq_type)
+        select case(keyword)
+          case('FILE')
+            internal_units = 'unitless , unitless'
+            call InputReadFilename(input,option,table_name)
+            call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
+                                      temp_string, internal_units, &
+                                      error_string,option)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+              'Lookup Table liquid rel perm function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_Table_gas_type)
+        select case(keyword)
+          case('FILE')
+            internal_units = 'unitless , unitless'
+            call InputReadFilename(input,option,table_name)
+            call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
+                                      temp_string, internal_units, &
+                                      error_string,option)
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+              'Lookup Table gas rel perm function', &
+              option)
+        end select
+    !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for relative ' // &
                            'permeability function class.'
@@ -1921,7 +1979,7 @@ subroutine GetOWGCriticalAndConnateSats(this,swcr,sgcr,socr,sowcr,sogcr,swco,&
      sowcr = this%ow_rel_perm_func_owg%GetCriticalSaturation(option)
      socr = sowcr
      sogcr = 0.0
-  else if ( associated(this%oil_rel_perm_func_owg) ) then
+  elseif ( associated(this%oil_rel_perm_func_owg) ) then
     socr = this%oil_rel_perm_func_owg%GetCriticalSaturation(option)
     sowcr = this%oil_rel_perm_func_owg%GetSowcr(option)
     sogcr = this%oil_rel_perm_func_owg%GetSogcr(option)
@@ -2461,7 +2519,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
       class is (sat_func_xw_table_type)
         call sf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
-  else if (wat_gas_interface_present) then !attempt to create from list of cc_tables
+  elseif (wat_gas_interface_present) then !attempt to create from list of cc_tables
     error_string_search = trim(error_string) // 'searching for PC_GW,'
     call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCXW, &
                                     table_name,error_string_search,option)
@@ -2476,7 +2534,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
       class is (sat_func_og_table_type)
         call sf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
-  else if (oil_gas_interface_present) then !attempt to create from list of cc_tables
+  elseif (oil_gas_interface_present) then !attempt to create from list of cc_tables
     error_string_search = trim(error_string) // 'searching for PC_OG,'
     call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCOG, &
                                      table_name,error_string_search,option)
@@ -2506,7 +2564,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
      class is (RPF_gas_owg_table_type)
        call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
-  else if(gas_present) then !attempt to create from list of cc_tables
+  elseif (gas_present) then !attempt to create from list of cc_tables
     error_string_search = trim(error_string) // 'searching for KRG,'
     call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KRG, &
                                     table_name,error_string_search,option)
@@ -2521,7 +2579,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
       class is (rel_perm_ow_owg_table_type)
         call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
     end select
-  else if (oil_perm_2ph_ow) then !attempt to create from list of cc_tables
+  elseif (oil_perm_2ph_ow) then !attempt to create from list of cc_tables
     error_string_search = trim(error_string) // 'searching for KROW,'
     call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROW, &
                                     table_name,error_string_search,option)
@@ -2544,7 +2602,7 @@ subroutine CharCurvesOWGPostReadProcess(cc,option)
           call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
        end select
     end if   
-  else if(oil_perm_3ph_owg) then
+  elseif (oil_perm_3ph_owg) then
     !default to eclipse - user must enter the KRO block to define different 
     !models when available
     cc%oil_rel_perm_func_owg => RPF_oil_ecl_Create()
