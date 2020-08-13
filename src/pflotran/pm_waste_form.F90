@@ -33,7 +33,6 @@ module PM_Waste_Form_class
 
   PetscBool, public :: bypass_warning_message = PETSC_FALSE
   PetscBool, public :: FMDM_surrogate_knnr = PETSC_FALSE
-  PetscInt, public :: FMDM_surrogate_knnr_nn 
 
 ! OBJECT rad_species_type:
 ! ========================
@@ -746,7 +745,6 @@ function PMWFMechanismFMDMSurrogateCreate(option)
 
   if (FMDM_surrogate_knnr) then
     surrfmdm%knnr_eps = tiny (0.0d0)
-    surrfmdm%num_nearest_neighbor = FMDM_surrogate_knnr_nn
     call KnnrInit(surrfmdm,option)
   else
     call ANNReadH5File(surrfmdm,option)
@@ -6194,8 +6192,6 @@ subroutine KnnrReadH5File(this, option)
   
   PetscMPIInt :: hdf5_err
  
-  call h5open_f(hdf5_err)
- 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
  
   call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
@@ -6255,7 +6251,6 @@ subroutine KnnrReadH5File(this, option)
   
   call h5gclose_f(group_id,hdf5_err)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   this%table_data(1,:) = log10(this%table_data(1,:))
   this%table_data(2,:) = log10(this%table_data(2,:))
@@ -6281,9 +6276,7 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
   integer(HID_T) :: dataset_id
   integer(HID_T) :: file_space_id
 
-!  integer(HSIZE_T),allocatable :: dims_h5(:)
   integer(HSIZE_T) :: dims_h5(1) = 1
-
 
   character(len=MAXSTRINGLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: h5_name
@@ -6298,16 +6291,11 @@ subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
     trim(h5_name) // '".'
     call PrintErrMsg(option)
   else
-!!     call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
-
-     call h5dread_f(dataset_id,H5T_NATIVE_INTEGER, FMDM_surrogate_knnr_nn, dims_h5, &
+     call h5dread_f(dataset_id,H5T_NATIVE_INTEGER, this%num_nearest_neighbor, dims_h5, &
        hdf5_err)
  
      call h5dclose_f(dataset_id,hdf5_err)
-
   endif
-
-  print *, "nn=", FMDM_surrogate_knnr_nn
      
 end subroutine KnnrGetNearestNeighbors    
   
