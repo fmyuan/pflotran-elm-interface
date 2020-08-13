@@ -433,7 +433,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute pressures below datum, if any
     pressure0 = pressure_array(idatum)
     select case(option%iflowmode)
-      case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE,TOIL_IMS_MODE)
+      case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE, &
+           G_MODE,TOIL_IMS_MODE)
         temperature = temperature_at_datum
     end select
     dist_z = 0.d0
@@ -441,8 +442,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum-1,1,-1
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE, &
-          TOIL_IMS_MODE)
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE, &
+             G_MODE,TOIL_IMS_MODE)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
@@ -551,6 +552,13 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case (MPH_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
+        if (pressure < 0.d0) then
+          option%io_buffer = 'Negative liquid pressure calculated by &
+            &hydrotatic calculation within MPHASE FLOW_CONDITION "' // &
+            trim(condition%name) // '", which is not allowed. Please use &
+            &a different type of FLOW_CONDITION.'
+          call PrintErrMsgByRank(option)
+        endif
       case(TOIL_IMS_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case default
