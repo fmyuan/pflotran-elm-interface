@@ -7361,6 +7361,9 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%z(grid%nL2G(local_id))
       enddo
+    case(K_ORTHOGONALITY_ERROR)
+      !call PatchGetKOrthogonalityError(patch,vec_ptr)
+      vec_ptr(:) = UNINITIALIZED_DOUBLE
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select

@@ -89,6 +89,11 @@ OUTPUT
   VELOCITY_AT_CENTER
   VELOCITY_AT_FACE
   FLOWRATE
+  VARIABLES
+    LIQUID_PRESSURE
+    LIQUID_SATURATION
+    K_ORTHOGONALITY_ERROR
+  /
 END
 
 #=========================== times ============================================
