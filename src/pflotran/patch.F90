@@ -7362,8 +7362,10 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         vec_ptr(local_id) = grid%z(grid%nL2G(local_id))
       enddo
     case(K_ORTHOGONALITY_ERROR)
-      !call PatchGetKOrthogonalityError(patch,vec_ptr)
-      vec_ptr(:) = UNINITIALIZED_DOUBLE
+      if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+        call PatchGetKOrthogonalityError(grid, material_auxvars, vec_ptr)
+        !vec_ptr(:) = UNINITIALIZED_DOUBLE
+      endif
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -10110,6 +10112,115 @@ subroutine PatchGetCellCenteredVelocities(patch,iphase,velocities)
   deallocate(sum_area)
 
 end subroutine PatchGetCellCenteredVelocities
+
+! ************************************************************************** !
+
+subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
+  !
+  ! Calculates the K orthogonality error at all cells in a patch
+  ! Error from https://www.onepetro.org/conference-paper/SPE-37998-MS
+  ! Work only for unstructured implicit grid type
+  !
+  ! Author: Moise Rousseau
+  ! Date: 06/28/20
+
+  use Option_module
+  use Connection_module
+  use Geometry_module
+  use Material_Aux_class
+  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, & 
+                               PERMEABILITY_Z, PERMEABILITY_XY, &
+                               PERMEABILITY_XZ, PERMEABILITY_YZ
+  use Utility_module, only : DotProduct, CrossProduct
+  !use Grid_Unstructured_Aux_module
+  
+  implicit none
+  
+  type(grid_type), pointer :: grid
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscReal, pointer :: error(:)
+  class (connection_set_type), pointer :: connections
+  
+  PetscInt :: cell_id, face_id, i, iconn
+  PetscInt :: local_id, ghosted_id
+  PetscReal :: v1(3),v2(3),normal(3), num(3), den(3)
+  PetscReal :: face_error, normal_magnitude
+  type(point3d_type) :: point1, point2, point3
+  PetscReal, allocatable :: array_normal(:), array_error(:)
+  PetscErrorCode :: ierr
+  PetscReal :: kx, kxy, kxz, ky, kyz, kz
+  
+  type(option_type) :: option
+  
+  !unstructured_grid => patch%grid%unstructured_grid
+  connections => grid%internal_connection_set_list%first
+  
+  allocate(array_normal(grid%nlmax))
+  allocate(array_error(grid%nlmax))
+  array_normal = 0.0
+  array_error = 0.0
+
+  do iconn = 1, connections%num_connections
+    ! For each face we need face normal and the vecteur between the two center
+    ! shared by the face
+    face_id = connections%face_id(iconn)
+
+    ! Normal computation
+    point1 = grid%unstructured_grid%vertices( &
+                          grid%unstructured_grid%face_to_vertex(1,face_id))
+    point2 = grid%unstructured_grid%vertices( &
+                          grid%unstructured_grid%face_to_vertex(2,face_id))
+    point3 = grid%unstructured_grid%vertices( &
+                          grid%unstructured_grid%face_to_vertex(3,face_id))
+    v1(1) = point1%x-point2%x
+    v1(2) = point1%y-point2%y
+    v1(3) = point1%z-point2%z
+    v2(1) = point1%x-point3%x
+    v2(2) = point1%y-point3%y
+    v2(3) = point1%z-point3%z  
+    normal = CrossProduct(v1,v2)
+    normal_magnitude = sqrt(DotProduct(normal,normal))
+    normal = normal / normal_magnitude * grid%unstructured_grid%face_area(face_id)
+    
+    ! Error for upwind cell
+    do i = 1, 2
+      ghosted_id = grid%unstructured_grid%face_to_cell_ghosted(i,face_id)
+      if (ghosted_id < 1) exit
+      ! get permeability
+      kx = MaterialAuxVarGetValue(material_auxvars(ghosted_id),PERMEABILITY_X)
+      ky = MaterialAuxVarGetValue(material_auxvars(ghosted_id),PERMEABILITY_Y)
+      kz = MaterialAuxVarGetValue(material_auxvars(ghosted_id),PERMEABILITY_Z)
+      kxy = MaterialAuxVarGetValue(material_auxvars(ghosted_id),PERMEABILITY_XY)
+      kxz = MaterialAuxVarGetValue(material_auxvars(ghosted_id),PERMEABILITY_XZ)
+      kyz = MaterialAuxVarGetValue(material_auxvars(ghosted_id),PERMEABILITY_YZ)
+      
+      ! error computation
+      ! denominator
+      den = 0.0
+      den(1) = normal(1)*kx + normal(2)*kxy + normal(3)*kxz
+      den(2) = normal(1)*kxy + normal(2)*ky + normal(3)*kyz
+      den(3) = normal(1)*kxz + normal(2)*kyz + normal(3)*kz
+      ! numerator
+      num = den - DotProduct(den,connections%dist(1:3,iconn)) * &
+                                      connections%dist(1:3,iconn)
+      ! face error
+      local_id = grid%nG2L(ghosted_id)
+      !write(option%io_buffer,*) ghosted_id
+      !call PrintMsg(option)
+      array_error(ghosted_id) = array_error(ghosted_id) + sqrt(DotProduct(num,num))
+      array_normal(ghosted_id) = array_normal(ghosted_id) + &
+                                      sqrt(DotProduct(den,den))
+    enddo
+  enddo
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    error(local_id) = array_error(ghosted_id) / array_normal(ghosted_id)
+  enddo
+  
+  deallocate(array_normal)
+  deallocate(array_error)
+
+end subroutine PatchGetKOrthogonalityError
 
 ! ************************************************************************** !
 
