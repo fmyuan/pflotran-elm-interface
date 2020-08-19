@@ -1227,8 +1227,8 @@ subroutine TCondTensorToScalar(this,dist,option)
   ! 3 = unit z-dir
   PetscReal, intent(in) :: dist(-1:3)
 
-  PetscReal :: kxw, kyw, kzw, kxyw, kxzw, kyzw
-  PetscReal :: kxd, kyd, kzd, kxyd, kxzd, kyzd
+  PetscReal :: kTd(3,3) ! dry thermal conductivity tensor
+  PetscReal :: kTw(3,3) ! wet thermal conductivity tensor
   
   select type(tcf => this)
   class is(kT_default_type)
@@ -1236,29 +1236,15 @@ subroutine TCondTensorToScalar(this,dist,option)
       return
     endif
     
-    kxd = tcf%kT(1,1,1)
-    kyd = tcf%kT(1,2,2)
-    kzd = tcf%kT(1,3,3)
-    kxw = tcf%kT(2,1,1)
-    kyw = tcf%kT(2,2,2)
-    kzw = tcf%kT(2,3,3)
+    kTd = tcf%kT(1,:,:)
+    kTw = tcf%kT(2,:,:)
     
     if (tcf%full_tensor) then
-      kxyd = tcf%kT(1,1,2)
-      kxzd = tcf%kT(1,1,3)
-      kyzd = tcf%kT(1,2,3)
-      kxyw = tcf%kT(2,1,2)
-      kxzw = tcf%kT(2,1,3)
-      kyzw = tcf%kT(2,2,3)
-      tcf%kT_dry = &
-        FullTCondTensorToScalar(kxd,kyd,kzd,kxyd,kxzd,kyzd,dist,option) 
-      tcf%kT_wet = &
-        FullTCondTensorToScalar(kxw,kyw,kzw,kxyw,kxzw,kyzw,dist,option) 
+      tcf%kT_dry = FullTCondTensorToScalar(kTd,dist,option)
+      tcf%kT_wet = FullTCondTensorToScalar(kTw,dist,option)
     elseif (.not. tcf%isotropic) then
-      tcf%kT_dry = &
-        DiagTCondTensorToScalar(kxd,kyd,kzd,dist,option) 
-      tcf%kT_wet = &
-        DiagTCondTensorToScalar(kxw,kyw,kzw,dist,option) 
+      tcf%kT_dry = DiagTCondTensorToScalar(kTd,dist,option)
+      tcf%kT_wet = DiagTCondTensorToScalar(kTw,dist,option)
     endif
     
   end select
@@ -1267,8 +1253,7 @@ end subroutine TCondTensorToScalar
 
 ! ************************************************************************** !
 
-function FullTCondTensorToScalar(kx,ky,kz,kxy,kxz,kyz,dist,&
-  option)
+function FullTCondTensorToScalar(kT,dist,option)
   !
   ! Full tensor directional thermal conductivity
   !
@@ -1283,9 +1268,17 @@ function FullTCondTensorToScalar(kx,ky,kz,kxy,kxz,kyz,dist,&
   ! 2 = unit y-dir
   ! 3 = unit z-dir
   PetscReal, intent(in)  :: dist(-1:3)
+  PetscReal, intent(in)  :: kT(3,3)
   PetscReal :: FullTCondTensorToScalar
 
   PetscReal :: kx,ky,kz,kxy,kxz,kyz
+  
+  kx  = kT(1,1)
+  ky  = kT(2,2)
+  kz  = kT(3,3)
+  kxy = kT(1,2)
+  kxz = kT(1,3)
+  kyz = kT(2,3)
   
   FullTCondTensorToScalar = kx*dabs(dist(1))**2.0 + &
                             ky*dabs(dist(2))**2.0 + &
@@ -1298,8 +1291,7 @@ end function FullTCondTensorToScalar
 
 ! ************************************************************************** !
 
-function DiagTCondTensorToScalar(kx,ky,kz,dist,&
-  option)
+function DiagTCondTensorToScalar(kT,dist,option)
   !
   ! Diagonal tensor directional thermal conductivity
   !
@@ -1314,9 +1306,14 @@ function DiagTCondTensorToScalar(kx,ky,kz,dist,&
   ! 2 = unit y-dir
   ! 3 = unit z-dir
   PetscReal, intent(in)  :: dist(-1:3)
+  PetscReal, intent(in)  :: kT(3,3)
   PetscReal :: DiagTCondTensorToScalar
 
   PetscReal :: kx,ky,kz
+  
+  kx  = kT(1,1)
+  ky  = kT(2,2)
+  kz  = kT(3,3)
   
   DiagTCondTensorToScalar = kx*dabs(dist(1))**2.0 + &
                             ky*dabs(dist(2))**2.0 + &
