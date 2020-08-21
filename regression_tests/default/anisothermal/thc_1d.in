@@ -83,7 +83,7 @@ CHEMISTRY
   MINERAL_KINETICS
     Calcite
       RATE_CONSTANT 1.d-6 mol/m^2-sec
-      ACTIVATION_ENERGY 40.d0
+      ACTIVATION_ENERGY 40.d0 kJ/mol
     /
   /
   DATABASE ../../../database/hanford.dat
