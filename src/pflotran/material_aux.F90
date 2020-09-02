@@ -629,12 +629,19 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
       MaterialAuxVarGetValue = material_auxvar%permeability(perm_yy_index)
     case(PERMEABILITY_Z)
       MaterialAuxVarGetValue = material_auxvar%permeability(perm_zz_index)
-    case(PERMEABILITY_XY)
-      MaterialAuxVarGetValue = material_auxvar%permeability(perm_xy_index)
-    case(PERMEABILITY_YZ)
-      MaterialAuxVarGetValue = material_auxvar%permeability(perm_yz_index)
-    case(PERMEABILITY_XZ)
-      MaterialAuxVarGetValue = material_auxvar%permeability(perm_xz_index)
+    case(PERMEABILITY_XY,PERMEABILITY_YZ,PERMEABILITY_XZ)
+      if (size(material_auxvar%permeability) > 3) then
+        select case(ivar)
+          case(PERMEABILITY_XY)
+            MaterialAuxVarGetValue = material_auxvar%permeability(perm_xy_index)
+          case(PERMEABILITY_YZ)
+            MaterialAuxVarGetValue = material_auxvar%permeability(perm_yz_index)
+          case(PERMEABILITY_XZ)
+            MaterialAuxVarGetValue = material_auxvar%permeability(perm_xz_index)
+        end select
+      else
+        MaterialAuxVarGetValue = 0.d0
+      endif
     case(SOIL_COMPRESSIBILITY)
       MaterialAuxVarGetValue = material_auxvar% &
                                  soil_properties(soil_compressibility_index)
