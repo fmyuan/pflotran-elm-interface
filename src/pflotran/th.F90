@@ -125,6 +125,7 @@ subroutine THSetupPatch(realization)
   use Fluid_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use Characteristic_Curves_Thermal_module
  
   implicit none
   
@@ -139,11 +140,12 @@ subroutine THSetupPatch(realization)
   type(fluid_property_type), pointer :: cur_fluid_property
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
+  type(cc_thermal_type), pointer :: thermal_cc
   character(len=MAXWORDLENGTH) :: word
   PetscReal :: area_per_vol
 
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: i, iphase, local_id, material_id
+  PetscInt :: i, iphase, local_id, material_id, icct
   PetscBool :: error_found
   PetscErrorCode :: ierr
   
@@ -194,22 +196,22 @@ subroutine THSetupPatch(realization)
       call PrintMsgByRank(option)
       error_found = PETSC_TRUE
     endif
-    if (Uninitialized(patch%material_property_array(i)%ptr% &
-                      thermal_conductivity_wet)) then
-      option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_WET in &
-                         &material ' // &
-                         trim(word)
-      call PrintMsgByRank(option)
-      error_found = PETSC_TRUE
-    endif
-    if (Uninitialized(patch%material_property_array(i)%ptr% &
-                      thermal_conductivity_dry)) then
-      option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_DRY in &
-                         &material ' // &
-                         trim(word)
-      call PrintMsgByRank(option)
-      error_found = PETSC_TRUE
-    endif
+    ! if (Uninitialized(patch%material_property_array(i)%ptr% &
+    !                   thermal_conductivity_wet)) then
+    !   option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_WET in &
+    !                      &material ' // &
+    !                      trim(word)
+    !   call PrintMsgByRank(option)
+    !   error_found = PETSC_TRUE
+    ! endif
+    ! if (Uninitialized(patch%material_property_array(i)%ptr% &
+    !                   thermal_conductivity_dry)) then
+    !   option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_DRY in &
+    !                      &material ' // &
+    !                      trim(word)
+    !   call PrintMsgByRank(option)
+    !   error_found = PETSC_TRUE
+    ! endif
     if (th_use_freezing) then
       if (Uninitialized(patch%material_property_array(i)%ptr% &
                         thermal_conductivity_frozen)) then
@@ -227,16 +229,58 @@ subroutine THSetupPatch(realization)
       endif
     endif
     material_id = abs(patch%material_property_array(i)%ptr%internal_id)
+    
+    icct = patch%material_property_array(i)%ptr% &
+                thermal_conductivity_function_id
+    thermal_cc => patch%char_curves_thermal_array(icct)%ptr
+    
+    select type(tcf => thermal_cc%thermal_conductivity_function)
+      !------------------------------------------
+      class is(kT_constant_type)
+        patch%aux%TH%th_parameter%ckdry(material_id) = &
+          tcf%constant_thermal_conductivity*option%scale
+        patch%aux%TH%th_parameter%ckwet(material_id) = &
+          tcf%constant_thermal_conductivity*option%scale
+      !------------------------------------------
+      class is(kT_default_type)
+        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+      !------------------------------------------
+      class is(kT_linear_resistivity_type)
+        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+      !------------------------------------------
+      class is(kT_cubic_polynomial_type)
+        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+      !------------------------------------------
+      class is(kT_power_type)
+        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+      class default
+        option%io_buffer = 'ERROR: TH mode does not support thermal &
+          &characteristic curve in material: ' // trim(word)
+        call PrintMsgByRank(option)
+        error_found = PETSC_TRUE
+    end select
+    
+    if (.not. associated(thermal_cc%thermal_conductivity_function)) then
+      option%io_buffer = 'ERROR: Non-initialized thermal conductivity function &
+                         &in material ' // &
+                         trim(word)
+      call PrintMsgByRank(option)
+      error_found = PETSC_TRUE
+    endif
     ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J = MJ/m^3-K
     patch%aux%TH%th_parameter%dencpr(material_id) = &
       patch%material_property_array(i)%ptr%rock_density*option%scale* &
-        patch%material_property_array(i)%ptr%specific_heat
-    patch%aux%TH%th_parameter%ckwet(material_id) = &
-      patch%material_property_array(i)%ptr%thermal_conductivity_wet* &
-      option%scale  
-    patch%aux%TH%th_parameter%ckdry(material_id) = &
-      patch%material_property_array(i)%ptr%thermal_conductivity_dry* &
-      option%scale
+        patch%material_property_array(i)%ptr%specific_heat  
+    ! patch%aux%TH%th_parameter%ckwet(material_id) = &
+    !   patch%material_property_array(i)%ptr%thermal_conductivity_wet* &
+    !   option%scale  
+    ! patch%aux%TH%th_parameter%ckdry(material_id) = &
+    !   patch%material_property_array(i)%ptr%thermal_conductivity_dry* &
+    !   option%scale
     patch%aux%TH%th_parameter%alpha(material_id) = &
       patch%material_property_array(i)%ptr%alpha
     if (patch%aux%TH%th_parameter%ckwet(material_id) < 1.d-40 .and. &
