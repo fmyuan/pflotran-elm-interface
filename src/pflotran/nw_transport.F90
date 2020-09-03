@@ -495,7 +495,7 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   por = material_auxvar%porosity
   
-  if (global_auxvar%sat(LIQUID_PHASE) > 0.d0) then
+  if (sat > 0.d0) then
     dry_out = PETSC_FALSE
   else
     dry_out = PETSC_TRUE
@@ -1386,12 +1386,18 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   type(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
-  Mat :: J
+  Mat :: J, J_num, J_ana
   MatType :: mat_type
-  PetscViewer :: viewer 
+  PetscViewer :: viewer, viewer2 
+  Vec :: xx_pert, res, res_pert
+  PetscReal, pointer :: res_pert_p(:), res_p(:), xx_pert_p(:)
+  PetscReal, pointer :: derivative(:) 
+  PetscReal, pointer :: perturbation(:)
+  PetscReal, pointer :: dRes(:)
   PetscReal, pointer :: work_loc_p(:) 
   type(option_type), pointer :: option
   type(grid_type),  pointer :: grid
+  type(field_type), pointer :: field
   class(reaction_nw_type), pointer :: reaction_nw
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
@@ -1406,6 +1412,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   type(coupler_type), pointer :: boundary_condition
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: istart, iend, offset
+  PetscInt :: i, idof, ispecies
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -1418,10 +1425,11 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: JacDn(realization%reaction_nw%params%nspecies, &
                      realization%reaction_nw%params%nspecies)
   PetscReal :: area
-  PetscReal :: rdum
+  PetscBool :: numerical
     
   option => realization%option
   grid => realization%patch%grid
+  field => realization%field
   reaction_nw => realization%reaction_nw
   
   nwt_auxvars => realization%patch%aux%NWT%auxvars
@@ -1440,6 +1448,9 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   
   iphase = LIQUID_PHASE
 
+  ! For debugging only. Set the type of jacobian here:
+  numerical = PETSC_TRUE
+
   call PetscLogEventBegin(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
@@ -1453,6 +1464,16 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     
   ! Zero out the Jacobian matrix
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
+
+  ! For debugging viewer:
+  call MatCreate(option%mycomm,J_ana,ierr);CHKERRQ(ierr)
+  call MatSetSizes(J_ana,PETSC_DECIDE,PETSC_DECIDE, &
+                   grid%nlmax*option%ntrandof, &
+                   grid%nlmax*option%ntrandof,ierr);CHKERRQ(ierr)
+  call MatSetType(J_ana,MATAIJ,ierr);CHKERRQ(ierr)
+  call MatSetFromOptions(J_ana,ierr);CHKERRQ(ierr)
+  call MatSetUp(J_ana,ierr);CHKERRQ(ierr)
+  call MatZeroEntries(J_ana,ierr);CHKERRQ(ierr)
   
 #if 1
   !== Accumulation Terms ======================================
@@ -1466,8 +1487,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                             reaction_nw,option,Jac) 
               
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
   
     enddo
   endif
@@ -1496,8 +1519,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       !WRITE(*,*)  '   JacSrcSink = ', Jac(:,:)
                                 
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
     
     enddo
         
@@ -1516,8 +1541,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                        reaction_nw,Jac)
     
     ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
-    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+    call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
+    call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+                             ADD_VALUES,ierr);CHKERRQ(ierr)
     
   enddo
 #endif
@@ -1563,14 +1590,18 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
           
       if (local_id_up>0) then
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+        call MatSetValuesBlockedLocal(J,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlocked(J_ana,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+                                 JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
    
       if (local_id_dn>0) then
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+        call MatSetValuesBlockedLocal(J,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                       JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlocked(J_ana,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+                                 JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
       
     enddo
@@ -1608,8 +1639,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                       reaction_nw,option,JacUp,JacDn)
       
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
+      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
       ! note: Don't need to worry about JacUp because that is outside of
       ! the domain, and doesn't have a place in A.
       
@@ -1618,6 +1651,12 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   boundary_condition => boundary_condition%next
   enddo
 #endif
+
+  call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr) 
+
+  call MatAssemblyBegin(J_ana,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(J_ana,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
   !== ?????? ==================================================
   
@@ -1637,31 +1676,120 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     enddo
     call VecRestoreArrayF90(realization%field%tran_work_loc, work_loc_p,  &
                             ierr);CHKERRQ(ierr)
-  endif
-    
-  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)  
+  endif 
     
   if (realization%debug%matview_Jacobian) then
-    string = 'NWTjacobian'
+    string = 'NWTjacobianAN'
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
-    call MatView(J,viewer,ierr);CHKERRQ(ierr)
+    call MatView(J_ana,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
   if (realization%reaction_nw%use_log_formulation) then
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
-
     if (realization%debug%matview_Jacobian) then
-      string = 'NWTjacobianLog'
+      string = 'NWTjacobianAN'
       call DebugCreateViewer(realization%debug,string,realization%option,viewer)
       call MatView(J,viewer,ierr);CHKERRQ(ierr)
       call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
     endif
-    
   endif
 
+  ! numerical jacobian:
+#if 1
+  call MatCreate(option%mycomm,J_num,ierr);CHKERRQ(ierr)
+  call MatSetSizes(J_num,PETSC_DECIDE,PETSC_DECIDE, &
+                   grid%nlmax*option%ntrandof, &
+                   grid%nlmax*option%ntrandof,ierr);CHKERRQ(ierr)
+  call MatSetType(J_num,MATAIJ,ierr);CHKERRQ(ierr)
+  call MatSetFromOptions(J_num,ierr);CHKERRQ(ierr)
+  call MatSetUp(J_num,ierr);CHKERRQ(ierr)
+  call MatZeroEntries(J_num,ierr);CHKERRQ(ierr)
+
+  ! Prepare Vecs for numerical Jacobian
+  call VecDuplicate(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
+  call VecDuplicate(field%tran_xx,res,ierr);CHKERRQ(ierr)
+  call VecDuplicate(field%tran_xx,res_pert,ierr);CHKERRQ(ierr)
+
+  allocate(derivative(grid%nlmax*option%ntrandof))
+  allocate(perturbation(grid%nlmax*option%ntrandof))
+  allocate(dRes(grid%nlmax*option%ntrandof))
+
+  ! get the unperturbed residual:
+  call NWTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
+  call VecGetArrayF90(res,res_p,ierr);CHKERRQ(ierr)
+  ! get the dM value:
+  call VecCopy(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(xx_pert,xx_pert_p,ierr);CHKERRQ(ierr)
+  do i=1,size(xx_pert_p)
+    perturbation(i) = xx_pert_p(i)*perturbation_tolerance
+    xx_pert_p(i) = xx_pert_p(i)+perturbation(i)
+  enddo
+  ! use dM to get a perturbed residual:
+  call NWTResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
+  call VecGetArrayF90(res_pert,res_pert_p,ierr);CHKERRQ(ierr)
+  ! calculate the numerical Jacobian entry:
+  do i=1,size(res_pert_p)
+    dRes(i) = res_pert_p(i)-res_p(i)
+    derivative(i) = dRes(i)/perturbation(i)
+  enddo
+
+  call VecRestoreArrayF90(xx_pert,xx_pert_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(res_pert,res_pert_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(res,res_p,ierr);CHKERRQ(ierr)
+
+  if (numerical) call MatZeroEntries(J,ierr);CHKERRQ(ierr)
+
+  ! note: off-diagonal terms from decay are not included!
+  !       need to figure out how to do this
+  do local_id = 1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    ! ignore inactive cells with inactive materials
+    if (realization%patch%imat(ghosted_id) <= 0) cycle
+    do ispecies = 1,option%ntrandof
+      idof = (local_id-1)*ispecies + ispecies
+      
+      if (dabs(derivative(idof)) > 1.d-50) then
+        call MatSetValue(J_num,idof-1,idof-1,derivative(idof),insert_values, &
+                         ierr);CHKERRQ(ierr)
+      endif
+       if (numerical) then
+         if (dabs(derivative(idof)) > 1.d-50) then
+           call MatSetValue(J,idof-1,idof-1,derivative(idof),insert_values, &
+                            ierr);CHKERRQ(ierr)
+         else
+           call MatSetValue(J,idof-1,idof-1,0.d0,insert_values, &
+                            ierr);CHKERRQ(ierr)
+         endif
+       endif
+
+    enddo
+  enddo
+
+  if (numerical) then
+    call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  endif
+  call MatAssemblyBegin(J_num,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(J_num,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+  call VecDestroy(xx_pert,ierr);CHKERRQ(ierr)
+  call VecDestroy(res,ierr);CHKERRQ(ierr)
+  call VecDestroy(res_pert,ierr);CHKERRQ(ierr)
+
+  if (realization%debug%matview_Jacobian) then
+    string = 'NWTjacobianNUM'
+    call DebugCreateViewer(realization%debug,string,realization%option,viewer2)
+    call MatView(J_num,viewer2,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer2,ierr);CHKERRQ(ierr)
+  endif
+
+  call MatDestroy(J_num,ierr);CHKERRQ(ierr)
+
+#endif
+
+  call MatDestroy(J_ana,ierr);CHKERRQ(ierr)
   call PetscLogEventEnd(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
   
 end subroutine NWTJacobian
@@ -1737,7 +1865,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   Jac = 0.d0
   sat = max(MIN_LIQ_SAT,global_auxvar%sat(LIQUID_PHASE))
   
-  if (global_auxvar%sat(LIQUID_PHASE) > 0.d0) then
+  if (sat > 0.d0) then
     dry_out = PETSC_FALSE
   else
     dry_out = PETSC_TRUE
@@ -1758,7 +1886,8 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   if (.not.dry_out) then
     u = qsrc / (material_auxvar%porosity * sat)
   else
-    u = 0.d0
+    !u = 0.d0
+    u = qsrc / (material_auxvar%porosity * sat)
   endif
   
   
@@ -1959,12 +2088,12 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! with the cell centered velocities. Also, the boundary cells may need
   ! their own calculation for dispersion (There is a TDispersionBC).
    
-  if (global_auxvar_up%sat(LIQUID_PHASE) > 0.d0) then
+  if (sat_up > 0.d0) then
     dry_out_up = PETSC_FALSE
   else
     dry_out_up = PETSC_TRUE
   endif
- if (global_auxvar_dn%sat(LIQUID_PHASE) > 0.d0) then
+ if (sat_dn > 0.d0) then
     dry_out_dn = PETSC_FALSE
   else
     dry_out_dn = PETSC_TRUE
@@ -1972,9 +2101,7 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   
   ! units of unit_n = [-] unitless
   unit_n_up = -1  ! original
-  unit_n_dn = +1  ! original
-  !unit_n_up = +1  ! test 
-  !unit_n_dn = -1  ! test 
+  unit_n_dn = +1  ! original 
                 
   ! units of q = [m-liq/s]
   ! units of u = [m-bulk/s]
@@ -1983,33 +2110,33 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   if (q == 0.d0) then
     u = 0.d0
   else
-    if (dry_out_up .and. dry_out_dn) then
-      ! this situation means both cells at the connection face are dry
-      ! this situation will probably never get entered, because q should be 
-      ! zero, and it would have got caught above
-      u = 0.d0
-    elseif ((.not.dry_out_up) .and. (.not.dry_out_dn)) then
+    !if (dry_out_up .and. dry_out_dn) then
+    !  ! this situation means both cells at the connection face are dry
+    !  ! this situation will probably never get entered, because q should be 
+    !  ! zero, and it would have got caught above
+    !  u = 0.d0
+    !elseif ((.not.dry_out_up) .and. (.not.dry_out_dn)) then
       ! this situation is the typical one, where both cells have some liquid
       harmonic_ps = (ps_up*ps_dn)/(ps_up*dist_up + ps_dn*dist_dn)* &
                     (dist_up+dist_dn)   ! weighted harmonic average
       u = q/harmonic_ps
-    else
-      ! one of the cells on either side of the face is dried out
-      ! calculate u with upwinding, not harmonic average
-      if (q > 0.d0) then ! q flows from _up to _dn
-        if (dry_out_up) then
-          u = 0.d0
-        else
-          u = q/(por_up*sat_up)
-        endif
-      else               ! q flows from _dn to _up
-        if (dry_out_dn) then
-          u = 0.d0
-        else
-          u = q/(por_dn*sat_dn)
-        endif
-      endif
-    endif
+    !else
+    !  ! one of the cells on either side of the face is dried out
+    !  ! calculate u with upwinding, not harmonic average
+    !  if (q > 0.d0) then ! q flows from _up to _dn
+    !    if (dry_out_up) then
+    !      u = 0.d0
+    !    else
+    !      u = q/(por_up*sat_up)
+    !    endif
+    !  else               ! q flows from _dn to _up
+    !    if (dry_out_dn) then
+    !      u = 0.d0
+    !    else
+    !      u = q/(por_dn*sat_dn)
+    !    endif
+    !  endif
+    !endif
   endif
   
   

@@ -983,7 +983,8 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   ! this will override all previous convergence criteria to keep iterating
     if (temp_int /= 1) then  ! means ITOL_RELATIVE_UPDATE was not satisfied:
       this%realization%option%converged = PETSC_FALSE
-      this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP !CONVERGENCE_KEEP_ITERATING
+      !this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
+      this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
     else  ! means ITOL_RELATIVE_UPDATE was satisfied, but the previous
           ! criteria were not met
       ! do nothing - let the instruction proceed based on previous criteria
