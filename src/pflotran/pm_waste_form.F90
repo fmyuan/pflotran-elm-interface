@@ -33,7 +33,6 @@ module PM_Waste_Form_class
 
   PetscBool, public :: bypass_warning_message = PETSC_FALSE
   PetscBool, public :: FMDM_surrogate_knnr = PETSC_FALSE
-  PetscInt, public :: FMDM_surrogate_knnr_nn = 7
 
 ! OBJECT rad_species_type:
 ! ========================
@@ -746,7 +745,6 @@ function PMWFMechanismFMDMSurrogateCreate(option)
 
   if (FMDM_surrogate_knnr) then
     surrfmdm%knnr_eps = tiny (0.0d0)
-    surrfmdm%num_nearest_neighbor = FMDM_surrogate_knnr_nn
     call KnnrInit(surrfmdm,option)
   else
     call ANNReadH5File(surrfmdm,option)
@@ -6147,7 +6145,7 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
  
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR  
 
-  f(1) = current_temp_C + 273.15d0
+  f(1) = log10(current_temp_C + 273.15d0)
   f(2) = log10(conc(1)) ! Env_CO3_2n
   f(3) = log10(conc(2)) ! Env_O2
   f(4) = log10(conc(3)) ! Env_Fe_2p
@@ -6194,8 +6192,6 @@ subroutine KnnrReadH5File(this, option)
   
   PetscMPIInt :: hdf5_err
  
-  call h5open_f(hdf5_err)
- 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
  
   call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
@@ -6205,6 +6201,10 @@ subroutine KnnrReadH5File(this, option)
   !hdf5groupopen
   call HDF5GroupOpen(file_id,group_name,group_id,option)
 
+  !Get Nearest Neighbors
+  call KnnrGetNearestNeighbors(this,group_id,h5_name,option)
+
+  !Read features
   dataset_name = 'Temp'
   call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
  
@@ -6251,9 +6251,8 @@ subroutine KnnrReadH5File(this, option)
   
   call h5gclose_f(group_id,hdf5_err)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
-
+  this%table_data(1,:) = log10(this%table_data(1,:))
   this%table_data(2,:) = log10(this%table_data(2,:))
   this%table_data(3,:) = log10(this%table_data(3,:))
   this%table_data(4,:) = log10(this%table_data(4,:))
@@ -6262,6 +6261,44 @@ subroutine KnnrReadH5File(this, option)
 
 end subroutine KnnrReadH5File
 
+! ************************************************************************** !
+
+subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
+
+  use hdf5
+
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T) :: dims_h5(1) = 1
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: h5_name
+  PetscMPIInt :: hdf5_err
+
+  dataset_name = 'Nearest Neighbors Num'
+
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  else
+     call h5dread_f(dataset_id,H5T_NATIVE_INTEGER, this%num_nearest_neighbor, dims_h5, &
+       hdf5_err)
+ 
+     call h5dclose_f(dataset_id,hdf5_err)
+  endif
+     
+end subroutine KnnrGetNearestNeighbors    
+  
 ! ************************************************************************** !
 
 subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i)
@@ -6324,8 +6361,8 @@ subroutine KnnrInverseDistance(knnr_results,nn,table_data,n,eps,qoi_ave)
 
   do i_d = 1,nn
     knnr_qoi = knnr_results(i_d)
-    
-    qoi_i = table_data(n+1,knnr_qoi%idx)
+
+    qoi_i = log10(table_data(n+1,knnr_qoi%idx))
 
     dis = knnr_qoi%dis
 
@@ -6352,6 +6389,7 @@ subroutine KnnrInverseDistance(knnr_results,nn,table_data,n,eps,qoi_ave)
   enddo
  
   qoi_ave = qoi_sum/qoi_weights
+  qoi_ave = 10**(qoi_ave)
   
 end subroutine KnnrInverseDistance
 
