@@ -196,22 +196,6 @@ subroutine THSetupPatch(realization)
       call PrintMsgByRank(option)
       error_found = PETSC_TRUE
     endif
-    ! if (Uninitialized(patch%material_property_array(i)%ptr% &
-    !                   thermal_conductivity_wet)) then
-    !   option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_WET in &
-    !                      &material ' // &
-    !                      trim(word)
-    !   call PrintMsgByRank(option)
-    !   error_found = PETSC_TRUE
-    ! endif
-    ! if (Uninitialized(patch%material_property_array(i)%ptr% &
-    !                   thermal_conductivity_dry)) then
-    !   option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_DRY in &
-    !                      &material ' // &
-    !                      trim(word)
-    !   call PrintMsgByRank(option)
-    !   error_found = PETSC_TRUE
-    ! endif
     if (th_use_freezing) then
       if (Uninitialized(patch%material_property_array(i)%ptr% &
                         thermal_conductivity_frozen)) then
@@ -275,12 +259,6 @@ subroutine THSetupPatch(realization)
     patch%aux%TH%th_parameter%dencpr(material_id) = &
       patch%material_property_array(i)%ptr%rock_density*option%scale* &
         patch%material_property_array(i)%ptr%specific_heat  
-    ! patch%aux%TH%th_parameter%ckwet(material_id) = &
-    !   patch%material_property_array(i)%ptr%thermal_conductivity_wet* &
-    !   option%scale  
-    ! patch%aux%TH%th_parameter%ckdry(material_id) = &
-    !   patch%material_property_array(i)%ptr%thermal_conductivity_dry* &
-    !   option%scale
     patch%aux%TH%th_parameter%alpha(material_id) = &
       patch%material_property_array(i)%ptr%alpha
     if (patch%aux%TH%th_parameter%ckwet(material_id) < 1.d-40 .and. &
