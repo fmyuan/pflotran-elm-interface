@@ -78,7 +78,7 @@ FLUID_PROPERTY
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY  Hanford
-  ID 1
+  ID 5
   CHARACTERISTIC_CURVES cc1
   POROSITY 0.25
   TORTUOSITY 0.5

@@ -811,7 +811,7 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
   type(surface_global_auxvar_type), pointer :: surf_global_auxvars_ss(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(1)
   PetscReal :: xxss(1)
   PetscReal :: tsrc1

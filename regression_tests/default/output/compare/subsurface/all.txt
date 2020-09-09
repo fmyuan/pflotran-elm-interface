@@ -1,0 +1,132 @@
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+  /
+  OUTPUT
+    FREE_ION
+    ALL
+  /
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+END
+
+NUMERICAL_METHODS TRANSPORT
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.1d0
+  TORTUOSITY 0.1d0
+  ROCK_DENSITY 2650.d0 kg/m^3
+  THERMAL_CONDUCTIVITY_DRY 0.6d0 W/m-C
+  THERMAL_CONDUCTIVITY_WET 1.9d0 W/m-C
+  HEAT_CAPACITY 830.d0 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+/
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    ALPHA 1.d-4
+    M 0.5d0
+    MAX_CAPILLARY_PRESSURE 1.d6
+
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.5d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.01d0
+    M 0.5d0
+  /
+/
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d-2 y
+  INITIAL_TIMESTEP_SIZE 1.d-8 y
+  MAXIMUM_TIMESTEP_SIZE 1.d-2 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION upwind_corner
+  COORDINATES
+    0.9d0 0.99d0 0.999d0
+    2.d0 2.d0 2.d0
+  /
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT initial
+    CONCENTRATIONS
+      Tracer 1.d-5  F
+    /
+  /
+END
+
+TRANSPORT_CONDITION upwind_corner
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT upwind_corner
+    CONCENTRATIONS
+      Tracer 1.d-3  F
+    /
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION upwind_corner
+  TRANSPORT_CONDITION upwind_corner
+  REGION upwind_corner
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION upwind_corner
+  TRANSPORT_CONDITION upwind_corner
+  REGION bc
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+

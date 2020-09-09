@@ -102,7 +102,7 @@ module TH_Aux_module
     PetscBool :: bcflux_default_scheme
  end type th_surface_flow_type
 
-  type, public :: TH_parameter_type
+  type, public :: th_parameter_type
     PetscReal, pointer :: dencpr(:)
     PetscReal, pointer :: ckdry(:) ! Thermal conductivity (dry)
     PetscReal, pointer :: ckwet(:) ! Thermal conductivity (wet)
@@ -112,13 +112,13 @@ module TH_Aux_module
     PetscReal, pointer :: sir(:,:)
     PetscReal, pointer :: diffusion_coefficient(:)
     PetscReal, pointer :: diffusion_activation_energy(:)
-  end type TH_parameter_type
+  end type th_parameter_type
   
   type, public :: TH_type
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
-    type(TH_parameter_type), pointer :: TH_parameter
+    type(th_parameter_type), pointer :: th_parameter
     type(TH_auxvar_type), pointer :: auxvars(:)
     type(TH_auxvar_type), pointer :: auxvars_bc(:)
     type(TH_auxvar_type), pointer :: auxvars_ss(:)
@@ -167,21 +167,21 @@ function THAuxCreate(option)
   nullify(aux%auxvars_ss)
   nullify(aux%matrix_zeroing)
 
-  allocate(aux%TH_parameter)
-  nullify(aux%TH_parameter%dencpr)
-  nullify(aux%TH_parameter%ckdry)
-  nullify(aux%TH_parameter%ckwet)
-  nullify(aux%TH_parameter%alpha)
-  nullify(aux%TH_parameter%ckfrozen)
-  nullify(aux%TH_parameter%alpha_fr)
-  nullify(aux%TH_parameter%sir)
-  nullify(aux%TH_parameter%diffusion_coefficient)
-  nullify(aux%TH_parameter%diffusion_activation_energy)
+  allocate(aux%th_parameter)
+  nullify(aux%th_parameter%dencpr)
+  nullify(aux%th_parameter%ckdry)
+  nullify(aux%th_parameter%ckwet)
+  nullify(aux%th_parameter%alpha)
+  nullify(aux%th_parameter%ckfrozen)
+  nullify(aux%th_parameter%alpha_fr)
+  nullify(aux%th_parameter%sir)
+  nullify(aux%th_parameter%diffusion_coefficient)
+  nullify(aux%th_parameter%diffusion_activation_energy)
   
-  allocate(aux%TH_parameter%diffusion_coefficient(option%nphase))
-  allocate(aux%TH_parameter%diffusion_activation_energy(option%nphase))
-  aux%TH_parameter%diffusion_coefficient = 1.d-9
-  aux%TH_parameter%diffusion_activation_energy = 0.d0
+  allocate(aux%th_parameter%diffusion_coefficient(option%nphase))
+  allocate(aux%th_parameter%diffusion_activation_energy(option%nphase))
+  aux%th_parameter%diffusion_coefficient = 1.d-9
+  aux%th_parameter%diffusion_activation_energy = 0.d0
  
   THAuxCreate => aux
   
@@ -380,7 +380,7 @@ end subroutine THAuxVarCopy
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
                                      iphase,characteristic_curves, &
-                                     th_parameter, ithrm, natural_id, &
+                                     th_parameter, icct, natural_id, &
                                      update_porosity,option)
   ! 
   ! Computes auxiliary variables for each grid cell
@@ -405,8 +405,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
   PetscInt :: iphase
-  type(TH_parameter_type) :: th_parameter
-  PetscInt :: ithrm
+  type(th_parameter_type) :: th_parameter
+  PetscInt :: icct
   class(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   PetscBool :: update_porosity
@@ -590,9 +590,9 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   auxvar%du_dT = hw_dT + pw/(dw_mol*dw_mol)*option%scale*dw_dT
   
   ! Parameters for computation of effective thermal conductivity
-  alpha = th_parameter%alpha(ithrm)
-  Dk = th_parameter%ckwet(ithrm)
-  Dk_dry = th_parameter%ckdry(ithrm)
+  alpha = th_parameter%alpha(icct)
+  Dk = th_parameter%ckwet(icct)
+  Dk_dry = th_parameter%ckdry(icct)
 
   !unfrozen soil Kersten number
   Ke = (global_auxvar%sat(1) + epsilon)**(alpha)
@@ -614,7 +614,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                    material_auxvar, &
                                    iphase, &
                                    saturation_function, &
-                                   th_parameter, ithrm, natural_id, &
+                                   th_parameter, icct, natural_id, &
                                    update_porosity,option)
   ! 
   ! Computes auxillary variables for each grid cell when
@@ -641,8 +641,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(TH_parameter_type) :: th_parameter
-  PetscInt :: ithrm
+  type(th_parameter_type) :: th_parameter
+  PetscInt :: icct
   PetscInt :: iphase
   PetscInt :: natural_id
   PetscBool :: update_porosity
@@ -865,11 +865,11 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%dmol_gas_dT = dmolg_dT
 
   ! Parameters for computation of effective thermal conductivity
-  alpha = th_parameter%alpha(ithrm)
-  alpha_fr = th_parameter%alpha_fr(ithrm)
-  Dk = th_parameter%ckwet(ithrm)
-  Dk_dry = th_parameter%ckdry(ithrm)
-  Dk_ice = th_parameter%ckfrozen(ithrm)
+  alpha = th_parameter%alpha(icct)
+  alpha_fr = th_parameter%alpha_fr(icct)
+  Dk = th_parameter%ckwet(icct)
+  Dk_dry = th_parameter%ckdry(icct)
+  Dk_ice = th_parameter%ckfrozen(icct)
 
   !Soil Kersten number
   Ke = (global_auxvar%sat(1) + epsilon)**(alpha)
@@ -916,7 +916,7 @@ end subroutine THAuxVarComputeFreezing
 ! ************************************************************************** !
 subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
                                         material_auxvar,th_parameter, &
-                                        ithrm,characteristic_curves,&
+                                        icct,characteristic_curves,&
                                         option)
 
   ! Computes 2nd order derivatives auxiliary variables for each grid cell
@@ -939,10 +939,10 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   type(TH_auxvar_type) :: TH_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar  
-  PetscInt :: ithrm
+  PetscInt :: icct
   PetscErrorCode :: ierr
   
-  type(TH_parameter_type) :: th_parameter
+  type(th_parameter_type) :: th_parameter
   PetscInt :: iphase, ideriv
   type(TH_auxvar_type) :: TH_auxvar_pert
   type(global_auxvar_type) :: global_auxvar_pert
@@ -967,7 +967,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
 !    call THAuxVarComputeNoFreezing(x,TH_auxvar,&
 !                      global_auxvar,material_auxvar,&
 !                      iphase,sat_func, &
-!                      TH_parameter,ithrm, &
+!                      th_parameter,icct, &
 !                      -999,option)
 !  endif
   
@@ -1009,7 +1009,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
       call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                             global_auxvar_pert,material_auxvar_pert,&
                             iphase,characteristic_curves, &
-                            TH_parameter,ithrm, &
+                            th_parameter,icct, &
                             -999,PETSC_TRUE,option)
     endif
     
@@ -1032,7 +1032,57 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   enddo
 
 end subroutine THAuxVarCompute2ndOrderDeriv  
+
+! ************************************************************************** !
+
+subroutine THPrintAuxVars(file_unit,th_auxvar,global_auxvar, &
+                          material_auxvar,natural_id,string,option)
   
+  ! Prints the content of an TH auxvar to the designated file unit
+
+  ! Author: Glenn Hammond
+  ! Date: 07/16/20
+
+  use Global_Aux_module
+  use Material_Aux_class
+  use Option_module
+
+  implicit none
+
+  PetscInt :: file_unit
+  type(th_auxvar_type) :: th_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
+  character(len=*) :: string
+  type(option_type) :: option
+
+  PetscReal ::  liquid_mass
+
+  liquid_mass = material_auxvar%volume*material_auxvar%porosity* &
+                global_auxvar%sat(1)*global_auxvar%den(1)
+
+  write(file_unit,*) '--------------------------------------------------------'
+  if (len_trim(string) > 0) write(file_unit,*) trim(string)
+  write(file_unit,*) '                  cell id: ', natural_id
+  write(file_unit,*) '       liquid mass [kmol]: ', liquid_mass
+  write(file_unit,*) '          liquid pressure: ', global_auxvar%pres(1)
+  write(file_unit,*) '       capillary pressure: ', th_auxvar%pc
+  write(file_unit,*) '          temperature [C]: ', global_auxvar%pres(1)
+  write(file_unit,*) '          liquid enthalpy: ', th_auxvar%h
+  write(file_unit,*) '   liquid internal energy: ', th_auxvar%u
+  write(file_unit,*) '         liquid viscosity: ', th_auxvar%vis
+  write(file_unit,*) '          liquid mobility: ', th_auxvar%kvr
+  write(file_unit,*) '     liquid relative perm: ', th_auxvar%kvr * &
+                                                    th_auxvar%vis
+  write(file_unit,*) '    liquid_density [kmol]: ', global_auxvar%den(1)
+  write(file_unit,*) '      liquid_density [kg]: ', global_auxvar%den_kg(1)
+  write(file_unit,*) 'eff. thermal conductivity: ', th_auxvar%Dk_eff
+  write(file_unit,*) '                porosity : ', material_auxvar%porosity
+  write(file_unit,*) '             volume [m^3]: ', material_auxvar%volume
+  write(file_unit,*) '--------------------------------------------------------'
+
+end subroutine THPrintAuxVars
   
 ! ************************************************************************** !
 
@@ -1091,33 +1141,33 @@ subroutine THAuxDestroy(aux)
 
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 
-  if (associated(aux%TH_parameter)) then
-    if (associated(aux%TH_parameter%diffusion_coefficient)) &
-      deallocate(aux%TH_parameter%diffusion_coefficient)
-    nullify(aux%TH_parameter%diffusion_coefficient)
-    if (associated(aux%TH_parameter%diffusion_activation_energy)) &
-      deallocate(aux%TH_parameter%diffusion_activation_energy)
-    nullify(aux%TH_parameter%diffusion_activation_energy)
-    if (associated(aux%TH_parameter%dencpr)) deallocate(aux%TH_parameter%dencpr)
-    nullify(aux%TH_parameter%dencpr)
-    if (associated(aux%TH_parameter%ckwet)) deallocate(aux%TH_parameter%ckwet)
-    nullify(aux%TH_parameter%ckwet)
-    if (associated(aux%TH_parameter%ckdry)) deallocate(aux%TH_parameter%ckdry)
-    nullify(aux%TH_parameter%ckdry)
-    if (associated(aux%TH_parameter%alpha)) deallocate(aux%TH_parameter%alpha)
-    nullify(aux%TH_parameter%alpha)
+  if (associated(aux%th_parameter)) then
+    if (associated(aux%th_parameter%diffusion_coefficient)) &
+      deallocate(aux%th_parameter%diffusion_coefficient)
+    nullify(aux%th_parameter%diffusion_coefficient)
+    if (associated(aux%th_parameter%diffusion_activation_energy)) &
+      deallocate(aux%th_parameter%diffusion_activation_energy)
+    nullify(aux%th_parameter%diffusion_activation_energy)
+    if (associated(aux%th_parameter%dencpr)) deallocate(aux%th_parameter%dencpr)
+    nullify(aux%th_parameter%dencpr)
+    if (associated(aux%th_parameter%ckwet)) deallocate(aux%th_parameter%ckwet)
+    nullify(aux%th_parameter%ckwet)
+    if (associated(aux%th_parameter%ckdry)) deallocate(aux%th_parameter%ckdry)
+    nullify(aux%th_parameter%ckdry)
+    if (associated(aux%th_parameter%alpha)) deallocate(aux%th_parameter%alpha)
+    nullify(aux%th_parameter%alpha)
     ! ice
-    if (associated(aux%TH_parameter%ckfrozen)) &
-      deallocate(aux%TH_parameter%ckfrozen)
-    nullify(aux%TH_parameter%ckfrozen)
-    if (associated(aux%TH_parameter%alpha_fr)) &
-      deallocate(aux%TH_parameter%alpha_fr)
-    nullify(aux%TH_parameter%alpha_fr)
+    if (associated(aux%th_parameter%ckfrozen)) &
+      deallocate(aux%th_parameter%ckfrozen)
+    nullify(aux%th_parameter%ckfrozen)
+    if (associated(aux%th_parameter%alpha_fr)) &
+      deallocate(aux%th_parameter%alpha_fr)
+    nullify(aux%th_parameter%alpha_fr)
 
-    if (associated(aux%TH_parameter%sir)) deallocate(aux%TH_parameter%sir)
-    nullify(aux%TH_parameter%sir)
+    if (associated(aux%th_parameter%sir)) deallocate(aux%th_parameter%sir)
+    nullify(aux%th_parameter%sir)
   endif
-  nullify(aux%TH_parameter)
+  nullify(aux%th_parameter)
   
   deallocate(aux)
   nullify(aux)  

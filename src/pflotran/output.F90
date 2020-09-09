@@ -503,9 +503,16 @@ subroutine OutputFileRead(input,realization,output_option, &
             end select
             if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
                  .and. option%mycommsize > 1) then
+              option%io_buffer = 'TECPLOT POINT format not supported in &
+                &parallel. Switching to TECPLOT BLOCK.'
+              call PrintMsg(option)
               output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
             endif
             if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+              option%io_buffer = 'TECPLOT FEBRICK is the only supported &
+                &TECPLOT format for implicit unstructured grids. &
+                &Switching to TECPLOT FEBRICK.'
+              call PrintMsg(option)
               output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
             endif
         !.............
@@ -939,10 +946,18 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
+      case('K_ORTHOGONALITY_ERROR')
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
+        output_variable%iformat = 0 ! double
+        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
+        call OutputVariableAddToList(output_variable_list,output_variable)
       case default
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
-        if (Uninitialized(id)) call InputKeywordUnrecognized(input,word,'VARIABLES',option)
+        if (Uninitialized(id)) &
+          call InputKeywordUnrecognized(input,word,'VARIABLES',option)
 
         if (Initialized(subsubvar)) then
           call OutputVariableAddToList(output_variable_list,name, &

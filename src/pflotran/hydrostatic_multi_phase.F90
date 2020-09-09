@@ -85,7 +85,7 @@ contains
 
   ! ************************************************************************** !
 subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
-                     characteristic_curves_array,sat_func_id,imat)
+                     characteristic_curves_array,cc_id,imat)
   ! 
   ! Computes the hydrostatic initial/boundary condition for multiphase modes
   ! given: 
@@ -112,7 +112,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   type(option_type) :: option
   type(grid_type), intent(in) :: grid
   type(characteristic_curves_ptr_type), intent(in) :: characteristic_curves_array(:)
-  PetscInt, pointer, intent(in) :: sat_func_id(:)
+  PetscInt, pointer, intent(in) :: cc_id(:)
   PetscInt, pointer, intent(in) :: imat(:)
 
   type(flow_condition_type), pointer :: condition
@@ -437,7 +437,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
       pg_cell = gas_press_vec(i_n) + gas_den_kg_vec(i_n) * g_z * dist_dn
     end if
    
-    cc_ptr => characteristic_curves_array(sat_func_id(ghosted_id))%ptr
+    cc_ptr => characteristic_curves_array(cc_id(ghosted_id))%ptr
     
     !assign default end point values for saturation away from transition zones
     sw_min = 0.0d0

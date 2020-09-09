@@ -375,8 +375,10 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
       ! initialize to "unset"
       cur_patch%imat = UNINITIALIZED_INTEGER
       ! also allocate saturation function id
-      allocate(cur_patch%sat_func_id(cur_patch%grid%ngmax))
-      cur_patch%sat_func_id = UNINITIALIZED_INTEGER
+      allocate(cur_patch%cc_id(cur_patch%grid%ngmax))
+      cur_patch%cc_id = UNINITIALIZED_INTEGER
+      allocate(cur_patch%cct_id(cur_patch%grid%ngmax))
+      cur_patch%cct_id = UNINITIALIZED_INTEGER
     endif
     cur_patch => cur_patch%next
   enddo

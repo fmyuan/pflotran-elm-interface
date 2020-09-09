@@ -5,7 +5,7 @@ before_script:
 
 sudo: required
 
-dist: trusty # Ubuntu 14.04.
+dist: bionic # Ubuntu 18.04.
 
 compiler:
   - gcc
@@ -17,10 +17,10 @@ addons:
     packages:
       - cmake
 
-branches:
-  only:
-    - master
-#    - next
+#branches:
+#  only:
+#    - master
+##    - next
 
 matrix:
   include:

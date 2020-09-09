@@ -425,9 +425,6 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
                 '-' // trim(string) // trim(string2) // '.h5'
   endif
 
-    ! initialize fortran interface
-  call h5open_f(hdf5_err)
-
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
@@ -468,7 +465,6 @@ subroutine OutputHDF5CloseFile(option, file_id)
   PetscErrorCode :: ierr
 
   call h5fclose_f(file_id, hdf5_err)
-  call h5close_f(hdf5_err)
 
 end subroutine OutputHDF5CloseFile
 
@@ -610,9 +606,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   endif
 
   grid => patch%grid
-
-    ! initialize fortran interface
-  call h5open_f(hdf5_err)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
@@ -859,7 +852,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   call h5gclose_f(grp_id,hdf5_err)
 
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   if (option%myrank == option%io_rank) then
     call OutputXMFFooter(OUTPUT_UNIT)
@@ -1013,9 +1005,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   endif
 
   grid => patch%grid
-
-    ! initialize fortran interface
-  call h5open_f(hdf5_err)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
@@ -1227,7 +1216,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   call h5gclose_f(grp_id,hdf5_err)
    
   call h5fclose_f(file_id,hdf5_err)    
-  call h5close_f(hdf5_err)
 
   if (write_xdmf) then
     call OutputXMFFooter(OUTPUT_UNIT)
@@ -3423,9 +3411,6 @@ subroutine OutputH5OpenFile(option, h5obj, filename, file_id)
   integer(HID_T) :: prop_id
   PetscMPIInt :: hdf5_err
 
-    ! initialize fortran interface
-  call h5open_f(hdf5_err)
-
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
@@ -3473,7 +3458,6 @@ subroutine OutputH5CloseFile(option, h5file, file_id)
   PetscErrorCode :: ierr
 
   call h5fclose_f(file_id, hdf5_err)
-  call h5close_f(hdf5_err)
   h5file%first_write = PETSC_FALSE
 
 end subroutine OutputH5CloseFile

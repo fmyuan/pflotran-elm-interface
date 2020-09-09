@@ -73,17 +73,17 @@ def struct_grid_to_ugrid_implicit(out_name, h5, n, d, origin):
     h5dset = out.create_dataset('Domain/Cells', data=element_array)
     h5dset = out.create_dataset('Domain/Vertices', data=vertex_array)
   else:
-    f_ascii.write('%d %d\n' % (nx*ny*nz,nxp1*nyp1*nzp1))
+    out.write('%d %d\n' % (nx*ny*nz,nxp1*nyp1*nzp1))
     for k in range(nz):
       for j in range(ny):
         for i in range(nx):
           cell_id = i + j*nx + k*nx*ny
-          f_ascii.write('H')
+          out.write('H')
           for iv in range(element_array[cell_id,0]):
-            f_ascii.write(' %d' % (element_array[cell_id,iv+1]+1))
-          f_ascii.write('\n')
+            out.write(' %d' % (element_array[cell_id,iv+1]+1))
+          out.write('\n')
     for i in range(nxp1*nyp1*nzp1):
-      f_ascii.write('%12.6e %12.6e %12.6e\n' % 
+      out.write('%12.6e %12.6e %12.6e\n' % 
                     (vertex_array[i,0],vertex_array[i,1],vertex_array[i,2]))
   
   out.close()
@@ -112,8 +112,11 @@ if __name__ == "__main__":
   x = 0.; y = 0.; z = 0.
   origin = (x,y,z)
   
-  out_name = "mesh_ugi.h5"
   h5 = True
+  if h5:
+    out_name = "mesh_ugi.h5"
+  else:
+    out_name = "mesh.ugi"
   
   struct_grid_to_ugrid_implicit(out_name, h5, n, d, origin)
   

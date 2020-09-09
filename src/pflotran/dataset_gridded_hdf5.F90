@@ -324,6 +324,13 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
     else if (this%max_buffer_size < 0) then
       this%max_buffer_size = default_max_buffer_size
     endif
+    if (this%interpolation_method /= INTERPOLATION_STEP .and. &
+        this%max_buffer_size < 2) then
+      option%io_buffer = 'Dataset "Max Buffer Size" is set to ' // &
+        trim(StringWrite(this%max_buffer_size)) // &
+        ', but must be greater than 1 for non-STEP time interpolation.'
+      call PrintErrMsg(option)
+    endif
   endif ! this%data_dim == DIM_NULL
 
 #ifdef BROADCAST_DATASET
@@ -536,7 +543,6 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 #ifdef BROADCAST_DATASET
   endif
 #endif
