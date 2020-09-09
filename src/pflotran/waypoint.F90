@@ -696,11 +696,8 @@ subroutine WaypointListFindDuplicateTimes(list,option)
   PetscBool :: fix_duplicate_waypoints
   PetscErrorCode :: ierr
 
-  catch_duplicate_waypoints = PETSC_FALSE
   fix_duplicate_waypoints = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-catch_duplicate_waypoints", &
-                           catch_duplicate_waypoints, ierr);CHKERRQ(ierr)
+
   call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
                            PETSC_NULL_CHARACTER, "-fix_duplicate_waypoints", &
                            fix_duplicate_waypoints, ierr);CHKERRQ(ierr)
@@ -714,7 +711,7 @@ subroutine WaypointListFindDuplicateTimes(list,option)
     if (cur_waypoint%time > 0.d0 .and. &
         associated(cur_waypoint%next)) then
       if (dabs((cur_waypoint%next%time-cur_waypoint%time)/ &
-               cur_waypoint%time) < 1.d-10) then
+                cur_waypoint%time) < 1.d-10) then
         if (.not.first_duplicate_found) then ! first time
           first_duplicate_found = PETSC_TRUE
           call PrintMsg(option,'') ! blank line
@@ -742,15 +739,15 @@ subroutine WaypointListFindDuplicateTimes(list,option)
     endif
   enddo
   if (first_duplicate_found) then
-      option%io_buffer = 'Duplicate waypoint times in list.'
-      if (catch_duplicate_waypoints) then
-        option%io_buffer = trim(option%io_buffer) // &
-          ' Please email your input deck to pflotran-dev@googlegroups.com.'
-        call PrintErrMsg(option)
-      else
-        call PrintMsg(option)
-        call PrintMsg(option,'') ! blank line
-      endif
+    option%io_buffer = 'Duplicate waypoint times in list.'
+    if (.not. fix_duplicate_waypoints) then
+      option%io_buffer = trim(option%io_buffer) // &
+        ' Please email your input deck to pflotran-dev@googlegroups.com.'
+      call PrintErrMsg(option)
+    else
+      call PrintMsg(option)
+      call PrintMsg(option,'') ! blank line
+    endif
   endif
 
 end subroutine WaypointListFindDuplicateTimes
