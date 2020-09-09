@@ -549,11 +549,12 @@ END
 
 \begin{frame}[fragile]\frametitle{Edit the Input Deck (again)}
 
-\begin{semiverbatim}
->Simulation block  remains the same
->Add a numerical methods block 
-  >Newton Solver sub-block
+\begin{itemize}
+\item Add a numerical methods block 
+\item Newton Solver sub-block
+\end{itemize}
 
+\begin{semiverbatim}
 NUMERICAL_METHODS FLOW
   NEWTON_SOLVER
     NUMERICAL_JACOBIAN
@@ -584,10 +585,11 @@ END
 
 \begin{frame}[fragile]\frametitle{Edit the Input Deck (again)}
 
-\begin{semiverbatim}
->Simulation block remains the same
->Edit numerical methods block
+\begin{itemize}
+\item Edit numerical methods block
+\end{itemize}
 
+\begin{semiverbatim}
 NUMERICAL_METHODS FLOW
   NEWTON_SOLVER
     NUMERICAL_JACOBIAN

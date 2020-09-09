@@ -10,7 +10,6 @@ END
 
 SUBSURFACE
 
-#=========================== numerical methods ================================
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
