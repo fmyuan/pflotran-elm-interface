@@ -220,6 +220,14 @@ subroutine THSetupPatch(realization)
     
     select type(tcf => thermal_cc%thermal_conductivity_function)
       !------------------------------------------
+    class is(kT_frozen_type)
+        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        patch%aux%TH%th_parameter%ckfrozen(material_id) = &
+          tcf%kT_frozen*option%scale
+        patch%aux%TH%th_parameter%alpha(material_id) = tcf%alpha
+        patch%aux%TH%th_parameter%alpha_fr(material_id) = tcf%alpha_fr
+      !------------------------------------------
       class is(kT_constant_type)
         patch%aux%TH%th_parameter%ckdry(material_id) = &
           tcf%constant_thermal_conductivity*option%scale
@@ -259,8 +267,10 @@ subroutine THSetupPatch(realization)
     patch%aux%TH%th_parameter%dencpr(material_id) = &
       patch%material_property_array(i)%ptr%rock_density*option%scale* &
         patch%material_property_array(i)%ptr%specific_heat  
-    patch%aux%TH%th_parameter%alpha(material_id) = &
-      patch%material_property_array(i)%ptr%alpha
+    if (Initialized(patch%material_property_array(i)%ptr%alpha)) then
+      patch%aux%TH%th_parameter%alpha(material_id) = &
+        patch%material_property_array(i)%ptr%alpha
+    endif
     if (patch%aux%TH%th_parameter%ckwet(material_id) < 1.d-40 .and. &
         patch%aux%TH%th_parameter%ckdry(material_id) < 1.d-40) then
       option%io_buffer = 'ERROR: Either the wet or dry thermal conductivity &
@@ -269,11 +279,16 @@ subroutine THSetupPatch(realization)
       error_found = PETSC_TRUE
     endif
     if (th_use_freezing) then
-      patch%aux%TH%th_parameter%ckfrozen(material_id) = &
-        patch%material_property_array(i)%ptr%thermal_conductivity_frozen* &
-        option%scale
-      patch%aux%TH%th_parameter%alpha_fr(material_id) = &
-        patch%material_property_array(i)%ptr%alpha_fr
+      if (Initialized(patch%material_property_array(i)%ptr% &
+          thermal_conductivity_frozen)) then
+        patch%aux%TH%th_parameter%ckfrozen(material_id) = &
+          patch%material_property_array(i)%ptr%thermal_conductivity_frozen* &
+          option%scale
+      endif
+      if (Initialized(patch%material_property_array(i)%ptr%alpha_fr)) then
+        patch%aux%TH%th_parameter%alpha_fr(material_id) = &
+          patch%material_property_array(i)%ptr%alpha_fr
+      endif
     endif
 
   enddo 
@@ -757,6 +772,7 @@ subroutine THUpdateAuxVarsPatch(realization)
             material_auxvars(ghosted_id), &
             iphase, &
             patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+            patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
             th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
     else
@@ -765,6 +781,7 @@ subroutine THUpdateAuxVarsPatch(realization)
             material_auxvars(ghosted_id), &
             iphase, &
             patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
+            patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
             th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
     endif
@@ -814,6 +831,7 @@ subroutine THUpdateAuxVarsPatch(realization)
               material_auxvars(ghosted_id), &
               iphasebc, &
               patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+              patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
               th_parameter, icct, &
               -grid%nG2A(ghosted_id),PETSC_FALSE,option)
       else
@@ -822,6 +840,7 @@ subroutine THUpdateAuxVarsPatch(realization)
               material_auxvars(ghosted_id), &
               iphasebc, &
               patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
+              patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
               th_parameter, icct, &
               -grid%nG2A(ghosted_id),PETSC_FALSE,option)
       endif
@@ -872,6 +891,8 @@ subroutine THUpdateAuxVarsPatch(realization)
                                       iphase, &
                                       patch%saturation_function_array( &
                                         patch%cc_id(ghosted_id))%ptr, &
+                                      patch%char_curves_thermal_array( &
+                                        patch%cct_id(ghosted_id))%ptr, &
                                       th_parameter, icct, &
                                       -grid%nG2A(ghosted_id),PETSC_FALSE,option)
       else
@@ -882,6 +903,8 @@ subroutine THUpdateAuxVarsPatch(realization)
                                       iphase, &
                                       patch%characteristic_curves_array( &
                                         patch%cc_id(ghosted_id))%ptr, &
+                                      patch%char_curves_thermal_array( &
+                                        patch%cct_id(ghosted_id))%ptr, &
                                       th_parameter, icct, &
                                       -grid%nG2A(ghosted_id),PETSC_FALSE,option)
       endif
@@ -1140,6 +1163,7 @@ subroutine THUpdateFixedAccumPatch(realization)
             material_auxvars(ghosted_id), &
             iphase, &
             patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
+            patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
             th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
     else
@@ -1148,6 +1172,7 @@ subroutine THUpdateFixedAccumPatch(realization)
             material_auxvars(ghosted_id), &
             iphase, &
             patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr, &
+            patch%char_curves_thermal_array(patch%cct_id(ghosted_id))%ptr, &
             th_parameter, icct, &
             grid%nG2A(ghosted_id),PETSC_TRUE,option)
     endif
@@ -1276,6 +1301,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                              icct, &
                              option,sat_func, &
                              characteristic_curves, &
+                             thermal_cc, &
                              vol_frac_prim,J)
   ! 
   ! Computes derivatives of the accumulation
@@ -1287,6 +1313,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
   use Option_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Saturation_Function_module
   use Material_Aux_class, only : material_auxvar_type, &
                                  soil_compressibility_index, &
@@ -1303,6 +1330,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   type(th_parameter_type) :: th_parameter
   PetscInt :: icct
   class(characteristic_curves_type) :: characteristic_curves
+  class(cc_thermal_type) :: thermal_cc
   type(saturation_function_type) :: sat_func
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
@@ -1480,13 +1508,13 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
       if (th_use_freezing) then
          call THAuxVarComputeFreezing(x_pert,TH_auxvar_pert, &
                                  global_auxvar_pert,material_auxvar_pert, &
-                                 iphase,sat_func, &
+                                 iphase,sat_func,thermal_cc, &
                                  th_parameter, icct, &
                                  -999,PETSC_TRUE,option)
       else
          call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                               global_auxvar_pert,material_auxvar_pert,&
-                              iphase,characteristic_curves, &
+                              iphase,characteristic_curves, thermal_cc, &
                               th_parameter,icct, &
                               -999,PETSC_TRUE,option)
       endif
@@ -1591,6 +1619,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                             sir_up,sir_dn, &
                             option,sf_up,sf_dn, &
                             cc_up,cc_dn, &   
+                            tcc_up,tcc_dn, &   
                             Dk_dry_up,Dk_dry_dn, &
                             Dk_ice_up,Dk_ice_dn, &
                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -1607,6 +1636,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                              
   use Option_module 
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Saturation_Function_module
   use Connection_module
   use EOS_Water_module
@@ -1631,6 +1661,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: dist(-1:3)
   type(saturation_function_type), pointer :: sf_up, sf_dn 
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
+  class(cc_thermal_type), pointer :: tcc_up, tcc_dn
   type(th_parameter_type) :: th_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -2170,23 +2201,23 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       if (th_use_freezing) then
         call THAuxVarComputeFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
-             iphase,sf_up, &
+             iphase,sf_up, tcc_up, &
              th_parameter,icct_up, &
              -999,PETSC_TRUE,option)
         call THAuxVarComputeFreezing(x_pert_dn,auxvar_pert_dn, &
              global_auxvar_pert_dn, material_auxvar_pert_up, &
-             iphase,sf_dn, &
+             iphase,sf_dn, tcc_dn, &
              th_parameter,icct_up, &
              -999,PETSC_TRUE,option)
       else
         call THAuxVarComputeNoFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
-             iphase,cc_up, &
+             iphase,cc_up,tcc_up, &
              th_parameter,icct_up, &
              -999,PETSC_TRUE,option)
         call THAuxVarComputeNoFreezing(x_pert_dn,auxvar_pert_dn, &
              global_auxvar_pert_dn,material_auxvar_pert_dn, &
-             iphase,cc_dn, &
+             iphase,cc_dn,tcc_dn, &
              th_parameter,icct_dn, &
              -999,PETSC_TRUE,option)
       endif
@@ -4755,6 +4786,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   use Secondary_Continuum_Aux_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
 
   Mat :: A
   type(realization_subsurface_type) :: realization
@@ -4805,6 +4837,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(saturation_function_type), pointer :: sf_up
   type(saturation_function_type), pointer :: sf_dn
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
+  class(cc_thermal_type), pointer :: tcc_up, tcc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: icct
@@ -4916,7 +4949,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
                             th_parameter%sir(1,icc_up), &
                             th_parameter%sir(1,icc_dn), &
                             option, &
-                            sf_up,sf_dn,cc_up,cc_dn, &
+                            sf_up,sf_dn,cc_up,cc_dn,tcc_up,tcc_dn, &
                             Dk_dry_up,Dk_dry_dn, &
                             Dk_ice_up,Dk_ice_dn, &
                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -5158,6 +5191,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   use Secondary_Continuum_Aux_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
 
   Mat :: A
   type(realization_subsurface_type) :: realization
@@ -5194,6 +5228,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
   type(saturation_function_type), pointer :: sat_func, sf_up, sf_dn
   class(characteristic_curves_type), pointer :: characteristic_curves, cc_up, cc_dn
+  class(cc_thermal_type), pointer :: characteristic_curves_thermal
 
  
   
@@ -5245,12 +5280,14 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     else
       characteristic_curves => patch%characteristic_curves_array(icc)%ptr
     endif
+    characteristic_curves_thermal => patch%char_curves_thermal_array(icc)%ptr
     
     call THAccumDerivative(auxvars(ghosted_id),global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id), &
                             th_parameter%dencpr(icct), &
                             th_parameter, icct, option, &
                             sat_func, characteristic_curves, &
+                            characteristic_curves_thermal, &
                             vol_frac_prim,Jup) 
 
     if (option%use_mc) then
@@ -6502,6 +6539,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   use Utility_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
 
   implicit none
 
@@ -6526,6 +6564,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   class(material_auxvar_type), pointer :: material_auxvar_dn
   type(saturation_function_type), pointer :: sat_func
   class(characteristic_curves_type), pointer :: characteristic_curves
+  class(cc_thermal_type), pointer :: thermal_cc
 
   PetscInt :: pressure_bc_type
   PetscInt :: ghosted_id
@@ -6626,6 +6665,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
         else
           characteristic_curves => patch%characteristic_curves_array(icc_dn)%ptr
         endif
+        thermal_cc => patch%char_curves_thermal_array(icct_dn)%ptr
 
         ! Compute coeff
         call ComputeCoeffsForApprox(global_auxvar_up%pres(1), &
@@ -6639,6 +6679,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                     iphase, &
                                     sat_func, &
                                     characteristic_curves, &
+                                    thermal_cc, &
                                     dist_gravity, &
                                     area, &
                                     Dq, &
@@ -6662,6 +6703,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                    iphase, &
                                    sat_func, &
                                    characteristic_curves, &
+                                   thermal_cc, &
                                    dist_gravity, &
                                    area, &
                                    Dq, &
@@ -6733,6 +6775,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
                                   th_parameter, &
                                   iphase, sat_func, &
                                   characteristic_curves, &
+                                  thermal_cc, &
                                   dist_gravity, &
                                   area, &
                                   Dq, &
@@ -6755,6 +6798,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
   use Material_Aux_class
   use Option_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Saturation_Function_module
   use String_module
   use Utility_module
@@ -6769,6 +6813,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
   type(th_parameter_type) :: th_parameter
   PetscInt :: iphase
   class(characteristic_curves_type) :: characteristic_curves
+  class(cc_thermal_type) :: thermal_cc
   type(saturation_function_type) :: sat_func
   PetscReal :: dist_gravity
   PetscReal :: area
@@ -6828,6 +6873,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
                                  material_auxvar, &
                                  iphase, &
                                  sat_func, &
+                                 thermal_cc, &
                                  th_parameter, &
                                  icct_up, &
                                  -999,PETSC_FALSE,option)
@@ -6840,6 +6886,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
                                  material_auxvar, &
                                  iphase, &
                                  sat_func, &
+                                 thermal_cc, &
                                  th_parameter, &
                                  icct_up, &
                                  -999,PETSC_FALSE,option)
@@ -6853,6 +6900,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
                                    material_auxvar, &
                                    iphase, &
                                    characteristic_curves, &
+                                   thermal_cc, &
                                    th_parameter, &
                                    icct_up, &
                                    -999,PETSC_FALSE,option)
@@ -6865,6 +6913,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
                                    material_auxvar, &
                                    iphase, &
                                    characteristic_curves, &
+                                   thermal_cc, &
                                    th_parameter, &
                                    icct_dn, &
                                    -999,PETSC_FALSE,option)
@@ -6905,6 +6954,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
                                  material_auxvar, &
                                  iphase, &
                                  sat_func, &
+                                 thermal_cc, &
                                  th_parameter, &
                                  icct_up, &
                                  -999,PETSC_FALSE,option)
@@ -6918,6 +6968,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
                                    material_auxvar, &
                                    iphase, &
                                    characteristic_curves, &
+                                   thermal_cc, &
                                    th_parameter, &
                                    icct_dn, &
                                    -999,PETSC_FALSE,option)

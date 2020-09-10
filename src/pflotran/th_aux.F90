@@ -380,6 +380,7 @@ end subroutine THAuxVarCopy
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
                                      iphase,characteristic_curves, &
+                                     thermal_cc, &
                                      th_parameter, icct, natural_id, &
                                      update_porosity,option)
   ! 
@@ -395,12 +396,14 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module  
+  use Characteristic_Curves_Thermal_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
   class(characteristic_curves_type) :: characteristic_curves
+  type(cc_thermal_type) :: thermal_cc
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -614,6 +617,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                    material_auxvar, &
                                    iphase, &
                                    saturation_function, &
+                                   thermal_cc, &
                                    th_parameter, icct, natural_id, &
                                    update_porosity,option)
   ! 
@@ -631,12 +635,14 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   
   use EOS_Water_module
   use Saturation_Function_module  
+  use Characteristic_Curves_Thermal_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
   type(saturation_function_type) :: saturation_function
+  type(cc_thermal_type) :: thermal_cc
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -878,6 +884,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%Ke_fr = Ke_fr
 
   ! Effective thermal conductivity
+  ! auxvar%Dk_eff = thermal_cc%thermal_conductivity_function%CalculateTCond()
   auxvar%Dk_eff = Dk*Ke + Dk_ice*Ke_fr + (1.d0 - Ke - Ke_fr)*Dk_dry
 
   ! Derivative of Kersten number
@@ -917,6 +924,7 @@ end subroutine THAuxVarComputeFreezing
 subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
                                         material_auxvar,th_parameter, &
                                         icct,characteristic_curves,&
+                                        thermal_cc,&
                                         option)
 
   ! Computes 2nd order derivatives auxiliary variables for each grid cell
@@ -930,12 +938,14 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   
   use EOS_Water_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
   class(characteristic_curves_type) :: characteristic_curves
+  class(cc_thermal_type) :: thermal_cc
   type(TH_auxvar_type) :: TH_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar  
@@ -1009,6 +1019,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
       call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                             global_auxvar_pert,material_auxvar_pert,&
                             iphase,characteristic_curves, &
+                            thermal_cc, &
                             th_parameter,icct, &
                             -999,PETSC_TRUE,option)
     endif

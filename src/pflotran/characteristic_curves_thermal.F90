@@ -60,6 +60,16 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateTCond => TCFLinearResistivityConductivity
   end type kT_linear_resistivity_type
   !---------------------------------------------------------------------------
+  type, public, extends(kT_default_type) :: kT_frozen_type
+    PetscReal :: kT_frozen  ! frozen thermal conductivity
+    PetscReal :: alpha      ! exponent for unfrozen soil Kersten number
+    PetscReal :: alpha_fr   ! exponent for frozen soil Kersten number
+  contains
+    procedure, public :: Test => TCFFrozenTest
+    procedure, public :: Verify => TCFFrozenVerify
+    procedure, public :: CalculateFTCond => TCFFrozenConductivity
+  end type kT_frozen_type
+  !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
@@ -85,6 +95,7 @@ module Characteristic_Curves_Thermal_module
             TCFPowerCreate, &
             TCFCubicPolynomialCreate, &
             TCFLinearResistivityCreate, &
+            TCFFrozenCreate, &
             TCFAssignDefault
 
 contains
@@ -204,6 +215,93 @@ subroutine TCFBaseTest(this,tcc_name,option)
   close(86)
 
 end subroutine TCFBaseTest
+
+! ************************************************************************** !
+
+subroutine TCFFrozenTest(this,tcc_name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_frozen_type) :: this
+  character(len=MAXWORDLENGTH) :: tcc_name
+  type(option_type), intent(inout) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt, parameter :: nt = 71
+  PetscInt, parameter :: ns = 31
+  PetscReal, parameter :: perturbation = 1.0D-6
+  PetscReal :: deltaTemp, deltaSat, deltaIce
+  PetscReal :: temp_vec(nt)
+  PetscReal :: sat_vec(ns)
+  PetscReal :: ice_vec(ns)
+  PetscReal :: kT(nt,ns)
+  PetscReal :: dkT_dsat(nt,ns)
+  PetscReal :: dkT_dsat_numerical(nt,ns)
+  PetscReal :: dkT_dtemp(nt,ns)
+  PetscReal :: dkT_dtemp_numerical(nt,ns)
+  PetscReal :: perturbed_temp, perturbed_sat, perturbed_ice
+  PetscReal :: kT_temp_pert, kT_sat_pert, unused1, unused2
+  PetscReal :: temp_min, temp_max, sat_min, sat_max, ice_min, ice_max
+  PetscInt :: i,j
+
+  ! thermal conductivity as a function of temp. and liq. sat.
+  temp_min = 1.0d0 ! Celsius
+  temp_max = 250.0d0
+  sat_min = 1.0d-3
+  sat_max = 1.0d0
+  ice_min = 1.0d-3
+  ice_max = 1.0d0
+
+  deltaTemp = (temp_max - temp_min)/(nt - 1)
+  deltaSat = (sat_max - sat_min)/(ns - 1)
+  deltaIce = (ice_max - ice_min)/(ns - 1)
+
+  temp_vec = [(temp_min + i*deltaTemp, i=0,nt-1)]
+  sat_vec = [(sat_min + i*deltaSat, i=0,ns-1)]
+  ice_vec = [(ice_min + i*deltaIce, i=0,ns-1)]
+
+  do i = 1,nt
+    do j = 1,ns
+      ! base case with analytical derivatives
+      call this%CalculateFTCond(sat_vec(j),ice_vec(j),temp_vec(i), &
+           kT(i,j),dkT_dsat(i,j),dkT_dtemp(i,j),PETSC_TRUE,option)
+
+      ! calculate numerical derivatives via finite differences
+      perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
+      call this%CalculateFTCond(sat_vec(j),ice_vec(j),perturbed_temp, &
+           kT_temp_pert,unused1,unused2,PETSC_TRUE,option)
+
+      dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/ & 
+                                 (temp_vec(i)*perturbation)
+
+      perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
+      perturbed_ice = ice_vec(j) * (1.d0 + perturbation)
+      call this%CalculateFTCond(perturbed_sat,perturbed_ice,temp_vec(i), &
+           kT_sat_pert,unused1,unused2,PETSC_TRUE,option)
+
+      dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/ & 
+                                (sat_vec(j)*perturbation)
+    enddo
+  enddo
+
+  write(string,*) tcc_name
+  string = trim(tcc_name) // '_kT_vs_sat_and_temp.dat'
+  open(unit=86,file=string)
+  write(86,*) '"temperature [C]", "liquid saturation [-]", &
+               "ice saturation [-]", "kT [W/m*K]", "dkT/dsat", "dkT/dT", & 
+               "dkT/dsat_numerical", "dkT/dT_numerical"'
+  do i = 1,nt
+    do j = 1,ns
+      write(86,'(7(ES14.6))') temp_vec(i), sat_vec(j), ice_vec(j), &
+           kT(i,j), dkT_dsat(i,j), dkT_dtemp(i,j), &
+           dkT_dsat_numerical(i,j), dkT_dtemp_numerical(i,j)
+    enddo
+  enddo
+  close(86)
+
+end subroutine TCFFrozenTest
 
 ! ************************************************************************** !
 
@@ -624,6 +722,105 @@ end subroutine TCFLinearResistivityConductivity
 
 ! ************************************************************************** !
 
+function TCFFrozenCreate()
+
+  implicit none
+
+  class(kT_frozen_type), pointer :: TCFFrozenCreate
+
+  allocate(TCFFrozenCreate)
+  TCFFrozenCreate%kT_wet    = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%kT_dry    = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%kT_frozen = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%alpha     = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%alpha_fr  = UNINITIALIZED_DOUBLE
+
+end function TCFFrozenCreate
+
+! ************************************************************************** !
+
+subroutine TCFFrozenVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_frozen_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,FROZEN'
+  endif
+  call TCFBaseVerify(this,string,option)
+  if (Uninitialized(this%kT_wet)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_WET',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kT_dry)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_DRY',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kT_frozen)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_FROZEN', &
+                                            string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%alpha)) then
+    option%io_buffer = UninitializedMessage('ALPHA',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%alpha_fr)) then
+    option%io_buffer = UninitializedMessage('ALPHA_FROZEN',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine TCFFrozenVerify
+
+! ************************************************************************** !
+
+subroutine TCFFrozenConductivity(this,liquid_saturation,ice_saturation, & 
+     temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,th_use_freezing, &
+     option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_frozen_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, ice_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
+  PetscBool, intent(in) :: th_use_freezing
+  type(option_type), intent(inout) :: option
+
+  PetscReal, parameter :: epsilon = 1.d-6
+  PetscReal :: Ke, Ke_fr
+
+  ! Soil Kersten numbers
+  Ke = (liquid_saturation + epsilon)**(this%alpha)        ! unfrozen
+  Ke_fr = (ice_saturation + epsilon)**(this%alpha_fr) ! frozen
+
+  if (th_use_freezing) then
+    ! Use freezing
+    thermal_conductivity = this%kT_wet*Ke + this%kT_frozen*Ke_fr + &
+                           (1.d0 - Ke - Ke_fr)*this%kT_dry
+  else
+    ! Do not use freezing
+    thermal_conductivity = this%kT_dry + (this%kT_wet - this%kT_dry)*Ke
+  endif
+
+  dkT_dtemp = 0.0d0
+  dkT_dsatl = 0.0d0
+
+end subroutine TCFFrozenConductivity
+
+! ************************************************************************** !
+
 function CharCurvesThermalCreate()
 
   implicit none
@@ -693,6 +890,8 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFCubicPolynomialCreate()
       case('LINEAR_RESISTIVITY')
         this%thermal_conductivity_function => TCFLinearResistivityCreate()
+      case('FROZEN')
+        this%thermal_conductivity_function => TCFFrozenCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
              'THERMAL_CONDUCTIVITY_FUNCTION',option)
@@ -776,6 +975,8 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
     error_string = trim(error_string) // 'CUBIC_POLYNOMIAL'
   class is(kT_linear_resistivity_type)
     error_string = trim(error_string) // 'LINEAR_RESISTIVITY'
+  class is(kT_frozen_type)
+    error_string = trim(error_string) // 'FROZEN'
   end select
 
   call InputPushBlock(input,option)
@@ -909,7 +1110,45 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputKeywordUnrecognized(input,keyword, &
              'temp-dependent (linear resistivity) thermal conductivity',option)
       end select
-
+    class is(kT_frozen_type)
+      select case(keyword)
+      case('THERMAL_CONDUCTIVITY_WET')
+        call InputReadDouble(input,option,tcf%kT_wet)
+        call InputErrorMsg(input,option,'thermal conductivity wet', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
+      case('THERMAL_CONDUCTIVITY_DRY')
+        call InputReadDouble(input,option,tcf%kT_dry)
+        call InputErrorMsg(input,option,'thermal conductivity dry', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)        
+      case('THERMAL_CONDUCTIVITY_FROZEN')
+        call InputReadDouble(input,option,tcf%kT_frozen)
+        call InputErrorMsg(input,option,'thermal conductivity frozen', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_frozen, &
+             'C','CHARACTERISTIC_CURVES_THERMAL,thermal conductivity frozen', &
+             option)
+      case('THERMAL_CONDUCTIVITY_EXPONENT')
+          call InputReadDouble(input,option,tcf%alpha)
+          call InputErrorMsg(input,option,'exponent', &
+               error_string)
+          call InputReadAndConvertUnits(input,tcf%alpha, &
+               'C','CHARACTERISTIC_CURVES_THERMAL,exponent',option)
+      case('THERMAL_CONDUCTIVITY_EXPONENT_FROZEN')
+         call InputReadDouble(input,option,tcf%alpha_fr)
+         call InputErrorMsg(input,option,'exponent - frozen', &
+              error_string)
+         call InputReadAndConvertUnits(input,tcf%alpha_fr, &
+              'C','CHARACTERISTIC_CURVES_THERMAL,exponent - frozen',option)
+      case default
+        !AS3 make sure to replace wet and dry with new func from anisotropic
+        call InputKeywordUnrecognized(input,keyword, &
+             'temp-dependent (linear resistivity) thermal conductivity',option)
+      end select
+      
     class default
       option%io_buffer = 'Read routine not implemented for ' &
            // trim(error_string) // '.'
@@ -1137,6 +1376,23 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'T coefficient: '
         write(word1,*) tcf%a(2)
+        write(id,'(a)') adjustl(trim(word1))
+      class is (kT_frozen_type)
+        write(id,'(a)') 'sat.- and temp.-dependent (lin. resistivity)'
+        write(id,'(a29)',advance='no') 'kT_wet: '
+        write(word1,*) tcf%kT_wet
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'kT_dry: '
+        write(word1,*) tcf%kT_dry
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'kT_frozen: '
+        write(word1,*) tcf%kT_frozen
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'exponent: '
+        write(word1,*) tcf%alpha
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'exponent (frozen): '
+        write(word1,*) tcf%alpha_fr
         write(id,'(a)') adjustl(trim(word1))
       end select
     endif
