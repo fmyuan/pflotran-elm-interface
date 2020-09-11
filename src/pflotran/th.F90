@@ -196,6 +196,7 @@ subroutine THSetupPatch(realization)
       call PrintMsgByRank(option)
       error_found = PETSC_TRUE
     endif
+    ! <<< AS3 MARK FOR DELETION
     if (th_use_freezing) then
       if (Uninitialized(patch%material_property_array(i)%ptr% &
                         thermal_conductivity_frozen)) then
@@ -212,6 +213,7 @@ subroutine THSetupPatch(realization)
         error_found = PETSC_TRUE
       endif
     endif
+    ! >>> AS3 MARK FOR DELETION
     material_id = abs(patch%material_property_array(i)%ptr%internal_id)
     
     icct = patch%material_property_array(i)%ptr% &
@@ -223,10 +225,15 @@ subroutine THSetupPatch(realization)
     class is(kT_frozen_type)
         patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
-        patch%aux%TH%th_parameter%ckfrozen(material_id) = &
-          tcf%kT_frozen*option%scale
+        tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
+        tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(material_id) = tcf%alpha
-        patch%aux%TH%th_parameter%alpha_fr(material_id) = tcf%alpha_fr
+        if (th_use_freezing) then
+          patch%aux%TH%th_parameter%alpha_fr(material_id) = tcf%alpha_fr
+          patch%aux%TH%th_parameter%ckfrozen(material_id) = &
+          tcf%kT_frozen*option%scale
+          tcf%kT_frozen = tcf%kT_frozen*option%scale ! appky scale to original value
+        endif
       !------------------------------------------
       class is(kT_constant_type)
         patch%aux%TH%th_parameter%ckdry(material_id) = &
@@ -267,6 +274,29 @@ subroutine THSetupPatch(realization)
     patch%aux%TH%th_parameter%dencpr(material_id) = &
       patch%material_property_array(i)%ptr%rock_density*option%scale* &
         patch%material_property_array(i)%ptr%specific_heat  
+    ! Allow for override from legacy input format
+    if (Initialized(patch%material_property_array(i)%ptr% &
+                      thermal_conductivity_wet)) then
+      patch%aux%TH%th_parameter%ckwet(material_id) = &
+        patch%material_property_array(i)%ptr%thermal_conductivity_wet* &
+        option%scale  
+      select type(tcf => thermal_cc%thermal_conductivity_function)
+      class is(kT_frozen_type)
+        tcf%kT_wet = patch%material_property_array(i)%ptr% &
+          thermal_conductivity_wet*option%scale  
+      end select
+    endif
+    if (Initialized(patch%material_property_array(i)%ptr% &
+                      thermal_conductivity_dry)) then
+      patch%aux%TH%th_parameter%ckdry(material_id) = &
+        patch%material_property_array(i)%ptr%thermal_conductivity_dry* &
+        option%scale 
+      select type(tcf => thermal_cc%thermal_conductivity_function)
+      class is(kT_frozen_type)
+        tcf%kT_dry = patch%material_property_array(i)%ptr% &
+          thermal_conductivity_dry*option%scale  
+      end select
+    endif
     if (Initialized(patch%material_property_array(i)%ptr%alpha)) then
       patch%aux%TH%th_parameter%alpha(material_id) = &
         patch%material_property_array(i)%ptr%alpha
@@ -279,15 +309,25 @@ subroutine THSetupPatch(realization)
       error_found = PETSC_TRUE
     endif
     if (th_use_freezing) then
+      ! Allow for override from legacy input format
       if (Initialized(patch%material_property_array(i)%ptr% &
           thermal_conductivity_frozen)) then
         patch%aux%TH%th_parameter%ckfrozen(material_id) = &
           patch%material_property_array(i)%ptr%thermal_conductivity_frozen* &
           option%scale
+          select type(tcf => thermal_cc%thermal_conductivity_function)
+          class is(kT_frozen_type)
+            tcf%kT_frozen = patch%material_property_array(i)%ptr% &
+              thermal_conductivity_frozen*option%scale
+          end select
       endif
       if (Initialized(patch%material_property_array(i)%ptr%alpha_fr)) then
         patch%aux%TH%th_parameter%alpha_fr(material_id) = &
           patch%material_property_array(i)%ptr%alpha_fr
+          select type(tcf => thermal_cc%thermal_conductivity_function)
+          class is(kT_frozen_type)
+            tcf%alpha_fr = patch%material_property_array(i)%ptr%alpha_fr
+          end select
       endif
     endif
 

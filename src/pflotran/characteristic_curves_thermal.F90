@@ -20,6 +20,7 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
     procedure, public :: CalculateTCond => TCFBaseConductivity
+    procedure, public :: CalculateFTCond => TCFBaseConductivity2
   end type thermal_conductivity_base_type
   !---------------------------------------------------------------------------
   type, public, extends(thermal_conductivity_base_type) :: kT_default_type
@@ -67,7 +68,8 @@ module Characteristic_Curves_Thermal_module
   contains
     procedure, public :: Test => TCFFrozenTest
     procedure, public :: Verify => TCFFrozenVerify
-    procedure, public :: CalculateFTCond => TCFFrozenConductivity
+    procedure, public :: CalculateTCond => TCFFrozenConductivity1   ! not frozen
+    procedure, public :: CalculateFTCond => TCFFrozenConductivity2  ! frozen
   end type kT_frozen_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
@@ -96,7 +98,8 @@ module Characteristic_Curves_Thermal_module
             TCFCubicPolynomialCreate, &
             TCFLinearResistivityCreate, &
             TCFFrozenCreate, &
-            TCFAssignDefault
+            TCFAssignDefault, &
+            TCFAssignFrozen
 
 contains
 
@@ -137,6 +140,32 @@ subroutine TCFBaseConductivity(this,liquid_saturation,temperature, &
   call PrintErrMsg(option)
 
 end subroutine TCFBaseConductivity
+
+! ************************************************************************** !
+
+subroutine TCFBaseConductivity2(this,liquid_saturation,ice_saturation, &
+     temperature,thermal_conductivity,dkT_dsatl,dkT_dsati,dkT_dtemp,option)
+
+  use Option_module
+
+  implicit none
+
+  class(thermal_conductivity_base_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, ice_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dsati, dkT_dtemp
+  type(option_type), intent(inout) :: option
+
+  thermal_conductivity = 0.d0
+  dkT_dsatl = 0.d0
+  dkT_dsati = 0.d0
+  dkT_dtemp = 0.d0
+
+  option%io_buffer = 'Base thermal conductivity must be extended for ' &
+                   //'frozen parameters.'
+  call PrintErrMsg(option)
+
+end subroutine TCFBaseConductivity2
 
 ! ************************************************************************** !
 
@@ -239,12 +268,21 @@ subroutine TCFFrozenTest(this,tcc_name,option)
   PetscReal :: kT(nt,ns)
   PetscReal :: dkT_dsat(nt,ns)
   PetscReal :: dkT_dsat_numerical(nt,ns)
+  PetscReal :: dkT_dice(nt,ns)
+  PetscReal :: dkT_dice_numerical(nt,ns)
   PetscReal :: dkT_dtemp(nt,ns)
   PetscReal :: dkT_dtemp_numerical(nt,ns)
   PetscReal :: perturbed_temp, perturbed_sat, perturbed_ice
-  PetscReal :: kT_temp_pert, kT_sat_pert, unused1, unused2
+  PetscReal :: kT_temp_pert, kT_sat_pert, kT_ice_pert
+  PetscReal :: unused1, unused2, unused3
   PetscReal :: temp_min, temp_max, sat_min, sat_max, ice_min, ice_max
   PetscInt :: i,j
+  
+  ! resort to regular test if frozen parameters are not initialized
+  if (Uninitialized(this%alpha_fr) .and. Uninitialized(this%kT_frozen)) then
+    call TCFBaseTest(this,tcc_name,option)
+    return
+  endif
 
   ! thermal conductivity as a function of temp. and liq. sat.
   temp_min = 1.0d0 ! Celsius
@@ -266,23 +304,29 @@ subroutine TCFFrozenTest(this,tcc_name,option)
     do j = 1,ns
       ! base case with analytical derivatives
       call this%CalculateFTCond(sat_vec(j),ice_vec(j),temp_vec(i), &
-           kT(i,j),dkT_dsat(i,j),dkT_dtemp(i,j),PETSC_TRUE,option)
+           kT(i,j),dkT_dsat(i,j),dkT_dice(i,j),dkT_dtemp(i,j),option)
 
       ! calculate numerical derivatives via finite differences
       perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
       call this%CalculateFTCond(sat_vec(j),ice_vec(j),perturbed_temp, &
-           kT_temp_pert,unused1,unused2,PETSC_TRUE,option)
+           kT_temp_pert,unused1,unused2,unused3,option)
 
       dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/ & 
                                  (temp_vec(i)*perturbation)
 
       perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
-      perturbed_ice = ice_vec(j) * (1.d0 + perturbation)
-      call this%CalculateFTCond(perturbed_sat,perturbed_ice,temp_vec(i), &
-           kT_sat_pert,unused1,unused2,PETSC_TRUE,option)
+      call this%CalculateFTCond(perturbed_sat,ice_vec(j),temp_vec(i), &
+           kT_sat_pert,unused1,unused2,unused3,option)
 
       dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/ & 
                                 (sat_vec(j)*perturbation)
+      
+      perturbed_ice = ice_vec(j) * (1.d0 + perturbation)
+      call this%CalculateFTCond(sat_vec(j),perturbed_ice,temp_vec(i), &
+           kT_ice_pert,unused1,unused2,unused3,option)
+           
+      dkT_dice_numerical(i,j) = (kT_ice_pert - kT(i,j))/ & 
+                                 (ice_vec(j)*perturbation)
     enddo
   enddo
 
@@ -290,13 +334,15 @@ subroutine TCFFrozenTest(this,tcc_name,option)
   string = trim(tcc_name) // '_kT_vs_sat_and_temp.dat'
   open(unit=86,file=string)
   write(86,*) '"temperature [C]", "liquid saturation [-]", &
-               "ice saturation [-]", "kT [W/m*K]", "dkT/dsat", "dkT/dT", & 
-               "dkT/dsat_numerical", "dkT/dT_numerical"'
+               "ice saturation [-]", "kT [W/m*K]", "dkT/dsat", "dkT/dsati", &  
+               "dkT/dT", "dkT/dsat_numerical", "dkT/dsati_numerical", &
+               "dkT/dT_numerical"'
   do i = 1,nt
     do j = 1,ns
-      write(86,'(7(ES14.6))') temp_vec(i), sat_vec(j), ice_vec(j), &
-           kT(i,j), dkT_dsat(i,j), dkT_dtemp(i,j), &
-           dkT_dsat_numerical(i,j), dkT_dtemp_numerical(i,j)
+      write(86,'(10(ES14.6))') temp_vec(i), sat_vec(j), ice_vec(j), &
+           kT(i,j), dkT_dsat(i,j), dkT_dice(i,j), dkT_dtemp(i,j), &
+           dkT_dsat_numerical(i,j), dkT_dice_numerical(i,j), &
+           dkT_dtemp_numerical(i,j)
     enddo
   enddo
   close(86)
@@ -765,27 +811,59 @@ subroutine TCFFrozenVerify(this,name,option)
     option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_DRY',string)
     call PrintErrMsg(option)
   endif
-  if (Uninitialized(this%kT_frozen)) then
-    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_FROZEN', &
-                                            string)
-    call PrintErrMsg(option)
-  endif
   if (Uninitialized(this%alpha)) then
-    option%io_buffer = UninitializedMessage('ALPHA',string)
+    option%io_buffer = UninitializedMessage('EXPONENT',string)
     call PrintErrMsg(option)
   endif
-  if (Uninitialized(this%alpha_fr)) then
-    option%io_buffer = UninitializedMessage('ALPHA_FROZEN',string)
-    call PrintErrMsg(option)
+  ! Both frozen parameters must be initialized
+  if (Initialized(this%alpha_fr) .or. Initialized(this%kT_frozen)) then
+    if (Uninitialized(this%alpha_fr) .and. Uninitialized(this%kT_frozen)) then
+      option%io_buffer = UninitializedMessage('FROZEN THERMAL CONDUCTIVITY AND'&
+                                            //' EXPONENT',string)
+      call PrintErrMsg(option)
+    else
+      ! AS3: Can't figure out how to specify dependencies such that TH_Aux.o 
+      !      is generated first to define th_use_freezing below. User will still
+      !      have to specify this in OPTION
+      ! th_use_freezing = PETSC_TRUE
+    endif
   endif
 
 end subroutine TCFFrozenVerify
 
 ! ************************************************************************** !
 
-subroutine TCFFrozenConductivity(this,liquid_saturation,ice_saturation, & 
-     temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,th_use_freezing, &
-     option)
+subroutine TCFFrozenConductivity1(this,liquid_saturation,temperature, & 
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_frozen_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
+  type(option_type), intent(inout) :: option
+
+  PetscReal, parameter :: epsilon = 1.d-6
+  PetscReal :: Ke
+
+  ! Soil Kersten numbers
+  Ke = (liquid_saturation + epsilon)**(this%alpha)        ! unfrozen
+  dkT_dtemp = 0.0d0
+
+  ! Do not use freezing
+  thermal_conductivity = this%kT_dry + (this%kT_wet - this%kT_dry)*Ke
+  dkT_dsatl = (this%kT_wet - this%kT_dry) * this%alpha * &
+              liquid_saturation**(this%alpha - 1)
+
+end subroutine TCFFrozenConductivity1
+
+! ************************************************************************** !
+
+subroutine TCFFrozenConductivity2(this,liquid_saturation,ice_saturation,   & 
+     temperature,thermal_conductivity,dkT_dsatl,dkT_dsati,dkT_dtemp,option)
 
   use Option_module
 
@@ -794,30 +872,26 @@ subroutine TCFFrozenConductivity(this,liquid_saturation,ice_saturation, &
   class(kT_frozen_type) :: this
   PetscReal, intent(in) :: liquid_saturation, ice_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
-  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
-  PetscBool, intent(in) :: th_use_freezing
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dsati, dkT_dtemp
   type(option_type), intent(inout) :: option
 
   PetscReal, parameter :: epsilon = 1.d-6
   PetscReal :: Ke, Ke_fr
 
   ! Soil Kersten numbers
-  Ke = (liquid_saturation + epsilon)**(this%alpha)        ! unfrozen
+  Ke = (liquid_saturation + epsilon)**(this%alpha)    ! unfrozen
   Ke_fr = (ice_saturation + epsilon)**(this%alpha_fr) ! frozen
-
-  if (th_use_freezing) then
-    ! Use freezing
-    thermal_conductivity = this%kT_wet*Ke + this%kT_frozen*Ke_fr + &
-                           (1.d0 - Ke - Ke_fr)*this%kT_dry
-  else
-    ! Do not use freezing
-    thermal_conductivity = this%kT_dry + (this%kT_wet - this%kT_dry)*Ke
-  endif
-
   dkT_dtemp = 0.0d0
-  dkT_dsatl = 0.0d0
 
-end subroutine TCFFrozenConductivity
+  ! Use freezing
+  thermal_conductivity = this%kT_wet*Ke + this%kT_frozen*Ke_fr + &
+                         (1.d0 - Ke - Ke_fr)*this%kT_dry
+  dkT_dsatl = (this%kT_wet - this%kT_dry) * this%alpha * &
+              liquid_saturation**(this%alpha - 1)
+  dkT_dsati = (this%kT_frozen - this%kT_dry) * this%alpha_fr * &
+              ice_saturation**(this%alpha_fr - 1)
+
+end subroutine TCFFrozenConductivity2
 
 ! ************************************************************************** !
 
@@ -941,6 +1015,31 @@ subroutine TCFAssignDefault(thermal_conductivity_function,&
   end select
 
 end subroutine TCFAssignDefault
+
+! ************************************************************************** !
+
+subroutine TCFAssignFrozen(thermal_conductivity_function,&
+                             kwet,kdry,kfrozen,alpha,alpha_fr,option)
+
+  use Option_module
+
+  implicit none
+
+  class(thermal_conductivity_base_type) :: thermal_conductivity_function
+  PetscReal :: kwet,kdry,kfrozen,alpha,alpha_fr
+  type(option_type) :: option
+
+  select type(tcf => thermal_conductivity_function)
+      !------------------------------------------
+    class is(kT_frozen_type)
+      tcf%kT_dry    = kdry
+      tcf%kT_wet    = kwet
+      tcf%kT_frozen = kfrozen
+      tcf%alpha     = alpha
+      tcf%alpha_fr  = alpha_fr
+  end select
+
+end subroutine TCFAssignFrozen
 
 ! ************************************************************************** !
 

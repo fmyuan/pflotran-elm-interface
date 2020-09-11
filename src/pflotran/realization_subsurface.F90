@@ -819,11 +819,22 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       default_thermal_cc => CharCurvesThermalCreate()
       default_thermal_cc%name = patch%material_property_array(i)%ptr% &
                                 thermal_conductivity_function_name
-      default_thermal_cc%thermal_conductivity_function => TCFDefaultCreate()    
-      call TCFAssignDefault(default_thermal_cc%thermal_conductivity_function, &
-        patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
-        patch%material_property_array(i)%ptr%thermal_conductivity_dry, &      
-        option)      
+      if (option%iflowmode == TH_MODE .or. option%iflowmode == TH_TS_MODE) then
+        default_thermal_cc%thermal_conductivity_function => TCFFrozenCreate()    
+        call TCFAssignFrozen(default_thermal_cc%thermal_conductivity_function,&
+          patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
+          patch%material_property_array(i)%ptr%thermal_conductivity_dry, &      
+          patch%material_property_array(i)%ptr%thermal_conductivity_frozen, &      
+          patch%material_property_array(i)%ptr%alpha, &      
+          patch%material_property_array(i)%ptr%alpha_fr, &      
+          option)
+      else
+        default_thermal_cc%thermal_conductivity_function => TCFDefaultCreate()    
+        call TCFAssignDefault(default_thermal_cc%thermal_conductivity_function,&
+          patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
+          patch%material_property_array(i)%ptr%thermal_conductivity_dry, &      
+          option)
+      endif
       if (associated(default_thermal_cc%thermal_conductivity_function)) then
         write (mat_string,*) patch%material_property_array(i)%ptr%external_id
         verify_string = 'THERMAL_CHARACTERISTIC_CURVES(' // & 
