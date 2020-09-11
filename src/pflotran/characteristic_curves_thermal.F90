@@ -279,7 +279,7 @@ subroutine TCFFrozenTest(this,tcc_name,option)
   PetscInt :: i,j
   
   ! resort to regular test if frozen parameters are not initialized
-  if (Uninitialized(this%alpha_fr) .and. Uninitialized(this%kT_frozen)) then
+  if (Uninitialized(this%kT_frozen)) then
     call TCFBaseTest(this,tcc_name,option)
     return
   endif
@@ -816,17 +816,19 @@ subroutine TCFFrozenVerify(this,name,option)
     call PrintErrMsg(option)
   endif
   ! Both frozen parameters must be initialized
-  if (Initialized(this%alpha_fr) .or. Initialized(this%kT_frozen)) then
-    if (Uninitialized(this%alpha_fr) .and. Uninitialized(this%kT_frozen)) then
-      option%io_buffer = UninitializedMessage('FROZEN THERMAL CONDUCTIVITY AND'&
-                                            //' EXPONENT',string)
+  if (Initialized(this%kT_frozen)) then
+    if (Uninitialized(this%alpha_fr)) then
+      option%io_buffer = UninitializedMessage('FROZEN EXPONENT (MUST BE '&
+                                            //'SPECIFIED WITH FROZEN THERMAL '&
+                                            //'CONDUCTIVITY)',string)
       call PrintErrMsg(option)
-    else
+    endif
+    ! if (Initialized(this%alpha_fr) .and. Initialized(this%kT_frozen)) then
       ! AS3: Can't figure out how to specify dependencies such that TH_Aux.o 
       !      is generated first to define th_use_freezing below. User will still
       !      have to specify this in OPTION
       ! th_use_freezing = PETSC_TRUE
-    endif
+    ! endif
   endif
 
 end subroutine TCFFrozenVerify
@@ -1230,13 +1232,13 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadAndConvertUnits(input,tcf%kT_frozen, &
              'C','CHARACTERISTIC_CURVES_THERMAL,thermal conductivity frozen', &
              option)
-      case('THERMAL_CONDUCTIVITY_EXPONENT')
+      case('THERMAL_COND_EXPONENT')
           call InputReadDouble(input,option,tcf%alpha)
           call InputErrorMsg(input,option,'exponent', &
                error_string)
           call InputReadAndConvertUnits(input,tcf%alpha, &
                'C','CHARACTERISTIC_CURVES_THERMAL,exponent',option)
-      case('THERMAL_CONDUCTIVITY_EXPONENT_FROZEN')
+      case('THERMAL_COND_EXPONENT_FROZEN')
          call InputReadDouble(input,option,tcf%alpha_fr)
          call InputErrorMsg(input,option,'exponent - frozen', &
               error_string)
