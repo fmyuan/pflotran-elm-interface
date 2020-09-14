@@ -1204,6 +1204,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Z Coordinate'
       category = OUTPUT_GENERIC
       id = Z_COORDINATE
+    case ('K_ORTHOGONALITY_ERROR')
+      units = ''
+      name = 'K Orthogonality Error'
+      category = OUTPUT_GENERIC
+      id = K_ORTHOGONALITY_ERROR
   end select
 
 end subroutine OutputVariableToID

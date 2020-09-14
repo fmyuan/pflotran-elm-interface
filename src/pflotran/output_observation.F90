@@ -91,13 +91,6 @@ subroutine OutputObservation(realization_base)
   
   class(realization_base_type) :: realization_base
 
-!  if (realization_base%output_option%print_hdf5) then
-!    call OutputObservationHDF5(realization)
-!    call OutputObservationTecplot(realization)
-!  endif
- 
-!  if (realization_base%output_option%print_tecplot .or. &
-!      realization_base%output_option%print_hdf5) then
   if (realization_base%output_option%print_observation) then
     call OutputObservationTecplotColumnTXT(realization_base)
     call OutputAggregateToFile(realization_base)
@@ -192,7 +185,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   if (open_file) then
     write(string,'(i6)') option%myrank
     filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-obs-' // trim(adjustl(string)) // '.tec'
+               '-obs-' // trim(adjustl(string)) // '.pft'
   
     ! open file
     fid = 86
@@ -359,7 +352,7 @@ subroutine OutputAggregateToFile(realization_base)
         write(string2,'(i6)') aggregate%id
         filename = trim(option%global_prefix) // trim(option%group_prefix) // &
                '-obs-' // trim(adjustl(string)) // '-agg-' // &
-               trim(adjustl(string2)) // '.tec'
+               trim(adjustl(string2)) // '.pft'
         fid = 86
 
         if (observation_aggregate_first .or. .not.FileExists(filename)) then
@@ -409,7 +402,7 @@ subroutine OutputAggregateToFile(realization_base)
         write(string2,'(i6)') aggregate%id
         filename = trim(option%global_prefix) // trim(option%group_prefix) // &
                '-obs-' // trim(adjustl(string)) // '-agg-' // &
-               trim(adjustl(string2)) // '.tec'
+               trim(adjustl(string2)) // '.pft'
         fid = 86
 
         ! Compute the aggregate metric on each process
@@ -679,7 +672,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   if (open_file) then
     write(string,'(i6)') option%myrank
     filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-obs-sec-' // trim(adjustl(string)) // '.tec'
+               '-obs-sec-' // trim(adjustl(string)) // '.pft'
   
     ! open file
     fid = 86
@@ -2059,9 +2052,6 @@ subroutine OutputIntegralFlux(realization_base)
   ! open file
   if (option%myrank == option%io_rank) then
 
-!geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call PrintMsg(option)
-
     if (output_option%print_column_ids) then
       icol = 1
     else
@@ -2385,9 +2375,6 @@ subroutine OutputMassBalance(realization_base)
   
   ! open file
   if (option%myrank == option%io_rank) then
-
-!geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1
