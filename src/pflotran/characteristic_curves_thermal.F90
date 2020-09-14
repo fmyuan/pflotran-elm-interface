@@ -1232,13 +1232,13 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadAndConvertUnits(input,tcf%kT_frozen, &
              'C','CHARACTERISTIC_CURVES_THERMAL,thermal conductivity frozen', &
              option)
-      case('THERMAL_COND_EXPONENT')
+      case('KERSTEN_EXPONENT')
           call InputReadDouble(input,option,tcf%alpha)
           call InputErrorMsg(input,option,'exponent', &
                error_string)
           call InputReadAndConvertUnits(input,tcf%alpha, &
                'C','CHARACTERISTIC_CURVES_THERMAL,exponent',option)
-      case('THERMAL_COND_EXPONENT_FROZEN')
+      case('KERSTEN_EXPONENT_FROZEN')
          call InputReadDouble(input,option,tcf%alpha_fr)
          call InputErrorMsg(input,option,'exponent - frozen', &
               error_string)
