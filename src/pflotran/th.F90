@@ -197,15 +197,15 @@ subroutine THSetupPatch(realization)
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only 
   !single value in the array <modified pcl 1-13-11>
   allocate(patch%aux%TH%th_parameter%dencpr( &
-             size(patch%material_property_array)))
-  allocate(patch%aux%TH%th_parameter%ckwet(size(patch%material_property_array)))
-  allocate(patch%aux%TH%th_parameter%ckdry(size(patch%material_property_array)))
-  allocate(patch%aux%TH%th_parameter%alpha(size(patch%material_property_array))) 
+             size(patch%char_curves_thermal_array)))
+  allocate(patch%aux%TH%th_parameter%ckwet(size(patch%char_curves_thermal_array)))
+  allocate(patch%aux%TH%th_parameter%ckdry(size(patch%char_curves_thermal_array)))
+  allocate(patch%aux%TH%th_parameter%alpha(size(patch%char_curves_thermal_array))) 
   if (th_use_freezing) then
    allocate(patch%aux%TH%th_parameter%ckfrozen( &
-              size(patch%material_property_array)))
+              size(patch%char_curves_thermal_array)))
    allocate(patch%aux%TH%th_parameter%alpha_fr( &
-              size(patch%material_property_array)))
+              size(patch%char_curves_thermal_array)))
   endif
 
   !Copy the values in the th_parameter from the global realization 
@@ -225,50 +225,53 @@ subroutine THSetupPatch(realization)
                 thermal_conductivity_function_id
     thermal_cc => patch%char_curves_thermal_array(icct)%ptr
     
+    patch%aux%TH%th_parameter%alpha(icct) = & ! use material default
+      patch%material_property_array(i)%ptr%alpha
+    
     select type(tcf => thermal_cc%thermal_conductivity_function)
       !------------------------------------------
       class is(kT_frozen_type)
-        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
-        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
-        patch%aux%TH%th_parameter%alpha(material_id) = tcf%alpha
+        patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
         if (th_use_freezing) then
-          patch%aux%TH%th_parameter%alpha_fr(material_id) = tcf%alpha_fr
-          patch%aux%TH%th_parameter%ckfrozen(material_id) = &
+          patch%aux%TH%th_parameter%alpha_fr(icct) = tcf%alpha_fr
+          patch%aux%TH%th_parameter%ckfrozen(icct) = &
           tcf%kT_frozen*option%scale
           tcf%kT_frozen = tcf%kT_frozen*option%scale ! apply scale to original value
         endif
       !------------------------------------------
       class is(kT_constant_type)
-        patch%aux%TH%th_parameter%ckdry(material_id) = &
+        patch%aux%TH%th_parameter%ckdry(icct) = &
           tcf%constant_thermal_conductivity*option%scale
-        patch%aux%TH%th_parameter%ckwet(material_id) = &
+        patch%aux%TH%th_parameter%ckwet(icct) = &
           tcf%constant_thermal_conductivity*option%scale
         tcf%constant_thermal_conductivity = &
           tcf%constant_thermal_conductivity*option%scale ! apply scale to original value
       !------------------------------------------
       class is(kT_default_type)
-        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
-        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
       !------------------------------------------
       class is(kT_linear_resistivity_type)
-        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
-        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
       !------------------------------------------
       class is(kT_cubic_polynomial_type)
-        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
-        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
       !------------------------------------------
       class is(kT_power_type)
-        patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
-        patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
       class default
@@ -285,14 +288,14 @@ subroutine THSetupPatch(realization)
       error_found = PETSC_TRUE
     endif
     if (th_use_freezing) then
-      if (patch%aux%TH%th_parameter%ckfrozen(material_id) < 0.0d0 ) then
+      if (patch%aux%TH%th_parameter%ckfrozen(icct) < 0.0d0 ) then
         option%io_buffer = 'ERROR: Non-initialized FROZEN THERMAL '&
         //'CONDUCTIVITY when freezing activated in '&
         //'material ' // trim(word)
         call PrintMsgByRank(option)
         error_found = PETSC_TRUE
       endif
-      if (Uninitialized(patch%aux%TH%th_parameter%alpha_fr(material_id))) then
+      if (Uninitialized(patch%aux%TH%th_parameter%alpha_fr(icct))) then
         option%io_buffer = 'ERROR: Non-initialized FROZEN EXPONENT when '&
                          //'freezing activated in material ' // trim(word)
         call PrintMsgByRank(option)
@@ -300,11 +303,11 @@ subroutine THSetupPatch(realization)
       endif
     endif
     ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J = MJ/m^3-K
-    patch%aux%TH%th_parameter%dencpr(material_id) = &
+    patch%aux%TH%th_parameter%dencpr(icct) = &
       patch%material_property_array(i)%ptr%rock_density*option%scale* &
         patch%material_property_array(i)%ptr%specific_heat  
-    if (patch%aux%TH%th_parameter%ckwet(material_id) < 1.d-40 .and. &
-        patch%aux%TH%th_parameter%ckdry(material_id) < 1.d-40) then
+    if (patch%aux%TH%th_parameter%ckwet(icct) < 1.d-40 .and. &
+        patch%aux%TH%th_parameter%ckdry(icct) < 1.d-40) then
       option%io_buffer = 'ERROR: Either the wet or dry thermal conductivity &
         &must be non-zero in material: ' // trim(word)
       call PrintMsgByRank(option)

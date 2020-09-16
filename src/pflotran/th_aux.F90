@@ -607,7 +607,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
        global_auxvar%sat(1),global_auxvar%temp,auxvar%Dk_eff,dk_ds,dk_dT,option)
   ! auxvar%Dk_eff = Dk_dry + (Dk - Dk_dry)*Ke
 
-  ! write(*,*)"RAN ",trim(thermal_cc%name)," and got ",auxvar%Dk_eff," from ",Dk,Dk_dry,icct
   ! Derivative of soil Kersten number
   auxvar%dKe_dp = alpha*(global_auxvar%sat(1) + epsilon)**(alpha - 1.d0)* &
                   auxvar%dsat_dp
