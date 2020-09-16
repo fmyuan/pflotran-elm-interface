@@ -746,9 +746,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
       th_ice_model = tcf%ice_model
     endif
   class default
-    option%io_buffer = 'Cannot use THERMAL_CHARACTERISTIC_CURVES(' &
+    option%io_buffer = 'Cannot use thermal characteristic curve "' &
                        // trim(thermal_cc%name) // &
-                       ') when FREEZING is active in TH mode.'
+                       '" when FREEZING is active in TH mode.'
     call PrintErrMsg(option)
   end select
   

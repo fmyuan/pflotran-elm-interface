@@ -835,6 +835,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         call TCFAssignDefault(default_thermal_cc%thermal_conductivity_function,&
           patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
           patch%material_property_array(i)%ptr%thermal_conductivity_dry, &      
+          patch%material_property_array(i)%ptr%alpha, &      
           option)
       endif
       if (associated(default_thermal_cc%thermal_conductivity_function)) then

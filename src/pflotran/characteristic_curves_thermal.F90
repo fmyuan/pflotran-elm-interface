@@ -16,6 +16,7 @@ module Characteristic_Curves_Thermal_module
 
   !---------------------------------------------------------------------------
   type, public :: thermal_conductivity_base_type
+    PetscReal :: alpha ! exponent for soil Kersten number (default = 1.0)
   contains
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
@@ -63,7 +64,7 @@ module Characteristic_Curves_Thermal_module
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_frozen_type
     PetscReal :: kT_frozen  ! frozen thermal conductivity
-    PetscReal :: alpha      ! exponent for unfrozen soil Kersten number
+    ! PetscReal :: alpha      ! exponent for unfrozen soil Kersten number
     PetscReal :: alpha_fr   ! exponent for frozen soil Kersten number
     PetscInt  :: ice_model  ! indicator of ice model
   contains
@@ -380,6 +381,7 @@ function TCFDefaultCreate()
   allocate(TCFDefaultCreate)
   TCFDefaultCreate%kT_wet = UNINITIALIZED_DOUBLE
   TCFDefaultCreate%kT_dry = UNINITIALIZED_DOUBLE
+  TCFDefaultCreate%alpha  = 1.0d0
 
 end function TCFDefaultCreate
 
@@ -458,6 +460,7 @@ function TCFConstantCreate()
 
   allocate(TCFConstantCreate)
   TCFConstantCreate%constant_thermal_conductivity = UNINITIALIZED_DOUBLE
+  TCFConstantCreate%alpha = 1.0d0
 
 end function TCFConstantCreate
 
@@ -523,6 +526,7 @@ function TCFPowerCreate()
   TCFPowerCreate%kT_dry = UNINITIALIZED_DOUBLE
   TCFPowerCreate%ref_temp = -273.15d0
   TCFPowerCreate%gamma = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%alpha = 1.0d0
 
 end function TCFPowerCreate
 
@@ -607,6 +611,7 @@ function TCFCubicPolynomialCreate()
   TCFCubicPolynomialCreate%beta = [ UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE ]
+  TCFCubicPolynomialCreate%alpha = 1.0d0
 
 end function TCFCubicPolynomialCreate
 
@@ -699,6 +704,7 @@ function TCFLinearResistivityCreate()
   TCFLinearResistivityCreate%ref_temp = 0.d0
   TCFLinearResistivityCreate%a = [ UNINITIALIZED_DOUBLE, &
                                       UNINITIALIZED_DOUBLE]
+  TCFLinearResistivityCreate%alpha = 1.0d0
 
 end function TCFLinearResistivityCreate
 
@@ -822,7 +828,7 @@ subroutine TCFFrozenVerify(this,name,option)
     option%io_buffer = UninitializedMessage('EXPONENT',string)
     call PrintErrMsg(option)
   endif
-  ! All frozen parameters must be initialized to use freezing
+  ! Freezing is optional, but related parameters must be initialized to use it
   if (Initialized(this%kT_frozen)) then
     if (Uninitialized(this%alpha_fr)) then
       option%io_buffer = UninitializedMessage('FROZEN EXPONENT (MUST BE '&
@@ -835,10 +841,15 @@ subroutine TCFFrozenVerify(this,name,option)
                                             //'CONDUCTIVITY)',string)
       call PrintErrMsg(option)
     else
-      ! AS3: Can't figure out how to specify dependencies such that TH_Aux.o 
-      !      is generated first to define th_use_freezing below instead of the 
-      !      option workaround
       option%freezing = PETSC_TRUE
+      ! Outside of TH mode, frozen parameters aren't actually used
+      if ( .not. option%iflowmode == TH_MODE .and. & 
+           .not. option%iflowmode == TH_TS_MODE ) then
+        option%io_buffer = 'FREEZING MODEL ONLY UTILIZED IN TH MODE. ONLY ' &
+                         //'NON-FROZEN PARAMETERS WILL BE EMPLOYED FOR ' &
+                         //'THERMAL CONDUCTIVITY CALCULATION.'
+        call PrintWrnMsg(option)
+      endif
     endif
   endif
 
@@ -863,7 +874,7 @@ subroutine TCFFrozenConductivity1(this,liquid_saturation,temperature, &
   PetscReal :: Ke
 
   ! Soil Kersten numbers
-  Ke = (liquid_saturation + epsilon)**(this%alpha)        ! unfrozen
+  Ke = (liquid_saturation + epsilon)**(this%alpha) ! unfrozen
   dkT_dtemp = 0.0d0
 
   ! Do not use freezing
@@ -1010,14 +1021,14 @@ end subroutine CharCurvesThermalRead
 ! ************************************************************************** !
 
 subroutine TCFAssignDefault(thermal_conductivity_function,&
-                                                 kwet,kdry,option)
+                            kwet,kdry,alpha,option)
 
   use Option_module
 
   implicit none
 
   class(thermal_conductivity_base_type) :: thermal_conductivity_function
-  PetscReal :: kwet,kdry
+  PetscReal :: kwet,kdry,alpha
   type(option_type) :: option
 
   select type(tcf => thermal_conductivity_function)
@@ -1025,6 +1036,7 @@ subroutine TCFAssignDefault(thermal_conductivity_function,&
     class is(kT_default_type)
       tcf%kT_dry = kdry
       tcf%kT_wet = kwet
+      tcf%alpha  = alpha
   end select
 
 end subroutine TCFAssignDefault
@@ -1032,7 +1044,7 @@ end subroutine TCFAssignDefault
 ! ************************************************************************** !
 
 subroutine TCFAssignFrozen(thermal_conductivity_function,&
-                             kwet,kdry,kfrozen,alpha,alpha_fr,icemod,option)
+                           kwet,kdry,kfrozen,alpha,alpha_fr,icemod,option)
 
   use Option_module
 
@@ -1114,6 +1126,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
              tcf%constant_thermal_conductivity,'W/m-C', &
              'CHARACTERISTIC_CURVES_THERMAL,constant thermal conductivity', &
              option)
+      case('KERSTEN_EXPONENT')
+        call InputReadDouble(input,option,tcf%alpha)
+        call InputErrorMsg(input,option,'Kersten exponent', &
+             error_string)
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'constant thermal conductivity',option)
@@ -1133,6 +1149,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
              error_string)
         call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
              'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
+      case('KERSTEN_EXPONENT')
+        call InputReadDouble(input,option,tcf%alpha)
+        call InputErrorMsg(input,option,'Kersten exponent', &
+             error_string)
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'saturation-dependent thermal conductivity',option)
@@ -1161,6 +1181,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       case('EXPONENT')
         call InputReadDouble(input,option,tcf%gamma)
         call InputErrorMsg(input,option,'thermal conductivity exponent', &
+             error_string)
+      case('KERSTEN_EXPONENT')
+        call InputReadDouble(input,option,tcf%alpha)
+        call InputErrorMsg(input,option,'Kersten exponent', &
              error_string)
       case default
         call InputKeywordUnrecognized(input,keyword, &
@@ -1191,6 +1215,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadNDoubles(input,option,tcf%beta,3)
         call InputErrorMsg(input,option, &
              'thermal conductivity polynomial coefficients',error_string)
+      case('KERSTEN_EXPONENT')
+        call InputReadDouble(input,option,tcf%alpha)
+        call InputErrorMsg(input,option,'Kersten exponent', &
+             error_string)
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'temp-dependent (cubic polynomial) thermal conductivity',option)
@@ -1220,6 +1248,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadNDoubles(input,option,tcf%a,2)
         call InputErrorMsg(input,option, &
              'linear thermal resistivity coefficients',error_string)
+      case('KERSTEN_EXPONENT')
+        call InputReadDouble(input,option,tcf%alpha)
+        call InputErrorMsg(input,option,'Kersten exponent', &
+             error_string)
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'temp-dependent (linear resistivity) thermal conductivity',option)
@@ -1246,13 +1278,13 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
              'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity frozen', &
              option)
       case('KERSTEN_EXPONENT')
-          call InputReadDouble(input,option,tcf%alpha)
-          call InputErrorMsg(input,option,'exponent', &
-               error_string)
+        call InputReadDouble(input,option,tcf%alpha)
+        call InputErrorMsg(input,option,'Kersten exponent', &
+             error_string)
       case('KERSTEN_EXPONENT_FROZEN')
-         call InputReadDouble(input,option,tcf%alpha_fr)
-         call InputErrorMsg(input,option,'exponent - frozen', &
-              error_string)
+        call InputReadDouble(input,option,tcf%alpha_fr)
+        call InputErrorMsg(input,option,'Kersten exponent - frozen', &
+             error_string)
       case('ICE_MODEL')
         call InputReadCard(input,option,keyword,PETSC_FALSE)
         call StringToUpper(keyword)
