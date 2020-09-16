@@ -607,6 +607,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
        global_auxvar%sat(1),global_auxvar%temp,auxvar%Dk_eff,dk_ds,dk_dT,option)
   ! auxvar%Dk_eff = Dk_dry + (Dk - Dk_dry)*Ke
 
+  ! write(*,*)"RAN ",trim(thermal_cc%name)," and got ",auxvar%Dk_eff," from ",Dk,Dk_dry,icct
   ! Derivative of soil Kersten number
   auxvar%dKe_dp = alpha*(global_auxvar%sat(1) + epsilon)**(alpha - 1.d0)* &
                   auxvar%dsat_dp
@@ -739,7 +740,20 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
        saturation_function%lambda = auxvar%bc_lambda
     endif
 #endif
-
+  
+  ! Check if user specified ice model via thermal characteristic curves
+  select type(tcf => thermal_cc%thermal_conductivity_function)
+  class is (kT_frozen_type)
+    if (Initialized(tcf%ice_model)) then
+      th_ice_model = tcf%ice_model
+    endif
+  class default
+    option%io_buffer = 'Cannot use THERMAL_CHARACTERISTIC_CURVES(' &
+                       // trim(thermal_cc%name) // &
+                       ') when FREEZING is active in TH mode.'
+    call PrintErrMsg(option)
+  end select
+  
   select case (th_ice_model)
     case (PAINTER_EXPLICIT)
       ! Model from Painter, Comp. Geosci. (2011)

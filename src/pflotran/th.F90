@@ -227,7 +227,7 @@ subroutine THSetupPatch(realization)
     
     select type(tcf => thermal_cc%thermal_conductivity_function)
       !------------------------------------------
-    class is(kT_frozen_type)
+      class is(kT_frozen_type)
         patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
@@ -245,22 +245,32 @@ subroutine THSetupPatch(realization)
           tcf%constant_thermal_conductivity*option%scale
         patch%aux%TH%th_parameter%ckwet(material_id) = &
           tcf%constant_thermal_conductivity*option%scale
+        tcf%constant_thermal_conductivity = &
+          tcf%constant_thermal_conductivity*option%scale ! apply scale to original value
       !------------------------------------------
       class is(kT_default_type)
         patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
+        tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
       !------------------------------------------
       class is(kT_linear_resistivity_type)
         patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
+        tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
       !------------------------------------------
       class is(kT_cubic_polynomial_type)
         patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
+        tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
       !------------------------------------------
       class is(kT_power_type)
         patch%aux%TH%th_parameter%ckdry(material_id) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(material_id) = tcf%kT_wet*option%scale
+        tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
+        tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
       class default
         option%io_buffer = 'ERROR: TH mode does not support thermal &
           &characteristic curve in material: ' // trim(word)
@@ -275,16 +285,16 @@ subroutine THSetupPatch(realization)
       error_found = PETSC_TRUE
     endif
     if (th_use_freezing) then
-      if (Uninitialized(patch%aux%TH%th_parameter%alpha_fr(material_id))) then
-        option%io_buffer = 'ERROR: Non-initialized FROZEN EXPONENT when '&
-                         //'freezing activated in material ' // trim(word)
+      if (patch%aux%TH%th_parameter%ckfrozen(material_id) < 0.0d0 ) then
+        option%io_buffer = 'ERROR: Non-initialized FROZEN THERMAL '&
+        //'CONDUCTIVITY when freezing activated in '&
+        //'material ' // trim(word)
         call PrintMsgByRank(option)
         error_found = PETSC_TRUE
       endif
-      if (Uninitialized(patch%aux%TH%th_parameter%ckfrozen(material_id))) then
-        option%io_buffer = 'ERROR: Non-initialized FROZEN THERMAL '&
-                         //'CONDUCTIVITY when freezing activated in '&
-                         //'material ' // trim(word)
+      if (Uninitialized(patch%aux%TH%th_parameter%alpha_fr(material_id))) then
+        option%io_buffer = 'ERROR: Non-initialized FROZEN EXPONENT when '&
+                         //'freezing activated in material ' // trim(word)
         call PrintMsgByRank(option)
         error_found = PETSC_TRUE
       endif

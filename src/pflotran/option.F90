@@ -224,6 +224,9 @@ module Option_module
     PetscBool :: inline_surface_flow
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
+    
+    ! flag to use freezing model in TH mode
+    PetscBool :: freezing
 
   end type option_type
 
@@ -604,6 +607,8 @@ subroutine OptionInitRealization(option)
   option%inline_surface_flow           = PETSC_FALSE
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
+  
+  option%freezing = PETSC_FALSE
 
 
 end subroutine OptionInitRealization

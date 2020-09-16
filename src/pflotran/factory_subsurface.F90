@@ -2907,6 +2907,7 @@ subroutine SubsurfaceReadInput(simulation,input)
              characteristic_curves_thermal, &
              realization%characteristic_curves_thermal)
         nullify(characteristic_curves_thermal)
+        if (option%freezing) th_use_freezing = PETSC_TRUE
 
 !....................
 

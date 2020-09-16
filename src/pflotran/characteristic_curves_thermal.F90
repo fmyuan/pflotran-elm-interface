@@ -65,6 +65,7 @@ module Characteristic_Curves_Thermal_module
     PetscReal :: kT_frozen  ! frozen thermal conductivity
     PetscReal :: alpha      ! exponent for unfrozen soil Kersten number
     PetscReal :: alpha_fr   ! exponent for frozen soil Kersten number
+    PetscInt  :: ice_model  ! indicator of ice model
   contains
     procedure, public :: Test => TCFFrozenTest
     procedure, public :: Verify => TCFFrozenVerify
@@ -780,6 +781,7 @@ function TCFFrozenCreate()
   TCFFrozenCreate%kT_frozen = UNINITIALIZED_DOUBLE
   TCFFrozenCreate%alpha     = UNINITIALIZED_DOUBLE
   TCFFrozenCreate%alpha_fr  = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%ice_model = UNINITIALIZED_INTEGER
 
 end function TCFFrozenCreate
 
@@ -815,20 +817,24 @@ subroutine TCFFrozenVerify(this,name,option)
     option%io_buffer = UninitializedMessage('EXPONENT',string)
     call PrintErrMsg(option)
   endif
-  ! Both frozen parameters must be initialized
+  ! All frozen parameters must be initialized to use freezing
   if (Initialized(this%kT_frozen)) then
     if (Uninitialized(this%alpha_fr)) then
       option%io_buffer = UninitializedMessage('FROZEN EXPONENT (MUST BE '&
                                             //'SPECIFIED WITH FROZEN THERMAL '&
                                             //'CONDUCTIVITY)',string)
       call PrintErrMsg(option)
-    endif
-    ! if (Initialized(this%alpha_fr) .and. Initialized(this%kT_frozen)) then
+    elseif (Uninitialized(this%ice_model)) then
+      option%io_buffer = UninitializedMessage('ICE MODEL (MUST BE '&
+                                            //'SPECIFIED WITH FROZEN THERMAL '&
+                                            //'CONDUCTIVITY)',string)
+      call PrintErrMsg(option)
+    else
       ! AS3: Can't figure out how to specify dependencies such that TH_Aux.o 
-      !      is generated first to define th_use_freezing below. User will still
-      !      have to specify this in OPTION
-      ! th_use_freezing = PETSC_TRUE
-    ! endif
+      !      is generated first to define th_use_freezing below instead of the 
+      !      option workaround
+      option%freezing = PETSC_TRUE
+    endif
   endif
 
 end subroutine TCFFrozenVerify
@@ -1021,7 +1027,7 @@ end subroutine TCFAssignDefault
 ! ************************************************************************** !
 
 subroutine TCFAssignFrozen(thermal_conductivity_function,&
-                             kwet,kdry,kfrozen,alpha,alpha_fr,option)
+                             kwet,kdry,kfrozen,alpha,alpha_fr,icemod,option)
 
   use Option_module
 
@@ -1029,6 +1035,7 @@ subroutine TCFAssignFrozen(thermal_conductivity_function,&
 
   class(thermal_conductivity_base_type) :: thermal_conductivity_function
   PetscReal :: kwet,kdry,kfrozen,alpha,alpha_fr
+  PetscInt :: icemod
   type(option_type) :: option
 
   select type(tcf => thermal_conductivity_function)
@@ -1039,6 +1046,7 @@ subroutine TCFAssignFrozen(thermal_conductivity_function,&
       tcf%kT_frozen = kfrozen
       tcf%alpha     = alpha
       tcf%alpha_fr  = alpha_fr
+      tcf%ice_model = icemod
   end select
 
 end subroutine TCFAssignFrozen
@@ -1229,23 +1237,41 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadDouble(input,option,tcf%kT_frozen)
         call InputErrorMsg(input,option,'thermal conductivity frozen', &
              error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_frozen, &
-             'C','CHARACTERISTIC_CURVES_THERMAL,thermal conductivity frozen', &
+        call InputReadAndConvertUnits(input,tcf%kT_frozen,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity frozen', &
              option)
       case('KERSTEN_EXPONENT')
           call InputReadDouble(input,option,tcf%alpha)
           call InputErrorMsg(input,option,'exponent', &
                error_string)
-          call InputReadAndConvertUnits(input,tcf%alpha, &
-               'C','CHARACTERISTIC_CURVES_THERMAL,exponent',option)
       case('KERSTEN_EXPONENT_FROZEN')
          call InputReadDouble(input,option,tcf%alpha_fr)
          call InputErrorMsg(input,option,'exponent - frozen', &
               error_string)
-         call InputReadAndConvertUnits(input,tcf%alpha_fr, &
-              'C','CHARACTERISTIC_CURVES_THERMAL,exponent - frozen',option)
+      case('ICE_MODEL')
+        call InputReadCard(input,option,keyword,PETSC_FALSE)
+        call StringToUpper(keyword)
+        select case (trim(keyword))
+          case ('PAINTER_EXPLICIT')
+            tcf%ice_model = PAINTER_EXPLICIT
+          case ('PAINTER_KARRA_IMPLICIT')
+            tcf%ice_model = PAINTER_KARRA_IMPLICIT
+          case ('PAINTER_KARRA_EXPLICIT')
+            tcf%ice_model = PAINTER_KARRA_EXPLICIT
+          case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
+            tcf%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
+          case ('DALL_AMICO')
+            tcf%ice_model = DALL_AMICO
+          case default
+            option%io_buffer = 'Cannot identify the specificed ice model. &
+             &Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT &
+             &or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO &
+             &or DALL_AMICO.'
+            call PrintErrMsg(option)
+          end select
       case default
-        !AS3 make sure to replace wet and dry with new func from anisotropic
+        !AS3: Make sure to implement new subroutine from anisotropic branch 
+        !     when merged
         call InputKeywordUnrecognized(input,keyword, &
              'temp-dependent (linear resistivity) thermal conductivity',option)
       end select
