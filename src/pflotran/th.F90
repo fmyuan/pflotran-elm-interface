@@ -250,33 +250,39 @@ subroutine THSetupPatch(realization)
           tcf%constant_thermal_conductivity*option%scale
         tcf%constant_thermal_conductivity = &
           tcf%constant_thermal_conductivity*option%scale ! apply scale to original value
+        patch%aux%TH%th_parameter%alpha(icct) = 1.0d0 ! make Kertsen number equal to saturation
       !------------------------------------------
       class is(kT_default_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
+        patch%aux%TH%th_parameter%alpha(icct) = 1.0d0 ! make Kertsen number equal to saturation
       !------------------------------------------
       class is(kT_linear_resistivity_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
+        patch%aux%TH%th_parameter%alpha(icct) = 1.0d0 ! make Kertsen number equal to saturation
       !------------------------------------------
       class is(kT_cubic_polynomial_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
+        patch%aux%TH%th_parameter%alpha(icct) = 1.0d0 ! make Kertsen number equal to saturation
       !------------------------------------------
       class is(kT_power_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
+        patch%aux%TH%th_parameter%alpha(icct) = 1.0d0 ! make Kertsen number equal to saturation
       class default
-        option%io_buffer = 'ERROR: TH mode does not support thermal &
-          &characteristic curve in material: ' // trim(word)
+        option%io_buffer = 'ERROR: TH mode does not support thermal '&
+                         //'characteristic curve ' // trim(thermal_cc%name) &
+                         //' in material: ' // trim(word)
         call PrintMsgByRank(option)
         error_found = PETSC_TRUE
     end select

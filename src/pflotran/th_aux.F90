@@ -605,7 +605,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   ! Effective thermal conductivity
   call thermal_cc%thermal_conductivity_function%CalculateTCond( &
        global_auxvar%sat(1),global_auxvar%temp,auxvar%Dk_eff,dk_ds,dk_dT,option)
-  ! auxvar%Dk_eff = Dk_dry + (Dk - Dk_dry)*Ke
 
   ! Derivative of soil Kersten number
   auxvar%dKe_dp = alpha*(global_auxvar%sat(1) + epsilon)**(alpha - 1.d0)* &
@@ -904,7 +903,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   call thermal_cc%thermal_conductivity_function%CalculateFTCond( &
        global_auxvar%sat(1),auxvar%ice%sat_ice,global_auxvar%temp, &
        auxvar%Dk_eff,dk_ds,dK_di,dk_dT,option)
-  ! auxvar%Dk_eff = Dk*Ke + Dk_ice*Ke_fr + (1.d0 - Ke - Ke_fr)*Dk_dry
 
   ! Derivative of Kersten number
   auxvar%dKe_dp = alpha*(global_auxvar%sat(1) + epsilon)**(alpha - 1.d0)* &
