@@ -1,0 +1,198 @@
+#Description: 1D test problem for TH TS mode
+#===================== THC mode ===============================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH_TS
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ATOL 1D-12
+    RTOL 1D-8
+    STOL 1D-15
+    ITOL 1D-8
+    MAXIMUM_NUMBER_OF_ITERATIONS 100
+    MAXF 1000
+  /
+
+  LINEAR_SOLVER
+    #PC_TYPE LU
+    #KSP_TYPE PREONLY
+  /
+
+END
+
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 2
+  CELL_IDS
+    1
+    51
+    100
+  /
+END
+
+#===================== Discretization =========================================
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 100 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    100.d0 1.d0 1.d0
+  /
+END
+
+#===================== Solver options =========================================
+
+
+
+
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+#========================= material properties ================================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.5d0
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2.8E3
+  SPECIFIC_HEAT 1E3
+  THERMAL_CHARACTERISTIC_CURVES cct
+  CHARACTERISTIC_CURVES default
+  LONGITUDINAL_DISPERSIVITY 3.1536d0
+  PERMEABILITY
+    PERM_X 1.d-15
+    PERM_Y 1.d-15
+    PERM_Z 1.d-15
+  /
+END
+
+THERMAL_CHARACTERISTIC_CURVES cct
+  THERMAL_CONDUCTIVITY_FUNCTION DEFAULT
+    THERMAL_CONDUCTIVITY_DRY 0.5 W/m-C
+    THERMAL_CONDUCTIVITY_WET 0.5 W/m-C
+  /
+/
+
+#========================= saturation functions ===============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.5d-1
+    ALPHA 1.d-3
+    M 0.75d0
+    MAX_CAPILLARY_PRESSURE 1.d9
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.5d-1
+    M 0.75d0
+  /
+/
+
+#========================= output options =====================================
+OUTPUT
+#  TIMES y 100. 250. 500. 1000. 5000. 1.e4
+#  SCREEN PERIODIC 1
+#  PERIODIC_OBSERVATION TIMESTEP 1
+  PRINT_COLUMN_IDS
+  FORMAT TECPLOT POINT
+  FORMAT HDF5
+  VELOCITY_AT_CENTER
+END
+
+#======================== times ===============================================
+TIME
+  FINAL_TIME 1.e3 y
+  INITIAL_TIMESTEP_SIZE 1.d-8 y
+  MAXIMUM_TIMESTEP_SIZE 1.d1  y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    100.d0 1.d0 1.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    100.d0 0.d0 0.d0
+    100.d0 1.d0 1.d0
+  /
+END
+
+OBSERVATION
+  REGION east
+  VELOCITY
+END
+
+#======================= flow conditions ======================================
+FLOW_CONDITION initial
+  UNITS Pa, C, yr
+  TYPE
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  PRESSURE 1.5D5
+  TEMPERATURE 25.D0
+END
+
+FLOW_CONDITION west
+  TYPE
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  PRESSURE 10.0D5
+  TEMPERATURE 25.D0
+END
+
+#========================== initial and boundary conditions ===================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+# west boundary condition
+BOUNDARY_CONDITION
+  FLOW_CONDITION west
+  REGION west
+END
+
+# east boundary condition
+BOUNDARY_CONDITION
+  FLOW_CONDITION initial
+  REGION east
+END
+
+#===================== stratigraphy couplers ==================================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== checkpoint / restart =============================
+#CHECKPOINT 10
+END_SUBSURFACE
