@@ -259,25 +259,26 @@ subroutine TCFFrozenTest(this,tcc_name,option)
   type(option_type), intent(inout) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, parameter :: nt = 71
-  PetscInt, parameter :: ns = 31
+  PetscInt, parameter :: nt = 28
+  PetscInt, parameter :: ns = 12
+  PetscInt, parameter :: ni = 12
   PetscReal, parameter :: perturbation = 1.0D-6
   PetscReal :: deltaTemp, deltaSat, deltaIce
   PetscReal :: temp_vec(nt)
   PetscReal :: sat_vec(ns)
-  PetscReal :: ice_vec(ns)
-  PetscReal :: kT(nt,ns)
-  PetscReal :: dkT_dsat(nt,ns)
-  PetscReal :: dkT_dsat_numerical(nt,ns)
-  PetscReal :: dkT_dice(nt,ns)
-  PetscReal :: dkT_dice_numerical(nt,ns)
-  PetscReal :: dkT_dtemp(nt,ns)
-  PetscReal :: dkT_dtemp_numerical(nt,ns)
+  PetscReal :: ice_vec(ni)
+  PetscReal :: kT(nt,ns,ni)
+  PetscReal :: dkT_dsat(nt,ns,ni)
+  PetscReal :: dkT_dsat_numerical(nt,ns,ni)
+  PetscReal :: dkT_dice(nt,ns,ni)
+  PetscReal :: dkT_dice_numerical(nt,ns,ni)
+  PetscReal :: dkT_dtemp(nt,ns,ni)
+  PetscReal :: dkT_dtemp_numerical(nt,ns,ni)
   PetscReal :: perturbed_temp, perturbed_sat, perturbed_ice
   PetscReal :: kT_temp_pert, kT_sat_pert, kT_ice_pert
   PetscReal :: unused1, unused2, unused3
   PetscReal :: temp_min, temp_max, sat_min, sat_max, ice_min, ice_max
-  PetscInt :: i,j
+  PetscInt :: i,j,k
   
   ! resort to regular test if frozen parameters are not initialized
   if (Uninitialized(this%kT_frozen)) then
@@ -295,39 +296,41 @@ subroutine TCFFrozenTest(this,tcc_name,option)
 
   deltaTemp = (temp_max - temp_min)/(nt - 1)
   deltaSat = (sat_max - sat_min)/(ns - 1)
-  deltaIce = (ice_max - ice_min)/(ns - 1)
+  deltaIce = (ice_max - ice_min)/(ni - 1)
 
   temp_vec = [(temp_min + i*deltaTemp, i=0,nt-1)]
   sat_vec = [(sat_min + i*deltaSat, i=0,ns-1)]
-  ice_vec = [(ice_min + i*deltaIce, i=0,ns-1)]
+  ice_vec = [(ice_min + i*deltaIce, i=0,ni-1)]
 
   do i = 1,nt
     do j = 1,ns
-      ! base case with analytical derivatives
-      call this%CalculateFTCond(sat_vec(j),ice_vec(j),temp_vec(i), &
-           kT(i,j),dkT_dsat(i,j),dkT_dice(i,j),dkT_dtemp(i,j),option)
-
-      ! calculate numerical derivatives via finite differences
-      perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
-      call this%CalculateFTCond(sat_vec(j),ice_vec(j),perturbed_temp, &
-           kT_temp_pert,unused1,unused2,unused3,option)
-
-      dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/ & 
-                                 (temp_vec(i)*perturbation)
-
-      perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
-      call this%CalculateFTCond(perturbed_sat,ice_vec(j),temp_vec(i), &
-           kT_sat_pert,unused1,unused2,unused3,option)
-
-      dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/ & 
-                                (sat_vec(j)*perturbation)
-      
-      perturbed_ice = ice_vec(j) * (1.d0 + perturbation)
-      call this%CalculateFTCond(sat_vec(j),perturbed_ice,temp_vec(i), &
-           kT_ice_pert,unused1,unused2,unused3,option)
-           
-      dkT_dice_numerical(i,j) = (kT_ice_pert - kT(i,j))/ & 
-                                 (ice_vec(j)*perturbation)
+      do k = 1,ni
+        ! base case with analytical derivatives
+        call this%CalculateFTCond(sat_vec(j),ice_vec(k),temp_vec(i), &
+           kT(i,j,k),dkT_dsat(i,j,k),dkT_dice(i,j,k),dkT_dtemp(i,j,k),option)
+  
+        ! calculate numerical derivatives via finite differences
+        perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
+        call this%CalculateFTCond(sat_vec(j),ice_vec(k),perturbed_temp, &
+             kT_temp_pert,unused1,unused2,unused3,option)
+  
+        dkT_dtemp_numerical(i,j,k) = (kT_temp_pert - kT(i,j,k))/ & 
+                                   (temp_vec(i)*perturbation)
+  
+        perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
+        call this%CalculateFTCond(perturbed_sat,ice_vec(k),temp_vec(i), &
+             kT_sat_pert,unused1,unused2,unused3,option)
+  
+        dkT_dsat_numerical(i,j,k) = (kT_sat_pert - kT(i,j,k))/ & 
+                                  (sat_vec(j)*perturbation)
+        
+        perturbed_ice = ice_vec(k) * (1.d0 + perturbation)
+        call this%CalculateFTCond(sat_vec(j),perturbed_ice,temp_vec(i), &
+             kT_ice_pert,unused1,unused2,unused3,option)
+             
+        dkT_dice_numerical(i,j,k) = (kT_ice_pert - kT(i,j,k))/ & 
+                                   (ice_vec(k)*perturbation)
+      enddo
     enddo
   enddo
 
@@ -340,10 +343,12 @@ subroutine TCFFrozenTest(this,tcc_name,option)
                "dkT/dT_numerical"'
   do i = 1,nt
     do j = 1,ns
-      write(86,'(10(ES14.6))') temp_vec(i), sat_vec(j), ice_vec(j), &
-           kT(i,j), dkT_dsat(i,j), dkT_dice(i,j), dkT_dtemp(i,j), &
-           dkT_dsat_numerical(i,j), dkT_dice_numerical(i,j), &
-           dkT_dtemp_numerical(i,j)
+      do k = 1,ni
+        write(86,'(10(ES14.6))') temp_vec(i), sat_vec(j), ice_vec(k), &
+             kT(i,j,k), dkT_dsat(i,j,k), dkT_dice(i,j,k), dkT_dtemp(i,j,k), &
+             dkT_dsat_numerical(i,j,k), dkT_dice_numerical(i,j,k), &
+             dkT_dtemp_numerical(i,j,k)
+      enddo
     enddo
   enddo
   close(86)
