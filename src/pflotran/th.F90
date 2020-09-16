@@ -5293,7 +5293,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     else
       characteristic_curves => patch%characteristic_curves_array(icc)%ptr
     endif
-    characteristic_curves_thermal => patch%char_curves_thermal_array(icc)%ptr
+    characteristic_curves_thermal => patch%char_curves_thermal_array(icct)%ptr
     
     call THAccumDerivative(auxvars(ghosted_id),global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id), &

@@ -64,7 +64,6 @@ module Characteristic_Curves_Thermal_module
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_frozen_type
     PetscReal :: kT_frozen  ! frozen thermal conductivity
-    ! PetscReal :: alpha      ! exponent for unfrozen soil Kersten number
     PetscReal :: alpha_fr   ! exponent for frozen soil Kersten number
     PetscInt  :: ice_model  ! indicator of ice model
   contains
