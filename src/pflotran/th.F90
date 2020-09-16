@@ -162,28 +162,6 @@ subroutine THSetupPatch(realization)
 
 ! call printErrMsg(option)
 
-  ! check if user forgot to specify freezing boolean in OPTION
-  if (.not. th_use_freezing) then
-    do i = 1, size(patch%material_property_array)
-      icct = patch%material_property_array(i)%ptr% &
-                  thermal_conductivity_function_id
-      thermal_cc => patch%char_curves_thermal_array(icct)%ptr
-      select type(tcf => thermal_cc%thermal_conductivity_function)
-        !------------------------------------------
-      class is(kT_frozen_type)
-          if (Initialized(tcf%kT_frozen)) then
-            option%io_buffer = 'ERROR: FREEZING must be specified in OPTIONS '&
-                             //'for TH mode when employing frozen parameters.'
-            call PrintErrMsg(option)
-            error_found = PETSC_TRUE
-            exit
-          endif
-      class default
-        cycle
-      end select
-    enddo
-  endif
-
   if (th_use_freezing) then
     allocate(patch%aux%TH%th_parameter%sir(option%nphase, &
               size(patch%saturation_function_array)))
@@ -229,8 +207,6 @@ subroutine THSetupPatch(realization)
     patch%aux%TH%th_parameter%dencpr(icct) = &
       patch%material_property_array(i)%ptr%rock_density*option%scale* &
         patch%material_property_array(i)%ptr%specific_heat  
-    ! patch%aux%TH%th_parameter%alpha(icct) = &
-    !   patch%material_property_array(i)%ptr%alpha
     
     select type(tcf => thermal_cc%thermal_conductivity_function)
       !------------------------------------------
