@@ -4945,6 +4945,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
          cc_dn => patch%characteristic_curves_array(icc_dn)%ptr 
       endif
 
+      tcc_up => patch%char_curves_thermal_array(icct_up)%ptr
+      tcc_dn => patch%char_curves_thermal_array(icct_dn)%ptr
 
       call THFluxDerivative(auxvars(ghosted_id_up), &
                             global_auxvars(ghosted_id_up), &
