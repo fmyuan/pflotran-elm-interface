@@ -110,7 +110,7 @@ subroutine FluidPropertyRead(fluid_property,input,option)
         call InputErrorMsg(input,option,'diffusion coefficient', &
                            'FLUID_PROPERTY')
         call InputReadAndConvertUnits(input, &
-                                      fluid_property%diffusion_coefficient &
+                                      fluid_property%diffusion_coefficient, &
                        'm^2/sec','FLUID_PROPERTY,diffusion_coefficient',option)
       case('DIFFUSION_ACTIVATION_ENERGY') 
         call InputReadDouble(input,option, &
