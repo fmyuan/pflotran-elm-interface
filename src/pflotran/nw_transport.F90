@@ -337,7 +337,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   PetscInt :: istart, iend
   PetscReal, pointer :: xx_loc_p(:)
   PetscInt, parameter :: iphase = 1
-  PetscInt :: offset, fake
+  PetscInt :: offset
   PetscErrorCode :: ierr
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)  
@@ -377,10 +377,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
       iend = offset + reaction_nw%params%nspecies
       
       nwt_auxvars(ghosted_id)%total_bulk_conc = xx_loc_p(istart:iend)
-
-      if (ghosted_id == 791) then
-        fake = 0  ! just a fake line for ddt to catch
-      endif
 
       call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -674,10 +670,6 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
 
       !WRITE(*,*)  '  auxvars_aqc = ', nwt_auxvars(ghosted_id)%aqueous_eq_conc(:) 
-
-      if (ghosted_id == 791) then
-        area = 0.d0  ! just a fake line to catch in ddt
-      endif
        
       call NWTResidualAccum(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -698,7 +690,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   !WRITE(*,*)  '       r_p(2) = ', r_p(723), '     loc = 723'
   !WRITE(*,*)  '       r_p(2) = ', r_p(791), '     loc = 791'
   
-#if 1
+#if 0
   !== Source/Sink Terms =======================================
   source_sink => realization%patch%source_sink_list%first
   sum_connection = 0
@@ -740,7 +732,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 
   !WRITE(*,*)  '       r_p(3) = ', r_p(:)
 
-#if 1
+#if 0
   !== Decay and Ingrowth ======================================
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -780,10 +772,6 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       
       ghosted_id_up = cur_connection_set%id_up(iconn)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-      if ((ghosted_id_up == 791) .or. (ghosted_id_dn == 791)) then
-        area = 0.d0  ! just a fake line to catch in ddt
-      endif
       
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
@@ -961,7 +949,6 @@ subroutine NWTUpdateFixedAccumulation(realization)
   PetscReal, pointer :: xx_p(:), fixed_accum_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: dof_offset, istart, iend
-  PetscInt :: fake
   PetscErrorCode :: ierr
   
   option => realization%option
@@ -993,10 +980,6 @@ subroutine NWTUpdateFixedAccumulation(realization)
 
     ! copy primary dependent variable
     nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
-
-    if (ghosted_id == 791) then
-        fake = 0  ! just a fake line to catch in ddt
-    endif
     
     call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
                           global_auxvars(ghosted_id), &
@@ -1263,8 +1246,11 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   
   PetscInt :: unit_n_up, unit_n_dn
   PetscInt :: nspecies
-  PetscReal :: q
+  PetscReal :: q, u
+  PetscReal :: harmonic_ps
   PetscReal :: sat_up, sat_dn
+  PetscReal :: por_up, por_dn
+  PetscReal :: ps_up, ps_dn
   PetscReal :: dist_up, dist_dn
   PetscReal, pointer :: diffusivity_up(:)
   PetscReal, pointer :: diffusivity_dn(:)
@@ -1288,6 +1274,10 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   
   sat_up = max(MIN_LIQ_SAT,global_auxvar_up%sat(LIQUID_PHASE))
   sat_dn = max(MIN_LIQ_SAT,global_auxvar_dn%sat(LIQUID_PHASE))
+  por_up = material_auxvar_up%porosity
+  por_dn = material_auxvar_dn%porosity
+  ps_up = por_up*sat_up
+  ps_dn = por_dn*sat_dn
   
   diffusion_coefficient => reaction_nw%diffusion_coefficient
   molecular_diffusion_up(:) = diffusion_coefficient(:,LIQUID_PHASE)
@@ -1324,9 +1314,41 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
                 
   ! units of q = [m/s]
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
+  if (q == 0.d0) then
+    u = 0.d0
+  else
+    !if (dry_out_up .and. dry_out_dn) then
+    !  ! this situation means both cells at the connection face are dry
+    !  ! this situation will probably never get entered, because q should be 
+    !  ! zero, and it would have got caught above
+    !  u = 0.d0
+    !elseif ((.not.dry_out_up) .and. (.not.dry_out_dn)) then
+      ! this situation is the typical one, where both cells have some liquid
+      harmonic_ps = (ps_up*ps_dn)/(ps_up*dist_up + ps_dn*dist_dn)* &
+                    (dist_up+dist_dn)   ! weighted harmonic average
+      u = q/harmonic_ps
+    !else
+    !  ! one of the cells on either side of the face is dried out
+    !  ! calculate u with upwinding, not harmonic average
+    !  if (q > 0.d0) then ! q flows from _up to _dn
+    !    if (dry_out_up) then
+    !      u = 0.d0
+    !    else
+    !      u = q/(por_up*sat_up)
+    !    endif
+    !  else               ! q flows from _dn to _up
+    !    if (dry_out_dn) then
+    !      u = 0.d0
+    !    else
+    !      u = q/(por_dn*sat_dn)
+    !    endif
+    !  endif
+    !endif
+  endif
+
   ! units of unit_n = [-] unitless
-  unit_n_up = -1  
-  unit_n_dn = +1  
+  unit_n_up = -1  ! original
+  unit_n_dn = +1  ! original
 
   ! upstream weighting
   if (.not.bc) then
@@ -1389,12 +1411,17 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   Mat :: J, J_num, J_ana
   MatType :: mat_type
   PetscViewer :: viewer, viewer2 
-  Vec :: xx_pert, res, res_pert
+  Vec :: xx_pert, res, res_pert, fixed_accum
   PetscReal, pointer :: res_pert_p(:), res_p(:), xx_pert_p(:)
-  PetscReal, pointer :: derivative(:) 
+  PetscReal, pointer :: fixed_accum_p(:)
+  PetscReal, pointer :: derivative(:), derivative_accum(:), derivative_flux(:) 
+  PetscReal, pointer :: derivative_rxn(:), derivative_srcsink(:) 
   PetscReal, pointer :: perturbation(:)
-  PetscReal, pointer :: dRes(:)
+  PetscReal, pointer :: residual(:)
+  PetscReal, pointer :: residual_pert(:)
+  PetscReal, pointer :: dRes(:), dRes_accum(:), dRes_rxn(:)
   PetscReal, pointer :: work_loc_p(:) 
+  PetscReal :: res_at_cell(realization%reaction_nw%params%nspecies)
   type(option_type), pointer :: option
   type(grid_type),  pointer :: grid
   type(field_type), pointer :: field
@@ -1417,14 +1444,20 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iconn, sum_connection
+  PetscInt :: cell_number
   PetscInt :: iphase
-  PetscReal :: Jac(realization%reaction_nw%params%nspecies, &
+  PetscReal :: Jac_accum(realization%reaction_nw%params%nspecies, &
+                   realization%reaction_nw%params%nspecies)
+  PetscReal :: Jac_srcsink(realization%reaction_nw%params%nspecies, &
+                   realization%reaction_nw%params%nspecies)
+  PetscReal :: Jac_rxn(realization%reaction_nw%params%nspecies, &
                    realization%reaction_nw%params%nspecies)
   PetscReal :: JacUp(realization%reaction_nw%params%nspecies, &
                      realization%reaction_nw%params%nspecies)
   PetscReal :: JacDn(realization%reaction_nw%params%nspecies, &
                      realization%reaction_nw%params%nspecies)
-  PetscReal :: area
+  PetscReal :: area, value
+  PetscReal :: compare_accum, compare_rxn, compare_flux
   PetscBool :: numerical
     
   option => realization%option
@@ -1449,7 +1482,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   iphase = LIQUID_PHASE
 
   ! For debugging only. Set the type of jacobian here:
-  numerical = PETSC_TRUE
+  numerical = PETSC_FALSE
 
   call PetscLogEventBegin(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
@@ -1484,12 +1517,12 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
       
       call NWTJacobianAccum(material_auxvars(ghosted_id), &
-                            reaction_nw,option,Jac) 
+                            reaction_nw,option,Jac_accum) 
               
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
-      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac_accum, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac_accum, &
                                ADD_VALUES,ierr);CHKERRQ(ierr)
   
     enddo
@@ -1514,14 +1547,14 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       call NWTJacobianSrcSink(material_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id),source_sink, &
                               realization%patch%ss_flow_vol_fluxes, &
-                              sum_connection,reaction_nw,Jac) 
+                              sum_connection,reaction_nw,Jac_srcsink) 
                               
       !WRITE(*,*)  '   JacSrcSink = ', Jac(:,:)
                                 
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
-      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+      call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac_srcsink, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+      call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac_srcsink, &
                                ADD_VALUES,ierr);CHKERRQ(ierr)
     
     enddo
@@ -1538,12 +1571,12 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
     
     call NWTJacobianRx(material_auxvars(ghosted_id), &
-                       reaction_nw,Jac)
+                       reaction_nw,Jac_rxn)
     
     ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
-    call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+    call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jac_rxn, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
-    call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+    call MatSetValuesBlocked(J_ana,1,ghosted_id-1,1,ghosted_id-1,Jac_rxn, &
                              ADD_VALUES,ierr);CHKERRQ(ierr)
     
   enddo
@@ -1697,6 +1730,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   ! numerical jacobian:
+  ! for debugging ONLY!! assumes no decay, and single species 
 #if 1
   call MatCreate(option%mycomm,J_num,ierr);CHKERRQ(ierr)
   call MatSetSizes(J_num,PETSC_DECIDE,PETSC_DECIDE, &
@@ -1711,11 +1745,92 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   call VecDuplicate(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
   call VecDuplicate(field%tran_xx,res,ierr);CHKERRQ(ierr)
   call VecDuplicate(field%tran_xx,res_pert,ierr);CHKERRQ(ierr)
+  call VecDuplicate(field%tran_accum,fixed_accum,ierr);CHKERRQ(ierr)
 
   allocate(derivative(grid%nlmax*option%ntrandof))
+  allocate(derivative_accum(grid%nlmax*option%ntrandof))
+  allocate(derivative_flux(grid%nlmax*option%ntrandof))
+  allocate(derivative_rxn(grid%nlmax*option%ntrandof))
+  allocate(derivative_srcsink(grid%nlmax*option%ntrandof))
   allocate(perturbation(grid%nlmax*option%ntrandof))
+  allocate(residual(grid%nlmax*option%ntrandof))
+  allocate(residual_pert(grid%nlmax*option%ntrandof))
   allocate(dRes(grid%nlmax*option%ntrandof))
+  allocate(dRes_accum(grid%nlmax*option%ntrandof))
+  allocate(dRes_rxn(grid%nlmax*option%ntrandof))
 
+  cell_number = 25
+
+  ! get the dM value:
+  call VecCopy(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(xx_pert,xx_pert_p,ierr);CHKERRQ(ierr)
+  do i=1,size(xx_pert_p)
+    perturbation(i) = max(xx_pert_p(i)*perturbation_tolerance,1.0d-30)
+    xx_pert_p(i) = xx_pert_p(i)+perturbation(i)
+  enddo
+
+  call VecCopy(field%tran_accum,fixed_accum,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(fixed_accum,fixed_accum_p,ierr);CHKERRQ(ierr)
+  residual(:) = 0.d0
+  residual_pert(:) = 0.d0
+  do i=1,size(derivative_accum)
+    ! note: auxvars should be current 
+    ! get the unperturbed residual:
+    call NWTResidualAccum(nwt_auxvars(i),global_auxvars(i), &
+                          material_auxvars(i),reaction_nw,res_at_cell)
+    offset = (i-1)*realization%reaction_nw%params%nspecies
+    istart = offset + 1
+    iend = offset + realization%reaction_nw%params%nspecies
+    residual(istart:iend) = &
+      (res_at_cell(1:realization%reaction_nw%params%nspecies) &
+        - fixed_accum_p(istart:iend))/option%tran_dt 
+    ! use dM to get a perturbed residual:
+    nwt_auxvars(i)%total_bulk_conc = xx_pert_p(i)
+    call NWTAuxVarCompute(nwt_auxvars(i),global_auxvars(i), &
+                          material_auxvars(i),reaction_nw,option)
+    call NWTResidualAccum(nwt_auxvars(i),global_auxvars(i), &
+                          material_auxvars(i),reaction_nw,res_at_cell)
+    offset = (i-1)*realization%reaction_nw%params%nspecies
+    istart = offset + 1
+    iend = offset + realization%reaction_nw%params%nspecies
+    residual_pert(istart:iend) = &
+      (res_at_cell(1:realization%reaction_nw%params%nspecies) &
+        - fixed_accum_p(istart:iend))/option%tran_dt 
+    ! calculate the numerical Jacobian entry:
+    dRes_accum(i) = residual_pert(i)-residual(i)
+    derivative_accum(i) = dRes_accum(i)/perturbation(i)
+  enddo
+
+  ! call Residual routine with original unperturbed M to set auxvars back
+  call NWTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
+  residual(:) = 0.d0
+  residual_pert(:) = 0.d0
+  do i=1,size(derivative_rxn)
+    ! note: auxvars should be current 
+    ! get the unperturbed residual:
+    call NWTResidualRx(nwt_auxvars(i),material_auxvars(i),reaction_nw,res_at_cell)
+    offset = (i-1)*realization%reaction_nw%params%nspecies
+    istart = offset + 1
+    iend = offset + realization%reaction_nw%params%nspecies
+    residual(istart:iend) = res_at_cell(1:realization%reaction_nw%params%nspecies)
+
+    ! use dM to get a perturbed residual:
+    nwt_auxvars(i)%total_bulk_conc = xx_pert_p(i)
+    call NWTAuxVarCompute(nwt_auxvars(i),global_auxvars(i), &
+                          material_auxvars(i),reaction_nw,option)
+    call NWTResidualRx(nwt_auxvars(i),material_auxvars(i),reaction_nw,res_at_cell)
+    offset = (i-1)*realization%reaction_nw%params%nspecies
+    istart = offset + 1
+    iend = offset + realization%reaction_nw%params%nspecies
+    residual_pert(istart:iend) = res_at_cell(1:realization%reaction_nw%params%nspecies) 
+    ! calculate the numerical Jacobian entry:
+    dRes_rxn(i) = residual_pert(i)-residual(i)
+    derivative_rxn(i) = dRes_rxn(i)/perturbation(i)     
+  enddo
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  residual(:) = 0.d0
+  residual_pert(:) = 0.d0
   ! get the unperturbed residual:
   call NWTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
   call VecGetArrayF90(res,res_p,ierr);CHKERRQ(ierr)
@@ -1724,7 +1839,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   call VecGetArrayF90(xx_pert,xx_pert_p,ierr);CHKERRQ(ierr)
   do i=1,size(xx_pert_p)
     perturbation(i) = xx_pert_p(i)*perturbation_tolerance
-    xx_pert_p(i) = xx_pert_p(i)+perturbation(i)
+    xx_pert_p(i) = max(xx_pert_p(i)+perturbation(i),1.0d-30)
   enddo
   ! use dM to get a perturbed residual:
   call NWTResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
@@ -1733,6 +1848,30 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   do i=1,size(res_pert_p)
     dRes(i) = res_pert_p(i)-res_p(i)
     derivative(i) = dRes(i)/perturbation(i)
+  enddo
+  ! call Residual routine with original unperturbed M to set auxvars back
+  call NWTResidual(PETSC_NULL_SNES,field%tran_xx,res,realization,ierr)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  do i=1,size(derivative)
+    call MatGetValues(J_ana,1,i-1,1,i-1,value,ierr);CHKERRQ(ierr)
+    if (i == cell_number) WRITE(*,*) '[num]jac_whole =', derivative(cell_number), &
+     '[an]compare = ', value, '% diff =', (derivative(cell_number)-value)/value*100.d0
+    call NWTJacobianAccum(material_auxvars(i),reaction_nw,option,Jac_accum)
+    compare_accum = Jac_accum(1,1)
+    if (i == cell_number) WRITE(*,*) '[num]jac_accum =', derivative_accum(cell_number), &
+     '[an]compare = ', compare_accum, '% diff =', &
+     (derivative_accum(cell_number)-compare_accum)/compare_accum*100.d0
+    call NWTJacobianRx(material_auxvars(i),reaction_nw,Jac_rxn)
+    compare_rxn = Jac_rxn(1,1)
+    if (i == cell_number) WRITE(*,*) '[num]jac_rxn =', derivative_rxn(cell_number), &
+     '[an]compare = ', compare_rxn, '% diff =', &
+     (derivative_rxn(cell_number)-compare_rxn)/compare_rxn*100.d0
+    compare_flux = value - Jac_accum(1,1) - Jac_rxn(1,1)
+    derivative_flux(i) = derivative(i) - derivative_accum(i) - derivative_rxn(i)
+    if (i == cell_number) WRITE(*,*) '[num]jac_flux =', derivative_flux(cell_number), &
+     '[an]compare = ', compare_flux, '% diff =', &
+     (derivative_flux(cell_number)-compare_flux)/compare_flux*100.d0  
   enddo
 
   call VecRestoreArrayF90(xx_pert,xx_pert_p,ierr);CHKERRQ(ierr)
