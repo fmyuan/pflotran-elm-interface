@@ -151,8 +151,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   SNESLineSearch :: linesearch  
   character(len=MAXSTRINGLENGTH) :: string  
   PetscBool :: add_pre_check, check_update, check_post_convergence
-  PetscInt :: itransport, RT, NWT
-  PetscInt :: trans_coupling
+  PetscInt :: itranmode
+  PetscInt :: transport_coupling
   SNESType :: snes_type
   PetscErrorCode :: ierr
 
@@ -160,10 +160,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   solver => this%timestepper%solver
   
   check_update = PETSC_FALSE
-  itransport = 0
-  trans_coupling = 10000 ! set to high value (not 0 or 1)
-  RT = 1
-  NWT = 2
+  itranmode = NULL_MODE
+  transport_coupling = UNINITIALIZED_INTEGER
 
   call SolverCreateSNES(solver,option%mycomm)
   call SNESGetLineSearch(solver%snes,linesearch, &
@@ -362,9 +360,9 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       call PrintMsg(option,"  Finished setting up FLOW SNES ")
   ! ----- subsurface reactive transport
     class is(pm_rt_type)
-      itransport = RT
       check_post_convergence = pm%check_post_convergence
-      trans_coupling = option%transport%reactive_transport_coupling
+      itranmode = option%itranmode
+      transport_coupling = option%transport%reactive_transport_coupling
       check_update = pm%realization%reaction%check_update
       discretization => pm%realization%discretization
       realization => pm%realization
@@ -373,9 +371,9 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
   ! ----- nuclear waste transport
     class is(pm_nwt_type)
-      itransport = NWT
       check_post_convergence = pm%controls%check_post_convergence
-      trans_coupling = option%transport%nw_transport_coupling
+      itranmode = option%itranmode
+      transport_coupling = option%transport%nw_transport_coupling
       check_update = pm%controls%check_update
       discretization => pm%realization%discretization
       realization => pm%realization
@@ -384,12 +382,12 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
   end select
   
-  if ( (itransport == RT) .or. (itransport == NWT) ) then
+  if (itranmode == RT_MODE .or. itranmode == NWT_MODE) then
     call PrintMsg(option,"  Beginning setup of TRAN SNES ")
     call SNESSetOptionsPrefix(solver%snes, "tran_",ierr);CHKERRQ(ierr)
     call SolverCheckCommandLine(solver)
     
-    if (trans_coupling == GLOBAL_IMPLICIT) then
+    if (transport_coupling == GLOBAL_IMPLICIT) then
       if (Uninitialized(solver%Jpre_mat_type) .and. &
           Uninitialized(solver%J_mat_type)) then
         ! Matrix types not specified, so set to default.
@@ -442,7 +440,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                        option)
     endif
 
-    if (trans_coupling == GLOBAL_IMPLICIT) then
+    if (transport_coupling == GLOBAL_IMPLICIT) then
 
       if (solver%J_mat_type == MATMFFD) then
         call MatCreateSNESMF(solver%snes,solver%J, &
@@ -457,12 +455,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
                                   ierr);CHKERRQ(ierr)
       
-      if (option%use_mc .and. (itransport == RT)) then
-        call SNESLineSearchSetPostCheck(linesearch, &
-                              SecondaryRTUpdateIterate, &
-                              realization,ierr);CHKERRQ(ierr)
-      endif
-      
       ! Have PETSc do a SNES_View() at the end of each solve if 
       ! verbosity > 0.
       if (option%verbosity >= 2) then
@@ -473,7 +465,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
     endif
 
-    if (trans_coupling == GLOBAL_IMPLICIT) then
+    if (transport_coupling == GLOBAL_IMPLICIT) then
       call SNESSetConvergenceTest(solver%snes, &
                                   PMCheckConvergencePtr, &
                                   this%pm_ptr, &
@@ -497,7 +489,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
     endif
     call PrintMsg(option,"  Finished setting up TRAN SNES ")
       
-  endif ! RT or NWT
+  endif
       
 
   call SNESSetFunction(solver%snes, &
