@@ -162,7 +162,7 @@ subroutine THSetupPatch(realization)
 
 ! call printErrMsg(option)
 
-  if (th_use_freezing) then
+  if (option%freezing) then
     allocate(patch%aux%TH%th_parameter%sir(option%nphase, &
               size(patch%saturation_function_array)))
   else
@@ -179,7 +179,7 @@ subroutine THSetupPatch(realization)
   allocate(patch%aux%TH%th_parameter%ckwet(size(patch%char_curves_thermal_array)))
   allocate(patch%aux%TH%th_parameter%ckdry(size(patch%char_curves_thermal_array)))
   allocate(patch%aux%TH%th_parameter%alpha(size(patch%char_curves_thermal_array))) 
-  if (th_use_freezing) then
+  if (option%freezing) then
    allocate(patch%aux%TH%th_parameter%ckfrozen( &
               size(patch%char_curves_thermal_array)))
    allocate(patch%aux%TH%th_parameter%alpha_fr( &
@@ -216,7 +216,7 @@ subroutine THSetupPatch(realization)
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
-        if (th_use_freezing) then
+        if (option%freezing) then
           patch%aux%TH%th_parameter%alpha_fr(icct) = tcf%alpha_fr
           patch%aux%TH%th_parameter%ckfrozen(icct) = &
           tcf%kT_frozen*option%scale
@@ -280,7 +280,7 @@ subroutine THSetupPatch(realization)
       error_found = PETSC_TRUE
     endif
     
-    if (th_use_freezing) then
+    if (option%freezing) then
       if (patch%aux%TH%th_parameter%ckfrozen(icct) < 0.0d0 ) then
         option%io_buffer = 'ERROR: Non-initialized FROZEN THERMAL '&
         //'CONDUCTIVITY when freezing activated in '&
@@ -313,7 +313,7 @@ subroutine THSetupPatch(realization)
     call PrintErrMsg(option)
   endif
 
-  if (th_use_freezing) then
+  if (option%freezing) then
     do i = 1, size(patch%saturation_function_array)
       patch%aux%TH%th_parameter% &
         sir(:,patch%saturation_function_array(i)%ptr%id) = &
@@ -543,7 +543,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
       material_auxvars(ghosted_id)%porosity* &
       material_auxvars(ghosted_id)%volume
 
-    if (th_use_freezing) then
+    if (option%freezing) then
       ! mass = volume*saturation_ice*density_ice
       mass_balance = mass_balance + &
         TH_auxvars(ghosted_id)%ice%den_ice*FMWH2O* &
@@ -779,7 +779,7 @@ subroutine THUpdateAuxVarsPatch(realization)
     iphase = global_auxvars(ghosted_id)%istate
     icct = patch%cct_id(ghosted_id)
 
-    if (th_use_freezing) then
+    if (option%freezing) then
        call THAuxVarComputeFreezing(xx_loc_p(istart:iend), &
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
@@ -838,7 +838,7 @@ subroutine THUpdateAuxVarsPatch(realization)
           iphasebc = global_auxvars(ghosted_id)%istate
       end select
 
-      if (th_use_freezing) then
+      if (option%freezing) then
          call THAuxVarComputeFreezing(xxbc,TH_auxvars_bc(sum_connection), &
                                       global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
@@ -896,7 +896,7 @@ subroutine THUpdateAuxVarsPatch(realization)
       xx(1) = xx_loc_p(istart)
       xx(2) = tsrc1
 
-      if (th_use_freezing) then
+      if (option%freezing) then
          call THAuxVarComputeFreezing(xx, &
                                       TH_auxvars_ss(sum_connection), &
                                       global_auxvars_ss(sum_connection), &
@@ -1170,7 +1170,7 @@ subroutine THUpdateFixedAccumPatch(realization)
     iphase = global_auxvars(ghosted_id)%istate
     icct = patch%cct_id(ghosted_id)
 
-    if (th_use_freezing) then
+    if (option%freezing) then
        call THAuxVarComputeFreezing(xx_p(istart:iend), &
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
@@ -1410,7 +1410,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
             sat*(dden_dT*u + den*du_dT)*porXvol + (1.d0 - por)*vol*rock_dencpr
 
 
-  if (th_use_freezing) then
+  if (option%freezing) then
      ! SK, 11/17/11
      sat_g    = TH_auxvar%ice%sat_gas
      sat_i    = TH_auxvar%ice%sat_ice
@@ -1498,7 +1498,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
     do ideriv = 1,option%nflowdof
       pert = x(ideriv)*perturbation_tolerance
       x_pert = x
-      if (th_use_freezing) then
+      if (option%freezing) then
          if (ideriv == 1) then
             if (x_pert(ideriv) < option%reference_pressure) then
                pert = - pert
@@ -1518,7 +1518,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
          x_pert(ideriv) = x_pert(ideriv) + pert
       endif
 
-      if (th_use_freezing) then
+      if (option%freezing) then
          call THAuxVarComputeFreezing(x_pert,TH_auxvar_pert, &
                                  global_auxvar_pert,material_auxvar_pert, &
                                  iphase,sat_func,thermal_cc, &
@@ -1599,7 +1599,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
         auxvar%u * porXvol + &
         (1.d0 - por) * vol * rock_dencpr * global_auxvar%temp
 
-  if (th_use_freezing) then
+  if (option%freezing) then
      ! SK, 11/17/11
      sat_g = auxvar%ice%sat_gas
      sat_i = auxvar%ice%sat_ice
@@ -1788,7 +1788,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   dDk_dp_up = 0.d0
   dDk_dp_dn = 0.d0
   
-  if (th_use_freezing) then
+  if (option%freezing) then
     dfv_dT_up = 0.d0
     dfv_dT_dn = 0.d0
     dfv_dp_up = 0.d0
@@ -1802,7 +1802,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   ! Flow term
   is_flowing = PETSC_FALSE
   
-  if (th_use_freezing) then
+  if (option%freezing) then
     if (global_auxvar_up%sat(1) > sir_up .or. &
         global_auxvar_dn%sat(1) > sir_dn) then
       is_flowing = PETSC_TRUE
@@ -1935,7 +1935,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     endif
   endif 
 
-  if (th_use_freezing) then
+  if (option%freezing) then
     ! Added by Satish Karra, updated 11/11/11
     satg_up = auxvar_up%ice%sat_gas
     satg_dn = auxvar_dn%ice%sat_gas
@@ -2053,7 +2053,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dKe_dT_up = auxvar_up%dKe_dT
     dKe_dT_dn = auxvar_dn%dKe_dT
 
-  if (th_use_freezing) then
+  if (option%freezing) then
             
     Dk_eff_up = auxvar_up%Dk_eff
     Dk_eff_dn = auxvar_dn%Dk_eff
@@ -2076,7 +2076,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
  
   Dk = (Dk_eff_up * Dk_eff_dn) / (dd_dn*Dk_eff_up + dd_up*Dk_eff_dn)
   
-  if (th_use_freezing) then
+  if (option%freezing) then
 
     dDk_dT_up = Dk**2/Dk_eff_up**2*dd_up*(Dk_up*dKe_dT_up + &
         Dk_ice_up*dKe_fr_dT_up + (- dKe_dT_up - dKe_fr_dT_up)* &
@@ -2176,7 +2176,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       x_pert_up = x_up
       x_pert_dn = x_dn
 
-      if (th_use_freezing) then
+      if (option%freezing) then
         if (ideriv == 1) then
           if (x_pert_up(ideriv) < option%reference_pressure) then
             pert_up = - pert_up
@@ -2211,7 +2211,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
       endif
 
-      if (th_use_freezing) then
+      if (option%freezing) then
         call THAuxVarComputeFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
              iphase,sf_up, tcc_up, &
@@ -2365,7 +2365,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   ! Flow term
   is_flowing = PETSC_FALSE
   
-  if (th_use_freezing) then
+  if (option%freezing) then
     if (global_auxvar_up%sat(1) > sir_up .or.  &
         global_auxvar_dn%sat(1) > sir_dn) then
       is_flowing = PETSC_TRUE
@@ -2425,7 +2425,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   endif 
 
   
-  if (th_use_freezing) then
+  if (option%freezing) then
     ! Added by Satish Karra, 10/24/11
     satg_up = auxvar_up%ice%sat_gas
     satg_dn = auxvar_dn%ice%sat_gas
@@ -2475,7 +2475,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
 
   endif
 
-  if (th_use_freezing) then
+  if (option%freezing) then
 
     Ke_fr_up = auxvar_up%ice%Ke_fr
     Ke_fr_dn = auxvar_dn%ice%Ke_fr
@@ -2676,7 +2676,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       ! Flow term
       is_flowing = PETSC_FALSE
 
-      if (th_use_freezing) then
+      if (option%freezing) then
         if (global_auxvar_up%sat(1) > sir_dn .or.  &
             global_auxvar_dn%sat(1) > sir_dn) then
           is_flowing = PETSC_TRUE
@@ -2771,7 +2771,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       ! Flow term      
       is_flowing = PETSC_FALSE
 
-      if (th_use_freezing) then
+      if (option%freezing) then
         if (global_auxvar_up%sat(1) > sir_dn .or.  &
             global_auxvar_dn%sat(1) > sir_dn) then
           is_flowing = PETSC_TRUE
@@ -3044,7 +3044,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         dDk_dp_dn = 0.d0
         Dk = 0.d0
       else
-        if (th_use_freezing) then
+        if (option%freezing) then
           Dk_eff_dn    = auxvar_dn%Dk_eff
           dKe_dp_dn    = auxvar_dn%dKe_dp
           dKe_dT_dn    = auxvar_dn%dKe_dT
@@ -3109,7 +3109,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
         endif
       endif
-      if (th_use_freezing) then
+      if (option%freezing) then
          ! Added by Satish Karra, 11/21/11
          satg_up = auxvar_up%ice%sat_gas
          satg_dn = auxvar_dn%ice%sat_gas
@@ -3201,7 +3201,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         x_up(ideriv) = x_dn(ideriv)
       endif
     enddo
-    if (th_use_freezing) then
+    if (option%freezing) then
        call THAuxVarComputeFreezing(x_dn,auxvar_dn, &
             global_auxvar_dn, &
             material_auxvar_dn, &
@@ -3244,7 +3244,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       pert_dn = x_dn(ideriv)*perturbation_tolerance    
       x_pert_dn = x_dn
      
-      if (th_use_freezing) then
+      if (option%freezing) then
       
          if (ideriv == 1) then
             if (x_pert_dn(ideriv) < option%reference_pressure) then
@@ -3270,7 +3270,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         x_pert_up(ideriv) = x_pert_dn(ideriv)
       endif   
 
-      if (th_use_freezing) then
+      if (option%freezing) then
          call THAuxVarComputeFreezing(x_pert_dn,auxvar_pert_dn, &
               global_auxvar_pert_dn, &
               material_auxvar_pert_dn, &
@@ -3422,7 +3422,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       ! Flow term
       is_flowing = PETSC_FALSE
 
-      if (th_use_freezing) then
+      if (option%freezing) then
         if (global_auxvar_up%sat(1) > sir_dn .or.  &
             global_auxvar_dn%sat(1) > sir_dn) then
           is_flowing = PETSC_TRUE
@@ -3490,7 +3490,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       ! Flow term
       is_flowing = PETSC_FALSE
 
-      if (th_use_freezing) then
+      if (option%freezing) then
         if (global_auxvar_up%sat(1) > sir_dn .or.  &
             global_auxvar_dn%sat(1) > sir_dn) then
           is_flowing = PETSC_TRUE
@@ -3679,7 +3679,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       fluxe = fluxe + cond
       fluxe_cond = cond
 
-      if (th_use_freezing) then
+      if (option%freezing) then
          ! Added by Satish Karra,
          satg_up = auxvar_up%ice%sat_gas
          satg_dn = auxvar_dn%ice%sat_gas
@@ -4069,7 +4069,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
       alpha_up = th_parameter%alpha(icct_up)
       alpha_dn = th_parameter%alpha(icct_dn)
 
-      if (th_use_freezing) then
+      if (option%freezing) then
          Dk_ice_up = th_parameter%ckfrozen(icct_up)
          DK_ice_dn = th_parameter%ckfrozen(icct_dn)
       
@@ -4925,7 +4925,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
       icc_up = patch%cc_id(ghosted_id_up)
       icc_dn = patch%cc_id(ghosted_id_dn)
 
-      if (th_use_freezing) then
+      if (option%freezing) then
          Dk_ice_up = th_parameter%ckfrozen(icct_up)
          DK_ice_dn = th_parameter%ckfrozen(icct_dn)
       
@@ -5131,7 +5131,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
 
       icc_dn = patch%cc_id(ghosted_id)
 
-      if (th_use_freezing) then
+      if (option%freezing) then
          DK_ice_dn = th_parameter%ckfrozen(icct_dn)
          alpha_fr_dn = th_parameter%alpha_fr(icct_dn)
 
@@ -5290,7 +5290,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
     icct = patch%cct_id(ghosted_id)
 
-    if (th_use_freezing) then
+    if (option%freezing) then
       sat_func => patch%saturation_function_array(icc)%ptr
     else
       characteristic_curves => patch%characteristic_curves_array(icc)%ptr
@@ -5708,7 +5708,7 @@ function THGetTecplotHeader(realization,icolumn)
   endif
   string = trim(string) // trim(string2)
 
-  if (th_use_freezing) then
+  if (option%freezing) then
      if (icolumn > -1) then
         icolumn = icolumn + 1
         write(string2,'('',"'',i2,''-Sg"'')') icolumn
@@ -5803,6 +5803,9 @@ subroutine THSetPlotVariables(realization,list)
 
   type(output_variable_type) :: output_variable
   character(len=MAXWORDLENGTH) :: name, units
+  type(option_type), pointer :: option
+  
+  option => realization%option
   
   if (associated(list%first)) then
     return
@@ -5851,7 +5854,7 @@ subroutine THSetPlotVariables(realization,list)
   
   endif
 
-  if (th_use_freezing) then
+  if (option%freezing) then
   
     if (th_ice_model /= DALL_AMICO) then
       name = 'Gas Saturation'
@@ -6676,7 +6679,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
         icct_up = patch%cct_id(ghosted_id)
         icct_dn = patch%cct_id(ghosted_id)
 
-        if (th_use_freezing) then
+        if (option%freezing) then
           sat_func => patch%saturation_function_array(icc_dn)%ptr
         else
           characteristic_curves => patch%characteristic_curves_array(icc_dn)%ptr
@@ -6880,7 +6883,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
   call THAuxVarInit(th_auxvar_max,option)
 
   ! Step-1: Set auxvars (global and th) for up/dn
-  if (th_use_freezing) then
+  if (option%freezing) then
 
     xx(1) = P_up
     xx(2) = T_up
@@ -6961,7 +6964,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
 
   ! Step-3: Find derivative at P_max
 
-  if (th_use_freezing) then
+  if (option%freezing) then
 
     xx(1) = P_max
     xx(2) = T_up
@@ -6993,7 +6996,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, icct_up, &
 
   is_flowing = PETSC_FALSE
   
-  if (th_use_freezing) then
+  if (option%freezing) then
     if (global_auxvar_up%sat(1) > sir_dn .or. &
         global_auxvar_max%sat(1) > sir_dn) then
       is_flowing = PETSC_TRUE

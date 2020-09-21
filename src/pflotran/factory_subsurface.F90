@@ -2842,7 +2842,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             option%iflowmode == G_MODE .or. &
             option%iflowmode == H_MODE .or. &
             (option%iflowmode == TH_MODE .and. &
-             .not. th_use_freezing) .or. &
+             .not. option%freezing) .or. &
             option%iflowmode == TH_TS_MODE .or. &
             option%iflowmode == WF_MODE) then
           option%io_buffer = &
@@ -2873,7 +2873,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%iflowmode == H_MODE .or. &
                   option%iflowmode == TH_TS_MODE .or. &
                   (option%iflowmode == TH_MODE .and. &
-                    .not. th_use_freezing) .or. &
+                    .not. option%freezing) .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
             &modes other than RICHARDS, RICHARDS_TS, TOIL_IMS, WIPP_FLOW, TH, or GENERAL. &
@@ -2909,7 +2909,6 @@ subroutine SubsurfaceReadInput(simulation,input)
              characteristic_curves_thermal, &
              realization%characteristic_curves_thermal)
         nullify(characteristic_curves_thermal)
-        if (option%freezing) th_use_freezing = PETSC_TRUE
 
 !....................
 
