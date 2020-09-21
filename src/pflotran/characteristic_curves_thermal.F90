@@ -73,10 +73,10 @@ module Characteristic_Curves_Thermal_module
     PetscReal :: alpha_fr   ! exponent for frozen soil Kersten number
     PetscInt  :: ice_model  ! indicator of ice model
   contains
-    procedure, public :: Test => TCFFrozenTest
     procedure, public :: Verify => TCFFrozenVerify
-    procedure, public :: CalculateTCond => TCFFrozenConductivity1   ! not frozen
-    procedure, public :: CalculateFTCond => TCFFrozenConductivity2  ! frozen
+    procedure, public :: Test => TCFFrozenTest  ! test with ice saturation
+    procedure, public :: CalculateTCond => TCFFrozenConductivity1   ! freezing inactive
+    procedure, public :: CalculateFTCond => TCFFrozenConductivity2  ! freezing active
   end type kT_frozen_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
@@ -288,7 +288,7 @@ subroutine TCFFrozenTest(this,tcc_name,option)
   PetscReal :: temp_min, temp_max, sat_min, sat_max, ice_min, ice_max
   PetscInt :: i,j,k
   
-  ! resort to regular test if frozen parameters are not initialized
+  ! resort to regular test if frozen thermal conductivity not initialized
   if (Uninitialized(this%kT_frozen)) then
     call TCFBaseTest(this,tcc_name,option)
     return
@@ -346,8 +346,8 @@ subroutine TCFFrozenTest(this,tcc_name,option)
   string = trim(tcc_name) // '_kT_vs_sat_and_temp.dat'
   open(unit=86,file=string)
   write(86,*) '"temperature [C]", "liquid saturation [-]", &
-               "ice saturation [-]", "kT [W/m*K]", "dkT/dsat", "dkT/dsati", &  
-               "dkT/dT", "dkT/dsat_numerical", "dkT/dsati_numerical", &
+               "ice saturation [-]", "kT [W/m*K]", "dkT/dsatl", "dkT/dsati", &  
+               "dkT/dT", "dkT/dsatl_numerical", "dkT/dsati_numerical", &
                "dkT/dT_numerical"'
   do i = 1,nt
     do j = 1,ns
@@ -890,8 +890,8 @@ subroutine TCFFrozenVerify(this,name,option)
     else
       option%freezing = PETSC_TRUE
       ! Outside of TH mode, frozen parameters aren't actually used
-      if ( .not. option%iflowmode == TH_MODE .and. & 
-           .not. option%iflowmode == TH_TS_MODE ) then
+      if (.not. option%iflowmode == TH_MODE .and. & 
+          .not. option%iflowmode == TH_TS_MODE) then
         option%io_buffer = 'FREEZING MODEL ONLY UTILIZED IN TH MODE. ONLY ' &
                          //'NON-FROZEN PARAMETERS WILL BE EMPLOYED FOR ' &
                          //'THERMAL CONDUCTIVITY CALCULATION.'
@@ -922,10 +922,10 @@ subroutine TCFFrozenConductivity1(this,liquid_saturation,temperature, &
 
   ! Soil Kersten numbers
   Ke = (liquid_saturation + epsilon)**(this%alpha) ! unfrozen
-  dkT_dtemp = 0.0d0
 
   ! Do not use freezing
   thermal_conductivity = this%kT_dry + (this%kT_wet - this%kT_dry)*Ke
+  dkT_dtemp = 0.0d0
   dkT_dsatl = (this%kT_wet - this%kT_dry) * this%alpha * &
               liquid_saturation**(this%alpha - 1)
 
@@ -952,11 +952,11 @@ subroutine TCFFrozenConductivity2(this,liquid_saturation,ice_saturation,   &
   ! Soil Kersten numbers
   Ke = (liquid_saturation + epsilon)**(this%alpha)    ! unfrozen
   Ke_fr = (ice_saturation + epsilon)**(this%alpha_fr) ! frozen
-  dkT_dtemp = 0.0d0
 
   ! Use freezing
   thermal_conductivity = this%kT_wet*Ke + this%kT_frozen*Ke_fr + &
                          (1.d0 - Ke - Ke_fr)*this%kT_dry
+  dkT_dtemp = 0.0d0
   dkT_dsatl = (this%kT_wet - this%kT_dry) * this%alpha * &
               liquid_saturation**(this%alpha - 1)
   dkT_dsati = (this%kT_frozen - this%kT_dry) * this%alpha_fr * &

@@ -1527,7 +1527,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
       else
          call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                               global_auxvar_pert,material_auxvar_pert,&
-                              iphase,characteristic_curves, thermal_cc, &
+                              iphase,characteristic_curves,thermal_cc, &
                               th_parameter,icct, &
                               -999,PETSC_TRUE,option)
       endif
@@ -5243,7 +5243,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
 
   type(saturation_function_type), pointer :: sat_func, sf_up, sf_dn
   class(characteristic_curves_type), pointer :: characteristic_curves, cc_up, cc_dn
-  class(cc_thermal_type), pointer :: characteristic_curves_thermal
+  class(cc_thermal_type), pointer :: thermal_cc
 
  
   
@@ -5295,14 +5295,15 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     else
       characteristic_curves => patch%characteristic_curves_array(icc)%ptr
     endif
-    characteristic_curves_thermal => patch%char_curves_thermal_array(icct)%ptr
+    
+    thermal_cc => patch%char_curves_thermal_array(icct)%ptr
     
     call THAccumDerivative(auxvars(ghosted_id),global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id), &
                             th_parameter%dencpr(icct), &
                             th_parameter, icct, option, &
                             sat_func, characteristic_curves, &
-                            characteristic_curves_thermal, &
+                            thermal_cc, &
                             vol_frac_prim,Jup) 
 
     if (option%use_mc) then
@@ -6680,6 +6681,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
         else
           characteristic_curves => patch%characteristic_curves_array(icc_dn)%ptr
         endif
+        
         thermal_cc => patch%char_curves_thermal_array(icct_dn)%ptr
 
         ! Compute coeff
