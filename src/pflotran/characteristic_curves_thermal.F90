@@ -832,6 +832,14 @@ function TCFFrozenCreate()
   TCFFrozenCreate%alpha     = UNINITIALIZED_DOUBLE
   TCFFrozenCreate%alpha_fr  = UNINITIALIZED_DOUBLE
   TCFFrozenCreate%ice_model = UNINITIALIZED_INTEGER
+  TCFFrozenCreate%isotropic   = PETSC_TRUE
+  TCFFrozenCreate%full_tensor = PETSC_FALSE
+  TCFFrozenCreate%kT_x   = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%kT_y   = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%kT_z   = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%kT_xy  = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%kT_xz  = UNINITIALIZED_DOUBLE
+  TCFFrozenCreate%kT_yz  = UNINITIALIZED_DOUBLE
 
 end function TCFFrozenCreate
 
@@ -1191,10 +1199,6 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadDouble(input,option,tcf%gamma)
         call InputErrorMsg(input,option,'thermal conductivity exponent', &
              error_string)
-      case('KERSTEN_EXPONENT')
-        call InputReadDouble(input,option,tcf%alpha)
-        call InputErrorMsg(input,option,'Kersten exponent', &
-             error_string)
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string,'power',option)
       end select
@@ -1211,10 +1215,6 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadNDoubles(input,option,tcf%beta,3)
         call InputErrorMsg(input,option, &
              'thermal conductivity polynomial coefficients',error_string)
-      case('KERSTEN_EXPONENT')
-        call InputReadDouble(input,option,tcf%alpha)
-        call InputErrorMsg(input,option,'Kersten exponent', &
-             error_string)
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string, &
           'cubic polynomial',option)
@@ -1232,28 +1232,12 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadNDoubles(input,option,tcf%a,2)
         call InputErrorMsg(input,option, &
              'linear thermal resistivity coefficients',error_string)
-      case('KERSTEN_EXPONENT')
-        call InputReadDouble(input,option,tcf%alpha)
-        call InputErrorMsg(input,option,'Kersten exponent', &
-             error_string)
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string, &
           'linear resistivity',option)
       end select
     class is(kT_frozen_type)
-      select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)        
+      select case(keyword)     
       case('THERMAL_CONDUCTIVITY_FROZEN')
         call InputReadDouble(input,option,tcf%kT_frozen)
         call InputErrorMsg(input,option,'thermal conductivity frozen', &
@@ -1261,10 +1245,6 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadAndConvertUnits(input,tcf%kT_frozen,'W/m-C', &
              'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity frozen', &
              option)
-      case('KERSTEN_EXPONENT')
-        call InputReadDouble(input,option,tcf%alpha)
-        call InputErrorMsg(input,option,'Kersten exponent', &
-             error_string)
       case('KERSTEN_EXPONENT_FROZEN')
         call InputReadDouble(input,option,tcf%alpha_fr)
         call InputErrorMsg(input,option,'Kersten exponent - frozen', &
@@ -1273,28 +1253,26 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadCard(input,option,keyword,PETSC_FALSE)
         call StringToUpper(keyword)
         select case (trim(keyword))
-          case ('PAINTER_EXPLICIT')
-            tcf%ice_model = PAINTER_EXPLICIT
-          case ('PAINTER_KARRA_IMPLICIT')
-            tcf%ice_model = PAINTER_KARRA_IMPLICIT
-          case ('PAINTER_KARRA_EXPLICIT')
-            tcf%ice_model = PAINTER_KARRA_EXPLICIT
-          case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
-            tcf%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
-          case ('DALL_AMICO')
-            tcf%ice_model = DALL_AMICO
-          case default
-            option%io_buffer = 'Cannot identify the specificed ice model. &
-             &Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT &
-             &or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO &
-             &or DALL_AMICO.'
-            call PrintErrMsg(option)
-          end select
+        case ('PAINTER_EXPLICIT')
+          tcf%ice_model = PAINTER_EXPLICIT
+        case ('PAINTER_KARRA_IMPLICIT')
+          tcf%ice_model = PAINTER_KARRA_IMPLICIT
+        case ('PAINTER_KARRA_EXPLICIT')
+          tcf%ice_model = PAINTER_KARRA_EXPLICIT
+        case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
+          tcf%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
+        case ('DALL_AMICO')
+          tcf%ice_model = DALL_AMICO
+        case default
+          option%io_buffer = 'Cannot identify the specificed ice model. &
+           &Specify PAINTER_EXPLICIT, PAINTER_KARRA_IMPLICIT, &
+           &PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_NOCRYO, &
+           &or DALL_AMICO.'
+          call PrintErrMsg(option)
+        end select
       case default
-        !AS3: Make sure to implement new subroutine from anisotropic branch 
-        !     when merged
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (linear resistivity) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string, &
+          'linear resistivity',option)
       end select
       
     class default
@@ -1338,6 +1316,10 @@ subroutine TCFDefaultRead(tcf,input,keyword,error_string,kind,option)
          error_string)
     call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
          'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
+  case('KERSTEN_EXPONENT')
+     call InputReadDouble(input,option,tcf%alpha)
+     call InputErrorMsg(input,option,'Kersten exponent', &
+          error_string)
   case('ANISOTROPY_RATIO_X')
     call InputReadDouble(input,option,tcf%kT_x)
     call InputErrorMsg(input,option, & 
