@@ -26,6 +26,14 @@ module Timestepper_SNES_class
     PetscReal, pointer :: tfac(:)
     PetscInt :: ntfac             ! size of tfac
 
+    ! rescue mode related parameters - heeho
+    PetscBool :: rescue_mode  ! increase dt when a simulation is in 
+                              ! a hole or oscillation
+    PetscInt  :: rescue_frequency       ! how often do we rescue?
+    PetscReal :: rescue_factor          ! what do we increase dt by?
+    PetscReal :: rescue_step_threshold  ! how small should dt be compared to t
+    PetscInt  :: rescue_step_counter    ! counter to trigger rescue
+
   contains
 
     procedure, public :: ReadSelectCase => TimestepperSNESReadSelectCase
@@ -129,6 +137,13 @@ subroutine TimestepperSNESInit(this)
   this%tfac(11) = 1.0d0; this%tfac(12) = 1.0d0
   this%tfac(13) = 1.0d0
 
+  ! rescue mode defaults - heeho
+  this%rescue_mode = PETSC_FALSE
+  this%rescue_frequency = 100
+  this%rescue_factor = 1.0d3
+  this%rescue_step_threshold = 1.0d-5
+  this%rescue_step_counter = 0
+
 end subroutine TimestepperSNESInit
 
 ! ************************************************************************** !
@@ -176,6 +191,42 @@ subroutine TimestepperSNESReadSelectCase(this,input,keyword,found, &
           option)
       this%ntfac = size(this%tfac)
 
+    case ('RESCUE_MODE')  ! heeho
+      this%rescue_mode = PETSC_TRUE
+      input%ierr = 0
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputCheckExit(input,option)) exit
+
+        call InputReadCard(input,option,keyword)
+        call InputErrorMsg(input,option,'keyword','RESCUE MODE')
+        call StringToUpper(keyword)
+
+        select case(trim(keyword))
+          case('RESCUE_FACTOR','FACTOR','RFAC')
+            call InputReadDouble(input,option,this%rescue_factor)
+            call InputErrorMsg(input,option, &
+                               'rescue factor ', &
+                               'RESCUE mode options')
+          case('RESCUE_FREQUENCY','FREQUENCY','RFREQ')
+            call InputReadInt(input,option,this%rescue_frequency)
+            call InputErrorMsg(input,option, &
+                               'rescue frequency ', &
+                               'RESCUE mode options')
+          case('RESCUE_STEP_THRESHOLD','THRESHOLD','STEP_THRESHOLD','RTHRESH')
+            call InputReadDouble(input,option,this%rescue_step_threshold)
+            call InputErrorMsg(input,option, &
+                               'rescue threshold ', &
+                               'RESCUE mode options')
+          case default
+            option%io_buffer  = 'Timestepper RESCUE MODE option: ' // trim(keyword) // &
+                              ' unknown.'
+            call PrintErrMsg(option)
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
     case default
       found = PETSC_FALSE
   end select
@@ -192,14 +243,18 @@ subroutine TimestepperSNESUpdateDT(this,process_model)
   ! Date: 07/22/13
   !
 
+  use Option_module
   use PM_Base_class
 
   implicit none
 
   class(timestepper_SNES_type) :: this
   class(pm_base_type) :: process_model
-
+  type(option_type), pointer :: option
+  
   PetscBool :: update_time_step
+  
+  option => process_model%option
 
   update_time_step = PETSC_TRUE
 
@@ -233,6 +288,36 @@ subroutine TimestepperSNESUpdateDT(this,process_model)
                                       this%tfac, &
                                       this%time_step_max_growth_factor)
 
+  endif
+
+  ! rescue mode - heeho
+  if (this%rescue_mode) then
+    if (this%target_time*this%rescue_step_threshold > this%dt) then
+      this%rescue_step_counter = this%rescue_step_counter + 1
+    else
+      if (this%rescue_step_counter > 0) then
+        ! subtract from the counter if it recovers itself
+        this%rescue_step_counter = this%rescue_step_counter - 1
+      endif
+    endif
+    if (this%rescue_step_counter > this%rescue_frequency) then
+      this%rescue_step_counter = 0
+#if 0
+      if (2**this%max_time_step_cuts < this%rescue_factor) then
+        ! can't jump timestep more than the max time step cut is allowed
+        if (this%max_time_step_cuts < 2) then
+          option%io_buffer  = 'max time step cut too small for rescue mode. exiting.'
+          call PrintErrMsg(option)
+        endif
+        this%rescue_factor = 2**(this%max_time_step_cuts-2)
+        option%io_buffer = 'rescue factor too big. automatically adjusted.'
+        call PrintMsg(option)
+      endif
+#endif
+      this%dt = this%dt * this%rescue_factor
+      option%io_buffer = 'rescue mode activated. jumping time step size.'
+      call PrintMsg(option)
+    endif
   endif
 
 end subroutine TimestepperSNESUpdateDT
