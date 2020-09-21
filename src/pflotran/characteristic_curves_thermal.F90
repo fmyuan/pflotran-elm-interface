@@ -16,7 +16,7 @@ module Characteristic_Curves_Thermal_module
 
   !---------------------------------------------------------------------------
   type, public :: thermal_conductivity_base_type
-    PetscReal :: alpha ! exponent for soil Kersten number (default = 1.0)
+    PetscReal :: alpha ! exponent for soil Kersten number (TH mode)
   contains
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
@@ -2051,15 +2051,20 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a29)',advance='no') 'kT_dry: '
         write(word1,*) tcf%kT_dry
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'kT_frozen: '
-        write(word1,*) tcf%kT_frozen
-        write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'exponent: '
+        write(id,'(a29)',advance='no') 'kersten exponent: '
         write(word1,*) tcf%alpha
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'exponent (frozen): '
-        write(word1,*) tcf%alpha_fr
-        write(id,'(a)') adjustl(trim(word1))
+        if (Initialized(tcf%kT_frozen)) then
+          write(id,'(a29)',advance='no') 'kT_frozen: '
+          write(word1,*) tcf%kT_frozen
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'kersten exponent (frozen): '
+          write(word1,*) tcf%alpha_fr
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'ice model index: '
+          write(word1,*) tcf%ice_model
+          write(id,'(a)') adjustl(trim(word1))
+        endif
       end select
     endif
 
