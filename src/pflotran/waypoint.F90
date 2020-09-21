@@ -56,7 +56,8 @@ module Waypoint_module
             WaypointListPrint, &
             WaypointListGetFinalTime, &
             WaypointCreateSyncWaypointList, &
-            WaypointInputRecord
+            WaypointInputRecord, &
+            WaypointListFindDuplicateTimes
 
 contains
 
@@ -667,6 +668,89 @@ subroutine WaypointListPrint(list,option,output_option)
   endif
 
 end subroutine WaypointListPrint
+
+! ************************************************************************** !
+
+subroutine WaypointListFindDuplicateTimes(list,option)
+  ! 
+  ! Locates waypoints defined within epsilon of each other and merges them.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/30/20
+  ! 
+  use Output_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+  
+  type(waypoint_list_type), pointer :: list
+  type(option_type) :: option
+
+  type(waypoint_type), pointer :: cur_waypoint
+  type(waypoint_type), pointer :: next_waypoint
+  character(len=MAXWORDLENGTH) :: word
+  PetscBool :: first_duplicate_found
+  PetscBool :: duplicate_removed
+  PetscBool :: catch_duplicate_waypoints
+  PetscBool :: fix_duplicate_waypoints
+  PetscErrorCode :: ierr
+
+  fix_duplicate_waypoints = PETSC_FALSE
+
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
+                           PETSC_NULL_CHARACTER, "-fix_duplicate_waypoints", &
+                           fix_duplicate_waypoints, ierr);CHKERRQ(ierr)
+
+  first_duplicate_found = PETSC_FALSE
+  duplicate_removed = PETSC_FALSE
+  cur_waypoint => list%first
+  do 
+    duplicate_removed = PETSC_FALSE
+    if (.not.associated(cur_waypoint)) exit
+    if (cur_waypoint%time > 0.d0 .and. &
+        associated(cur_waypoint%next)) then
+      if (dabs((cur_waypoint%next%time-cur_waypoint%time)/ &
+                cur_waypoint%time) < 1.d-10) then
+        if (.not.first_duplicate_found) then ! first time
+          first_duplicate_found = PETSC_TRUE
+          call PrintMsg(option,'') ! blank line
+          option%io_buffer = 'Duplicate waypoint times (in seconds):'
+          call PrintMsg(option) 
+        endif
+        write(word,*) cur_waypoint%next%time
+        option%io_buffer = adjustl(word)
+        write(word,*) cur_waypoint%time
+        option%io_buffer = trim(option%io_buffer) // ' - ' // adjustl(word)
+        write(word,*) cur_waypoint%next%time-cur_waypoint%time
+        option%io_buffer = trim(option%io_buffer) // ' = ' // adjustl(word)
+        call PrintMsg(option)
+        if (fix_duplicate_waypoints) then
+          ! obtain pointer for next%next
+          next_waypoint => cur_waypoint%next%next
+          call WaypointMerge(cur_waypoint,cur_waypoint%next)
+          cur_waypoint%next => next_waypoint
+          duplicate_removed = PETSC_TRUE
+        endif
+      endif
+    endif
+    if (.not.duplicate_removed) then
+      cur_waypoint => cur_waypoint%next
+    endif
+  enddo
+  if (first_duplicate_found) then
+    option%io_buffer = 'Duplicate waypoint times in list.'
+    if (.not. fix_duplicate_waypoints) then
+      option%io_buffer = trim(option%io_buffer) // &
+        ' Please email your input deck to pflotran-dev@googlegroups.com.'
+      call PrintErrMsg(option)
+    else
+      call PrintMsg(option)
+      call PrintMsg(option,'') ! blank line
+    endif
+  endif
+
+end subroutine WaypointListFindDuplicateTimes
 
 ! ************************************************************************** !
 

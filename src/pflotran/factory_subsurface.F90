@@ -1778,6 +1778,8 @@ subroutine SetupWaypointList(simulation)
     call WaypointListFillIn(simulation%waypoint_list_subsurface,option)
     call WaypointListRemoveExtraWaypnts(simulation%waypoint_list_subsurface, &
                                         option)
+    call WaypointListFindDuplicateTimes(simulation%waypoint_list_subsurface, &
+                                        option)
   endif
 
   ! debugging output
