@@ -369,6 +369,14 @@ function TCFDryConditionsCreate()
   TCFDryConditionsCreate%kT_dry         = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_y           = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_z           = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_xy          = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_xz          = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_yz          = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%isotropic   = PETSC_TRUE
+  TCFDryConditionsCreate%full_tensor = PETSC_FALSE
 
 end function TCFDryConditionsCreate
 
@@ -466,6 +474,14 @@ function TCFWaterFilledConditionsCreate()
   TCFWaterFilledConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kT_y           = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kT_z           = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kT_xy          = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kT_xz          = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kT_yz          = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%isotropic   = PETSC_TRUE
+  TCFWaterFilledConditionsCreate%full_tensor = PETSC_FALSE
 
 end function TCFWaterFilledConditionsCreate
 
@@ -570,6 +586,14 @@ function TCFASMConditionsCreate()
   TCFASMConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
   TCFASMConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
   TCFASMConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_y           = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_z           = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_xy          = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_xz          = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%kT_yz          = UNINITIALIZED_DOUBLE
+  TCFASMConditionsCreate%isotropic   = PETSC_TRUE
+  TCFASMConditionsCreate%full_tensor = PETSC_FALSE
 
 end function TCFASMConditionsCreate
 
@@ -696,6 +720,14 @@ function TCFAxialConditionsCreate()
   TCFAxialConditionsCreate%kT_solid      = UNINITIALIZED_DOUBLE
   TCFAxialConditionsCreate%kT_water      = UNINITIALIZED_DOUBLE
   TCFAxialConditionsCreate%porosity_asm  = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%kT_x          = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%kT_y          = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%kT_z          = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%kT_xy         = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%kT_xz         = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%kT_yz         = UNINITIALIZED_DOUBLE
+  TCFAxialConditionsCreate%isotropic   = PETSC_TRUE
+  TCFAxialConditionsCreate%full_tensor = PETSC_FALSE
 
 end function TCFAxialConditionsCreate
 
@@ -1188,7 +1220,7 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFDryConditionsCreate()
       case('WATER_FILLED_CONDITIONS')
         this%thermal_conductivity_function => TCFWaterFilledConditionsCreate()
-      case('YMR_CONDITIONS')
+      case('ASM_CONDITIONS')
         this%thermal_conductivity_function => TCFASMConditionsCreate()
       case('AXIAL_CONDITIONS')
         this%thermal_conductivity_function => TCFAxialConditionsCreate()
@@ -1351,18 +1383,6 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       !------------------------------------------
     class is(kT_dry_conditions_type)
       select case(keyword)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
       case('DRY_CONDITIONS_BASE')
         call InputReadDouble(input,option,tcf%kT_alpha_base)
         call InputErrorMsg(input,option, &
@@ -1374,18 +1394,11 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
              'dry conditions thermal conductivity temperature exponent', &
                error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (dry conditions) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string,'power',option)
       end select
       !------------------------------------------
     class is(kT_water_filled_conditions_type)
       select case(keyword)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case('THERMAL_CONDUCTIVITY_WATER')
         call InputReadDouble(input,option,tcf%kT_water)
         call InputErrorMsg(input,option,'thermal conductivity water', &
@@ -1404,24 +1417,11 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
              'water-filled conditions assembly porosity', &
              error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'thermal conductivity for water-filled conditions',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string,'power',option)
       end select
       !------------------------------------------
     class is(kT_ASM_conditions_type)
       select case(keyword)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
       case('DRY_CONDITIONS_BASE')
         call InputReadDouble(input,option,tcf%kT_alpha_base)
         call InputErrorMsg(input,option, &
@@ -1450,8 +1450,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
              'assembly porosity', &
              error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (assembly conditions) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string,'power',option)
       end select
       !------------------------------------------
     class is(kT_Axial_conditions_type)
