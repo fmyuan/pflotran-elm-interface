@@ -1060,16 +1060,6 @@ stop
   call MatSetOptionsPrefix(solver%Jpre,"geomech_", &
                             ierr);CHKERRQ(ierr)
     
-#if 1
-  call SNESSetFunction(solver%snes,geomech_realization%geomech_field%disp_r, &
-                       GeomechForceResidual, &
-                       geomech_realization,ierr);CHKERRQ(ierr)
-
-  call SNESSetJacobian(solver%snes,solver%J, &
-                       solver%Jpre,GeomechForceJacobian, &
-                       geomech_realization,ierr);CHKERRQ(ierr)
-#endif
-
   ! by default turn off line search
   call SNESGetLineSearch(solver%snes,linesearch, ierr);CHKERRQ(ierr)
   call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC, &
