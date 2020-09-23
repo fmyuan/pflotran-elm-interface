@@ -83,25 +83,25 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateTCond => TCFWaterFilledConditionsConductivity
   end type kT_water_filled_conditions_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_ASM_conditions_type
+  type, public, extends(kT_default_type) :: kT_ASM_radial_type
     PetscReal :: kT_alpha_base
     PetscReal :: kT_alpha_exp
     PetscReal :: kT_water
     PetscReal :: kT_solid
     PetscReal :: porosity_asm
   contains
-    procedure, public :: Verify => TCFASMConditionsVerify
-    procedure, public :: CalculateTCond => TCFASMConditionsConductivity
-  end type kT_ASM_conditions_type
+    procedure, public :: Verify => TCFASMRadialVerify
+    procedure, public :: CalculateTCond => TCFASMRadialConductivity
+  end type kT_ASM_radial_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_axial_conditions_type
+  type, public, extends(kT_default_type) :: kT_ASM_axial_type
     PetscReal :: kT_water
     PetscReal :: kT_solid
     PetscReal :: porosity_asm
   contains
-    procedure, public :: Verify => TCFAxialConditionsVerify
-    procedure, public :: CalculateTCond => TCFAxialConditionsConductivity
-  end type kT_axial_conditions_type
+    procedure, public :: Verify => TCFASMAxialVerify
+    procedure, public :: CalculateTCond => TCFASMAxialConductivity
+  end type kT_ASM_axial_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
@@ -146,8 +146,8 @@ module Characteristic_Curves_Thermal_module
             TCFLinearResistivityCreate, &
             TCFDryConditionsCreate, &
             TCFWaterFilledConditionsCreate, &
-            TCFASMConditionsCreate, &
-            TCFAxialConditionsCreate, &
+            TCFASMRadialCreate, &
+            TCFASMAxialCreate, &
             TCFCompositeCreate, &
             TCFAssignDefault
 
@@ -588,41 +588,41 @@ end subroutine TCFWaterFilledConditionsConductivity
 
 ! ************************************************************************** !
 
-function TCFASMConditionsCreate()
+function TCFASMRadialCreate()
 
   implicit none
 
-  class(kT_ASM_conditions_type), pointer :: TCFASMConditionsCreate
+  class(kT_ASM_radial_type), pointer :: TCFASMRadialCreate
 
-  allocate(TCFASMConditionsCreate)
+  allocate(TCFASMRadialCreate)
   ! User doesn't need to initialize wet thermal conditivity for this case
-  TCFASMConditionsCreate%kT_wet         = 0.0d0 
-  TCFASMConditionsCreate%kT_dry         = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_y           = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_z           = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_xy          = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_xz          = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%kT_yz          = UNINITIALIZED_DOUBLE
-  TCFASMConditionsCreate%isotropic   = PETSC_TRUE
-  TCFASMConditionsCreate%full_tensor = PETSC_FALSE
+  TCFASMRadialCreate%kT_wet         = 0.0d0 
+  TCFASMRadialCreate%kT_dry         = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_water       = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_solid       = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%porosity_asm   = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_x           = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_y           = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_z           = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_xy          = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_xz          = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_yz          = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%isotropic   = PETSC_TRUE
+  TCFASMRadialCreate%full_tensor = PETSC_FALSE
 
-end function TCFASMConditionsCreate
+end function TCFASMRadialCreate
 
 ! ************************************************************************** !
 
-subroutine TCFASMConditionsVerify(this,name,option)
+subroutine TCFASMRadialVerify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_ASM_conditions_type) :: this
+  class(kT_ASM_radial_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -631,7 +631,7 @@ subroutine TCFASMConditionsVerify(this,name,option)
   if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
     string = name
   else
-    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,ASM_CONDITIONS'
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,ASM_RADIAL'
   endif
   call TCFBaseVerify(this,string,option)
   if (Uninitialized(this%kT_alpha_base)) then
@@ -660,18 +660,18 @@ subroutine TCFASMConditionsVerify(this,name,option)
     call PrintErrMsg(option)
   end if
 
-end subroutine TCFASMConditionsVerify
+end subroutine TCFASMRadialVerify
 
 ! ************************************************************************** !
 
-subroutine TCFASMConditionsConductivity(this,liquid_saturation,temperature, &
+subroutine TCFASMRadialConductivity(this,liquid_saturation,temperature, &
      thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_ASM_conditions_type) :: this
+  class(kT_ASM_radial_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -722,41 +722,41 @@ subroutine TCFASMConditionsConductivity(this,liquid_saturation,temperature, &
     dkT_dsatl = 0.d0
   endif
 
-end subroutine TCFASMConditionsConductivity
+end subroutine TCFASMRadialConductivity
 
 ! ************************************************************************** !
 
-function TCFAxialConditionsCreate()
+function TCFASMAxialCreate()
 
   implicit none
 
-  class(kT_axial_conditions_type), pointer :: TCFAxialConditionsCreate
+  class(kT_ASM_axial_type), pointer :: TCFASMAxialCreate
 
-  allocate(TCFAxialConditionsCreate)
+  allocate(TCFASMAxialCreate)
   ! User doesn't need to initialize wet thermal conditivity for this case
-  TCFAxialConditionsCreate%kT_solid      = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%kT_water      = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%porosity_asm  = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%kT_x          = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%kT_y          = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%kT_z          = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%kT_xy         = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%kT_xz         = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%kT_yz         = UNINITIALIZED_DOUBLE
-  TCFAxialConditionsCreate%isotropic   = PETSC_TRUE
-  TCFAxialConditionsCreate%full_tensor = PETSC_FALSE
+  TCFASMAxialCreate%kT_solid      = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kT_water      = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%porosity_asm  = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kT_x          = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kT_y          = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kT_z          = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kT_xy         = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kT_xz         = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kT_yz         = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%isotropic   = PETSC_TRUE
+  TCFASMAxialCreate%full_tensor = PETSC_FALSE
 
-end function TCFAxialConditionsCreate
+end function TCFASMAxialCreate
 
 ! ************************************************************************** !
 
-subroutine TCFAxialConditionsVerify(this,name,option)
+subroutine TCFASMAxialVerify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_axial_conditions_type) :: this
+  class(kT_ASM_axial_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -765,7 +765,7 @@ subroutine TCFAxialConditionsVerify(this,name,option)
   if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
     string = name
   else
-    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,AXIAL_CONDITIONS'
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,ASM_AXIAL'
   endif
   call TCFBaseVerify(this,string,option)
   if (Uninitialized(this%kT_water)) then
@@ -781,18 +781,18 @@ subroutine TCFAxialConditionsVerify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine TCFAxialConditionsVerify
+end subroutine TCFASMAxialVerify
 
 ! ************************************************************************** !
 
-subroutine TCFAxialConditionsConductivity(this,liquid_saturation,temperature, &
+subroutine TCFASMAxialConductivity(this,liquid_saturation,temperature, &
      thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_axial_conditions_type) :: this
+  class(kT_ASM_axial_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -812,7 +812,7 @@ subroutine TCFAxialConditionsConductivity(this,liquid_saturation,temperature, &
   
   dkT_dsatl = this%porosity_asm * this%kT_water
 
-end subroutine TCFAxialConditionsConductivity
+end subroutine TCFASMAxialConductivity
 
 ! ************************************************************************** !
 
@@ -1396,10 +1396,10 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFDryConditionsCreate()
       case('WATER_FILLED_CONDITIONS')
         this%thermal_conductivity_function => TCFWaterFilledConditionsCreate()
-      case('ASM_CONDITIONS')
-        this%thermal_conductivity_function => TCFASMConditionsCreate()
-      case('AXIAL_CONDITIONS')
-        this%thermal_conductivity_function => TCFAxialConditionsCreate()
+      case('ASM_RADIAL')
+        this%thermal_conductivity_function => TCFASMRadialCreate()
+      case('ASM_AXIAL')
+        this%thermal_conductivity_function => TCFASMAxialCreate()
       case('COMPOSITE')
         this%thermal_conductivity_function => TCFCompositeCreate()
       case default
@@ -1491,10 +1491,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
     error_string = trim(error_string) // 'DRY_CONDITIONS'
   class is(kT_water_filled_conditions_type)
     error_string = trim(error_string) // 'WATER_FILLED_CONDITIONS'
-  class is(kT_ASM_conditions_type)
-    error_string = trim(error_string) // 'ASM_CONDITIONS'
-  class is(kT_axial_conditions_type)
-    error_string = trim(error_string) // 'AXIAL_CONDITIONS'
+  class is(kT_ASM_radial_type)
+    error_string = trim(error_string) // 'ASM_RADIAL'
+  class is(kT_ASM_axial_type)
+    error_string = trim(error_string) // 'ASM_AXIAL'
   class is(kT_composite_type)
     error_string = trim(error_string) // 'COMPOSITE'
   end select
@@ -1602,7 +1602,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
                             'assembly water-filled conditions',option)
       end select
       !------------------------------------------
-    class is(kT_ASM_conditions_type)
+    class is(kT_ASM_radial_type)
       select case(keyword)
       case('DRY_CONDITIONS_BASE')
         call InputReadDouble(input,option,tcf%kT_alpha_base)
@@ -1636,7 +1636,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
                             'assembly radial',option)
       end select
       !------------------------------------------
-    class is(kT_Axial_conditions_type)
+    class is(kT_ASM_axial_type)
       select case(keyword)
       case('THERMAL_CONDUCTIVITY_WATER')
         call InputReadDouble(input,option,tcf%kT_water)
@@ -2520,7 +2520,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_ASM_conditions_type)
+      class is (kT_ASM_radial_type)
         write(id,'(a)') 'temp.- and sat.-dependent. (assembly conditions)'
         write(id,'(a29)',advance='no') 'kT_dry: '
         write(word1,*) tcf%kT_dry
@@ -2541,7 +2541,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_axial_conditions_type)
+      class is (kT_ASM_axial_type)
         write(id,'(a)') 'sat.-dependent. (axial conditions)'
         write(id,'(a29)',advance='no') 'kT_water: '
         write(word1,*) tcf%kT_water
