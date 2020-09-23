@@ -1304,6 +1304,11 @@ subroutine TCFCompositeConductivity(this,liquid_saturation, &
       scaling(i) = dabs(dist(i))**2/mag
       call tcf%CalculateTCond(liquid_saturation,temperature,tmpkT(i), &
                               tmpdkT_dsatl(i),tmpdkT_dtemp(i),option)
+                              
+      if (isnan(tmpkT(i))) then
+        tmpkT(i) = 0.0d+0
+      endif
+      
       thermal_conductivity = thermal_conductivity + &
                              scaling(i)*tmpkT(i)*this%kTf(i,i)
       dkT_dtemp = dkT_dtemp + scaling(i)*tmpdkT_dsatl(i)*this%kTf(i,i)
