@@ -2373,11 +2373,6 @@ subroutine CompositeTCCList(list,tcf,option)
     endif
   enddo
   
-  ! write(*,*)"Sub-functions for composite function:"
-  ! do i = 1, size(tcf%ckT)
-  !   write(*,*)tcf%ckT(i)%ptr%name
-  ! enddo
-
 end subroutine CompositeTCCList
 
 ! ************************************************************************** !
