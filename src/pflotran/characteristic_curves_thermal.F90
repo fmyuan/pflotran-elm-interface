@@ -115,6 +115,20 @@ module Characteristic_Curves_Thermal_module
   type, public :: cc_thermal_ptr_type
     class(cc_thermal_type), pointer :: ptr
   end type cc_thermal_ptr_type
+  !---------------------------------------------------------------------------
+  type, public, extends(kT_default_type) :: kT_composite_type
+    PetscReal :: dist(-1:3)
+    ! -1 = fraction upwind
+    ! 0 = magnitude
+    ! 1 = unit x-dir
+    ! 2 = unit y-dir
+    ! 3 = unit z-dir
+    character(len=MAXWORDLENGTH) :: lkT(3) ! thermal conductivity function name
+    type(cc_thermal_ptr_type) :: ckT(3) ! thermal conductivity functions
+  contains
+    procedure, public :: Verify => TCFCompositeVerify
+    procedure, public :: CalculateTCond => TCFCompositeConductivity
+  end type kT_composite_type
 
   public :: CharCurvesThermalCreate, &
             CharCurvesThermalGetID, &
@@ -123,6 +137,7 @@ module Characteristic_Curves_Thermal_module
             CharCurvesThermalConvertListToArray, &
             CharCurvesThermalInputRecord, &
             CharCurvesThermalDestroy, &
+            CompositeTCCList, &
             TCFDefaultCreate, &
             TCFConstantCreate, &
             TCFPowerCreate, &
@@ -132,6 +147,7 @@ module Characteristic_Curves_Thermal_module
             TCFWaterFilledConditionsCreate, &
             TCFASMConditionsCreate, &
             TCFAxialConditionsCreate, &
+            TCFCompositeCreate, &
             TCFAssignDefault
 
 contains
@@ -1147,6 +1163,87 @@ end subroutine TCFLinearResistivityConductivity
 
 ! ************************************************************************** !
 
+function TCFCompositeCreate()
+
+  implicit none
+
+  class(kT_composite_type), pointer :: TCFCompositeCreate
+
+  allocate(TCFCompositeCreate)
+  TCFCompositeCreate%isotropic   = PETSC_TRUE
+  TCFCompositeCreate%full_tensor = PETSC_FALSE
+  TCFCompositeCreate%kT_wet = 0.0d0
+  TCFCompositeCreate%kT_dry = 0.0d0
+  TCFCompositeCreate%kT_x   = UNINITIALIZED_DOUBLE
+  TCFCompositeCreate%kT_y   = UNINITIALIZED_DOUBLE
+  TCFCompositeCreate%kT_z   = UNINITIALIZED_DOUBLE
+  TCFCompositeCreate%kT_xy  = UNINITIALIZED_DOUBLE
+  TCFCompositeCreate%kT_xz  = UNINITIALIZED_DOUBLE
+  TCFCompositeCreate%kT_yz  = UNINITIALIZED_DOUBLE
+  
+  TCFCompositeCreate%dist   = UNINITIALIZED_DOUBLE
+  TCFCompositeCreate%lkT = [ "UNINITIALIZED", &
+                             "UNINITIALIZED", &
+                             "UNINITIALIZED" ]
+
+end function TCFCompositeCreate
+
+! ************************************************************************** !
+
+subroutine TCFCompositeVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_composite_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,COMPOSITE'
+  endif
+  call TCFBaseVerify(this,string,option)
+  if (this%lkT(1) == "UNINITIALIZED" .or. &
+      this%lkT(2) == "UNINITIALIZED" .or. &
+      this%lkT(3) == "UNINITIALIZED") then
+    option%io_buffer = UninitializedMessage( &
+          'THERMAL CONDUCTIVITY SUB-FUNCTIONS',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine TCFCompositeVerify
+
+! ************************************************************************** !
+
+subroutine TCFCompositeConductivity(this,liquid_saturation, &
+     temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_composite_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
+  type(option_type), intent(inout) :: option
+
+  thermal_conductivity = 0.0d0
+  dkT_dtemp = 0.0d0
+  dkT_dsatl = 0.0d0
+  
+  ! option%io_buffer = 'TCFCompositeConductivity is not used in this context.'
+  ! call PrintErrMsg(option)
+
+end subroutine TCFCompositeConductivity
+
+! ************************************************************************** !
+
 function CharCurvesThermalCreate()
 
   implicit none
@@ -1224,6 +1321,8 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFASMConditionsCreate()
       case('AXIAL_CONDITIONS')
         this%thermal_conductivity_function => TCFAxialConditionsCreate()
+      case('COMPOSITE')
+        this%thermal_conductivity_function => TCFCompositeCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
              'THERMAL_CONDUCTIVITY_FUNCTION',option)
@@ -1317,6 +1416,8 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
     error_string = trim(error_string) // 'ASM_CONDITIONS'
   class is(kT_axial_conditions_type)
     error_string = trim(error_string) // 'AXIAL_CONDITIONS'
+  class is(kT_composite_type)
+    error_string = trim(error_string) // 'COMPOSITE'
   end select
 
   call InputPushBlock(input,option)
@@ -1492,6 +1593,21 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string, &
           'linear resistivity',option)
+      end select
+    class is(kT_composite_type)
+      select case(keyword)
+      case('COMPOSITE_X')  
+        call InputReadWord(input,option,tcf%lkT(1),PETSC_TRUE)
+        call InputErrorMsg(input,option,'fn_x','COMPOSITE')
+      case('COMPOSITE_Y')  
+        call InputReadWord(input,option,tcf%lkT(2),PETSC_TRUE)
+        call InputErrorMsg(input,option,'fn_y','COMPOSITE')
+      case('COMPOSITE_Z')  
+        call InputReadWord(input,option,tcf%lkT(3),PETSC_TRUE)
+        call InputErrorMsg(input,option,'fn_z','COMPOSITE')
+      case default
+        call TCFDefaultRead(tcf,input,keyword,error_string, &
+          'composite',option)
       end select
 
     class default
@@ -2113,6 +2229,49 @@ subroutine CharCurvesThermalConvertListToArray(list,array,option)
   enddo
 
 end subroutine CharCurvesThermalConvertListToArray
+
+! ************************************************************************** !
+
+subroutine CompositeTCCList(list,tcf,option)
+
+  use String_module
+  use Option_module
+
+  implicit none
+
+  class(cc_thermal_type), pointer :: list
+  class(kT_composite_type) :: tcf
+  ! type(cc_thermal_ptr_type), pointer :: array(3)
+  type(option_type) :: option
+
+  class(cc_thermal_type), pointer :: cur_thermal_cc
+  PetscInt :: i
+
+  do i = 1, 3 ! composite function only supports main axes
+    cur_thermal_cc => list
+    do
+      if (.not.associated(cur_thermal_cc)) exit
+      if (trim(cur_thermal_cc%name) == trim(tcf%lkT(i))) then
+        tcf%ckT(i)%ptr => cur_thermal_cc
+        exit
+      else
+        cur_thermal_cc => cur_thermal_cc%next
+      endif
+    enddo
+    if (.not. associated(tcf%ckT(i)%ptr)) then
+      option%io_buffer = 'Thermal conductivity sub-function "' & 
+                         // trim(tcf%lkT(i)) // &
+                         '" not found in list of thermal characteristic curves.'
+      call PrintErrMsg(option)
+    endif
+  enddo
+  
+  ! write(*,*)"Sub-functions for composite function:"
+  ! do i = 1, size(tcf%ckT)
+  !   write(*,*)tcf%ckT(i)%ptr%name
+  ! enddo
+
+end subroutine CompositeTCCList
 
 ! ************************************************************************** !
 
