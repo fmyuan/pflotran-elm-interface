@@ -486,8 +486,9 @@ function TCFWaterFilledConditionsCreate()
     TCFWaterFilledConditionsCreate
 
   allocate(TCFWaterFilledConditionsCreate)
-  ! User doesn't need to initialize dry thermal conditivity for this case
+  ! User doesn't need to initialize dry or wet thermal conditivity for this case
   TCFWaterFilledConditionsCreate%kT_dry         = 0.0d0
+  TCFWaterFilledConditionsCreate%kT_wet         = 0.0d0
   TCFWaterFilledConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
@@ -733,7 +734,9 @@ function TCFASMAxialCreate()
   class(kT_ASM_axial_type), pointer :: TCFASMAxialCreate
 
   allocate(TCFASMAxialCreate)
-  ! User doesn't need to initialize wet thermal conditivity for this case
+  ! User doesn't need to initialize dry or wet thermal conditivity for this case
+  TCFASMAxialCreate%kT_dry        = 0.0d0
+  TCFASMAxialCreate%kT_wet        = 0.0d0
   TCFASMAxialCreate%kT_solid      = UNINITIALIZED_DOUBLE
   TCFASMAxialCreate%kT_water      = UNINITIALIZED_DOUBLE
   TCFASMAxialCreate%porosity_asm  = UNINITIALIZED_DOUBLE
@@ -1173,8 +1176,8 @@ function TCFCompositeCreate()
   allocate(TCFCompositeCreate)
   TCFCompositeCreate%isotropic   = PETSC_TRUE
   TCFCompositeCreate%full_tensor = PETSC_FALSE
-  TCFCompositeCreate%kT_wet = 0.0d0
-  TCFCompositeCreate%kT_dry = 0.0d0
+  TCFCompositeCreate%kT_wet = 0.0d0 ! not used, deferred to sub-functions
+  TCFCompositeCreate%kT_dry = 0.0d0 ! not used, deferred to sub-functions
   TCFCompositeCreate%kT_x   = UNINITIALIZED_DOUBLE
   TCFCompositeCreate%kT_y   = UNINITIALIZED_DOUBLE
   TCFCompositeCreate%kT_z   = UNINITIALIZED_DOUBLE
@@ -1294,13 +1297,9 @@ subroutine TCFCompositeConductivity(this,liquid_saturation, &
   
   mag = sqrt( dist(1)**2 + dist(2)**2 + dist(3)**2 )
   
-  write(*,*)"------------------------"
-  write(*,*)"SL= ",liquid_saturation,", T= ",temperature
-  
-  do i = 1, 3
+  do i = 1, 3 ! iterate over X, Y, and Z
     select type(tcf => this%ckT(i)%ptr%thermal_conductivity_function)
     class is(thermal_conductivity_base_type)
-      write(*,*)"ANALYSIS WITH ",this%ckT(i)%ptr%name
       scaling(i) = dabs(dist(i))**2/mag
       call tcf%CalculateTCond(liquid_saturation,temperature,tmpkT(i), &
                               tmpdkT_dsatl(i),tmpdkT_dtemp(i),option)
@@ -1313,11 +1312,8 @@ subroutine TCFCompositeConductivity(this,liquid_saturation, &
                              scaling(i)*tmpkT(i)*this%kTf(i,i)
       dkT_dtemp = dkT_dtemp + scaling(i)*tmpdkT_dsatl(i)*this%kTf(i,i)
       dkT_dsatl = dkT_dsatl + scaling(i)*tmpdkT_dtemp(i)*this%kTf(i,i)
-      write(*,*)"SUB kT ",tmpkT(i)*this%kTf(i,i),scaling(i)
     end select
   enddo
-
-  write(*,*)"FINAL kT ",thermal_conductivity
 
 end subroutine TCFCompositeConductivity
 
@@ -2594,14 +2590,14 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         !---------------------------------
       class is (kT_composite_type)
         write(id,'(a)') 'composite thermal characteristic curve'
-        write(id,'(a29)',advance='no') 'sub-function X'
-        write(word1,*) tcf%lkT(1)
+        write(id,'(a29)',advance='no') 'sub-function X: '
+        write(word1,*) trim(tcf%lkT(1))
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'sub-function Y'
-        write(word1,*) tcf%lkT(2)
+        write(id,'(a29)',advance='no') 'sub-function Y: '
+        write(word1,*) trim(tcf%lkT(2))
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'sub-function Z'
-        write(word1,*) tcf%lkT(3)
+        write(id,'(a29)',advance='no') 'sub-function Z: '
+        write(word1,*) trim(tcf%lkT(3))
         write(id,'(a)') adjustl(trim(word1))
       end select
     endif
