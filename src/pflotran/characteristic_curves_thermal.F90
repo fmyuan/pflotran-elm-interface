@@ -2521,7 +2521,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
       class is (kT_ASM_radial_type)
-        write(id,'(a)') 'temp.- and sat.-dependent. (assembly conditions)'
+        write(id,'(a)') 'temp.- and sat.-dependent. (asm. radial)'
         write(id,'(a29)',advance='no') 'kT_dry: '
         write(word1,*) tcf%kT_dry
         write(id,'(a)') adjustl(trim(word1))
@@ -2542,7 +2542,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
       class is (kT_ASM_axial_type)
-        write(id,'(a)') 'sat.-dependent. (axial conditions)'
+        write(id,'(a)') 'sat.-dependent. (asm. axial)'
         write(id,'(a29)',advance='no') 'kT_water: '
         write(word1,*) tcf%kT_water
         write(id,'(a)') adjustl(trim(word1))
@@ -2590,6 +2590,18 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'T coefficient: '
         write(word1,*) tcf%a(2)
+        write(id,'(a)') adjustl(trim(word1))
+        !---------------------------------
+      class is (kT_composite_type)
+        write(id,'(a)') 'composite thermal characteristic curve'
+        write(id,'(a29)',advance='no') 'sub-function X'
+        write(word1,*) tcf%lkT(1)
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'sub-function Y'
+        write(word1,*) tcf%lkT(2)
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'sub-function Z'
+        write(word1,*) tcf%lkT(3)
         write(id,'(a)') adjustl(trim(word1))
       end select
     endif
