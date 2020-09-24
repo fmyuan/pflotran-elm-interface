@@ -2044,7 +2044,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%a(2)
         write(id,'(a)') adjustl(trim(word1))
       class is (kT_frozen_type)
-        write(id,'(a)') 'sat.- and temp.-dependent (lin. resistivity)'
+        write(id,'(a)') 'liquid and ice sat.-dependent (frozen)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
         write(id,'(a)') adjustl(trim(word1))
