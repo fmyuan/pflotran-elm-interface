@@ -6,7 +6,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        RESTRICT_STATE_CHANGE
+#        RESTRICT_STATE_CHANGE
       /
     /
   /
