@@ -55,6 +55,8 @@ module TH_Aux_module
     type(th_ice_type), pointer :: ice
     ! For surface-flow
     type(th_surface_flow_type), pointer :: surface
+    ! For anisotropy
+    PetscReal :: dist(-1:3)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
@@ -230,6 +232,7 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dT    = uninit_value
+  auxvar%dist      = uninit_value
  if (option%freezing) then
     allocate(auxvar%ice)
     auxvar%ice%Ke_fr     = uninit_value
@@ -326,6 +329,7 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%Ke = auxvar%Ke
   auxvar2%dKe_dp = auxvar%dKe_dp
   auxvar2%dKe_dT = auxvar%dKe_dT
+  auxvar2%dist = auxvar%dist
   if (associated(auxvar%ice)) then
     auxvar2%ice%Ke_fr = auxvar%ice%Ke_fr
     auxvar2%ice%dKe_fr_dp = auxvar%ice%dKe_fr_dp
@@ -600,6 +604,10 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   !unfrozen soil Kersten number
   Ke = (global_auxvar%sat(1) + epsilon)**(alpha)
   auxvar%Ke = Ke
+
+  ! Derive component thermal conductivities with anisotropy tensor and direction
+  call thermal_cc%thermal_conductivity_function% &
+       TCondTensorToScalar(auxvar%dist,option)
 
   ! Effective thermal conductivity
   call thermal_cc%thermal_conductivity_function%CalculateTCond( &
@@ -897,6 +905,10 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   Ke_fr = (auxvar%ice%sat_ice + epsilon)**(alpha_fr)
   auxvar%Ke = Ke
   auxvar%ice%Ke_fr = Ke_fr
+
+  ! Derive component thermal conductivities with anisotropy tensor and direction
+  call thermal_cc%thermal_conductivity_function% &
+       TCondTensorToScalar(auxvar%dist,option)
 
   ! Effective thermal conductivity
   call thermal_cc%thermal_conductivity_function%CalculateFTCond( &

@@ -176,9 +176,12 @@ subroutine THSetupPatch(realization)
   !single value in the array <modified pcl 1-13-11>
   allocate(patch%aux%TH%th_parameter%dencpr( &
              size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter%ckwet(size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter%ckdry(size(patch%char_curves_thermal_array)))
-  allocate(patch%aux%TH%th_parameter%alpha(size(patch%char_curves_thermal_array))) 
+  allocate(patch%aux%TH%th_parameter% &
+           ckwet(size(patch%char_curves_thermal_array)))
+  allocate(patch%aux%TH%th_parameter% &
+           ckdry(size(patch%char_curves_thermal_array)))
+  allocate(patch%aux%TH%th_parameter% &
+           alpha(size(patch%char_curves_thermal_array))) 
   if (option%freezing) then
    allocate(patch%aux%TH%th_parameter%ckfrozen( &
               size(patch%char_curves_thermal_array)))
@@ -727,6 +730,7 @@ subroutine THUpdateAuxVarsPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
+  type(connection_set_list_type), pointer :: connection_set_list
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(TH_auxvar_type), pointer :: TH_auxvars_bc(:)
   type(TH_auxvar_type), pointer :: TH_auxvars_ss(:)
@@ -737,6 +741,7 @@ subroutine THUpdateAuxVarsPatch(realization)
   type(th_parameter_type), pointer :: th_parameter
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
+  PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iphasebc, iphase
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
@@ -769,6 +774,21 @@ subroutine THUpdateAuxVarsPatch(realization)
   th_parameter => patch%aux%TH%th_parameter
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+
+  sum_connection = 0
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+      TH_auxvars(ghosted_id_up)%dist = cur_connection_set%dist(:,iconn)
+      TH_auxvars(ghosted_id_dn)%dist = cur_connection_set%dist(:,iconn)
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -838,6 +858,9 @@ subroutine THUpdateAuxVarsPatch(realization)
           iphasebc = global_auxvars(ghosted_id)%istate
       end select
 
+      TH_auxvars_bc(sum_connection)%dist = &
+        cur_connection_set%dist(:,iconn)
+      
       if (option%freezing) then
          call THAuxVarComputeFreezing(xxbc,TH_auxvars_bc(sum_connection), &
                                       global_auxvars_bc(sum_connection), &
@@ -895,6 +918,14 @@ subroutine THUpdateAuxVarsPatch(realization)
 
       xx(1) = xx_loc_p(istart)
       xx(2) = tsrc1
+      
+      if (.not. associated(cur_connection_set%dist)) then
+        TH_auxvars_ss(sum_connection)%dist = &
+          TH_auxvars_bc(sum_connection)%dist
+      else
+        TH_auxvars_ss(sum_connection)%dist = &
+          cur_connection_set%dist(:,iconn)
+      endif
 
       if (option%freezing) then
          call THAuxVarComputeFreezing(xx, &
