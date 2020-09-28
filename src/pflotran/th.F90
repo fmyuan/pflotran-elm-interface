@@ -204,6 +204,7 @@ subroutine THSetupPatch(realization)
     
     icct = patch%material_property_array(i)%ptr% &
                 thermal_conductivity_function_id
+    
     thermal_cc => patch%char_curves_thermal_array(icct)%ptr
     
     ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J = MJ/m^3-K
@@ -730,7 +731,6 @@ subroutine THUpdateAuxVarsPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
-  type(connection_set_list_type), pointer :: connection_set_list
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(TH_auxvar_type), pointer :: TH_auxvars_bc(:)
   type(TH_auxvar_type), pointer :: TH_auxvars_ss(:)
@@ -741,7 +741,6 @@ subroutine THUpdateAuxVarsPatch(realization)
   type(th_parameter_type), pointer :: th_parameter
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
-  PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iphasebc, iphase
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
@@ -774,21 +773,6 @@ subroutine THUpdateAuxVarsPatch(realization)
   th_parameter => patch%aux%TH%th_parameter
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-
-  sum_connection = 0
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  do
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      ghosted_id_up = cur_connection_set%id_up(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-      TH_auxvars(ghosted_id_up)%dist = cur_connection_set%dist(:,iconn)
-      TH_auxvars(ghosted_id_dn)%dist = cur_connection_set%dist(:,iconn)
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -857,9 +841,6 @@ subroutine THUpdateAuxVarsPatch(realization)
         case(NEUMANN_BC,ZERO_GRADIENT_BC)
           iphasebc = global_auxvars(ghosted_id)%istate
       end select
-
-      TH_auxvars_bc(sum_connection)%dist = &
-        cur_connection_set%dist(:,iconn)
       
       if (option%freezing) then
          call THAuxVarComputeFreezing(xxbc,TH_auxvars_bc(sum_connection), &
@@ -919,14 +900,6 @@ subroutine THUpdateAuxVarsPatch(realization)
       xx(1) = xx_loc_p(istart)
       xx(2) = tsrc1
       
-      if (.not. associated(cur_connection_set%dist)) then
-        TH_auxvars_ss(sum_connection)%dist = &
-          TH_auxvars_bc(sum_connection)%dist
-      else
-        TH_auxvars_ss(sum_connection)%dist = &
-          cur_connection_set%dist(:,iconn)
-      endif
-
       if (option%freezing) then
          call THAuxVarComputeFreezing(xx, &
                                       TH_auxvars_ss(sum_connection), &
@@ -1726,6 +1699,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: dq_dp_up, dq_dp_dn, dq_dT_up, dq_dT_dn
   
   PetscReal :: Dk_eff_up, Dk_eff_dn
+  PetscReal :: dk_ds_up, dK_di_up, dk_dT_up
+  PetscReal :: dk_ds_dn, dK_di_dn, dk_dT_dn
   PetscReal, parameter :: epsilon = 1.d-6
   PetscReal :: dKe_dT_up, dKe_dp_up
   PetscReal :: dKe_dT_dn, dKe_dp_dn
@@ -2086,8 +2061,17 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
   if (option%freezing) then
             
-    Dk_eff_up = auxvar_up%Dk_eff
-    Dk_eff_dn = auxvar_dn%Dk_eff
+    call tcc_up%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
+    call tcc_up%thermal_conductivity_function%CalculateFTCond( &
+         global_auxvar_up%sat(1),auxvar_up%ice%sat_ice,global_auxvar_up%temp, &
+         Dk_eff_up,dk_ds_up,dK_di_up,dk_dT_up,option)
+         
+    call tcc_dn%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
+    call tcc_dn%thermal_conductivity_function%CalculateFTCond( &
+         global_auxvar_dn%sat(1),auxvar_dn%ice%sat_ice,global_auxvar_dn%temp, &
+         Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn,option)
 
     Ke_fr_up = auxvar_up%ice%Ke_fr
     Ke_fr_dn = auxvar_dn%ice%Ke_fr
@@ -2100,8 +2084,17 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
   else
 
-    Dk_eff_up = auxvar_up%Dk_eff
-    Dk_eff_dn = auxvar_dn%Dk_eff
+    call tcc_up%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
+    call tcc_up%thermal_conductivity_function%CalculateTCond( &
+         global_auxvar_up%sat(1),global_auxvar_up%temp,Dk_eff_up,dk_ds_up, & 
+         dk_dT_up,option)
+         
+    call tcc_dn%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
+    call tcc_dn%thermal_conductivity_function%CalculateTCond( &
+         global_auxvar_dn%sat(1),global_auxvar_dn%temp,Dk_eff_dn,dk_ds_dn, &
+         dk_dT_dn,option)
 
   endif
  
@@ -2189,10 +2182,10 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     call THFlux( &
       auxvar_up,global_auxvar_up, &
       material_auxvar_up, &
-      Dk_up, &
+      Dk_up, tcc_up, &
       auxvar_dn,global_auxvar_dn, &
       material_auxvar_dn, &
-      Dk_dn, &
+      Dk_dn, tcc_dn, &
       area, &
       dist, upweight, &
       sir_up, sir_dn, &
@@ -2268,10 +2261,10 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
       call THFlux(auxvar_pert_up,global_auxvar_pert_up, &
                    material_auxvar_pert_up, &
-                   Dk_up, &
+                   Dk_up, tcc_up, &
                    auxvar_dn,global_auxvar_dn, &
                    material_auxvar_pert_dn, &
-                   Dk_dn, &
+                   Dk_dn, tcc_dn, &
                    area, &
                    dist, upweight, &
                    sir_up,sir_dn, &
@@ -2281,10 +2274,10 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                    res_pert_up)
       call THFlux(auxvar_up,global_auxvar_up, &
                    material_auxvar_pert_up, &
-                   Dk_up, &
+                   Dk_up, tcc_up, &
                    auxvar_pert_dn,global_auxvar_pert_dn, &
                    material_auxvar_pert_dn, &
-                   Dk_dn, &
+                   Dk_dn, tcc_dn, &
                    area, &
                    dist, upweight, &
                    sir_up,sir_dn, &
@@ -2310,10 +2303,10 @@ end subroutine THFluxDerivative
 ! ************************************************************************** !
 subroutine THFlux(auxvar_up,global_auxvar_up, &
                   material_auxvar_up, &
-                  Dk_up, &
+                  Dk_up, tcc_up, &
                   auxvar_dn,global_auxvar_dn, &
                   material_auxvar_dn, &
-                  Dk_dn, &
+                  Dk_dn, tcc_dn, &
                   area, &
                   dist, &
                   upweight, &
@@ -2333,12 +2326,14 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   use Connection_module
   use EOS_Water_module
   use Utility_module
+  use Characteristic_Curves_Thermal_module
 
   implicit none
   
   type(TH_auxvar_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  class(cc_thermal_type), pointer :: tcc_up, tcc_dn
   type(option_type) :: option
   PetscReal :: sir_up, sir_dn
   PetscReal :: dd_up, dd_dn
@@ -2348,6 +2343,8 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: alpha_up, alpha_dn
   PetscReal :: alpha_fr_up, alpha_fr_dn
   PetscReal :: Dk_eff_up, Dk_eff_dn
+  PetscReal :: dk_ds_up, dK_di_up, dk_dT_up
+  PetscReal :: dk_ds_dn, dK_di_dn, dk_dT_dn
   PetscReal :: v_darcy,area
   PetscReal :: Res(1:option%nflowdof) 
   PetscReal :: dist(-1:3)
@@ -2511,12 +2508,31 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
     Ke_fr_up = auxvar_up%ice%Ke_fr
     Ke_fr_dn = auxvar_dn%ice%Ke_fr
 
-    Dk_eff_up = auxvar_up%Dk_eff
-    Dk_eff_dn = auxvar_dn%Dk_eff
+    call tcc_up%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
+    call tcc_up%thermal_conductivity_function%CalculateFTCond( &
+         global_auxvar_up%sat(1),auxvar_up%ice%sat_ice,global_auxvar_up%temp, &
+         Dk_eff_up,dk_ds_up,dK_di_up,dk_dT_up,option)
+         
+    call tcc_dn%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
+    call tcc_dn%thermal_conductivity_function%CalculateFTCond( &
+         global_auxvar_dn%sat(1),auxvar_dn%ice%sat_ice,global_auxvar_dn%temp, &
+         Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn,option)
+         
   else
 
-    Dk_eff_up = auxvar_up%Dk_eff
-    Dk_eff_dn = auxvar_dn%Dk_eff
+    call tcc_up%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
+    call tcc_up%thermal_conductivity_function%CalculateTCond( &
+         global_auxvar_up%sat(1),global_auxvar_up%temp,Dk_eff_up,dk_ds_up, & 
+         dk_dT_up,option)
+         
+    call tcc_dn%thermal_conductivity_function% &
+         TCondTensorToScalar(dist,option)
+    call tcc_dn%thermal_conductivity_function%CalculateTCond( &
+         global_auxvar_dn%sat(1),global_auxvar_dn%temp,Dk_eff_dn,dk_ds_dn, &
+         dk_dT_dn,option)
 
   endif
  
@@ -2550,6 +2566,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                               option, &
                               sf_dn, &
                               cc_dn, &
+                              tcc_dn, &
                               Dk_dry_dn, &
                               Dk_ice_dn, &
                               Jdn)
@@ -2563,6 +2580,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   use Option_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Connection_module
   use EOS_Water_module
   use Utility_module
@@ -2582,6 +2600,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: area
   type(saturation_function_type) :: sf_dn  
   class(characteristic_curves_type) :: cc_dn
+  class(cc_thermal_type), pointer :: tcc_dn
 
   PetscReal :: Dk_dry_dn
   PetscReal :: Dk_ice_dn
@@ -2607,6 +2626,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: duh_dp_dn, duh_dT_dn
   PetscReal :: dq_dp_dn, dq_dT_dn
   PetscReal :: Dk_eff_dn
+  PetscReal :: dk_ds_dn, dK_di_dn, dk_dT_dn
   PetscReal :: dDk_dT_dn, dDk_dp_dn
   PetscReal :: dKe_dT_dn, dKe_dp_dn
   PetscReal :: dKe_fr_dT_dn, dKe_fr_dp_dn
@@ -3065,7 +3085,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   ! Conduction term
   select case(ibndtype(TH_TEMPERATURE_DOF))
     case(DIRICHLET_BC,HET_DIRICHLET_BC)
-      Dk =  auxvar_dn%Dk_eff / dd_dn
+      ! Dk =  auxvar_dn%Dk_eff / dd_dn
       !cond = Dk*area*(global_auxvar_up%temp-global_auxvar_dn%temp)
 
       if (skip_thermal_conduction) then
@@ -3076,7 +3096,14 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         Dk = 0.d0
       else
         if (option%freezing) then
-          Dk_eff_dn    = auxvar_dn%Dk_eff
+          
+          call tcc_dn%thermal_conductivity_function% &
+               TCondTensorToScalar(dist,option)
+          call tcc_dn%thermal_conductivity_function%CalculateFTCond( &
+               global_auxvar_dn%sat(1),auxvar_dn%ice%sat_ice, &
+               global_auxvar_dn%temp,Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn, &
+               option)
+          
           dKe_dp_dn    = auxvar_dn%dKe_dp
           dKe_dT_dn    = auxvar_dn%dKe_dT
           dKe_fr_dT_dn = auxvar_dn%ice%dKe_fr_dT
@@ -3092,7 +3119,14 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   
         else
   
-          Dk_eff_dn = auxvar_dn%Dk_eff
+          ! Dk_eff_dn = auxvar_dn%Dk_eff
+          
+          call tcc_dn%thermal_conductivity_function% &
+               TCondTensorToScalar(dist,option)
+          call tcc_dn%thermal_conductivity_function%CalculateTCond( &
+               global_auxvar_dn%sat(1),global_auxvar_dn%temp,Dk_eff_dn, &
+               dk_ds_dn,dk_dT_dn,option)
+          
           dKe_dp_dn = auxvar_dn%dKe_dp
           dKe_dT_dn = auxvar_dn%dKe_dT
           Dk        = Dk_eff_dn/dd_dn
@@ -3262,7 +3296,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   material_auxvar_up, &
                   auxvar_dn,global_auxvar_dn, &
                   material_auxvar_dn, &
-                  Dk_dn, &
+                  Dk_dn, tcc_dn, &
                   area,dist_gravity,sir_dn,option,v_darcy, &
                   fluxe_bulk, fluxe_cond, &
                   res)
@@ -3329,7 +3363,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                     material_auxvar_pert_up, &
                     auxvar_pert_dn,global_auxvar_pert_dn, &
                     material_auxvar_pert_dn, &
-                    Dk_dn, &
+                    Dk_dn, tcc_dn, &
                     area,dist_gravity,sir_dn,option,v_darcy, &
                     fluxe_bulk, fluxe_cond, &
                     res_pert_dn)
@@ -3348,7 +3382,7 @@ end subroutine THBCFluxDerivative
 subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                     auxvar_dn,global_auxvar_dn, &
                     material_auxvar_dn, &
-                    Dk_dn, &
+                    Dk_dn, tcc_dn, &
                     area, &
                     dist,sir_dn, &
                     option,v_darcy, &
@@ -3365,6 +3399,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   use EOS_Water_module
   use Condition_module
   use Utility_module
+  use Characteristic_Curves_Thermal_module
  
   implicit none
   
@@ -3372,6 +3407,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   type(TH_auxvar_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
+  class(cc_thermal_type), pointer :: tcc_dn
   type(option_type) :: option
   PetscReal :: sir_dn
   PetscBool :: is_flowing
@@ -3393,6 +3429,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: upweight,cond,gravity,dphi
   PetscReal :: dphi_orig
   PetscBool :: hw_present
+  PetscReal :: dk_ds_dn, dK_di_dn, dk_dT_dn
   
   ! ice variables
   PetscReal :: Ddiffgas_avg, Ddiffgas_dn, Ddiffgas_up
@@ -3680,7 +3717,21 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   ! Conduction term
   select case(ibndtype(TH_TEMPERATURE_DOF))
     case(DIRICHLET_BC,HET_DIRICHLET_BC)
+      call tcc_dn%thermal_conductivity_function% &
+      TCondTensorToScalar(dist,option)
+      if (option%freezing) then
+        call tcc_dn%thermal_conductivity_function%CalculateFTCond( &
+        global_auxvar_dn%sat(1),auxvar_dn%ice%sat_ice, &
+        global_auxvar_dn%temp,auxvar_dn%Dk_eff,dk_ds_dn,dK_di_dn,dk_dT_dn, &
+        option)
+      else
+        call tcc_dn%thermal_conductivity_function%CalculateTCond( &
+        global_auxvar_dn%sat(1),global_auxvar_dn%temp,auxvar_dn%Dk_eff, &
+        dk_ds_dn,dk_dT_dn,option)
+      endif
+      
       Dk =  auxvar_dn%Dk_eff / dd_dn
+      
       cond = Dk*area*(global_auxvar_up%temp-global_auxvar_dn%temp)
 
       if (skip_thermal_conduction) then
@@ -3976,6 +4027,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use Characteristic_Curves_Thermal_module
   
   implicit none
 
@@ -4017,6 +4069,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set  
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
+  class(cc_thermal_type), pointer :: tcc_dn, tcc_up
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: Dq, dphi, v_darcy, ukvr
 
@@ -4099,6 +4152,9 @@ subroutine THResidualInternalConn(r,realization,ierr)
       
       alpha_up = th_parameter%alpha(icct_up)
       alpha_dn = th_parameter%alpha(icct_dn)
+      
+      tcc_up => patch%char_curves_thermal_array(icct_up)%ptr
+      tcc_dn => patch%char_curves_thermal_array(icct_dn)%ptr
 
       if (option%freezing) then
          Dk_ice_up = th_parameter%ckfrozen(icct_up)
@@ -4116,10 +4172,10 @@ subroutine THResidualInternalConn(r,realization,ierr)
 
       call THFlux(auxvars(ghosted_id_up),global_auxvars(ghosted_id_up), &
                   material_auxvars(ghosted_id_up), &
-                  D_up, &
+                  D_up, tcc_up, &
                   auxvars(ghosted_id_dn),global_auxvars(ghosted_id_dn), &
                   material_auxvars(ghosted_id_dn), &
-                  D_dn, &
+                  D_dn, tcc_dn, &
                   cur_connection_set%area(iconn), &
                   cur_connection_set%dist(:,iconn), &
                   upweight,th_parameter%sir(1,icc_up), &
@@ -4173,6 +4229,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use Characteristic_Curves_Thermal_module
   
   implicit none
 
@@ -4218,6 +4275,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set  
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
+  class(cc_thermal_type), pointer :: tcc_dn
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal, pointer :: mmsrc(:)
   PetscReal :: well_status
@@ -4289,6 +4347,8 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
                                      cur_connection_set%dist(1:3,iconn))
 
       icc_dn = patch%cc_id(ghosted_id)
+      
+      tcc_dn => patch%char_curves_thermal_array(icct_dn)%ptr
   
       call THBCFlux(boundary_condition%flow_condition%itype, &
                     boundary_condition%flow_aux_real_var(:,iconn), &
@@ -4297,7 +4357,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
                     auxvars(ghosted_id), &
                     global_auxvars(ghosted_id), &
                     material_auxvars(ghosted_id), &
-                    D_dn, &
+                    D_dn, tcc_dn, &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(-1:3,iconn), &
                     th_parameter%sir(1,icc_dn), &
@@ -5062,6 +5122,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   use Secondary_Continuum_Aux_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
 
   Mat :: A
   type(realization_subsurface_type) :: realization
@@ -5112,6 +5173,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(saturation_function_type), pointer :: sf_dn
   class(characteristic_curves_type), pointer :: cc_dn
+  class(cc_thermal_type), pointer :: tcc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: icct
@@ -5173,6 +5235,8 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
 
          cc_dn => patch%characteristic_curves_array(icc_dn)%ptr
       endif
+      
+      tcc_dn => patch%char_curves_thermal_array(icct_dn)%ptr
 
       call THBCFluxDerivative(boundary_condition%flow_condition%itype, &
                               boundary_condition%flow_aux_real_var(:,iconn), &
@@ -5186,7 +5250,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               cur_connection_set%dist(-1:3,iconn), &
                               th_parameter%sir(1,icc_dn), &
                               option, &
-                              sf_dn,cc_dn, &
+                              sf_dn,cc_dn, tcc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &
                               Jdn)
       Jdn = -Jdn
