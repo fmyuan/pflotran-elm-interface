@@ -1,6 +1,5 @@
 #Description: 1D test problem for TH TS mode using thermal characteristic curves
-#===================== THC mode ===============================================
-
+#================================ TH-TS mode ==================================
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
@@ -12,7 +11,7 @@ END
 
 SUBSURFACE
 
-#=========================== numerical methods ================================
+#============================ numerical methods ===============================
 NUMERICAL_METHODS FLOW
 
   NEWTON_SOLVER
@@ -32,7 +31,7 @@ NUMERICAL_METHODS FLOW
 END
 
 
-#=========================== regression =======================================
+#================================ regression ==================================
 REGRESSION
   CELLS_PER_PROCESS 2
   CELL_IDS
@@ -42,7 +41,7 @@ REGRESSION
   /
 END
 
-#===================== Discretization =========================================
+#============================== discretization ================================
 GRID
   TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
@@ -53,16 +52,12 @@ GRID
   /
 END
 
-#===================== Solver options =========================================
-
-
-
-
-
+#============================ fluid properties ================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
-#========================= material properties ================================
+
+#=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 0.5d0
@@ -86,7 +81,7 @@ THERMAL_CHARACTERISTIC_CURVES cct
   /
 /
 
-#========================= saturation functions ===============================
+#========================== saturation functions ==============================
 CHARACTERISTIC_CURVES default
   SATURATION_FUNCTION VAN_GENUCHTEN
     LIQUID_RESIDUAL_SATURATION 0.5d-1
@@ -101,25 +96,22 @@ CHARACTERISTIC_CURVES default
   /
 /
 
-#========================= output options =====================================
+#============================== output options ================================
 OUTPUT
-#  TIMES y 100. 250. 500. 1000. 5000. 1.e4
-#  SCREEN PERIODIC 1
-#  PERIODIC_OBSERVATION TIMESTEP 1
   PRINT_COLUMN_IDS
   FORMAT TECPLOT POINT
   FORMAT HDF5
   VELOCITY_AT_CENTER
 END
 
-#======================== times ===============================================
+#================================== times =====================================
 TIME
   FINAL_TIME 1.e3 y
   INITIAL_TIMESTEP_SIZE 1.d-8 y
   MAXIMUM_TIMESTEP_SIZE 1.d1  y
 END
 
-#=========================== regions ==========================================
+#================================== regions ===================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
@@ -143,12 +135,13 @@ REGION east
   /
 END
 
+#=========================== observation points ===============================
 OBSERVATION
   REGION east
   VELOCITY
 END
 
-#======================= flow conditions ======================================
+#============================= flow conditions ================================
 FLOW_CONDITION initial
   UNITS Pa, C, yr
   TYPE
@@ -168,7 +161,7 @@ FLOW_CONDITION west
   TEMPERATURE 25.D0
 END
 
-#========================== initial and boundary conditions ===================
+#====================== initial and boundary conditions =======================
 # initial condition
 INITIAL_CONDITION
   FLOW_CONDITION initial
@@ -187,12 +180,10 @@ BOUNDARY_CONDITION
   REGION east
 END
 
-#===================== stratigraphy couplers ==================================
+#========================== stratigraphy couplers =============================
 STRATA
   REGION all
   MATERIAL soil1
 END
 
-#=========================== checkpoint / restart =============================
-#CHECKPOINT 10
 END_SUBSURFACE
