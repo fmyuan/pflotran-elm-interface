@@ -29,8 +29,8 @@ def main():
         filename = 'mixed.h5'
     else:
         filename = 'Thorne_mesh_10m-matID-river.h5'
-    grid = Mesh(filename)
-    grid.read_mesh()
+    grid = Grid(filename)
+    grid.read_grid()
     grid.cross_reference()
     if test:
         grid.print_cross_reference(fid)
@@ -39,8 +39,8 @@ def main():
         filename = 'regions.h5'
     sideset_list = read_regions_from_file(filename,test)
     for sideset in sideset_list:
-        sideset.cross_reference(grid.get_elements(),grid.get_vertices())
-        sideset.print_faces(fid,grid.get_elements())
+        sideset.cross_reference(grid.get_cells(),grid.get_vertices())
+        sideset.print_faces(fid,grid.get_cells())
     
     if fid:
         fid.close()

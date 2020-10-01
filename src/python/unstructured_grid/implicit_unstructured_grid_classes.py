@@ -24,20 +24,20 @@ def write(fid,string):
         fid.write(string)
     sys.stdout.write(string)
         
-class Mesh:
+class Grid:
     
     def __init__(self,filename):
         self.filename = filename
-        self.elements = []
+        self.cells = []
         self.vertices = []
         
     def get_vertices(self):
         return self.vertices
         
-    def get_elements(self):
-        return self.elements
+    def get_cells(self):
+        return self.cells
         
-    def read_mesh(self):
+    def read_grid(self):
         print(self.filename)
         if self.filename.endswith('.h5'):
             h5file = h5py.File(self.filename,'r')
@@ -48,8 +48,8 @@ class Mesh:
         cells = np.array(cells[:,:])        
         for i in range(cells.shape[0]):
             if i % 1000000 == 0:
-                print('elements: ',i)
-            self.elements.append(Element(i+1,cells[i,0],cells[i,1:]))
+                print('cells: ',i)
+            self.cells.append(Cell(i+1,cells[i,0],cells[i,1:]))
 
         vertices = h5file['Domain/Vertices']
         vertices = np.array(vertices[:,:])        
@@ -59,21 +59,21 @@ class Mesh:
             self.vertices.append(Vertex(i+1,vertices[i,0],vertices[i,1],
                                         vertices[i,2]))
         h5file.close()
-        print('Mesh read')
+        print('Finished reading grid')
         
     def cross_reference(self):
-        print('Cross Referencing Mesh')
+        print('Cross Referencing Grid')
         i = 0
-        for element in self.elements:
+        for cell in self.cells:
             if i % 1000000 == 0:
-                print('xref mesh: ',i)
-            for vertex_id in element.vertex_ids:
-                self.vertices[vertex_id-1].add_element(element.get_id())
+                print('xref grid: ',i)
+            for vertex_id in cell.vertex_ids:
+                self.vertices[vertex_id-1].add_cell(cell.get_id())
             i += 1
                 
     def print_cross_reference(self,fid):
         for vertex in self.vertices:
-            vertex.print_elements(fid)
+            vertex.print_cells(fid)
             
 def read_regions_from_file(filename,test):
     
@@ -115,25 +115,25 @@ class SideSet:
             self.faces.append(Face(i+1,vertices[i,0],vertices[i,1:]))
         print(self.faces[0].get_vertex_ids())
         
-    def cross_reference(self,element_list,vertex_list):
+    def cross_reference(self,cell_list,vertex_list):
         icount = 0
         for face in self.faces:
             icount += 1
             if icount % 100 == 0:
                 print('xref face: ',icount)
-            list_of_element_lists = []
+            list_of_cell_lists = []
             for vertex_id in face.get_vertex_ids():
                 vertex = vertex_list[vertex_id-1]
-                list_of_element_lists.append(vertex.get_element_ids())
-            in_all = set.intersection(*[set(x) for x in list_of_element_lists])
-            face.element_ids = in_all
+                list_of_cell_lists.append(vertex.get_cell_ids())
+            in_all = set.intersection(*[set(x) for x in list_of_cell_lists])
+            face.cell_ids = in_all
                 
-    def print_faces(self,fid,element_list):
+    def print_faces(self,fid,cell_list):
         write(fid,'Sideset: {}\n'.format(self.name))
         for face in self.faces:
-            face.print_face(fid,element_list)
+            face.print_face(fid,cell_list)
 
-class Element:
+class Cell:
     
     def __init__(self,id,itype,vertex_ids):
         self.id = id
@@ -147,7 +147,7 @@ class Element:
         elif itype == 8:
             self.ctype = 'H'
         else:
-            print_err_msg('Unknown element type in element {}: itype = {}'.
+            print_err_msg('Unknown cell type in cell {}: itype = {}'.
                           format(self.id,self.itype))
         # only store non-zero vertex ids
         i = 0
@@ -160,9 +160,6 @@ class Element:
     def get_ctype(self):
         return self.ctype
     
-    def get_index(self):
-        return self.id-1
-    
     def get_id(self):
         return self.id
 
@@ -172,8 +169,8 @@ class Element:
     def get_ctype(self):
         return self.ctype
     
-    def print_element(self,fid):
-        write(fid,'  Element {} [{}]:'.
+    def print_cell(self,fid):
+        write(fid,'  Cell {} [{}]:'.
                          format(self.get_ctype(),self.get_id()))
         for vertex_id in self.get_vertex_ids():
             write(fid,' {}'.format(vertex_id))
@@ -199,35 +196,32 @@ class Face:
                 break
             i += 1
         self.vertex_ids = np.array(vertex_ids[:i])
-        self.element_ids = []
+        self.cell_ids = []
         
-    def get_index(self):
-        return self.id-1
-    
     def get_id(self):
         return self.id
 
     def get_vertex_ids(self):
         return self.vertex_ids
 
-    def get_element_ids(self):
-        return self.element_ids
+    def get_cell_ids(self):
+        return self.cell_ids
 
     def get_ctype(self):
         return self.ctype    
 
-    def print_face(self,fid,element_list):  
+    def print_face(self,fid,cell_list):  
         vertex_ids = self.get_vertex_ids()
-        element_ids = self.get_element_ids()
-        write(fid,'Face {} [{}] : {} vertices, {} element(s)\n'.
+        cell_ids = self.get_cell_ids()
+        write(fid,'Face {} [{}] : {} vertices, {} cell(s)\n'.
               format(self.get_id(),self.get_ctype(),len(vertex_ids),
-                     len(element_ids)))
+                     len(cell_ids)))
         write(fid,'  Vertices :')
         for vertex_id in vertex_ids:
             write(fid,' {}'.format(vertex_id))
         write(fid,'\n')
-        for element_id in element_ids:
-            element_list[element_id-1].print_element(fid)
+        for cell_id in cell_ids:
+            cell_list[cell_id-1].print_cell(fid)
 
     
 class Vertex:
@@ -237,24 +231,21 @@ class Vertex:
         self.x = x
         self.y = y
         self.z = z
-        self.element_ids = []
-        
-    def get_index(self):
-        return self.id-1
+        self.cell_ids = []
         
     def get_id(self):
         return self.id
         
-    def add_element(self,element_id):
-        self.element_ids.append(element_id)
+    def add_cell(self,cell_id):
+        self.cell_ids.append(cell_id)
         
-    def get_element_ids(self):
-        return self.element_ids
+    def get_cell_ids(self):
+        return self.cell_ids
     
-    def print_elements(self,fid):
+    def print_cells(self,fid):
         write(fid,'Vertex {} :'.format(self.get_id()))
-        for element_id in self.element_ids:
-            write(fid,' {}'.format(element_id))
+        for cell_id in self.cell_ids:
+            write(fid,' {}'.format(cell_id))
         write(fid,'\n')
     
 
