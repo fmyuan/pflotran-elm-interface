@@ -444,7 +444,7 @@ multisimulation.o : input_aux.o option.o pflotran_constants.o
 nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  field.o fluid.o global_aux.o grid.o logging.o material.o \
                  material_aux.o nw_transport_aux.o nw_transport_equilibrium.o \
-                 option.o output_aux.o pflotran_constants.o \
+                 option.o output_aux.o patch.o pflotran_constants.o \
                  realization_subsurface.o string.o transport_constraint_nwt.o \
                  utility.o wipp_flow_aux.o
 nw_transport_aux.o : input_aux.o matrix_zeroing.o option.o output_aux.o \
@@ -493,14 +493,15 @@ output_observation.o : connection.o coupler.o discretization.o eos_gas.o \
                        general.o general_aux.o global_aux.o grid.o \
                        grid_grdecl.o grid_structured.o hydrate.o immis.o \
                        integral_flux.o logging.o material_aux.o miscible.o \
-                       mphase.o observation.o option.o output_aux.o \
-                       output_common.o output_eclipse.o patch.o \
-                       pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
-                       reaction_aux.o reactive_transport.o \
-                       reactive_transport_aux.o realization_base.o \
-                       realization_subsurface.o region.o richards.o string.o \
-                       th.o toil_ims.o towg.o utility.o variables.o \
-                       well_data.o well_type.o wipp_flow.o wipp_flow_aux.o
+                       mphase.o nw_transport.o nw_transport_aux.o \
+                       observation.o option.o output_aux.o output_common.o \
+                       output_eclipse.o patch.o pflotran_constants.o \
+                       pm_toil_ims_aux.o pm_towg_aux.o reaction_aux.o \
+                       reactive_transport.o reactive_transport_aux.o \
+                       realization_base.o realization_subsurface.o region.o \
+                       richards.o string.o th.o toil_ims.o towg.o utility.o \
+                       variables.o well_data.o well_type.o wipp_flow.o \
+                       wipp_flow_aux.o
 output_surface.o : connection.o coupler.o discretization.o field.o grid.o \
                    grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                    hdf5_aux.o input_aux.o logging.o option.o output_aux.o \
