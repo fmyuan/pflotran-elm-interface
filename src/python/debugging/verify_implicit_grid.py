@@ -16,28 +16,29 @@ sys.path.append(pflotran_dir + '/src/python')
 
 from unstructured_grid.implicit_unstructured_grid_classes import *
 
-test = True
-
 def main():
+    
+    num_arguments = len(sys.argv)
+    if num_arguments < 2:
+        sys.exit('ERROR: Please enter an unstructured grid filename:\n  ' + \
+                 'python {} <filename>'.format(os.path.basename(__file__)))
     
     fid = None
     filename = 'parse.stdout'
     fid = open(filename,'w')
     
     status = 0
-    if test:
-        filename = 'mixed.h5'
-    else:
-        filename = 'Thorne_mesh_10m-matID-river.h5'
+    filename = sys.argv[1]
+
     grid = Grid(filename)
     grid.read_grid()
     grid.cross_reference()
-    if test:
-        grid.print_cross_reference(fid)
-    
-    if test:
-        filename = 'regions.h5'
-    sideset_list = read_regions_from_file(filename,test)
+    grid.print_cross_reference(fid)
+
+    sideset_list = []    
+    for filename in sys.argv[2:num_arguments]:
+        sideset_list = sideset_list + read_regions_from_file(filename)
+        
     for sideset in sideset_list:
         sideset.cross_reference(grid.get_cells(),grid.get_vertices())
         sideset.print_faces(fid,grid.get_cells())

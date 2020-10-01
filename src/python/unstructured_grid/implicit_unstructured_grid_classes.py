@@ -75,7 +75,7 @@ class Grid:
         for vertex in self.vertices:
             vertex.print_cells(fid)
             
-def read_regions_from_file(filename,test):
+def read_regions_from_file(filename):
     
     if filename.endswith('.h5'):
         h5file = h5py.File(filename,'r')
@@ -85,8 +85,6 @@ def read_regions_from_file(filename,test):
     sideset_list = []
     regions_group = h5file['Regions']
     region_names = regions_group.keys()
-    if not test:
-        region_names = ['Mass1_35']
     for name in region_names:
         try:
             temp_name = 'Regions/'+name+'/Vertex Ids'
