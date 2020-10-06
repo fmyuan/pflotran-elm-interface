@@ -83,13 +83,13 @@
         1:         1
         2:         3
 -- DISCRETE: Material ID --
-      Max:         1
-      Min:         1
-     Mean:   1.0000000000000E+00
-        1:         1
-        2:         1
+      Max:         5
+      Min:         5
+     Mean:   5.0000000000000E+00
+        1:         5
+        2:         5
 -- SOLUTION: Flow --
-   Time (seconds):   2.5482940673828E-01
+   Time (seconds):   2.0147919654846E-01
    Time Steps:         1024
    Newton Iterations:         1588
    Linear Solver Iterations:         1588

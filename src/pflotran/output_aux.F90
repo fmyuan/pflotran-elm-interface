@@ -188,6 +188,7 @@ module Output_Aux_module
             OutputVariableListDuplicate, &
             OutputMassBalRegListDuplicate, &
             OutputVariableAddToList, &
+            OutputVariableToID, &
             OutputWriteToHeader, &
             OutputWriteVariableListToHeader, &
             OutputVariableToCategoryString, &
@@ -756,6 +757,461 @@ subroutine OutputVariableAddToList2(list,name,icategory,units,ivar, &
   call OutputVariableAddToList1(list,variable)
   
 end subroutine OutputVariableAddToList2
+
+! ************************************************************************** !
+
+subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                              option)
+
+ ! 
+ ! Assigns identifying information to a given input variable.
+ !
+ ! Author: Michael Nole
+ ! Date: 05/15/20
+
+  use Option_module
+  use String_module
+  use Variables_module
+
+  implicit none
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: name, units
+  PetscInt :: category, id, subvar, subsubvar
+  type(option_type), pointer :: option
+
+  id = UNINITIALIZED_DOUBLE
+  subvar = UNINITIALIZED_DOUBLE
+  subsubvar = UNINITIALIZED_DOUBLE
+
+  select case(word)
+    case ('MAXIMUM_PRESSURE')
+      name = 'Maximum Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = MAXIMUM_PRESSURE
+    case ('LIQUID_PRESSURE')
+      name = 'Liquid Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = LIQUID_PRESSURE
+    case ('LIQUID_SATURATION')
+      name = 'Liquid Saturation'
+      units = ''
+      category = OUTPUT_SATURATION
+      id = LIQUID_SATURATION
+    case ('LIQUID_HEAD')
+      name = 'Liquid Head'
+      units = 'm'
+      category = OUTPUT_GENERIC
+      id = LIQUID_HEAD
+    case ('LIQUID_DENSITY')
+      name = 'Liquid Density'
+      units = 'kg/m^3'
+      category = OUTPUT_GENERIC
+      id = LIQUID_DENSITY
+    case ('LIQUID_DENSITY_MOLAR')
+      name = 'Liquid Density'
+      units = 'kmol/m^3'
+      category = OUTPUT_GENERIC
+      id = LIQUID_DENSITY_MOL
+    case ('LIQUID_MOBILITY')
+      name = 'Liquid Mobility'
+      units = '1/Pa-s'
+      category = OUTPUT_GENERIC
+      id = LIQUID_MOBILITY
+    case ('LIQUID_VISCOSITY')
+      name = 'Liquid Viscosity'
+      units = 'Pa-s'
+      category = OUTPUT_GENERIC
+      id = LIQUID_VISCOSITY
+    case ('LIQUID_ENERGY')
+      name = 'Liquid Energy'
+      units = 'MJ/kmol'
+      category = OUTPUT_GENERIC
+      id = LIQUID_ENERGY
+      subvar = ZERO_INTEGER
+    case ('LIQUID_ENERGY_PER_VOLUME')
+      name = 'Liquid Energy'
+      units = 'MJ/m^3'
+      category = OUTPUT_GENERIC
+      id = LIQUID_ENERGY
+      subvar = ONE_INTEGER
+    case ('GAS_PRESSURE')
+      name = 'Gas Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = GAS_PRESSURE
+    case ('GAS_SATURATION')
+      name = 'Gas Saturation'
+      units = ''
+      category = OUTPUT_SATURATION
+      id = GAS_SATURATION
+    case ('GAS_DENSITY')
+      name = 'Gas Density'
+      units = 'kg/m^3'
+      category = OUTPUT_GENERIC
+      id = GAS_DENSITY
+    case ('GAS_DENSITY_MOLAR')
+      name = 'Gas Density'
+      units = 'kmol/m^3'
+      category = OUTPUT_GENERIC
+      id = GAS_DENSITY_MOL
+    case ('GAS_MOBILITY')
+      name = 'Gas Mobility'
+      units = '1/Pa-s'
+      category = OUTPUT_GENERIC
+      id = GAS_MOBILITY
+    case ('GAS_ENERGY')
+      name = 'Gas Energy'
+      units = 'MJ/kmol'
+      category = OUTPUT_GENERIC
+      id = GAS_ENERGY
+      subvar = ZERO_INTEGER
+    case ('GAS_ENERGY_PER_VOLUME')
+      name = 'Gas Energy'
+      units = 'MJ/m^3'
+      category = OUTPUT_GENERIC
+      id = GAS_ENERGY
+      subvar = ONE_INTEGER
+    case ('OIL_PRESSURE')
+      name = 'Oil Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = OIL_PRESSURE
+    case ('OIL_SATURATION')
+      name = 'Oil Saturation'
+      units = ''
+      category = OUTPUT_SATURATION
+      id = OIL_SATURATION
+    case ('OIL_DENSITY')
+      name = 'Oil Density'
+      units = 'kg/m^3'
+      category = OUTPUT_GENERIC
+      id = OIL_DENSITY
+    case ('OIL_DENSITY_MOLAR')
+      name = 'Oil Density'
+      units = 'kmol/m^3'
+       category = OUTPUT_GENERIC
+      id = OIL_DENSITY_MOL
+    case ('OIL_MOBILITY')
+      name = 'Oil Mobility'
+      units = '1/Pa-s'
+      category = OUTPUT_GENERIC
+      id = OIL_MOBILITY
+    case ('OIL_VISCOSITY')
+      name = 'Oil Viscosity'
+      units = 'Pa-s'
+      category = OUTPUT_GENERIC
+      id = OIL_VISCOSITY
+    case ('OIL_ENERGY')
+      name = 'Oil Energy'
+      units = 'MJ/m^3'
+      category = OUTPUT_GENERIC
+      id = OIL_ENERGY
+      subvar = ZERO_INTEGER
+    case ('OIL_ENERGY_PER_VOLUME')
+      name = 'Oil Energy'
+      units = 'MJ/kmol'
+      category = OUTPUT_GENERIC
+      id = OIL_ENERGY
+      subvar = ONE_INTEGER
+    case ('SOLVENT_PRESSURE')
+      name = 'Solvent Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = SOLVENT_PRESSURE
+    case ('SOLVENT_SATURATION')
+      name = 'Solvent Saturation'
+      units = ''
+      category = OUTPUT_SATURATION
+      id = SOLVENT_SATURATION
+    case ('SOLVENT_DENSITY')
+      name = 'Solvent Density'
+      units = 'kg/m^3'
+      category = OUTPUT_GENERIC
+      id = SOLVENT_DENSITY
+    case ('SOLVENT_DENSITY_MOLAR')
+      name = 'Solvent Density'
+      units = 'kmol/m^3'
+      category = OUTPUT_GENERIC
+      id = SOLVENT_DENSITY_MOL
+    case ('SOLVENT_MOBILITY')
+      name = 'Solvent Mobility'
+      units = '1/Pa-s'
+      category = OUTPUT_GENERIC
+      id = SOLVENT_MOBILITY
+    case ('SOLVENT_ENERGY')
+      name = 'Solvent Energy'
+      units = 'MJ/m^3'
+      category = OUTPUT_GENERIC
+      id = SOLVENT_ENERGY
+      subvar = ZERO_INTEGER
+    case ('SOLVENT_ENERGY_PER_VOLUME')
+      name = 'Solvent Energy'
+      units = 'MJ/m^3'
+      category = OUTPUT_GENERIC
+      id = SOLVENT_ENERGY
+      subvar = ONE_INTEGER
+    case ('BUBBLE_POINT')
+      name = 'Bubble Point'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = BUBBLE_POINT
+    case ('ICE_SATURATION')
+      name = 'Ice Saturation'
+      units = ''
+      category = OUTPUT_SATURATION
+      id = ICE_SATURATION
+    case ('HYDRATE_SATURATION')
+      name = 'Hydrate Saturation'
+      units = ''
+      category = OUTPUT_SATURATION
+      id = HYDRATE_SATURATION
+    case ('XGL')
+      name = 'X_g^l'
+      units = ''
+      category = OUTPUT_GENERIC
+      id = LIQUID_MOLE_FRACTION
+      subvar = option%air_id
+    case ('XLL')
+      name = 'X_l^l'
+      units = ''
+      category = OUTPUT_GENERIC
+      id = LIQUID_MOLE_FRACTION
+      subvar = option%water_id
+    case ('XGG')
+      name = 'X_g^g'
+      units = ''
+      category = OUTPUT_GENERIC
+      id = GAS_MOLE_FRACTION
+      subvar = option%air_id
+    case ('XLG')
+      name = 'X_l^g'
+      units = ''
+      category = OUTPUT_GENERIC
+      id = GAS_MOLE_FRACTION
+      subvar = option%water_id
+    case ('WGL')
+      name = 'w_g^l'
+      units = ''
+      category = OUTPUT_GENERIC
+      id = LIQUID_MASS_FRACTION
+      subvar = option%air_id
+    case ('WLL')
+      name = 'w_l^l'
+      units = ''
+      category = OUTPUT_GENERIC
+      id = LIQUID_MASS_FRACTION
+      subvar = option%water_id
+    case ('WGG')
+      name = 'w_g^g'
+      units = ''
+      category = OUTPUT_GENERIC
+      id = GAS_MASS_FRACTION
+      subvar = option%air_id
+    case ('WLG')
+      name = 'w_l^g'
+      units = ''
+      category = OUTPUT_GENERIC
+      id = GAS_MASS_FRACTION
+      subvar = option%water_id
+    case ('AIR_PRESSURE')
+      name = 'Air Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = AIR_PRESSURE
+    case ('CAPILLARY_PRESSURE')
+      name = 'Capillary Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = CAPILLARY_PRESSURE
+    case ('VAPOR_PRESSURE')
+      name = 'Vapor Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = VAPOR_PRESSURE
+    case ('SATURATION_PRESSURE')
+      name = 'Saturation Pressure'
+      units = 'Pa'
+      category = OUTPUT_PRESSURE
+      id = SATURATION_PRESSURE
+    case('THERMODYNAMIC_STATE')
+      name = 'Thermodynamic State'
+      units = ''
+      category = OUTPUT_DISCRETE
+      id = STATE
+    case ('TEMPERATURE')
+      name = 'Temperature'
+      units = 'C'
+      category = OUTPUT_GENERIC
+      id = TEMPERATURE
+    case ('RESIDUAL')
+      units = ''
+      category = OUTPUT_GENERIC
+      id = RESIDUAL
+    case ('POROSITY')
+      units = ''
+      name = 'Porosity'
+      category = OUTPUT_GENERIC
+      id = POROSITY
+    case ('MINERAL_POROSITY')
+      units = ''
+      name = 'Mineral Porosity'
+      category = OUTPUT_GENERIC
+      id = BASE_POROSITY
+    case ('EFFECTIVE_POROSITY')
+      option%io_buffer = 'EFFECTIVE_POROSITY no longer supported for &
+          &OUTPUT.  Please use POROSITY; it should be the same value.'
+      call PrintErrMsg(option)
+    case ('TORTUOSITY')
+      units = ''
+      name = 'Tortuosity'
+      category = OUTPUT_GENERIC
+      id = TORTUOSITY
+    case ('PERMEABILITY','PERMEABILITY_X')
+      units = 'm^2'
+      name = 'Permeability X'
+      category = OUTPUT_GENERIC
+      id = PERMEABILITY
+    case ('PERMEABILITY_Y')
+      units = 'm^2'
+      name = 'Permeability Y'
+      category = OUTPUT_GENERIC
+      id = PERMEABILITY_Y
+    case ('PERMEABILITY_Z')
+      units = 'm^2'
+      name = 'Permeability Z'
+      category = OUTPUT_GENERIC
+      id = PERMEABILITY_Z
+   case ('PERMEABILITY_XY')
+      if (.not.option%flow%full_perm_tensor) then
+        option%io_buffer = 'PERMEABILITY_XY only supported for &
+          full tensor permeability.'
+        call PrintErrMsg(option)
+      endif
+      units = 'm^2'
+      name = 'Permeability XY'
+      category = OUTPUT_GENERIC
+      id = PERMEABILITY_XY
+    case ('PERMEABILITY_XZ')
+      if (.not.option%flow%full_perm_tensor) then
+        option%io_buffer = 'PERMEABILITY_XZ only supported for &
+          full tensor permeability.'
+        call PrintErrMsg(option)
+      endif
+      units = 'm^2'
+      name = 'Permeability XZ'
+      category = OUTPUT_GENERIC
+      id = PERMEABILITY_XZ
+    case ('PERMEABILITY_YZ')
+      if (.not.option%flow%full_perm_tensor) then
+        option%io_buffer = 'PERMEABILITY_YZ only supported for &
+          full tensor permeability.'
+        call PrintErrMsg(option)
+      endif
+      units = 'm^2'
+      name = 'Permeability YZ'
+      category = OUTPUT_GENERIC
+      id = PERMEABILITY_YZ
+    case ('GAS_PERMEABILITY','GAS_PERMEABILITY_X')
+      units = 'm^2'
+      name = 'Gas Permeability X'
+      category = OUTPUT_GENERIC
+      id = GAS_PERMEABILITY
+    case ('GAS_PERMEABILITY_Y')
+      units = 'm^2'
+      name = 'Gas Permeability Y'
+      category = OUTPUT_GENERIC
+      id = GAS_PERMEABILITY_Y
+    case ('GAS_PERMEABILITY_Z')
+      units = 'm^2'
+      name = 'Gas Permeability Z'
+      category = OUTPUT_GENERIC
+      id = GAS_PERMEABILITY_Z
+    case ('LIQUID_RELATIVE_PERMEABILITY')
+      units = ''
+      name = 'Liquid Relative Permeability'
+      category = OUTPUT_GENERIC
+      id = LIQUID_RELATIVE_PERMEABILITY
+    case ('GAS_RELATIVE_PERMEABILITY')
+      units = ''
+      name = 'Gas Relative Permeability'
+      category = OUTPUT_GENERIC
+      id = GAS_RELATIVE_PERMEABILITY
+    case ('SOIL_COMPRESSIBILITY')
+      units = ''
+      name = 'Compressibility'
+      category = OUTPUT_GENERIC
+      id = SOIL_COMPRESSIBILITY
+    case ('SOIL_REFERENCE_PRESSURE')
+      units = 'Pa'
+      name = 'Soil Reference Pressure'
+      category = OUTPUT_GENERIC
+      id = SOIL_REFERENCE_PRESSURE
+    case ('NATURAL_ID')
+      units = ''
+      name = 'Natural ID'
+      category = OUTPUT_DISCRETE
+      id = NATURAL_ID
+    case ('PROCESS_ID')
+      units = ''
+      name = 'Process ID'
+      category = OUTPUT_DISCRETE
+      id = PROCESS_ID
+    case ('VOLUME')
+      units = 'm^3'
+      name = 'Volume'
+      category = OUTPUT_GENERIC
+      id = VOLUME
+    case ('MATERIAL_ID')
+      units = ''
+      name = 'Material ID'
+      category = OUTPUT_DISCRETE
+      id = MATERIAL_ID
+    case ('FRACTURE')
+      units = ''
+      name = 'Fracture Flag'
+      category = OUTPUT_DISCRETE
+      id = FRACTURE
+    case ('MATERIAL_ID_KLUDGE_FOR_VISIT')
+      units = ''
+      name = 'Kludged material ids for VisIt'
+      category = OUTPUT_DISCRETE
+      id = MATERIAL_ID
+    case ('SALINITY')
+      if (.not.option%flow%density_depends_on_salinity) then
+        option%io_buffer = 'SALINITY output only supported when the &
+          &SALINITY auxiliary process model is used.'
+        call PrintErrMsg(option)
+      endif
+      units = ''
+      name = 'Salinity (mass fraction)'
+      category = OUTPUT_GENERIC
+      id = SALINITY
+    case ('X_COORDINATE')
+      units = 'm'
+      name = 'X Coordinate'
+      category = OUTPUT_GENERIC
+      id = X_COORDINATE
+    case ('Y_COORDINATE')
+      units = 'm'
+      name = 'Y Coordinate'
+      category = OUTPUT_GENERIC
+      id = Y_COORDINATE
+    case ('Z_COORDINATE')
+      units = 'm'
+      name = 'Z Coordinate'
+      category = OUTPUT_GENERIC
+      id = Z_COORDINATE
+    case ('K_ORTHOGONALITY_ERROR')
+      units = ''
+      name = 'K Orthogonality Error'
+      category = OUTPUT_GENERIC
+      id = K_ORTHOGONALITY_ERROR
+  end select
+
+end subroutine OutputVariableToID
 
 ! ************************************************************************** !
 

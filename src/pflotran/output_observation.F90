@@ -15,6 +15,7 @@ module Output_Observation_module
   ! flags signifying the first time a routine is called during a given
   ! simulation
   PetscBool :: observation_first
+  PetscBool :: observation_aggregate_first
   PetscBool :: check_for_obs_points
   PetscBool :: calculate_velocities ! true if any obs. pt. prints velocity
   PetscBool :: secondary_observation_first
@@ -58,11 +59,13 @@ subroutine OutputObservationInit(num_steps)
     secondary_observation_first = PETSC_TRUE
     mass_balance_first = PETSC_TRUE
     integral_flux_first = PETSC_TRUE
+    observation_aggregate_first = PETSC_TRUE
   else
     observation_first = PETSC_FALSE
     secondary_observation_first = PETSC_FALSE
     mass_balance_first = PETSC_FALSE
     integral_flux_first = PETSC_FALSE
+    observation_aggregate_first = PETSC_FALSE
   endif
 
   ewriter_summ_count = 0
@@ -88,15 +91,9 @@ subroutine OutputObservation(realization_base)
   
   class(realization_base_type) :: realization_base
 
-!  if (realization_base%output_option%print_hdf5) then
-!    call OutputObservationHDF5(realization)
-!    call OutputObservationTecplot(realization)
-!  endif
- 
-!  if (realization_base%output_option%print_tecplot .or. &
-!      realization_base%output_option%print_hdf5) then
   if (realization_base%output_option%print_observation) then
     call OutputObservationTecplotColumnTXT(realization_base)
+    call OutputAggregateToFile(realization_base)
     call OutputIntegralFlux(realization_base)
     if (realization_base%option%use_mc) then
       call OutputObservationTecplotSecTXT(realization_base)
@@ -123,6 +120,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   use Patch_module
   use Observation_module
   use Utility_module
+  use String_module
  
   implicit none
 
@@ -137,11 +135,15 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   type(patch_type), pointer :: patch  
   type(output_option_type), pointer :: output_option
   type(observation_type), pointer :: observation
+  type(observation_aggregate_type), pointer :: aggregate
+  type(output_variable_type), pointer :: cur_variable
   PetscBool, save :: open_file = PETSC_FALSE
   PetscReal, allocatable :: velocities(:,:,:)
   PetscInt :: local_id
   PetscInt :: icolumn
   PetscInt :: nphase
+  PetscInt :: i
+  PetscReal :: temp_real_comp, temp_real
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_output_observation,ierr);CHKERRQ(ierr)
@@ -168,7 +170,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
     enddo
     check_for_obs_points = PETSC_FALSE
   endif
-  
+
   if (calculate_velocities) then
     nphase = max(option%nphase,option%transport%nphase)
     allocate(velocities(3,realization_base%patch%grid%nlmax,nphase))
@@ -183,7 +185,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   if (open_file) then
     write(string,'(i6)') option%myrank
     filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-obs-' // trim(adjustl(string)) // '.tec'
+               '-obs-' // trim(adjustl(string)) // '.pft'
   
     ! open file
     fid = 86
@@ -268,7 +270,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
             call WriteObservationDataForBC(fid,realization_base, &
                                             patch, &
                                             observation%connection_set)
-      end select
+        end select
       observation => observation%next
     enddo
     write(fid,'(a)',advance="yes") ""
@@ -282,6 +284,181 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   call PetscLogEventEnd(logging%event_output_observation,ierr);CHKERRQ(ierr)
       
 end subroutine OutputObservationTecplotColumnTXT
+
+! ************************************************************************** !
+
+subroutine OutputAggregateToFile(realization_base)
+  ! 
+  ! Print to observation aggregate data to text file
+  ! 
+  ! Author: Michael Nole
+  ! Date: 05/07/20
+  !
+
+  use Realization_Base_class, only : realization_base_type
+  use Discretization_module
+  use Grid_module
+  use Option_module
+  use Field_module
+  use Patch_module
+  use Observation_module
+  use Utility_module
+  use String_module
+
+  implicit none
+
+  class(realization_base_type) :: realization_base
+
+  PetscInt :: fid, icell
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(output_option_type), pointer :: output_option
+  type(observation_type), pointer :: observation
+  type(observation_aggregate_type), pointer :: aggregate
+  PetscInt :: icolumn
+  PetscErrorCode :: ierr
+
+  call PetscLogEventBegin(logging%event_output_observation_agg,ierr);CHKERRQ(ierr)
+
+  patch => realization_base%patch
+  option => realization_base%option
+  output_option => realization_base%output_option
+
+  ! Write aggregate output separately because any rank could write.
+  observation => patch%observation_list%first
+  do
+    if (.not. associated(observation)) exit
+    if (observation%itype == OBSERVATION_AGGREGATE) then
+      aggregate => observation%aggregate
+      if (.not. associated(aggregate%output_variable)) then
+        do
+          if (.not. associated(aggregate)) exit
+        ! Link aggregates with their output variables if it hasn't already
+        ! been done.
+          call ObservationAggregateLinkToVar(aggregate%output_variable, &
+                                       output_option%output_obs_variable_list, &
+                                       aggregate%var_name, option)
+          aggregate => aggregate%next
+        enddo
+        aggregate => observation%aggregate
+      endif
+
+      do
+        if (.not. associated(aggregate)) exit
+
+        write(string,'(i6)') observation%id
+        write(string2,'(i6)') aggregate%id
+        filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+               '-obs-' // trim(adjustl(string)) // '-agg-' // &
+               trim(adjustl(string2)) // '.pft'
+        fid = 86
+
+        if (observation_aggregate_first .or. .not.FileExists(filename)) then
+          if (option%myrank == option%io_rank) then
+            open(unit=fid,file=filename,action="write",status="replace")
+            ! write header
+            ! write title
+            write(fid,'(a)',advance="no") ' Aggregate Metric: '
+            select case(aggregate%metric)
+              case(OBSERVATION_AGGREGATE_MAX)
+                 write(fid,'(a)',advance="no") 'Max '
+              case(OBSERVATION_AGGREGATE_MIN)
+                 write(fid,'(a)',advance="no") 'Min '
+              case(OBSERVATION_AGGREGATE_AVG)
+                 write(fid,'(a)',advance="no") 'Average '
+            end select
+            write(fid,'(a)',advance="yes") trim(aggregate%var_name)
+
+            write(fid,'(a)',advance="no") ' "Time [' // &
+                  trim(output_option%tunit) // ']"'
+
+            ! must initialize icolumn here so that icolumn does not restart with
+            ! each observation point
+            if (output_option%print_column_ids) then
+              icolumn = 1
+            else
+              icolumn = -1
+            endif
+
+            call WriteObservationHeaderAgg(fid,realization_base, &
+                                           observation%region,icell, &
+                                           observation%print_velocities, &
+                                           icolumn)
+
+            write(fid,'(a)',advance="yes") ""
+            close(fid)
+          endif
+        endif
+        aggregate => aggregate%next
+      enddo
+
+      aggregate => observation%aggregate
+      do
+        if (.not. associated(aggregate)) exit
+
+        write(string,'(i6)') observation%id
+        write(string2,'(i6)') aggregate%id
+        filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+               '-obs-' // trim(adjustl(string)) // '-agg-' // &
+               trim(adjustl(string2)) // '.pft'
+        fid = 86
+
+        ! Compute the aggregate metric on each process
+        call ObservationAggComputeMetric(realization_base, aggregate, &
+                                         observation%region, option)
+        ! Do the reduction and write
+        call WriteObservationAggData(aggregate,realization_base, &
+                                     string,filename,fid,output_option,option)
+        aggregate => aggregate%next
+      enddo
+
+    endif
+    observation => observation%next
+  enddo
+
+  observation_aggregate_first = PETSC_FALSE
+  call PetscLogEventEnd(logging%event_output_observation_agg,ierr);CHKERRQ(ierr)
+
+end subroutine OutputAggregateToFile
+
+! ************************************************************************** !
+
+subroutine WriteObservationHeaderAgg(fid,realization_base,region,icell, &
+                                     print_velocities,icolumn)
+  ! Print a header for aggregated data
+  ! 
+  ! Author: Michael Nole
+  ! Date: 04/16/20
+  ! 
+  
+  use Realization_Base_class, only : realization_base_type
+  use Output_Aux_module
+  use Region_module
+
+  implicit none
+
+  PetscInt :: fid
+  class(realization_base_type) :: realization_base
+  type(region_type) :: region
+  PetscInt :: icell
+  PetscBool :: print_velocities
+  PetscInt :: icolumn
+
+  character(len=MAXSTRINGLENGTH) :: cell_string
+
+  cell_string = ' '
+
+  call OutputWriteToHeader(fid,'x(m)',' ',cell_string,icolumn)
+  call OutputWriteToHeader(fid,'y(m)',' ',cell_string,icolumn)
+  call OutputWriteToHeader(fid,'z(m)',' ',cell_string,icolumn)
+
+  call WriteObservationHeader(fid,realization_base,cell_string, &
+                              print_velocities,icolumn)
+
+
+end subroutine WriteObservationHeaderAgg
 
 ! ************************************************************************** !
 
@@ -495,7 +672,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   if (open_file) then
     write(string,'(i6)') option%myrank
     filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-obs-sec-' // trim(adjustl(string)) // '.tec'
+               '-obs-sec-' // trim(adjustl(string)) // '.pft'
   
     ! open file
     fid = 86
@@ -858,6 +1035,68 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
   endif
 
 end subroutine WriteObservationHeaderForBC
+
+! ************************************************************************** !
+
+subroutine WriteObservationAggData(aggregate,realization_base,string,&
+                                   filename,fid,output_option,option)
+  !
+  ! Print aggregate data of interest
+  !
+  ! Author: Michael Nole
+  ! Date: 04/16/20
+
+  use Realization_Base_class, only : realization_base_type
+  use Option_module
+  use Observation_module
+
+  implicit none
+
+  type(observation_aggregate_type), pointer :: aggregate
+  class(realization_base_type) :: realization_base
+  type(output_option_type), pointer :: output_option
+  type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: string, filename
+  PetscInt :: fid  
+
+  PetscErrorCode :: ierr
+  PetscInt :: agg_rank, local_id
+  PetscReal :: local_metric(2), global_metric(2)
+
+110 format(es14.6)
+
+  local_metric(1) = aggregate%metric_value
+  local_metric(2) = option%myrank
+
+  select case(aggregate%metric)
+    case(OBSERVATION_AGGREGATE_MAX)
+      call MPI_Allreduce(local_metric,global_metric,ONE_INTEGER, &
+                         MPI_2DOUBLE_PRECISION,MPI_MAXLOC,option%mycomm,ierr) 
+  end select
+
+  agg_rank = global_metric(2)
+
+  if (option%myrank == agg_rank) then
+
+    local_id = aggregate%local_id
+
+    open(unit=fid,file=filename,action="write",status="old",position="append")
+    write(fid,'(1es14.6)',advance="no") option%time/output_option%tconv
+
+    write(fid,110,advance="no") realization_base%patch%grid%x(realization_base%&
+                                patch%grid%nL2G(local_id))
+    write(fid,110,advance="no") realization_base%patch%grid%y(realization_base%&
+                                patch%grid%nL2G(local_id))
+    write(fid,110,advance="no") realization_base%patch%grid%z(realization_base%&
+                                patch%grid%nL2G(local_id))
+
+    call WriteObservationDataForCell(fid,realization_base,local_id)
+
+    write(fid,'(a)',advance="yes") ""
+    close(fid)    
+  endif
+
+end subroutine WriteObservationAggData
 
 ! ************************************************************************** !
 
@@ -1625,6 +1864,110 @@ end subroutine WriteObservationSecondaryDataAtCell
 
 ! ************************************************************************** !
 
+subroutine ObservationAggregateLinkToVar(aggregate_var,output_var_list, &
+                                         var_name,option)
+  !
+  ! Links aggregator variable to output variable
+  !
+  ! Author: Michael Nole
+  ! Date: 04/17/20
+ 
+  use Option_module 
+  use String_module
+
+  implicit none
+
+  type(output_variable_type), pointer :: aggregate_var
+  type(output_variable_list_type), pointer :: output_var_list
+  character(len=MAXWORDLENGTH) :: var_name
+  type(option_type), pointer :: option
+
+  type(output_variable_type), pointer :: cur_variable
+
+  cur_variable => output_var_list%first
+  do
+    if (.not. associated(cur_variable)) then
+      option%io_buffer = 'Variable requested for aggregate metric ' //&
+                         'does not match any output variables.'
+      call PrintErrMsg(option)
+    elseif (StringCompareIgnoreCase(cur_variable%name,var_name)) then
+      aggregate_var => cur_variable
+      exit
+    endif
+      cur_variable => cur_variable%next
+  enddo
+
+end subroutine ObservationAggregateLinkToVar
+
+! ************************************************************************** !
+
+subroutine ObservationAggComputeMetric(realization_base,aggregate,region,option)
+  !
+  ! Computes the user-specified aggregate metric
+  !
+  ! Author: Michael Nole
+  ! Date: 04/17/20
+
+  use Realization_Base_class, only : realization_base_type
+  use Observation_module
+  use Option_module
+  use Region_module
+
+  implicit none
+
+  class(realization_base_type) :: realization_base
+  type(observation_aggregate_type), pointer :: aggregate
+  type(region_type), pointer :: region
+  type(option_type), pointer :: option
+
+  type(output_variable_type), pointer :: cur_variable
+  PetscReal :: temp_real, temp_real_comp
+  PetscInt :: icell, local_id, ghosted_id
+
+  cur_variable => aggregate%output_variable
+  temp_real = UNINITIALIZED_DOUBLE
+  
+  if (region%num_cells == 0) then
+    select case(aggregate%metric)
+      case(OBSERVATION_AGGREGATE_MAX)
+        aggregate%metric_value = -1.d20
+        aggregate%local_id = 0
+      case(OBSERVATION_AGGREGATE_MIN)
+        aggregate%metric_value = 1.d20
+        aggregate%local_id = 0
+    end select
+  else
+    do icell= 1,region%num_cells
+      local_id = region%cell_ids(icell)
+      ghosted_id = realization_base%patch%grid%nL2G(local_id)
+      temp_real_comp = OutputGetVariableAtCell(realization_base, &
+                                               ghosted_id,cur_variable)
+      select case(aggregate%metric)
+        case(OBSERVATION_AGGREGATE_MAX)
+          if (temp_real_comp > temp_real .or. temp_real == &
+              UNINITIALIZED_DOUBLE) then
+            aggregate%metric_value = temp_real_comp
+            aggregate%local_id = local_id
+            temp_real = temp_real_comp
+          endif
+        case(OBSERVATION_AGGREGATE_MIN)
+          if (temp_real_comp < temp_real .or. temp_real == &
+              UNINITIALIZED_DOUBLE) then
+            aggregate%metric_value = temp_real_comp
+            aggregate%local_id = local_id
+            temp_real = temp_real_comp
+          endif
+        case default
+          option%io_buffer = 'Aggregate metric not assigned.'
+          call PrintErrMsg(option)
+      end select
+    enddo
+  endif
+
+end subroutine ObservationAggComputeMetric
+
+! ************************************************************************** !
+
 subroutine OutputIntegralFlux(realization_base)
   ! 
   ! Print integral fluxes to Tecplot POINT format
@@ -1708,9 +2051,6 @@ subroutine OutputIntegralFlux(realization_base)
   
   ! open file
   if (option%myrank == option%io_rank) then
-
-!geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -2035,9 +2375,6 @@ subroutine OutputMassBalance(realization_base)
   
   ! open file
   if (option%myrank == option%io_rank) then
-
-!geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1

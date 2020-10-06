@@ -23,6 +23,7 @@ module Option_Flow_module
     PetscBool :: numerical_derivatives_compare
     PetscBool :: num_as_alyt_derivs
     PetscBool :: only_energy_eq
+    PetscBool :: full_perm_tensor
 
   end type flow_option_type
   
@@ -111,6 +112,7 @@ subroutine OptionFlowInitRealization(option)
   option%numerical_derivatives_compare = petsc_false
   option%num_as_alyt_derivs= petsc_false
   option%only_energy_eq = PETSC_FALSE
+  option%full_perm_tensor = PETSC_FALSE
 
 end subroutine OptionFlowInitRealization
 

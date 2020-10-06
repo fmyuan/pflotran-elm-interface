@@ -1,0 +1,14 @@
+SIMULATION
+  EXTERNAL_FILE simulation/general.txt
+END
+
+SUBSURFACE
+  OUTPUT
+    EXTERNAL_FILE output/general_th_variables.txt
+    FORMAT TECPLOT FEBRICK
+    VELOCITY_AT_CENTER
+  /
+  EXTERNAL_FILE grid/unstructured_explicit.txt
+  EXTERNAL_FILE subsurface/all.txt
+  EXTERNAL_FILE subsurface/general.txt
+END_SUBSURFACE

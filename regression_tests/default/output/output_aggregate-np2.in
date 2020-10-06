@@ -1,0 +1,404 @@
+#Description: Modification of the 543 test problem to test aggregate metric
+#             output. 
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== flow mode ========================================
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer      
+    Tracer1     
+  /
+  OUTPUT
+    ALL
+    TOTAL
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 5 4 3
+  DXYZ
+    10. 11. 12. 13. 14.
+    13. 12. 11. 10.
+    15. 20. 25.
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-13
+  /
+END
+
+MATERIAL_PROPERTY soil2
+  ID 2
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf2
+  PERMEABILITY
+    PERM_X 1.d-11
+    PERM_Y 1.d-11
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY soil3
+  ID 3
+  POROSITY 0.2d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf3
+  PERMEABILITY
+    PERM_X 1.d-10
+    PERM_Y 1.d-10
+    PERM_Z 1.d-11
+  /
+END
+
+MATERIAL_PROPERTY soil4
+  ID 4
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf4
+  PERMEABILITY
+    PERM_X 1.d-9
+    PERM_Y 1.d-9
+    PERM_Z 1.d-10
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+CHARACTERISTIC_CURVES sf2
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.486
+    ALPHA  3.8801d-4
+    LIQUID_RESIDUAL_SATURATION 0.110
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.486
+    LIQUID_RESIDUAL_SATURATION 0.110
+  /
+END
+
+CHARACTERISTIC_CURVES sf3
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.541
+    ALPHA 1.0211d-4
+    LIQUID_RESIDUAL_SATURATION 0.118
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.541
+    LIQUID_RESIDUAL_SATURATION 0.118
+  /
+END
+
+CHARACTERISTIC_CURVES sf4
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.527
+    ALPHA 5.1054d-5
+    LIQUID_RESIDUAL_SATURATION 0.143
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.527
+    LIQUID_RESIDUAL_SATURATION 0.143
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIME 2. d between 0. d and 6. d
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 6.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-6 d
+  MAXIMUM_TIMESTEP_SIZE 1.d1 d 
+END
+
+#=========================== observation ======================================
+OBSERVATION
+  REGION middle_horizontal_layer
+  AGGREGATE_METRICS AGGREGATE_ONLY
+    MAX Total Tracer1
+    MAX LIQUID_PRESSURE
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    60.d0 46.d0 60.d0
+  /
+END
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 60.d0
+    60.d0 46.d0 60.d0
+  /
+END
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0 0.d0
+    60.d0 46.d0 0.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 46.d0 60.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    60.d0 0.d0 0.d0
+    60.d0 46.d0 60.d0
+  /
+END
+
+REGION north
+  FACE NORTH
+  COORDINATES
+    0.d0 46.d0 0.d0
+    60.d0 46.d0 60.d0
+  /
+END
+
+REGION south
+  FACE SOUTH
+  COORDINATES
+    0.d0 0.d0 0.d0
+    60.d0 0.d0 60.d0
+  /
+END
+
+REGION plume
+  BLOCK 2 3 2 3 2 3
+END
+
+REGION well
+  BLOCK 4 4 2 3 3 3
+END
+
+REGION repository
+  BLOCK 2 4 2 3 2 2
+END
+
+REGION middle_horizontal_layer
+  BLOCK 1 5 1 4 2 2
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  DATUM 0.d0 0.d0 35.d0
+  GRADIENT
+    PRESSURE -1.6666667d-2 0.d0 0.d0
+  /
+  PRESSURE 101325 ! Pa
+END
+
+FLOW_CONDITION east  # i.e., columbia river
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  INTERPOLATION LINEAR
+  DATUM LIST
+    TIME_UNITS d
+    0.d0 0.d0 0.d0 34.d0
+    10.d0 0.d0 0.d0 39.d0
+    50.d0 0.d0 0.d0 33.d0
+    100.d0 0.d0 0.d0 34.d0
+  /
+  PRESSURE 101325 ! Pa
+END
+
+FLOW_CONDITION recharge
+  TYPE
+    FLUX neumann
+  /
+  FLUX 5.d0 cm/yr
+END
+
+FLOW_CONDITION inject_repos
+  TYPE
+    RATE scaled_volumetric_rate neighbor_perm
+  /
+  RATE 1 m^3/hr
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION groundwater
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 groundwater
+  /
+END
+
+TRANSPORT_CONDITION init_repos
+  TYPE DIRICHLET
+  TIME_UNITS d
+  CONSTRAINT_LIST
+    0.d0 init_repos
+    1.d-6 groundwater 
+  /
+END
+
+TRANSPORT_CONDITION rainwater
+  TYPE DIRICHLET
+  CONSTRAINT_LIST
+    0.d0 rainwater
+  /
+END
+
+TRANSPORT_CONDITION inject_repos
+  TYPE DIRICHLET
+  CONSTRAINT_LIST
+    0.d0 inject_repos
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT groundwater
+  CONCENTRATIONS
+    Tracer   1.e-17            F   
+    Tracer1  1.e-17            F   
+  /
+END
+
+CONSTRAINT rainwater
+  CONCENTRATIONS
+    Tracer   1.e-6             F   
+    Tracer1  1.e-17            F   
+  /
+END
+
+CONSTRAINT init_repos
+  CONCENTRATIONS
+    Tracer   1.e-17            F    
+    Tracer1  1.e-3             F   
+  /
+END
+
+CONSTRAINT inject_repos
+  CONCENTRATIONS
+    Tracer   1.e-17           F    
+    Tracer1  1.e-17           F   
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION groundwater
+  REGION all
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION init_repos
+  REGION repository
+END
+
+# west boundary condition
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION groundwater
+  REGION west
+END
+
+# east boundary condition
+BOUNDARY_CONDITION east
+  FLOW_CONDITION east
+  TRANSPORT_CONDITION groundwater
+  REGION east
+END
+
+# top boundary condition
+BOUNDARY_CONDITION top
+  FLOW_CONDITION recharge
+  TRANSPORT_CONDITION rainwater
+  REGION top
+END
+
+# well source/sink
+SOURCE_SINK inject_repos
+  FLOW_CONDITION inject_repos
+  TRANSPORT_CONDITION inject_repos
+  REGION repository
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+STRATA
+  REGION plume
+  MATERIAL soil2
+END
+
+STRATA
+  REGION well
+  MATERIAL soil3
+END
+
+STRATA
+  REGION repository
+  MATERIAL soil4
+END
+
+END_SUBSURFACE

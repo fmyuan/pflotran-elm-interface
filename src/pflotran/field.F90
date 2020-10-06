@@ -20,12 +20,9 @@ module Field_module
     Vec :: porosity_tpdt
     Vec :: porosity_geomech_store
     Vec :: tortuosity0
-    Vec :: ithrm_loc
-    Vec :: icap_loc
 
     Vec :: perm0_xx, perm0_yy, perm0_zz
-    !geh: required for higher order, but not supported at this time.
-!    Vec :: perm0_xz, perm0_xy, perm0_yz
+    Vec :: perm0_xz, perm0_xy, perm0_yz
     
     Vec :: work, work_loc
 
@@ -105,12 +102,13 @@ function FieldCreate()
   field%porosity_t = PETSC_NULL_VEC
   field%porosity_tpdt = PETSC_NULL_VEC
   field%tortuosity0 = PETSC_NULL_VEC
-  field%ithrm_loc = PETSC_NULL_VEC
-  field%icap_loc = PETSC_NULL_VEC
 
   field%perm0_xx = PETSC_NULL_VEC
   field%perm0_yy = PETSC_NULL_VEC
   field%perm0_zz = PETSC_NULL_VEC
+  field%perm0_xy = PETSC_NULL_VEC
+  field%perm0_xz = PETSC_NULL_VEC
+  field%perm0_yz = PETSC_NULL_VEC
   
   field%work = PETSC_NULL_VEC
   field%work_loc = PETSC_NULL_VEC
@@ -205,12 +203,6 @@ subroutine FieldDestroy(field)
   if (field%tortuosity0 /= PETSC_NULL_VEC) then
     call VecDestroy(field%tortuosity0,ierr);CHKERRQ(ierr)
   endif
-  if (field%ithrm_loc /= PETSC_NULL_VEC) then
-    call VecDestroy(field%ithrm_loc,ierr);CHKERRQ(ierr)
-  endif
-  if (field%icap_loc /= PETSC_NULL_VEC) then
-    call VecDestroy(field%icap_loc,ierr);CHKERRQ(ierr)
-  endif
 
   if (field%perm0_xx /= PETSC_NULL_VEC) then
     call VecDestroy(field%perm0_xx,ierr);CHKERRQ(ierr)
@@ -220,6 +212,15 @@ subroutine FieldDestroy(field)
   endif
   if (field%perm0_zz /= PETSC_NULL_VEC) then
     call VecDestroy(field%perm0_zz,ierr);CHKERRQ(ierr)
+  endif
+  if (field%perm0_xy /= PETSC_NULL_VEC) then
+    call VecDestroy(field%perm0_xy,ierr);CHKERRQ(ierr)
+  endif
+  if (field%perm0_xz /= PETSC_NULL_VEC) then
+    call VecDestroy(field%perm0_xz,ierr);CHKERRQ(ierr)
+  endif
+  if (field%perm0_yz /= PETSC_NULL_VEC) then
+    call VecDestroy(field%perm0_yz,ierr);CHKERRQ(ierr)
   endif
   
   if (field%work /= PETSC_NULL_VEC) then

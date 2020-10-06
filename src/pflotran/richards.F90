@@ -133,10 +133,12 @@ subroutine RichardsSetupPatch(realization)
 
   PetscInt :: local_id, ghosted_id, iconn, sum_connection
   PetscInt :: ivertex, nvert, region_id, vertex_id
-  PetscInt :: i, ierr
+  PetscInt :: i
   PetscBool :: error_found, found
   PetscInt :: flag(10)
   PetscReal :: minz, maxz, zcenter, zface
+  PetscReal :: tempreal
+  PetscErrorCode :: ierr
   type(material_parameter_type), pointer :: material_parameter
   class(material_auxvar_type), pointer :: material_auxvars(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars(:)  
@@ -164,23 +166,26 @@ subroutine RichardsSetupPatch(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
         flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
-    if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
-        flag(5) == 0) then
+    tempreal = minval(material_auxvars(ghosted_id)%permeability)
+    if (Uninitialized(tempreal) .and. flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       flag(5) = 1
     endif
   enddo
 
-  if (error_found .or. maxval(flag) > 0) then
+  error_found = error_found .or. (maxval(flag) > 0)
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (error_found) then
     option%io_buffer = 'Material property errors found in RichardsSetup.'
     call PrintErrMsg(option)
   endif
@@ -774,7 +779,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                global_auxvars(ghosted_id), &
                                material_auxvars(ghosted_id), &
                                patch%characteristic_curves_array( &
-                                 patch%sat_func_id(ghosted_id))%ptr, &
+                                 patch%cc_id(ghosted_id))%ptr, &
                                grid%nG2A(ghosted_id), &
                                PETSC_TRUE,option)   
   enddo
@@ -827,7 +832,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                  global_auxvars_bc(sum_connection), &
                                  material_auxvars(ghosted_id), &
                                  patch%characteristic_curves_array( &
-                                   patch%sat_func_id(ghosted_id))%ptr, &
+                                   patch%cc_id(ghosted_id))%ptr, &
                                  -grid%nG2A(ghosted_id), &
                                  PETSC_FALSE,option)
     enddo
@@ -1095,7 +1100,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
                    rich_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                    material_auxvars(ghosted_id), &
                    patch%characteristic_curves_array( &
-                         patch%sat_func_id(ghosted_id))%ptr, &
+                         patch%cc_id(ghosted_id))%ptr, &
                    grid%nG2A(ghosted_id), &
                    PETSC_TRUE,option)
     call RichardsAccumulation(rich_auxvars(ghosted_id), &
@@ -1445,8 +1450,8 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
   PetscInt :: local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: region_id_up, region_id_dn
-  PetscInt :: icap_up
-  PetscInt :: icap_dn
+  PetscInt :: icc_up
+  PetscInt :: icc_dn
   PetscInt :: iconn
   PetscInt :: sum_connection
 
@@ -1489,8 +1494,8 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
         if (skip_conn(cur_connection_set%dist(1:3,iconn), skip_conn_type)) cycle
       endif
 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
 
       call RichardsFlux(rich_auxvars(ghosted_id_up), &
                       global_auxvars(ghosted_id_up), &
@@ -1613,8 +1618,8 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
   PetscInt :: ghosted_id
   PetscInt :: region_id, i
   PetscInt :: istart
-  PetscInt :: icap_up
-  PetscInt :: icap_dn
+  PetscInt :: icc_up
+  PetscInt :: icc_dn
   PetscInt :: iconn
   PetscInt :: sum_connection
 
@@ -1656,7 +1661,7 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call RichardsBCFlux(boundary_condition%flow_condition%itype, &
                        boundary_condition%flow_aux_real_var(:,iconn), &
@@ -2172,7 +2177,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
 
   PetscErrorCode :: ierr
 
-  PetscInt :: icap_up,icap_dn
+  PetscInt :: icc_up,icc_dn
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: region_id_up, region_id_dn
@@ -2249,8 +2254,8 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping
 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
 
       call RichardsFluxDerivative(rich_auxvars(ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
@@ -2261,8 +2266,8 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(-1:3,iconn),&
                      option,&
-                     patch%characteristic_curves_array(icap_up)%ptr, &
-                     patch%characteristic_curves_array(icap_dn)%ptr, &
+                     patch%characteristic_curves_array(icc_up)%ptr, &
+                     patch%characteristic_curves_array(icc_dn)%ptr, &
                      Jup,Jdn)
 
       if (local_id_up > 0) then
@@ -2408,7 +2413,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
 
   PetscErrorCode :: ierr
 
-  PetscInt :: icap_up,icap_dn
+  PetscInt :: icc_up,icc_dn
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, region_id, i
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -2468,7 +2473,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id) 
+      icc_dn = patch%cc_id(ghosted_id) 
 
       call RichardsBCFluxDerivative(boundary_condition%flow_condition%itype, &
                      boundary_condition%flow_aux_real_var(:,iconn), &
@@ -2480,7 +2485,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      option, &
-                     patch%characteristic_curves_array(icap_dn)%ptr, &
+                     patch%characteristic_curves_array(icc_dn)%ptr, &
                      Jdn)
       Jdn = -Jdn
 
@@ -2631,7 +2636,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
            material_auxvars(ghosted_id), &
            option, &
            patch%characteristic_curves_array( &
-           patch%sat_func_id(ghosted_id))%ptr, &
+           patch%cc_id(ghosted_id))%ptr, &
            Jup)
 
 #ifdef BUFFER_MATRIX
@@ -3126,7 +3131,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
   PetscInt :: local_id
   PetscInt :: sum_connection
   PetscInt :: iconn
-  PetscInt :: icap_dn
+  PetscInt :: icc_dn
 
   PetscReal :: den
   PetscReal :: dum1
@@ -3242,7 +3247,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
 
 
         ! Step-2: Find derivative at P_max
-        icap_dn = patch%sat_func_id(ghosted_id)
+        icc_dn = patch%cc_id(ghosted_id)
 
         xxbc(1) = P_max
 
@@ -3251,7 +3256,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
         call RichardsAuxVarCompute(xxbc,rich_auxvar_max, &
                            global_auxvar_max, &
                            material_auxvars(ghosted_id), &
-                           patch%characteristic_curves_array(icap_dn)%ptr, &
+                           patch%characteristic_curves_array(icc_dn)%ptr, &
                            -grid%nG2A(ghosted_id), &
                            PETSC_FALSE,option)
 

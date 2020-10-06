@@ -830,7 +830,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
 
 ! Check that MAX_PHASE is sufficiently large
 
-      if( option%nphase > MAX_PHASE ) then
+      if (option%nphase > MAX_PHASE) then
         option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
         call PrintMsg(option)
       endif
@@ -858,7 +858,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
 
 !  Add solvent phase
 
-      if (towg_miscibility_model == TOWG_SOLVENT_TL ) then
+      if (towg_miscibility_model == TOWG_SOLVENT_TL) then
         option%nphase = 4
         option%solvent_phase = 4         ! solvent saturation
       endif
@@ -871,13 +871,13 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
 
 ! Add solvent phase
 
-      if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+      if (towg_miscibility_model == TOWG_SOLVENT_TL) then
         option%phase_map(4) = SOLVENT_PHASE
       endif
 
 ! Check that MAX_PHASE is sufficiently large
 
-      if( option%nphase > MAX_PHASE ) then
+      if (option%nphase > MAX_PHASE) then
         option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
         call PrintMsg(option)
       endif
@@ -1670,8 +1670,8 @@ subroutine SubsurfaceSetupRealization(simulation)
       ! SK 09/30/13, Added to check if Mphase is called with OS
       if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
           option%iflowmode == MPH_MODE) then
-        option%io_buffer = 'Operator split not implemented with MPHASE. &
-                           &Switching to Global Implicit.'
+        option%io_buffer = 'Operator splitting currently not implemented with &
+                   &MPHASE. Please switch reactive transport to MODE GIRT.'
         call PrintErrMsg(option)
         option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
       endif
@@ -1777,6 +1777,8 @@ subroutine SetupWaypointList(simulation)
    ! fill in holes in waypoint data
     call WaypointListFillIn(simulation%waypoint_list_subsurface,option)
     call WaypointListRemoveExtraWaypnts(simulation%waypoint_list_subsurface, &
+                                        option)
+    call WaypointListFindDuplicateTimes(simulation%waypoint_list_subsurface, &
                                         option)
   endif
 
@@ -1900,7 +1902,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
   string = "WELL_DATA"
   call InputFindStringInFile(input,option,string,PETSC_FALSE,found)
-  if( found ) then
+  if (found) then
     call InputPushBlock(input,'WELL_DATA',option)
 
 ! Read the WELL_DATA information
@@ -1937,7 +1939,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           do ck=ckll,ckuu
             call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_false,qerr)
           enddo
-          if( qerr ) then
+          if (qerr) then
             input%ierr = 1
             call InputErrorMsg(input,option,'cijk','same well more than once')
           endif
@@ -1959,7 +1961,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           do ck=ckll,ckuu
             call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_true,qerr)
           enddo
-          if( qerr ) then
+          if (qerr) then
             input%ierr = 1
             call InputErrorMsg(input,option,'cijk_d','same well more than once')
           endif
@@ -2122,6 +2124,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Material_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Creep_Closure_module
   use Dataset_Base_class
   use Dataset_Ascii_class
@@ -2230,6 +2233,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(fluid_property_type), pointer :: fluid_property
   type(saturation_function_type), pointer :: saturation_function
   class(characteristic_curves_type), pointer :: characteristic_curves
+  class(cc_thermal_type), pointer :: characteristic_curves_thermal
   class(creep_closure_type), pointer :: creep_closure
 
   class(realization_subsurface_type), pointer :: realization
@@ -2753,7 +2757,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
          ! Saturated molality is ~6.16, so above 10 is suspicious
          ! May be units error, so warn user
-         if ( option%m_nacl > 10.0 ) then
+         if (option%m_nacl > 10.0) then
            option%io_buffer = &
            'More that 10 mols/Kg ~ 584 gms/Kg '// &
            'is an unusually high brine molality'
@@ -2890,6 +2894,24 @@ subroutine SubsurfaceReadInput(simulation,input)
         nullify(characteristic_curves)
 
 !....................
+
+      case ('THERMAL_CHARACTERISTIC_CURVES')       
+        characteristic_curves_thermal => CharCurvesThermalCreate()
+        call InputReadWord(input,option, &
+             characteristic_curves_thermal%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'name','THERMAL_CHARACTERISTIC_CURVES')
+        option%io_buffer = '  Name :: ' // &
+             trim(characteristic_curves_thermal%name)
+        call PrintMsg(option)
+        call CharCurvesThermalRead( &
+             characteristic_curves_thermal,input,option)
+        call CharCurvesThermalAddToList( &
+             characteristic_curves_thermal, &
+             realization%characteristic_curves_thermal)
+        nullify(characteristic_curves_thermal)
+
+!....................
+
       case('CREEP_CLOSURE_TABLE')
         wipp => WIPPGetPtr()
         option%flow%transient_porosity = PETSC_TRUE
@@ -3119,12 +3141,11 @@ subroutine SubsurfaceReadInput(simulation,input)
                        grid%unstructured_grid%explicit_grid% &
                           output_mesh_type = CELL_CENTERED_OUTPUT_MESH
                        call OptionSetBlocking(option,PETSC_FALSE)
-                       if ( option%myrank == option%io_rank ) then
+                       if (option%myrank == option%io_rank) then
                          if (grid%unstructured_grid% &
-                             explicit_grid%num_elems /= &
+                               explicit_grid%num_elems /= &
                              grid%unstructured_grid% &
-                             explicit_grid%num_cells_global &
-                            ) then
+                               explicit_grid%num_cells_global) then
                            option%io_buffer = &
                              'EXPLICIT_GRID_PRIMAL_GRID_TYPE &
                              &if CELL_CENTERED option, the number of cells &
@@ -3454,13 +3475,13 @@ subroutine SubsurfaceReadInput(simulation,input)
         if (fluxes) then
           output_option%print_fluxes = PETSC_TRUE
         endif
-        if(output_option%aveg_output_variable_list%nvars>0) then
-          if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
+        if (output_option%aveg_output_variable_list%nvars>0) then
+          if (Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
             option%io_buffer = 'Keyword: AVERAGE_VARIABLES defined without &
                                &PERIODIC TIME being set.'
             call PrintErrMsg(option)
           endif
-          if(.not.output_option%print_hdf5) then
+          if (.not.output_option%print_hdf5) then
             option%io_buffer = 'Keyword: AVERAGE_VARIABLES only defined for FORMAT HDF5'
             call PrintErrMsg(option)
           endif
@@ -3472,8 +3493,8 @@ subroutine SubsurfaceReadInput(simulation,input)
             output_option%print_hdf5_energy_flowrate = energy_flowrate
             output_option%print_hdf5_aveg_mass_flowrate = aveg_mass_flowrate
             output_option%print_hdf5_aveg_energy_flowrate = aveg_energy_flowrate
-            if(aveg_mass_flowrate.or.aveg_energy_flowrate) then
-              if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
+            if (aveg_mass_flowrate.or.aveg_energy_flowrate) then
+              if (Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
                 option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/ &
                   &AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE defined without &
                   &PERIODIC TIME being set.'
@@ -3491,17 +3512,16 @@ subroutine SubsurfaceReadInput(simulation,input)
         endif
         if (associated(grid%unstructured_grid)) then
           if (associated(grid%unstructured_grid%explicit_grid)) then
-            if( output_option%write_ecl .or. option%linerept ) then
+            if (output_option%write_ecl .or. option%linerept) then
               unsupported_output = output_option%print_tecplot &
                                     .or. output_option%print_vtk
             else
               unsupported_output = .not.output_option%print_hdf5
             endif
 
-            if ( unsupported_output .and.  &
-                 (grid%unstructured_grid%explicit_grid%output_mesh_type == &
-                 CELL_CENTERED_OUTPUT_MESH) &
-               ) then
+            if (unsupported_output .and.  &
+                (grid%unstructured_grid%explicit_grid%output_mesh_type == &
+                 CELL_CENTERED_OUTPUT_MESH)) then
                 option%io_buffer = 'unstructured explicit grid &
                   &output_mesh_type = CELL_CENTERED supported for hdf5 only'
                 call PrintErrMsg(option)

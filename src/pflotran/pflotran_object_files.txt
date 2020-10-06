@@ -54,6 +54,7 @@ mode_aux_obj = \
 	${common_src}miscible_aux.o \
 	${common_src}mphase_aux.o \
         ${common_src}nw_transport_aux.o \
+	${common_src}kdtree.o \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
@@ -181,6 +182,7 @@ relations_obj = \
 	${common_src}characteristic_curves_common.o \
 	${common_src}characteristic_curves_owg.o \
 	${common_src}characteristic_curves_wipp.o \
+	${common_src}characteristic_curves_thermal.o \
 	${common_src}mphase_pckr_mod.o
 
 properties_obj = \
