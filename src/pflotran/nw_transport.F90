@@ -656,7 +656,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   call VecGetArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
   
   ! Zero out the residual pointer
-  r_p = 0.d0
+  r_p(:) = 0.d0
   
   ! Update the auxiliary variables
   call NWTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
@@ -679,7 +679,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       offset = (local_id-1)*nspecies
       istart = offset + 1
       iend = offset + nspecies
-      r_p(istart:iend) = r_p(istart:iend) - &
+      r_p(istart:iend) = r_p(istart:iend) + & 
         (Res(1:nspecies) - fixed_accum_p(istart:iend))/option%tran_dt
       
     enddo
@@ -715,7 +715,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       offset = (local_id-1)*nspecies
       istart = offset + 1
       iend = offset + nspecies
-      r_p(istart:iend) = r_p(istart:iend) + Res(1:nspecies)
+      r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)
       
       if (associated(realization%patch%ss_tran_fluxes)) then
         realization%patch%ss_tran_fluxes(:,sum_connection) = - Res(:)
@@ -746,9 +746,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     
     offset = (local_id-1)*nspecies
     istart = offset + 1
-    iend = offset + nspecies
-    r_p(istart:iend) = r_p(istart:iend) + Res(1:nspecies)  
-    
+    iend = offset + nspecies 
+    r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)
   enddo
 #endif
 
@@ -803,7 +802,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
         offset = (local_id_up-1)*nspecies
         istart = offset + 1
         iend = offset + nspecies
-        r_p(istart:iend) = r_p(istart:iend) + Res_up(1:nspecies)
+        r_p(istart:iend) = r_p(istart:iend) + Res_up(1:nspecies) 
       endif
       
       if (local_id_dn>0) then
@@ -867,7 +866,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       offset = (local_id-1)*nspecies
       istart = offset + 1
       iend = offset + nspecies
-      r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies) 
+      r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
       ! note: Don't need to worry about Res_up because that is outside of
       ! the domain, and doesn't have a place in r_p.
       
@@ -894,9 +893,6 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 
 
   !WRITE(*,*)  '       r_p(6) = ', r_p(:)
-  
-  ! multiply residual by (-1.0) because Newton's Method is (J)(dC) = (-R)
-  r_p = -1.0d0*r_p
   
   ! Restore residual Vector data
   call VecRestoreArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
@@ -1318,8 +1314,8 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
 
   ! units of unit_n = [-] unitless
-  unit_n_up = -1  ! original
-  unit_n_dn = +1  ! original
+  unit_n_up = +1
+  unit_n_dn = -1 
 
   ! upstream weighting
   if (.not.bc) then
@@ -1750,7 +1746,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   allocate(dRes_rxn(grid%nlmax*option%ntrandof))
   allocate(dRes_flux(grid%nlmax*option%ntrandof))
 
-  cell_number = 3
+  cell_number = 722
 
   ! get the dM value:
   call VecCopy(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
@@ -1803,7 +1799,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     ! get the unperturbed residual:
     call NWTResidualRx(nwt_auxvars(i),material_auxvars(i), &
                        reaction_nw,res_at_cell)
-    residual(istart:iend) = &
+    residual(istart:iend) = (-1.d0) * & ! b/c rx are subtracted
                       res_at_cell(1:realization%reaction_nw%params%nspecies)
     ! use dM to get a perturbed residual:
     nwt_auxvars(i)%total_bulk_conc = xx_pert_p(istart:iend)
@@ -1811,7 +1807,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                           material_auxvars(i),reaction_nw,option)
     call NWTResidualRx(nwt_auxvars(i),material_auxvars(i),reaction_nw, &
                        res_at_cell)
-    residual_pert(istart:iend) = &
+    residual_pert(istart:iend) = (-1.d0) * & ! b/c rx are subtracted
                       res_at_cell(1:realization%reaction_nw%params%nspecies) 
     ! calculate the numerical Jacobian entry:
     dRes_rxn(istart:iend) = residual_pert(istart:iend) &
@@ -2005,10 +2001,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       if (ghosted_id_up == cell_number) then
         if (realization%patch%internal_velocities(LIQUID_PHASE,sum_connection) > 0.d0) then
           unA_up = realization%patch%internal_velocities(LIQUID_PHASE,sum_connection)/ &
-                material_auxvars(ghosted_id_up)%porosity * area * -1.d0
+                material_auxvars(ghosted_id_up)%porosity*area*(-1.d0)
         else 
           unA_up = realization%patch%internal_velocities(LIQUID_PHASE,sum_connection)/ &
-                material_auxvars(ghosted_id_dn)%porosity * area * -1.d0
+                material_auxvars(ghosted_id_dn)%porosity*area*(-1.d0)
         endif
         WRITE(*,*) 'u*A.n = ', unA_up
         !WRITE(*,*) 'JacUp = ', JacUp(1,1)
@@ -2016,10 +2012,10 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       if (ghosted_id_dn == cell_number) then
         if (realization%patch%internal_velocities(LIQUID_PHASE,sum_connection) > 0.d0) then
           unA_dn = realization%patch%internal_velocities(LIQUID_PHASE,sum_connection)/ &
-                material_auxvars(ghosted_id_up)%porosity * area * 1.d0
+                material_auxvars(ghosted_id_up)%porosity*area*1.d0
         else 
           unA_dn = realization%patch%internal_velocities(LIQUID_PHASE,sum_connection)/ &
-                material_auxvars(ghosted_id_dn)%porosity * area * 1.d0
+                material_auxvars(ghosted_id_dn)%porosity*area*1.d0
         endif
         WRITE(*,*) 'u*A.n = ', unA_dn
         !WRITE(*,*) 'JacDn = ', JacDn(1,1)
@@ -2256,7 +2252,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,source_sink,ss_flow_vol_fluxes, &
   iend = reaction_nw%params%nspecies
   do ispecies=istart,iend
     ! units of Jac = [m^3-bulk/sec]
-    Jac(ispecies,ispecies) = -1.d0 * vol * (coef_in/vol)
+    Jac(ispecies,ispecies) = (-1.d0) * vol * (coef_in/vol)
     ! Note: I multiply and then divide by volume to be consistent with the 
     ! details provided in the theory guide for this transport mode.
     ! Note: I multiply by -1 because src/sinks are subtracted in the residual.
@@ -2327,11 +2323,13 @@ subroutine NWTJacobianRx(material_auxvar,reaction_nw,Jac)
     
     ! fill in the diagonal of the Jacobian first
     ! units of Jac = [m^3-bulk/sec]
-    Jac(ispecies,ispecies) = 1.d0*(-1.d0*vol*decay_rate)
+    ! I multiply by -1.0 because reactions are subtracted in residual
+    Jac(ispecies,ispecies) = (-1.d0)*((-1.d0)*vol*decay_rate)
     
     ! fill in the off-diagonal associated with ingrowth from a parent
+    ! I multiply by -1.0 because reactions are subtracted in residual
     if (has_parent) then
-      Jac(ispecies,parent_id) = 1.d0*(vol*parent_decay_rate)
+      Jac(ispecies,parent_id) = (-1.d0)*(vol*parent_decay_rate)
     endif
     
   enddo
@@ -2436,9 +2434,9 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
     dry_out_dn = PETSC_TRUE
   endif
   
-  ! units of unit_n = [-] unitless
-  unit_n_up = -1  ! original
-  unit_n_dn = +1  ! original 
+  ! units of unit_n = [-] unitless 
+  unit_n_up = +1
+  unit_n_dn = -1 
                 
   ! units of q = [m-liq/s]
   ! units of u = [m-bulk/s]
