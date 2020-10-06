@@ -15,7 +15,7 @@ contains
 ! ************************************************************************** !
 
 subroutine SaturationUpdateCoupler(coupler,option,grid,cc_array, &
-                                   sat_func_id)
+                                   cc_id)
   ! 
   ! Computes the pressures for a saturation
   ! initial/boundary condition
@@ -43,7 +43,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,cc_array, &
   type(characteristic_curves_ptr_type), intent(in) :: cc_array(:)
   class(characteristic_curves_type), pointer :: cc_ptr
 
-  PetscInt :: sat_func_id(:)
+  PetscInt :: cc_id(:)
   PetscInt :: local_id, ghosted_id, iconn
   PetscReal :: saturation
   PetscReal :: capillary_pressure
@@ -67,17 +67,10 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,cc_array, &
   do iconn = 1, coupler%connection_set%num_connections
     local_id = coupler%connection_set%id_dn(iconn)
     ghosted_id = grid%nL2G(local_id)
-<<<<<<< HEAD
-
-    cc_ptr => cc_array(sat_func_id(ghosted_id))%ptr
+    cc_ptr => cc_array(cc_id(ghosted_id))%ptr
 
     call cc_ptr%saturation_function%CapillaryPressure(saturation,&
                                            capillary_pressure,dpc_dsat,option)
-=======
-    call SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
-                     option%reference_temperature, &
-                     saturation_functions(cc_id(ghosted_id))%ptr,option)
->>>>>>> origin/master
     liquid_pressure = option%reference_pressure - capillary_pressure
     coupler%flow_aux_real_var(1,iconn) = liquid_pressure
   enddo

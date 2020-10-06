@@ -3849,7 +3849,7 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%characteristic_curves_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsMPH
@@ -3951,7 +3951,7 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%characteristic_curves_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsIMS
@@ -4052,7 +4052,7 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%characteristic_curves_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsFLASH2
@@ -4328,7 +4328,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%characteristic_curves_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsTH
@@ -4502,7 +4502,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%characteristic_curves_array, &
-                                 patch%sat_func_id)
+                                 patch%cc_id)
   endif
   if (associated(flow_condition%rate)) then
     select case(flow_condition%rate%itype)
