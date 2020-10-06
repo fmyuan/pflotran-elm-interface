@@ -125,16 +125,34 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
-      MODE GENERAL \bluecomment{! two-phase flow and energy}
-      OPTIONS
-        ANALYTICAL_JACOBIAN
-	USE_INFINITY_NORM_CONVERGENCE
-      /   
+      MODE GENERAL \bluecomment{! two-phase flow and energy} 
     /   
   /
 END
 
 SUBSURFACE
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{NUMERICAL METHODS}
+
+\begin{frame}[fragile]\frametitle{NUMERICAL METHODS}
+
+\begin{itemize}
+  \item Numerical Methods sub-block within Subsurface block
+\end{itemize}
+
+\begin{semiverbatim}
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    RTOL 1.d-5
+    STOL 1.d-9
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+END
 ...
 END_SUBSURFACE
 \end{semiverbatim}

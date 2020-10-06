@@ -395,7 +395,7 @@ subroutine SurfCheckpointRegisterBagHeader(bag,header)
                             ierr);CHKERRQ(ierr)
 
   ! Surface-Subsurface coupling
-  call PetscBagRegisterReal(bag,header%subsurf_surf_coupling,0, &
+  call PetscBagRegisterInt(bag,header%subsurf_surf_coupling,0, &
                             "subsurf_surf_coupling", &
                             "Type of surface-subsurface coupling", &
                             ierr);CHKERRQ(ierr)

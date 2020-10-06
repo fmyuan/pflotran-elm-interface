@@ -20,14 +20,8 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
     procedure, public :: CalculateTCond => TCFBaseConductivity
+    procedure, public :: TCondTensorToScalar
   end type thermal_conductivity_base_type
-  !---------------------------------------------------------------------------
-  type, public, extends(thermal_conductivity_base_type) :: kT_default_type
-    PetscReal :: kT_wet, kT_dry
-  contains
-    procedure, public :: Verify => TCFDefaultVerify
-    procedure, public :: CalculateTCond => TCFDefaultConductivity
-  end type kT_default_type
   !---------------------------------------------------------------------------
   type, public, extends(thermal_conductivity_base_type) :: kT_constant_type
     PetscReal :: constant_thermal_conductivity
@@ -35,6 +29,18 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: Verify => TCFConstantVerify
     procedure, public :: CalculateTCond => TCFConstantConductivity
   end type kT_constant_type
+  !---------------------------------------------------------------------------
+  type, public, extends(thermal_conductivity_base_type) :: kT_default_type
+    PetscReal :: kT_wet, kT_dry
+    PetscReal :: kT_x, kT_y, kT_z, kT_xy, kT_xz, kT_yz
+    PetscReal :: kT(3,3,2)   ! thermal conductivity tensor
+    PetscReal :: kTf(3,3)    ! anisotropy ratio tensor    
+    PetscBool :: isotropic
+    PetscBool :: full_tensor
+  contains
+    procedure, public :: Verify => TCFDefaultVerify
+    procedure, public :: CalculateTCond => TCFDefaultConductivity
+  end type kT_default_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_power_type
     PetscReal :: ref_temp
@@ -179,13 +185,15 @@ subroutine TCFBaseTest(this,tcc_name,option)
       call this%CalculateTCond(sat_vec(j),perturbed_temp, &
            kT_temp_pert,unused1,unused2,option)
 
-      dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/(temp_vec(i)*perturbation)
+      dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/(temp_vec(i)* &
+                                  perturbation)
 
       perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
       call this%CalculateTCond(perturbed_sat,temp_vec(i), &
            kT_sat_pert,unused1,unused2,option)
 
-      dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/(sat_vec(j)*perturbation)
+      dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/(sat_vec(j)* &
+                                 perturbation)
     enddo
   enddo
 
@@ -228,8 +236,16 @@ function TCFDefaultCreate()
   class(kT_default_type), pointer :: TCFDefaultCreate
 
   allocate(TCFDefaultCreate)
+  TCFDefaultCreate%isotropic   = PETSC_TRUE
+  TCFDefaultCreate%full_tensor = PETSC_FALSE
   TCFDefaultCreate%kT_wet = UNINITIALIZED_DOUBLE
   TCFDefaultCreate%kT_dry = UNINITIALIZED_DOUBLE
+  TCFDefaultCreate%kT_x   = UNINITIALIZED_DOUBLE
+  TCFDefaultCreate%kT_y   = UNINITIALIZED_DOUBLE
+  TCFDefaultCreate%kT_z   = UNINITIALIZED_DOUBLE
+  TCFDefaultCreate%kT_xy  = UNINITIALIZED_DOUBLE
+  TCFDefaultCreate%kT_xz  = UNINITIALIZED_DOUBLE
+  TCFDefaultCreate%kT_yz  = UNINITIALIZED_DOUBLE
 
 end function TCFDefaultCreate
 
@@ -285,7 +301,7 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
 
   dkT_dtemp = 0.d0 ! only a function of saturation
-
+  
   if (liquid_saturation > 0.d0) then
     tempreal = sqrt(liquid_saturation) * &
                    (this%kT_wet - this%kT_dry)
@@ -373,6 +389,14 @@ function TCFPowerCreate()
   TCFPowerCreate%kT_dry = UNINITIALIZED_DOUBLE
   TCFPowerCreate%ref_temp = -273.15d0
   TCFPowerCreate%gamma = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%isotropic   = PETSC_TRUE
+  TCFPowerCreate%full_tensor = PETSC_FALSE
+  TCFPowerCreate%kT_x   = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_y   = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_z   = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_xy  = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_xz  = UNINITIALIZED_DOUBLE
+  TCFPowerCreate%kT_yz  = UNINITIALIZED_DOUBLE
 
 end function TCFPowerCreate
 
@@ -457,6 +481,14 @@ function TCFCubicPolynomialCreate()
   TCFCubicPolynomialCreate%beta = [ UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE ]
+  TCFCubicPolynomialCreate%isotropic   = PETSC_TRUE
+  TCFCubicPolynomialCreate%full_tensor = PETSC_FALSE
+  TCFCubicPolynomialCreate%kT_x   = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_y   = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_z   = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_xy  = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_xz  = UNINITIALIZED_DOUBLE
+  TCFCubicPolynomialCreate%kT_yz  = UNINITIALIZED_DOUBLE
 
 end function TCFCubicPolynomialCreate
 
@@ -549,6 +581,14 @@ function TCFLinearResistivityCreate()
   TCFLinearResistivityCreate%ref_temp = 0.d0
   TCFLinearResistivityCreate%a = [ UNINITIALIZED_DOUBLE, &
                                       UNINITIALIZED_DOUBLE]
+  TCFLinearResistivityCreate%isotropic   = PETSC_TRUE
+  TCFLinearResistivityCreate%full_tensor = PETSC_FALSE
+  TCFLinearResistivityCreate%kT_x   = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_y   = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_z   = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_xy  = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_xz  = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%kT_yz  = UNINITIALIZED_DOUBLE
 
 end function TCFLinearResistivityCreate
 
@@ -590,8 +630,8 @@ end subroutine TCFLinearResistivityVerify
 
 ! ************************************************************************** !
 
-subroutine TCFLinearResistivityConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
+     temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
@@ -699,6 +739,8 @@ subroutine CharCurvesThermalRead(this,input,option)
       end select
       call TCFRead( &
            this%thermal_conductivity_function,input,option)
+      call TCFCheckAnisotropy( &
+           this%thermal_conductivity_function,option)
     case('TEST')
       this%test = PETSC_TRUE
     case default
@@ -764,7 +806,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
 
   input%ierr = 0
   error_string = 'THERMAL_CHARACTERISTIC_CURVES,&
-       &THERMAL_CONDUCTIVITY_FUNCTION,'
+       & THERMAL_CONDUCTIVITY_FUNCTION,'
   select type(tcf => thermal_conductivity_function)
   class is(kT_constant_type)
     error_string = trim(error_string) // 'CONSTANT'
@@ -805,38 +847,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       end select
       !------------------------------------------
     class is(kT_default_type)
-      select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
-      case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'saturation-dependent thermal conductivity',option)
-      end select
+      call TCFDefaultRead(tcf,input,keyword,error_string,'default',option)
       !------------------------------------------
     class is(kT_power_type)
       select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
@@ -848,24 +862,11 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputErrorMsg(input,option,'thermal conductivity exponent', &
              error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (power) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string,'power',option)
       end select
       !------------------------------------------
     class is(kT_cubic_polynomial_type)
       select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
@@ -877,24 +878,12 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputErrorMsg(input,option, &
              'thermal conductivity polynomial coefficients',error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (cubic polynomial) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string, &
+          'cubic polynomial',option)
       end select
       !------------------------------------------
     class is(kT_linear_resistivity_type)
-      select case(keyword)
-      case('THERMAL_CONDUCTIVITY_WET')
-        call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'thermal conductivity wet', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
-      case('THERMAL_CONDUCTIVITY_DRY')
-        call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'thermal conductivity dry', &
-             error_string)
-        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
-             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)        
+      select case(keyword)      
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
@@ -906,8 +895,8 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputErrorMsg(input,option, &
              'linear thermal resistivity coefficients',error_string)
       case default
-        call InputKeywordUnrecognized(input,keyword, &
-             'temp-dependent (linear resistivity) thermal conductivity',option)
+        call TCFDefaultRead(tcf,input,keyword,error_string, &
+          'linear resistivity',option)
       end select
 
     class default
@@ -919,6 +908,542 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
   call InputPopBlock(input,option)
 
 end subroutine TCFRead
+
+! ************************************************************************** !
+
+subroutine TCFDefaultRead(tcf,input,keyword,error_string,kind,option)
+  !
+  ! Reads in contents of THERMAL_CONDUCTIVITY_FUNCTION block for dervived 
+  ! types of thermal conductivity default base class
+  !
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  
+  class(kT_default_type) :: tcf
+  type(input_type) :: input
+  character(len=MAXWORDLENGTH)   :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=*)  :: kind
+  type(option_type) :: option
+  
+  select case(keyword)
+  case('THERMAL_CONDUCTIVITY_WET')
+    call InputReadDouble(input,option,tcf%kT_wet)
+    call InputErrorMsg(input,option,'thermal conductivity wet', &
+         error_string)
+    call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+         'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
+  case('THERMAL_CONDUCTIVITY_DRY')
+    call InputReadDouble(input,option,tcf%kT_dry)
+    call InputErrorMsg(input,option,'thermal conductivity dry', &
+         error_string)
+    call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+         'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
+  case('ANISOTROPY_RATIO_X')
+    call InputReadDouble(input,option,tcf%kT_x)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity X component', error_string)
+  case('ANISOTROPY_RATIO_Y')
+    call InputReadDouble(input,option,tcf%kT_y)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity Y component', error_string)
+  case('ANISOTROPY_RATIO_Z')
+    call InputReadDouble(input,option,tcf%kT_z)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity Z component', error_string)
+  case('ANISOTROPY_RATIO_XY')
+    call InputReadDouble(input,option,tcf%kT_xy)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity XY component', error_string)
+  case('ANISOTROPY_RATIO_XZ')
+    call InputReadDouble(input,option,tcf%kT_xz)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity XZ component', error_string)
+  case('ANISOTROPY_RATIO_YZ')
+    call InputReadDouble(input,option,tcf%kT_yz)
+    call InputErrorMsg(input,option, & 
+       'anisotropic thermal conductivity YZ component', error_string)
+  case default
+     call InputKeywordUnrecognized(input,keyword, &
+          'temp-dependent ('//trim(kind)//') thermal conductivity',option)
+  end select
+  
+end subroutine
+
+! ************************************************************************** !
+
+subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
+  !
+  ! Check anisotropy parameters
+  !
+  use Option_module
+
+  implicit none
+
+  class(thermal_conductivity_base_type) :: thermal_conductivity_function
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  error_string = 'THERMAL_CHARACTERISTIC_CURVES, THERMAL_CONDUCTIVITY_FUNCTION,'
+  
+  select type(tcf => thermal_conductivity_function)
+  class is(kT_default_type)
+    error_string = trim(error_string) // ' DEFAULT'
+    
+    ! check if wet and dry thermal conductivities are initialized
+    if (.not. Initialized(tcf%kT_dry) .or. &
+        .not. Initialized(tcf%kT_wet)) then
+      ! wet and dry values must be specified per anisotropic component
+      option%io_buffer = 'Must specify wet and dry thermal conductivity ' &
+                       //'values in order to use anisotropy ratios in ' &
+                       // trim(error_string) // '.'
+      call PrintErrMsg(option)
+    elseif (Initialized(tcf%kT_x) .or. Initialized(tcf%kT_y) &
+            .or. Initialized(tcf%kT_z)) then
+      ! inputs must be anisotropy ratios between zero and one
+      
+      ! check diagonal components first, as tensor must at least be diagonal
+      if (Initialized(tcf%kT_x)) then
+        if (tcf%kT_x < 0.0d0 .or. tcf%kT_x > 1.0d0) then
+          option%io_buffer = 'Anisotropy ratio for X must lie between 0 and ' &
+                           //'1 in '// trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        tcf%kTf(1,1) = tcf%kT_x
+        tcf%kT(1,1,1) = tcf%kT_dry * tcf%kT_x
+        tcf%kT(1,1,2) = tcf%kT_wet * tcf%kT_x
+      else
+        option%io_buffer = 'Anisotropy ratio for X uninitialized in ' &
+                           // trim(error_string) // '.'
+        call PrintErrMsg(option)
+      endif
+      
+      if (Initialized(tcf%kT_y)) then
+        if (tcf%kT_y < 0.0d0 .or. tcf%kT_y > 1.0d0) then
+          option%io_buffer = 'Anisotropy ratio for Y must lie between 0 and ' &
+                           //'1 in '// trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        tcf%kTf(2,2) = tcf%kT_y
+        tcf%kT(2,2,1) = tcf%kT_dry * tcf%kT_y
+        tcf%kT(2,2,2) = tcf%kT_wet * tcf%kT_y
+      else
+        option%io_buffer = 'Anisotropy ratio for Y uninitialized in ' &
+                           // trim(error_string) // '.'
+        call PrintErrMsg(option)
+      endif
+      
+      if (Initialized(tcf%kT_z)) then
+        if (tcf%kT_z < 0.0d0 .or. tcf%kT_z > 1.0d0) then
+          option%io_buffer = 'Anisotropy ratio for Z must lie between 0 and ' &
+                           //'1 in '// trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        tcf%kTf(3,3) = tcf%kT_z
+        tcf%kT(3,3,1) = tcf%kT_dry * tcf%kT_z
+        tcf%kT(3,3,2) = tcf%kT_wet * tcf%kT_z
+      else
+        option%io_buffer = 'Anisotropy ratio for Z uninitialized in ' &
+                           // trim(error_string) // '.'
+        call PrintErrMsg(option)
+      endif
+      
+      ! check off-diagonal components next; if one is given, so must the others
+      if (Initialized(tcf%kT_xy)) then
+        if (tcf%kT_xy < 0.0d0 .or. tcf%kT_xy > 1.0d0) then
+          option%io_buffer = 'Anisotropy ratio for XY must lie between 0 and ' &
+                           //'1 in '// trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        if (.not. Initialized(tcf%kT_xz) .or. & 
+            .not. Initialized(tcf%kT_yz)) then
+          option%io_buffer = 'All off-diagonal components must be specified ' &
+                          // 'if XY ratio is provided in ' &
+                          // trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        tcf%isotropic = PETSC_FALSE
+        tcf%kTf(1,2) = tcf%kT_xy
+        tcf%kTf(2,1) = tcf%kT_xy
+        tcf%kT(1,2,1) = tcf%kT_dry * tcf%kT_xy
+        tcf%kT(2,1,2) = tcf%kT_wet * tcf%kT_xy
+        tcf%kT(1,2,1) = tcf%kT_dry * tcf%kT_xy
+        tcf%kT(2,1,2) = tcf%kT_wet * tcf%kT_xy
+      endif
+      
+      if (Initialized(tcf%kT_xz)) then
+        if (tcf%kT_xz < 0.0d0 .or. tcf%kT_xz > 1.0d0) then
+          option%io_buffer = 'Anisotropy ratio for XZ must lie between 0 and ' &
+                           //'1 in '// trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        if (.not. Initialized(tcf%kT_xy) .or. & 
+            .not. Initialized(tcf%kT_yz)) then
+          option%io_buffer = 'All off-diagonal components must be specified ' &
+                          // 'if XZ ratio is provided in ' &
+                          // trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        tcf%isotropic = PETSC_FALSE
+        tcf%kTf(1,3) = tcf%kT_xz
+        tcf%kTf(3,1) = tcf%kT_xz
+        tcf%kT(1,3,1) = tcf%kT_dry * tcf%kT_xz
+        tcf%kT(1,3,2) = tcf%kT_wet * tcf%kT_xz
+        tcf%kT(3,1,1) = tcf%kT_dry * tcf%kT_xz
+        tcf%kT(3,1,2) = tcf%kT_wet * tcf%kT_xz
+      endif
+      
+      if (Initialized(tcf%kT_yz)) then
+        if (tcf%kT_yz < 0.0d0 .or. tcf%kT_yz > 1.0d0) then
+          option%io_buffer = 'Anisotropy ratio for YZ must lie between 0 and ' &
+                           //'1 in '// trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        if (.not. Initialized(tcf%kT_xy) .or. & 
+            .not. Initialized(tcf%kT_xz)) then
+          option%io_buffer = 'All off-diagonal components must be specified ' &
+                          // 'if YZ ratio is provided in ' &
+                          // trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+        tcf%isotropic = PETSC_FALSE
+        tcf%kTf(2,3) = tcf%kT_yz
+        tcf%kTf(3,2) = tcf%kT_yz
+        tcf%kT(2,3,1) = tcf%kT_dry * tcf%kT_yz
+        tcf%kT(2,3,2) = tcf%kT_wet * tcf%kT_yz
+        tcf%kT(3,2,1) = tcf%kT_dry * tcf%kT_yz
+        tcf%kT(3,2,2) = tcf%kT_wet * tcf%kT_yz
+      endif
+      
+      ! check for isotropy and fully initialize tensor
+      if (tcf%kT_x == tcf%kT_y .and. tcf%kT_y == tcf%kT_z) then
+        if (Initialized(tcf%kT_xy) .or. Initialized(tcf%kT_xz) &
+            .or. Initialized(tcf%kT_yz)) then
+          tcf%isotropic = PETSC_FALSE
+          tcf%full_tensor = PETSC_TRUE
+        else
+          tcf%isotropic = PETSC_TRUE
+          tcf%kT(:,:,:) = 0.0d0
+          tcf%kT(1,1,1) = tcf%kT_dry
+          tcf%kT(2,2,1) = tcf%kT_dry
+          tcf%kT(3,3,1) = tcf%kT_dry
+          tcf%kT(1,1,2) = tcf%kT_wet
+          tcf%kT(2,2,2) = tcf%kT_wet
+          tcf%kT(3,3,2) = tcf%kT_wet
+          option%io_buffer = 'Thermal conductivity will be treated as' &
+                          // ' isotropic in ' &
+                          // trim(error_string) // '.'
+          call PrintMsg(option)
+        endif
+      else
+        tcf%isotropic = PETSC_FALSE
+        if (Initialized(tcf%kT_xy) &
+            .or. Initialized(tcf%kT_xz) &
+            .or. Initialized(tcf%kT_yz)) then
+          ! full thermal conductivity tensor
+          tcf%full_tensor = PETSC_TRUE
+        else 
+          ! diagonal thermal conductivity tensor
+          tcf%kT(1,2,:) = 0.0d0
+          tcf%kT(1,3,:) = 0.0d0
+          tcf%kT(2,3,:) = 0.0d0
+          tcf%kT(2,1,:) = 0.0d0
+          tcf%kT(3,1,:) = 0.0d0
+          tcf%kT(3,2,:) = 0.0d0
+          tcf%kTf(1,2) = 0.0d0
+          tcf%kTf(1,3) = 0.0d0
+          tcf%kTf(2,3) = 0.0d0
+          tcf%kTf(2,1) = 0.0d0
+          tcf%kTf(3,1) = 0.0d0
+          tcf%kTf(3,2) = 0.0d0
+        endif
+      endif
+      
+    elseif (Initialized(tcf%kT_xy) &
+            .or. Initialized(tcf%kT_xz) &
+            .or. Initialized(tcf%kT_yz)) then
+      if (.not. Initialized(tcf%kT_x) .or. & 
+          .not. Initialized(tcf%kT_y) .or. &
+          .not. Initialized(tcf%kT_z)) then
+        option%io_buffer = 'Diagonal components of thermal conductivity ' &
+                        // 'must be specified if off-diagonal components are ' &
+                        // 'provided in '// trim(error_string) // '.'
+        call PrintErrMsg(option)
+      endif
+    else
+      tcf%isotropic = PETSC_TRUE
+      tcf%kT(:,:,:) = 0.0d0
+      tcf%kT(1,1,1) = tcf%kT_dry
+      tcf%kT(2,2,1) = tcf%kT_dry
+      tcf%kT(3,3,1) = tcf%kT_dry
+      tcf%kT(1,1,2) = tcf%kT_wet
+      tcf%kT(2,2,2) = tcf%kT_wet
+      tcf%kT(3,3,2) = tcf%kT_wet
+      tcf%kTf(:,:) = 0.0d0
+      tcf%kTf(1,1) = 1.0d0
+      tcf%kTf(2,2) = 1.0d0
+      tcf%kTf(3,3) = 1.0d0
+      tcf%kTf(1,1) = 1.0d0
+      tcf%kTf(2,2) = 1.0d0
+      tcf%kTf(3,3) = 1.0d0
+    endif
+    
+    if (tcf%full_tensor) then
+      call FullTensorCheckEigenvalues(tcf%kTf,option)
+    endif
+    
+  end select
+
+end subroutine TCFCheckAnisotropy
+
+! ************************************************************************** !
+
+subroutine TCondTensorToScalar(this,dist,option)
+  !
+  ! Transform thermal conductivity tensor to a scalar via dot product
+  !
+  use Option_module
+
+  implicit none
+
+  class(thermal_conductivity_base_type) :: this
+  type(option_type) :: option
+  ! -1 = fraction upwind
+  ! 0 = magnitude
+  ! 1 = unit x-dir
+  ! 2 = unit y-dir
+  ! 3 = unit z-dir
+  PetscReal, intent(in) :: dist(-1:3)
+
+  PetscReal :: kTd(3,3) ! dry thermal conductivity tensor
+  PetscReal :: kTw(3,3) ! wet thermal conductivity tensor
+  
+  select type(tcf => this)
+  class is(kT_default_type)
+    if (tcf%isotropic) then 
+      return
+    endif
+    
+    kTd = tcf%kT(:,:,1)
+    kTw = tcf%kT(:,:,2)
+    
+    if (tcf%full_tensor) then
+      tcf%kT_dry = FullTCondTensorToScalar(kTd,dist,option)
+      tcf%kT_wet = FullTCondTensorToScalar(kTw,dist,option)
+    elseif (.not. tcf%isotropic) then
+      tcf%kT_dry = DiagTCondTensorToScalar(kTd,dist,option)
+      tcf%kT_wet = DiagTCondTensorToScalar(kTw,dist,option)
+    endif
+    
+  end select
+  
+end subroutine TCondTensorToScalar
+
+! ************************************************************************** !
+
+function FullTCondTensorToScalar(kT,dist,option)
+  !
+  ! Full tensor directional thermal conductivity
+  !
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  ! -1 = fraction upwind
+  ! 0 = magnitude
+  ! 1 = unit x-dir
+  ! 2 = unit y-dir
+  ! 3 = unit z-dir
+  PetscReal, intent(in)  :: dist(-1:3)
+  PetscReal, intent(in)  :: kT(3,3)
+  PetscReal :: FullTCondTensorToScalar
+
+  PetscReal :: kx,ky,kz,kxy,kxz,kyz
+  
+  kx  = kT(1,1)
+  ky  = kT(2,2)
+  kz  = kT(3,3)
+  kxy = kT(1,2)
+  kxz = kT(1,3)
+  kyz = kT(2,3)
+  
+  FullTCondTensorToScalar = kx*dabs(dist(1))**2 + &
+                            ky*dabs(dist(2))**2 + &
+                            kz*dabs(dist(3))**2 + &
+                            2*kxy*dist(1)*dist(2) + &
+                            2*kxz*dist(1)*dist(3) + &
+                            2*kyz*dist(2)*dist(3)
+  
+end function FullTCondTensorToScalar
+
+! ************************************************************************** !
+
+function DiagTCondTensorToScalar(kT,dist,option)
+  !
+  ! Diagonal tensor directional thermal conductivity
+  !
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  ! -1 = fraction upwind
+  ! 0 = magnitude
+  ! 1 = unit x-dir
+  ! 2 = unit y-dir
+  ! 3 = unit z-dir
+  PetscReal, intent(in)  :: dist(-1:3)
+  PetscReal, intent(in)  :: kT(3,3)
+  PetscReal :: DiagTCondTensorToScalar
+
+  PetscReal :: kx,ky,kz
+  
+  kx  = kT(1,1)
+  ky  = kT(2,2)
+  kz  = kT(3,3)
+  
+  DiagTCondTensorToScalar = kx*dabs(dist(1))**2 + &
+                            ky*dabs(dist(2))**2 + &
+                            kz*dabs(dist(3))**2
+  
+end function DiagTCondTensorToScalar
+
+! ************************************************************************** !
+
+subroutine FullTensorCheckEigenvalues(kTR,option)
+  !
+  ! Check if full tensor is positive semi-definite
+  !
+  use Option_module
+  
+  implicit none
+  
+  type(option_type) :: option
+  PetscReal, dimension(3,3) :: kTR  ! anistropy ratios
+  
+  PetscReal :: a, b, c, d           ! characteristic function coefficients
+  PetscReal :: kx,ky,kz,kxy,kxz,kyz ! symmetric tensor components
+  PetscReal :: l(3)   ! eigenvalues
+  PetscReal :: check  ! check eigenvalues in original characteristic function
+  PetscInt  :: i
+  
+  ! symmetric tensor components
+  kx  = kTR(1,1)
+  ky  = kTR(2,2)
+  kz  = kTR(3,3)
+  kxy = kTR(1,2)
+  kxz = kTR(1,3)
+  kyz = kTR(2,3)
+  
+  l = 0.0d0
+  
+  ! cubic polynomial coefficients for characteristic function of tensor
+  ! det(K - I.l) = f(l) = a l^3 + b l^2 + c l + d = 0
+  ! l is an eigenvalue
+  a = -1.0d0
+  b = kx + ky + kz
+  c = (kxy**2 + kxz**2 - kx*ky + kxy*kyz - kx*kz - ky*kz)
+  d = (kxy**2)*kxz - (kxz**2)*ky - kx*kxy*kyz + kxy*kxz*kyz - (kxy**2)*kz + &
+      kx*ky*kz
+  
+  call  CubicFormula(l,a,b,c,d,option)
+  
+  do i=1,3
+    check = FullTensorCharacteristicFunction(l(i),kTR)
+    if (l(i) < 0.0d0) then
+      option%io_buffer = 'Thermal conductivity tensor is not positive'&
+                       //' semi-definite.'
+      call PrintErrMsg(option)
+    endif
+    if (l(i) > 1.0d0) then
+      option%io_buffer = 'Eigenvalues of thermal conductivity tensor '&
+                       //' indicate user input values may be exceeded '&
+                       //' along principal axes.'
+      call PrintMsg(option)
+    endif
+    if (check > 1.0d-1) then
+      option%io_buffer = 'Could not determine positive semi-definite'&
+                       //' thermal conductivity tensor.'
+      call PrintMsg(option)
+    endif
+  enddo
+  
+end subroutine FullTensorCheckEigenvalues
+
+! ************************************************************************** !
+
+function FullTensorCharacteristicFunction(l,kT)
+  !
+  ! Check eigenvalues in characteristic function of symmetric tensor
+  !
+  implicit none
+  PetscReal, dimension(3,3) :: kT
+  PetscReal :: l,kx,ky,kz,kxy,kxz,kyz ! symmetric tensor components
+  PetscReal :: FullTensorCharacteristicFunction
+  
+  ! symmetric tensor components
+  kx  = kT(1,1)
+  ky  = kT(2,2)
+  kz  = kT(3,3)
+  kxy = kT(1,2)
+  kxz = kT(1,3)
+  kyz = kT(2,3)
+  
+  ! characteristic function of tensor
+  ! det(K - I.l) = f(l) = a l^3 + b l^2 + c l + d = 0
+  
+  FullTensorCharacteristicFunction = & 
+    kxy**2*kxz - kxz**2*ky - kx*kxy*kyz + kxy*kxz*kyz - kxy**2*kz + kx*ky*kz + &
+    (kxy**2 + kxz**2 - kx*ky + kxy*kyz - kx*kz - ky*kz)*l + &
+    (kx + ky + kz)*l**2 - l**3
+  
+end function FullTensorCharacteristicFunction
+
+! ************************************************************************** !
+
+subroutine CubicFormula(roots,a,b,c,d,option)
+  !
+  ! Find real solutions of general cubic formula
+  !
+  use Option_module
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal, intent(in)    :: a, b, c, d
+  PetscReal, intent(inout) :: roots(3)  
+  PetscReal :: p, q, t, x, y
+  PetscInt  :: k
+  
+  ! François Viète's trigonometric formula for three real roots 
+  ! of cubic polynomial
+  
+  p = (3.0d0*a*c - b**2)/(3.0d0*(a**2))
+  q = (2.0d0*(b**3) - 9.0d0*a*b*c + 27.0d0*d*(a**2))/(27.0d0*(a**3))
+  
+  ! Check if three real roots are applicable
+  ! This must be true for the thermal conductivity tensor
+  y = 4.0d0*(p**3) + 27.0d0*(q**2)
+  
+  if ( y >= 0.0d0 ) then
+    option%io_buffer = 'Thermal conductivity tensor does not have three'&
+                     //' real eigenvalues.'
+    call PrintErrMsg(option)
+  endif
+  
+  do k = 0,2
+    t = 2.0d0*sqrt(-1*p/3.0d0)*cos((1.0d0/3.0d0)* &
+      acos((3.0d0*q/(2.0d0*p))*sqrt(-3.0d0/p))-(2.0d0*pi*k/3.0d0))
+    x = t - (b/(3.0d0*a))
+    roots(k+1) = x
+  enddo
+  
+end subroutine CubicFormula
 
 ! ************************************************************************** !
 

@@ -1,6 +1,19 @@
 # Description: 1D tracer constant flow rate
 # S. Karra/P.C. Lichtner
 # PFLOTRAN shortcourse
+SIMULATION
+  SIMULATION_TYPE subsurface
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+        MULTIPLE_CONTINUUM
+      /
+    /
+  /
+END
+
+SUBSURFACE
 
 UNIFORM_VELOCITY 14.4d0 0.d0 0.d0 m/yr
 
