@@ -294,6 +294,11 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
       call InputErrorMsg(input,option,keyword,error_string)
       ! change the default value to the user specified value:
       nwt_itol_rel_update = this%controls%newton_inf_rel_update_tol
+    case('ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,this%controls%newton_inf_scaled_res_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! change the default value to the user specified value:
+      nwt_itol_scaled_res = this%controls%newton_inf_scaled_res_tol
   case default
       found = PETSC_FALSE
 
@@ -722,40 +727,6 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
                        this%realization%patch%grid, &
                        this%option,this%solver,ierr)
 
-  ! if (Initialized(nwt_itol_rel_update)) then
-  !   call SNESGetSolution(snes,curr_solution_vec,ierr);CHKERRQ(ierr)
-  !   call SNESGetSolutionUpdate(snes,update_vec,ierr);CHKERRQ(ierr)
-  !   call VecGetArrayReadF90(curr_solution_vec,C_p,ierr);CHKERRQ(ierr)
-  !   call VecGetArrayReadF90(update_vec,dC_p,ierr);CHKERRQ(ierr)
-
-  !   max_update = maxval(dabs(dC_p(:)))
-  !   max_relative_change = maxval(dabs(dC_p(:)/C_p(:)))
-  !   !WRITE(*,*)  '     max_abs(update) = ', max_update
-  !   WRITE(*,*)  'max_relative_change = ', max_relative_change
-
-  !   converged_due_to_rel_update = (max_relative_change < nwt_itol_rel_update)
-  !   converged_flag = 0
-  !   if (converged_due_to_rel_update) converged_flag = 1
-
-  !   ! get global minimum
-  !   call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
-  !                      MPI_MIN,this%realization%option%mycomm,ierr)
-
-  !   ! this will override all previous convergence criteria to keep iterating
-  !   if (temp_int /= 1) then  ! means ITOL_RELATIVE_UPDATE was not satisfied:
-  !     this%realization%option%converged = PETSC_FALSE
-  !     this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
-  !     WRITE(*,*)  '--> CONVERGENCE_KEEP_ITERATING due to &
-  !                  &ITOL_RELATIVE_UPDATE not satisfied.'
-  !   else  ! means ITOL_RELATIVE_UPDATE was satisfied, but the previous
-  !         ! criteria were not met
-  !     ! do nothing - let the instruction proceed based on previous criteria
-  !   endif
-  
-  !   call VecRestoreArrayReadF90(curr_solution_vec,C_p,ierr);CHKERRQ(ierr)
-  !   call VecRestoreArrayReadF90(update_vec,dC_p,ierr);CHKERRQ(ierr)
-  ! endif
-
 end subroutine PMNWTCheckConvergence
 
 ! ************************************************************************** !
@@ -837,7 +808,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
       enddo
 #endif
       ratio = min_ratio
-      WRITE(*,*)  ' location of min_ratio =', k, '   min_ratio =', min_ratio
+      !WRITE(*,*)  ' location of min_ratio =', k, '   min_ratio =', min_ratio
     
       ! get global minimum
       call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
@@ -919,9 +890,10 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscBool :: converged_due_to_residual
   PetscReal :: max_relative_change
   PetscReal :: max_scaled_residual
-  PetscReal :: rel_update
-  PetscInt :: converged_flag
-  PetscInt :: temp_int, maxloc, i
+  PetscReal :: rel_update, scaled_res
+  PetscReal :: rel_update_at, scaled_res_at
+  PetscInt :: problem_cells, converged_flag
+  PetscInt :: temp_int, maxloc1, maxloc2, i
   PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
   PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
   PetscMPIInt :: mpi_int
@@ -942,37 +914,65 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     converged_due_to_residual = PETSC_FALSE
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
     max_relative_change = maxval(dabs(dC_p(:)/C0_p(:)))
+    max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
 
-    temp_int = 0
-    maxloc = -1
+    temp_int = 1
+    problem_cells = 0
+    maxloc1 = -1
+    maxloc2 = -1
     do i=1,size(C0_p(:))
       rel_update = dabs(dC_p(i)/C0_p(i))
+      scaled_res = dabs(r_p(i)/accum_p(i))
       if (rel_update > nwt_itol_rel_update) then
-        WRITE(*,*)  '   problem cell = ', temp_int, 'rel_update = ', rel_update
+        problem_cells = problem_cells + 1
+        if (scaled_res < nwt_itol_scaled_res) problem_cells = problem_cells - 1
+        !WRITE(*,*)  '   problem cell = ', temp_int, 'rel_update = ', rel_update
       endif
-      if (rel_update >= max_relative_change) maxloc = temp_int
+      if (scaled_res > nwt_itol_scaled_res) then
+        !WRITE(*,*)  '   problem cell = ', temp_int, 'scaled_res = ', scaled_res
+      endif
+      if (rel_update >= max_relative_change) then
+        maxloc1 = temp_int
+        scaled_res_at = dabs(r_p(maxloc1)/accum_p(maxloc1))
+      endif
+      if (scaled_res >= max_scaled_residual) then
+        maxloc2 = temp_int
+        rel_update_at = dabs(dC_p(maxloc2)/C0_p(maxloc2))
+      endif
       temp_int = temp_int + 1
     enddo
     
     call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
-    max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
     call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
     converged_due_to_rel_update = (Initialized(nwt_itol_rel_update) .and. &
                                    max_relative_change < nwt_itol_rel_update)
+    converged_due_to_rel_update = (Initialized(nwt_itol_rel_update) .and. &
+                                   (problem_cells == 0))
+    !if (Initialized(nwt_itol_rel_update) .and. &
+    !    .not.converged_due_to_rel_update) then
+    !  ! this means that max_relative_change was more than nwt_itol_rel_update
+    !  ! check if the scaled residual at that cell was small enough
+    !  if (scaled_res_at < max_scaled_residual) then
+    !    converged_due_to_rel_update = PETSC_TRUE
+    !  endif
+    !endif
     converged_due_to_residual = (Initialized(nwt_itol_scaled_res) .and. &
                                 max_scaled_residual < nwt_itol_scaled_res)
     if (converged_due_to_rel_update .or. converged_due_to_residual) then
       converged_flag = 1
     endif
   endif
-
+  WRITE(*,*) ' max_scaled_residual = ', max_scaled_residual
+  WRITE(*,*) ' relative_change here = ', rel_update_at
+  WRITE(*,*) '              maxloc = ', maxloc2
   WRITE(*,*)  ' max_relative_change = ', max_relative_change
-  WRITE(*,*)  '              maxloc = ', maxloc
+  WRITE(*,*)  ' scaled_residual here = ', scaled_res_at
+  WRITE(*,*)  '              maxloc = ', maxloc1
   WRITE(*,*)  '      converged_flag = ', converged_flag
 
   
@@ -981,11 +981,11 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                      MPI_MIN,this%realization%option%mycomm,ierr)
   
   ! this will override all previous convergence criteria to keep iterating
-    if (temp_int /= 1) then  ! means ITOL_RELATIVE_UPDATE was not satisfied:
+    if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
       this%realization%option%converged = PETSC_FALSE
       !this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
       this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
-    else  ! means ITOL_RELATIVE_UPDATE was satisfied, but the previous
+    else  ! means ITOL_* tolerances were satisfied, but the previous
           ! criteria were not met
       ! do nothing - let the instruction proceed based on previous criteria
     endif

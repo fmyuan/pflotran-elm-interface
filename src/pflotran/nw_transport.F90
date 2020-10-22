@@ -1717,7 +1717,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
 
   ! numerical jacobian:
   ! for debugging ONLY!! assumes no decay, and single processor 
-#if 1
+#if 0
   call MatCreate(option%mycomm,J_num,ierr);CHKERRQ(ierr)
   call MatSetSizes(J_num,PETSC_DECIDE,PETSC_DECIDE, &
                    grid%nlmax*option%ntrandof, &
