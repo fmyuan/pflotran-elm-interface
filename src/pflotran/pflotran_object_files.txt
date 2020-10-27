@@ -175,7 +175,6 @@ grid_obj = \
 	${common_src}grid_unstructured_polyhedra.o
 
 relations_obj = \
-	${common_src}saturation.o \
 	${common_src}saturation_function.o \
 	${common_src}characteristic_curves.o \
 	${common_src}characteristic_curves_base.o \

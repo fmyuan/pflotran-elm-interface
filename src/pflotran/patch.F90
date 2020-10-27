@@ -1167,7 +1167,6 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -1475,7 +1474,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
   use EOS_Water_module
   use Utility_module
 
@@ -2087,7 +2085,6 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
   use EOS_Water_module
   use Utility_module
 
@@ -3146,7 +3143,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
   use Condition_module
   use Hydrostatic_module
   use HydrostaticMultiPhase_module
-  use Saturation_module
 
   !use TOilIms_Aux_module
   use PM_TOilIms_Aux_module
@@ -3354,7 +3350,6 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
   use Option_module
   use Condition_module
   use HydrostaticMultiPhase_module
-  use Saturation_module
   !use EOS_Water_module
 
   use PM_TOWG_Aux_module
@@ -3767,7 +3762,6 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -3868,7 +3862,6 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use General_Aux_module
@@ -3970,7 +3963,6 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4071,7 +4063,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4347,7 +4338,6 @@ subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4425,7 +4415,6 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
