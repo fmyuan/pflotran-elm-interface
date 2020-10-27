@@ -479,7 +479,7 @@ subroutine StructGridComputeSpacing(structured_grid,origin_global,option)
       enddo
       structured_grid%bounds(Z_DIRECTION,UPPER) = tempreal
     else
-      structured_grid%bounds(Y_DIRECTION,LOWER) = 0.d0
+      structured_grid%bounds(Z_DIRECTION,LOWER) = 0.d0
       structured_grid%bounds(Z_DIRECTION,UPPER) = 1.d0
     endif
   endif
