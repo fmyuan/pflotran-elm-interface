@@ -68,6 +68,7 @@ STANDARD_CFG = \
 	default/materials/mineral_volume/mineral_volume.cfg \
 	default/materials/full_tensor/full_tensor.cfg \
 	default/infiltrometer/infiltrometer.cfg \
+	default/infiltration1d/infiltration1d.cfg \
 	default/numerical/numerical.cfg \
 	default/output/output.cfg \
 	default/output/compare/compare.cfg \
@@ -158,6 +159,7 @@ FLOW_CFG = \
 	default/condition/condition.cfg \
 	default/eos/eos.cfg \
 	default/infiltrometer/infiltrometer.cfg \
+	default/infiltration1d/infiltration1d.cfg \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
 	default/scco2/flash2/flash2.cfg \
