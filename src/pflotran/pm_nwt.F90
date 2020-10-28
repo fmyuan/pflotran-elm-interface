@@ -565,13 +565,12 @@ subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     endif
   else
     ! original implementation
+    ! this overrides the default setting of iacceleration = 5
+    ! by default size(tfac) is 13, so this is safe
     dtt = dt
+    iacceleration = size(tfac)
     if (num_newton_iterations <= iacceleration) then
-      if (num_newton_iterations <= size(tfac)) then
-        dtt = tfac(num_newton_iterations) * dt
-      else
-        dtt = 0.5d0 * dt
-      endif
+      dtt = tfac(num_newton_iterations) * dt
     else
       dtt = 0.5d0 * dt
     endif
