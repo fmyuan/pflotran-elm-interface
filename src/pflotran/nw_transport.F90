@@ -2136,11 +2136,11 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   call MatDestroy(J_num,ierr);CHKERRQ(ierr)
-  call MatDestroy(J_flux,ierr);CHKERRQ(ierr)
 
 #endif
 
   call MatDestroy(J_ana,ierr);CHKERRQ(ierr)
+  call MatDestroy(J_flux,ierr);CHKERRQ(ierr)
   call PetscLogEventEnd(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
   
 end subroutine NWTJacobian
