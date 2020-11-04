@@ -230,7 +230,7 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dT    = uninit_value
- if (option%freezing) then
+ if (option%th_freezing) then
     allocate(auxvar%ice)
     auxvar%ice%Ke_fr     = uninit_value
     auxvar%ice%dKe_fr_dp = uninit_value
@@ -1008,7 +1008,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   do ideriv = 1,option%nflowdof
     pert = x(ideriv)*perturbation_tolerance
     x_pert = x
-    if (option%freezing) then
+    if (option%th_freezing) then
        if (ideriv == 1) then
           if (x_pert(ideriv) < option%reference_pressure) then
              pert = - pert
@@ -1028,7 +1028,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
        x_pert(ideriv) = x_pert(ideriv) + pert
     endif
 
-    if (option%freezing) then
+    if (option%th_freezing) then
       option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
       call PrintErrMsg(option)
     else

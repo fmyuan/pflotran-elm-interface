@@ -157,7 +157,7 @@ subroutine PMTHReadSimOptionsBlock(this,input)
     
     select case(trim(keyword))
       case('FREEZING')
-        option%freezing = PETSC_TRUE
+        option%th_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing
