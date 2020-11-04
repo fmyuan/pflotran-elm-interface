@@ -4645,7 +4645,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   use Condition_module
   use Grid_module
   use Material_Aux_class
-  use Variables_module, only : PERMEABILITY_X
+  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
 
@@ -4736,7 +4736,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           neighbor_ghosted_id = ghosted_neighbors(icount)
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
-                                       PERMEABILITY_X) * &
+                                       PERMEABILITY_Y) * &
                 grid%structured_grid%dx(neighbor_ghosted_id)* &
                 grid%structured_grid%dz(neighbor_ghosted_id)
         enddo
@@ -4746,7 +4746,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           neighbor_ghosted_id = ghosted_neighbors(icount)
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
-                                       PERMEABILITY_X) * &
+                                       PERMEABILITY_Z) * &
                 grid%structured_grid%dx(neighbor_ghosted_id)* &
                 grid%structured_grid%dy(neighbor_ghosted_id)
         enddo
