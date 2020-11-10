@@ -1,6 +1,5 @@
-#Description: 1D test problem for THC mode
-#===================== THC mode ===============================================
-
+#Description: 1D test problem for TH mode using thermal characteristic curves
+#================================= TH mode ====================================
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
@@ -15,7 +14,7 @@ END
 
 SUBSURFACE
 
-#=========================== numerical methods ================================
+#============================ numerical methods ===============================
 NUMERICAL_METHODS FLOW
 
   NEWTON_SOLVER
@@ -49,7 +48,7 @@ NUMERICAL_METHODS TRANSPORT
 END
 
 
-#=========================== regression =======================================
+#================================ regression ==================================
 REGRESSION
   CELLS_PER_PROCESS 2
   CELL_IDS
@@ -59,7 +58,7 @@ REGRESSION
   /
 END
 
-#=========================== chemistry ========================================
+#================================ chemistry ===================================
 CHEMISTRY
   PRIMARY_SPECIES
     H+
@@ -97,7 +96,7 @@ CHEMISTRY
   /
 END
 
-#===================== Discretization =========================================
+#============================== discretization ================================
 GRID
   TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
@@ -108,24 +107,19 @@ GRID
   /
 END
 
-#===================== Solver options =========================================
-
-
-
-
-
+#============================ fluid properties ================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
-#========================= material properties ================================
+
+#=========================== material properties ==============================
 MATERIAL_PROPERTY soil
   ID 1
   POROSITY 0.5d0
   TORTUOSITY 1.d0
   ROCK_DENSITY 2.8E3
   SPECIFIC_HEAT 1E3
-  THERMAL_CONDUCTIVITY_DRY 0.5
-  THERMAL_CONDUCTIVITY_WET 0.5
+  THERMAL_CHARACTERISTIC_CURVES cct
   CHARACTERISTIC_CURVES default
   LONGITUDINAL_DISPERSIVITY 3.1536d0
   PERMEABILITY
@@ -135,7 +129,14 @@ MATERIAL_PROPERTY soil
   /
 END
 
-#========================= saturation functions ===============================
+THERMAL_CHARACTERISTIC_CURVES cct
+  THERMAL_CONDUCTIVITY_FUNCTION DEFAULT
+    THERMAL_CONDUCTIVITY_DRY 0.5 W/m-C
+    THERMAL_CONDUCTIVITY_WET 0.5 W/m-C
+  /
+/
+
+#========================== saturation functions ==============================
 CHARACTERISTIC_CURVES default
   SATURATION_FUNCTION VAN_GENUCHTEN
     LIQUID_RESIDUAL_SATURATION 0.1d0
@@ -150,25 +151,22 @@ CHARACTERISTIC_CURVES default
   /
 /
 
-#========================= output options =====================================
+#============================== output options ================================
 OUTPUT
-#  TIMES y 100. 250. 500. 1000. 5000. 1.e4
-#  SCREEN PERIODIC 1
-#  PERIODIC_OBSERVATION TIMESTEP 1
   PRINT_COLUMN_IDS
   FORMAT TECPLOT POINT
   FORMAT HDF5
   VELOCITY_AT_CENTER
 END
 
-#======================== times ===============================================
+#================================== times =====================================
 TIME
   FINAL_TIME 1.e3 y
   INITIAL_TIMESTEP_SIZE 1.d-8 y
   MAXIMUM_TIMESTEP_SIZE 1.d1  y
 END
 
-#=========================== regions ==========================================
+#================================== regions ===================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
@@ -192,12 +190,13 @@ REGION east
   /
 END
 
+#=========================== observation points ===============================
 OBSERVATION
   REGION east
   VELOCITY
 END
 
-#======================= flow conditions ======================================
+#============================= flow conditions ================================
 FLOW_CONDITION initial
   UNITS Pa, C, yr
   TYPE
@@ -232,7 +231,7 @@ TRANSPORT_CONDITION inlet_conc
   /
 END
 
-#========================== initial and boundary conditions ===================
+#====================== initial and boundary conditions =======================
 # initial condition
 INITIAL_CONDITION
   FLOW_CONDITION initial
@@ -254,14 +253,13 @@ BOUNDARY_CONDITION
   REGION east
 END
 
-#===================== stratigraphy couplers ==================================
+#========================== stratigraphy couplers =============================
 STRATA
   REGION all
   MATERIAL soil
 END
 
-
-#=========================== constraints ======================================
+#=============================== constraints ==================================
 CONSTRAINT initial_constraint
   CONCENTRATIONS
     H+     1.d-8      F
@@ -281,6 +279,4 @@ CONSTRAINT inlet_constraint
   /
 END
 
-#=========================== checkpoint / restart =============================
-#CHECKPOINT 10
 END_SUBSURFACE
