@@ -4579,7 +4579,6 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   PetscReal :: one_over_n
   PetscReal :: molality_one_over_n
   PetscReal :: kd_kgw_m3b  
-  PetscReal :: temp
 
   PetscInt, parameter :: iphase = 1
 
@@ -4590,11 +4589,6 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
       ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
       ! nothing to do with the soil volume; that is calculated through as a 
       ! function of porosity.
-      temp = reaction%eqkddistcoef(irxn)
-      temp = global_auxvar%den_kg(iphase)
-      temp = (1.d0-material_auxvar%porosity)
-      temp = material_auxvar%soil_particle_density
-      temp = (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
       kd_kgw_m3b = reaction%eqkddistcoef(irxn) * & !KD units [mL water/g soil]
                    global_auxvar%den_kg(iphase) * &
                    (1.d0-material_auxvar%porosity) * &

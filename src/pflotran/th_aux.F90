@@ -13,7 +13,6 @@ module TH_Aux_module
   PetscInt, public :: TH_ni_count
   PetscInt, public :: TH_ts_cut_count
   PetscInt, public :: TH_ts_count
-  PetscBool, public :: th_use_freezing
   PetscInt, public :: th_ice_model
 
   type, public :: TH_auxvar_type
@@ -231,7 +230,7 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dT    = uninit_value
- if (th_use_freezing) then
+ if (option%th_freezing) then
     allocate(auxvar%ice)
     auxvar%ice%Ke_fr     = uninit_value
     auxvar%ice%dKe_fr_dp = uninit_value
@@ -380,6 +379,7 @@ end subroutine THAuxVarCopy
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
                                      iphase,characteristic_curves, &
+                                     thermal_cc, &
                                      th_parameter, icct, natural_id, &
                                      update_porosity,option)
   ! 
@@ -395,12 +395,14 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module  
+  use Characteristic_Curves_Thermal_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
   class(characteristic_curves_type) :: characteristic_curves
+  type(cc_thermal_type) :: thermal_cc
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -424,6 +426,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscReal :: Dk_dry
   PetscReal :: aux(1)
   PetscReal :: dkr_dsat1
+  PetscReal :: dk_ds, dk_dT
   
 ! auxvar%den = 0.d0
 ! auxvar%den_kg = 0.d0
@@ -599,7 +602,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   auxvar%Ke = Ke
 
   ! Effective thermal conductivity
-  auxvar%Dk_eff = Dk_dry + (Dk - Dk_dry)*Ke
+  call thermal_cc%thermal_conductivity_function%CalculateTCond( &
+       global_auxvar%sat(1),global_auxvar%temp,auxvar%Dk_eff,dk_ds,dk_dT,option)
 
   ! Derivative of soil Kersten number
   auxvar%dKe_dp = alpha*(global_auxvar%sat(1) + epsilon)**(alpha - 1.d0)* &
@@ -614,6 +618,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                    material_auxvar, &
                                    iphase, &
                                    saturation_function, &
+                                   thermal_cc, &
                                    th_parameter, icct, natural_id, &
                                    update_porosity,option)
   ! 
@@ -631,12 +636,14 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   
   use EOS_Water_module
   use Saturation_Function_module  
+  use Characteristic_Curves_Thermal_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
   type(saturation_function_type) :: saturation_function
+  type(cc_thermal_type) :: thermal_cc
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -678,6 +685,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: Dk
   PetscReal :: Dk_dry
   PetscReal :: Dk_ice
+  PetscReal :: dk_ds, dK_di, dk_dT
 
   out_of_table_flag = PETSC_FALSE
  
@@ -729,7 +737,20 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
        saturation_function%lambda = auxvar%bc_lambda
     endif
 #endif
-
+  
+  ! Check if user specified ice model via thermal characteristic curves
+  select type(tcf => thermal_cc%thermal_conductivity_function)
+  class is (kT_frozen_type)
+    if (Initialized(tcf%ice_model)) then
+      th_ice_model = tcf%ice_model
+    endif
+  class default
+    option%io_buffer = 'Cannot use thermal characteristic curve "' &
+                       // trim(thermal_cc%name) // &
+                       '" when FREEZING is active in TH mode.'
+    call PrintErrMsg(option)
+  end select
+  
   select case (th_ice_model)
     case (PAINTER_EXPLICIT)
       ! Model from Painter, Comp. Geosci. (2011)
@@ -878,7 +899,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%Ke_fr = Ke_fr
 
   ! Effective thermal conductivity
-  auxvar%Dk_eff = Dk*Ke + Dk_ice*Ke_fr + (1.d0 - Ke - Ke_fr)*Dk_dry
+  call thermal_cc%thermal_conductivity_function%CalculateFTCond( &
+       global_auxvar%sat(1),auxvar%ice%sat_ice,global_auxvar%temp, &
+       auxvar%Dk_eff,dk_ds,dK_di,dk_dT,option)
 
   ! Derivative of Kersten number
   auxvar%dKe_dp = alpha*(global_auxvar%sat(1) + epsilon)**(alpha - 1.d0)* &
@@ -917,6 +940,7 @@ end subroutine THAuxVarComputeFreezing
 subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
                                         material_auxvar,th_parameter, &
                                         icct,characteristic_curves,&
+                                        thermal_cc,&
                                         option)
 
   ! Computes 2nd order derivatives auxiliary variables for each grid cell
@@ -930,12 +954,14 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   
   use EOS_Water_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
   class(characteristic_curves_type) :: characteristic_curves
+  class(cc_thermal_type) :: thermal_cc
   type(TH_auxvar_type) :: TH_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar  
@@ -982,7 +1008,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   do ideriv = 1,option%nflowdof
     pert = x(ideriv)*perturbation_tolerance
     x_pert = x
-    if (th_use_freezing) then
+    if (option%th_freezing) then
        if (ideriv == 1) then
           if (x_pert(ideriv) < option%reference_pressure) then
              pert = - pert
@@ -1002,13 +1028,14 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
        x_pert(ideriv) = x_pert(ideriv) + pert
     endif
 
-    if (th_use_freezing) then
+    if (option%th_freezing) then
       option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
       call PrintErrMsg(option)
     else
       call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                             global_auxvar_pert,material_auxvar_pert,&
                             iphase,characteristic_curves, &
+                            thermal_cc, &
                             th_parameter,icct, &
                             -999,PETSC_TRUE,option)
     endif

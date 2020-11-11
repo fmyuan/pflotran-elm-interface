@@ -140,9 +140,32 @@ SIMULATION
     UFD_DECAY ufd_decay \bluecomment{! in aqueous, solid, and sorbed phases}
     /
     WASTE_FORM wf_general \bluecomment{! waste package/form degradation}
+      TYPE GENERAL
     /
     UFD_BIOSPHERE bio \bluecomment{! dose calculation at a drinking well}
     /
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{NUMERICAL METHODS}
+
+\begin{frame}[fragile]\frametitle{NUMERICAL METHODS}
+
+\begin{itemize}
+  \item Numerical Methods within subsurface block
+  \item Newton Solver sub-block
+\end{itemize}
+
+\begin{semiverbatim}
+SUBSURFACE
+
+NUMERICAL_METHODS TRANSPORT
+  NEWTON_SOLVER
+    DTOL 1.d20
   /
 END
 \end{semiverbatim}
