@@ -1,5 +1,13 @@
-! Test Case #2+3.  Horizontal one-dimensional infiltration.
-! For more descriptions of the problem please read case_2+3.docx
+! Horizontal one-dimensional infiltration.
+! This test case has a semi-anlytical solution originally solved by Philip
+! and decribed by Ross et al[1]. The solution is also featured as a Sample
+! Problem No. 2 in the Tough User's guide[2]
+! [1] Ross, B., Mercer, J. W., Thomas S. D. and Lester B. H. 1982.
+!     Benchmark Problems for Repository Siting Models. NUREG/CR-3097,
+!     Reston, VA: Geotrans, Inc.
+! [2] Pruess, K. 1987 TOUGH User's Guid, NUREG/CR-4645, SAND86-7104,
+!     LBL-20700, ERMS#228478, Lawrence Berkeley Laboratory, Berkeley, CA.
+
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -46,17 +54,6 @@ MATERIAL_PROPERTY soil
 END
 
 !=========================== saturation functions =============================
-skip
-SATURATION_FUNCTION sf1
-  SATURATION_FUNCTION_TYPE LINEAR_MODEL
-  PERMEABILITY_FUNCTION_TYPE BURDINE
-  RESIDUAL_SATURATION 0.3333d0
-  LAMBDA 7.d-1
-  MAX_CAPILLARY_PRESSURE 9.807d3
-  ALPHA 1.d20
-END
-noskip
-
 CHARACTERISTIC_CURVES sf1
   SATURATION_FUNCTION LINEAR
     LIQUID_RESIDUAL_SATURATION 0.3333333d0
