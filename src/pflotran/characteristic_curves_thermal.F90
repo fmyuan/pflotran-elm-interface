@@ -143,6 +143,7 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: Verify => TCFCompositeVerify
     procedure, public :: CalculateTCond => TCFCompositeConductivity
   end type kT_composite_type
+  !---------------------------------------------------------------------------
 
   public :: CharCurvesThermalCreate, &
             CharCurvesThermalGetID, &
@@ -536,9 +537,12 @@ function TCFDryConditionsCreate()
   allocate(TCFDryConditionsCreate)
   ! User doesn't need to initialize wet thermal conditivity for this case
   TCFDryConditionsCreate%kT_wet         = 0.0d0 
+  TCFDryConditionsCreate%alpha          = 1.0d0
   TCFDryConditionsCreate%kT_dry         = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT             = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kTf            = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT_y           = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT_z           = UNINITIALIZED_DOUBLE
@@ -642,9 +646,12 @@ function TCFWaterFilledConditionsCreate()
   ! User doesn't need to initialize dry or wet thermal conditivity for this case
   TCFWaterFilledConditionsCreate%kT_dry         = 0.0d0
   TCFWaterFilledConditionsCreate%kT_wet         = 0.0d0
+  TCFWaterFilledConditionsCreate%alpha          = 1.0d0
   TCFWaterFilledConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kT             = UNINITIALIZED_DOUBLE
+  TCFWaterFilledConditionsCreate%kTf            = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%kT_y           = UNINITIALIZED_DOUBLE
   TCFWaterFilledConditionsCreate%kT_z           = UNINITIALIZED_DOUBLE
@@ -751,12 +758,15 @@ function TCFASMRadialCreate()
   allocate(TCFASMRadialCreate)
   ! User doesn't need to initialize wet thermal conditivity for this case
   TCFASMRadialCreate%kT_wet         = 0.0d0 
+  TCFASMRadialCreate%alpha          = 1.0d0
   TCFASMRadialCreate%kT_dry         = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_water       = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_solid       = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%porosity_asm   = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT             = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kTf            = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_x           = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_y           = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_z           = UNINITIALIZED_DOUBLE
@@ -890,9 +900,12 @@ function TCFASMAxialCreate()
   ! User doesn't need to initialize dry or wet thermal conditivity for this case
   TCFASMAxialCreate%kT_dry        = 0.0d0
   TCFASMAxialCreate%kT_wet        = 0.0d0
+  TCFASMAxialCreate%alpha         = 1.0d0
   TCFASMAxialCreate%kT_solid      = UNINITIALIZED_DOUBLE
   TCFASMAxialCreate%kT_water      = UNINITIALIZED_DOUBLE
   TCFASMAxialCreate%porosity_asm  = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kT            = UNINITIALIZED_DOUBLE
+  TCFASMAxialCreate%kTf           = UNINITIALIZED_DOUBLE
   TCFASMAxialCreate%kT_x          = UNINITIALIZED_DOUBLE
   TCFASMAxialCreate%kT_y          = UNINITIALIZED_DOUBLE
   TCFASMAxialCreate%kT_z          = UNINITIALIZED_DOUBLE
@@ -1490,6 +1503,9 @@ function TCFCompositeCreate()
   TCFCompositeCreate%full_tensor = PETSC_FALSE
   TCFCompositeCreate%kT_wet = 0.0d0 ! not used, deferred to sub-functions
   TCFCompositeCreate%kT_dry = 0.0d0 ! not used, deferred to sub-functions
+  TCFCompositeCreate%alpha  = 1.0d0
+  TCFCompositeCreate%kT     = UNINITIALIZED_DOUBLE
+  TCFCompositeCreate%kTf    = UNINITIALIZED_DOUBLE
   TCFCompositeCreate%kT_x   = UNINITIALIZED_DOUBLE
   TCFCompositeCreate%kT_y   = UNINITIALIZED_DOUBLE
   TCFCompositeCreate%kT_z   = UNINITIALIZED_DOUBLE
@@ -1628,155 +1644,6 @@ subroutine TCFCompositeConductivity(this,liquid_saturation, &
   enddo
 
 end subroutine TCFCompositeConductivity
-
-! ************************************************************************** !
-
-function TCFFrozenCreate()
-
-  implicit none
-
-  class(kT_frozen_type), pointer :: TCFFrozenCreate
-
-  allocate(TCFFrozenCreate)
-  TCFFrozenCreate%kT_wet    = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kT_dry    = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kT_frozen = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%alpha     = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%alpha_fr  = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%ice_model = UNINITIALIZED_INTEGER
-  TCFFrozenCreate%isotropic   = PETSC_TRUE
-  TCFFrozenCreate%full_tensor = PETSC_FALSE
-  TCFFrozenCreate%kT     = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kTf    = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kT_x   = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kT_y   = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kT_z   = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kT_xy  = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kT_xz  = UNINITIALIZED_DOUBLE
-  TCFFrozenCreate%kT_yz  = UNINITIALIZED_DOUBLE
-
-end function TCFFrozenCreate
-
-! ************************************************************************** !
-
-subroutine TCFFrozenVerify(this,name,option)
-
-  use Option_module
-
-  implicit none
-
-  class(kT_frozen_type) :: this
-  character(len=MAXSTRINGLENGTH) :: name
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: string
-
-  if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
-    string = name
-  else
-    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,FROZEN'
-  endif
-  call TCFBaseVerify(this,string,option)
-  if (Uninitialized(this%kT_wet)) then
-    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_WET',string)
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(this%kT_dry)) then
-    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_DRY',string)
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(this%alpha)) then
-    option%io_buffer = UninitializedMessage('EXPONENT',string)
-    call PrintErrMsg(option)
-  endif
-  ! Freezing is optional, but related parameters must be initialized to use it
-  if (Initialized(this%kT_frozen)) then
-    if (Uninitialized(this%alpha_fr)) then
-      option%io_buffer = UninitializedMessage('FROZEN EXPONENT (MUST BE '&
-                                            //'SPECIFIED WITH FROZEN THERMAL '&
-                                            //'CONDUCTIVITY)',string)
-      call PrintErrMsg(option)
-    elseif (Uninitialized(this%ice_model)) then
-      option%io_buffer = UninitializedMessage('ICE MODEL (MUST BE '&
-                                            //'SPECIFIED WITH FROZEN THERMAL '&
-                                            //'CONDUCTIVITY)',string)
-      call PrintErrMsg(option)
-    else
-      option%th_freezing = PETSC_TRUE
-      ! Outside of TH mode, frozen parameters aren't actually used
-      if (.not. option%iflowmode == TH_MODE .and. & 
-          .not. option%iflowmode == TH_TS_MODE) then
-        option%io_buffer = 'FREEZING MODEL ONLY UTILIZED IN TH MODE. ONLY ' &
-                         //'NON-FROZEN PARAMETERS WILL BE EMPLOYED FOR ' &
-                         //'THERMAL CONDUCTIVITY CALCULATION.'
-        call PrintWrnMsg(option)
-      endif
-    endif
-  endif
-
-end subroutine TCFFrozenVerify
-
-! ************************************************************************** !
-
-subroutine TCFFrozenConductivity1(this,liquid_saturation,temperature, & 
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
-
-  use Option_module
-
-  implicit none
-
-  class(kT_frozen_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
-  PetscReal, intent(out) :: thermal_conductivity
-  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
-  type(option_type), intent(inout) :: option
-
-  PetscReal, parameter :: epsilon = 1.d-6
-  PetscReal :: Ke
-
-  ! Soil Kersten numbers
-  Ke = (liquid_saturation + epsilon)**(this%alpha) ! unfrozen
-
-  ! Do not use freezing
-  thermal_conductivity = this%kT_dry + (this%kT_wet - this%kT_dry)*Ke
-  dkT_dtemp = 0.0d0
-  dkT_dsatl = (this%kT_wet - this%kT_dry) * this%alpha * &
-              liquid_saturation**(this%alpha - 1)
-
-end subroutine TCFFrozenConductivity1
-
-! ************************************************************************** !
-
-subroutine TCFFrozenConductivity2(this,liquid_saturation,ice_saturation,   & 
-     temperature,thermal_conductivity,dkT_dsatl,dkT_dsati,dkT_dtemp,option)
-
-  use Option_module
-
-  implicit none
-
-  class(kT_frozen_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, ice_saturation, temperature
-  PetscReal, intent(out) :: thermal_conductivity
-  PetscReal, intent(out) :: dkT_dsatl, dkT_dsati, dkT_dtemp
-  type(option_type), intent(inout) :: option
-
-  PetscReal, parameter :: epsilon = 1.d-6
-  PetscReal :: Ke, Ke_fr
-
-  ! Soil Kersten numbers
-  Ke = (liquid_saturation + epsilon)**(this%alpha)    ! unfrozen
-  Ke_fr = (ice_saturation + epsilon)**(this%alpha_fr) ! frozen
-
-  ! Use freezing
-  thermal_conductivity = this%kT_wet*Ke + this%kT_frozen*Ke_fr + &
-                         (1.d0 - Ke - Ke_fr)*this%kT_dry
-  dkT_dtemp = 0.0d0
-  dkT_dsatl = (this%kT_wet - this%kT_dry) * this%alpha * &
-              liquid_saturation**(this%alpha - 1)
-  dkT_dsati = (this%kT_frozen - this%kT_dry) * this%alpha_fr * &
-              ice_saturation**(this%alpha_fr - 1)
-
-end subroutine TCFFrozenConductivity2
 
 ! ************************************************************************** !
 
@@ -2169,6 +2036,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call TCFDefaultRead(tcf,input,keyword,error_string, &
           'linear resistivity',option)
       end select
+      !------------------------------------------
     class is(kT_frozen_type)
       select case(keyword)     
       case('THERMAL_CONDUCTIVITY_FROZEN')
@@ -2205,8 +2073,9 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         end select
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string, &
-          'linear resistivity',option)
+          'frozen',option)
       end select
+      !------------------------------------------
     class is(kT_composite_type)
       select case(keyword)
       case('COMPOSITE_X')  
@@ -2222,7 +2091,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call TCFDefaultRead(tcf,input,keyword,error_string, &
           'composite',option)
       end select
-      
+      !------------------------------------------
     class default
       option%io_buffer = 'Read routine not implemented for ' &
            // trim(error_string) // '.'
@@ -2318,6 +2187,7 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
   error_string = 'THERMAL_CHARACTERISTIC_CURVES, THERMAL_CONDUCTIVITY_FUNCTION,'
   
   select type(tcf => thermal_conductivity_function)
+  !------------------------------------------
   class is(kT_default_type)
     error_string = trim(error_string) // ' ANISOTROPIC DEFAULT TYPE'
     
@@ -2522,7 +2392,7 @@ subroutine TCFCheckAnisotropy(thermal_conductivity_function,option)
     if (tcf%full_tensor) then
       call FullTensorCheckEigenvalues(tcf%kTf,option)
     endif
-    
+  !------------------------------------------
   class is(kT_frozen_type)
     error_string = trim(error_string) // ' ANISOTROPIC FROZEN TYPE'
     
