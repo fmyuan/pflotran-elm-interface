@@ -5432,7 +5432,8 @@ function FlowConditionIsTransient(condition)
       FlowSubConditionIsTransient(condition%energy_flux) .or. &
       FlowConditionTOilImsIsTransient(condition%toil_ims) .or. &
       FlowConditionTOWGIsTransient(condition%towg) .or. &
-      FlowConditionGeneralIsTransient(condition%general)) then
+      FlowConditionGeneralIsTransient(condition%general) .or. &
+      FlowConditionHydrateIsTransient(condition%hydrate)) then
     FlowConditionIsTransient = PETSC_TRUE
   endif
 
@@ -5474,6 +5475,46 @@ function FlowConditionGeneralIsTransient(condition)
   endif
 
 end function FlowConditionGeneralIsTransient
+
+! ************************************************************************** !
+
+function FlowConditionHydrateIsTransient(condition)
+  !
+  ! Returns PETSC_TRUE
+  !
+  ! Author: Michael Nole
+  ! Date: 11/04/20
+  !
+
+  use Dataset_module
+
+  implicit none
+
+  type(flow_hydrate_condition_type), pointer :: condition
+
+  PetscBool :: FlowConditionHydrateIsTransient
+
+  FlowConditionHydrateIsTransient = PETSC_FALSE
+
+  if (.not.associated(condition)) return
+
+  if (FlowSubConditionIsTransient(condition%liquid_pressure) .or. &
+      FlowSubConditionIsTransient(condition%gas_pressure) .or. &
+      FlowSubConditionIsTransient(condition%gas_saturation) .or. &
+      FlowSubConditionIsTransient(condition%hydrate_saturation) .or. &
+      FlowSubConditionIsTransient(condition%liquid_saturation) .or. &
+      FlowSubConditionIsTransient(condition%ice_saturation) .or. &
+      FlowSubConditionIsTransient(condition%relative_humidity) .or. &
+      FlowSubConditionIsTransient(condition%mole_fraction) .or. &
+      FlowSubConditionIsTransient(condition%temperature) .or. &
+      FlowSubConditionIsTransient(condition%rate) .or. &
+      FlowSubConditionIsTransient(condition%liquid_flux) .or. &
+      FlowSubConditionIsTransient(condition%gas_flux) .or. &
+      FlowSubConditionIsTransient(condition%energy_flux)) then
+    FlowConditionHydrateIsTransient = PETSC_TRUE
+  endif
+
+end function FlowConditionHydrateIsTransient
 
 ! ************************************************************************** !
 

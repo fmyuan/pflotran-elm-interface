@@ -264,16 +264,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
   character(len=MAXSTRINGLENGTH) :: tcc_name
 
   PetscInt :: length
-  PetscBool :: therm_k_frz
-  PetscBool :: therm_k_exp_frz
   PetscReal :: tempreal
   PetscInt, parameter :: TMP_SOIL_COMPRESSIBILITY = 1
   PetscInt, parameter :: TMP_BULK_COMPRESSIBILITY = 2
   PetscInt, parameter :: TMP_POROSITY_COMPRESSIBILITY = 3
   PetscInt :: soil_or_bulk_compressibility
 
-  therm_k_frz = PETSC_FALSE
-  therm_k_exp_frz = PETSC_FALSE
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
   input%ierr = 0
@@ -364,7 +360,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'thermal conductivity exponent', &
                            'MATERIAL_PROPERTY')
       case('THERMAL_CONDUCTIVITY_FROZEN') 
-        therm_k_frz = PETSC_TRUE
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_frozen)
         call InputErrorMsg(input,option,'frozen thermal conductivity', &
@@ -373,7 +368,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
                  material_property%thermal_conductivity_frozen, &
                  'W/m-C','MATERIAL_PROPERTY,frozen thermal conductivity',option)
       case('THERMAL_COND_EXPONENT_FROZEN') 
-        therm_k_exp_frz = PETSC_TRUE
         call InputReadDouble(input,option, &
                              material_property%alpha_fr)
         call InputErrorMsg(input,option, &

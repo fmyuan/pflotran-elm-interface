@@ -927,8 +927,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = 0.d0
       hyd_auxvar%sat(iid) = 0.d0
 
-      call HydratePE(hyd_auxvar%temp, 0.d0, PE_hyd, dP, characteristic_curves, &
-                     material_auxvar,option)
+      call HydratePE(hyd_auxvar%temp, hyd_auxvar%sat(hid), PE_hyd, dP, &
+                     characteristic_curves, material_auxvar,option)
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
       if (hydrate_adjust_ghsz_solubility) then
@@ -3506,8 +3506,9 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   PetscReal :: T_temp, dTf
 
   if (hydrate_with_gibbs_thomson) then
-    call GibbsThomsonFreezing(1.d0-sat, 54734.d0, HYDRATE_DENSITY, T, dTf, &
-          characteristic_curves, material_auxvar, option)
+    call GibbsThomsonFreezing(1.d0-sat-hydrate_phase_chng_epsilon, &
+                              54734.d0, HYDRATE_DENSITY, T, dTf, &
+                              characteristic_curves, material_auxvar, option)
   else
     dTf = 0.d0
   endif
