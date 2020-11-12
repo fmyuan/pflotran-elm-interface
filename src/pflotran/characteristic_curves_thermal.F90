@@ -701,8 +701,8 @@ end subroutine TCFWaterFilledConditionsVerify
 
 ! ************************************************************************** !
 
-subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation, &
+     temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
@@ -730,7 +730,7 @@ subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation,temperatu
   
   ! Allow user to impart saturation dependence
   if (this%kT_dry == 0.0d0) then
-    this%kT_dry = this%kT_wet ! remove saturation dependence if user does not input
+    this%kT_dry = this%kT_wet ! remove saturation dependence if user input N/A
   end if
   
   if (liquid_saturation > 0.d0) then
@@ -1503,7 +1503,7 @@ function TCFCompositeCreate()
   TCFCompositeCreate%full_tensor = PETSC_FALSE
   TCFCompositeCreate%kT_wet = 0.0d0 ! not used, deferred to sub-functions
   TCFCompositeCreate%kT_dry = 0.0d0 ! not used, deferred to sub-functions
-  TCFCompositeCreate%alpha  = 1.0d0
+  TCFCompositeCreate%alpha  = 1.0d0 ! not used, deferred to sub-functions
   TCFCompositeCreate%kT     = UNINITIALIZED_DOUBLE
   TCFCompositeCreate%kTf    = UNINITIALIZED_DOUBLE
   TCFCompositeCreate%kT_x   = UNINITIALIZED_DOUBLE
@@ -1555,21 +1555,6 @@ subroutine TCFCompositeVerify(this,name,option)
           'THERMAL CONDUCTIVITY SUB-FUNCTION FOR Z',string)
     call PrintErrMsg(option)
   endif
-  ! if (Uninitialized(this%kT_x)) then
-  !   option%io_buffer = UninitializedMessage( &
-  !         'ANISOTROPY RATIO FOR X',string)
-  !   call PrintErrMsg(option)
-  ! endif
-  ! if (Uninitialized(this%kT_y)) then
-  !   option%io_buffer = UninitializedMessage( &
-  !         'ANISOTROPY RATIO FOR Y',string)
-  !   call PrintErrMsg(option)
-  ! endif
-  ! if (Uninitialized(this%kT_z)) then
-  !   option%io_buffer = UninitializedMessage( &
-  !         'ANISOTROPY RATIO FOR Z',string)
-  !   call PrintErrMsg(option)
-  ! endif
 
 end subroutine TCFCompositeVerify
 
