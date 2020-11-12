@@ -80,8 +80,8 @@ module Characteristic_Curves_Thermal_module
   end type kT_frozen_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_dry_conditions_type
-    PetscReal :: kT_alpha_base
-    PetscReal :: kT_alpha_exp
+    PetscReal :: kT_exp_coeff
+    PetscReal :: kT_exp_power
   contains
     procedure, public :: Verify => TCFDryConditionsVerify
     procedure, public :: CalculateTCond => TCFDryConditionsConductivity
@@ -97,8 +97,8 @@ module Characteristic_Curves_Thermal_module
   end type kT_water_filled_conditions_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_ASM_radial_type
-    PetscReal :: kT_alpha_base
-    PetscReal :: kT_alpha_exp
+    PetscReal :: kT_exp_coeff
+    PetscReal :: kT_exp_power
     PetscReal :: kT_water
     PetscReal :: kT_solid
     PetscReal :: porosity_asm
@@ -539,8 +539,8 @@ function TCFDryConditionsCreate()
   TCFDryConditionsCreate%kT_wet         = 0.0d0 
   TCFDryConditionsCreate%alpha          = 1.0d0
   TCFDryConditionsCreate%kT_dry         = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_exp_coeff   = UNINITIALIZED_DOUBLE
+  TCFDryConditionsCreate%kT_exp_power   = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT             = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kTf            = UNINITIALIZED_DOUBLE
   TCFDryConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
@@ -574,11 +574,11 @@ subroutine TCFDryConditionsVerify(this,name,option)
     string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,DRY_CONDITIONS'
   endif
   call TCFBaseVerify(this,string,option)
-  if (Uninitialized(this%kT_alpha_base)) then
-    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_BASE',string)
+  if (Uninitialized(this%kT_exp_coeff)) then
+    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_COEFFICIENT',string)
     call PrintErrMsg(option)
   endif
-  if (Uninitialized(this%kT_alpha_exp)) then
+  if (Uninitialized(this%kT_exp_power)) then
     option%io_buffer = UninitializedMessage('DRY_CONDITIONS_EXPONENT',string)
     call PrintErrMsg(option)
   endif
@@ -614,12 +614,12 @@ subroutine TCFDryConditionsConductivity(this,liquid_saturation,temperature, &
     this%kT_wet = this%kT_dry
   end if
   
-  power = this%kT_alpha_base * (temperature ** this%kT_alpha_exp)
+  power = this%kT_exp_coeff * (temperature ** this%kT_exp_power)
   
   primary = this%kT_dry + power
   
-  dkT_dtemp = this%kT_alpha_base * this%kT_alpha_exp * &
-    (temperature ** (this%kT_alpha_exp - 1.0d0))
+  dkT_dtemp = this%kT_exp_coeff * this%kT_exp_power * &
+    (temperature ** (this%kT_exp_power - 1.0d0))
   
   if (liquid_saturation > 0.d0) then
     tempreal = sqrt(liquid_saturation) * &
@@ -760,8 +760,8 @@ function TCFASMRadialCreate()
   TCFASMRadialCreate%kT_wet         = 0.0d0 
   TCFASMRadialCreate%alpha          = 1.0d0
   TCFASMRadialCreate%kT_dry         = UNINITIALIZED_DOUBLE
-  TCFASMRadialCreate%kT_alpha_base  = UNINITIALIZED_DOUBLE
-  TCFASMRadialCreate%kT_alpha_exp   = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_exp_coeff   = UNINITIALIZED_DOUBLE
+  TCFASMRadialCreate%kT_exp_power   = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_water       = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%kT_solid       = UNINITIALIZED_DOUBLE
   TCFASMRadialCreate%porosity_asm   = UNINITIALIZED_DOUBLE
@@ -798,11 +798,11 @@ subroutine TCFASMRadialVerify(this,name,option)
     string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,ASM_RADIAL'
   endif
   call TCFBaseVerify(this,string,option)
-  if (Uninitialized(this%kT_alpha_base)) then
-    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_BASE',string)
+  if (Uninitialized(this%kT_exp_coeff)) then
+    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_COEFFICIENT',string)
     call PrintErrMsg(option)
   endif
-  if (Uninitialized(this%kT_alpha_exp)) then
+  if (Uninitialized(this%kT_exp_power)) then
     option%io_buffer = UninitializedMessage('DRY_CONDITIONS_EXPONENT',string)
     call PrintErrMsg(option)
   endif
@@ -869,12 +869,12 @@ subroutine TCFASMRadialConductivity(this,liquid_saturation,temperature, &
     call PrintErrMsg(option)
   end if
   
-  power = this%kT_alpha_base * (temperature ** this%kT_alpha_exp)
+  power = this%kT_exp_coeff * (temperature ** this%kT_exp_power)
   
   primary = this%kT_dry + power
   
-  dkT_dtemp = this%kT_alpha_base * this%kT_alpha_exp * &
-    (temperature ** (this%kT_alpha_exp - 1.0d0))
+  dkT_dtemp = this%kT_exp_coeff * this%kT_exp_power * &
+    (temperature ** (this%kT_exp_power - 1.0d0))
   
   if (liquid_saturation > 0.d0) then
     tempreal = sqrt(liquid_saturation) * &
@@ -1908,13 +1908,13 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       !------------------------------------------
     class is(kT_dry_conditions_type)
       select case(keyword)
-      case('DRY_CONDITIONS_BASE')
-        call InputReadDouble(input,option,tcf%kT_alpha_base)
+      case('DRY_CONDITIONS_COEFFICIENT')
+        call InputReadDouble(input,option,tcf%kT_exp_coeff)
         call InputErrorMsg(input,option, &
              'dry conditions thermal conductivity temperature coefficient', &
              error_string)
       case('DRY_CONDITIONS_EXPONENT')
-        call InputReadDouble(input,option,tcf%kT_alpha_exp)
+        call InputReadDouble(input,option,tcf%kT_exp_power)
         call InputErrorMsg(input,option, &
              'dry conditions thermal conductivity temperature exponent', &
                error_string)
@@ -1949,13 +1949,13 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       !------------------------------------------
     class is(kT_ASM_radial_type)
       select case(keyword)
-      case('DRY_CONDITIONS_BASE')
-        call InputReadDouble(input,option,tcf%kT_alpha_base)
+      case('DRY_CONDITIONS_COEFFICIENT')
+        call InputReadDouble(input,option,tcf%kT_exp_coeff)
         call InputErrorMsg(input,option, &
              'assembly conditions temperature coefficient', &
              error_string)
       case('DRY_CONDITIONS_EXPONENT')
-        call InputReadDouble(input,option,tcf%kT_alpha_exp)
+        call InputReadDouble(input,option,tcf%kT_exp_power)
         call InputErrorMsg(input,option, &
              'assembly conditions temperature exponent', &
                error_string)
@@ -3155,10 +3155,10 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%kT_dry
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'temperature coefficient: '
-        write(word1,*) tcf%kT_alpha_base
+        write(word1,*) tcf%kT_exp_coeff
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'exponent: '
-        write(word1,*) tcf%kT_alpha_exp
+        write(id,'(a29)',advance='no') 'temperature exponent: '
+        write(word1,*) tcf%kT_exp_power
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
       class is (kT_water_filled_conditions_type)
@@ -3172,7 +3172,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a29)',advance='no') 'kT_solid: '
         write(word1,*) tcf%kT_solid
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'Assembly porosity: '
+        write(id,'(a29)',advance='no') 'assembly porosity: '
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
@@ -3188,12 +3188,12 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%kT_solid
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'temperature coefficient: '
-        write(word1,*) tcf%kT_alpha_base
+        write(word1,*) tcf%kT_exp_coeff
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'exponent: '
-        write(word1,*) tcf%kT_alpha_exp
+        write(id,'(a29)',advance='no') 'temperature exponent: '
+        write(word1,*) tcf%kT_exp_power
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'Assembly porosity: '
+        write(id,'(a29)',advance='no') 'assembly porosity: '
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
@@ -3205,7 +3205,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a29)',advance='no') 'kT_solid: '
         write(word1,*) tcf%kT_solid
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'Assembly porosity: '
+        write(id,'(a29)',advance='no') 'assembly porosity: '
         write(word1,*) tcf%porosity_asm
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
