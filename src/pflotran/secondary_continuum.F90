@@ -31,7 +31,9 @@ module Secondary_Continuum_module
             SecondaryRTUpdateIterate, &
             SecondaryRTUpdateEquilState, &
             SecondaryRTUpdateKineticState, &
-            SecondaryRTTimeCut
+            SecondaryRTTimeCut, &
+            SecondaryRTGetVariable, &
+            SecondaryRTSetVariable
 
 contains
 
@@ -2264,6 +2266,97 @@ subroutine SecondaryRTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reactio
 
 end subroutine SecondaryRTotalSorbKD
 
+! ************************************************************************** !
+subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
+ 
+  ! Extracts a secondary continuum variable for a layer of secondary
+  ! continuum cells. Similar to RealizationGetVariable, but now the "layer"
+  ! of the cells needs to be specified.
+
+#include "petsc/finclude/petscvec.h"
+  use Variables_module
+  use Grid_module
+  use Patch_module
+  use Realization_Subsurface_class
+  use petscvec
+
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  Vec :: vec
+  PetscInt :: ivar
+  PetscInt :: isubvar
+  PetscInt :: mc_layer
+
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  PetscReal, pointer :: vec_p(:)
+  PetscInt :: local_id
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  grid => patch%grid
+
+  call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  
+  select case(ivar)
+    case(SEC_CONT_UPD_CONC)
+      do local_id=1,grid%nlmax
+        vec_p(local_id) = &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          updated_conc(isubvar,mc_layer)
+      enddo
+      
+  end select
+  
+  call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+
+end subroutine SecondaryRTGetVariable
+
+! ************************************************************************** !
+subroutine SecondaryRTSetVariable(realization, vec, ivar, isubvar, mc_layer)
+  
+  ! Sets a secondary continuum variable to a layer of secondary
+  ! continuum cells. Similar to RealizationSetVariable, but now the "layer"
+  ! of the cells needs to be specified.
+
+#include "petsc/finclude/petscvec.h"
+  use Variables_module
+  use Grid_module
+  use Patch_module
+  use Realization_Subsurface_class
+  use petscvec
+
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  Vec :: vec
+  PetscInt :: ivar
+  PetscInt :: isubvar
+  PetscInt :: mc_layer
+
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  PetscReal, pointer :: vec_p(:)
+  PetscInt :: local_id
+  PetscErrorCode :: ierr
+  patch => realization%patch
+  grid => patch%grid
+
+  call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  
+  select case(ivar)
+    case(SEC_CONT_UPD_CONC)
+      do local_id=1,grid%nlmax
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          updated_conc(isubvar,mc_layer) = vec_p(local_id)
+      enddo
+      
+  end select
+  
+  call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
+
+end subroutine SecondaryRTSetVariable
 
 end module Secondary_Continuum_module
             

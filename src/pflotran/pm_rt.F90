@@ -1288,12 +1288,15 @@ subroutine PMRTCheckpointBinary(this,viewer)
   use Field_module
   use Discretization_module
   use Grid_module
+  use Patch_module
+  use Secondary_Continuum_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary  
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
-                               REACTION_AUXILIARY
+                               REACTION_AUXILIARY, &
+                               SEC_CONT_UPD_CONC
   
   implicit none
 
@@ -1316,8 +1319,9 @@ subroutine PMRTCheckpointBinary(this,viewer)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
   Vec :: global_vec
-  PetscInt :: i
+  PetscInt :: i, mc_i
 
   class(pm_rt_header_type), pointer :: header
   type(pm_rt_header_type) :: dummy_header
@@ -1330,6 +1334,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
+  patch => realization%patch
   
   global_vec = PETSC_NULL_VEC
 
@@ -1402,6 +1407,18 @@ subroutine PMRTCheckpointBinary(this,viewer)
         call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
       enddo
     endif
+
+    if (option%use_mc) then
+      ! Add multicontinuum variables
+      do mc_i = 1, patch%material_property_array(1)%ptr% &
+                   secondary_continuum_ncells
+        do i = 1, realization%reaction%naqcomp
+          call SecondaryRTGetVariable(realization,global_vec, &
+                                    SEC_CONT_UPD_CONC, i, mc_i)
+          call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+        enddo
+      enddo
+    endif
   endif
 
   if (global_vec /= PETSC_NULL_VEC) then
@@ -1425,13 +1442,16 @@ subroutine PMRTRestartBinary(this,viewer)
   use Field_module
   use Discretization_module
   use Grid_module
+  use Patch_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary, &
                                         RTUpdateAuxVars
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
-                               REACTION_AUXILIARY
+                               REACTION_AUXILIARY, &
+                               SEC_CONT_UPD_CONC
+  use Secondary_Continuum_module
   
   implicit none
 
@@ -1454,8 +1474,9 @@ subroutine PMRTRestartBinary(this,viewer)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
   Vec :: global_vec, local_vec
-  PetscInt :: i
+  PetscInt :: i, mc_i
 
   class(pm_rt_header_type), pointer :: header
   type(pm_rt_header_type) :: dummy_header
@@ -1468,6 +1489,7 @@ subroutine PMRTRestartBinary(this,viewer)
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
+  patch => realization%patch
   
   global_vec = PETSC_NULL_VEC
   local_vec = PETSC_NULL_VEC
@@ -1539,7 +1561,18 @@ subroutine PMRTRestartBinary(this,viewer)
                                   REACTION_AUXILIARY,i)
     enddo
   endif
-    
+
+  if (option%use_mc) then
+    do mc_i = 1, patch%material_property_array(1)%ptr% &
+                 secondary_continuum_ncells
+      do i = 1, realization%reaction%naqcomp
+        call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+        call SecondaryRTSetVariable(realization, global_vec, &
+                                  SEC_CONT_UPD_CONC, i, mc_i)
+      enddo
+    enddo
+  endif
+ 
   ! We are finished, so clean up.
   if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
