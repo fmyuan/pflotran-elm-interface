@@ -32,6 +32,8 @@ REGRESSION
 END
 #=========================== hydrate ==========================================
 HYDRATE
+  PHASE_BOUNDARY MORIDIS
+  WITH_GIBBS_THOMSON
   ADJUST_SOLUBILITY_WITHIN_GHSZ
 END
 #=========================== discretization ===================================
