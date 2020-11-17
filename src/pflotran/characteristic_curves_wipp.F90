@@ -60,6 +60,7 @@ module Characteristic_Curves_WIPP_module
     PetscReal :: Srg
     PetscReal :: lambda
   contains
+    procedure, public :: Init => SFKRP4Init
     procedure, public :: Verify => SFKRP4Verify
     procedure, public :: CapillaryPressure => SFKRP4CapillaryPressure
     procedure, public :: Saturation => SFKRP4Saturation
