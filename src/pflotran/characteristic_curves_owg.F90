@@ -1339,7 +1339,7 @@ function SF_XW_VG_Create()
 
   call SFXWBaseInit(SF_XW_VG_Create)
 
-  SF_XW_VG_Create%sat_func_sl => SF_VG_Create()
+  SF_XW_VG_Create%sat_func_sl => SFVGCreate()
 
   call SF_XW_VG_Create%Init()
 
@@ -1475,7 +1475,7 @@ function SF_XW_BC_Create()
 
   call SFXWBaseInit(SF_XW_BC_Create)
 
-  SF_XW_BC_Create%sat_func_sl => SF_BC_Create()
+  SF_XW_BC_Create%sat_func_sl => SFBCCreate()
 
   call SF_XW_BC_Create%Init()
 
@@ -2097,7 +2097,7 @@ function SF_OG_VG_SL_Create()
 
   call SFOGBaseInit(SF_OG_VG_SL_Create)
 
-  SF_OG_VG_SL_Create%sat_func_sl => SF_VG_Create()
+  SF_OG_VG_SL_Create%sat_func_sl => SFVGCreate()
 
   call SF_OG_VG_SL_Create%Init()
 
@@ -2901,7 +2901,7 @@ function RPF_wat_owg_Mualem_VG_Create()
 
   call RPF_wat_owg_Mualem_VG_Create%Init()
   
-  RPF_wat_owg_Mualem_VG_Create%rel_perm_func_sl => RPF_Mualem_VG_liq_create()
+  RPF_wat_owg_Mualem_VG_Create%rel_perm_func_sl => RPFMualemVGLiqCreate()
 
 end function RPF_wat_owg_Mualem_VG_Create
 
@@ -2918,7 +2918,7 @@ function RPF_wat_owg_Burdine_VG_Create()
 
   call RPF_wat_owg_Burdine_VG_Create%Init()
 
-  RPF_wat_owg_Burdine_VG_Create%rel_perm_func_sl => RPF_Burdine_VG_liq_create()
+  RPF_wat_owg_Burdine_VG_Create%rel_perm_func_sl => RPFBurdineVGLiqCreate()
 
 end function RPF_wat_owg_Burdine_VG_Create
 
@@ -2935,7 +2935,7 @@ function RPF_wat_owg_Burdine_BC_Create()
 
   call RPF_wat_owg_Burdine_BC_Create%Init()
 
-  RPF_wat_owg_Burdine_BC_Create%rel_perm_func_sl => RPF_Burdine_BC_liq_create()
+  RPF_wat_owg_Burdine_BC_Create%rel_perm_func_sl => RPFBurdineBCLiqCreate()
 
 end function RPF_wat_owg_Burdine_BC_Create
 
@@ -3409,7 +3409,7 @@ function RPF_gas_owg_Mualem_VG_Create()
 
   call RPF_gas_owg_Mualem_VG_Create%Init()
 
-  RPF_gas_owg_Mualem_VG_Create%rel_perm_func_sl => RPF_Mualem_VG_gas_create()
+  RPF_gas_owg_Mualem_VG_Create%rel_perm_func_sl => RPFMualemVGGasCreate()
 
 end function RPF_gas_owg_Mualem_VG_Create
 
@@ -3429,7 +3429,7 @@ function RPF_gas_owg_TOUGH2_IRP7_Create()
   call RPF_gas_owg_TOUGH2_IRP7_Create%Init()
 
   RPF_gas_owg_TOUGH2_IRP7_Create%rel_perm_func_sl => &
-                                      RPF_TOUGH2_IRP7_gas_create()
+                                      RPFTOUGH2IRP7GasCreate()
 
 end function RPF_gas_owg_TOUGH2_IRP7_Create
 
@@ -3447,7 +3447,7 @@ function RPF_gas_owg_Burdine_VG_Create()
 
   call RPF_gas_owg_Burdine_VG_Create%Init()
 
-  RPF_gas_owg_Burdine_VG_Create%rel_perm_func_sl => RPF_Burdine_VG_gas_create()
+  RPF_gas_owg_Burdine_VG_Create%rel_perm_func_sl => RPFBurdineVGGasCreate()
 
 end function RPF_gas_owg_Burdine_VG_Create
 
@@ -3465,7 +3465,7 @@ function RPF_gas_owg_Burdine_BC_Create()
 
   call RPF_gas_owg_Burdine_BC_Create%Init()
 
-  RPF_gas_owg_Burdine_BC_Create%rel_perm_func_sl => RPF_Burdine_BC_gas_create()
+  RPF_gas_owg_Burdine_BC_Create%rel_perm_func_sl => RPFBurdineBCGasCreate()
 
 end function RPF_gas_owg_Burdine_BC_Create
 
