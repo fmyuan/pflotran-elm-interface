@@ -3022,13 +3022,12 @@ subroutine CompositeTCCList(list,tcf,option)
 
   class(cc_thermal_type), pointer :: list
   class(kT_composite_type) :: tcf
-  ! type(cc_thermal_ptr_type), pointer :: array(3)
   type(option_type) :: option
 
   class(cc_thermal_type), pointer :: cur_thermal_cc
   PetscInt :: i
 
-  do i = 1, 3 ! composite function only supports main axes
+  do i = 1, 3 ! iterate over X, Y, and Z
     cur_thermal_cc => list
     do
       if (.not.associated(cur_thermal_cc)) exit
