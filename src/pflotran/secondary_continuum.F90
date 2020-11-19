@@ -2306,7 +2306,30 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
           patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           updated_conc(isubvar,mc_layer)
       enddo
-      
+    case(MINERAL_VOLUME_FRACTION)
+      do local_id=1, grid%nlmax
+        vec_p(local_id) = &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar)
+      enddo
+    case(REACTION_AUXILIARY)
+      do local_id=1, grid%nlmax
+        vec_p(local_id) = &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar)
+      enddo
+    case(PRIMARY_ACTIVITY_COEF)
+      do local_id=1, grid%nlmax
+        vec_p(local_id) = &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar)
+      enddo
+    case(SECONDARY_ACTIVITY_COEF)
+      do local_id=1, grid%nlmax
+        vec_p(local_id) = &
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar)
+      enddo
   end select
   
   call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
@@ -2347,11 +2370,30 @@ subroutine SecondaryRTSetVariable(realization, vec, ivar, isubvar, mc_layer)
   
   select case(ivar)
     case(SEC_CONT_UPD_CONC)
-      do local_id=1,grid%nlmax
+      do local_id=1, grid%nlmax
         patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
           updated_conc(isubvar,mc_layer) = vec_p(local_id)
       enddo
-      
+    case(MINERAL_VOLUME_FRACTION)
+      do local_id=1, grid%nlmax
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
+      enddo
+    case(REACTION_AUXILIARY)
+      do local_id=1, grid%nlmax
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
+      enddo
+    case(PRIMARY_ACTIVITY_COEF)
+      do local_id=1, grid%nlmax
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
+      enddo
+    case(SECONDARY_ACTIVITY_COEF)
+      do local_id=1, grid%nlmax
+        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+          sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
+      enddo
   end select
   
   call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)

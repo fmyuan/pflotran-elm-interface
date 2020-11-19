@@ -1417,6 +1417,37 @@ subroutine PMRTCheckpointBinary(this,viewer)
                                     SEC_CONT_UPD_CONC, i, mc_i)
           call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
         enddo
+        if (realization%reaction%checkpoint_activity_coefs .and. &
+            realization%reaction%act_coef_update_frequency /= &
+            ACT_COEF_FREQUENCY_OFF) then
+          ! allocated vector
+          do i = 1, realization%reaction%naqcomp
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                       PRIMARY_ACTIVITY_COEF, i, mc_i)
+            call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+          enddo
+          do i = 1, realization%reaction%neqcplx
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                       SECONDARY_ACTIVITY_COEF, i, mc_i)
+            call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+          enddo
+        endif
+        ! mineral volume fractions for kinetic minerals
+        if (realization%reaction%mineral%nkinmnrl > 0) then
+          do i = 1, realization%reaction%mineral%nkinmnrl
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                       MINERAL_VOLUME_FRACTION, i, mc_i)
+            call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+          enddo
+        endif
+        ! auxiliary data for reactions (e.g. cumulative mass)
+        if (realization%reaction%nauxiliary> 0) then
+          do i = 1, realization%reaction%nauxiliary
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                        REACTION_AUXILIARY, i, mc_i)
+            call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+          enddo
+        endif
       enddo
     endif
   endif
@@ -1570,6 +1601,37 @@ subroutine PMRTRestartBinary(this,viewer)
         call SecondaryRTSetVariable(realization, global_vec, &
                                   SEC_CONT_UPD_CONC, i, mc_i)
       enddo
+      if (realization%reaction%checkpoint_activity_coefs .and. &
+          realization%reaction%act_coef_update_frequency /= &
+          ACT_COEF_FREQUENCY_OFF) then
+        ! allocated vector
+        do i = 1, realization%reaction%naqcomp
+          call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+          call SecondaryRTSetVariable(realization,global_vec, &
+                                     PRIMARY_ACTIVITY_COEF, i, mc_i)
+        enddo
+        do i = 1, realization%reaction%neqcplx
+          call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+          call SecondaryRTSetVariable(realization,global_vec, &
+                                     SECONDARY_ACTIVITY_COEF, i, mc_i)
+        enddo
+      endif
+      ! mineral volume fractions for kinetic minerals
+      if (realization%reaction%mineral%nkinmnrl > 0) then
+        do i = 1, realization%reaction%mineral%nkinmnrl
+          call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+          call SecondaryRTSetVariable(realization,global_vec, &
+                                     MINERAL_VOLUME_FRACTION, i, mc_i)
+        enddo
+      endif
+      ! auxiliary data for reactions (e.g. cumulative mass)
+      if (realization%reaction%nauxiliary> 0) then
+        do i = 1, realization%reaction%nauxiliary
+          call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+          call SecondaryRTSetVariable(realization,global_vec, &
+                                      REACTION_AUXILIARY, i, mc_i)
+        enddo
+      endif
     enddo
   endif
  
