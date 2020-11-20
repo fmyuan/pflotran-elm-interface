@@ -1,0 +1,179 @@
+#dual continuum. single fracture. planar geometry
+#Based on Tang et al (1981) analytical solution
+
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      Mode GIRT
+      OPTIONS
+        MULTIPLE_CONTINUUM
+      /
+    /  
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 5
+END
+
+#=========================== useful tranport parameters ==================
+SPECIFIED_VELOCITY #Darcy flux / specific discharge (vol/area/time)
+  UNIFORM? YES
+  DATASET 5d-7 0.d0 0.d0 m/d
+END
+
+#=========================== chemistry ========================================
+
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer1
+  /
+  RADIOACTIVE_DECAY_REACTION
+    REACTION Tracer1 <->
+    HALF_LIFE 12.35 y
+  /
+  LOG_FORMULATION
+  DATABASE ../../default/hanford.dat
+  OUTPUT
+    TOTAL
+    all
+  /
+END
+
+#=========================== solver options ===================================
+NUMERICAL_METHODS TRANSPORT
+  TIMESTEPPER 
+    TS_ACCELERATION 13
+  /
+END
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 1 1 1 
+  BOUNDS 
+    0.d0   0.d0  0.d0
+    1.d0 1.0d0 1.0d0 
+  /                  
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.6d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1d0
+  TORTUOSITY 1.0d0 
+  ROCK_DENSITY 2700.d0 #kg/m3
+  LONGITUDINAL_DISPERSIVITY 0.5 #m
+
+  SECONDARY_CONTINUUM
+    TYPE SLAB 
+    LENGTH 1 #half distance between fractures - BC location in the matrix
+    AREA 1.0 #fracture/matrix interfacial area per unit (bulk) volume (1/(b+L))
+    NUM_CELLS 5 #in secondary continuum (matrix)
+    EPSILON 0.00005 #fracture volume fraction (b/(L+b))
+    DIFFUSION_COEFFICIENT 1.6d-10  #effective diffusion coefficient, includes tortuosity
+    POROSITY 0.01 #diffusion coefficient and porosity are multiplied, no tortuosity in eqn
+   /
+
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 101.d0 d
+  INITIAL_TIMESTEP_SIZE 0.006d0 d
+  MAXIMUM_TIMESTEP_SIZE 0.5d0 d 
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+     -1.d20 -1.d20 -1.d20
+     1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 -1.d20 -1.d20
+    0.d0 1.d20 1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    1.d0 -1.d20 -1.d20
+    1.d0 1.d20 1.d20
+  /
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION background_conc
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial_constraint
+  /
+END
+
+TRANSPORT_CONDITION inlet_conc
+  TYPE dirichlet_zero_gradient
+  TIME_UNITS y
+  CONSTRAINT_LIST
+    0.d0 inlet_constraint
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+    CONCENTRATIONS
+    Tracer1  1.e-20  T 	
+  /
+END
+
+CONSTRAINT inlet_constraint
+    CONCENTRATIONS
+    Tracer1  1.0  T     
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION background_conc
+  REGION all
+END
+
+BOUNDARY_CONDITION outlet
+  TRANSPORT_CONDITION background_conc
+  REGION east
+END
+
+BOUNDARY_CONDITION inlet
+  TRANSPORT_CONDITION inlet_conc
+  REGION west
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+SECONDARY_CONSTRAINT sec
+    CONCENTRATIONS
+    Tracer1   1.e-20  T   
+  /
+/
+
+END_SUBSURFACE
+
