@@ -38,7 +38,7 @@ CHEMISTRY
     HALF_LIFE 12.35 y
   /
   LOG_FORMULATION
-  DATABASE ../../default/hanford.dat
+  DATABASE ../../../database/hanford.dat
   OUTPUT
     TOTAL
     all
