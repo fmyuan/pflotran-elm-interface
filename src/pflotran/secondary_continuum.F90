@@ -2337,7 +2337,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
 end subroutine SecondaryRTGetVariable
 
 ! ************************************************************************** !
-subroutine SecondaryRTSetVariable(realization, vec, ivar, isubvar, mc_layer)
+subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, mc_layer)
   
   ! Sets a secondary continuum variable to a layer of secondary
   ! continuum cells. Similar to RealizationSetVariable, but now the "layer"
@@ -2348,12 +2348,14 @@ subroutine SecondaryRTSetVariable(realization, vec, ivar, isubvar, mc_layer)
   use Grid_module
   use Patch_module
   use Realization_Subsurface_class
+  use Option_module
   use petscvec
 
   implicit none
   
   class(realization_subsurface_type) :: realization
   Vec :: vec
+  PetscInt :: vec_format
   PetscInt :: ivar
   PetscInt :: isubvar
   PetscInt :: mc_layer
@@ -2362,38 +2364,79 @@ subroutine SecondaryRTSetVariable(realization, vec, ivar, isubvar, mc_layer)
   type(patch_type), pointer :: patch
   PetscReal, pointer :: vec_p(:)
   PetscInt :: local_id
+  PetscInt :: ghosted_id
   PetscErrorCode :: ierr
   patch => realization%patch
   grid => patch%grid
+
+  if (vec_format == NATURAL) then
+    call PrintErrMsg(realization%option,&
+                     'NATURAL vector format not supported by SecondaryRTSetVariable')
+  endif
 
   call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
   
   select case(ivar)
     case(SEC_CONT_UPD_CONC)
-      do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          updated_conc(isubvar,mc_layer) = vec_p(local_id)
-      enddo
+      if (vec_format==GLOBAL) then
+        do local_id=1, grid%nlmax
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            updated_conc(isubvar,mc_layer) = vec_p(local_id)
+        enddo
+      elseif (vec_format==LOCAL) then
+        do ghosted_id=1,grid%ngmax
+          patch%aux%SC_RT%sec_transport_vars(ghosted_id)% &
+            updated_conc(isubvar,mc_layer) = vec_p(ghosted_id)
+        enddo
+      end if
     case(MINERAL_VOLUME_FRACTION)
-      do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
-      enddo
+      if (vec_format==GLOBAL) then
+        do local_id=1, grid%nlmax
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(local_id)
+        enddo
+      elseif (vec_format==LOCAL) then
+        do ghosted_id=1,grid%ngmax
+          patch%aux%SC_RT%sec_transport_vars(ghosted_id)% &
+            sec_rt_auxvar(mc_layer)%mnrl_volfrac(isubvar) = vec_p(ghosted_id)
+        enddo
+      end if
     case(REACTION_AUXILIARY)
-      do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
-      enddo
+      if (vec_format==GLOBAL) then
+        do local_id=1, grid%nlmax
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(local_id)
+        enddo
+      elseif (vec_format==LOCAL) then
+        do ghosted_id=1,grid%ngmax
+          patch%aux%SC_RT%sec_transport_vars(ghosted_id)% &
+            sec_rt_auxvar(mc_layer)%auxiliary_data(isubvar) = vec_p(ghosted_id)
+        enddo
+      end if
     case(PRIMARY_ACTIVITY_COEF)
-      do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
-      enddo
+      if (vec_format==GLOBAL) then
+        do local_id=1, grid%nlmax
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(local_id)
+        enddo
+      elseif (vec_format==LOCAL) then
+        do ghosted_id=1,grid%ngmax
+          patch%aux%SC_RT%sec_transport_vars(ghosted_id)% &
+            sec_rt_auxvar(mc_layer)%pri_act_coef(isubvar) = vec_p(ghosted_id)
+        enddo
+      end if
     case(SECONDARY_ACTIVITY_COEF)
-      do local_id=1, grid%nlmax
-        patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
-          sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
-      enddo
+      if (vec_format==GLOBAL) then
+        do local_id=1, grid%nlmax
+          patch%aux%SC_RT%sec_transport_vars(grid%nL2G(local_id))% &
+            sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(local_id)
+        enddo
+      elseif (vec_format==LOCAL) then
+        do ghosted_id=1,grid%ngmax
+          patch%aux%SC_RT%sec_transport_vars(ghosted_id)% &
+            sec_rt_auxvar(mc_layer)%sec_act_coef(isubvar) = vec_p(ghosted_id)
+        enddo
+      end if
   end select
   
   call VecRestoreArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
