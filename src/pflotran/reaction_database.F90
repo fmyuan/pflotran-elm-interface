@@ -3514,12 +3514,6 @@ subroutine BasisInit(reaction,option)
   
   if (reaction%neqkdrxn > 0) then
 
-    if (reaction%neqcplx > 0) then
-      option%io_buffer = 'Isotherm reactions currently calculated as a &
-                         &function of free-ion, not totals.  Contact Glenn!'
-      call PrintErrMsg(option)
-    endif
-  
     ! allocate arrays
     allocate(reaction%eqkdspecid(reaction%neqkdrxn))
     reaction%eqkdspecid = 0
@@ -3598,8 +3592,31 @@ subroutine BasisInit(reaction,option)
         sec_cont_cur_kd_rxn => sec_cont_cur_kd_rxn%next
       endif
       
-      
     enddo
+
+    ! check for isotherm reaction using species with complexes
+    found = PETSC_FALSE
+    do icplx = 1, reaction%neqcplx
+      do icomp = 1, reaction%eqcplxspecid(0,icplx)
+        ipri_spec = reaction%eqcplxspecid(icomp,icplx)
+        do irxn = 1, reaction%neqkdrxn
+          if (reaction%eqkdspecid(irxn) == ipri_spec) then
+            found = PETSC_TRUE
+            option%io_buffer = 'Primary aqueous species "' // &
+              trim(reaction%primary_species_names(ipri_spec)) // &
+              '" is referenced in a sorption isotherm reaction and &
+             &is associated with secondary aqueous complex "' // &
+              trim(reaction%secondary_species_names(icplx)) // '".'
+            call PrintMsg(option)
+          endif
+        enddo
+      enddo
+    enddo
+    if (found) then
+      option%io_buffer = 'Isotherm reactions can only be simulated for &
+        &species without secondary aqueous complexes.  See comments above.'
+      call PrintErrMsg(option)
+    endif
   endif
 
   call BasisPrint(reaction,'Final Basis',option)
