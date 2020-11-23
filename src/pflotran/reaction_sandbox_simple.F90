@@ -196,6 +196,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
 
   !----------------------------------------------------------------------------
   ! zero-order (A -> C)
+  ! uncomment from the next line down
   !k = 0.d0 ! WARNING: Too high a rate can result in negative concentrations
             !          which are non-physical and the code will not converge.
   !stoichA = -1.d0
@@ -206,6 +207,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   
   !----------------------------------------------------------------------------
   ! first-order (A -> C)
+  ! uncomment from the next line down
   !k = 1.d-10
   !stoichA = -1.d0
   !stoichC = 1.d0
@@ -215,6 +217,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   
   !----------------------------------------------------------------------------
   ! second-order (A + B -> C)
+  ! uncomment from the next line down
   !k = 1.d-10
   !stoichA = -1.d0
   !stoichB = -1.d0
@@ -225,13 +228,14 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   !RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
-  ! PCL: A -> B -> C
+  ! A -> B -> C
   ! kinetic rate constants
-  ! non-stationary state
+  ! uncomment from the next line down (choose one set of k1, k2))
+  !! non-stationary state
   !k1 = 1.d-1
   !k2 = 5.d-2
   
-  !stationary state
+  !!stationary state
   !k1 = 1.d-1
   !k2 = 1.d-0
   
@@ -244,6 +248,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
 
   !----------------------------------------------------------------------------
   ! Monod (A -> C)
+  ! uncomment from the next line down
   !k = 1.d-12
   !K_Aaq = 5.d-4
   !stoichA = -1.d0
@@ -255,6 +260,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   !----------------------------------------------------------------------------
   ! multiplicative Monod w/biomass
   ! A + 2B -> C
+  ! uncomment from the next line down
   !k = 1.d-7
   !K_Aaq = 5.d-4
   !K_Baq = 5.d-4
@@ -268,6 +274,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   
   !----------------------------------------------------------------------------
   ! first-order forward - reverse (A <-> C)
+  ! uncomment from the next line down
   !k = 1.d-6
   !kr = 1.d-7
   !stoichA = -1.d0
@@ -285,7 +292,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   ! volume [m^3]
   ! L_water [L]
   ! Rate [mole/sec]
-  ! uncomment from here down
+  ! uncomment from the next line down
   !k = 1.d-8
   !kr = 1.d-10
   !stoichB = -1.d0
