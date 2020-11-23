@@ -133,8 +133,8 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   class(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
-  PetscReal :: volume                 ! m^3 bulk
-  PetscReal :: porosity               ! m^3 pore / m^3 bulk
+  PetscReal :: volume                 ! m^3 bulk volume
+  PetscReal :: porosity               ! m^3 pore / m^3 bulk volume
   PetscReal :: liquid_saturation      ! m^3 water / m^3 pore space
   PetscReal :: L_water                ! L water
   
@@ -197,12 +197,13 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
 
   !----------------------------------------------------------------------------
   ! zero-order (A -> C)
+  ! WARNING: Too high a rate can result in negative concentrations
+  !          which are non-physical and the code will not converge.
   ! uncomment from the next line down
-  !k = 0.d0 ! WARNING: Too high a rate can result in negative concentrations
-            !          which are non-physical and the code will not converge.
+  !k = 0.d0  ! [mol/L water-sec]
   !stoichA = -1.d0
   !stoichC = 1.d0
-  !Rate = k * L_water
+  !Rate = k * L_water  ! mol/sec
   !RateA = stoichA * Rate
   !RateC = stoichC * Rate
   
@@ -251,7 +252,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   ! Monod (A -> C)
   ! uncomment from the next line down
   !k = 1.d-12  ! [mol/L water-sec]
-  !K_Aaq = 5.d-4
+  !K_Aaq = 5.d-4  ! [mol/L water]
   !stoichA = -1.d0
   !stoichC = 1.d0
   !Rate = k * Aaq / (K_Aaq + Aaq) * L_water  ! [mol/sec]
@@ -262,9 +263,9 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   ! multiplicative Monod w/biomass
   ! A + 2B -> C
   ! uncomment from the next line down
-  !k = 1.d-7  ! [mol solute-m^3 bulk/mol biomass-L water-sec]
-  !K_Aaq = 5.d-4
-  !K_Baq = 5.d-4
+  !k = 1.d-7  ! [mol solute-m^3 bulk volume/mol biomass-L water-sec]
+  !K_Aaq = 5.d-4  ! [mol/L water]
+  !K_Baq = 5.d-4  ! [mol/L water]
   !stoichA = -1.d0
   !stoichB = -2.d0
   !stoichC = 1.d0
@@ -289,8 +290,8 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   ! k [1/sec]
   ! kr [1/sec]
   ! Baq [mol/L water]
-  ! Yim [mol/m^3 bulk]
-  ! volume [m^3]
+  ! Yim [mol/m^3 bulk volume]
+  ! volume [m^3 bulk volume]
   ! L_water [L water]
   ! Rate [mole/sec]
   ! uncomment from the next line down
