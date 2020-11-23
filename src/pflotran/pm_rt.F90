@@ -2108,9 +2108,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
             pm_grp_id, H5T_NATIVE_DOUBLE)
           call DiscretizationNaturalToGlobal(discretization, natural_vec, &
                                              global_vec, ONEDOF)
-          call DiscretizationGlobalToLocal(discretization, global_vec, &
-                                             local_vec, ONEDOF)
-          call SecondaryRTSetVariable(realization, local_vec, LOCAL, &
+          call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
                                     SEC_CONT_UPD_CONC, i, mc_i)
         enddo
         if (checkpoint_activity_coefs == ONE_INTEGER) then
@@ -2122,9 +2120,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
               pm_grp_id, H5T_NATIVE_DOUBLE)
             call DiscretizationNaturalToGlobal(discretization, natural_vec, &
                                                global_vec, ONEDOF)
-            call DiscretizationGlobalToLocal(discretization, global_vec, &
-                                               local_vec, ONEDOF)
-            call SecondaryRTSetVariable(realization, local_vec, LOCAL, &
+            call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
                                       PRIMARY_ACTIVITY_COEF, i, mc_i)
           enddo
           do i = 1, realization%reaction%neqcplx
@@ -2134,9 +2130,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
               pm_grp_id, H5T_NATIVE_DOUBLE)
             call DiscretizationNaturalToGlobal(discretization, natural_vec, &
                                                global_vec, ONEDOF)
-            call DiscretizationGlobalToLocal(discretization, global_vec, &
-                                               local_vec, ONEDOF)
-            call SecondaryRTSetVariable(realization, local_vec, LOCAL, &
+            call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
                                        SECONDARY_ACTIVITY_COEF, i, mc_i)
           enddo
         endif
@@ -2149,9 +2143,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
               pm_grp_id, H5T_NATIVE_DOUBLE)
             call DiscretizationNaturalToGlobal(discretization, natural_vec, &
                                                global_vec, ONEDOF)
-            call DiscretizationGlobalToLocal(discretization, global_vec, &
-                                               local_vec, ONEDOF)
-            call SecondaryRTSetVariable(realization, local_vec, LOCAL, &
+            call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
                                        MINERAL_VOLUME_FRACTION, i, mc_i)
           enddo
         endif
@@ -2162,9 +2154,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
             dataset_name = 'MC_Reaction_auxiliary_' // trim(adjustl(dataset_name))
             call DiscretizationNaturalToGlobal(discretization, natural_vec, &
                                                global_vec, ONEDOF)
-            call DiscretizationGlobalToLocal(discretization, global_vec, &
-                                               local_vec, ONEDOF)
-            call SecondaryRTSetVariable(realization, local_vec, LOCAL, &
+            call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
                                         REACTION_AUXILIARY, i, mc_i)
           enddo
         endif
