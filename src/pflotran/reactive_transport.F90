@@ -253,6 +253,8 @@ subroutine RTSetup(realization)
   if (option%use_mc) then
     patch%aux%SC_RT => SecondaryAuxRTCreate(option)
     initial_condition => patch%initial_condition_list%first
+    ! Must allocate to ngmax since rt_sec_transport_vars()%epsilon is used in
+    ! the calculation of effective diffusion coef in fluxes.
     allocate(rt_sec_transport_vars(grid%ngmax))  
     do ghosted_id = 1, grid%ngmax
     ! Assuming the same secondary continuum type for all regions
