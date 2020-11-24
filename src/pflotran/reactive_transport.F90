@@ -221,7 +221,7 @@ subroutine RTSetup(realization)
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1
-        option%io_buffer = 'Non-initialized soil particle density.'
+        option%io_buffer = 'Non-initialized rock density.'
         call PrintMsg(option)
       endif
     endif
