@@ -58,8 +58,6 @@ SPECIFIED_VELOCITY
 END
 
 #=========================== chemistry ========================================
-# Uncomment to debug reactions
-#NUMERICAL_JACOBIAN_RXN
 CHEMISTRY
   PRIMARY_SPECIES
     A(aq)

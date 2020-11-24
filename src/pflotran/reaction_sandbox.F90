@@ -35,7 +35,7 @@ module Reaction_Sandbox_module
             RSandboxRead, &
             RSandboxSkipInput, &
             RSandboxSetup, &
-            RSandbox, &
+            RSandboxEvaluate, &
             RSandboxUpdateKineticState, &
             RSandboxAuxiliaryPlotVariables, &
             RSandboxDestroy
@@ -249,8 +249,8 @@ end subroutine RSandboxSkipInput
 
 ! ************************************************************************** !
 
-subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
-                    global_auxvar,material_auxvar,reaction,option)
+subroutine RSandboxEvaluate(Residual,Jacobian,compute_derivative,rt_auxvar, &
+                            global_auxvar,material_auxvar,reaction,option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -286,7 +286,7 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
     cur_reaction => cur_reaction%next
   enddo
 
-end subroutine RSandbox
+end subroutine RSandboxEvaluate
 
 ! ************************************************************************** !
 

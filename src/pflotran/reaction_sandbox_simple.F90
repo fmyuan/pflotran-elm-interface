@@ -104,8 +104,8 @@ end subroutine SimpleSetup
 ! ************************************************************************** !
 
 subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
-                         rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option)
+                       rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                       option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -133,34 +133,35 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   class(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
-  PetscReal :: volume                 ! m^3 bulk
-  PetscReal :: porosity               ! m^3 pore space / m^3 bulk
+  PetscReal :: volume                 ! m^3 bulk volume
+  PetscReal :: porosity               ! m^3 pore / m^3 bulk volume
   PetscReal :: liquid_saturation      ! m^3 water / m^3 pore space
   PetscReal :: L_water                ! L water
   
-  PetscReal :: Aaq, Baq, Caq, Daq, Eaq, Faq  ! mol/L
-  PetscReal :: Xim, Yim  ! mol/m^3
+  PetscReal :: Aaq, Baq, Caq, Daq, Eaq, Faq  ! mol/L water
+  PetscReal :: Xim, Yim  ! mol/m^3 bulk volume
   PetscReal :: Rate,Rate1,Rate2
   PetscReal :: RateA, RateB, RateC, RateD, RateE, RateF, RateX, RateY  ! mol/sec
   PetscReal :: stoichA, stoichB, stoichC, stoichD, stoichE, stoichF
   PetscReal :: stoichX, stoichY
   PetscReal :: k, kr, k1, k2  ! units are problem specific
-  PetscReal :: K_Aaq, K_Baq ! [mol/L]
+  PetscReal :: K_Aaq, K_Baq ! [mol/L water]
   
-  porosity = material_auxvar%porosity
-  liquid_saturation = global_auxvar%sat(iphase)
-  volume = material_auxvar%volume
-  L_water = porosity*liquid_saturation*volume*1.d3  ! 1.d3 converts m^3 water -> L water
+  porosity = material_auxvar%porosity               ! [m^3 pore/m^3 bulk volume]
+  liquid_saturation = global_auxvar%sat(iphase)     ! [m^3 water/m^3 pore]
+  volume = material_auxvar%volume                   ! [m^3 bulk volume]
+            ! multiplying by 1.d3 converts m^3 water -> L water
+  L_water = porosity*liquid_saturation*volume*1.d3  
   
-  Aaq = rt_auxvar%total(this%species_Aaq_id,iphase)
-  Baq = rt_auxvar%total(this%species_Baq_id,iphase)
-  Caq = rt_auxvar%total(this%species_Caq_id,iphase)
-  Daq = rt_auxvar%total(this%species_Daq_id,iphase)
-  Eaq = rt_auxvar%total(this%species_Eaq_id,iphase)
-  Faq = rt_auxvar%total(this%species_Faq_id,iphase)
+  Aaq = rt_auxvar%total(this%species_Aaq_id,iphase) ! [mol/L water]
+  Baq = rt_auxvar%total(this%species_Baq_id,iphase) ! [mol/L water]
+  Caq = rt_auxvar%total(this%species_Caq_id,iphase) ! [mol/L water]
+  Daq = rt_auxvar%total(this%species_Daq_id,iphase) ! [mol/L water]
+  Eaq = rt_auxvar%total(this%species_Eaq_id,iphase) ! [mol/L water]
+  Faq = rt_auxvar%total(this%species_Faq_id,iphase) ! [mol/L water]
   
-  Xim = rt_auxvar%immobile(this%species_Xim_id)
-  Yim = rt_auxvar%immobile(this%species_Yim_id)
+  Xim = rt_auxvar%immobile(this%species_Xim_id)     ! [mol/m^3 bulk volume]
+  Yim = rt_auxvar%immobile(this%species_Yim_id)     ! [mol/m^3 bulk volume]
 
   ! initialize all rates to zero
   Rate = 0.d0
@@ -196,47 +197,52 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
 
   !----------------------------------------------------------------------------
   ! zero-order (A -> C)
-  !k = 0.d0 ! WARNING: Too high a rate can result in negative concentrations
-            !          which are non-physical and the code will not converge.
+  ! WARNING: Too high a rate can result in negative concentrations
+  !          which are non-physical and the code will not converge.
+  ! uncomment from the next line down
+  !k = 0.d0  ! [mol/L water-sec]
   !stoichA = -1.d0
   !stoichC = 1.d0
-  !Rate = k * L_water
+  !Rate = k * L_water  ! mol/sec
   !RateA = stoichA * Rate
   !RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
   ! first-order (A -> C)
-  !k = 1.d-10
+  ! uncomment from the next line down
+  !k = 1.d-10  ! [1/sec]
   !stoichA = -1.d0
   !stoichC = 1.d0
-  !Rate = k * Aaq * L_water
+  !Rate = k * Aaq * L_water  ! [mol/sec]
   !RateA = stoichA * Rate
   !RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
   ! second-order (A + B -> C)
-  !k = 1.d-10
+  ! uncomment from the next line down
+  !k = 1.d-10  ! [L water/mol-sec]
   !stoichA = -1.d0
   !stoichB = -1.d0
   !stoichC = 1.d0
-  !Rate = k * Aaq * Baq * L_water
+  !Rate = k * Aaq * Baq * L_water  ! [mol/sec]
   !RateA = stoichA * Rate
   !RateB = stoichB * Rate
   !RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
-  ! PCL: A -> B -> C
-  ! kinetic rate constants
-  ! non-stationary state
-  !k1 = 1.d-1
-  !k2 = 5.d-2
+  ! A -> B -> C
+  ! first-order kinetic rate constants
+  ! uncomment from the next line down (choose one set of k1, k2))
+  !! non-stationary state
+  !k1 = 1.d-1  ! [1/sec]
+  !k2 = 5.d-2  ! [1/sec]
   
-  !stationary state
-  !k1 = 1.d-1
-  !k2 = 1.d-0
+  !!stationary state
+  !k1 = 1.d-1  ! [1/sec]
+  !k2 = 1.d-0  ! [1/sec]
   
-  !Rate1 = k1 * Aaq * L_water
-  !Rate2 = k2 * Baq * L_water
+  !Rate1 = k1 * Aaq * L_water  ! [mol/sec]
+  !Rate2 = k2 * Baq * L_water  ! [mol/sec]
   
   !RateA = -Rate1
   !RateB =  Rate1 - Rate2
@@ -244,35 +250,38 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
 
   !----------------------------------------------------------------------------
   ! Monod (A -> C)
-  !k = 1.d-12
-  !K_Aaq = 5.d-4
+  ! uncomment from the next line down
+  !k = 1.d-12  ! [mol/L water-sec]
+  !K_Aaq = 5.d-4  ! [mol/L water]
   !stoichA = -1.d0
   !stoichC = 1.d0
-  !Rate = k * Aaq / (K_Aaq + Aaq) * L_water
+  !Rate = k * Aaq / (K_Aaq + Aaq) * L_water  ! [mol/sec]
   !RateA = stoichA * Rate
   !RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
   ! multiplicative Monod w/biomass
   ! A + 2B -> C
-  !k = 1.d-7
-  !K_Aaq = 5.d-4
-  !K_Baq = 5.d-4
+  ! uncomment from the next line down
+  !k = 1.d-7  ! [mol solute-m^3 bulk volume/mol biomass-L water-sec]
+  !K_Aaq = 5.d-4  ! [mol/L water]
+  !K_Baq = 5.d-4  ! [mol/L water]
   !stoichA = -1.d0
   !stoichB = -2.d0
   !stoichC = 1.d0
-  !Rate = k * Xim * Aaq / (K_Aaq + Aaq) * Baq / (K_Baq + Baq) * L_water
+  !Rate = k * Xim * Aaq / (K_Aaq + Aaq) * Baq / (K_Baq + Baq) * L_water  ! [mol/sec]
   !RateA = stoichA * Rate
   !RateB = stoichB * Rate
   !RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
   ! first-order forward - reverse (A <-> C)
-  !k = 1.d-6
-  !kr = 1.d-7
+  ! uncomment from the next line down
+  !k = 1.d-6   ! [1/sec]
+  !kr = 1.d-7  ! [1/sec]
   !stoichA = -1.d0
   !stoichC = 1.d0
-  !Rate = (k * Aaq - kr * Caq) * L_water
+  !Rate = (k * Aaq - kr * Caq) * L_water  ! [mol/sec]
   !RateA = stoichA * Rate
   !RateC = stoichC * Rate
 
@@ -280,17 +289,17 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   ! mass transfer between aqueous and immobile phases
   ! k [1/sec]
   ! kr [1/sec]
-  ! Baq [mol/L]
-  ! Yim [mol/m^3 bulk]
-  ! volume [m^3]
-  ! L_water [L]
+  ! Baq [mol/L water]
+  ! Yim [mol/m^3 bulk volume]
+  ! volume [m^3 bulk volume]
+  ! L_water [L water]
   ! Rate [mole/sec]
-  ! uncomment from here down
+  ! uncomment from the next line down
   !k = 1.d-8
   !kr = 1.d-10
   !stoichB = -1.d0
   !stoichY = 1.d0
-  !Rate = k * Baq * L_water - kr * Yim * volume
+  !Rate = k * Baq * L_water - kr * Yim * volume  ! [mol/sec]
   !RateB = stoichB * Rate
   !RateY = stoichY * Rate
   

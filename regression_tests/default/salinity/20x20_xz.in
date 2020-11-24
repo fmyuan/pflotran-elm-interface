@@ -40,8 +40,6 @@ NUMERICAL_METHODS TRANSPORT
 
 END
 
-#NUMERICAL_JACOBIAN_FLOW
-
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
