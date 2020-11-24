@@ -2780,6 +2780,7 @@ end subroutine pflotranModelSetICs
     PetscReal, pointer :: sat_pf_p(:)
     PetscReal, pointer :: sat_clm_p(:)
     type(TH_auxvar_type),pointer :: TH_auxvars(:)
+    type(option_type), pointer :: option
 
     select type (simulation => pflotran_model%simulation)
       class is (simulation_subsurface_type)
@@ -2794,6 +2795,7 @@ end subroutine pflotranModelSetICs
     patch           => realization%patch
     grid            => patch%grid
     global_aux_vars => patch%aux%Global%auxvars
+    option          => realization%option
     
     ! Save the saturation values
     call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
@@ -2808,7 +2810,7 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%sat_clm)
 
     if (pflotran_model%option%iflowmode == TH_MODE .and. &
-        th_use_freezing) then
+        option%th_freezing) then
 
       TH_auxvars => patch%aux%TH%auxvars
 

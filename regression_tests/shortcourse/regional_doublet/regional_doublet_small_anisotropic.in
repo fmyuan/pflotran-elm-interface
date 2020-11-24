@@ -29,7 +29,7 @@ END
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 10
+  CELLS_PER_PROCESS 4
 END
 
 #=========================== flow mode ========================================
@@ -96,7 +96,7 @@ MATERIAL_PROPERTY soil1
   CHARACTERISTIC_CURVES cc1
   PERMEABILITY
     PERM_X 1.d-10
-    PERM_Y 1.d-10
+    PERM_Y 2.d-10
     PERM_Z 1.d-11
   /
 END

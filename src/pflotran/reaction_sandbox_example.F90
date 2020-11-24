@@ -95,7 +95,7 @@ subroutine ExampleRead(this,input,option)
 
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,TEMPLATE')
+                       'CHEMISTRY,REACTION_SANDBOX,EXAMPLE')
     call StringToUpper(word)   
 
     select case(trim(word))
@@ -106,7 +106,7 @@ subroutine ExampleRead(this,input,option)
       !   ...
       !   REACTION_SANDBOX
       !   : begin user-defined input
-      !     TEMPLATE
+      !     EXAMPLE
       !       EXAMPLE_INTEGER 1
       !       EXAMPLE_INTEGER_ARRAY 2 3 4
       !     END
@@ -145,7 +145,7 @@ subroutine ExampleRead(this,input,option)
         endif
       case default
         call InputKeywordUnrecognized(input,word, &
-                     'CHEMISTRY,REACTION_SANDBOX,TEMPLATE',option)
+                     'CHEMISTRY,REACTION_SANDBOX,EXAMPLE',option)
     end select
   enddo
   call InputPopBlock(input,option)

@@ -82,7 +82,7 @@ contains
 
   ! Setting up the characteristic curve for Brooks Corey Burdine
     this%cc_bcb => CharacteristicCurvesCreate()
-    this%cc_bcb%saturation_function => SF_BC_Create()
+    this%cc_bcb%saturation_function => SFBCCreate()
     this%cc_bcb%saturation_function%Sr = 0.2d0
     this%cc_bcb%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_bcb%saturation_function)
@@ -92,7 +92,7 @@ contains
       class default
         print *, 'not BC type in setUp'
     end select
-    this%cc_bcb%liq_rel_perm_function => RPF_Burdine_BC_Liq_Create()
+    this%cc_bcb%liq_rel_perm_function => RPFBurdineBCLiqCreate()
     this%cc_bcb%liq_rel_perm_function%Sr = 0.2d0
     select type(sf=>this%cc_bcb%liq_rel_perm_function)
       class is(rpf_Burdine_BC_liq_type)
@@ -100,7 +100,7 @@ contains
       class default
         print *, 'not Burdine BC Liq type'
     end select
-    this%cc_bcb%gas_rel_perm_function => RPF_Burdine_BC_Gas_Create()
+    this%cc_bcb%gas_rel_perm_function => RPFBurdineBCGasCreate()
     this%cc_bcb%gas_rel_perm_function%Sr = 0.2d0
     select type(sf=>this%cc_bcb%gas_rel_perm_function)
       class is(rpf_Burdine_BC_gas_type)
@@ -116,7 +116,7 @@ contains
   ! Setting up the characteristic curve for Brooks Corey Mualem
     this%cc_bcm => CharacteristicCurvesCreate()
     ! do not set up saturation function as it is tested with cc_bcb
-    this%cc_bcm%liq_rel_perm_function => RPF_Mualem_BC_Liq_Create()
+    this%cc_bcm%liq_rel_perm_function => RPFMualemBCLiqCreate()
     this%cc_bcm%liq_rel_perm_function%Sr = 0.2d0
     select type(sf=>this%cc_bcm%liq_rel_perm_function)
       class is(rpf_Mualem_BC_liq_type)
@@ -124,7 +124,7 @@ contains
       class default
         print *, 'not Mualem BC Liq type'
     end select
-    this%cc_bcm%gas_rel_perm_function => RPF_Mualem_BC_Gas_Create()
+    this%cc_bcm%gas_rel_perm_function => RPFMualemBCGasCreate()
     this%cc_bcm%gas_rel_perm_function%Sr = 0.2d0
     select type(sf=>this%cc_bcm%gas_rel_perm_function)
       class is(rpf_Mualem_BC_gas_type)
@@ -136,7 +136,7 @@ contains
 
   ! Setting up the characteristic curve for van Genuchten Mualem
     this%cc_vgm => CharacteristicCurvesCreate()
-    this%cc_vgm%saturation_function => SF_VG_Create()
+    this%cc_vgm%saturation_function => SFVGCreate()
     this%cc_vgm%saturation_function%Sr = 0.143d0
     this%cc_vgm%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_vgm%saturation_function)
@@ -146,7 +146,7 @@ contains
       class default
         print *, 'not VG type in setUp'
     end select
-    this%cc_vgm%liq_rel_perm_function => RPF_Mualem_VG_Liq_Create()
+    this%cc_vgm%liq_rel_perm_function => RPFMualemVGLiqCreate()
     this%cc_vgm%liq_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgm%liq_rel_perm_function)
       class is(rpf_Mualem_VG_liq_type)
@@ -154,7 +154,7 @@ contains
       class default
         print *, 'not Mualem VG Liq type'
     end select
-    this%cc_vgm%gas_rel_perm_function => RPF_Mualem_VG_Gas_Create()
+    this%cc_vgm%gas_rel_perm_function => RPFMualemVGGasCreate()
     this%cc_vgm%gas_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgm%gas_rel_perm_function)
       class is(rpf_Mualem_VG_gas_type)
@@ -167,7 +167,7 @@ contains
   ! Setting up the characteristic curve for van Genuchten Burdine
     this%cc_vgb => CharacteristicCurvesCreate()
     ! do not set up saturation function as it is tested with cc_vgm
-    this%cc_vgb%liq_rel_perm_function => RPF_Burdine_VG_Liq_Create()
+    this%cc_vgb%liq_rel_perm_function => RPFBurdineVGLiqCreate()
     this%cc_vgb%liq_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgb%liq_rel_perm_function)
       class is(rpf_Burdine_VG_liq_type)
@@ -175,7 +175,7 @@ contains
       class default
         print *, 'not Burdine VG Liq type'
     end select
-    this%cc_vgb%gas_rel_perm_function => RPF_Burdine_VG_Gas_Create()
+    this%cc_vgb%gas_rel_perm_function => RPFBurdineVGGasCreate()
     this%cc_vgb%gas_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgb%gas_rel_perm_function)
       class is(rpf_Burdine_VG_gas_type)
@@ -188,7 +188,7 @@ contains
   ! Setting up the characteristic curve for van Genuchten TOUGH2 IRP7
     this%cc_vgt => CharacteristicCurvesCreate()
     ! do not set up saturation function as it is tested with cc_vgm
-    this%cc_vgt%gas_rel_perm_function => RPF_TOUGH2_IRP7_Gas_Create()
+    this%cc_vgt%gas_rel_perm_function => RPFTOUGH2IRP7GasCreate()
     this%cc_vgt%gas_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgt%gas_rel_perm_function)
       class is(rpf_TOUGH2_IRP7_gas_type)
@@ -199,7 +199,7 @@ contains
 
   ! Setting up the characteristic curve for Linear Mualem
     this%cc_lm => CharacteristicCurvesCreate()
-    this%cc_lm%saturation_function => SF_Linear_Create()
+    this%cc_lm%saturation_function => SFLinearCreate()
     this%cc_lm%saturation_function%Sr = 0.143d0
     this%cc_lm%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_lm%saturation_function)
@@ -208,9 +208,9 @@ contains
       class default
         print *, 'not Linear type in setUp'
     end select    
-    this%cc_lm%liq_rel_perm_function => RPF_Mualem_Linear_Liq_Create()
+    this%cc_lm%liq_rel_perm_function => RPFMualemLinearLiqCreate()
     this%cc_lm%liq_rel_perm_function%Sr = 0.143d0
-    this%cc_lm%gas_rel_perm_function => RPF_Mualem_Linear_Gas_Create()
+    this%cc_lm%gas_rel_perm_function => RPFMualemLinearGasCreate()
     this%cc_lm%gas_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_lm%gas_rel_perm_function)
       class is(rpf_Mualem_Linear_gas_type)
@@ -222,9 +222,9 @@ contains
   ! Setting up the characteristic curve for Linear Burdine
     this%cc_lb => CharacteristicCurvesCreate()
     ! do not set up saturation function as it is tested with cc_lm
-    this%cc_lb%liq_rel_perm_function => RPF_Burdine_Linear_Liq_Create()
+    this%cc_lb%liq_rel_perm_function => RPFBurdineLinearLiqCreate()
     this%cc_lb%liq_rel_perm_function%Sr = 0.143d0
-    this%cc_lb%gas_rel_perm_function => RPF_Burdine_Linear_Gas_Create()
+    this%cc_lb%gas_rel_perm_function => RPFBurdineLinearGasCreate()
     this%cc_lb%gas_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_lb%gas_rel_perm_function)
       class is(rpf_Burdine_Linear_gas_type)
@@ -235,7 +235,7 @@ contains
 
   ! Setting up the characteristic curve for 3-param modified Kosugi
     this%cc_mk3 => CharacteristicCurvesCreate()
-    this%cc_mk3%saturation_function => SF_mK_Create()
+    this%cc_mk3%saturation_function => SFmKCreate()
     this%cc_mk3%saturation_function%Sr = 1.53D-1
     this%cc_mk3%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_mk3%saturation_function)
@@ -247,7 +247,7 @@ contains
       class default
         print *, 'no mK3 saturation function type in setUp'
     end select
-    this%cc_mk3%liq_rel_perm_function => RPF_mK_Liq_Create()
+    this%cc_mk3%liq_rel_perm_function => RPFmKLiqCreate()
     this%cc_mk3%liq_rel_perm_function%Sr = 1.53D-1
     select type(sf=>this%cc_mk3%liq_rel_perm_function)
       class is(rpf_mK_liq_type)
@@ -255,7 +255,7 @@ contains
       class default
         print *, 'no mK3 Liq rel perm type in setUp'
     end select
-    this%cc_mk3%gas_rel_perm_function => RPF_mK_Gas_Create()
+    this%cc_mk3%gas_rel_perm_function => RPFmKGasCreate()
     this%cc_mk3%gas_rel_perm_function%Sr = 1.53D-1
     select type(sf=>this%cc_mk3%gas_rel_perm_function)
       class is(rpf_mK_gas_type)
@@ -267,7 +267,7 @@ contains
 
   ! Setting up the characteristic curve for 4-param modified Kosugi
     this%cc_mk4 => CharacteristicCurvesCreate()
-    this%cc_mk4%saturation_function => SF_mK_Create()
+    this%cc_mk4%saturation_function => SFmKCreate()
     this%cc_mk4%saturation_function%Sr = 1.53D-1
     this%cc_mk4%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_mk4%saturation_function)
@@ -280,7 +280,7 @@ contains
       class default
         print *, 'no mK4 saturation function type in setUp'
     end select
-    this%cc_mk4%liq_rel_perm_function => RPF_mK_Liq_Create()
+    this%cc_mk4%liq_rel_perm_function => RPFmKLiqCreate()
     this%cc_mk4%liq_rel_perm_function%Sr = 1.53D-1
     select type(sf=>this%cc_mk4%liq_rel_perm_function)
       class is(rpf_mK_liq_type)
@@ -288,7 +288,7 @@ contains
       class default
         print *, 'no mK4 Liq rel perm type in setUp'
     end select
-    this%cc_mk4%gas_rel_perm_function => RPF_mK_Gas_Create()
+    this%cc_mk4%gas_rel_perm_function => RPFmKGasCreate()
     this%cc_mk4%gas_rel_perm_function%Sr = 1.53D-1
     select type(sf=>this%cc_mk4%gas_rel_perm_function)
       class is(rpf_mK_gas_type)
@@ -301,7 +301,7 @@ contains
   ! Setting up the characteristic curve constant capillary pressure 
   ! saturation function
     this%cc_const => CharacteristicCurvesCreate()
-    this%cc_const%saturation_function => SF_Constant_Create()
+    this%cc_const%saturation_function => SFConstantCreate()
     select type(sf=>this%cc_const%saturation_function)
       class is(sat_func_constant_type)
         sf%constant_capillary_pressure = 1.d5
@@ -312,7 +312,7 @@ contains
     
   ! Setting up the characteristic curve for BRAGFLO_KRP1
     this%cc_krp1 => CharacteristicCurvesCreate()
-    this%cc_krp1%saturation_function => SF_KRP1_Create()
+    this%cc_krp1%saturation_function => SFKRP1Create()
     this%cc_krp1%saturation_function%Sr = 0.20d0
     this%cc_krp1%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp1%saturation_function)
@@ -323,14 +323,14 @@ contains
         sf%ignore_permeability = PETSC_TRUE
         sf%kpc = 1
     end select
-    this%cc_krp1%liq_rel_perm_function => RPF_KRP1_Liq_Create()
+    this%cc_krp1%liq_rel_perm_function => RPFKRP1LiqCreate()
     this%cc_krp1%liq_rel_perm_function%Sr = 0.20d0
     select type(sf=>this%cc_krp1%liq_rel_perm_function)
       class is(rpf_KRP1_liq_type)
         sf%m = 0.60d0
         sf%Srg = 0.25d0
     end select
-    this%cc_krp1%gas_rel_perm_function => RPF_KRP1_Gas_Create()
+    this%cc_krp1%gas_rel_perm_function => RPFKRP1GasCreate()
     this%cc_krp1%gas_rel_perm_function%Sr = 0.25d0
     select type(sf=>this%cc_krp1%gas_rel_perm_function)
       class is(rpf_KRP1_gas_type)
@@ -340,7 +340,7 @@ contains
     
   ! Setting up the characteristic curve for BRAGFLO_KRP2
     this%cc_krp2 => CharacteristicCurvesCreate()
-    this%cc_krp2%saturation_function => SF_KRP2_Create()
+    this%cc_krp2%saturation_function => SFKRP2Create()
     this%cc_krp2%saturation_function%Sr = 0.10d0
     this%cc_krp2%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp2%saturation_function)
@@ -350,13 +350,13 @@ contains
         sf%ignore_permeability = PETSC_TRUE
         sf%kpc = 2
     end select
-    this%cc_krp2%liq_rel_perm_function => RPF_KRP2_Liq_Create()
+    this%cc_krp2%liq_rel_perm_function => RPFKRP2LiqCreate()
     this%cc_krp2%liq_rel_perm_function%Sr = 0.10d0
     select type(sf=>this%cc_krp2%liq_rel_perm_function)
       class is(rpf_KRP2_liq_type)
         sf%lambda = 0.25d0
     end select
-    this%cc_krp2%gas_rel_perm_function => RPF_KRP2_Gas_Create()
+    this%cc_krp2%gas_rel_perm_function => RPFKRP2GasCreate()
     this%cc_krp2%gas_rel_perm_function%Sr = 0.10d0
     select type(sf=>this%cc_krp2%gas_rel_perm_function)
       class is(rpf_KRP2_gas_type)
@@ -365,7 +365,7 @@ contains
     
   ! Setting up the characteristic curve for BRAGFLO_KRP3
     this%cc_krp3 => CharacteristicCurvesCreate()
-    this%cc_krp3%saturation_function => SF_KRP3_Create()
+    this%cc_krp3%saturation_function => SFKRP3Create()
     this%cc_krp3%saturation_function%Sr = 0.15d0
     this%cc_krp3%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp3%saturation_function)
@@ -376,14 +376,14 @@ contains
         sf%ignore_permeability = PETSC_TRUE
         sf%kpc = 2
     end select
-    this%cc_krp3%liq_rel_perm_function => RPF_KRP3_Liq_Create()
+    this%cc_krp3%liq_rel_perm_function => RPFKRP3LiqCreate()
     this%cc_krp3%liq_rel_perm_function%Sr = 0.15d0
     select type(sf=>this%cc_krp3%liq_rel_perm_function)
       class is(rpf_KRP3_liq_type)
         sf%lambda = 0.35d0
         sf%Srg = 0.25d0
     end select
-    this%cc_krp3%gas_rel_perm_function => RPF_KRP3_Gas_Create()
+    this%cc_krp3%gas_rel_perm_function => RPFKRP3GasCreate()
     this%cc_krp3%gas_rel_perm_function%Sr = 0.15d0
     select type(sf=>this%cc_krp3%gas_rel_perm_function)
       class is(rpf_KRP3_gas_type)
@@ -393,7 +393,7 @@ contains
     
   ! Setting up the characteristic curve for BRAGFLO_KRP4
     this%cc_krp4 => CharacteristicCurvesCreate()
-    this%cc_krp4%saturation_function => SF_KRP4_Create()
+    this%cc_krp4%saturation_function => SFKRP4Create()
     this%cc_krp4%saturation_function%Sr = 0.15d0
     this%cc_krp4%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp4%saturation_function)
@@ -404,14 +404,14 @@ contains
         sf%ignore_permeability = PETSC_TRUE
         sf%kpc = 2
     end select
-    this%cc_krp4%liq_rel_perm_function => RPF_KRP4_Liq_Create()
+    this%cc_krp4%liq_rel_perm_function => RPFKRP4LiqCreate()
     this%cc_krp4%liq_rel_perm_function%Sr = 0.15d0
     select type(sf=>this%cc_krp4%liq_rel_perm_function)
       class is(rpf_KRP4_liq_type)
         sf%lambda = 0.35d0
         sf%Srg = 0.25d0
     end select
-    this%cc_krp4%gas_rel_perm_function => RPF_KRP4_Gas_Create()
+    this%cc_krp4%gas_rel_perm_function => RPFKRP4GasCreate()
     this%cc_krp4%gas_rel_perm_function%Sr = 0.15d0
     select type(sf=>this%cc_krp4%gas_rel_perm_function)
       class is(rpf_KRP4_gas_type)
@@ -421,7 +421,7 @@ contains
     
   ! Setting up the characteristic curve for BRAGFLO_KRP5
     this%cc_krp5 => CharacteristicCurvesCreate()
-    this%cc_krp5%saturation_function => SF_KRP5_Create()
+    this%cc_krp5%saturation_function => SFKRP5Create()
     this%cc_krp5%saturation_function%Sr = 0.05d0
     this%cc_krp5%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp5%saturation_function)
@@ -431,13 +431,13 @@ contains
         sf%ignore_permeability = PETSC_TRUE
         sf%kpc = 2
     end select
-    this%cc_krp5%liq_rel_perm_function => RPF_KRP5_Liq_Create()
+    this%cc_krp5%liq_rel_perm_function => RPFKRP5LiqCreate()
     this%cc_krp5%liq_rel_perm_function%Sr = 0.05d0
     select type(sf=>this%cc_krp5%liq_rel_perm_function)
       class is(rpf_KRP5_liq_type)
         sf%Srg = 0.20d0
     end select
-    this%cc_krp5%gas_rel_perm_function => RPF_KRP5_Gas_Create()
+    this%cc_krp5%gas_rel_perm_function => RPFKRP5GasCreate()
     this%cc_krp5%gas_rel_perm_function%Sr = 0.05d0
     select type(sf=>this%cc_krp5%gas_rel_perm_function)
       class is(rpf_KRP5_gas_type)
@@ -446,7 +446,7 @@ contains
 
   ! Setting up the characteristic curve for BRAGFLO_KRP8
     this%cc_krp8 => CharacteristicCurvesCreate()
-    this%cc_krp8%saturation_function => SF_KRP8_Create()
+    this%cc_krp8%saturation_function => SFKRP8Create()
     this%cc_krp8%saturation_function%Sr = 0.10d0
     this%cc_krp8%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp8%saturation_function)
@@ -457,13 +457,13 @@ contains
         sf%ignore_permeability = PETSC_TRUE
         sf%kpc = 2
     end select
-    this%cc_krp8%liq_rel_perm_function => RPF_KRP8_Liq_Create()
+    this%cc_krp8%liq_rel_perm_function => RPFKRP8LiqCreate()
     this%cc_krp8%liq_rel_perm_function%Sr = 0.10d0
     select type(sf=>this%cc_krp8%liq_rel_perm_function)
       class is(rpf_KRP8_liq_type)
         sf%m = 0.45d0
     end select
-    this%cc_krp8%gas_rel_perm_function => RPF_KRP8_Gas_Create()
+    this%cc_krp8%gas_rel_perm_function => RPFKRP8GasCreate()
     this%cc_krp8%gas_rel_perm_function%Sr = 0.10d0
     select type(sf=>this%cc_krp8%gas_rel_perm_function)
       class is(rpf_KRP8_gas_type)
@@ -472,27 +472,27 @@ contains
     
   ! Setting up the characteristic curve for BRAGFLO_KRP9
     this%cc_krp9 => CharacteristicCurvesCreate()
-    this%cc_krp9%saturation_function => SF_KRP9_Create()
+    this%cc_krp9%saturation_function => SFKRP9Create()
     this%cc_krp9%saturation_function%Sr = 0.05d0
     this%cc_krp9%saturation_function%pcmax = 0.999d7
-    this%cc_krp9%liq_rel_perm_function => RPF_KRP9_Liq_Create()
+    this%cc_krp9%liq_rel_perm_function => RPFKRP9LiqCreate()
     this%cc_krp9%liq_rel_perm_function%Sr = 0.05d0
-    this%cc_krp9%gas_rel_perm_function => RPF_KRP9_Gas_Create()
+    this%cc_krp9%gas_rel_perm_function => RPFKRP9GasCreate()
     this%cc_krp9%gas_rel_perm_function%Sr = 0.05d0
     
   ! Setting up the characteristic curve for BRAGFLO_KRP11
     this%cc_krp11 => CharacteristicCurvesCreate()
-    this%cc_krp11%saturation_function => SF_KRP11_Create()
+    this%cc_krp11%saturation_function => SFKRP11Create()
     this%cc_krp11%saturation_function%Sr = 0.08d0
     this%cc_krp11%saturation_function%pcmax = 0.999d7
-    this%cc_krp11%liq_rel_perm_function => RPF_KRP11_Liq_Create()
+    this%cc_krp11%liq_rel_perm_function => RPFKRP11LiqCreate()
     this%cc_krp11%liq_rel_perm_function%Sr = 0.08d0
     select type(sf=>this%cc_krp11%liq_rel_perm_function)
       class is(rpf_KRP11_liq_type)
         sf%tolc = 0.10
         sf%Srg = 0.18d0
     end select
-    this%cc_krp11%gas_rel_perm_function => RPF_KRP11_Gas_Create()
+    this%cc_krp11%gas_rel_perm_function => RPFKRP11GasCreate()
     this%cc_krp11%gas_rel_perm_function%Sr = 0.08d0
     select type(sf=>this%cc_krp11%gas_rel_perm_function)
       class is(rpf_KRP11_gas_type)
@@ -502,7 +502,7 @@ contains
     
   ! Setting up the characteristic curve for BRAGFLO_KRP12
     this%cc_krp12 => CharacteristicCurvesCreate()
-    this%cc_krp12%saturation_function => SF_KRP12_Create()
+    this%cc_krp12%saturation_function => SFKRP12Create()
     this%cc_krp12%saturation_function%Sr = 0.12d0
     this%cc_krp12%saturation_function%pcmax = 0.999d7
     select type(sf=>this%cc_krp12%saturation_function)
@@ -514,14 +514,14 @@ contains
         sf%ignore_permeability = PETSC_TRUE
         sf%kpc = 2
     end select
-    this%cc_krp12%liq_rel_perm_function => RPF_KRP12_Liq_Create()
+    this%cc_krp12%liq_rel_perm_function => RPFKRP12LiqCreate()
     this%cc_krp12%liq_rel_perm_function%Sr = 0.12d0
     select type(sf=>this%cc_krp12%liq_rel_perm_function)
       class is(rpf_KRP12_liq_type)
         sf%lambda = 0.20d0
         sf%Srg = 0.20d0
     end select
-    this%cc_krp12%gas_rel_perm_function => RPF_KRP12_Gas_Create()
+    this%cc_krp12%gas_rel_perm_function => RPFKRP12GasCreate()
     this%cc_krp12%gas_rel_perm_function%Sr = 0.12d0
     select type(sf=>this%cc_krp12%gas_rel_perm_function)
       class is(rpf_KRP12_gas_type)

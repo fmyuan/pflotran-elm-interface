@@ -4645,7 +4645,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   use Condition_module
   use Grid_module
   use Material_Aux_class
-  use Variables_module, only : PERMEABILITY_X
+  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
 
@@ -4736,7 +4736,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           neighbor_ghosted_id = ghosted_neighbors(icount)
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
-                                       PERMEABILITY_X) * &
+                                       PERMEABILITY_Y) * &
                 grid%structured_grid%dx(neighbor_ghosted_id)* &
                 grid%structured_grid%dz(neighbor_ghosted_id)
         enddo
@@ -4746,7 +4746,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           neighbor_ghosted_id = ghosted_neighbors(icount)
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
-                                       PERMEABILITY_X) * &
+                                       PERMEABILITY_Z) * &
                 grid%structured_grid%dx(neighbor_ghosted_id)* &
                 grid%structured_grid%dy(neighbor_ghosted_id)
         enddo
@@ -5414,7 +5414,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             call PatchUnsupportedVariable('TH','for gas phase',option)
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
-              if (th_use_freezing) then
+              if (option%th_freezing) then
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas
               else
@@ -5423,7 +5423,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               endif
             enddo
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice
@@ -5433,7 +5433,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                                       &without freezing option TH')
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice*FMWH2O
@@ -7482,7 +7482,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call PatchUnsupportedVariable('TH','GAS_MOLE_FRACTION',option)
           case(GAS_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
             else
               value = 0.d0
@@ -7490,11 +7490,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(CAPILLARY_PRESSURE)
             value = patch%aux%TH%auxvars(ghosted_id)%pc
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%den_ice*FMWH2O
             endif
           case(LIQUID_MOLE_FRACTION)
@@ -8763,7 +8763,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call PrintErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas = &
@@ -8776,7 +8776,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               endif
             endif
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice = &
@@ -8789,7 +8789,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               endif
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice = &
