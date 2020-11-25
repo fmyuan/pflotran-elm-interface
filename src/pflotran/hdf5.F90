@@ -1,7 +1,8 @@
 module HDF5_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use Logging_module
 
   use PFLOTRAN_Constants_module
@@ -448,8 +449,6 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   ! Author: Glenn Hammond
   ! Date: 01/12/08
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   
   use Option_module
@@ -634,8 +633,6 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
 
   PetscBool :: grp_exists
 
-  ! initialize fortran hdf5 interface
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -665,7 +662,6 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   call h5gclose_f(grp_id2,hdf5_err)
   call h5gclose_f(grp_id,hdf5_err)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
 end subroutine HDF5QueryRegionDefinition
 
@@ -679,8 +675,6 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   ! Date: 1/3/08
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   
   use Realization_Subsurface_class
@@ -711,8 +705,6 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
   call PetscLogEventBegin(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
                           
-  ! initialize fortran hdf5 interface 
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -773,7 +765,6 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   call PetscLogEventEnd(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
 
@@ -789,8 +780,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   ! Date: 10/21/11
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
 
   use Realization_Subsurface_class
@@ -832,9 +821,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   integer(HSIZE_T) :: length(2), offset(2)
   integer(SIZE_T) :: string_size
   integer :: ndims_h5
-
-  ! Initialize FORTRAN predefined datatypes
-  call h5open_f(hdf5_err)
 
   ! Setup file access property with parallel I/O access
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -946,7 +932,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   call h5sclose_f(data_space_id,hdf5_err)
   call h5dclose_f(data_set_id,hdf5_err)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
 end subroutine HDF5ReadRegionDefinedByVertex
 
@@ -963,8 +948,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   ! Date: 1/3/08; 02/18/09
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   
   use Realization_Subsurface_class
@@ -1013,8 +996,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   call PetscLogEventBegin(logging%event_cell_indx_int_read_hdf5, &
                           ierr);CHKERRQ(ierr)
   
- ! initialize fortran hdf5 interface
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -1083,7 +1064,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   call PetscLogEventEnd(logging%event_cell_indx_int_read_hdf5, &
                         ierr);CHKERRQ(ierr)
@@ -1102,8 +1082,6 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   ! Date: 01/16/09, 02/18/09
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   
   use Realization_Subsurface_class
@@ -1152,8 +1130,6 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   call PetscLogEventBegin(logging%event_cell_indx_real_read_hdf5, &
                           ierr);CHKERRQ(ierr)
 
-  ! initialize fortran hdf5 interface
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -1220,7 +1196,6 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   call PetscLogEventEnd(logging%event_cell_indx_real_read_hdf5, &
                         ierr);CHKERRQ(ierr)
@@ -1237,8 +1212,6 @@ subroutine HDF5WriteStructDataSetFromVec(name,realization_base,vec,file_id,data_
   ! Date: 10/25/07
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Grid_module
@@ -1293,8 +1266,6 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
   ! Date: 05/31/12
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use Realization_Subsurface_class
   use Grid_module
@@ -1433,8 +1404,6 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   ! Date: 08/16/2015
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use Realization_Subsurface_class
   use Grid_module
@@ -1490,9 +1459,9 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
-    call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
-    call h5dcreate_f(file_id,name,data_type,file_space_id, &
-                     data_set_id,hdf5_err,prop_id)
+    option%io_buffer = 'Dataset "' // trim(name) // '" does not exist &
+      &in the current open HDF5 file.'
+    call PrintErrMsg(option)
   else
     call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
   endif

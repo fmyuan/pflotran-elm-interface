@@ -1,14 +1,14 @@
 module Reaction_Mineral_Aux_module
   
+#include "petsc/finclude/petscsys.h"
   use petscsys
+
   use Reaction_Database_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   ! mineral types
   PetscInt, parameter, public :: MINERAL_REFERENCE = 1
@@ -165,8 +165,6 @@ function MineralCreate()
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   type(mineral_type), pointer :: MineralCreate
@@ -242,8 +240,6 @@ function MineralRxnCreate()
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   type(mineral_rxn_type), pointer :: MineralRxnCreate
@@ -501,7 +497,6 @@ function GetMineralIDFromName1(name,mineral,option)
   ! Author: Glenn Hammond
   ! Date: 09/04/08
   ! 
-#include "petsc/finclude/petscsys.h"
   use Option_module
   use String_module
   
@@ -582,8 +577,6 @@ function GetKineticMineralIDFromName(name,mineral,option)
   ! Author: Glenn Hammond
   ! Date: 03/11/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   

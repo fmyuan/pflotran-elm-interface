@@ -83,8 +83,6 @@ SIMULATION
       MODE GENERAL
       OPTIONS
         RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
       /
     /
   /
@@ -94,16 +92,23 @@ END
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\subsection{SOLVER}
-\begin{frame}[fragile]\frametitle{SOLVER}
+\subsection{NUMERICAL METHODS}
+\begin{frame}[fragile]\frametitle{NUMERICAL METHODS}
 
 \begin{itemize}
-  \item Specify direct solver (small problem)
+  \item Numerical Methods within subsurface block
+  \item Newton Solver and Linear Solver sub-blocks
 \end{itemize}
 
 \begin{semiverbatim}
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
 END
 \end{semiverbatim}
 \end{frame}
@@ -202,12 +207,13 @@ END
 \end{itemize}
 
 \begin{semiverbatim}
-SATURATION_FUNCTION VAN_GENUCHTEN
-    ALPHA 1.d-4
-    M 0.5d0
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    CALCULATE_INTERFACIAL_TENSION
-  /
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+      ALPHA 1.d-4
+      M 0.5d0
+      LIQUID_RESIDUAL_SATURATION 0.1d0
+      CALCULATE_INTERFACIAL_TENSION
+    /
 \end{semiverbatim}
 
 \newpage

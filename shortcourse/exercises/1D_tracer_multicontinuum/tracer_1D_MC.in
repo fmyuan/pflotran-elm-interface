@@ -1,10 +1,28 @@
 # Description: 1D tracer constant flow rate
 # S. Karra/P.C. Lichtner
 # PFLOTRAN shortcourse
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+        MULTIPLE_CONTINUUM
+      /
+    /
+  /
+END
 
-UNIFORM_VELOCITY 14.4d0 0.d0 0.d0 m/yr
-
-MULTIPLE_CONTINUUM
+SUBSURFACE
+#=========================== numerical methods ========================
+NUMERICAL_METHODS TRANSPORT
+  NEWTON_SOLVER
+    DTOL 1.d20
+  /
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -15,6 +33,7 @@ CHEMISTRY
   MOLAL
   OUTPUT
     All
+    TOTAL
   /
 /
 
@@ -30,22 +49,6 @@ GRID
 END
 
 #===================== Solver options ========================
-TIMESTEPPER
-  TS_ACCELERATION 25
-  MAX_TS_CUTS 10
-  MAX_STEPS 10000
-END
-
-NEWTON_SOLVER TRANSPORT
-  ATOL 1D-15
-  RTOL 1D-10
-  STOL 1D-30
-  MAX_NORM 1D30
-  ITOL 1D-8
-  ITOL_SEC 1D-8
-  MAXIT 100
-  MAXF 100
-END
 
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
@@ -59,7 +62,7 @@ MATERIAL_PROPERTY soil1
   ROCK_DENSITY 2.8E3
   SPECIFIC_HEAT 1E3
   THERMAL_CONDUCTIVITY_WET 0.5
-  SATURATION_FUNCTION default 
+  CHARACTERISTIC_CURVES default 
   PERMEABILITY 
     PERM_X 1.d-15
     PERM_Y 1.d-15
@@ -74,17 +77,26 @@ MATERIAL_PROPERTY soil1
     DIFFUSION_COEFFICIENT 0.8d-9
     POROSITY 0.4464
    /
-/
+END
 
-#========================= saturation functions ==================
-SATURATION_FUNCTION default
-   SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-   RESIDUAL_SATURATION LIQUID_PHASE 0.1
-   RESIDUAL_SATURATION GAS_PHASE 0.0
-   LAMBDA 0.762
-   ALPHA 7.5d-4
-   MAX_CAPILLARY_PRESSURE 1.D6
-/
+#========================= characteristic curves ==================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.762
+    ALPHA 7.5d-4
+    MAX_CAPILLARY_PRESSURE 1.d6
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.762
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.0
+    M 0.762
+  /
+END
 
 #========================= output options =========================
 OUTPUT
@@ -102,7 +114,6 @@ TIME
   MAXIMUM_TIMESTEP_SIZE 1.d2 s at 5.d3 s
   MAXIMUM_TIMESTEP_SIZE 1.d3 s at 5.e4 s
 /
-
 #=========================== regions ===============================
 REGION all
   COORDINATES
@@ -140,6 +151,20 @@ OBSERVATION
   SECONDARY_MINERAL_VOLFRAC
 /
 
+#==== flow conditions =========================================================
+FLOW_CONDITION initial_pressure
+  TYPE
+    PRESSURE DIRICHLET
+  /
+  PRESSURE 201325.d0
+END
+
+FLOW_CONDITION inlet_flux
+  TYPE
+    FLUX NEUMANN
+  /
+  FLUX 14.4d0 m/y
+END
 #==== transport conditions=====================================================
 TRANSPORT_CONDITION initial
   TYPE DIRICHLET
@@ -165,21 +190,21 @@ TRANSPORT_CONDITION east
 #========================== initial and boundary conditions =================
 # initial condition
 INITIAL_CONDITION
-  FLOW_CONDITION initial
+  FLOW_CONDITION initial_pressure
   TRANSPORT_CONDITION initial
   REGION all
 END
 
 # west boundary condition
-BOUNDARY_CONDITION
-  FLOW_CONDITION west
+BOUNDARY_CONDITION outlet
+  FLOW_CONDITION initial_pressure
   TRANSPORT_CONDITION west
   REGION west
 END
 
 # east boundary condition
-BOUNDARY_CONDITION
-  FLOW_CONDITION east
+BOUNDARY_CONDITION inlet
+  FLOW_CONDITION inlet_flux
   TRANSPORT_CONDITION east
   REGION east
 END
@@ -215,5 +240,3 @@ SECONDARY_CONSTRAINT sec
     A(aq)  0.1  T 
   /
 /
-
-

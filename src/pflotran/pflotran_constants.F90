@@ -2,30 +2,29 @@ module PFLOTRAN_Constants_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
 #include "petsc/finclude/petscsys.h"
   use petscsys
   
   use, intrinsic :: iso_fortran_env, only : stdout=>Output_Unit
  
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-
   implicit none
 
   private
 
-!#include "petsc/finclude/petscsys.h"
+  PetscBool, parameter :: PFLOTRAN_RELEASE = PETSC_FALSE
+  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 3
+  PetscInt, parameter :: PFLOTRAN_VERSION_MINOR = 0
+  PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = 0 ! (alpha < -1; beta = -1)
+
 #define VMAJOR 3
-#define VMINOR 10
-#define VSUBMINOR 2
+#define VMINOR 13
+#define VSUBMINOR 0
 #if (PETSC_VERSION_MAJOR < VMAJOR ||                    \
      (PETSC_VERSION_MAJOR == VMAJOR &&                  \
       (PETSC_VERSION_MINOR < VMINOR ||                  \
        (PETSC_VERSION_MINOR == VMINOR &&                \
         (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
-#error "Please use PETSc version 3.10.2: 'git checkout v3.10.2' in $PETSC_DIR"
+#error "Please use PETSc version 3.13: 'git checkout v3.13' in $PETSC_DIR"
 #endif
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS 
   ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
@@ -42,18 +41,17 @@ module PFLOTRAN_Constants_module
   ! for embedded input files.
   PetscInt, parameter, public :: MAX_IN_UNIT = 25
   PetscInt, parameter, public :: IUNIT_TEMP = 86
-  ! Unit numbers for reading and writing reservoir engineering format files
-  PetscInt, parameter, public :: UNIT_GRDECL_READ = 50
-  PetscInt, parameter, public :: UNIT_SPEC_WRITE  = 51
-  PetscInt, parameter, public :: UNIT_SUMM_WRITE  = 52
-  PetscInt, parameter, public :: UNIT_GRID_WRITE  = 53
-  PetscInt, parameter, public :: UNIT_INIT_WRITE  = 54
-  PetscInt, parameter, public :: UNIT_REST_WRITE  = 55
+  ! Units 50-59 are reserved for reservoir engineering format files
   ! EKG_UNIT = 87
   PetscInt, parameter, public :: INPUT_RECORD_UNIT = 88
   PetscInt, parameter, public :: HHISTORY_LENGTH = 1000
   ! HHISTORY_LENGTH is the length of the array used to store the differencing
   ! values h.
+
+  ! EXIT codes
+  PetscInt, parameter, public :: EXIT_SUCCESS = 0
+  PetscInt, parameter, public :: EXIT_USER_ERROR = 87
+  PetscInt, parameter, public :: EXIT_FAILURE = 88
   
   ! formula weights
   PetscReal, parameter, public :: FMWNACL = 58.44277d0
@@ -118,6 +116,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: X_DIRECTION = 1
   PetscInt, parameter, public :: Y_DIRECTION = 2
   PetscInt, parameter, public :: Z_DIRECTION = 3
+  PetscInt, parameter, public :: XY_DIRECTION = 4
+  PetscInt, parameter, public :: XZ_DIRECTION = 5
+  PetscInt, parameter, public :: YZ_DIRECTION = 6
   PetscInt, parameter, public :: LOWER = 1
   PetscInt, parameter, public :: UPPER = 2
   
@@ -162,6 +163,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: WF_MODE = 10
   PetscInt, parameter, public :: RICHARDS_TS_MODE = 11
   PetscInt, parameter, public :: TH_TS_MODE = 12
+  PetscInt, parameter, public :: H_MODE = 13
 
   ! flow sub-modes
   PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
@@ -170,8 +172,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
 
   ! transport modes
-  PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
-  PetscInt, parameter, public :: NW_TRANSPORT = 2
+  PetscInt, parameter, public :: RT_MODE = 1
+  PetscInt, parameter, public :: NWT_MODE = 2
+  PetscInt, parameter, public :: EXPLICIT_ADVECTION = 10
   
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0
@@ -180,14 +183,14 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: DIRICHLET_ZERO_GRADIENT_BC = 3
   PetscInt, parameter, public :: ZERO_GRADIENT_BC = 4
   PetscInt, parameter, public :: HYDROSTATIC_BC = 5
-  PetscInt, parameter, public :: SEEPAGE_BC = 6
+  PetscInt, parameter, public :: HYDROSTATIC_SEEPAGE_BC = 6
   PetscInt, parameter, public :: MASS_RATE_SS = 7
   PetscInt, parameter, public :: VOLUMETRIC_RATE_SS = 8
   PetscInt, parameter, public :: SCALED_MASS_RATE_SS = 9
   PetscInt, parameter, public :: SCALED_VOLUMETRIC_RATE_SS = 10
   PetscInt, parameter, public :: CONCENTRATION_SS = 11
   PetscInt, parameter, public :: EQUILIBRIUM_SS = 12
-  PetscInt, parameter, public :: CONDUCTANCE_BC = 13
+  PetscInt, parameter, public :: HYDROSTATIC_CONDUCTANCE_BC = 13
   PetscInt, parameter, public :: UNIT_GRADIENT_BC = 14
   PetscInt, parameter, public :: SATURATION_BC = 15
   PetscInt, parameter, public :: HET_VOL_RATE_SS = 16
@@ -196,7 +199,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: ENERGY_RATE_SS = 19
   PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS = 20
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
-  PetscInt, parameter, public :: HET_SURF_SEEPAGE_BC = 22
+  PetscInt, parameter, public :: HET_SURF_HYDROSTATIC_SEEPAGE_BC = 22
   PetscInt, parameter, public :: SPILLOVER_BC = 23
   PetscInt, parameter, public :: WELL_MASS_RATE_TARGET = 24
   PetscInt, parameter, public :: WELL_MASS_RATE_MAX = 25
@@ -210,9 +213,11 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
-  PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
-  PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
+  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC = 36
+  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 37
   PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 38
+  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 38
+  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 39
   
   PetscInt, parameter, public :: WELL_SS = 100
   
@@ -266,7 +271,8 @@ module PFLOTRAN_Constants_module
   
   ! ids of non-petsc arrays
   PetscInt, parameter, public :: MATERIAL_ID_ARRAY = 1
-  PetscInt, parameter, public :: SATURATION_FUNCTION_ID_ARRAY = 2
+  PetscInt, parameter, public :: CC_ID_ARRAY = 2  ! characteristic curves
+  PetscInt, parameter, public :: CCT_ID_ARRAY = 3 ! charact. curves thermal
   
   ! interpolation methods
   PetscInt, parameter, public :: INTERPOLATION_NULL = 0
@@ -363,7 +369,8 @@ module PFLOTRAN_Constants_module
   
   public :: Initialized, &
             Uninitialized, &
-            UninitializedMessage
+            UninitializedMessage, &
+            GetVersion
   
 contains
 
@@ -451,6 +458,9 @@ function InitializedMatType(value)
   ! Tests whether a variable is initialized based orginally being set to
   ! the value PETSC_NULL_CHARACTER.
   ! 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
   implicit none
   
   MatType :: value
@@ -467,6 +477,9 @@ function UninitializedMatType(value)
   ! Tests whether a variable is uninitialized based orginally being set to
   ! the value PETSC_NULL_CHARACTER.
   ! 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
   implicit none
   
   MatType :: value
@@ -504,5 +517,39 @@ function UninitializedMessage(variable_name,routine_name)
   endif
   
 end function UninitializedMessage
+
+! ************************************************************************** !
+
+function GetVersion()
+  ! 
+  ! Returns the PFLOTRAN version in string format using semantic versioning
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/23/20
+  !
+  implicit none
+  
+  character(len=MAXWORDLENGTH) :: GetVersion
+  
+  character(len=MAXWORDLENGTH) :: word
+  
+  if (PFLOTRAN_RELEASE) then
+    write(word,*) PFLOTRAN_VERSION_MAJOR
+    GetVersion = 'PFLOTRAN v' // trim(adjustl(word))
+    write(word,*) PFLOTRAN_VERSION_MINOR
+    GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
+    if (PFLOTRAN_VERSION_PATCH > 0) then
+      write(word,*) PFLOTRAN_VERSION_PATCH
+      GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
+    else if (PFLOTRAN_VERSION_PATCH < -1) then
+      GetVersion = trim(GetVersion) // '-alpha'
+    else if (PFLOTRAN_VERSION_PATCH < 0) then
+      GetVersion = trim(GetVersion) // '-beta'
+    endif
+  else
+    GetVersion = 'PFLOTRAN Development Version'
+  endif
+  
+end function GetVersion
 
 end module PFLOTRAN_Constants_module

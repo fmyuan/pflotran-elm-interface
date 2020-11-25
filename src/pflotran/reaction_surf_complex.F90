@@ -1,5 +1,8 @@
 module Reaction_Surface_Complexation_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Surface_Complexation_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
@@ -34,8 +35,6 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   !
-#include "petsc/finclude/petscsys.h"
-  use petscsys 
   use Option_module
   use String_module
   use Input_Aux_module
@@ -43,14 +42,13 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
-  character(len=MAXWORDLENGTH) :: card
   type(surface_complexation_type), pointer :: surface_complexation
   type(surface_complex_type), pointer :: srfcplx, cur_srfcplx, prev_srfcplx, &
                                          cur_srfcplx_in_rxn
@@ -74,12 +72,13 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   srfcplx_rxn%itype = SRFCMPLX_RXN_EQUILIBRIUM
   temp_srfcplx_count = 0
   num_times_surface_type_set = 0
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                         'CHEMISTRY,SURFACE_COMPLEXATION_RXN')
     call StringToUpper(word)
@@ -89,10 +88,22 @@ subroutine SurfaceComplexationRead(reaction,input,option)
         srfcplx_rxn%itype = SRFCMPLX_RXN_EQUILIBRIUM
       case('MULTIRATE_KINETIC')
         srfcplx_rxn%itype = SRFCMPLX_RXN_MULTIRATE_KINETIC
+        ! have to equilibrate initial sorbed concentrations at each cell
+        ! can overwrite with DO_NOT_EQUILIBRATE_AT_EACH_CELL in constraint
+        reaction%equilibrate_at_each_cell = PETSC_TRUE
       case('KINETIC')
+        option%io_buffer = 'Non-multirate kinetic surface complexation &
+          &currently unsupported until implementation is fixed. Email&
+          &pflotran-dev.'
+        call PrintErrMsg(option)
         srfcplx_rxn%itype = SRFCMPLX_RXN_KINETIC
       case('COMPLEX_KINETICS')
+        option%io_buffer = 'Non-multirate kinetic surface complexation &
+          &currently unsupported until implementation is fixed. Email&
+          &pflotran-dev.'
+        call PrintErrMsg(option)
         nullify(prev_srfcplx)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -102,12 +113,13 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           call InputReadWord(input,option,srfcplx%name,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
             'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE')
-                        
+          
+          call InputPushBlock(input,option)
           do
             call InputReadPflotranString(input,option)
-            call InputReadStringErrorMsg(input,option,card)
+            call InputReadStringErrorMsg(input,option,word)
             if (InputCheckExit(input,option)) exit
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'word', &
                     'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE') 
             select case(trim(word))
@@ -120,10 +132,11 @@ subroutine SurfaceComplexationRead(reaction,input,option)
                 call InputErrorMsg(input,option,'backward_rate', &
                         'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE')
               case default
-                call InputKeywordUnrecognized(word, &
+                call InputKeywordUnrecognized(input,word, &
                        'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE',option)
             end select
           enddo
+          call InputPopBlock(input,option)
                                       
           if (.not.associated(rate_list)) then
             rate_list => srfcplx
@@ -134,6 +147,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           prev_srfcplx => srfcplx
           nullify(srfcplx)
         enddo
+        call InputPopBlock(input,option)
         nullify(prev_srfcplx)
       case('RATE','RATES') 
         srfcplx_rxn%itype = SRFCMPLX_RXN_MULTIRATE_KINETIC
@@ -176,6 +190,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           'CHEMISTRY,SURFACE_COMPLEXATION_RXN,SITE_DENSITY')                   
       case('COMPLEXES')
         nullify(prev_srfcplx)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -197,13 +212,15 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           prev_srfcplx => srfcplx
           nullify(srfcplx)
         enddo
+        call InputPopBlock(input,option)
         nullify(prev_srfcplx)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                 'CHEMISTRY,SURFACE_COMPLEXATION_RXN',option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
   
   if (num_times_surface_type_set > 1) then
     option%io_buffer = 'Surface site type (e.g. MINERAL, ROCK_DENSITY, ' // &
@@ -379,8 +396,6 @@ subroutine SrfCplxProcessConstraint(surface_complexation,constraint_name, &
   ! Author: Glenn Hammond
   ! Date: 01/07/13
   !
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -459,7 +474,7 @@ subroutine RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: irxn, ieqrxn
@@ -523,7 +538,7 @@ subroutine RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: irxn, ikinmrrxn
@@ -584,7 +599,7 @@ subroutine RMultiRateSorption(Res,Jac,compute_derivative,rt_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(option_type) :: option
@@ -673,8 +688,6 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 10/22/08; 05/26/09; 03/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Matrix_Block_Aux_module
   
@@ -683,7 +696,7 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscInt :: irxn
   PetscReal :: external_free_site_conc
@@ -957,7 +970,7 @@ subroutine RKineticSurfCplx(Res,Jac,compute_derivative,rt_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(option_type) :: option

@@ -1,5 +1,8 @@
 module SrcSink_Sandbox_Base_class
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use Geometry_module
 
@@ -7,8 +10,6 @@ module SrcSink_Sandbox_Base_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, abstract, public :: srcsink_sandbox_base_type
     PetscInt :: local_cell_id
     PetscInt :: natural_cell_id
@@ -55,8 +56,6 @@ end subroutine SSSandboxBaseInit
 
 subroutine SSSandboxBaseSetup(this,grid,option)
     
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Grid_module
   
@@ -123,8 +122,6 @@ end subroutine SSSandboxBaseRead
 
 subroutine SSSandboxBaseSelectCase(this,input,option,keyword,found)
     
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use Geometry_module
@@ -143,11 +140,6 @@ subroutine SSSandboxBaseSelectCase(this,input,option,keyword,found)
   
   found = PETSC_TRUE
   select case(trim(keyword))
-    case('REGION')
-      option%io_buffer = 'The REGION card has been deprecated in &
-        &Source/Sink Sandbox.  Please switch to using a COORDINATE and &
-        &defining one Src/Sink block for each coordinate.'
-      call PrintErrMsg(option)
     case('COORDINATE')
       call GeometryReadCoordinate(input,option,this%coordinate,error_string)
     case('CELL_ID')

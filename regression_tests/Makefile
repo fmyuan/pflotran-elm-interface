@@ -13,11 +13,27 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 TEST_MANAGER = regression_tests.py
 PFLOTRAN = ../src/pflotran/pflotran
 
-TEST_OPTIONS =
+TEST_OPTIONS =  
 
 # make PERFORMANCE=true check
 ifdef PERFORMANCE
 	TEST_OPTIONS += --check-performance
+endif
+
+ifdef DRYRUN
+	TEST_OPTIONS += --dry-run
+endif
+
+ifdef UPDATE
+	TEST_OPTIONS += --update
+endif
+
+ifdef CHECK
+	TEST_OPTIONS += --check-only
+endif
+
+ifdef NEW
+	TEST_OPTIONS += --new-tests
 endif
 
 ifdef BACKTRACE
@@ -50,9 +66,11 @@ STANDARD_CFG = \
 	default/materials/materials.cfg \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
 	default/materials/mineral_volume/mineral_volume.cfg \
+	default/materials/full_tensor/full_tensor.cfg \
 	default/infiltrometer/infiltrometer.cfg \
 	default/numerical/numerical.cfg \
 	default/output/output.cfg \
+	default/output/compare/compare.cfg \
 	default/restart/restart.cfg \
 	default/restart/skip/skip.cfg \
 	default/steady/steady.cfg \
@@ -64,39 +82,48 @@ STANDARD_CFG = \
 	default/regions/regions.cfg \
 	default/regions/cell_mapping/cell_mapping.cfg \
 	default/salinity/salinity.cfg \
+	default/tcond/T_dep_tcond.cfg \
 	default/timestepping/timestepping.cfg \
 	default/velocity/velocity.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
-        ngee/ngee.cfg \
+	ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
 	ufd/ufd.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/input_format/input_format.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/nuts/nuts.cfg \
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
+	wipp/transport/batch/wipp_batch.cfg \
+	wipp/transport/wipp_regular.cfg \
+	toil_ims/toil_ims.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
+	towg/bo/towg_bo.cfg \
+	default/integral_flux/integral_flux.cfg
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
-	towg/bo/towg_bo.cfg \
-	CPR_preconditioner/CPR_preconditioner.cfg
+	CPR_preconditioner/CPR_preconditioner.cfg \
+	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 STANDARD_CFG += \
 	default/discretization/discretization.cfg \
+	default/materials/materials_ug.cfg \
+	default/output/output_ug.cfg \
+	default/regions/regions_ug.cfg \
+	default/regions/cell_mapping/cell_mapping_ug.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
-        geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
-        geomech/terzaghi/terzaghi.cfg \
+	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
+	geomech/terzaghi/terzaghi.cfg \
 	surfaceflow/surface_flow_only/surface_only.cfg \
 	surfaceflow/surface_th/surface_th.cfg \
 	surfaceflow/inlinesurface/inlinesurface.cfg
@@ -114,7 +141,7 @@ GEOCHEMISTRY_CFG = \
 	default/batch/batch.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
-        ngee/ngee.cfg \
+	ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	ufd/ufd.cfg \
@@ -135,7 +162,7 @@ FLOW_CFG = \
 	default/scco2/mphase/mphase.cfg \
 	default/scco2/flash2/flash2.cfg \
 	general/general.cfg \
-        toil_ims/toil_ims.cfg \
+	toil_ims/toil_ims.cfg \
 	towg/ims/towg_ims.cfg \
 	towg/tl/towg_tl.cfg \
 	towg/bo/towg_bo.cfg \
@@ -148,7 +175,9 @@ TRANSPORT_CFG = \
 	default/column/column.cfg \
 	default/dispersion/dispersion.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	default/velocity/velocity.cfg
+	default/velocity/velocity.cfg \
+	wipp/transport/batch/wipp_batch.cfg \
+	wipp/transport/wipp_regular.cfg
 
 MESH_CFG = \
 	default/discretization/discretization.cfg
@@ -178,12 +207,16 @@ NOHDF5_CFG = \
 	default/eos/eos.cfg \
 	default/regions/regions.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
+
+TCOND_CFG = \
+    default/tcond/T_dep_tcond.cfg
 
 WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
+	wipp/transport/batch/wipp_batch.cfg 
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 
 test : standard
@@ -257,6 +290,10 @@ nonhdf5_test :
 		--suite standard standard_parallel \
 		--config-files $(NOHDF5_CFG)
 
+tcond_test :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(TCOND_CFG)
+
 wipp_test :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(WIPP_CFG)
@@ -270,20 +307,20 @@ wipp_test :
 # removed.
 #
 clean-tests :
-	-find . -type f -name '*.testlog' -print0 | xargs -0 rm
-	-find . -type f -name '*.out' -print0 | xargs -0 rm
-	-find . -type f -name '*.tec' -print0 | xargs -0 rm
-	-find . -type f -name '*.regression' -print0 | xargs -0 rm
-	-find . -type f -name '*.stdout' -print0 | xargs -0 rm
-	-find . -type f -name '*.old' -print0 | xargs -0 rm
-	-find . -type f -name '*~' -print0 | xargs -0 rm
-	-find . -type f -name 'tmp-restart-*' -print0 | xargs -0 rm
-	-find . -type f -name '*.chk' -print0 | xargs -0 rm
-	-find . -type f -name '*.pyc' -print0 | xargs -0 rm
-	-find . -type f -name 'sigma*.txt' -print0 | xargs -0 rm 
-	-find . -type f -name '*.dpd' -print0 | xargs -0 rm
-	-find . -type f -name 'e4d*.log' -print0 | xargs -0 rm
-	-find . -type d -name '__pycache__' -print0 | xargs -0 rm -r
+	-find . -type f -name '*.testlog' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.out' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.tec' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.regression' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.stdout' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.old' -print0 | xargs -0 -r rm
+	-find . -type f -name '*~' -print0 | xargs -0 -r rm
+	-find . -type f -name 'tmp-restart-*' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.chk' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.pyc' -print0 | xargs -0 -r rm
+	-find . -type f -name 'sigma*.txt' -print0 | xargs -0 -r rm 
+	-find . -type f -name '*.dpd' -print0 | xargs -0 -r rm
+	-find . -type f -name 'e4d*.log' -print0 | xargs -0 -r rm
+	-find . -type d -name '__pycache__' -print0 | xargs -0 -r rm 
 	-rm -f mfd/mfd-mas.dat
 	-rm -f mfd/mfd.h5
 	-rm -f default/543/543_flow_and_tracer-np8.h5

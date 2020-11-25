@@ -1,5 +1,8 @@
 module Reaction_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module  
   use Global_Aux_module
@@ -31,8 +34,6 @@ module Reaction_module
   implicit none
  
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
@@ -89,7 +90,7 @@ subroutine ReactionInit(reaction,input,option)
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -122,8 +123,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -137,7 +136,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -158,6 +157,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
+  type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn, prev_dynamic_kd_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
   type(kd_rxn_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
   type(generic_parameter_type), pointer :: generic_list
@@ -176,6 +176,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   nullify(prev_cation)
   nullify(prev_general_rxn)
   nullify(prev_radioactive_decay_rxn)
+  nullify(prev_dynamic_kd_rxn)
   nullify(prev_kd_rxn)
   nullify(prev_ionx_rxn)
   
@@ -189,13 +190,14 @@ subroutine ReactionReadPass1(reaction,input,option)
   kd_units = ''
   srfcplx_count = 0
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY')
     call StringToUpper(word)
     
@@ -211,7 +213,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           reaction%naqcomp = reaction%naqcomp + 1
           
           species => AqueousSpeciesCreate()
-          call InputReadWord(input,option,species%name,PETSC_TRUE)  
+          call InputReadCard(input,option,species%name)  
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,&
                              &PRIMARY_SPECIES')    
           if (.not.associated(reaction%primary_species_list)) then
@@ -235,7 +237,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           reaction%neqcplx = reaction%neqcplx + 1
           
           species => AqueousSpeciesCreate()
-          call InputReadWord(input,option,species%name,PETSC_TRUE)  
+          call InputReadCard(input,option,species%name)  
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,&
                              &SECONDARY_SPECIES')
           if (.not.associated(reaction%secondary_species_list)) then
@@ -261,7 +263,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)  
+          call InputReadCard(input,option,word)  
           call InputErrorMsg(input,option,'name',error_string)
           call InputReadDouble(input,option,temp_real)
           call InputErrorMsg(input,option, &
@@ -281,7 +283,9 @@ subroutine ReactionReadPass1(reaction,input,option)
         string = 'CHEMISTRY,ACTIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,ACTIVE_GAS,string,input,option)
       !TODO(geh): remove GAS_SPECIES
-      case('PASSIVE_GAS_SPECIES','GAS_SPECIES')
+      case('GAS_SPECIES')
+        call InputKeywordDeprecated('GAS_SPECIES','PASSIVE_GAS_SPECIES',option)
+      case('PASSIVE_GAS_SPECIES')
         string = 'CHEMISTRY,PASSIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,PASSIVE_GAS,string,input,option)
       case('IMMOBILE_SPECIES')
@@ -292,12 +296,13 @@ subroutine ReactionReadPass1(reaction,input,option)
         reaction%nradiodecay_rxn = reaction%nradiodecay_rxn + 1
         radioactive_decay_rxn => RadioactiveDecayRxnCreate()
         radioactive_decay_rxn%rate_constant = UNINITIALIZED_DOUBLE
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,RADIOACTIVE_DECAY_REACTION')
           call StringToUpper(word)   
@@ -330,10 +335,11 @@ subroutine ReactionReadPass1(reaction,input,option)
               radioactive_decay_rxn%rate_constant = &
                 -1.d0*log(0.5d0)/radioactive_decay_rxn%half_life
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                 'CHEMISTRY,IMMOBILE_DECAY_REACTION',option)
           end select
         enddo   
+        call InputPopBlock(input,option)
         if (Uninitialized(radioactive_decay_rxn%rate_constant)) then
           option%io_buffer = 'RATE_CONSTANT or HALF_LIFE must be set in ' // &
             'RADIOACTIVE_DECAY_REACTION.'
@@ -352,12 +358,13 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('GENERAL_REACTION')
         reaction%ngeneral_rxn = reaction%ngeneral_rxn + 1
         general_rxn => GeneralRxnCreate()
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,GENERAL_REACTION')
           call StringToUpper(word)   
 
@@ -373,13 +380,14 @@ subroutine ReactionReadPass1(reaction,input,option)
 #if 0
             case('FORWARD_SPECIES')
               nullify(prev_species)
+              call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
                 
                 species => AqueousSpeciesCreate()
-                call InputReadWord(input,option,species%name,PETSC_TRUE)  
+                call InputReadCard(input,option,species%name)  
                 call InputErrorMsg(input,option,'keyword','CHEMISTRY, &
                                    GENERAL_REACTION,FORWARD_SPECIES')    
                 if (.not.associated(general_rxn%forward_species_list)) then
@@ -393,16 +401,18 @@ subroutine ReactionReadPass1(reaction,input,option)
                 prev_species => species
                 nullify(species)
               enddo
+              call InputPopBlock(input,option)
               nullify(prev_species)
             case('BACKWARD_SPECIES')
               nullify(prev_species)
+              call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
                 
                 species => AqueousSpeciesCreate()
-                call InputReadWord(input,option,species%name,PETSC_TRUE)  
+                call InputReadCard(input,option,species%name)  
                 call InputErrorMsg(input,option,'keyword','CHEMISTRY, &
                                    GENERAL_REACTION,BACKWARD_SPECIES')    
                 if (.not.associated(general_rxn%backward_species_list)) then
@@ -416,18 +426,36 @@ subroutine ReactionReadPass1(reaction,input,option)
                 prev_species => species
                 nullify(species)
               enddo
+              call InputPopBlock(input,option)
               nullify(prev_species)
 #endif                
             case('FORWARD_RATE')
               call InputReadDouble(input,option,general_rxn%forward_rate)  
               call InputErrorMsg(input,option,'forward rate', &
                                  'CHEMISTRY,GENERAL_REACTION') 
+              ! throw error if units exist after rate
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              if (input%ierr == 0) then
+                option%io_buffer = 'Units conversion not supported for &
+                  &GENERAL_REACTION FORWARD_RATE. Please assume the &
+                  &documented units.'
+                call PrintErrMsg(option)
+              endif
             case('BACKWARD_RATE')
               call InputReadDouble(input,option,general_rxn%backward_rate)  
               call InputErrorMsg(input,option,'backward rate', &
                                  'CHEMISTRY,GENERAL_REACTION') 
+              ! throw error if units exist after rate
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              if (input%ierr == 0) then
+                option%io_buffer = 'Units conversion not supported for &
+                  &GENERAL_REACTION BACKWARD_RATE. Please assume the &
+                  &documented units.'
+                call PrintErrMsg(option)
+              endif
           end select
         enddo   
+        call InputPopBlock(input,option)
         if (.not.associated(reaction%general_rxn_list)) then
           reaction%general_rxn_list => general_rxn
           general_rxn%id = 1
@@ -452,29 +480,32 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('MINERAL_KINETICS') ! mineral kinetics read on second round
         !geh: but we need to count the number of kinetic minerals this round
         temp_int = 0 ! used to count kinetic minerals
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,name,PETSC_TRUE)
+          call InputReadCard(input,option,name)
           call InputErrorMsg(input,option,name,'CHEMISTRY,MINERAL_KINETICS')
           temp_int = temp_int + 1
 
+          call InputPushBlock(input,option)
           do
             call InputReadPflotranString(input,option)
             call InputReadStringErrorMsg(input,option,card)
             if (InputCheckExit(input,option)) exit
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             call InputErrorMsg(input,option,'keyword', &
                                     'CHEMISTRY,MINERAL_KINETICS')
             call StringToUpper(word)
             select case(word)
               case('PREFACTOR')
+                call InputPushBlock(input,option)
                 do 
                   call InputReadPflotranString(input,option)
                   call InputReadStringErrorMsg(input,option,card)
                   if (InputCheckExit(input,option)) exit
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword', &
                                       'CHEMISTRY,MINERAL_KINETICS,PREFACTOR')
                   call StringToUpper(word)
@@ -483,9 +514,12 @@ subroutine ReactionReadPass1(reaction,input,option)
                       call InputSkipToEnd(input,option,word)
                   end select
                 enddo
+                call InputPopBlock(input,option)
             end select
           enddo
+          call InputPopBlock(input,option)
         enddo
+        call InputPopBlock(input,option)
         reaction%mineral%nkinmnrl = reaction%mineral%nkinmnrl + temp_int
 
       case('SOLID_SOLUTIONS') ! solid solutions read on second round
@@ -503,6 +537,7 @@ subroutine ReactionReadPass1(reaction,input,option)
 
       case('COLLOIDS')
         nullify(prev_colloid)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -511,7 +546,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           reaction%ncoll = reaction%ncoll + 1
           
           colloid => ColloidCreate()
-          call InputReadWord(input,option,colloid%name,PETSC_TRUE)  
+          call InputReadCard(input,option,colloid%name,PETSC_TRUE)  
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,COLLOIDS')    
           call InputReadDouble(input,option,colloid%mobile_fraction)  
           call InputDefaultMsg(input,option,'CHEMISTRY,COLLOIDS,MOBILE_FRACTION')          
@@ -526,20 +561,104 @@ subroutine ReactionReadPass1(reaction,input,option)
           prev_colloid => colloid
           nullify(colloid)
         enddo
+        call InputPopBlock(input,option)
       case('SORPTION')
-!geh        nullify(prev_srfcplx_rxn)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,SORPTION')
           call StringToUpper(word)   
 
           select case(trim(word))
 
+            case('DYNAMIC_KD_REACTIONS')
+              call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+
+                reaction%neqdynamickdrxn = reaction%neqdynamickdrxn + 1
+
+                dynamic_kd_rxn => DynamicKDRxnCreate()
+                ! first string is species name
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'kd species name', &
+                                   'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                dynamic_kd_rxn%kd_species_name = trim(word)
+                call InputPushBlock(input,option)
+                do 
+                  call InputReadPflotranString(input,option)
+                  if (InputError(input)) exit
+                  if (InputCheckExit(input,option)) exit
+
+                  call InputReadCard(input,option,word)
+                  call InputErrorMsg(input,option,'keyword', &
+                                     'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                  call StringToUpper(word)
+                  
+                  ! default type is linear
+                  select case(trim(word))
+                    case('REFERENCE_SPECIES')
+                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputErrorMsg(input,option,'REFERENCE_SPECIES', &
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                      dynamic_kd_rxn%ref_species_name = word
+                    case('REFERENCE_SPECIES_HIGH')
+                      call InputReadDouble(input,option, &
+                                           dynamic_kd_rxn%ref_species_high)
+                      call InputErrorMsg(input,option, &
+                                         'REFERENCE_SPECIES_HIGH', &
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                    case('KD_LOW')
+                      call InputReadDouble(input,option,dynamic_kd_rxn%KD_low)
+                      call InputErrorMsg(input,option,'KD_LOW', &
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                    case('KD_HIGH')
+                      call InputReadDouble(input,option,dynamic_kd_rxn%KD_high)
+                      call InputErrorMsg(input,option,'KD_HIGH', &
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                    case('KD_POWER')
+                      call InputReadDouble(input,option, &
+                                           dynamic_kd_rxn%KD_power)
+                      call InputErrorMsg(input,option,'KD_POWER', &
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                    case default
+                      call InputKeywordUnrecognized(input,word, &
+                              'CHEMISTRY,SORPTION,DYNAMIC_KD_REACTIONS',option)
+                  end select
+                enddo
+                call InputPopBlock(input,option)
+                if (Uninitialized(dynamic_kd_rxn%ref_species_high) .or. &
+                    Uninitialized(dynamic_kd_rxn%KD_low) .or. &
+                    Uninitialized(dynamic_kd_rxn%KD_high) .or. &
+                    Uninitialized(dynamic_kd_rxn%KD_power) .or. &
+                    len_trim(dynamic_kd_rxn%ref_species_name) < 0) then
+                  option%io_buffer = 'REFERENCE_SPECIES, &
+                    &REFERENCE_SPECIES_HIGH, KD_LOW, KD_HIGH, KD_POWER must &
+                    &be defined for DYNAMIC_KD_REACTIONs.'
+                  call PrintErrMsg(option)
+                endif
+                ! add to list
+                if (.not.associated(reaction%dynamic_kd_rxn_list)) then
+                  reaction%dynamic_kd_rxn_list => dynamic_kd_rxn
+                  dynamic_kd_rxn%id = 1
+                endif
+                if (associated(prev_dynamic_kd_rxn)) then
+                  prev_dynamic_kd_rxn%next => dynamic_kd_rxn
+                  dynamic_kd_rxn%id = prev_dynamic_kd_rxn%id + 1
+                endif
+                prev_dynamic_kd_rxn => dynamic_kd_rxn
+                nullify(dynamic_kd_rxn)
+              enddo
+              call InputPopBlock(input,option)
+
             case('ISOTHERM_REACTIONS')
+              call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
@@ -552,19 +671,20 @@ subroutine ReactionReadPass1(reaction,input,option)
                   sec_cont_kd_rxn => KDRxnCreate()
                 endif
                 ! first string is species name
-                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'species name', &
                                    'CHEMISTRY,ISOTHERM_REACTIONS')
                 kd_rxn%species_name = trim(word)
                 if (option%use_mc) then
                   sec_cont_kd_rxn%species_name = kd_rxn%species_name
                 endif
+                call InputPushBlock(input,option)
                 do 
                   call InputReadPflotranString(input,option)
                   if (InputError(input)) exit
                   if (InputCheckExit(input,option)) exit
 
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword', &
                                      'CHEMISTRY,ISOTHERM_REACTIONS')
                   call StringToUpper(word)
@@ -573,7 +693,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                   kd_rxn%itype = SORPTION_LINEAR
                   select case(trim(word))
                     case('TYPE')
-                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word)
                       call InputErrorMsg(input,option,'type', &
                                          'CHEMISTRY,ISOTHERM_REACTIONS')
                       select case(word)
@@ -584,14 +704,17 @@ subroutine ReactionReadPass1(reaction,input,option)
                         case('FREUNDLICH')
                           kd_rxn%itype = SORPTION_FREUNDLICH
                         case default
-                          call InputKeywordUnrecognized(word, &
+                          call InputKeywordUnrecognized(input,word, &
                                 'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE', &
                                 option)
                       end select
                       if (option%use_mc) then
                         sec_cont_kd_rxn%itype = kd_rxn%itype
                       endif
-                    case('DISTRIBUTION_COEFFICIENT','KD')
+                    case('KD')
+                      call InputKeywordDeprecated('KD', &
+                                           'DISTRIBUTION_COEFFICIENT',option)
+                    case('DISTRIBUTION_COEFFICIENT')
                       call InputReadDouble(input,option,kd_rxn%Kd)
                       call InputErrorMsg(input,option, &
                                          'DISTRIBUTION_COEFFICIENT', &
@@ -627,10 +750,11 @@ subroutine ReactionReadPass1(reaction,input,option)
                                          'ISOTHERM_REACTIONS,KD_MINERAL_NAME')
                       kd_rxn%kd_mineral_name = word                      
                     case default
-                      call InputKeywordUnrecognized(word, &
+                      call InputKeywordUnrecognized(input,word, &
                               'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS',option)
                   end select
                 enddo
+                call InputPopBlock(input,option)
 
                 if (len_trim(kd_units) > 0) then
                   if (len_trim(kd_rxn%kd_mineral_name) > 0) then
@@ -670,17 +794,19 @@ subroutine ReactionReadPass1(reaction,input,option)
                   nullify(sec_cont_kd_rxn)
                 endif
               enddo
+              call InputPopBlock(input,option)
             
             case('SURFACE_COMPLEXATION_RXN')
               call SurfaceComplexationRead(reaction,input,option)
             case('ION_EXCHANGE_RXN')
               ionx_rxn => IonExchangeRxnCreate()
+              call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
 
-                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'keyword', &
                                    'CHEMISTRY,ION_EXCHANGE_RXN')
                 call StringToUpper(word)
@@ -698,6 +824,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                   case('CATIONS')
                     string = '' ! string denotes the reference cation 
                     nullify(prev_cation)
+                    call InputPushBlock(input,option)
                     do
                       call InputReadPflotranString(input,option)
                       if (InputError(input)) exit
@@ -705,18 +832,18 @@ subroutine ReactionReadPass1(reaction,input,option)
                       
                       cation => IonExchangeCationCreate()
                       reaction%neqionxcation = reaction%neqionxcation + 1
-                      call InputReadWord(input,option,cation%name,PETSC_TRUE)
+                      call InputReadCard(input,option,cation%name)
                       call InputErrorMsg(input,option,'keyword', &
                         'CHEMISTRY,ION_EXCHANGE_RXN,CATION_NAME')
                       call InputReadDouble(input,option,cation%k)
                       call InputErrorMsg(input,option,'keyword', &
                                          'CHEMISTRY,ION_EXCHANGE_RXN,K')
-                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word)
                       if (input%ierr == 0) then
                         if (StringCompareIgnoreCase(word,'REFERENCE')) then
                           string = cation%name
                         else
-                          call InputKeywordUnrecognized(word, &
+                          call InputKeywordUnrecognized(input,word, &
                                   'CHEMISTRY,ION_EXCHANGE_RXN,CATIONS',option)
                         endif
                       endif
@@ -729,6 +856,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                       prev_cation => cation
                       nullify(cation)
                     enddo
+                    call InputPopBlock(input,option)
                     if (len_trim(string) == 0) then
                       option%io_buffer = &
                         'Reference cation missing in Ion Exchange reaction.'
@@ -758,10 +886,11 @@ subroutine ReactionReadPass1(reaction,input,option)
                       cation => cation%next
                     enddo
                   case default
-                    call InputKeywordUnrecognized(word, &
+                    call InputKeywordUnrecognized(input,word, &
                               'CHEMISTRY,ION_EXCHANGE_RXN',option)
                 end select
               enddo
+              call InputPopBlock(input,option)
               if (.not.associated(reaction%ion_exchange_rxn_list)) then
                 reaction%ion_exchange_rxn_list => ionx_rxn
                 ionx_rxn%id = 1
@@ -784,6 +913,7 @@ subroutine ReactionReadPass1(reaction,input,option)
               option%transport%no_restart_kinetic_sorption = PETSC_TRUE
           end select
         enddo
+        call InputPopBlock(input,option)
       case('DATABASE')
         call InputReadFilename(input,option,reaction%database_filename)
         call InputErrorMsg(input,option,'keyword', &
@@ -805,7 +935,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         reaction%act_coef_update_algorithm = ACT_COEF_ALGORITHM_LAG        
         reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_TIMESTEP        
         do 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           if (input%ierr /= 0) exit
           select case(trim(word))
             case('OFF')
@@ -819,7 +949,7 @@ subroutine ReactionReadPass1(reaction,input,option)
             case('NEWTON_ITERATION')
               reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_NEWTON_ITER
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                         'CHEMISTRY,ACTIVITY_COEFFICIENTS',option)
           end select
         enddo
@@ -845,9 +975,8 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('ACTIVITY_H2O','ACTIVITY_WATER')
         reaction%use_activity_h2o = PETSC_TRUE
       case('REDOX_SPECIES')
-        option%io_buffer = 'REDOX_SPECIES is no longer supported. Please &
-          &use DECOUPLED_EQULIBRIUM_REACTIONS instead.'
-        call PrintErrMsg(option)
+        call InputKeywordDeprecated('REDOX_SPECIES', &
+                                    'DECOUPLED_EQUILIBRIUM_REACTIONS',option)
       case('DECOUPLED_EQUILIBRIUM_REACTIONS')
         call InputSkipToEnd(input,option,word)
       case('OUTPUT')
@@ -855,15 +984,9 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('MAX_DLNC')
         call InputReadDouble(input,option,reaction%max_dlnC)
         call InputErrorMsg(input,option,trim(word),'CHEMISTRY')
-      case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
-        option%io_buffer = 'OPERATOR_SPLIT functionality has not been &
-          &reimplemented in the refactored PFLOTRAN at this time.  Please &
-          &use GLOBAL_IMPLICIT (remove OPERATOR_SPLIT(TING)).'
-        call PrintErrMsgToDev(option,'if you really need operator splitting')
-        option%transport%reactive_transport_coupling = OPERATOR_SPLIT    
       case('EXPLICIT_ADVECTION')
         option%itranmode = EXPLICIT_ADVECTION
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           call StringToUpper(word)
           select case(word)
@@ -879,7 +1002,7 @@ subroutine ReactionReadPass1(reaction,input,option)
             case('VANLEER')
               option%transport%tvd_flux_limiter = 5
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                         'CHEMISTRY,EXPLICIT_ADVECTION',option)
           end select
           option%io_buffer = 'Flux Limiter: ' // trim(word)
@@ -902,13 +1025,15 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('USE_FULL_GEOCHEMISTRY')
         reaction%use_full_geochemistry = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY',option)
+        call InputKeywordUnrecognized(input,word,'CHEMISTRY',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   call GasSpeciesListMergeDuplicates(reaction%gas%list)
   
   reaction%neqsorb = reaction%neqionxrxn + &
+                     reaction%neqdynamickdrxn + &
                      reaction%neqkdrxn + &
                      reaction%surface_complexation%neqsrfcplxrxn
   reaction%nsorb = reaction%neqsorb + &
@@ -972,8 +1097,6 @@ subroutine ReactionReadPass2(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/03/13
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -981,7 +1104,7 @@ subroutine ReactionReadPass2(reaction,input,option)
   
   implicit none
 
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -990,6 +1113,7 @@ subroutine ReactionReadPass2(reaction,input,option)
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXWORDLENGTH) :: card
   
+  call InputPushBlock(input,'CHEMISTRY_2ND_PASS',option)
   do
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,card)
@@ -1014,8 +1138,8 @@ subroutine ReactionReadPass2(reaction,input,option)
         call RSandboxSkipInput(input,option)
       case('CLM_REACTION')
         call RCLMRxnSkipInput(input,option)
-      case('SOLID_SOLUTIONS')
 #ifdef SOLID_SOLUTION                
+      case('SOLID_SOLUTIONS')
         call SolidSolutionReadFromInputFile(reaction%solid_solution_list, &
                                             input,option)
 #endif
@@ -1027,6 +1151,17 @@ subroutine ReactionReadPass2(reaction,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'SORPTION','CHEMISTRY') 
           select case(trim(word))
+            case('DYNAMIC_KD_REACTIONS')
+              do
+                call InputReadPflotranString(input,option)
+                call InputReadStringErrorMsg(input,option,card)
+                if (InputCheckExit(input,option)) exit
+                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputErrorMsg(input,option,word, &
+                                    'CHEMISTRY,SORPTION,DYNAMIC_KD_REACTIONS') 
+                ! skip over remaining cards to end of each kd entry
+                call InputSkipToEnd(input,option,word)
+              enddo
             case('ISOTHERM_REACTIONS')
               do
                 call InputReadPflotranString(input,option)
@@ -1087,6 +1222,7 @@ subroutine ReactionReadPass2(reaction,input,option)
         ! dummy placeholder
     end select
   enddo  
+  call InputPopBlock(input,option)
   
 end subroutine ReactionReadPass2
 
@@ -1099,15 +1235,13 @@ subroutine ReactionReadDecoupledSpecies(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 04/01/11
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use String_module  
   use Option_module
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -1116,12 +1250,13 @@ subroutine ReactionReadDecoupledSpecies(reaction,input,option)
   type(aq_species_type), pointer :: cur_species
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,name,PETSC_TRUE)
+    call InputReadCard(input,option,name)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,DECOUPLED_EQUILIBRIUM_REACTIONS')
     
@@ -1136,24 +1271,18 @@ subroutine ReactionReadDecoupledSpecies(reaction,input,option)
     enddo
     
     if (.not.associated(cur_species)) then
-      option%io_buffer = 'Decoupled equlibrium reaction species "' // &
+      option%io_buffer = 'Decoupled equilibrium reaction species "' // &
         trim(name) // '" not found among primary species.'
       call PrintErrMsg(option)
     endif
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine ReactionReadDecoupledSpecies
 
 ! ************************************************************************** !
 
-subroutine ReactionProcessConstraint(reaction,constraint_name, &
-                                     aq_species_constraint, &
-                                     free_ion_guess, &
-                                     mineral_constraint, &
-                                     srfcplx_constraint, &
-                                     colloid_constraint, &
-                                     immobile_constraint, &
-                                     option)
+subroutine ReactionProcessConstraint(reaction,constraint,option)
   ! 
   ! Initializes constraints based on primary
   ! species in system
@@ -1161,26 +1290,24 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
   ! Author: Glenn Hammond
   ! Date: 10/14/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
   use Utility_module
-  use Transport_Constraint_module
+  use Transport_Constraint_RT_module
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
-  character(len=MAXWORDLENGTH) :: constraint_name
+  class(reaction_rt_type), pointer :: reaction
+  class(tran_constraint_rt_type) :: constraint
+  type(option_type) :: option
+  
   type(aq_species_constraint_type), pointer :: aq_species_constraint
-  type(guess_constraint_type), pointer :: free_ion_guess
+  type(guess_constraint_type), pointer :: free_ion_guess_constraint
   type(mineral_constraint_type), pointer :: mineral_constraint
   type(srfcplx_constraint_type), pointer :: srfcplx_constraint
   type(colloid_constraint_type), pointer :: colloid_constraint
   type(immobile_constraint_type), pointer :: immobile_constraint
-  type(option_type) :: option
-  
   PetscBool :: found
   PetscInt :: icomp, jcomp
   PetscInt :: icoll, jcoll
@@ -1191,6 +1318,13 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
   character(len=MAXWORDLENGTH) :: constraint_colloid_name(reaction%ncoll)
   PetscInt :: constraint_id(reaction%naqcomp)
   PetscBool :: external_dataset(reaction%naqcomp)
+
+  aq_species_constraint => constraint%aqueous_species
+  free_ion_guess_constraint => constraint%free_ion_guess
+  mineral_constraint => constraint%minerals
+  srfcplx_constraint => constraint%surface_complexes
+  colloid_constraint => constraint%colloids
+  immobile_constraint => constraint%immobile_species
   
   constraint_id = 0
   constraint_aux_string = ''
@@ -1212,7 +1346,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
     if (.not.found) then
       option%io_buffer = &
                'Species ' // trim(aq_species_constraint%names(icomp)) // &
-               ' from CONSTRAINT ' // trim(constraint_name) // &
+               ' from CONSTRAINT ' // trim(constraint%name) // &
                ' not found among primary species.'
       call PrintErrMsg(option)
     else
@@ -1241,7 +1375,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
                      ' for aqueous species: ' // &
                      trim(reaction%primary_species_names(jcomp)) // &
                      ' in constraint: ' // &
-                     trim(constraint_name) // ' not found.' 
+                     trim(constraint%name) // ' not found.' 
             call PrintErrMsg(option)
           endif
         case(CONSTRAINT_GAS, CONSTRAINT_SUPERCRIT_CO2)
@@ -1261,7 +1395,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
                      ' for aqueous species: ' // &
                      trim(reaction%primary_species_names(jcomp)) // &
                      ' in constraint: ' // &
-                     trim(constraint_name) // ' not found.' 
+                     trim(constraint%name) // ' not found.' 
             call PrintErrMsg(option)
           endif
       end select
@@ -1292,7 +1426,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
           case default
         end select
         option%io_buffer = trim(option%io_buffer) // ' in CONSTRAINT "' // &
-          trim(constraint_name) // '".'
+          trim(constraint%name) // '".'
         call PrintErrMsg(option)
       endif
     enddo
@@ -1309,12 +1443,12 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
   if (.not.reaction%use_full_geochemistry) return
   
   ! free ion guess
-  if (associated(free_ion_guess)) then
+  if (associated(free_ion_guess_constraint)) then
     constraint_conc = 0.d0
     do icomp = 1, reaction%naqcomp
       found = PETSC_FALSE
       do jcomp = 1, reaction%naqcomp
-        if (StringCompare(free_ion_guess%names(icomp), &
+        if (StringCompare(free_ion_guess_constraint%names(icomp), &
                           reaction%primary_species_names(jcomp), &
                           MAXWORDLENGTH)) then
           found = PETSC_TRUE
@@ -1323,29 +1457,30 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
       enddo
       if (.not.found) then
         option%io_buffer = &
-                 'Guess species ' // trim(free_ion_guess%names(icomp)) // &
-                 ' from CONSTRAINT ' // trim(constraint_name) // &
+                 'Guess species ' // &
+                 trim(free_ion_guess_constraint%names(icomp)) // &
+                 ' from CONSTRAINT ' // trim(constraint%name) // &
                  ' not found among primary species.'
         call PrintErrMsg(option)
       else
-        constraint_conc(jcomp) = free_ion_guess%conc(icomp)
+        constraint_conc(jcomp) = free_ion_guess_constraint%conc(icomp)
       endif
     enddo
     ! place ordered concentrations back in original array
-    free_ion_guess%conc = constraint_conc
+    free_ion_guess_constraint%conc = constraint_conc
   endif
   
   ! minerals
-  call MineralProcessConstraint(reaction%mineral,constraint_name, &
+  call MineralProcessConstraint(reaction%mineral,constraint%name, &
                                 mineral_constraint,option)
 
   ! surface complexes
   call SrfCplxProcessConstraint(reaction%surface_complexation, &
-                                constraint_name, &
+                                constraint%name, &
                                 srfcplx_constraint,option)
 
   ! microbial immobile
-  call ImmobileProcessConstraint(reaction%immobile,constraint_name, &
+  call ImmobileProcessConstraint(reaction%immobile,constraint%name, &
                                  immobile_constraint,option)
   
 end subroutine ReactionProcessConstraint
@@ -1354,13 +1489,7 @@ end subroutine ReactionProcessConstraint
 
 subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                                          material_auxvar, &
-                                         reaction,constraint_name, &
-                                         aq_species_constraint, &
-                                         free_ion_guess_constraint, &
-                                         mineral_constraint, &
-                                         srfcplx_constraint, &
-                                         colloid_constraint, &
-                                         immobile_constraint, &
+                                         reaction,constraint, &
                                          num_iterations, &
                                          use_prev_soln_as_guess,option)
   ! 
@@ -1370,13 +1499,11 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 10/22/08
   !
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module  
   use Utility_module
-  use Transport_Constraint_module
+  use Transport_Constraint_RT_module
   use EOS_Water_module
   use Material_Aux_class
 
@@ -1389,16 +1516,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type), pointer :: reaction
-  character(len=MAXWORDLENGTH) :: constraint_name
-  type(aq_species_constraint_type), pointer :: aq_species_constraint
-  type(guess_constraint_type), pointer :: free_ion_guess_constraint
-  type(mineral_constraint_type), pointer :: mineral_constraint
-  type(srfcplx_constraint_type), pointer :: srfcplx_constraint
-  type(colloid_constraint_type), pointer :: colloid_constraint
-  type(immobile_constraint_type), pointer :: immobile_constraint
+  class(reaction_rt_type), pointer :: reaction
+  class(tran_constraint_rt_type) :: constraint
   PetscInt :: num_iterations
-  
   PetscBool :: use_prev_soln_as_guess
   type(option_type) :: option
   
@@ -1413,6 +1533,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   character(len=MAXWORDLENGTH) :: constraint_aux_string(reaction%naqcomp)
   type(surface_complexation_type), pointer :: surface_complexation
   type(mineral_type), pointer :: mineral_reaction
+
+  type(aq_species_constraint_type), pointer :: aq_species_constraint
+  type(guess_constraint_type), pointer :: free_ion_guess_constraint
+  type(mineral_constraint_type), pointer :: mineral_constraint
+  type(srfcplx_constraint_type), pointer :: srfcplx_constraint
+  type(colloid_constraint_type), pointer :: colloid_constraint
+  type(immobile_constraint_type), pointer :: immobile_constraint
 
   PetscReal :: Res(reaction%naqcomp)
   PetscReal :: update(reaction%naqcomp)
@@ -1456,6 +1583,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   surface_complexation => reaction%surface_complexation
   mineral_reaction => reaction%mineral
     
+  aq_species_constraint => constraint%aqueous_species
+  free_ion_guess_constraint => constraint%free_ion_guess
+  mineral_constraint => constraint%minerals
+  srfcplx_constraint => constraint%surface_complexes
+  colloid_constraint => constraint%colloids
+  immobile_constraint => constraint%immobile_species
+
   constraint_type = aq_species_constraint%constraint_type
   constraint_aux_string = aq_species_constraint%constraint_aux_string
   constraint_id = aq_species_constraint%constraint_spec_id
@@ -1516,8 +1650,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     ! when reaction%initialize_with_molality is true, regardless of whether
     ! free or total component.
     aq_species_constraint%basis_molarity = conc * convert_molal_to_molar
-    rt_auxvar%pri_molal = aq_species_constraint%basis_molarity* &
-                          convert_molar_to_molal
+    rt_auxvar%pri_molal = conc * convert_molar_to_molal
     rt_auxvar%total(:,iphase) = aq_species_constraint%basis_molarity
     return
   endif
@@ -1565,7 +1698,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                                      string,MAXWORDLENGTH)) then
                 option%io_buffer = &
                          'pH specified as constraint (constraint =' // &
-                         trim(constraint_name) // &
+                         trim(constraint%name) // &
                          ') for species other than H+ or OH-: ' // &
                          trim(reaction%primary_species_names(icomp))
                 call PrintErrMsg(option)
@@ -1575,7 +1708,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           else
             option%io_buffer = &
                      'pH specified as constraint (constraint =' // &
-                     trim(constraint_name) // &
+                     trim(constraint%name) // &
                      '), but H+ not found in chemical species.'
             call PrintErrMsg(option)
           endif
@@ -1701,7 +1834,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                        'Charge balance species ' // &
                        trim(reaction%primary_species_names(icomp)) // &
                        ' may not satisfy constraint ' // &
-                       trim(constraint_name) // &
+                       trim(constraint%name) // &
                        '.  Molality already below 1.e-20.'
               call PrintMsg(option)
               charge_balance_warning_flag = PETSC_TRUE
@@ -1941,7 +2074,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     tempreal = minval(rt_auxvar%pri_molal)
     if (tempreal <= 0.d0) then
       option%io_buffer = 'ERROR: Zero concentrations found in ' // &
-        'constraint "' // trim(constraint_name) // '".'
+        'constraint "' // trim(constraint%name) // '".'
       call PrintMsgByRank(option)
       ! now figure out which species have zero concentrations
       do idof = 1, reaction%naqcomp
@@ -1973,7 +2106,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       idof = maxloc(rt_auxvar%pri_molal,1)
       option%io_buffer = 'ERROR: Excessively large concentration for ' // &
         'species "' // trim(reaction%primary_species_names(idof)) // &
-        '" in constraint "' // trim(constraint_name) // &
+        '" in constraint "' // trim(constraint%name) // &
         '" in ReactionEquilibrateConstraint. Email input deck to ' // &
         'pflotran-dev@googlegroups.com.'
       call PrintErrMsg(option)
@@ -2003,7 +2136,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         print *, 'constraint type:', constraint_type
         print *, 'free_conc:', free_conc
         option%io_buffer = 'Equilibration of constraint "' // &
-          trim(constraint_name) // &
+          trim(constraint%name) // &
           '" stopping due to excessive iteration count!'
         call PrintErrMsgByRank(option)
       endif
@@ -2096,7 +2229,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 !                           global_auxvar%den_kg(option%liquid_phase)/1000.d0
 !  endif
     
-!  write(option%io_buffer,111) trim(constraint_name),num_iterations
+!  write(option%io_buffer,111) trim(constraint%name),num_iterations
 !  call PrintMsg(option)
 !111 format(' Equilibrate Constraint: ',a30,i4)
 
@@ -2112,19 +2245,18 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/28/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
-  use Transport_Constraint_module
+  use Transport_Constraint_RT_module
 
   implicit none
   
   type(option_type) :: option
-  type(tran_constraint_coupler_type) :: constraint_coupler
-  type(reaction_type), pointer :: reaction
+  class(tran_constraint_coupler_rt_type) :: constraint_coupler
+  class(reaction_rt_type), pointer :: reaction
   
+  class(tran_constraint_rt_type), pointer :: constraint
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
   type(aq_species_constraint_type), pointer :: aq_species_constraint
@@ -2156,15 +2288,18 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   PetscReal :: ehfac,eh,pe,tk
   PetscReal :: affinity
 
-  aq_species_constraint => constraint_coupler%aqueous_species
-  mineral_constraint => constraint_coupler%minerals
+  
+  constraint => TranConstraintRTCast(constraint_coupler%constraint)
+
+  aq_species_constraint => constraint%aqueous_species
+  mineral_constraint => constraint%minerals
   
   iphase = 1
 
   90 format(2x,76('-'))
 
   write(option%fid_out,'(/,''  Constraint: '',a)') &
-    trim(constraint_coupler%constraint_name)
+    trim(constraint_coupler%constraint%name)
 
   rt_auxvar => constraint_coupler%rt_auxvar
   global_auxvar => constraint_coupler%global_auxvar
@@ -2766,7 +2901,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   ! output constraints for amanzi cfg formatted input
   if (OptionPrintToFile(option)) then
     string = trim(option%global_prefix) // '-' // &
-             trim(constraint_coupler%constraint_name) // '.txt'
+             trim(constraint_coupler%constraint%name) // '.txt'
     open(unit=86,file=trim(string))
 
     write(86,'("# pflotran constraint preprocessing :")')
@@ -2775,7 +2910,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     !write(86,'("#        date : ",a,"   ",a)') trim(word), trim(word2)
     write(86,'("#       input : ",a)') trim(option%input_filename)
     write(86,'(/,"# Constraint: ",a)') &
-         trim(constraint_coupler%constraint_name)
+         trim(constraint_coupler%constraint%name)
 
     write(86,'(/,"[total]")')
     do icomp = 1, reaction%naqcomp
@@ -2824,18 +2959,16 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
   ! Author: Peter C. Lichtner
   ! Date: ???
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
-  use Transport_Constraint_module
+  use Transport_Constraint_RT_module
 
   implicit none
   
   type(option_type) :: option
-  type(tran_constraint_coupler_type) :: constraint_coupler
-  type(reaction_type), pointer :: reaction
+  class(tran_constraint_coupler_rt_type) :: constraint_coupler
+  class(reaction_rt_type), pointer :: reaction
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
@@ -3073,8 +3206,6 @@ subroutine ReactionReadOutput(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/24/09
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use String_module  
   use Option_module
@@ -3082,7 +3213,7 @@ subroutine ReactionReadOutput(reaction,input,option)
                                TOTAL_MOLALITY, TOTAL_MOLARITY  
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -3106,13 +3237,14 @@ subroutine ReactionReadOutput(reaction,input,option)
   nullify(cur_srfcplx_rxn)
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,name,PETSC_TRUE)  
+    call InputReadCard(input,option,name)  
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,OUTPUT,SPECIES_NAME')
     
     word = name
@@ -3315,6 +3447,7 @@ subroutine ReactionReadOutput(reaction,input,option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! check to ensure that the user has listed FREE_ION or TOTAL is a primary
   ! species is listed for output
@@ -3357,7 +3490,7 @@ subroutine RJumpStartKineticSorption(rt_auxvar,global_auxvar, &
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3388,28 +3521,28 @@ end subroutine RJumpStartKineticSorption
 
 ! ************************************************************************** !
 
-subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
-                  num_iterations_,reaction,option)
+subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
+                  num_iterations_,reaction,natural_id,option,ierror)
   ! 
   ! Solves reaction portion of operator splitting using Newton-Raphson
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/04/10
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
+  use String_module
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
+  PetscReal :: tran_xx(reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  PetscReal :: tran_xx_p(reaction%ncomp)
-  type(option_type) :: option
   PetscInt :: num_iterations_
-  PetscReal :: sign_(reaction%ncomp)
+  PetscInt :: natural_id
+  type(option_type) :: option
+  PetscInt :: ierror
   
   PetscReal :: residual(reaction%ncomp)
   PetscReal :: res(reaction%ncomp)
@@ -3418,52 +3551,50 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
   PetscReal :: prev_solution(reaction%ncomp)
   PetscReal :: new_solution(reaction%ncomp)
   PetscReal :: update(reaction%ncomp)
+  PetscReal :: conc(reaction%ncomp)
   PetscReal :: maximum_relative_change
   PetscReal :: accumulation_coef
   PetscReal :: fixed_accum(reaction%ncomp)
   PetscInt :: num_iterations
+  PetscInt :: ncomp
+  PetscInt :: naqcomp
+  PetscInt :: nimmobile
   PetscInt :: icomp
   PetscInt :: immobile_start, immobile_end
   PetscReal :: ratio, min_ratio
   PetscReal :: scale
-  
+
   PetscInt, parameter :: iphase = 1
+
+  ncomp = reaction%ncomp
+  naqcomp = reaction%naqcomp
+  nimmobile = reaction%immobile%nimmobile
+  if (nimmobile > 0) then
+    immobile_start = reaction%offset_immobile + 1
+    immobile_end = reaction%offset_immobile + nimmobile
+  endif
 
   one_over_dt = 1.d0/option%tran_dt
   num_iterations = 0
 
-  ! calculate fixed portion of accumulation term
-  ! fixed_accum is overwritten in RTAccumulation
-  ! Since RTAccumulation uses rt_auxvar%total, we must overwrite the 
-  ! rt_auxvar total variables
-  ! aqueous
-  rt_auxvar%total(:,iphase) = tran_xx_p(1:reaction%naqcomp)
-  
   if (reaction%ncoll > 0) then
     option%io_buffer = 'Colloids not set up for operator split mode.'
     call PrintErrMsg(option)
   endif
 
 ! skip chemistry if species nonreacting 
-#if 1  
   if (.not.reaction%use_full_geochemistry) then
-    rt_auxvar%pri_molal(:) = tran_xx_p(1:reaction%naqcomp) / &
+    rt_auxvar%pri_molal(:) = rt_auxvar%total(:,iphase) / &
                              global_auxvar%den_kg(iphase)*1.d3
     return
   endif
-#endif  
-  
-  ! update immobile concentrations
-  if (reaction%immobile%nimmobile > 0) then
-    immobile_start = reaction%offset_immobile + 1
-    immobile_end = reaction%offset_immobile + reaction%immobile%nimmobile
-    rt_auxvar%immobile(1:reaction%immobile%nimmobile)  = &
-      tran_xx_p(immobile_start:immobile_end)
-  endif
-  
+
   if (.not.option%use_isothermal) then
     call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_FALSE,option)
   endif
+
+  ! NOTE: total^* and immobile^k are already up to date in rt_auxvar for 
+  !       use in the fixed accumulation below.
 
   ! still need code to overwrite other phases
   call RTAccumulation(rt_auxvar,global_auxvar,material_auxvar,reaction, &
@@ -3473,9 +3604,17 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
                            option,fixed_accum)  
   endif
 
-  ! now update activity coefficients
-  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
+!TODO(geh): activity coefficient will be updated earlier. otherwise, they
+!           will be repeatedly updated due to time step cut
+!  ! now update activity coefficients
+!  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
+!    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
+!  endif
+
+  ! initialize guesses to stored solution
+  rt_auxvar%pri_molal(:) = tran_xx(1:naqcomp)
+  if (nimmobile > 0) then
+    rt_auxvar%immobile(:) = tran_xx(immobile_start:immobile_end)
   endif
   
   do
@@ -3487,7 +3626,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
     endif
     call RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option)
+                         natural_id,option)
     
     ! Accumulation
     ! residual is overwritten in RTAccumulation()
@@ -3511,13 +3650,16 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     
     if (maxval(abs(residual)) < reaction%max_residual_tolerance) exit
 
-    call RSolve(residual,J,rt_auxvar%pri_molal,update,reaction%ncomp, &
-                reaction%use_log_formulation)
+    conc(1:naqcomp) = rt_auxvar%pri_molal(1:naqcomp)
+    if (nimmobile > 0) then
+      conc(immobile_start:immobile_end) = rt_auxvar%immobile(:)
+    endif
+
+    call RSolve(residual,J,conc,update,ncomp,reaction%use_log_formulation)
     
-    prev_solution(1:reaction%naqcomp) = rt_auxvar%pri_molal(1:reaction%naqcomp)
-    if (reaction%immobile%nimmobile > 0) then
-      prev_solution(immobile_start:immobile_end) = &
-        rt_auxvar%immobile(1:reaction%immobile%nimmobile)
+    prev_solution(1:naqcomp) = rt_auxvar%pri_molal(1:naqcomp)
+    if (nimmobile > 0) then
+      prev_solution(immobile_start:immobile_end) = rt_auxvar%immobile(:)
     endif
 
     if (reaction%use_log_formulation) then
@@ -3526,7 +3668,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     else ! linear upage
       ! ensure non-negative concentration
       min_ratio = 1.d20 ! large number
-      do icomp = 1, reaction%ncomp
+      do icomp = 1, ncomp
         if (prev_solution(icomp) <= update(icomp)) then
           ratio = abs(prev_solution(icomp)/update(icomp))
           if (ratio < min_ratio) min_ratio = ratio
@@ -3553,10 +3695,19 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
       else if (num_iterations <= 500) then
         scale = 0.001d0
       else
-        print *, 'Maximum iterations in RReact: stop: ',num_iterations
-        print *, 'Maximum iterations in RReact: residual: ',residual
-        print *, 'Maximum iterations in RReact: new solution: ',new_solution
-        stop
+        print *, 'Maximum iterations in RReact: stop: ' // &
+                 trim(StringWrite(num_iterations))
+        print *, 'Maximum iterations in RReact: residual: ' // &
+                 trim(StringWrite(residual))
+        print *, 'Maximum iterations in RReact: new solution: ' // &
+                 trim(StringWrite(new_solution))
+        print *, 'Grid cell: ' // trim(StringWrite(natural_id))
+        if (option%mycommsize > 1) then
+          print *, 'Process rank: ' // trim(StringWrite(option%myrank))
+        endif
+        num_iterations_ = num_iterations
+        ierror = 1
+        return
       endif
       if (scale < 0.99d0) then
         ! apply scaling
@@ -3564,16 +3715,17 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
       endif
     endif
     
-    rt_auxvar%pri_molal(1:reaction%naqcomp) = new_solution(1:reaction%naqcomp)
-    if (reaction%immobile%nimmobile > 0) then
-      rt_auxvar%immobile(1:reaction%immobile%nimmobile) = &
+    rt_auxvar%pri_molal(1:naqcomp) = new_solution(1:naqcomp)
+    if (nimmobile > 0) then
+      rt_auxvar%immobile(1:nimmobile) = &
         new_solution(immobile_start:immobile_end)
     endif    
   
   enddo
 
   ! one last update
-  call RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+  call RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                       natural_id,option)
 
   num_iterations_ = num_iterations
   
@@ -3595,7 +3747,7 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
  
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3664,13 +3816,11 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 09/30/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(reactive_transport_auxvar_type) :: rt_auxvar_pert
   type(global_auxvar_type) :: global_auxvar
@@ -3769,7 +3919,7 @@ subroutine CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
    
   PetscReal :: m_na, m_cl, tc, co2aqact, lngamco2, henry, xphico2, pco2
@@ -3814,7 +3964,7 @@ function RSumMoles(rt_auxvar,reaction,option)
   implicit none
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscReal :: RSumMoles
 
@@ -3847,7 +3997,7 @@ function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscReal :: RCO2MoleFraction
 
@@ -3896,7 +4046,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: icplx, icomp, it, j, jcomp, ncomp
@@ -4143,7 +4293,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -4184,7 +4334,7 @@ subroutine RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: i, j, icplx, icomp, jcomp, ncomp
@@ -4300,7 +4450,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   call RZeroSorb(rt_auxvar)
@@ -4314,11 +4464,88 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   endif
   
+  if (reaction%neqdynamickdrxn > 0) then
+    call RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
+                             reaction,option)
+  endif
+  
   if (reaction%neqkdrxn > 0) then
     call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   endif
   
 end subroutine RTotalSorb
+
+! ************************************************************************** !
+
+subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
+                               reaction,option)
+  ! 
+  ! Computes the total sorbed component concentrations and
+  ! derivative with respect to free-ion for the dynamic KD model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/21/2019
+  ! 
+
+  use Option_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+  
+  PetscInt :: irxn
+  PetscInt :: ikd
+  PetscInt :: iref
+  PetscReal :: Lwater_m3bulk
+  PetscReal :: kd_species_molality
+  PetscReal :: ref_species_molality
+  PetscReal :: ref_high
+  PetscReal :: KD_low
+  PetscReal :: KD_high_minus_low
+  PetscReal :: KD_power
+  PetscReal :: KD
+  PetscReal :: dKD_dref
+  PetscReal :: total_sorb
+  PetscReal :: dtotal_sorb_dckd
+  PetscReal :: dtotal_sorb_dcref
+  PetscReal :: tempreal
+
+  PetscInt, parameter :: iphase = 1
+
+!geh  Lwater_m3bulk = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
+  ! to make compatible with constant KD
+  Lwater_m3bulk = 250.d0
+
+  do irxn = 1, reaction%neqdynamickdrxn
+    ikd = reaction%eqdynamickdspecid(irxn)
+    kd_species_molality = rt_auxvar%pri_molal(ikd)
+    iref = reaction%eqdynamickdrefspecid(irxn)
+    ref_high = reaction%eqdynamickdrefspechigh(irxn)
+    ref_species_molality = rt_auxvar%pri_molal(iref)
+    KD_power = reaction%eqdynamickdpower(irxn)
+    KD_low = reaction%eqdynamickdlow(irxn)
+    KD_high_minus_low = reaction%eqdynamickdhigh(irxn) - KD_low
+
+    ! R = KD_low + ref_species_molality ** KD_power * KD_high_minus_low
+    tempreal = (ref_species_molality/ref_high)**KD_power
+    KD = KD_low + tempreal * KD_high_minus_low
+    dKD_dref = KD_power * tempreal / ref_species_molality * KD_high_minus_low
+
+    total_sorb = KD * kd_species_molality * Lwater_m3bulk
+    dtotal_sorb_dckd = KD * Lwater_m3bulk
+    dtotal_sorb_dcref = dKD_dref * kd_species_molality * Lwater_m3bulk
+    rt_auxvar%total_sorb_eq(ikd) = rt_auxvar%total_sorb_eq(ikd) + total_sorb
+    rt_auxvar%dtotal_sorb_eq(ikd,ikd) = &
+      rt_auxvar%dtotal_sorb_eq(ikd,ikd) + dtotal_sorb_dckd
+    rt_auxvar%dtotal_sorb_eq(ikd,iref) = &
+      rt_auxvar%dtotal_sorb_eq(ikd,iref) + dtotal_sorb_dcref
+  enddo
+
+end subroutine RTotalSorbDynamicKD
 
 ! ************************************************************************** !
 
@@ -4340,7 +4567,7 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: irxn
@@ -4352,7 +4579,6 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   PetscReal :: one_over_n
   PetscReal :: molality_one_over_n
   PetscReal :: kd_kgw_m3b  
-  PetscReal :: temp
 
   PetscInt, parameter :: iphase = 1
 
@@ -4363,11 +4589,6 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
       ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
       ! nothing to do with the soil volume; that is calculated through as a 
       ! function of porosity.
-      temp = reaction%eqkddistcoef(irxn)
-      temp = global_auxvar%den_kg(iphase)
-      temp = (1.d0-material_auxvar%porosity)
-      temp = material_auxvar%soil_particle_density
-      temp = (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
       kd_kgw_m3b = reaction%eqkddistcoef(irxn) * & !KD units [mL water/g soil]
                    global_auxvar%den_kg(iphase) * &
                    (1.d0-material_auxvar%porosity) * &
@@ -4416,15 +4637,13 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/22/08; 05/26/09
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   
   implicit none
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: i, j, k, icplx, icomp, jcomp, iphase, ncomp, ncplx
@@ -4660,7 +4879,7 @@ subroutine RAccumulationSorb(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   
 !  PetscReal :: v_t
@@ -4693,7 +4912,7 @@ subroutine RAccumulationSorbDerivative(rt_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   
   PetscInt :: icomp
@@ -4726,7 +4945,7 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -4829,7 +5048,7 @@ subroutine RGeneral(Res,Jac,compute_derivative,rt_auxvar,global_auxvar, &
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -5023,7 +5242,7 @@ subroutine ReactionComputeKd(icomp,retardation,rt_auxvar,global_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscReal :: bulk_vol_to_fluid_vol
@@ -5070,7 +5289,7 @@ subroutine RAge(rt_auxvar,global_auxvar,material_auxvar,option,reaction,Res)
   type(global_auxvar_type) :: global_auxvar 
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscInt, parameter :: iphase = 1
   
@@ -5086,12 +5305,13 @@ subroutine RAge(rt_auxvar,global_auxvar,material_auxvar,option,reaction,Res)
       material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
       material_auxvar%volume
   endif
+
 end subroutine RAge
 
 ! ************************************************************************** !
 
 subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                           option)
+                           natural_id,option)
   ! 
   ! Computes secondary variables for each grid cell
   ! 
@@ -5104,10 +5324,11 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
   
 #if 0  
   PetscReal :: Res_orig(reaction%ncomp)
@@ -5181,6 +5402,9 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   if (reaction%neqsorb > 0) rt_auxvar%dtotal_sorb_eq = dtotalsorb
   call RTAuxVarStrip(rt_auxvar_pert)
 #endif
+
+!  call RTPrintAuxVar(STDOUT_UNIT,rt_auxvar,global_auxvar,material_auxvar, &
+!                     reaction,natural_id,'',option)
   
 end subroutine RTAuxVarCompute
 
@@ -5204,7 +5428,7 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   
   PetscInt :: iphase
@@ -5287,7 +5511,7 @@ subroutine RTAccumulationDerivative(rt_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar  
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   
   PetscInt :: icomp, iphase
@@ -5362,20 +5586,18 @@ end subroutine RTAccumulationDerivative
 ! ************************************************************************** !
 
 subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
-                                 reaction,option)
+                                 reaction,natural_id,option)
   ! 
   ! Calculates the compression for the Jacobian block
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/12/10
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
 
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(option_type) :: option
 
   PetscInt :: dfill(reaction%ncomp,reaction%ncomp)
@@ -5385,6 +5607,7 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
   
   PetscInt :: i, jj
   PetscReal :: vol = 1.d0
@@ -5396,7 +5619,8 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   J = 0.d0
   residual = 0.d0
 
-  call RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+  call RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                       natural_id,option)
   call RTAccumulationDerivative(rt_auxvar,global_auxvar, &
                                 material_auxvar,reaction,option,J)
     
@@ -5455,8 +5679,6 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 01/24/13
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
 
   implicit none
@@ -5464,7 +5686,7 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar  
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: imnrl, iaqspec, ncomp, icomp
@@ -5575,7 +5797,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
   implicit none
   
   type(global_auxvar_type) :: global_auxvar  
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: update_mnrl
   type(option_type) :: option
   
@@ -5655,101 +5877,81 @@ end subroutine RUpdateTempDependentCoefs
 
 ! ************************************************************************** !
 
-subroutine RTPrintAuxVar(rt_auxvar,reaction,option)
-  ! 
+subroutine RTPrintAuxVar(file_unit,rt_auxvar,global_auxvar,material_auxvar,&
+                         reaction,natural_id,header_string,option)
+
   ! PrintRTAuxVar: Prints data from RTAuxVar object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 05/18/2011
-  ! 
+  ! Date: 05/18/11, 07/18/20
 
+  use Global_Aux_module
+  use Material_Aux_class
   use Option_module
 
   implicit none
-  
+
+  PetscInt :: file_unit
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(reaction_type) :: reaction
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
+  character(len=*) :: header_string
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
-  
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word
+
   10 format(a20,':',10es19.11)
   20 format(a20,':',a20)
   30 format(/)
 
-  if (OptionPrintToScreen(option)) write(*,30)
-  if (OptionPrintToFile(option)) write(option%fid_out,30)
+  write(file_unit,*) '--------------------------------------------------------'
+  if (len_trim(header_string) > 0) write(file_unit,*) trim(header_string)
+  write(file_unit,*) '                  cell id: ', natural_id
+  write(file_unit,*) '          liquid pressure: ', global_auxvar%pres(1)
+  write(file_unit,*) '      liquid_density [kg]: ', global_auxvar%den_kg(1)
+  write(file_unit,*) '          temperature [C]: ', global_auxvar%temp
+  write(file_unit,*) '                porosity : ', material_auxvar%porosity
+  write(file_unit,*) '             volume [m^3]: ', material_auxvar%volume
+  write(file_unit,30)
 
-  if (OptionPrintToScreen(option)) &
-    write(*,20) 'Primary', 'free molal., total molar., act. coef.'
-  if (OptionPrintToFile(option)) &
-    write(option%fid_out,20) 'Primary', 'free molal., total molar., act. coef.'
+  write(file_unit,20) 'Primary', 'free molal., total molar., act. coef.'
   do i = 1, reaction%naqcomp  
-    if (OptionPrintToScreen(option)) &
-      write(*,10) reaction%primary_species_names(i), &
-        rt_auxvar%pri_molal(i), &
-        rt_auxvar%total(i,1), &
-        rt_auxvar%pri_act_coef(i)
-    if (OptionPrintToFile(option)) &
-      write(option%fid_out,10) reaction%primary_species_names(i), &
-        rt_auxvar%pri_molal(i), &
-        rt_auxvar%total(i,1), &
-        rt_auxvar%pri_act_coef(i)
+    write(file_unit,10) reaction%primary_species_names(i), &
+                  rt_auxvar%pri_molal(i),rt_auxvar%total(i,1), &
+                  rt_auxvar%pri_act_coef(i)
   enddo
-  if (OptionPrintToScreen(option)) write(*,30)
-  if (OptionPrintToFile(option)) write(option%fid_out,30)
+  write(file_unit,30)
 
   if (reaction%neqcplx > 0) then
-    if (OptionPrintToScreen(option)) &
-      write(*,20) 'Secondary Complex', 'molal., act. coef.'
-    if (OptionPrintToFile(option)) &
-      write(option%fid_out,20) 'Secondary Complex', 'molal., act. coef.'
+    write(file_unit,20) 'Secondary Complex', 'molal., act. coef.'
     do i = 1, reaction%neqcplx  
-      if (OptionPrintToScreen(option)) &
-        write(*,10) reaction%secondary_species_names(i), &
-          rt_auxvar%sec_molal(i), &
-          rt_auxvar%sec_act_coef(i)
-      if (OptionPrintToFile(option)) &
-        write(option%fid_out,10) reaction%secondary_species_names(i), &
-          rt_auxvar%sec_molal(i), &
-          rt_auxvar%sec_act_coef(i)
+      write(file_unit,10) reaction%secondary_species_names(i), &
+                    rt_auxvar%sec_molal(i), rt_auxvar%sec_act_coef(i)
     enddo
-    if (OptionPrintToScreen(option)) write(*,30)
-    if (OptionPrintToFile(option)) write(option%fid_out,30)
+    write(file_unit,30)
   endif
 
   if (reaction%neqsorb > 0) then  
-    if (OptionPrintToScreen(option)) &
-      write(*,20) 'Total Sorbed EQ', 'mol/m^3'
-    if (OptionPrintToFile(option)) &
-      write(option%fid_out,20) 'Total Sorbed EQ', 'mol/m^3'
+    write(file_unit,20) 'Total Sorbed EQ', 'mol/m^3'
     do i = 1, reaction%naqcomp  
-      if (OptionPrintToScreen(option)) &
-        write(*,10) reaction%primary_species_names(i), rt_auxvar%total_sorb_eq(i)
-      if (OptionPrintToFile(option)) &
-        write(option%fid_out,10) reaction%primary_species_names(i), &
-          rt_auxvar%total_sorb_eq(i)
+      write(file_unit,10) reaction%primary_species_names(i), &
+                    rt_auxvar%total_sorb_eq(i)
     enddo
-    if (OptionPrintToScreen(option)) write(*,30)
-    if (OptionPrintToFile(option)) write(option%fid_out,30)
+    write(file_unit,30)
   endif    
 
 #if 0  
   if (reaction%surface_complexation%neqsrfcplx > 0) then
-    if (OptionPrintToScreen(option)) &
-      write(*,20) 'EQ Surface Complex Conc.', 'mol/m^3'
-    if (OptionPrintToFile(option)) &
-      write(option%fid_out,20) 'EQ Surface Complex Conc.', 'mol/m^3'
+    write(file_unit,20) 'EQ Surface Complex Conc.', 'mol/m^3'
     do i = 1, reaction%surface_complexation%neqsrfcplx
-      if (OptionPrintToScreen(option)) &
-        write(*,10) reaction%eqsrfcplx_names(i), rt_auxvar%eqsrfcplx_conc(i)
-      if (OptionPrintToFile(option)) &
-        write(option%fid_out,10) reaction%eqsrfcplx_names(i), &
-          rt_auxvar%eqsrfcplx_conc(i)
+      write(file_unit,10) reaction%eqsrfcplx_names(i), &
+                    rt_auxvar%eqsrfcplx_conc(i)
     enddo
-    if (OptionPrintToScreen(option)) write(*,30)
-    if (OptionPrintToFile(option)) write(option%fid_out,30)
+    write(file_unit,30)
   endif
 #endif  
 
@@ -5763,26 +5965,15 @@ subroutine RTPrintAuxVar(rt_auxvar,reaction,option)
   endif
   
   if (reaction%mineral%nkinmnrl > 0) then
-    if (OptionPrintToScreen(option)) &
-      write(*,20) 'Kinetic Minerals', 'vol frac, area, rate'
-    if (OptionPrintToFile(option)) &
-      write(option%fid_out,20) 'Kinetic Minerals', 'vol frac, area, rate'
+    write(file_unit,20) 'Kinetic Minerals', 'vol frac, area, rate'
     do i = 1, reaction%mineral%nkinmnrl
-      if (OptionPrintToScreen(option)) &
-        write(*,10) reaction%mineral%kinmnrl_names(i), &
-          rt_auxvar%mnrl_volfrac(i), &
-          rt_auxvar%mnrl_area(i), &
-          rt_auxvar%mnrl_rate(i)
-
-      if (OptionPrintToFile(option)) &
-        write(option%fid_out,10) reaction%mineral%kinmnrl_names(i), &
-          rt_auxvar%mnrl_volfrac(i), &
-          rt_auxvar%mnrl_area(i), &
-          rt_auxvar%mnrl_rate(i)
+      write(file_unit,10) reaction%mineral%kinmnrl_names(i), &
+                    rt_auxvar%mnrl_volfrac(i), rt_auxvar%mnrl_area(i), &
+                    rt_auxvar%mnrl_rate(i)
     enddo
-    if (OptionPrintToScreen(option)) write(*,30)
-    if (OptionPrintToFile(option)) write(option%fid_out,30)
+    write(file_unit,30)
   endif
+  write(file_unit,*) '--------------------------------------------------------'
 
 end subroutine RTPrintAuxVar
 
@@ -5803,7 +5994,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   implicit none
   
   type(output_variable_list_type), pointer :: list
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: time_unit
   
@@ -5992,12 +6183,12 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   endif
   
   if (reaction%mineral%print_surface_area) then
-    do i=1,reaction%mineral%nmnrl
-      if (reaction%mineral%mnrl_print(i)) then
-        name = trim(reaction%mineral%mineral_names(i)) // ' Area'
+    do i=1,reaction%mineral%nkinmnrl
+      if (reaction%mineral%kinmnrl_print(i)) then
+        name = trim(reaction%mineral%kinmnrl_names(i)) // ' Area'
         units = 'm^2/m^3'
-        call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                                     MINERAL_SURFACE_AREA,i)    
+        call OutputVariableAddToList(list,name,OUTPUT_VOLUME_FRACTION,units, &
+                                     MINERAL_SURFACE_AREA,i,i)     
       endif
     enddo
   endif

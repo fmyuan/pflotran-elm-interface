@@ -68,6 +68,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Output_Aux_module
   use Logging_module
   use EOS_module
+  use HDF5_Aux_module
   use PM_Surface_class
   use PM_Geomechanics_Force_class
   use PM_Subsurface_Flow_class
@@ -89,15 +90,24 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   ! popped in SimulationBaseInitializeRun()
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr);CHKERRQ(ierr)
   call PetscLogEventBegin(logging%event_init,ierr);CHKERRQ(ierr)
-  
+
   call EOSInit()
+  call HDF5Init(option)
   filename = trim(option%global_prefix) // trim(option%group_prefix) // &
              '.out'
   if (option%myrank == option%io_rank .and. option%print_to_file) then
     open(option%fid_out, file=filename, action="write", status="unknown")
   endif
   
+  call OptionPrintPFLOTRANHeader(option)
   call PFLOTRANReadSimulation(simulation,option)
+  if (option%keyword_block_count /= 0) then
+    write(option%io_buffer,*) option%keyword_block_count
+    option%io_buffer = 'Non-zero input block count (' // &
+      trim(adjustl(option%io_buffer)) // '). Please email this message &
+      &and your input deck to pflotran-dev@googlegroups.com'
+    call PrintErrMsg(option)
+  endif
   ! Must come after simulation is initialized so that proper stages are setup
   ! for process models.  This call sets flag that disables the creation of
   ! new stages, which is necessary for multisimulation
@@ -213,23 +223,25 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'PROCESS_MODEL','SIMULATION')
     
     call StringToUpper(word)
     select case(trim(word))
       case('SIMULATION_TYPE')
-          call InputReadWord(input,option,simulation_type,PETSC_TRUE)
+          call InputReadCard(input,option,simulation_type,PETSC_FALSE)
           call InputErrorMsg(input,option,'simulation_type', &
                              'SIMULATION')
       case('PROCESS_MODELS')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'process_model', &
                              'SIMULATION,PROCESS_MODELS')
           call InputReadWord(input,option,pm_name,PETSC_TRUE)
@@ -243,9 +255,29 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('SUBSURFACE_FLOW')
               call SubsurfaceReadFlowPM(input,option,new_pm)
             case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadRTPM(input,option,new_pm)
+              call SubsurfaceReadTransportPM(input,option,new_pm)
             case('NUCLEAR_WASTE_TRANSPORT')
-              call SubsurfaceReadNWTPM(input,option,new_pm)
+              if (OptionPrintToScreen(option)) then
+                print *
+                print *, 'SIMULATION'
+                print *, '  SIMULATION_TYPE SUBSURFACE'
+                print *, '  PROCESS_MODELS'
+                print *, '    SUBSURFACE_TRANSPORT'
+                print *, '      MODE NWT'
+                print *, '      OPTIONS'
+                print *, '      /'
+                print *, '    /'
+                print *, '  /'
+                print *, 'END'
+                print *
+              endif
+              option%io_buffer = "PFLOTRAN's NUCLEAR_WASTE_TRANSPORT &
+                &process model has been refactored to use the &
+                &combination of the SUBSURFACE_TRANSPORT and 'MODE &
+                &NWT' keywords and an (optional) OPTIONS block. &
+                &Please use the keywords above in reformatting the &
+                &SIMULATION block."
+              call PrintErrMsg(option)
             case('WASTE_FORM')
               call SubsurfaceReadWasteFormPM(input,option,new_pm)
             case('UFD_DECAY')
@@ -271,7 +303,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               input%buf = pm_name
               call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'SIMULATION,PROCESS_MODELS',option)            
           end select
           if (.not.associated(new_pm%option)) new_pm%option => option
@@ -289,6 +321,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           cur_pm => new_pm
           nullify(new_pm)
         enddo
+        call InputPopBlock(input,option)
       case('MASTER')
         call PFLOTRANSetupPMCHierarchy(input,option,pmc_master)
       case('PRINT_EKG')
@@ -312,10 +345,11 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           ! end legacy implementation
         endif 
         input%ierr = 0
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call StringToUpper(word)
           select case(word)
             case('FILENAME')
@@ -327,9 +361,11 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('REALIZATION_DEPENDENT')
               realization_dependent_restart = PETSC_TRUE
             case default
-              call InputKeywordUnrecognized(word,'SIMULATION,RESTART',option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'SIMULATION,RESTART',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (realization_dependent_restart) then
           ! insert realization id
           i = index(option%restart_filename,'-restart')
@@ -350,9 +386,10 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         option%input_record = PETSC_TRUE
         call OpenAndWriteInputRecord(option)
       case default
-        call InputKeywordUnrecognized(word,'SIMULATION',option)            
+        call InputKeywordUnrecognized(input,word,'SIMULATION',option)            
     end select
   enddo
+  call InputPopBlock(input,option)
   call InputDestroy(input)
 
   if (.not.associated(pm_master)) then
@@ -383,7 +420,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           &SUBSURFACE") must be specified within the SIMULATION block.'
         call PrintErrMsg(option)
       endif
-      call InputKeywordUnrecognized(simulation_type, &
+      call InputKeywordUnrecognized(input,simulation_type, &
                      'SIMULATION,SIMULATION_TYPE',option)            
   end select
   simulation%process_model_list => pm_master
@@ -428,10 +465,11 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
   pmc => PMCBaseCreate()
   pmc%name = word
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'CHILD or PEER','SIMULATION')
     call StringToUpper(word)
     select case(trim(word))
@@ -440,9 +478,11 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
       case('CHILD')
         call PFLOTRANSetupPMCHierarchy(input,option,pmc%child)
       case default
-        call InputKeywordUnrecognized(word,'PFLOTRANSetupPMCHierarchy',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'PFLOTRANSetupPMCHierarchy',option)
     end select    
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PFLOTRANSetupPMCHierarchy
 
@@ -491,6 +531,7 @@ subroutine PFLOTRANFinalize(option)
   use Option_module
   use Logging_module
   use Output_EKG_module
+  use HDF5_Aux_module
   
   implicit none
   
@@ -499,6 +540,7 @@ subroutine PFLOTRANFinalize(option)
   
   ! pushed in FinalizeRun()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
+  call HDF5Finalize(option)
   call OptionEndTiming(option)
   if (OptionPrintToFile(option)) then
     close(option%fid_out)
@@ -551,7 +593,11 @@ subroutine PFLOTRANInitCommandLineSettings(option)
     call PrintErrMsg(option)
   else if (pflotranin_option_found) then
     strings => StringSplit(option%input_filename,'.')
-    option%input_prefix = strings(1)
+    if (size(strings) > 1) then
+      option%input_prefix = StringsMerge(strings(1:size(strings)-1),'.')
+    else
+      option%input_prefix = strings(1)
+    endif
     deallocate(strings)
     nullify(strings)
   else if (input_prefix_option_found) then
@@ -582,7 +628,11 @@ subroutine PFLOTRANInitCommandLineSettings(option)
  
   string = '-successful_exit_code'
   call InputGetCommandLineInt(string,i,option_found,option)
-  if (option_found) option%successful_exit_code = i
+  if (option_found) option%exit_code = i
+ 
+  string = '-keyword_screen_output'
+  call InputGetCommandLineTruth(string,option%keyword_logging_screen_output, &
+                                option_found,option)
  
   ! this will get overwritten later if stochastic
   string = '-realization_id'
@@ -594,7 +644,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
     endif
     option%id = i
   endif
-  
+ 
 end subroutine PFLOTRANInitCommandLineSettings
 
 end module Factory_PFLOTRAN_module

@@ -12,8 +12,6 @@ module Timestepper_BE_class
 
   private
   
-#include "petsc/finclude/petscsys.h"
- 
   type, public, extends(timestepper_base_type) :: timestepper_BE_type
   
     PetscInt :: num_newton_iterations ! number of Newton iterations in a time step
@@ -21,6 +19,7 @@ module Timestepper_BE_class
     PetscInt :: cumulative_newton_iterations       ! Total number of Newton iterations
     PetscInt :: cumulative_linear_iterations     ! Total number of linear iterations
     PetscInt :: cumulative_wasted_linear_iterations
+    PetscInt :: cumulative_wasted_newton_iterations
 
     PetscInt :: iaccel        ! Accelerator index
     ! An array of multiplicative factors that specify how to increase time step.
@@ -29,7 +28,7 @@ module Timestepper_BE_class
             
   contains
     
-    procedure, public :: ReadInput => TimestepperBERead
+    procedure, public :: ReadSelectCase => TimestepperBEReadSelectCase
     procedure, public :: Init => TimestepperBEInit
 !    procedure, public :: SetTargetTime => TimestepperBaseSetTargetTime
     procedure, public :: StepDT => TimestepperBEStepDT
@@ -65,8 +64,10 @@ module Timestepper_BE_class
     end subroutine
   end interface PetscBagGetData  
 
-  public :: TimestepperBECreate, TimestepperBEPrintInfo, &
-            TimestepperBEInit
+  public :: TimestepperBECreate, &
+            TimestepperBEPrintInfo, &
+            TimestepperBEInit, &
+            TimestepperBEReadSelectCase
 
 contains
 
@@ -88,8 +89,6 @@ function TimestepperBECreate()
   
   allocate(stepper)
   call stepper%Init()
-  
-  stepper%solver => SolverCreate()
   
   TimestepperBECreate => stepper
   
@@ -117,6 +116,7 @@ subroutine TimestepperBEInit(this)
   this%cumulative_newton_iterations = 0
   this%cumulative_linear_iterations = 0
   this%cumulative_wasted_linear_iterations = 0
+  this%cumulative_wasted_newton_iterations = 0
 
   this%iaccel = 5
   this%ntfac = 13
@@ -129,18 +129,17 @@ subroutine TimestepperBEInit(this)
   this%tfac(11) = 1.0d0; this%tfac(12) = 1.0d0
   this%tfac(13) = 1.0d0
   
-  nullify(this%solver)
-  
 end subroutine TimestepperBEInit
 
 ! ************************************************************************** !
 
-subroutine TimestepperBERead(this,input,option)
+subroutine TimestepperBEReadSelectCase(this,input,keyword,found, &
+                                       error_string,option)
   ! 
-  ! Reads parameters associated with time stepper
+  ! Reads select case statement for BE
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 03/16/20
   ! 
 
   use Option_module
@@ -152,56 +151,36 @@ subroutine TimestepperBERead(this,input,option)
 
   class(timestepper_BE_type) :: this
   type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
 
+  found = PETSC_TRUE
+  call TimestepperBaseReadSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  if (found) return
 
-  if (option%flow%resdef) then
-    option%io_buffer = 'TIMESTEPPER CARD: applying common defaults (RESERVOIR_DEFAULTS)'
-    call PrintMsg(option)
-    this%iaccel=100
-    option%io_buffer = 'TIMESTEPPER CARD: TS_ACCELERATION as been set to 100 (RESERVOIR_DEFAULTS)'
-    call PrintMsg(option)
-  endif
+  found = PETSC_TRUE
+  select case(trim(keyword))
 
-  input%ierr = 0
-  do
+    case('TS_ACCELERATION')
+      call InputReadInt(input,option,this%iaccel)
+      call InputDefaultMsg(input,option,'iaccel')
+
+    case('DT_FACTOR')
+      string='time_step_factor'
+      call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
+          option)
+      this%ntfac = size(this%tfac)
+
+    case default
+      found = PETSC_FALSE
+  end select 
   
-    call InputReadPflotranString(input,option)
-
-    if (InputCheckExit(input,option)) exit  
-
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','TIMESTEPPER_BE')
-    call StringToUpper(keyword)   
-
-    select case(trim(keyword))
-  
-      case('TS_ACCELERATION')
-        call InputReadInt(input,option,this%iaccel)
-        call InputDefaultMsg(input,option,'iaccel')
-        if (option%flow%resdef) then
-          option%io_buffer = 'WARNING: TS_ACCELERATION has been changed, overwritting the RESERVOIR_DEFAULTS default'
-          call PrintMsg(option)
-        endif
-
-      case('DT_FACTOR')
-        string='time_step_factor'
-        call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
-            option)
-        this%ntfac = size(this%tfac)
-
-      case default
-        call TimestepperBaseProcessKeyword(this,input,option,keyword)
-    end select 
-  
-  enddo
-  
-  this%solver%print_ekg = this%print_ekg
-
-end subroutine TimestepperBERead
+end subroutine TimestepperBEReadSelectCase
 
 ! ************************************************************************** !
 
@@ -293,15 +272,16 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscInt :: num_linear_iterations
   PetscInt :: sum_newton_iterations
   PetscInt :: sum_linear_iterations
-  PetscInt :: sum_wasted_linear_iterations,lpernl,nnl
+  PetscInt :: sum_wasted_linear_iterations,sum_wasted_newton_iterations,lpernl,nnl
   character(len=MAXWORDLENGTH) :: tunit
+  
   PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
   PetscErrorCode :: ierr
 
-  solver => this%solver
+  solver => process_model%solver
   option => process_model%option
   
 !geh: for debugging
@@ -316,6 +296,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   tunit = process_model%output_option%tunit
   sum_linear_iterations = 0
   sum_wasted_linear_iterations = 0
+  sum_wasted_newton_iterations = 0
   sum_newton_iterations = 0
   icut = 0
   
@@ -350,7 +331,9 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   
     if (snes_reason <= 0 .or. .not. process_model%AcceptSolution()) then
       sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
-        num_linear_iterations
+           num_linear_iterations
+      sum_wasted_newton_iterations = sum_wasted_newton_iterations + &
+           num_newton_iterations
       ! The Newton solver diverged, so try reducing the time step.
       icut = icut + 1
       this%time_step_cut_flag = PETSC_TRUE
@@ -377,9 +360,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
                 '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
                this%dt/tconv,this%dt_min/tconv,trim(tunit)
           call PrintMsg(option)
-        endif
+       endif   
         
-        process_model%output_option%plot_name = 'flow_cut_to_failure'
+        process_model%output_option%plot_name = trim(process_model%name)// &
+          '_cut_to_failure'
         snapshot_plot_flag = PETSC_TRUE
         observation_plot_flag = PETSC_FALSE
         massbal_plot_flag = PETSC_FALSE
@@ -432,7 +416,9 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%cumulative_linear_iterations = &
     this%cumulative_linear_iterations + sum_linear_iterations
   this%cumulative_wasted_linear_iterations = &
-    this%cumulative_wasted_linear_iterations + sum_wasted_linear_iterations
+       this%cumulative_wasted_linear_iterations + sum_wasted_linear_iterations
+  this%cumulative_wasted_newton_iterations = &
+       this%cumulative_wasted_newton_iterations + sum_wasted_newton_iterations
   this%cumulative_time_step_cuts = &
     this%cumulative_time_step_cuts + icut
 
@@ -521,8 +507,6 @@ subroutine TimestepperBECheckpointBinary(this,viewer,option)
   ! Author: Glenn Hammond
   ! Date: 07/25/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -1072,7 +1056,7 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
 #endif
   
   if (OptionPrintToScreen(option)) then
-    write(*,'(/,a," TS BE steps = ",i6," newton = ",i8," linear = ",i10, &
+    write(*,'(/,x,a," TS BE steps = ",i6," newton = ",i8," linear = ",i10, &
             & " cuts = ",i6)') &
             trim(this%name), &
             this%steps, &
@@ -1080,10 +1064,15 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
             this%cumulative_linear_iterations, &
             this%cumulative_time_step_cuts
     write(string,'(i12)') this%cumulative_wasted_linear_iterations
+
     write(*,'(a)') trim(this%name) // ' TS BE Wasted Linear Iterations = ' // &
+         trim(adjustl(string))
+    write(string,'(i12)') this%cumulative_wasted_newton_iterations
+    write(*,'(a)') trim(this%name) // ' TS BE Wasted Newton Iterations = ' // &
       trim(adjustl(string))
+
     write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(a)') trim(this%name) // ' TS BE SNES time = ' // &
+    write(*,'(x,a)') trim(this%name) // ' TS BE SNES time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
   
@@ -1104,7 +1093,6 @@ subroutine TimestepperBEStrip(this)
   class(timestepper_BE_type) :: this
   
   call TimestepperBaseStrip(this)
-  call SolverDestroy(this%solver)
 
   if (associated(this%tfac)) deallocate(this%tfac)
   nullify(this%tfac)

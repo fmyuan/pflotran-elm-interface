@@ -324,9 +324,10 @@ contains
       prev_row = -1
 
       ! Read first six entries in the mapping file.
+      call InputPushBlock(input,option)
       do nheader = 1, 6
         call InputReadPflotranString(input,option)
-        call InputReadWord(input,option,card,PETSC_TRUE)
+        call InputReadCard(input,option,card)
         call StringToLower(card)
 
         select case (trim(card))
@@ -361,6 +362,7 @@ contains
             call PrintErrMsgByRank(option)
         end select
       enddo
+      call InputPopBlock(input,option)
       
       nwts_tmp = nwts/option%mycommsize
       remainder= nwts - nwts_tmp*option%mycommsize

@@ -102,11 +102,9 @@ module TOWG_module
 
     subroutine TOWGFluxDummy(auxvar_up,global_auxvar_up, &
                              material_auxvar_up, &
-                             sir_up, &
                              thermal_conductivity_up, &
                              auxvar_dn,global_auxvar_dn, &
                              material_auxvar_dn, &
-                             sir_dn, &
                              thermal_conductivity_dn, &
                              area, dist, towg_parameter, &
                              option,v_darcy,Res, &
@@ -122,7 +120,6 @@ module TOWG_module
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
       class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
       type(option_type) :: option
-      PetscReal :: sir_up(:), sir_dn(:)
       PetscReal :: v_darcy(option%nphase)
       PetscReal :: area
       PetscReal :: dist(-1:3)
@@ -139,7 +136,6 @@ module TOWG_module
                                auxvar_up,global_auxvar_up, &
                                auxvar_dn,global_auxvar_dn, &
                                material_auxvar_dn, &
-                               sir_dn, &
                                thermal_conductivity_dn, &
                                area,dist,towg_parameter, &
                                option,v_darcy,Res,debug_connection,&
@@ -154,7 +150,6 @@ module TOWG_module
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
       class(material_auxvar_type) :: material_auxvar_dn
       type(option_type) :: option
-      PetscReal :: sir_dn(:)
       PetscReal :: bc_auxvars(:)
       PetscReal :: v_darcy(option%nphase), area
       type(towg_parameter_type) :: towg_parameter
@@ -187,14 +182,14 @@ module TOWG_module
       PetscBool :: analytical_derivatives
     end subroutine TOWGSrcSinkDummy
 
-    subroutine TOWGCheckUpdatePreDummy(line_search,X,dX,changed,realization, &
+    subroutine TOWGCheckUpdatePreDummy(snes,X,dX,changed,realization, &
                                        max_it_before_damping,damping_factor, &
                                        max_pressure_change,ierr)
       use Realization_Subsurface_class
 #include "petsc/finclude/petscsnes.h"
       use petscsnes
       implicit none
-      SNESLineSearch :: line_search
+      SNES :: snes
       Vec :: X
       Vec :: dX
       PetscBool :: changed
@@ -315,6 +310,7 @@ subroutine TOWGSetup(realization)
   PetscInt :: i, idof, count
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscErrorCode :: ierr
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   !type(fluid_property_type), pointer :: cur_fluid_property
@@ -371,19 +367,14 @@ subroutine TOWGSetup(realization)
   material_parameter => patch%aux%Material%material_parameter
   error_found = PETSC_FALSE
 
-  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
-    option%io_buffer = 'Non-initialized soil residual saturation.'
-    call PrintMsg(option)
-    error_found = PETSC_TRUE
-  endif
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil heat capacity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil thermal conductivity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   
@@ -398,33 +389,37 @@ subroutine TOWGSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'Non-initialized cell volume.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
-    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+    if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
+        flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'Non-initialized tortuosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'Non-initialized soil particle density.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'Non-initialized permeability.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       flag(5) = 1
     endif
   enddo
 
-  if (error_found .or. maxval(flag) > 0) then
+  error_found = error_found .or. (maxval(flag) > 0)
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (error_found) then
     option%io_buffer = 'Material property errors found in TOWGSetup.'
     call PrintErrMsg(option)
   endif
@@ -706,7 +701,7 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
                         global_auxvars(ghosted_id), &
                         material_auxvars(ghosted_id), &
                         patch%characteristic_curves_array( &
-                        patch%sat_func_id(ghosted_id))%ptr, &
+                        patch%cc_id(ghosted_id))%ptr, &
                        natural_id, &
                        option)
   enddo
@@ -824,7 +819,7 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                  patch%cc_id(ghosted_id))%ptr, &
                                 natural_id, &
                                 option)
     enddo
@@ -1001,7 +996,7 @@ end subroutine TOWGTimeCut
 subroutine TOWGZeroMassBalanceDelta(realization)
   ! 
   ! Zeros mass balance delta array  
-  ! PO: identical for many flow modes (Genral, Toil_Ims, TOWG), where can it 
+  ! PO: identical for many flow modes (Genral, TOil_Ims, TOWG), where can it 
   !     be located to be shared?? flow_mode_common.F90 ?
   ! 
   ! Author: Paolo Orsini
@@ -1757,7 +1752,7 @@ subroutine TOWGUpdateFixedAccum(realization)
 
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
   PetscInt :: imat
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
                           
   PetscErrorCode :: ierr
@@ -1799,7 +1794,7 @@ subroutine TOWGUpdateFixedAccum(realization)
                            global_auxvars(ghosted_id), &
                            material_auxvars(ghosted_id), &
                            patch%characteristic_curves_array( &
-                           patch%sat_func_id(ghosted_id))%ptr, &
+                           patch%cc_id(ghosted_id))%ptr, &
                            natural_id, &
                            option)
     call TOWGAccumulation(towg%auxvars(ZERO_INTEGER,ghosted_id), &
@@ -2012,11 +2007,9 @@ end subroutine TOWGImsTLBOAccumulation
 
 subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                          material_auxvar_up, &
-                         sir_up, &
                          thermal_conductivity_up, &
                          auxvar_dn,global_auxvar_dn, &
                          material_auxvar_dn, &
-                         sir_dn, &
                          thermal_conductivity_dn, &
                          area, dist, towg_parameter, &
                          option,v_darcy,Res, &
@@ -2041,7 +2034,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up(:), sir_dn(:)
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -2620,7 +2612,6 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                            auxvar_up,global_auxvar_up, &
                            auxvar_dn,global_auxvar_dn, &
                            material_auxvar_dn, &
-                           sir_dn, &
                            thermal_conductivity_dn, &
                            area,dist,towg_parameter, &
                            option,v_darcy,Res,debug_connection,&
@@ -2643,7 +2634,6 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_dn(:)
   PetscReal :: bc_auxvars(:) ! from aux_real_var array
   PetscReal :: v_darcy(option%nphase), area
   type(towg_parameter_type) :: towg_parameter
@@ -2781,14 +2771,15 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     bc_type = ibndtype(iphase)
     select case(bc_type)
       ! figure out the direction of flow
-      case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+           HYDROSTATIC_CONDUCTANCE_BC)
 
         ! dist(0) = scalar - magnitude of distance
         ! gravity = vector(3)
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-        if (bc_type == CONDUCTANCE_BC) then
+        if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
 
 ! The values at TOWG_LIQ_CONDUCTANCE_INDEX etc are not actually set
          option%io_buffer = 'Boundary conductances are not available'
@@ -2814,8 +2805,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         ! reusing sir_dn for bounary auxvar
 #define BAD_MOVE1 ! this works
 #ifndef BAD_MOVE1       
-        if (auxvar_up%sat(iphase) > sir_dn(iphase) .or. &
-            auxvar_dn%sat(iphase) > sir_dn(iphase)) then
+        if (auxvar_up%mobility(iphase) > eps .or. &
+            auxvar_dn%mobility(iphase) > eps) then
 #endif
           boundary_pressure = auxvar_up%pres(iphase)
 
@@ -2898,9 +2889,9 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           debug_dphi(iphase) = delta_pressure
 #endif
 
-          ! PO CONDUCTANCE_BC and SEEPAGE_BC to be implemented/tested
-          if (bc_type == SEEPAGE_BC .or. &
-              bc_type == CONDUCTANCE_BC) then
+          ! PO CONDUCTANCE_BC and HYDROSTATIC_SEEPAGE_BC to be implemented/tested
+          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
+              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
                 ! flow in         ! boundary cell is <= pref
             if (delta_pressure > 0.d0 .and. &
                 auxvar_up%pres(iphase) - &
@@ -4353,11 +4344,9 @@ end subroutine TOWGAccumDerivative
 
 subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                               material_auxvar_up, &
-                              sir_up, &
                               thermal_conductivity_up, &
                               auxvar_dn,global_auxvar_dn, &
                               material_auxvar_dn, &
-                              sir_dn, &
                               thermal_conductivity_dn, &
                               area, dist, &
                               towg_parameter, &
@@ -4379,7 +4368,6 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up(:), sir_dn(:)
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
   PetscReal :: area
@@ -4411,10 +4399,10 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     !print *, 'TOWGFluxDerivative'
     option%iflag = -2
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                  material_auxvar_up,sir_up, &
+                  material_auxvar_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
+                  material_auxvar_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
@@ -4422,10 +4410,10 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     ! upgradient derivatives
     do idof = 1, option%nflowdof
       call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
-                    material_auxvar_up,sir_up, &
+                    material_auxvar_up, &
                     thermal_conductivity_up, &
                     auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
@@ -4437,10 +4425,10 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     ! downgradient derivatives
     do idof = 1, option%nflowdof
       call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                    material_auxvar_up,sir_up, &
+                    material_auxvar_up, &
                     thermal_conductivity_up, &
                     auxvar_dn(idof),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
@@ -4473,10 +4461,10 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
 
   if (towg_analytical_derivatives) then
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                  material_auxvar_up,sir_up, &
+                  material_auxvar_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
+                  material_auxvar_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
@@ -4532,29 +4520,29 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
       endif
 
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                  material_auxvar_up,sir_up, &
+                  material_auxvar_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
+                  material_auxvar_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
 
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                  material_auxvar_up,sir_up, &
+                  material_auxvar_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
+                  material_auxvar_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
 
       idof = 4
       call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
-                    material_auxvar_up,sir_up, &
+                    material_auxvar_up, &
                     thermal_conductivity_up, &
                     auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
@@ -4573,7 +4561,7 @@ end subroutine TOWGFluxDerivative
 subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                                 auxvar_up, global_auxvar_up, &
                                 auxvar_dn,global_auxvar_dn, &
-                                material_auxvar_dn,sir_dn, &
+                                material_auxvar_dn, &
                                 thermal_conductivity_dn, &
                                 area,dist,towg_parameter, &
                                 option,Jdn)
@@ -4596,7 +4584,6 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_dn(:)
   PetscReal :: area
   PetscReal :: dist(-1:3)
   type(towg_parameter_type) :: towg_parameter
@@ -4623,7 +4610,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                     auxvar_up,global_auxvar_up, &
                     auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res,PETSC_FALSE,jdum,PETSC_FALSE)
@@ -4633,7 +4620,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                       auxvar_up,global_auxvar_up, &
                       auxvar_dn(idof),global_auxvar_dn, &
-                      material_auxvar_dn,sir_dn, &
+                      material_auxvar_dn, &
                       thermal_conductivity_dn, &
                       area,dist,towg_parameter, &
                       option,v_darcy,res_pert,PETSC_FALSE,jdum,PETSC_FALSE)
@@ -4663,7 +4650,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                     auxvar_up,global_auxvar_up, &
                     auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
@@ -4693,7 +4680,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                       auxvar_up,global_auxvar_up, &
                       auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                      material_auxvar_dn,sir_dn, &
+                      material_auxvar_dn, &
                       thermal_conductivity_dn, &
                       area,dist,towg_parameter, &
                       option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
@@ -4874,7 +4861,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
-  PetscInt :: icap_up, icap_dn
+  PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
   !PetscReal :: Jac_dummy(realization%option%nflowdof, &
   !                       realization%option%nflowdof)
@@ -5001,18 +4988,16 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       imat_dn = patch%imat(ghosted_id_dn) 
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
 
       call TOWGFlux(towg%auxvars(ZERO_INTEGER,ghosted_id_up), &
                     global_auxvars(ghosted_id_up), &
                     material_auxvars(ghosted_id_up), & 
-                    material_parameter%soil_residual_saturation(:,icap_up), &
                     material_parameter%soil_thermal_conductivity(:,imat_up), &
                     towg%auxvars(ZERO_INTEGER,ghosted_id_dn), &
                     global_auxvars(ghosted_id_dn), &
                     material_auxvars(ghosted_id_dn), &
-                    material_parameter%soil_residual_saturation(:,icap_dn), &
                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(:,iconn), &
@@ -5064,7 +5049,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call TOWGBCFlux(boundary_condition%flow_bc_type, &
                     boundary_condition%flow_aux_mapping, & 
@@ -5074,7 +5059,6 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
                     towg%auxvars(ZERO_INTEGER,ghosted_id), &
                     global_auxvars(ghosted_id), &
                     material_auxvars(ghosted_id), &
-                    material_parameter%soil_residual_saturation(:,icap_dn), &
                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(:,iconn), &
@@ -5172,8 +5156,8 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   endif
 
   if (towg%inactive_cells_exist) then
-    do i = 1,towg%n_inactive_rows
-      r_p(towg%inactive_rows_local(i)) = 0.d0
+    do i = 1,towg%matrix_zeroing%n_inactive_rows
+      r_p(towg%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
   
@@ -5288,7 +5272,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: norm
   PetscViewer :: viewer
 
-  PetscInt :: icap_up,icap_dn
+  PetscInt :: icc_up,icc_dn
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
@@ -5374,7 +5358,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
                              patch%characteristic_curves_array( &
-                             patch%sat_func_id(ghosted_id))%ptr, &
+                             patch%cc_id(ghosted_id))%ptr, &
                              natural_id,option)
     endif
 
@@ -5426,18 +5410,16 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
    
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
                               
       call TOWGFluxDerivative(towg%auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
-                     material_parameter%soil_residual_saturation(:,icap_up), &
                      material_parameter%soil_thermal_conductivity(:,imat_up), &
                      towg%auxvars(:,ghosted_id_dn), &
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
-                     material_parameter%soil_residual_saturation(:,icap_dn), &
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
@@ -5493,7 +5475,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call TOWGBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &
@@ -5503,7 +5485,6 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                       towg%auxvars(:,ghosted_id), &
                       global_auxvars(ghosted_id), &
                       material_auxvars(ghosted_id), &
-                      material_parameter%soil_residual_saturation(:,icap_dn), &
                       material_parameter%soil_thermal_conductivity(:,imat_dn), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
@@ -5593,15 +5574,15 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   ! zero out isothermal and inactive cells
   if (towg%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,towg%n_inactive_rows, &
-                          towg%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,towg%matrix_zeroing%n_inactive_rows, &
+                          towg%matrix_zeroing%inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 
   if (towg_isothermal) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => towg%row_zeroing_array
+    zeros => towg%matrix_zeroing%row_zeroing_array
     ! zero energy residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -5614,7 +5595,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
 
   if (towg_no_oil) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => towg%row_zeroing_array
+    zeros => towg%matrix_zeroing%row_zeroing_array
     ! zero gas component mass balance residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -5627,7 +5608,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
 
   if (towg_no_gas) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => towg%row_zeroing_array
+    zeros => towg%matrix_zeroing%row_zeroing_array
     ! zero gas component mass balance residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -5679,7 +5660,7 @@ end subroutine TOWGJacobian
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
+subroutine TOWGImsTLCheckUpdatePre(snes,X,dX,changed,realization, &
                                    max_it_before_damping,damping_factor, &
                                    max_pressure_change,ierr)
   ! 
@@ -5694,7 +5675,7 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   implicit none
 
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -5728,7 +5709,6 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
   PetscInt :: newton_iteration
 
   
@@ -5737,7 +5717,6 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   field => realization%field
   patch => realization%patch
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -5856,7 +5835,7 @@ end subroutine TOWGImsTLCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
+subroutine TOWGBlackOilCheckUpdatePre(snes,X,dX,changed,realization, &
                                       max_it_before_damping,damping_factor, &
                                       max_pressure_change,ierr)
 !------------------------------------------------------------------------------
@@ -5874,7 +5853,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   implicit none
 
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -5906,7 +5885,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
   PetscInt :: newton_iteration,istate
 
   PetscReal :: scand
@@ -5923,7 +5901,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   global_auxvars => patch%aux%Global%auxvars
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)

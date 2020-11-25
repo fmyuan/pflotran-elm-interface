@@ -1,5 +1,8 @@
 module Reaction_Microbial_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Microbial_Aux_module
   
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Reaction_Microbial_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   public :: MicrobialRead, &
             RMicrobial
@@ -24,8 +25,6 @@ subroutine MicrobialRead(microbial,input,option)
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -49,12 +48,13 @@ subroutine MicrobialRead(microbial,input,option)
   nullify(prev_monod)
   nullify(prev_inhibition)
   nullify(microbial_biomass)
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,MICROBIAL_REACTION')
     call StringToUpper(word)   
 
@@ -79,11 +79,12 @@ subroutine MicrobialRead(microbial,input,option)
                      'CHEMISTRY,MICROBIAL_REACTION,ACTIVATION_ENERGY',option)
       case('MONOD')
         monod => MicrobialMonodCreate()
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,MICROBIAL_REACTION,MONOD')
           call StringToUpper(word)   
@@ -102,11 +103,12 @@ subroutine MicrobialRead(microbial,input,option)
               call InputErrorMsg(input,option,'threshold concdntration', &
                                  'CHEMISTRY,MICROBIAL_REACTION,MONOD')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                                             'CHEMISTRY,MICROBIAL_REACTION,MONOD', &
                                             option)
           end select
         enddo
+        call InputPopBlock(input,option)
         ! append to list
         if (.not.associated(microbial_rxn%monod)) then
           microbial_rxn%monod => monod
@@ -117,11 +119,12 @@ subroutine MicrobialRead(microbial,input,option)
         nullify(monod)
       case('INHIBITION')
         inhibition => MicrobialInhibitionCreate()
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
           call StringToUpper(word)   
@@ -132,7 +135,7 @@ subroutine MicrobialRead(microbial,input,option)
                                  'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
               inhibition%species_name = word
             case('TYPE')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'inhibition type', &
                                  'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
               call StringToUpper(word)   
@@ -149,7 +152,7 @@ subroutine MicrobialRead(microbial,input,option)
                                      'CHEMISTRY,MICROBIAL_REACTION,&
                                      &INHIBITION,THRESHOLD_INHIBITION')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'CHEMISTRY,MICROBIAL_REACTION,INHIBITION,TYPE',option)
               end select
             case('INHIBITION_CONSTANT')
@@ -157,10 +160,11 @@ subroutine MicrobialRead(microbial,input,option)
               call InputErrorMsg(input,option,'inhibition constant', &
                                  'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                       'CHEMISTRY,MICROBIAL_REACTION,INHIBITION',option)
           end select        
         enddo
+        call InputPopBlock(input,option)
         if (len_trim(inhibition%species_name) < 2 .or. &
             inhibition%itype == 0 .or. &
             Uninitialized(inhibition%inhibition_constant)) then
@@ -182,11 +186,12 @@ subroutine MicrobialRead(microbial,input,option)
           call MicrobialBiomassDestroy(microbial_biomass)
         endif
         microbial_biomass => MicrobialBiomassCreate()
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
           call StringToUpper(word)   
@@ -201,16 +206,18 @@ subroutine MicrobialRead(microbial,input,option)
               call InputErrorMsg(input,option,'yield', &
                                  'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,MICROBIAL_REACTION,BIOMASS', &
                                             option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY,MICROBIAL_REACTION', &
+        call InputKeywordUnrecognized(input,word,'CHEMISTRY,MICROBIAL_REACTION', &
                                       option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
   ! add linkage to biomass if exists
   microbial_rxn%biomass => microbial_biomass
@@ -249,13 +256,13 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   use Reactive_Transport_Aux_module, only : reactive_transport_auxvar_type
   use Global_Aux_module, only : global_auxvar_type
   use Material_Aux_class, only : material_auxvar_type
-  use Reaction_Aux_module, only : reaction_type
+  use Reaction_Aux_module, only : reaction_rt_type
   use Reaction_Immobile_Aux_module, only : immobile_type
   
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)

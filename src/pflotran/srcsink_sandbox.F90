@@ -1,5 +1,8 @@
 module SrcSink_Sandbox_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use SrcSink_Sandbox_Base_class
   use SrcSink_Sandbox_WIPP_Gas_class
   use SrcSink_Sandbox_Mass_Rate_class
@@ -11,8 +14,6 @@ module SrcSink_Sandbox_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   class(srcsink_sandbox_base_type), pointer, public :: ss_sandbox_list
   PetscBool :: print_mass_balance
 
@@ -44,8 +45,6 @@ subroutine SSSandboxInit(option)
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   implicit none
   type(option_type) :: option
@@ -112,19 +111,20 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   ! Ensure that transport is not being simulated as we have no way for 
   ! introducting solutes.
   if (option%ntrandof > 0) then
-    option%io_buffer = 'Reactive transport may not be simulated when a &
+    option%io_buffer = 'Transport may not be simulated when a &
       &SOURCE_SINK_SANDBOX exists in the input file since no source/sink &
       &capability exists in the source/sink sandbox for solute mass.'
     call PrintErrMsg(option)
   endif
 
   nullify(new_sandbox)
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','SOURCE_SINK_SANDBOX')
     call StringToUpper(word)   
 
@@ -140,7 +140,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
       case('MASS_BALANCE')
         print_mass_balance = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX',option)
+        call InputKeywordUnrecognized(input,word,'SRCSINK_SANDBOX',option)
     end select
     
     if (associated(new_sandbox)) then
@@ -158,6 +158,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
     endif
     nullify(new_sandbox)
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine SSSandboxRead2
 
@@ -405,7 +406,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
              ' ' // trim(adjustl(y_string)) // &
              ' ' // trim(adjustl(z_string)) // ')'
     select case(option%iflowmode)
-      case(RICHARDS_MODE,G_MODE,WF_MODE)
+      case(RICHARDS_MODE,G_MODE,H_MODE,WF_MODE)
         variable_string = ' Water'
         ! cumulative
         units_string = 'kg'
@@ -417,7 +418,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
                                  cell_string,icolumn)
     end select
     select case(option%iflowmode)
-      case(G_MODE,WF_MODE)
+      case(G_MODE,H_MODE,WF_MODE)
         variable_string = ' Gas Component'
         ! cumulative
         units_string = 'kg'
@@ -480,7 +481,7 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
     case(MIS_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWGLYC
-    case(G_MODE)
+    case(G_MODE,H_MODE)
       flow_dof_scale(1:2) = general_fmw(1:2)
     case(WF_MODE)
       flow_dof_scale(1:2) = wipp_flow_fmw(1:2)

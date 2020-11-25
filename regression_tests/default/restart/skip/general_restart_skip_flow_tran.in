@@ -6,13 +6,14 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        MAX_CFL 50.d0
         SKIP_RESTART
       /
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
-      SKIP_RESTART
+      MODE GIRT
+      OPTIONS
+        SKIP_RESTART
+      /
     /
   /
   RESTART

@@ -179,6 +179,7 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
   
+  call InputPushBlock(input,option)
   do
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option, &
@@ -187,12 +188,12 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
       if (InputCheckExit(input,option)) exit
           
       if (InputError(input)) exit
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword', &
                           'MATERIAL_PROPERTY,GEOMECHANICS_SUBSURFACE_PROPS')   
       select case(trim(word))
         case('COMPRESSIBILITY_FUNCTION')
-          call InputReadWord(input,option, &
+          call InputReadCard(input,option, &
                              this%geomechanical_compressibility_function, &
                              PETSC_TRUE)
           call InputErrorMsg(input,option, &
@@ -221,11 +222,12 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
           call InputReadDouble(input,option,this%normal_vector_z)
           call InputErrorMsg(input,option,'z-direction','NORMAL_VECTOR')
         case default
-          call InputKeywordUnrecognized(word, &
+          call InputKeywordUnrecognized(input,word, &
                   'MATERIAL_PROPERTY,GEOMECHANICS_SUBSURFACE_PROPS', &
                   option)
       end select
     enddo
+    call InputPopBlock(input,option)
     
 end subroutine GeomechanicsSubsurfacePropsRead
 

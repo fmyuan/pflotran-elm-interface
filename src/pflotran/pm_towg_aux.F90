@@ -794,6 +794,13 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   endif
   auxvar%temp = x(towg_energy_dof)
 
+!  Apply physical limits of 1 Pa to pressure and bubble point
+
+  auxvar%pres(oid)=max(auxvar%pres(oid),1.0)
+  if( .not.isSat ) then
+    auxvar%bo%bubble_point=max(auxvar%bo%bubble_point,1.0)
+  endif
+
 !==============================================================================
 ! Check if this state still valid and flip if not (but not on diff call)
 !==============================================================================
@@ -893,6 +900,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                 auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
   endif
 
+#if 0
   if (auxvar%bo%xo < 0.d0) then
     print *, "xo negative ", auxvar%bo%xo, " pb is ", auxvar%bo%bubble_point
     option%io_buffer = 'xo has gone negative; xo and bubble point are'
@@ -902,6 +910,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     write(option%io_buffer,*) auxvar%bo%bubble_point
     call PrintMsg(option)
   endif
+#endif
 
 !==============================================================================
 !  Get the capillary pressures

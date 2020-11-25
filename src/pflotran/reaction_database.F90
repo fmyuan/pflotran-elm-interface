@@ -1,5 +1,8 @@
 module Reaction_Database_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_Aux_module
@@ -10,8 +13,6 @@ module Reaction_Database_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   public :: DatabaseRead, BasisInit
   
   public :: GetSpeciesBasisID, &
@@ -30,8 +31,6 @@ subroutine DatabaseRead(reaction,option)
   ! Date: 09/01/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -47,7 +46,7 @@ subroutine DatabaseRead(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec, cur_aq_spec2
@@ -145,6 +144,28 @@ subroutine DatabaseRead(reaction,option)
     enddo
   endif
 
+  found = PETSC_TRUE
+  if (reaction%use_geothermal_hpt) found = PETSC_FALSE 
+  if (reaction%num_dbase_temperatures == 8) then
+    if (dabs(reaction%dbase_temperatures(1)-0.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(2)-25.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(3)-60.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(4)-100.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(5)-150.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(6)-200.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(7)-250.d0) < 1.d-40 .and. &
+        dabs(reaction%dbase_temperatures(8)-300.d0) < 1.d-40) then
+      found = PETSC_FALSE
+    endif
+  endif
+  if (found) then
+    option%io_buffer = 'The number of temperature and/or the database &
+      &temperatures do not match the hardwired values in PFLOTRAN for &
+      &Debye-Huckel. Please use 8 temperatures at 0, 25, 60, 100, 150, 200, &
+      &250 and 300 C.'
+    call PrintErrMsg(option)
+  endif
+
   num_nulls = 0
   null_name = 'null'
   do ! loop over every entry in the database
@@ -234,6 +255,10 @@ subroutine DatabaseRead(reaction,option)
         do
           if (found .or. .not.associated(cur_immobile_spec)) exit
           if (StringCompare(name,cur_immobile_spec%name,MAXWORDLENGTH)) then
+            option%io_buffer = 'Immobile species [i.e. ' // &
+              trim(cur_immobile_spec%name) // '] should not be placed in &
+              &the reaction database.'
+            call PrintErrMsg(option)
             found = PETSC_TRUE          
             ! change negative id to positive, indicating it was found in 
             ! database
@@ -287,16 +312,19 @@ subroutine DatabaseRead(reaction,option)
             call InputErrorMsg(input,option,'EQRXN logKs','DATABASE') 
           enddo
         endif
-        ! read the Debye-Huckel ion size parameter (a0)
-        call InputReadDouble(input,option,cur_aq_spec%a0)
-        call InputErrorMsg(input,option,'AQ Species a0','DATABASE')            
-        ! read the valence
-        call InputReadDouble(input,option,cur_aq_spec%Z)
-        call InputErrorMsg(input,option,'AQ Species Z','DATABASE')            
-        ! read the molar weight
-        call InputReadDouble(input,option,cur_aq_spec%molar_weight)
-        call InputErrorMsg(input,option,'AQ Species molar weight','DATABASE')
         
+        ! only read for aqueous species
+        if (associated(cur_aq_spec)) then
+          ! read the Debye-Huckel ion size parameter (a0)
+          call InputReadDouble(input,option,cur_aq_spec%a0)
+          call InputErrorMsg(input,option,'AQ Species a0','DATABASE')
+          ! read the valence
+          call InputReadDouble(input,option,cur_aq_spec%Z)
+          call InputErrorMsg(input,option,'AQ Species Z','DATABASE')
+          ! read the molar weight
+          call InputReadDouble(input,option,cur_aq_spec%molar_weight)
+          call InputErrorMsg(input,option,'AQ Species molar weight','DATABASE')
+        endif
                     
       case(2) ! gas species
         cur_gas_spec => reaction%gas%list
@@ -798,8 +826,6 @@ subroutine BasisInit(reaction,option)
   ! Date: 09/01/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Utility_module
@@ -819,7 +845,7 @@ subroutine BasisInit(reaction,option)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec
@@ -842,6 +868,7 @@ subroutine BasisInit(reaction,option)
   type(radioactive_decay_rxn_type), pointer :: cur_radiodecay_rxn
   type(microbial_rxn_type), pointer :: cur_microbial_rxn
   type(immobile_decay_rxn_type), pointer :: cur_immobile_decay_rxn
+  type(dynamic_kd_rxn_type), pointer :: cur_dynamic_kd_rxn
   type(kd_rxn_type), pointer :: cur_kd_rxn, sec_cont_cur_kd_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
@@ -3417,6 +3444,72 @@ subroutine BasisInit(reaction,option)
 
   endif 
   
+  ! Smart Kd reactions
+  
+  if (reaction%neqdynamickdrxn > 0) then
+
+    ! allocate arrays
+    allocate(reaction%eqdynamickdspecid(reaction%neqdynamickdrxn))
+    allocate(reaction%eqdynamickdrefspecid(reaction%neqdynamickdrxn))
+    allocate(reaction%eqdynamickdrefspechigh(reaction%neqdynamickdrxn))
+    allocate(reaction%eqdynamickdlow(reaction%neqdynamickdrxn))
+    allocate(reaction%eqdynamickdhigh(reaction%neqdynamickdrxn))
+    allocate(reaction%eqdynamickdpower(reaction%neqdynamickdrxn))
+    reaction%eqdynamickdspecid = 0
+    reaction%eqdynamickdrefspecid = 0
+    reaction%eqdynamickdrefspechigh = 0.d0
+    reaction%eqdynamickdlow = 0.d0
+    reaction%eqdynamickdhigh = 0.d0
+    reaction%eqdynamickdpower = 0.d0
+
+    cur_dynamic_kd_rxn => reaction%dynamic_kd_rxn_list
+    irxn = 0
+    do  
+      if (.not.associated(cur_dynamic_kd_rxn)) exit
+
+      irxn = irxn + 1
+
+      found = PETSC_FALSE
+      do i = 1, reaction%naqcomp
+        if (StringCompare(cur_dynamic_kd_rxn%kd_species_name, &
+                          reaction%primary_species_names(i), &
+                          MAXWORDLENGTH)) then
+          reaction%eqdynamickdspecid(irxn) = i
+          found = PETSC_TRUE
+          exit      
+        endif
+      enddo
+      if (.not.found) then
+        option%io_buffer = 'KD species ' // &
+             trim(cur_dynamic_kd_rxn%kd_species_name) // &
+             ' in dynamic kd reaction not found among primary species list.'
+        call PrintErrMsg(option)
+      endif
+      found = PETSC_FALSE
+      do i = 1, reaction%naqcomp
+        if (StringCompare(cur_dynamic_kd_rxn%ref_species_name, &
+                          reaction%primary_species_names(i), &
+                          MAXWORDLENGTH)) then
+          reaction%eqdynamickdrefspecid(irxn) = i
+          found = PETSC_TRUE
+          exit      
+        endif
+      enddo
+      if (.not.found) then
+        option%io_buffer = 'Reference species ' // &
+           trim(cur_dynamic_kd_rxn%ref_species_name) // &
+           ' in dynamic kd reaction not found among primary species list.'
+        call PrintErrMsg(option)
+      endif
+      reaction%eqdynamickdrefspechigh(irxn) = &
+         cur_dynamic_kd_rxn%ref_species_high
+      reaction%eqdynamickdlow(irxn) = cur_dynamic_kd_rxn%KD_low
+      reaction%eqdynamickdhigh(irxn) = cur_dynamic_kd_rxn%KD_high
+      reaction%eqdynamickdpower(irxn) = cur_dynamic_kd_rxn%KD_power
+      cur_dynamic_kd_rxn => cur_dynamic_kd_rxn%next
+    enddo
+  endif
+
   ! Kd reactions
   
   if (reaction%neqkdrxn > 0) then
@@ -3985,7 +4078,7 @@ function GetSpeciesBasisID(reaction,option,ncomp_h2o,reaction_name, &
 
   implicit none
 
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscInt :: ncomp_h2o
   character(len=MAXWORDLENGTH) :: reaction_name
@@ -4046,15 +4139,13 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
   ! Author: Glenn Hammond
   ! Date: 08/10/16
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Reaction_Gas_Aux_module
   use Utility_module
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscInt :: num_logKs
   type(option_type) :: option
   PetscInt :: h2o_id
@@ -4203,7 +4294,7 @@ subroutine BasisPrint(reaction,title,option)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   character(len=*) :: title
   type(option_type) :: option
   

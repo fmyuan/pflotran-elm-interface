@@ -36,8 +36,6 @@ module Timestepper_Surface_class
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: timestepper_surface_header_type
       implicit none
       PetscBag :: bag
@@ -237,9 +235,7 @@ subroutine TimestepperSurfaceStepDT(this,process_model,stop_flag)
   call process_model%PreSolve()
 
   call TSSetTimeStep(solver%ts,option%surf_flow_dt,ierr);CHKERRQ(ierr)
-#if (PETSC_VERSION_MINOR >= 8)
   call TSSetStepNumber(solver%ts,ZERO_INTEGER,ierr);CHKERRQ(ierr)
-#endif
   call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
                            ierr);CHKERRQ(ierr)
   call TSSolve(solver%ts,process_model%solution_vec,ierr);CHKERRQ(ierr)
@@ -338,8 +334,6 @@ subroutine TimestepperSurfaceRegisterHeader(this,bag,header)
   ! Date: 09/19/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none

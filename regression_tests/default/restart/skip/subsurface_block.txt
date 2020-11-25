@@ -25,7 +25,7 @@ END
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     2
     4
     6
@@ -56,21 +56,30 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  # end simulation without taking a time step
-#  MAX_STEPS 0
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    # end simulation without taking a time step
+  #  MAX_STEPS 0
+    CFL_GOVERNOR 50.d0
+  /
+
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d4
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
 END
 
-NEWTON_SOLVER FLOW
-  ITOL_UPDATE 1.d4
-END
+NUMERICAL_METHODS TRANSPORT
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
 END
 
 #=========================== fluid properties =================================

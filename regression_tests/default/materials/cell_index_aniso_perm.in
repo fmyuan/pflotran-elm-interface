@@ -1,0 +1,156 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    MAXIMUM_NUMBER_OF_TIMESTEPS 1
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+    63
+    131
+    5
+    67
+    136
+    8
+    70
+    139
+  /
+END
+
+#=========================== timestepper ======================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 10 5 4
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 5.d0 4.d0
+  /
+END
+
+#=========================== datasets =========================================
+DATASET alfa
+  FILENAME dataset.h5
+  HDF5_DATASET_NAME bravo
+END
+
+DATASET charlieX
+  FILENAME dataset.h5
+  HDF5_DATASET_NAME delta
+END
+
+DATASET charlieY
+  FILENAME dataset.h5
+  HDF5_DATASET_NAME echo
+END
+
+DATASET charlieZ
+  FILENAME dataset.h5
+  HDF5_DATASET_NAME foxtrot
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  PERMEABILITY
+    ANISOTROPIC
+    DATASET charlie
+  /
+  CHARACTERISTIC_CURVES default
+END
+
+MATERIAL_PROPERTY soil2
+  ID 2
+  POROSITY 0.35d0
+  PERMEABILITY
+    DATASET alfa
+  /
+  CHARACTERISTIC_CURVES default
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+#=========================== output options ===================================
+OUTPUT
+#  FORMAT TECPLOT POINT
+#  FORMAT HDF5
+  VARIABLES
+    PERMEABILITY_X
+    PERMEABILITY_Y
+    PERMEABILITY_Z
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION bottom_layer
+  COORDINATES
+    -1.d20 -1.d20 0.d0
+    1.d20 1.d20 1.d0
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  DATUM 0.d0 0.d0 4.d0
+  PRESSURE 101325.d0
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+STRATA
+  REGION bottom_layer
+  MATERIAL soil2
+END
+
+END_SUBSURFACE

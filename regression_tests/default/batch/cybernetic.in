@@ -4,17 +4,32 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
-#      NUMERICAL_JACOBIAN
+      MODE GIRT
+      OPTIONS
+  #      NUMERICAL_JACOBIAN
+      /
     /
   /
 END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 12
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
   /
 END
@@ -68,7 +83,7 @@ CHEMISTRY
 #      F_act 0.126d0
 #      F_act 1.d0
       REFERENCE_TEMPERATURE 25.d0 ! degrees C
-      ACTIVATION_ENERGY 89.d-3 kJ/mol  ! 89.d0 J/mol
+      ACTIVATION_ENERGY 89.d0 kJ/mol
       STORE_CONSUMPTION_PRODUCTION
       CARBON_CONSUMPTION_SPECIES C_consumption
     /
@@ -85,13 +100,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-NEWTON_SOLVER TRANSPORT
-  MAXIT 12
-END
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

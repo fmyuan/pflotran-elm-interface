@@ -1,6 +1,8 @@
 module Checkpoint_module
-#include "petsc/finclude/petscdm.h"
-  use petscdm
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -30,8 +32,6 @@ module Checkpoint_module
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: checkpoint_header_type
       implicit none
       PetscBag :: bag
@@ -160,9 +160,6 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -217,8 +214,6 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -272,8 +267,6 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -336,8 +329,6 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -345,7 +336,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_CURRENT
+  use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -380,25 +371,20 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that indicates what phases are present, as well as the 'var' vector 
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
-        call DiscretizationLocalToGlobal(realization%discretization, &
-                                         field%iphas_loc,global_vec,ONEDOF)
-        call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-      case(G_MODE,TOWG_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case default
         call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
                                    STATE,ZERO_INTEGER)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                          global_vec,ONEDOF)
         call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-      case default
     end select 
 
     ! Porosity and permeability.
     ! (We only write diagonal terms of the permeability tensor for now, 
     ! since we have yet to add the full-tensor formulation.)
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material, &
-                                  field%work_loc,POROSITY,POROSITY_CURRENT)
+                                  field%work_loc,POROSITY,POROSITY_BASE)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                       global_vec,ONEDOF)
     call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
@@ -435,8 +421,6 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
       
   use Option_module
   use Realization_Subsurface_class
@@ -445,7 +429,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_CURRENT
+  use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -478,41 +462,20 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
-        call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
-        call DiscretizationGlobalToLocal(discretization,global_vec, &
-                                         field%iphas_loc,ONEDOF)
-        call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
-        call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                        field%iphas_old_loc,ONEDOF)
-        if (option%iflowmode == TOIL_IMS_MODE) then
-          !iphase value not needed - leave it as initialised
-          ! consider to remove iphase for all ims modes
-        endif
-        if (option%iflowmode == MPH_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == IMS_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == FLASH2_MODE) then
-        ! set vardof vec in mphase
-        endif
-      case(G_MODE,TOWG_MODE) 
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case default
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          field%work_loc,ONEDOF)
         call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
                                    ZERO_INTEGER)
-      case default
     end select
     
     call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,global_vec, &
                                       field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
-                                  field%work_loc,POROSITY,POROSITY_CURRENT)
+                                  field%work_loc,POROSITY,POROSITY_BASE)
     call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,global_vec, &
                                       field%work_loc,ONEDOF)
@@ -566,9 +529,6 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   filename = CheckpointFilename(append_name, option)
   filename = trim(filename) // '.h5'
 
-    ! initialize fortran interface
-  call h5open_f(hdf5_err)
-
   call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
@@ -610,9 +570,6 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
-
-  ! initialize fortran interface
-  call h5open_f(hdf5_err)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
 #ifndef SERIAL_HDF5
@@ -679,10 +636,11 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5eset_auto_f(ON, hdf5_err)
 
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5pcreate_f(H5P_DATASET_CREATE_F, prop_id, hdf5_err)
     call h5screate_simple_f(dataset_rank, dims, grp_space_id, hdf5_err, dims)
-    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_INTEGER, grp_space_id, &
-                     data_set_id, hdf5_err, prop_id)
+    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_INTEGER, &
+                     grp_space_id, data_set_id, hdf5_err, prop_id)
     call h5pclose_f(prop_id, hdf5_err)
   else
     call h5dget_space_f(data_set_id, grp_space_id, hdf5_err)
@@ -724,8 +682,6 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   ! Author: Gautam Bisht
   ! Date: 07/30/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
@@ -761,10 +717,11 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   call h5eset_auto_f(ON, hdf5_err)
 
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5pcreate_f(H5P_DATASET_CREATE_F, prop_id, hdf5_err)
     call h5screate_simple_f(dataset_rank, dims, grp_space_id, hdf5_err, dims)
-    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_DOUBLE, grp_space_id, &
-                     data_set_id, hdf5_err, prop_id)
+    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_DOUBLE, &
+                     grp_space_id, data_set_id, hdf5_err, prop_id)
     call h5pclose_f(prop_id, hdf5_err)
   else
     call h5dget_space_f(data_set_id, grp_space_id, hdf5_err)
@@ -1067,8 +1024,6 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -1076,7 +1031,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_CURRENT
+  use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
@@ -1124,17 +1079,8 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
-        call DiscretizationLocalToGlobal(realization%discretization, &
-                                         field%iphas_loc,global_vec,ONEDOF)
-
-        call DiscretizationGlobalToNatural(discretization, global_vec, &
-                                           natural_vec, ONEDOF)
-        dataset_name = "State" // CHAR(0)
-        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
-            pm_grp_id, H5T_NATIVE_DOUBLE)
-      case(G_MODE,TOWG_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE)
+      case default
         call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
                                    STATE,ZERO_INTEGER)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
@@ -1144,14 +1090,13 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
         dataset_name = "State" // CHAR(0)
         call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
             pm_grp_id, H5T_NATIVE_DOUBLE)
-       case default
     end select
 
     ! Porosity and permeability.
     ! (We only write diagonal terms of the permeability tensor for now,
     ! since we have yet to add the full-tensor formulation.)
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material, &
-                                 field%work_loc,POROSITY,POROSITY_CURRENT)
+                                 field%work_loc,POROSITY,POROSITY_BASE)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                      global_vec,ONEDOF)
     call DiscretizationGlobalToNatural(discretization, global_vec, &
@@ -1205,8 +1150,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Gautam Bisht, LBNL
   ! Date: 08/16/2015
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -1214,7 +1157,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_CURRENT
+  use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
@@ -1267,27 +1210,8 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     ! that holds variables derived from the primary ones via the translator.
     dataset_name = "State" // CHAR(0)
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
-        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
-             pm_grp_id, H5T_NATIVE_DOUBLE)
-        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
-                                           global_vec, ONEDOF)
-        call DiscretizationGlobalToLocal(realization%discretization, &
-                                         global_vec, field%iphas_loc, ONEDOF)
-        call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
-        call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                        field%iphas_old_loc,ONEDOF)
-        if (option%iflowmode == MPH_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == IMS_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == FLASH2_MODE) then
-        ! set vardof vec in mphase
-        endif
-      case(G_MODE,TOWG_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE)
+      case default
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)
         call DiscretizationNaturalToGlobal(discretization, natural_vec, &
@@ -1296,7 +1220,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
                                          global_vec, field%work_loc, ONEDOF)
         call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
                                    ZERO_INTEGER)
-     case default
     end select
 
     ! Porosity and permeability.
@@ -1310,7 +1233,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     call DiscretizationGlobalToLocal(discretization, global_vec, field%work_loc, &
                                      ONEDOF)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
-                                 field%work_loc,POROSITY,POROSITY_CURRENT)
+                                 field%work_loc,POROSITY,POROSITY_BASE)
 
     dataset_name = "Permeability_X" // CHAR(0)
     call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
@@ -1392,18 +1315,19 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   format_binary = PETSC_FALSE
   format_hdf5 = PETSC_FALSE
   default_time_units = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CHECKPOINT')
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'checkpoint option or value', &
                         'CHECKPOINT')
     call StringToUpper(word)
     select case(trim(word))
       case ('PERIODIC')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'time increment', &
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'increment', &
                             'CHECKPOINT,PERIODIC')
         select case(trim(word))
           case('TIME')
@@ -1424,7 +1348,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
             call InputErrorMsg(input,option,'timestep increment', &
                                 'CHECKPOINT,PERIODIC,TIMESTEP')
           case default
-            call InputKeywordUnrecognized(word,'CHECKPOINT,PERIODIC', &
+            call InputKeywordUnrecognized(input,word,'CHECKPOINT,PERIODIC', &
                                           option)
         end select
       case ('TIMES')
@@ -1465,7 +1389,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
         enddo
 #endif
       case ('FORMAT')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'format type', &
                             'CHECKPOINT,FORMAT')
         call StringToUpper(word)
@@ -1475,7 +1399,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
           case('HDF5')
             format_hdf5 = PETSC_TRUE
           case default
-            call InputKeywordUnrecognized(word,'CHECKPOINT,FORMAT', &
+            call InputKeywordUnrecognized(input,word,'CHECKPOINT,FORMAT', &
                                           option)
         end select
       case ('TIME_UNITS')
@@ -1484,9 +1408,12 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
       case default
         temp_string = 'Must specify PERIODIC TIME, PERIODIC TIMESTEP, &
                       &TIMES, or FORMAT'
-        call InputKeywordUnrecognized(word,'CHECKPOINT',temp_string,option)
+        call InputKeywordUnrecognized(input,word,'CHECKPOINT', &
+                                      temp_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
+
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     units_conversion = UnitsConvertToInternal(default_time_units, &

@@ -1,7 +1,7 @@
 module Geomechanics_Force_module
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
   use Geomechanics_Global_Aux_module
   use PFLOTRAN_Constants_module
   
@@ -420,8 +420,6 @@ subroutine GeomechForceResidual(snes,xx,r,geomech_realization,ierr)
   ! Date: 06/21/13
   ! 
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use Geomechanics_Realization_class
   use Geomechanics_Field_module
   use Geomechanics_Discretization_module
@@ -479,8 +477,6 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
   ! Date: 06/24/13
   ! 
 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use Geomechanics_Realization_class
   use Geomechanics_Field_module
   use Geomechanics_Discretization_module
@@ -1295,8 +1291,6 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
   ! Author: Satish Karra
   ! Date: 06/21/13
   ! 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use Geomechanics_Realization_class
   use Geomechanics_Patch_module
   use Geomechanics_Grid_module
@@ -1364,8 +1358,6 @@ subroutine GeomechForceJacobianPatch(snes,xx,A,B,geomech_realization,ierr)
   ! Date: 06/21/13
   ! Modified: 07/12/16
        
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use Geomechanics_Realization_class
       
   implicit none
@@ -1805,8 +1797,6 @@ subroutine GeomechCreateGeomechSubsurfVec(realization,geomech_realization)
   ! Date: 09/10/13
   ! 
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
   use Grid_module
   use Geomechanics_Discretization_module
   use Geomechanics_Realization_class
@@ -1852,8 +1842,6 @@ subroutine GeomechCreateSubsurfStressStrainVec(realization,geomech_realization)
   ! Date: 10/10/13
   ! 
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
   use Grid_module
   use Geomechanics_Discretization_module
   use Geomechanics_Realization_class

@@ -631,9 +631,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
   integer :: ndims_h5
 
-  ! Initialize FORTRAN predefined datatypes
-  call h5open_f(hdf5_err)
-
   ! Setup file access property with parallel I/O access
   call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
 
@@ -823,7 +820,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call h5dclose_f(data_set_id, hdf5_err)
   !call h5gclose_f(grp_id, hdf5_err)
   call h5fclose_f(file_id, hdf5_err)
-  call h5close_f(hdf5_err)
 
   
   ! fill the vertices data structure
@@ -905,9 +901,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
   integer :: ndims_h5
-
-  ! Initialize FORTRAN predefined datatypes
-  call h5open_f(hdf5_err)
 
   ! Setup file access property with parallel I/O access
   call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
@@ -1119,7 +1112,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dclose_f(data_set_id, hdf5_err)
   !call h5gclose_f(grp_id, hdf5_err)
   call h5fclose_f(file_id, hdf5_err)
-  call h5close_f(hdf5_err)
 
   
   ! fill the vertices data structure
@@ -1887,10 +1879,11 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
       do ivertex = 1, nvertices
         face_to_vertex(ivertex,face_count) = &
           unstructured_grid%cell_vertices(vertex_ids4(ivertex),ghosted_id)
-          if (face_to_vertex(ivertex,face_count) > 0) then
-            unstructured_grid%face_to_vertex_natural(ivertex,face_count) = &
-              unstructured_grid%vertex_ids_natural(face_to_vertex(ivertex,face_count))
-          endif
+        if (face_to_vertex(ivertex,face_count) > 0) then
+          unstructured_grid%face_to_vertex_natural(ivertex,face_count) = &
+            unstructured_grid%vertex_ids_natural(face_to_vertex(ivertex, &
+                                                                face_count))
+        endif
       enddo
     enddo
   enddo

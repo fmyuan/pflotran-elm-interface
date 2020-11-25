@@ -1,5 +1,8 @@
 module Reaction_Sandbox_Cyber_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   
   use Global_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Sandbox_Cyber_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter :: DOC_MASS_STORAGE_INDEX = 1
   PetscInt, parameter :: NH4_MASS_STORAGE_INDEX = 2
   PetscInt, parameter :: O2_MASS_STORAGE_INDEX = 3
@@ -95,8 +96,6 @@ function CyberCreate()
   ! Author: Glenn Hammond
   ! Date: 10/01/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   class(reaction_sandbox_cyber_type), pointer :: CyberCreate
@@ -167,8 +166,6 @@ subroutine CyberRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/01/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -185,12 +182,13 @@ subroutine CyberRead(this,input,option)
 
   error_string = 'CHEMISTRY,REACTION_SANDBOX,CYBERNETIC'
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)   
 
@@ -275,9 +273,10 @@ subroutine CyberRead(this,input,option)
       case('STORE_CONSUMPTION_PRODUCTION')
         this%store_cumulative_mass = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine CyberRead
 
@@ -292,7 +291,7 @@ subroutine CyberSetup(this,reaction,option)
   ! Date: 10/01/15
   ! 
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Reaction_Mineral_Aux_module, only : GetKineticMineralIDFromName
   use Option_module
@@ -300,7 +299,7 @@ subroutine CyberSetup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_cyber_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -490,7 +489,7 @@ subroutine CyberAuxiliaryPlotVariables(this,list,reaction,option)
   class(reaction_sandbox_cyber_type) :: this
   type(output_variable_list_type), pointer :: list
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   
   character(len=MAXWORDLENGTH) :: names(6)
   character(len=MAXWORDLENGTH) :: word
@@ -549,7 +548,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_cyber_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)
@@ -902,7 +901,7 @@ subroutine CyberUpdateKineticState(this,rt_auxvar,global_auxvar, &
 
   class(reaction_sandbox_cyber_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar

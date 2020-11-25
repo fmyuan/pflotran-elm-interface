@@ -1,0 +1,63 @@
+-- CONCENTRATION: Total Bulk Conc. AM241L --
+      Max:   3.0020193205145E-06
+      Min:   3.8459877141604E-19
+     Mean:   6.0097250310796E-07
+        1:   3.0020193205145E-06
+-- CONCENTRATION: Total Bulk Conc. PU239L --
+      Max:   6.1706051646224E-06
+      Min:   7.8737048476750E-19
+     Mean:   1.2352898617716E-06
+        1:   6.1706051646224E-06
+-- CONCENTRATION: Aq. Conc. AM241L --
+      Max:   1.0006731068382E-05
+      Min:   1.2819959047201E-18
+     Mean:   2.0032416770265E-06
+        1:   1.0006731068382E-05
+-- CONCENTRATION: Aq. Conc. PU239L --
+      Max:   2.0568683882075E-05
+      Min:   2.6245682825583E-18
+     Mean:   4.1176328725719E-06
+        1:   2.0568683882075E-05
+-- CONCENTRATION: Mnrl. Conc. AM241L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Conc. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. AM241L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. AM241L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+      Max:         3
+      Min:         3
+     Mean:   3.0000000000000E+00
+        1:         3
+-- SOLUTION: Transport --
+   Time (seconds):   8.6228847503662E-03
+   Time Steps:           15
+   Newton Iterations:           30
+   Solver Iterations:           30
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.8621082970741E-06
+   Residual 2-Norm:   6.8639197428304E-17

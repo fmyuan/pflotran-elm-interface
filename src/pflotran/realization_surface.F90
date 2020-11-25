@@ -1,5 +1,8 @@
 module Realization_Surface_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Realization_Base_class
   
   use Condition_module
@@ -22,8 +25,6 @@ module Realization_Surface_class
 private
 
 
-#include "petsc/finclude/petscsys.h"
-
   PetscReal, parameter :: eps       = 1.D-8
 
   type, public, extends(realization_base_type) :: realization_surface_type
@@ -34,7 +35,6 @@ private
     type(tran_condition_list_type),pointer :: surf_transport_conditions
     type(surface_material_property_type), pointer :: surf_material_properties
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
-    type(reaction_type), pointer :: surf_reaction
     character(len=MAXSTRINGLENGTH) :: surf_filename
     character(len=MAXSTRINGLENGTH) :: subsurf_filename
 
@@ -92,8 +92,6 @@ function RealizSurfCreate(option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
 
   type(option_type), pointer :: option
@@ -123,7 +121,6 @@ function RealizSurfCreate(option)
   allocate(surf_realization%surf_transport_conditions)
   call TranConditionInitList(surf_realization%surf_transport_conditions)
   
-  nullify(surf_realization%surf_reaction)
   nullify(surf_realization%datasets)
 
   surf_realization%iter_count = 0
@@ -335,8 +332,6 @@ subroutine RealizSurfCreateDiscretization(surf_realization)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/17/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Grid_module
   use Grid_Unstructured_Aux_module, only : UGridMapIndices
   use Grid_Unstructured_module, only     : UGridEnsureRightHandRule
@@ -1354,8 +1349,6 @@ subroutine RealizSurfStrip(surf_realization)
   
   call DiscretizationDestroy(surf_realization%discretization)
 
-  call ReactionDestroy(surf_realization%reaction,surf_realization%option)
-
 end subroutine RealizSurfStrip
 
 ! ************************************************************************** !
@@ -1367,8 +1360,6 @@ subroutine RealizSurfUpdate(surf_realization)
   ! Author: Gautam Bisht, ORNL
   ! Date: 05/22/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   class(realization_surface_type) :: surf_realization
@@ -1409,7 +1400,6 @@ subroutine RealizSurfGetVariable(surf_realization,vec,ivar,isubvar,isubvar1)
 
   call PatchGetVariable(surf_realization%patch, &
                        surf_realization%surf_field, &
-                       !surf_realization%reaction, &
                        surf_realization%option, &
                        surf_realization%output_option, &
                        vec,ivar,isubvar,isubvar1)
@@ -1426,8 +1416,6 @@ subroutine RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/15/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Waypoint_module
   use Time_Storage_module  

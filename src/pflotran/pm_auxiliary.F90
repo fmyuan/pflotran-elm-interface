@@ -165,7 +165,7 @@ subroutine PMAuxiliaryRead(input, option, this)
   PetscReal :: tempreal
 
   error_string = 'SIMULATION,PROCESS_MODELS,AUXILIARY'
-  call InputReadWord(input,option,word,PETSC_FALSE)
+  call InputReadCard(input,option,word,PETSC_FALSE)
   call InputErrorMsg(input,option,'type',error_string)
   call StringToUpper(word)
   error_string = trim(error_string) // ',' // trim(word)
@@ -181,10 +181,11 @@ subroutine PMAuxiliaryRead(input, option, this)
       this%salinity%molecular_weights = UNINITIALIZED_DOUBLE
       i = 0
       word = ''
+      call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(word)
@@ -209,12 +210,13 @@ subroutine PMAuxiliaryRead(input, option, this)
             endif
           case default
             error_string = trim(error_string) // 'SALINITY'
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         end select
       enddo
+      call InputPopBlock(input,option)
       this%salinity%nspecies = i
     case default
-      call InputKeywordUnrecognized(word,error_string,option)
+      call InputKeywordUnrecognized(input,word,error_string,option)
   end select
 
   call PMAuxiliarySetFunctionPointer(this,this%ctype)
@@ -439,6 +441,8 @@ subroutine PMAuxiliaryDestroy(this)
   
   class(pm_auxiliary_type) :: this
   
+  call PMBaseDestroy(this)
+
   ! destroyed in realization
   nullify(this%realization)
   nullify(this%comm1)

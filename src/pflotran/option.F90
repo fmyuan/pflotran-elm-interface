@@ -19,9 +19,8 @@ module Option_module
     type(transport_option_type), pointer :: transport
 
     PetscInt :: id                         ! id of realization
-    PetscInt :: successful_exit_code       ! code passed out of PFLOTRAN
-                                           ! indicating successful completion
-                                           ! of simulation
+    PetscInt :: exit_code                  ! code passed out of PFLOTRAN
+                                           ! at end of simulation
     PetscMPIInt :: global_comm             ! MPI_COMM_WORLD
     PetscMPIInt :: global_rank             ! rank in MPI_COMM_WORLD
     PetscMPIInt :: global_commsize         ! size of MPI_COMM_WORLD
@@ -67,7 +66,6 @@ module Option_module
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
-    PetscBool :: use_th_freezing
 
 ! Indicates request for one-line-per-step console output
     PetscBool :: linerept
@@ -117,8 +115,12 @@ module Option_module
     PetscBool :: print_screen_flag
     PetscBool :: print_file_flag
     PetscInt :: verbosity  ! Values >0 indicate additional console output.
-
-    PetscReal :: uniform_velocity(3)
+    PetscBool :: keyword_logging
+    PetscBool :: keyword_logging_screen_output
+    character(len=MAXSTRINGLENGTH) :: keyword_log
+    character(len=MAXSTRINGLENGTH) :: keyword_buf
+    PetscInt :: keyword_block_map(20)
+    PetscInt :: keyword_block_count
 
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
@@ -130,14 +132,11 @@ module Option_module
 
     PetscBool :: update_flow_perm ! If true, permeability changes due to pressure
 
-    PetscInt :: ice_model         ! specify water/ice/vapor phase partitioning model
-
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
     PetscReal :: dt
     PetscBool :: match_waypoint
-    PetscReal :: refactor_dt
 
     PetscReal :: gravity(3)
 
@@ -226,11 +225,8 @@ module Option_module
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
     
-    !man: change the initial saturation upon phase change
-    PetscReal :: phase_chng_epsilon
-    
-    !man: impose restrictions on when a grid block can change state 
-    PetscBool :: restrict_state_chng
+    ! flag to use freezing model in TH mode
+    PetscBool :: th_freezing
 
   end type option_type
 
@@ -305,6 +301,7 @@ module Option_module
             OptionCreateProcessorGroups, &
             OptionBeginTiming, &
             OptionEndTiming, &
+            OptionPrintPFLOTRANHeader, &
             OptionSetBlocking, &
             OptionCheckNonBlockingError, &
             OptionFinalize, &
@@ -363,7 +360,7 @@ subroutine OptionInitAll(option)
   call OptionTransportInitAll(option%transport)
 
   option%id = 0
-  option%successful_exit_code = 0
+  option%exit_code = 0
 
   option%global_comm = 0
   option%global_rank = 0
@@ -395,6 +392,12 @@ subroutine OptionInitAll(option)
   option%print_to_screen = PETSC_TRUE
   option%print_to_file = PETSC_TRUE
   option%verbosity = 0
+  option%keyword_logging = PETSC_TRUE
+  option%keyword_logging_screen_output = PETSC_FALSE
+  option%keyword_log = ''
+  option%keyword_buf = ''
+  option%keyword_block_map(:) = 0
+  option%keyword_block_count = 0
 
   option%input_filename = ''
 
@@ -443,7 +446,6 @@ subroutine OptionInitRealization(option)
   option%use_matrix_free = PETSC_FALSE
   option%use_mc = PETSC_FALSE
   option%set_secondary_init_temp = PETSC_FALSE
-  option%ice_model = PAINTER_EXPLICIT
   option%set_secondary_init_conc = PETSC_FALSE
 
   option%update_flow_perm = PETSC_FALSE
@@ -455,7 +457,6 @@ subroutine OptionInitRealization(option)
   option%nmechdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0
-  option%use_th_freezing = PETSC_FALSE
 
   option%linerept = PETSC_FALSE
   option%linpernl = 0
@@ -508,7 +509,6 @@ subroutine OptionInitRealization(option)
   option%air_id = 0
   option%energy_id = 0
 
-  option%uniform_velocity = 0.d0
 
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
@@ -570,7 +570,6 @@ subroutine OptionInitRealization(option)
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
   option%dt = 0.d0
-  option%refactor_dt = 0.d0
   option%match_waypoint = PETSC_FALSE
 
   option%io_handshake_buffer_size = 0
@@ -609,9 +608,8 @@ subroutine OptionInitRealization(option)
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
   
-  option%phase_chng_epsilon = 1.d-6 !1.d-6
-  
-  option%restrict_state_chng = PETSC_FALSE
+  option%th_freezing = PETSC_FALSE
+
 
 end subroutine OptionInitRealization
 
@@ -722,7 +720,12 @@ subroutine PrintErrMsg2(option,string)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
-    stop
+    select case(option%exit_code)
+      case(EXIT_FAILURE)
+        call exit(option%exit_code)
+      case default
+        call exit(EXIT_USER_ERROR)
+    end select
   else
     option%error_while_nonblocking = PETSC_TRUE
   endif
@@ -756,7 +759,7 @@ subroutine OptionCheckNonBlockingError(option)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
-    stop
+    call exit(EXIT_USER_ERROR)
   endif
 
 end subroutine OptionCheckNonBlockingError
@@ -805,7 +808,7 @@ subroutine PrintErrMsgByRank2(option,string)
     print *
     print *, 'Stopping!'
   endif
-  stop
+  call exit(EXIT_USER_ERROR)
 
 end subroutine PrintErrMsgByRank2
 
@@ -859,8 +862,8 @@ end subroutine PrintErrMsgNoStopByRank2
 
 subroutine PrintErrMsgToDev(option,string)
   !
-  ! Prints the error message from p0, appends a request to submit input 
-  ! deck to pflotran-dev, and stops.  The reverse order of arguments is 
+  ! Prints the error message from p0, appends a request to submit input
+  ! deck to pflotran-dev, and stops.  The reverse order of arguments is
   ! to avoid conflict with variants of PrintErrMsg()
   !
   ! Author: Glenn Hammond
@@ -1018,7 +1021,7 @@ subroutine PrintMsgAnyRank2(string)
   implicit none
 
   character(len=*) :: string
-  
+
   print *, trim(string)
 
 end subroutine PrintMsgAnyRank2
@@ -1398,6 +1401,40 @@ end subroutine OptionInitPetsc
 
 ! ************************************************************************** !
 
+subroutine OptionPrintPFLOTRANHeader(option)
+  !
+  ! Start outer timing.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/20/20
+  !
+
+  implicit none
+
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: version
+  character(len=MAXSTRINGLENGTH) :: string
+
+  version = GetVersion()
+  if (option%myrank == option%io_rank) then
+    write(string,*) len_trim(version)+4
+    string = trim(adjustl(string)) // '("=")'
+    string = '(/,' // trim(string) // ',/,"  '// &
+             trim(version) // &
+             '",/,' // trim(string) // ',/)'
+    if (option%print_to_screen) then
+      write(*,string)
+    endif
+    if (option%print_to_file) then
+      write(option%fid_out,string)
+    endif
+  endif
+
+end subroutine OptionPrintPFLOTRANHeader
+
+! ************************************************************************** !
+
 subroutine OptionBeginTiming(option)
   !
   ! Start outer timing.
@@ -1463,8 +1500,8 @@ subroutine OptionEndTiming(option)
         (timex_wall-option%start_time)/3600.d0
     endif
     if (option%linerept) then
-100 format('----- ------- ------ -------- -------- -------- ', &
-           '-------- -------- -------- ------- -------- ------- -- -- --')
+100 format('------ -------- -------- -------- -------- -------- ', &
+           '-------- -------- -------- ------- -------- -------- -- -- --')
 101 format('Run completed, wall clock time =',1pe12.4,' s,',1pe12.4,' min')
       write(*,100)
       write(*,101) timex_wall-option%start_time, (timex_wall-option%start_time)/60.d0
@@ -1608,7 +1645,7 @@ subroutine OptionFinalize(option)
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             '-objects_left','yes',ierr);CHKERRQ(ierr)
   call MPI_Barrier(option%global_comm,ierr)
-  iflag = option%successful_exit_code
+  iflag = option%exit_code
   call OptionDestroy(option)
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)

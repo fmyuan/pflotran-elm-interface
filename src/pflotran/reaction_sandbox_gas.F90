@@ -1,5 +1,8 @@
 module Reaction_Sandbox_Gas_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   
   use Global_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Sandbox_Gas_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
        extends(reaction_sandbox_base_type) :: reaction_sandbox_gas_type
     PetscInt :: nspecies
@@ -83,8 +84,6 @@ subroutine GasRead(this,input,option)
   ! Author: Kris Kuhlman
   ! Date: July 2018
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -100,12 +99,13 @@ subroutine GasRead(this,input,option)
   PetscInt :: i, previous_ns
   character(len=MAXWORDLENGTH) :: word
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
          'CHEMISTRY,REACTION_SANDBOX,GAS')
     
@@ -161,10 +161,11 @@ subroutine GasRead(this,input,option)
            'CHEMISTRY,REACTION_SANDBOX,GAS')
 
     case default
-      call InputKeywordUnrecognized(word, &
+      call InputKeywordUnrecognized(input,word, &
            'CHEMISTRY,REACTION_SANDBOX,GAS',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine GasRead
 
@@ -179,7 +180,7 @@ subroutine GasSetup(this,reaction,option)
   ! Date: July 2018
   ! 
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Reaction_Gas_Aux_module, only : GasGetIDFromName  
   use Option_module
@@ -187,7 +188,7 @@ subroutine GasSetup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_gas_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: i
@@ -228,7 +229,7 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_gas_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
 
   ! the following arrays must be declared after reaction

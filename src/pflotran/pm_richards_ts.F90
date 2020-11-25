@@ -128,7 +128,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
                                        global_auxvars(ghosted_id), &
                                        material_auxvars(ghosted_id), &
                                        patch%characteristic_curves_array( &
-                                         patch%sat_func_id(ghosted_id))%ptr, &
+                                         patch%cc_id(ghosted_id))%ptr, &
                                        option)
   enddo
 
@@ -237,16 +237,17 @@ subroutine IFunctionAccumulation(F,realization,ierr)
 
     ibeg = (ghosted_id-1)*option%nflowdof + 1
 
+    material_auxvars(ghosted_id)%porosity = &
+      material_auxvars(ghosted_id)%porosity_base
+    dpor_dP = 0.d0
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvars(ghosted_id), &
              global_auxvars(ghosted_id)%pres(1), &
              compressed_porosity, dcompressed_porosity_dp)
-      por = compressed_porosity
+      material_auxvars(ghosted_id)%porosity = compressed_porosity
       dpor_dP = dcompressed_porosity_dp
-    else
-      por = material_auxvars(ghosted_id)%porosity
-      dpor_dP = 0.d0
     endif
+    por = material_auxvars(ghosted_id)%porosity
 
     ! F = d(rho*phi*s)/dP * dP_dtime * Vol
     dmass_dP = global_auxvars(ghosted_id)%den(1)*dpor_dP* &
@@ -369,16 +370,10 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
 
     ibeg = (ghosted_id-1)*option%nflowdof + 1
 
-    if (soil_compressibility_index > 0) then
-      call MaterialCompressSoil(material_auxvars(ghosted_id), &
-             global_auxvars(ghosted_id)%pres(1), &
-             compressed_porosity, dcompressed_porosity_dp)
-      por = compressed_porosity
-      dpor_dP = dcompressed_porosity_dp
-    else
-      por = material_auxvars(ghosted_id)%porosity
-      dpor_dP = 0.d0
-    endif
+    call MaterialAuxVarcompute(material_auxvars(ghosted_id), &
+                              global_auxvars(ghosted_id)%pres(1))
+    por = material_auxvars(ghosted_id)%porosity
+    dpor_dP = material_auxvars(ghosted_id)%dporosity_dp
 
     ! F = d(rho*phi*s)/dP * dP_dtime * Vol
 

@@ -1,0 +1,103 @@
+#Description: Test problem for coordinate output
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    MAXIMUM_NUMBER_OF_TIMESTEPS 0
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+    8
+    2
+    7
+  /
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 2 2 2 
+  BOUNDS
+    0.d0 0.d0 0.d0
+    2.d0 2.d0 2.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  DEFAULT
+END
+
+#=========================== output options ===================================
+OUTPUT
+  VARIABLES
+    COORDINATES
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 y
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE DIRICHLET
+  /
+  PRESSURE 1.d6
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

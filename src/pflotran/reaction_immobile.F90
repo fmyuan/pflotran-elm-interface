@@ -1,5 +1,8 @@
 module Reaction_Immobile_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Immobile_Aux_module
   
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Reaction_Immobile_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   public :: ImmobileRead, &
             ImmobileDecayRxnRead, &
@@ -26,8 +27,6 @@ subroutine ImmobileRead(immobile,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/02/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -54,6 +53,7 @@ subroutine ImmobileRead(immobile,input,option)
   else
     nullify(prev_immobile_species)
   endif
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -61,7 +61,7 @@ subroutine ImmobileRead(immobile,input,option)
     ! this count is required for comparisons prior to BasisInit()
     immobile%nimmobile = immobile%nimmobile + 1          
     new_immobile_species => ImmobileSpeciesCreate()
-    call InputReadWord(input,option,new_immobile_species%name,PETSC_TRUE)
+    call InputReadCard(input,option,new_immobile_species%name)
     call InputErrorMsg(input,option,'keyword', &
                         'CHEMISTRY,IMMOBILE_SPECIES')
     if (.not.associated(prev_immobile_species)) then
@@ -74,6 +74,7 @@ subroutine ImmobileRead(immobile,input,option)
     prev_immobile_species => new_immobile_species
     nullify(new_immobile_species)
   enddo   
+  call InputPopBlock(input,option)
 
 end subroutine ImmobileRead
 
@@ -86,8 +87,6 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -110,12 +109,13 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
   immobile%ndecay_rxn = immobile%ndecay_rxn + 1
         
   immobile_decay_rxn => ImmobileDecayRxnCreate()
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)   
 
@@ -144,9 +144,10 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
         immobile_decay_rxn%rate_constant = &
           -1.d0*log(0.5d0)/immobile_decay_rxn%half_life
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   if (Uninitialized(immobile_decay_rxn%rate_constant)) then
     option%io_buffer = 'RATE_CONSTANT or HALF_LIFE must be set in ' // &
       'IMMOBILE_DECAY_REACTION.'
@@ -181,8 +182,6 @@ subroutine ImmobileProcessConstraint(immobile,constraint_name, &
   ! Author: Glenn Hammond
   ! Date: 01/07/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys 
   use Option_module
   use Input_Aux_module
   use String_module
@@ -260,7 +259,7 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)

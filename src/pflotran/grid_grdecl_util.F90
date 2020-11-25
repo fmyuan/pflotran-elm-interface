@@ -8,6 +8,15 @@ module Grid_Grdecl_Util_module
 
   implicit none
 
+  ! Unit numbers for reading and writing reservoir engineering format files
+  ! 50-59 are reserved for reservoir files
+  PetscInt, parameter, public :: UNIT_GRDECL_READ = 50
+  PetscInt, parameter, public :: UNIT_SPEC_WRITE  = 51
+  PetscInt, parameter, public :: UNIT_SUMM_WRITE  = 52
+  PetscInt, parameter, public :: UNIT_GRID_WRITE  = 53
+  PetscInt, parameter, public :: UNIT_INIT_WRITE  = 54
+  PetscInt, parameter, public :: UNIT_REST_WRITE  = 55
+
   public :: GetCorners, GetOtherDirections, GetIntersection
   public :: GetMDtoM2Conv, GetTriangleArea
   public :: GetM2toMDConv, qarea
@@ -219,16 +228,18 @@ subroutine GetIntersection(alx, aly, aux, auy, &
   PetscReal, intent(out) :: px, py
   PetscBool, intent(out) :: qinter
 
-  PetscReal :: apx, apy, bpx, bpy, den, t, p, pxc, pyc
-  PetscReal :: eps = 0.001
+  PetscReal :: apx, apy, bpx, bpy, den, t, p,r0, r1, &
+               mai00, mai10, mai01, mai11, dt, dp
+  PetscReal, parameter :: eps    = 1.0E-6
+  PetscReal, parameter :: epseps = 1.0E-12
 
-  !  Initialise returned values
+  ! Initialise returned values
 
   px     = 0.0
   py     = 0.0
   qinter = PETSC_FALSE
 
-  !  Find gradients wrt x and y
+  ! Find diffences in x and y
 
   apx = aux - alx
   apy = auy - aly
@@ -236,28 +247,48 @@ subroutine GetIntersection(alx, aly, aux, auy, &
   bpx = bux - blx
   bpy = buy - bly
 
-  !  Check determinant - will be zero if parallel
+  ! Check determinant - will be zero if parallel
 
   den = apx*bpy - apy*bpx
 
   if (abs(den) > 0.0) then
 
-    !  Parameter values
+    ! Parameter values
 
     t = ( (aly-bly)*bpx - (alx-blx)*bpy )/den
     p = ( (blx-alx)*apy - (bly-aly)*apx )/den
 
-    !  Check for intersection within (0,1)
+    ! Residual errors
+
+    r0 = blx - alx - t*apx + p*bpx
+    r1 = bly - aly - t*apy + p*bpy
+
+    ! If any residual left, do a cycle of iterative refinement
+
+    if ( (abs(r0)>epseps) .or. (abs(r1)>epseps) ) then
+
+      mai00 =  bpy/den
+      mai01 = -bpx/den
+      mai10 =  apy/den
+      mai11 = -apx/den
+
+      dt = mai00*r0 + mai01*r1
+      dp = mai10*r0 + mai11*r1
+
+      t=t+dt
+      p=p+dp
+
+    endif
+
+    ! Check for intersection within (0,1)
 
     if (      (t >= -eps) .and. (t <= 1.0+eps) &
         .and. (p >= -eps) .and. (p <= 1.0+eps)) qinter = PETSC_TRUE
 
-    !  Find intersection (two methods)
+    ! Find intersection
 
     px  = alx + t*apx
     py  = aly + t*apy
-    pxc = blx + p*bpx
-    pyc = bly + p*bpy
 
   endif
 
@@ -399,7 +430,7 @@ subroutine GetQuadSegment(iseg, idir, f, alx, aly, aux, auy)
   endif
 
   if (iseg == 4) then
-    ! Segment 1 is (0,1) to (0,0)
+    ! Segment 4 is (0,1) to (0,0)
     alx = f(0, 1, jdir);aly = f(0, 1, kdir)
     aux = f(0, 0, jdir);auy = f(0, 0, kdir)
   endif

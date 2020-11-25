@@ -4,6 +4,9 @@ module SrcSink_Sandbox_Mass_Rate_class
 ! to the standard mass rate source/sink in PFLOTRAN, but is more for 
 ! illustrative purposes
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   
@@ -11,8 +14,6 @@ module SrcSink_Sandbox_Mass_Rate_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(srcsink_sandbox_base_type) :: srcsink_sandbox_mass_rate_type
     PetscReal, pointer :: rate(:)
@@ -55,8 +56,6 @@ subroutine MassRateRead(this,input,option)
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/06/14
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -72,12 +71,13 @@ subroutine MassRateRead(this,input,option)
   character(len=MAXWORDLENGTH) :: word, internal_units
   PetscBool :: found
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'SOURCE_SINK_SANDBOX,MASS_RATE')
     call StringToUpper(word)   
@@ -116,9 +116,11 @@ subroutine MassRateRead(this,input,option)
           endif
         enddo
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,MASS_RATE',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SRCSINK_SANDBOX,MASS_RATE',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine MassRateRead
 
@@ -147,7 +149,7 @@ subroutine MassRateSetup(this,grid,option)
   select case(option%iflowmode)
     case(RICHARDS_MODE)
       this%rate(1) = this%rate(1) / FMWH2O
-    case(G_MODE)
+    case(G_MODE,H_MODE)
       this%rate(:) = this%rate(:) / general_fmw(:)
     case(WF_MODE)
       this%rate(:) = this%rate(:) / wipp_flow_fmw(:)

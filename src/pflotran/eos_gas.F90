@@ -1809,11 +1809,12 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     PetscReal, parameter :: Tcw=647.096d0 ! H2O critical temp from IAPWS(1995b)
 
     TK = T+273.15D0
+    if ( TK > Tcw .or. TK < 0.0d0 ) then
+       ierr = EOS_GAS_TEMP_BOUND_EXCEEDED
+       TK = 299.999D0
+    end if
     Tr = TK/Tcw
     tau = 1.D0-Tr
-    if ( tau < 0.d0 ) then
-      ierr = EOS_GAS_TEMP_BOUND_EXCEEDED
-    end if
     !tmp = a/Tr + b * tau**0.355d0/Tr + c * (Tr**(-0.41d0)) * exp(tau)
     tmpA = a/Tr
     tmpB = b*(tau**0.355d0)/Tr

@@ -5,7 +5,7 @@ before_script:
 
 sudo: required
 
-dist: trusty # Ubuntu 14.04.
+dist: bionic # Ubuntu 18.04.
 
 compiler:
   - gcc
@@ -17,10 +17,10 @@ addons:
     packages:
       - cmake
 
-branches:
-  only:
-    - master
-#    - next
+#branches:
+#  only:
+#    - master
+##    - next
 
 matrix:
   include:
@@ -46,6 +46,7 @@ script:
 #  - echo CC=${CC}
 #  - echo CXX=${CXX}
 #  - echo FC=${FC}
+
   - ./.travis/install-petsc.sh
   - ./.travis/pflotran-build.sh
   - ./.travis/pflotran-rxn-build.sh
@@ -56,5 +57,4 @@ script:
   - cat src/clm-pflotran/*.testlog
 
 after_success:
- - bash <(curl -s https://codecov.io/bash)
-
+  - bash <(curl -s https://codecov.io/bash)

@@ -59,12 +59,27 @@ module PM_WIPP_Flow_class
     PetscReal :: rotation_ceiling  ! elevation in z
     PetscReal :: rotation_basement ! elevation in z
     character(len=MAXWORDLENGTH), pointer :: rotation_region_names(:)
+    PetscInt, pointer :: auto_pressure_material_ids(:)
+    PetscReal :: auto_pressure_rho_b0
+    PetscReal :: auto_pressure_c_b
+    PetscReal :: auto_pressure_Pb_ref
+    PetscReal :: auto_pressure_Pb_0
+    PetscReal :: auto_press_shallow_origin(3)
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
-    PetscInt, pointer :: dirichlet_dofs(:) ! this array is zero-based indexing
+    ! When reading Dirichlet 2D Flared BC
+    PetscInt, pointer :: dirichlet_dofs_ghosted(:) ! this array is zero-based indexing
+    ! int_array has a natural_id and 1,2, or 3 that indicates
+    ! pressure, satruation, or both to be zerod in the residual
+    PetscInt, pointer :: dirichlet_dofs_ints(:,:)
+    PetscInt, pointer :: dirichlet_dofs_local(:) ! this array is zero-based indexing
+ 
   contains
-    procedure, public :: ReadSimulationBlock => PMWIPPFloRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMWIPPFloReadSimOptionsBlock
+    procedure, public :: ReadTSBlock => PMWIPPFloReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMWIPPFloReadNewtonSelectCase
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
     procedure, public :: InitializeTimestep => PMWIPPFloInitializeTimestep
     procedure, public :: Residual => PMWIPPFloResidual
@@ -138,13 +153,17 @@ subroutine PMWIPPFloInitObject(this)
   class(pm_wippflo_type) :: this
   
   allocate(this%max_change_ivar(3))
-  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  nullify(this%pmwss_ptr)
-  
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   this%name = 'WIPP Immiscible Multiphase Flow'
   this%header = 'WIPP IMMISCIBLE MULTIPHASE FLOW'
 
+  ! set to UNINITIALIZED_DOUBLE and report error below is set from input
+  this%pressure_change_governor = UNINITIALIZED_DOUBLE
+  this%temperature_change_governor = UNINITIALIZED_DOUBLE
+  this%saturation_change_governor = UNINITIALIZED_DOUBLE
+
+  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  nullify(this%pmwss_ptr)
   this%check_post_convergence = PETSC_TRUE
 
   ! defaults from BRAGFLO input deck or recommended values from user manual
@@ -171,10 +190,18 @@ subroutine PMWIPPFloInitObject(this)
   this%rotation_ceiling = UNINITIALIZED_DOUBLE
   this%rotation_basement = UNINITIALIZED_DOUBLE
   nullify(this%rotation_region_names)
+  nullify(this%auto_pressure_material_ids)
+  this%auto_pressure_rho_b0 = 1220.d0
+  this%auto_pressure_c_b = 3.1d-10
+  this%auto_pressure_Pb_ref = 101325.d0
+  this%auto_pressure_Pb_0 = UNINITIALIZED_DOUBLE !make user put this in
+  this%auto_press_shallow_origin = UNINITIALIZED_DOUBLE !this will default to dip rotation origin later
   this%linear_system_scaling_factor = 1.d7
   this%scale_linear_system = PETSC_TRUE
   this%scaling_vec = PETSC_NULL_VEC
-  nullify(this%dirichlet_dofs)
+  nullify(this%dirichlet_dofs_ghosted)
+  nullify(this%dirichlet_dofs_ints)
+  nullify(this%dirichlet_dofs_local)
   this%convergence_test_both = PETSC_TRUE
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
@@ -183,9 +210,9 @@ end subroutine PMWIPPFloInitObject
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloRead(this,input)
+subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   ! 
-  ! Read WIPP FLOW input block
+  ! Read WIPP FLOW options input block
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
@@ -201,52 +228,42 @@ subroutine PMWIPPFloRead(this,input)
   
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word, word2
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
-  PetscInt, parameter :: max_dirichlet_bc = 1000
-  PetscInt :: int_array(max_dirichlet_bc)
   PetscInt :: icount
   PetscInt :: temp_int
-
+  ! temp_int_array has a natural_id and 1,2, or 3 that indicates
+  ! pressure, satruation, or both to be zerod in the residual
+  PetscInt, parameter :: max_dirichlet_bc = 1000 ! capped at 1000
+  PetscInt :: temp_int_array(2,max_dirichlet_bc) 
+  
   option => this%option
 
   error_string = 'WIPP Flow Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(keyword))
-      case('LIQUID_RESIDUAL_INFINITY_TOL')
-        call InputReadDouble(input,option,this%liquid_residual_infinity_tol)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('GAS_RESIDUAL_INFINITY_TOL')
-        call InputReadDouble(input,option,this%gas_equation_infinity_tol)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MAX_ALLOW_REL_LIQ_PRES_CHANG_NI')
-        call InputReadDouble(input,option,this%max_allow_rel_liq_pres_chang_ni)
-        call InputErrorMsg(input,option,keyword,error_string)
-        ! no units conversion since it is relative
-      case('MAX_ALLOW_REL_GAS_SAT_CHANGE_NI')
-        call InputReadDouble(input,option,this%max_allow_rel_gas_sat_change_ni)
-        call InputErrorMsg(input,option,keyword,error_string)
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         call InputReadDouble(input,option,fmw_comp(2))
         call InputErrorMsg(input,option,keyword,error_string)
@@ -275,71 +292,6 @@ subroutine PMWIPPFloRead(this,input)
         wippflo_use_legacy_perturbation = PETSC_TRUE
       case('USE_BRAGFLO_CC')
         wippflo_use_bragflo_cc = PETSC_TRUE
-      case('REL_LIQ_PRESSURE_PERTURBATION')
-        call InputReadDouble(input,option,wippflo_pres_rel_pert)
-        call InputErrorMsg(input,option,keyword,error_string)
-        ! no units conversion since it is relative
-      case('MIN_LIQ_PRESSURE_PERTURBATION')
-        call InputReadDouble(input,option,wippflo_pres_min_pert)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call InputReadAndConvertUnits(input,wippflo_pres_min_pert, &
-                                      'Pa',keyword,option)
-      case('REL_GAS_SATURATION_PERTURBATION')
-        call InputReadDouble(input,option,wippflo_sat_rel_pert)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MIN_GAS_SATURATION_PERTURBATION')
-        call InputReadDouble(input,option,wippflo_sat_min_pert)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('GAS_SAT_THRESH_FORCE_TS_CUT')
-        call InputReadDouble(input,option,this%gas_sat_thresh_force_ts_cut)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('GAS_SAT_THRESH_FORCE_EXTRA_NI')
-        call InputReadDouble(input,option,this%gas_sat_thresh_force_extra_ni)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MIN_LIQ_PRES_FORCE_TS_CUT')
-        call InputReadDouble(input,option,this%min_liq_pres_force_ts_cut)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call InputReadAndConvertUnits(input,this%min_liq_pres_force_ts_cut, &
-                                      'Pa',keyword,option)
-      case('MAX_ALLOW_GAS_SAT_CHANGE_TS')
-        call InputReadDouble(input,option,this%max_allow_gas_sat_change_ts)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MAX_ALLOW_LIQ_PRES_CHANGE_TS')
-        call InputReadDouble(input,option,this%max_allow_liq_pres_change_ts)
-        call InputErrorMsg(input,option,keyword,error_string)
-        ! units conversion since it is absolute
-        call InputReadAndConvertUnits(input,this%max_allow_liq_pres_change_ts, &
-                                      'Pa',keyword,option)
-      case('GAS_SAT_CHANGE_TS_GOVERNOR')
-        call InputReadDouble(input,option,this%gas_sat_change_ts_governor)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('LIQ_PRES_CHANGE_TS_GOVERNOR')
-        call InputReadDouble(input,option,this%liq_pres_change_ts_governor)
-        call InputErrorMsg(input,option,keyword,error_string)
-        ! units conversion since it is absolute
-        call InputReadAndConvertUnits(input,this%liq_pres_change_ts_governor, &
-                                      'Pa',keyword,option)
-      case('GAS_SAT_GOV_SWITCH_ABS_TO_REL')
-        call InputReadDouble(input,option,this%gas_sat_gov_switch_abs_to_rel)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MINIMUM_TIMESTEP_SIZE')
-        call InputReadDouble(input,option,this%minimum_timestep_size)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call InputReadAndConvertUnits(input,this%minimum_timestep_size, &
-                                      'sec',keyword,option)
-      case('CONVERGENCE_TEST')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('BOTH')
-            this%convergence_test_both = PETSC_TRUE
-          case('EITHER')
-            this%convergence_test_both = PETSC_FALSE
-          case default
-            call InputKeywordUnrecognized(keyword, &
-                           trim(error_string)//','//keyword,option)
-        end select
       case('RESIDUAL_TEST')
         wippflo_residual_test = PETSC_TRUE
       case('RESIDUAL_TEST_CELL')
@@ -402,16 +354,34 @@ subroutine PMWIPPFloRead(this,input)
         this%rotation_region_names(:) = strings(:)
         deallocate(strings)
         nullify(strings)
-      case('JACOBIAN_PRESSURE_DERIV_SCALE')
-        call InputReadDouble(input,option,this%linear_system_scaling_factor)
+      case('AUTO_PRESSURE_MATERIAL_IDS')
+        strings => StringSplit(adjustl(input%buf),' ')
+        allocate(this%auto_pressure_material_ids(size(strings)))
+        do temp_int = 1, size(strings)
+          call InputReadInt(strings(temp_int),option, &
+                            this%auto_pressure_material_ids(temp_int), &
+                            input%ierr)
+          call InputErrorMsg(input,option,keyword,error_string)
+        enddo
+        deallocate(strings)
+        nullify(strings)
+      case('AUTO_PRESSURE_RHO_B0')
+        call InputReadDouble(input,option,this%auto_pressure_rho_b0)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('SCALE_JACOBIAN')
-        this%scale_linear_system = PETSC_TRUE
-      case('DO_NOT_SCALE_JACOBIAN')
-        this%scale_linear_system = PETSC_FALSE
+      case('AUTO_PRESSURE_C_B')
+        call InputReadDouble(input,option,this%auto_pressure_c_b)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('AUTO_PRESSURE_PB_REF')
+        call InputReadDouble(input,option,this%auto_pressure_Pb_ref)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('AUTO_PRESSURE_PB_0')
+        call InputReadDouble(input,option,this%auto_pressure_Pb_0)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('AUTO_PRESS_SHALLOW_ORIGIN')
+        call InputReadNDoubles(input,option,this%auto_press_shallow_origin,THREE_INTEGER)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('2D_FLARED_DIRICHLET_BCS')
         icount = 0
-        int_array = 0.d0
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,keyword)
@@ -425,26 +395,34 @@ subroutine PMWIPPFloRead(this,input)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'pressure', &
                              '2D_FLARED_DIRICHLET_BCS')
-          if (StringYesNoOther(word) == STRING_YES) then
-            icount = icount + 1
-            int_array(icount) = (temp_int-1)*2+1
-          endif
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadWord(input,option,word2,PETSC_TRUE)
           call InputErrorMsg(input,option,'saturation', &
                              '2D_FLARED_DIRICHLET_BCS')
-          if (StringYesNoOther(word) == STRING_YES) then
+                             
+          if (StringYesNoOther(word) == STRING_YES .and. &
+              StringYesNoOther(word2) == STRING_YES) then
             icount = icount + 1
-            int_array(icount) = (temp_int-1)*2+2
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 3
+          else if (StringYesNoOther(word) == STRING_YES .and. &
+                   StringYesNoOther(word2) == STRING_NO) then
+            icount = icount + 1
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 1
+          else if (StringYesNoOther(word) == STRING_NO .and. &
+                   StringYesNoOther(word2) == STRING_YES) then
+            icount = icount + 1
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 2
           endif
         enddo
-        if (icount > 0) then
-          allocate(this%dirichlet_dofs(icount))       ! convert to zero-based
-          this%dirichlet_dofs = int_array(1:icount) - 1 
-        endif
+        allocate(this%dirichlet_dofs_ints(2,icount))
+        this%dirichlet_dofs_ints = temp_int_array(1:2,1:icount)
       case default
-        call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
   enddo  
+  call InputPopBlock(input,option)
   
   ! Check that gas_sat_thresh_force_extra_ni is smaller than 
   ! gas_sat_thresh_force_ts_cut
@@ -474,7 +452,180 @@ subroutine PMWIPPFloRead(this,input)
   this%neg_log10_rel_gas_sat_change_ni = &
     -1.d0*log10(this%max_allow_rel_gas_sat_change_ni)
    
-end subroutine PMWIPPFloRead
+end subroutine PMWIPPFloReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloReadTSSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  ! 
+  ! Read timestepper settings specific to the WIPP_FLOW process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+ 
+  implicit none
+  
+  class(pm_wippflo_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  found = PETSC_TRUE
+  call PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('GAS_SAT_CHANGE_TS_GOVERNOR')
+      call InputReadDouble(input,option,this%gas_sat_change_ts_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('LIQ_PRES_CHANGE_TS_GOVERNOR')
+      call InputReadDouble(input,option,this%liq_pres_change_ts_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! units conversion since it is absolute
+      call InputReadAndConvertUnits(input,this%liq_pres_change_ts_governor, &
+                                    'Pa',keyword,option)
+    case('GAS_SAT_GOV_SWITCH_ABS_TO_REL')
+      call InputReadDouble(input,option,this%gas_sat_gov_switch_abs_to_rel)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MINIMUM_TIMESTEP_SIZE')
+      call InputReadDouble(input,option,this%minimum_timestep_size)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,this%minimum_timestep_size, &
+                                    'sec',keyword,option)
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMWIPPFloReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
+                                         error_string,option)
+  ! 
+  ! Reads input file parameters associated with the WIPP_FLOW process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Option_module
+  use WIPP_Flow_Aux_module
+ 
+  implicit none
+  
+  class(pm_wippflo_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  character(len=MAXWORDLENGTH) :: word
+  PetscReal :: tempreal
+  PetscInt :: lid, gid, eid
+
+  option => this%option
+
+  lid = 1 !option%liquid_phase
+  gid = 2 !option%gas_phase
+  eid = 3 !option%energy_id
+
+  error_string = 'WIPP_FLOW Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('LIQUID_RESIDUAL_INFINITY_TOL')
+      call InputReadDouble(input,option,this%liquid_residual_infinity_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_RESIDUAL_INFINITY_TOL')
+      call InputReadDouble(input,option,this%gas_equation_infinity_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ALLOW_REL_LIQ_PRES_CHANG_NI')
+      call InputReadDouble(input,option,this%max_allow_rel_liq_pres_chang_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! no units conversion since it is relative
+    case('MAX_ALLOW_REL_GAS_SAT_CHANGE_NI')
+      call InputReadDouble(input,option,this%max_allow_rel_gas_sat_change_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('REL_LIQ_PRESSURE_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_pres_rel_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! no units conversion since it is relative
+    case('MIN_LIQ_PRESSURE_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_pres_min_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,wippflo_pres_min_pert, &
+                                    'Pa',keyword,option)
+    case('REL_GAS_SATURATION_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_sat_rel_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MIN_GAS_SATURATION_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_sat_min_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_SAT_THRESH_FORCE_EXTRA_NI')
+      call InputReadDouble(input,option,this%gas_sat_thresh_force_extra_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_SAT_THRESH_FORCE_TS_CUT')
+      call InputReadDouble(input,option,this%gas_sat_thresh_force_ts_cut)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MIN_LIQ_PRES_FORCE_TS_CUT')
+      call InputReadDouble(input,option,this%min_liq_pres_force_ts_cut)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,this%min_liq_pres_force_ts_cut, &
+                                    'Pa',keyword,option)
+    case('MAX_ALLOW_GAS_SAT_CHANGE_TS')
+      call InputReadDouble(input,option,this%max_allow_gas_sat_change_ts)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ALLOW_LIQ_PRES_CHANGE_TS')
+      call InputReadDouble(input,option,this%max_allow_liq_pres_change_ts)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! units conversion since it is absolute
+      call InputReadAndConvertUnits(input,this%max_allow_liq_pres_change_ts, &
+                                    'Pa',keyword,option)
+    case('CONVERGENCE_TEST')
+      call InputReadCard(input,option,word)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call StringToUpper(word)
+      select case(word)
+        case('BOTH')
+          this%convergence_test_both = PETSC_TRUE
+        case('EITHER')
+          this%convergence_test_both = PETSC_FALSE
+        case default
+          call InputKeywordUnrecognized(input,keyword, &
+                         trim(error_string)//','//keyword,option)
+      end select
+    case('JACOBIAN_PRESSURE_DERIV_SCALE')
+      call InputReadDouble(input,option,this%linear_system_scaling_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('SCALE_JACOBIAN')
+      this%scale_linear_system = PETSC_TRUE
+    case('DO_NOT_SCALE_JACOBIAN')
+      this%scale_linear_system = PETSC_FALSE
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMWIPPFloReadNewtonSelectCase
 
 ! ************************************************************************** !
 
@@ -486,6 +637,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   ! Date: 07/11/17
 
   use Realization_Base_class
+  use Patch_module
+  use WIPP_Flow_module, only : WIPPFloUpdateAuxVars
   use WIPP_Flow_Aux_module
   use Input_Aux_module
   use Dataset_Base_class
@@ -511,16 +664,37 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(grid_type), pointer :: grid
   type(region_type), pointer :: region
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscReal, pointer :: work_p(:)
   PetscReal, pointer :: work_loc_p(:)
+  PetscReal, pointer :: flow_xx_p(:)
   PetscReal :: h
   PetscReal :: x, z
-  PetscInt :: idof, icell, iregion
-  PetscInt :: ghosted_id, local_id
+  PetscInt :: idof, icell, iregion, icount, jcount
+  PetscInt :: ghosted_id, local_id, natural_id
+  PetscInt :: imat, nmat_id, ndof
+  ! for auto pressure
+  PetscReal :: rhob0
+  PetscReal :: cb
+  PetscReal :: Pbref
+  PetscReal :: zref
+  PetscReal :: zref2
+  PetscReal :: Pb0
+  PetscReal :: ze
+  PetscReal :: rhobref
+  PetscReal :: Phiref
+  PetscReal :: Phiref2
+  PetscReal :: rhob
+  PetscReal :: Pb
+  PetscBool :: found
+  PetscReal, parameter :: gravity = 9.80665d0
 
-  grid => this%realization%patch%grid
+  patch => this%realization%patch
+  grid => patch%grid
   field => this%realization%field
+  option => this%option
 
   ! need to allocate vectors for max change
   call VecDuplicateVecsF90(field%work,SIX_INTEGER,field%max_change_vecs, &
@@ -535,12 +709,12 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   call PMSubsurfaceFlowInitializeRun(this)
   
   ! look for WIPP_SOURCE_SINK block 
-  input => InputCreate(IN_UNIT,this%option%input_filename,this%option)
+  input => InputCreate(IN_UNIT,option%input_filename,option)
   block_string = 'WIPP_SOURCE_SINK'
-  call InputFindStringInFile(input,this%option,block_string)
+  call InputFindStringInFile(input,option,block_string)
   if (input%ierr == 0 .and. wippflo_use_gas_generation) then
     this%pmwss_ptr => PMWSSCreate()
-    this%pmwss_ptr%option => this%option
+    this%pmwss_ptr%option => option
     call this%pmwss_ptr%ReadPMBlock(input)
   endif
   ! call setup/initialization of all WIPP process models
@@ -555,7 +729,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     string = 'BRAGFLO ALPHA Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
                                      this%alpha_dataset_name, &
-                                     string,this%option)
+                                     string,option)
     select type(d => dataset)
       class is(dataset_common_hdf5_type)
         string2 = ''
@@ -566,34 +740,34 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           string2, &
                                           string, &
                                           d%realization_dependent)
-        wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+        wippflo_auxvars => patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
         call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
-        do ghosted_id = 1, this%realization%patch%grid%ngmax
-          do idof = 0, this%option%nflowdof
+        do ghosted_id = 1, grid%ngmax
+          do idof = 0, option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%alpha = work_loc_p(ghosted_id)
           enddo
         enddo
         call VecRestoreArrayReadF90(field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
-        this%option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
-        call PrintErrMsg(this%option)
+        option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
+        call PrintErrMsg(option)
     end select
   else
     if (.not.wippflo_default_alpha .and. wippflo_use_lumped_harm_flux) then
-      this%option%io_buffer = 'ALPHA should have been read from a dataset.'
-      call PrintErrMsg(this%option)
+      option%io_buffer = 'ALPHA should have been read from a dataset.'
+      call PrintErrMsg(option)
     endif
   endif
 
   ! read in elevations
-  wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+  wippflo_auxvars => patch%aux%WIPPFlo%auxvars
   if (len_trim(this%elevation_dataset_name) > 0) then
     string = 'BRAGFLO Elevation Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
                                      this%elevation_dataset_name, &
-                                     string,this%option)
+                                     string,option)
     select type(d => dataset)
       class is(dataset_common_hdf5_type)
         string2 = ''
@@ -604,54 +778,51 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           string2, &
                                           string, &
                                           d%realization_dependent)
-        wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+        wippflo_auxvars => patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
         call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
-        do ghosted_id = 1, this%realization%patch%grid%ngmax
-          do idof = 0, this%option%nflowdof
+        do ghosted_id = 1, patch%grid%ngmax
+          do idof = 0, option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
           enddo
-          !geh: remove after 9/30/19
-          !print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
         enddo
         call VecRestoreArrayReadF90(field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
-        this%option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
+        option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
           &Elevation.'
-        call PrintErrMsg(this%option)
+        call PrintErrMsg(option)
     end select
   else if (Initialized(this%rotation_angle)) then
     if (.not.Initialized(this%rotation_origin(3))) then
-      this%option%io_buffer = 'An origin must be defined for dip rotation.'
-      call PrintErrMsg(this%option)
+      option%io_buffer = 'An origin must be defined for dip rotation.'
+      call PrintErrMsg(option)
     endif
     call VecGetArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       z = grid%z(ghosted_id)
       if (z > this%rotation_ceiling .or. z < this%rotation_basement) then
-        h = z
+        work_p(local_id) = z
       else
         x = grid%x(ghosted_id)
         ! from PA.33 in CRA2014 appendix
         h = (x-this%rotation_origin(1))* &
             sin(this%rotation_angle) + &
             (z-this%rotation_origin(3))* &
-            cos(this%rotation_angle) + &
-            this%rotation_origin(3)
+            cos(this%rotation_angle)
+        work_p(local_id) = h + this%rotation_origin(3)
       endif
-      work_p(local_id) = h
     enddo
     if (associated(this%rotation_region_names)) then
       do iregion = 1, size(this%rotation_region_names)
         region => RegionGetPtrFromList(this%rotation_region_names(iregion), &
-                                       this%realization%patch%region_list)
+                                       patch%region_list)
         if (.not.associated(region)) then
-          this%option%io_buffer = 'Region "' // &
+          option%io_buffer = 'Region "' // &
                trim(this%rotation_region_names(iregion)) // &
                '" in WIPP FLOW Elevation definition not found in region list'
-          call PrintErrMsg(this%option)
+          call PrintErrMsg(option)
         endif
         do icell = 1, region%num_cells
           local_id = region%cell_ids(icell)
@@ -662,10 +833,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           h = (x-this%rotation_origin(1))* &
               sin(this%rotation_angle) + &
               (z-this%rotation_origin(3))* &
-              cos(this%rotation_angle) + &
-              this%rotation_origin(3)
-          
-          work_p(local_id) = h
+              cos(this%rotation_angle)
+          work_p(local_id) = h + this%rotation_origin(3)
         enddo
       enddo
     endif
@@ -673,30 +842,160 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
     call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax 
-      do idof = 0, this%option%nflowdof
+      do idof = 0, option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
       enddo
-      !geh: remove after 9/30/19
-      !print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
     enddo
     call VecRestoreArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
-      do idof = 0, this%option%nflowdof
+      do idof = 0, option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
       enddo
     enddo
   endif
+  ! auto pressures by material id
+  if (associated(this%auto_pressure_material_ids)) then
+    if (Uninitialized(this%rotation_origin(3)) .or. &
+        Uninitialized(this%rotation_angle) .or. &
+        Uninitialized(this%rotation_ceiling) .or. &
+        Uninitialized(this%rotation_basement) .or. &
+        Uninitialized(this%auto_pressure_Pb_0)) then
+      option%io_buffer = 'DIP_ROTATION_ORIGIN, DIP_ROTATION_CELINING, &
+         & DIP_ROTATION_BASEMENT, AUTO_PRESSURE_PB_0 and DIP_ROTATION_ANGLE &
+        & must be initialized under WIPP_FLOW,OPTIONS.'
+      call PrintErrMsg(option)
+   endif
+   if (.not.Initialized(this%auto_press_shallow_origin(3))) then
+      this%auto_press_shallow_origin = this%rotation_origin
+   endif
+    ndof = option%nflowdof
+    rhob0 = this%auto_pressure_rho_b0
+    cb = this%auto_pressure_c_b
+    Pbref = this%auto_pressure_Pb_ref
+    Pb0 = this%auto_pressure_Pb_0
+    zref = this%rotation_origin(3)
+    rhobref = rhob0*exp(-cb*(Pbref-Pb0))                         ! PA.56
+    Phiref = zref + 1.d0/(gravity*cb)*(1.d0/rhob0-1.d0/rhobref)  ! PA.55
+    zref2 = this%auto_press_shallow_origin(3)
+    Phiref2 =  zref2 + 0  ! the second term is always zero because Pbref = Pb02
+    call VecGetArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
+    nmat_id = size(this%auto_pressure_material_ids)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      imat = patch%imat(ghosted_id)
+      do i = 1, nmat_id
+        if (imat == this%auto_pressure_material_ids(i)) exit
+      enddo
+      ! if found, i <= nmatid; otherwise i = nmat+1
+      if (i <= nmat_id) then
+        x = grid%x(ghosted_id)
+        z = grid%z(ghosted_id)
+        if (z > this%rotation_ceiling) then
+          h = z - zref2  ! PA.33 without rotation using shallow origin
+          ze = zref2 + h                                                ! PA.57
+          rhob = 1.d0/(gravity*cb*(ze-Phiref2+1.d0/(gravity*cb*rhob0))) ! PA.54
+        elseif (z < this%rotation_basement) then
+          h = z - zref  ! PA.33 without rotation using rotation origin
+          ze = zref + h                                                ! PA.57
+          rhob = 1.d0/(gravity*cb*(ze-Phiref+1.d0/(gravity*cb*rhob0))) ! PA.54
+        else  
+          h = (x-this%rotation_origin(1))* &  ! PA.33
+              sin(this%rotation_angle) + &
+              (z-this%rotation_origin(3))* &
+              cos(this%rotation_angle)
+          ze = zref + h                                                ! PA.57
+          rhob = 1.d0/(gravity*cb*(ze-Phiref+1.d0/(gravity*cb*rhob0))) ! PA.54
+        endif
+        Pb = Pbref + 1.d0/cb*log(rhob/rhob0)                         ! PA.53
+        flow_xx_p((local_id-1)*ndof+WIPPFLO_LIQUID_PRESSURE_DOF) = Pb
+        flow_xx_p((local_id-1)*ndof+WIPPFLO_GAS_SATURATION_DOF) = 0.d0
+      endif
+    enddo
+    call VecRestoreArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
+    ! have to ensure the auxvars are updated for initial condition output
+    call DiscretizationGlobalToLocal(this%realization%discretization, &
+                                     field%flow_xx,field%flow_xx_loc,NFLOWDOF)
+    call WIPPFloUpdateAuxVars(this%realization)
+  endif
 
   call DiscretizationCreateVector(this%realization%discretization,NFLOWDOF, &
-                                  this%scaling_vec,GLOBAL,this%option)
+                                  this%scaling_vec,GLOBAL,option)
   call VecDuplicate(this%scaling_vec,this%stored_residual_vec, &
                     ierr);CHKERRQ(ierr)
 
   ! if using Dirichlet cell-centered BC, set option for matrix
-  if (associated(this%dirichlet_dofs)) then
+  if (associated(this%dirichlet_dofs_ints)) then
+    jcount = 0
+    do local_id = 1, grid%nlmax  ! For each local node do...
+      ghosted_id = grid%nL2G(local_id)
+      natural_id = grid%nG2A(ghosted_id)
+      do icount = 1, size(this%dirichlet_dofs_ints)
+        if (natural_id == this%dirichlet_dofs_ints(1,icount)) then
+           if (this%dirichlet_dofs_ints(2,icount) == 1 .or. &
+               this%dirichlet_dofs_ints(2,icount) == 3) then
+            jcount = jcount + 1
+          endif
+          if (this%dirichlet_dofs_ints(2,icount) == 2 .or. &
+              this%dirichlet_dofs_ints(2,icount) == 3) then
+            jcount = jcount + 1
+          endif
+          exit
+        endif   
+      enddo 
+    enddo
+    allocate(this%dirichlet_dofs_ghosted(jcount))
+    allocate(this%dirichlet_dofs_local(jcount))
+
+    jcount = 0
+    do local_id = 1, grid%nlmax  ! For each local node do...
+      ghosted_id = grid%nL2G(local_id)
+      natural_id = grid%nG2A(ghosted_id)
+      do icount = 1, size(this%dirichlet_dofs_ints)
+        if (natural_id == this%dirichlet_dofs_ints(1,icount)) then
+           if (this%dirichlet_dofs_ints(2,icount) == 1 .or. &
+               this%dirichlet_dofs_ints(2,icount) == 3) then
+            jcount = jcount + 1
+            this%dirichlet_dofs_local(jcount) = (local_id-1)*2+1
+            ! zero based indexing
+            this%dirichlet_dofs_ghosted(jcount) = (ghosted_id-1)*2
+          endif
+          if (this%dirichlet_dofs_ints(2,icount) == 2 .or. &
+              this%dirichlet_dofs_ints(2,icount) == 3) then
+            jcount = jcount + 1
+            this%dirichlet_dofs_local(jcount) = (local_id-1)*2+2
+            ! zero based indexing
+            this%dirichlet_dofs_ghosted(jcount) = (ghosted_id-1)*2+1
+          endif
+          EXIT
+        endif   
+      enddo 
+    enddo
     call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
-                      PETSC_FALSE,ierr);CHKERRQ(ierr)
+         PETSC_FALSE,ierr);CHKERRQ(ierr)
+    deallocate(this%dirichlet_dofs_ints)
+  endif
+
+  ! prevent use of block Jacobi preconditioning in parallel
+  if (this%solver%pc_type == PCILU .or. &
+      this%solver%pc_type == PCBJACOBI) then
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
+                             PETSC_NULL_CHARACTER,"-bypass_wipp_pc_check", &
+                             found,ierr);CHKERRQ(ierr)
+    if (.not.found) then
+      option%io_buffer = 'Block Jacobi or ILU preconditioning is not allowed &
+        &with WIPP_FLOW due to excessive error in the solvers. Please use &
+        &a direct solver or FGMRES-CPR.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
+  if (Initialized(this%pressure_change_governor) .or. &
+      Initialized(this%temperature_change_governor) .or. &
+      Initialized(this%saturation_change_governor)) then
+    option%io_buffer = 'PRESSURE_CHANGE_GOVERNOR, TEMPERATURE_CHANGE_GOVERNOR, &
+      or CONCENTRATION_CHANGE_GOVERNOR may not be used with WIPP_FLOW.'
+    call PrintErrMsg(option)
   endif
   
 end subroutine PMWIPPFloInitializeRun
@@ -905,7 +1204,7 @@ subroutine PMWIPPFloUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
     call GlobalSetAuxVarVecLoc(this%realization,field%work_loc, &
                                GAS_SATURATION,TIME_NULL)
-    call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+    call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   endif
 
 end subroutine PMWIPPFloUpdateTimestep
@@ -919,6 +1218,7 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   ! 
   use WIPP_Flow_module, only : WIPPFloResidual
   use Debug_module
+  use Grid_module
 
   implicit none
   
@@ -930,20 +1230,22 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
 
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
+  type(grid_type), pointer :: grid
   PetscReal, pointer :: r_p(:)
   PetscInt :: i, idof
   
+  grid => this%realization%patch%grid
+
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
 
   ! calculate residual
   call WIPPFloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
 
   ! cell-centered dirichlet BCs
-  if (associated(this%dirichlet_dofs)) then
+  if (associated(this%dirichlet_dofs_local)) then
     call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-    do i = 1, size(this%dirichlet_dofs)
-                         ! add 1 as dirichlet_dofs is zero-based indexing
-      r_p(this%dirichlet_dofs(i)+1) = 0.d0
+    do i = 1, size(this%dirichlet_dofs_local)
+      r_p(this%dirichlet_dofs_local(i)) = 0.d0
     enddo
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   endif
@@ -993,24 +1295,40 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   PetscReal :: norm
   PetscInt :: matsize
   PetscInt :: i, irow
+  PetscReal, allocatable :: diagonal_values(:)
+  PetscReal :: array(1,1)
   PetscReal, pointer :: vec_p(:)
-  
+
+
   call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
 
   ! cell-centered dirichlet BCs
-  if (associated(this%dirichlet_dofs)) then
+  if (associated(this%dirichlet_dofs_ghosted)) then
+    allocate(diagonal_values(size(this%dirichlet_dofs_local)))
     call VecDuplicate(this%stored_residual_vec,diagonal_vec,ierr);CHKERRQ(ierr)
     call MatGetDiagonal(A,diagonal_vec,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
-    do i = 1, size(this%dirichlet_dofs)
-      irow = this%dirichlet_dofs(i)
-               ! increment irow due to zero-based indexing in dirichlet_dofs
-      norm = vec_p(irow+1) * 1.d8 + 1.d8
-      call MatZeroRowsLocal(A,1,irow,norm,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                            ierr);CHKERRQ(ierr)
+    do i = 1, size(this%dirichlet_dofs_local)
+      diagonal_values(i) = vec_p(this%dirichlet_dofs_local(i)) * 1.d8 + 1.d8
     enddo
     call VecRestoreArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
     call VecDestroy(diagonal_vec,ierr);CHKERRQ(ierr)
+    i = size(this%dirichlet_dofs_ghosted)
+    norm = 1.d0
+    ! replace all the rows with zero and the diagonals to 1
+    ! on the location of dirchlet_dofs_ghosted indices
+    call MatZeroRowsLocal(A,i,this%dirichlet_dofs_ghosted,norm, &
+                          PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+    do i = 1, size(this%dirichlet_dofs_ghosted)
+      irow = this%dirichlet_dofs_ghosted(i)
+      array(1,1) = diagonal_values(i)
+      call MatSetValuesLocal(A,1,irow,1,irow,array,INSERT_VALUES, &
+                             ierr);CHKERRQ(ierr)
+    enddo
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    deallocate(diagonal_values)
   endif
 
   if (this%realization%debug%matview_Jacobian) then
@@ -1080,7 +1398,7 @@ end subroutine PMWIPPFloJacobian
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMWIPPFloCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
@@ -1097,7 +1415,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_wippflo_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -1117,7 +1435,7 @@ end subroutine PMWIPPFloCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
@@ -1136,7 +1454,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_wippflo_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -2159,15 +2477,20 @@ subroutine PMWIPPFloDestroy(this)
 
   call DeallocateArray(this%max_change_ivar)
   call DeallocateArray(this%rotation_region_names)
+  call DeallocateArray(this%auto_pressure_material_ids)
   if (this%stored_residual_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%stored_residual_vec,ierr);CHKERRQ(ierr)
   endif
   if (this%scaling_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%scaling_vec,ierr);CHKERRQ(ierr)
   endif
-  if (associated(this%dirichlet_dofs)) then
-    deallocate(this%dirichlet_dofs)
-    nullify(this%dirichlet_dofs)
+  if (associated(this%dirichlet_dofs_ghosted)) then
+    deallocate(this%dirichlet_dofs_ghosted)
+    nullify(this%dirichlet_dofs_ghosted)
+  endif
+  if (associated(this%dirichlet_dofs_local)) then
+    deallocate(this%dirichlet_dofs_local)
+    nullify(this%dirichlet_dofs_local)
   endif
 
   ! preserve this ordering

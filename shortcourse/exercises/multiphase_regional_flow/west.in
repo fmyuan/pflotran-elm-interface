@@ -7,8 +7,6 @@ SIMULATION
       MODE GENERAL
       OPTIONS
         RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
       /
     /
   /
@@ -16,10 +14,18 @@ END
 
 SUBSURFACE
 
-#=========================== solver options ===================================
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
 END
+
+#=========================== solver options ===================================
 
 #=========================== discretization ===================================
 GRID
@@ -164,7 +170,6 @@ FLOW_CONDITION unsaturated
   GAS_PRESSURE 101256.d0 
   RELATIVE_HUMIDITY 0.5
   TEMPERATURE 25.d0
-
 END
 
 FLOW_CONDITION recharge

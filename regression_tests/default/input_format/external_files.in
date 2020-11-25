@@ -7,12 +7,33 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    MAX_STEPS 5
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -39,17 +60,8 @@ EXTERNAL_FILE chemistry.txt
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  MAX_STEPS 5
-END
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

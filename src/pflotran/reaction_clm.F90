@@ -3,14 +3,15 @@ module CLM_Rxn_Base_class
   ! extended from reaction_sandbox_base to implement demand based 
   ! down regulation for use in CLM_Rxn t6g 10/06/2014 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, abstract, public :: clm_rxn_base_type
     class(clm_rxn_base_type), pointer :: next
   contains
@@ -42,7 +43,7 @@ module CLM_Rxn_Base_class
       implicit none
   
       class(clm_rxn_base_type) :: this
-      type(reaction_type) :: reaction
+      class(reaction_rt_type) :: reaction
       type(option_type) :: option
   
     end subroutine Base_Setup 
@@ -97,7 +98,7 @@ module CLM_Rxn_Base_class
   
       class(clm_rxn_base_type) :: this
       type(option_type) :: option
-      type(reaction_type) :: reaction
+      class(reaction_rt_type) :: reaction
       PetscBool :: compute_derivative
       PetscReal :: Res(reaction%ncomp)
       PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -143,7 +144,7 @@ contains
     implicit none
   
     class(clm_rxn_base_type) :: this
-    type(reaction_type) :: reaction
+    class(reaction_rt_type) :: reaction
     type(option_type) :: option
   
   end subroutine Base_Setup 
@@ -197,7 +198,7 @@ contains
   
     class(clm_rxn_base_type) :: this
     type(option_type) :: option
-    type(reaction_type) :: reaction
+    class(reaction_rt_type) :: reaction
     PetscBool :: compute_derivative
     PetscReal :: Residual(reaction%ncomp)
     PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
@@ -232,12 +233,13 @@ end module CLM_Rxn_Base_class
 
 module CLM_Rxn_Common_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   public :: CalNLimitFunc
 
 contains
@@ -318,12 +320,13 @@ module CLM_Rxn_Decomp_class
 ! Date:   07/08/14 
 ! -----------------------------------------------------------------------------
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter :: LITTER_DECOMP_CLMCN = 1 
   PetscInt, parameter :: LITTER_DECOMP_CLMMICROBE = 2 
 
@@ -403,7 +406,7 @@ module CLM_Rxn_Decomp_class
     PetscBool :: is_NO3_aqueous
 
     type(pool_type), pointer :: pools
-    type(clmdec_reaction_type), pointer :: reactions
+    type(clmdec_reaction_rt_type), pointer :: reactions
   contains
     procedure, public :: ReadInput => CLMDec_Read
     procedure, public :: Setup => CLMDec_Setup
@@ -418,12 +421,12 @@ module CLM_Rxn_Decomp_class
     type(pool_type), pointer :: next
   end type pool_type
   
-  type :: clmdec_reaction_type
+  type :: clmdec_reaction_rt_type
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     type(pool_type), pointer :: downstream_pools
     PetscReal :: rate_constant
-    type(clmdec_reaction_type), pointer :: next
-  end type clmdec_reaction_type
+    type(clmdec_reaction_rt_type), pointer :: next
+  end type clmdec_reaction_rt_type
   
   public :: CLMDec_Create
 
@@ -433,8 +436,6 @@ contains
 
 function CLMDec_Create()
   ! Allocates CLMDec reaction sandbox object.
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
   
@@ -516,8 +517,6 @@ subroutine CLMDec_Read(this,input,option)
   ! 
   ! Reads input deck for reaction sandbox parameters
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use String_module
@@ -535,7 +534,7 @@ subroutine CLMDec_Read(this,input,option)
   
   type(pool_type), pointer :: new_pool, prev_pool
   type(pool_type), pointer :: new_pool_rxn, prev_pool_rxn
-  type(clmdec_reaction_type), pointer :: new_reaction, prev_reaction
+  type(clmdec_reaction_rt_type), pointer :: new_reaction, prev_reaction
   
   PetscReal :: rate_constant, turnover_time
   PetscReal :: temp_real
@@ -549,12 +548,13 @@ subroutine CLMDec_Read(this,input,option)
   nullify(new_reaction)
   nullify(prev_reaction)
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
       'CHEMISTRY,CLM_RXN,CLMDec')
     call StringToUpper(word)   
@@ -645,6 +645,7 @@ subroutine CLMDec_Read(this,input,option)
          'CHEMISTRY,CLM_RXN,CLMDec')
 
      case('POOLS')
+       call InputPushBlock(input,option)
        do
          call InputReadPflotranString(input,option)
          if (InputError(input)) exit
@@ -655,7 +656,7 @@ subroutine CLMDec_Read(this,input,option)
          new_pool%nc_ratio = -999.d0
          nullify(new_pool%next)
 
-         call InputReadWord(input,option,new_pool%name,PETSC_TRUE)
+         call InputReadCard(input,option,new_pool%name,PETSC_TRUE)
          call InputErrorMsg(input,option,'pool name', &
            'CHEMISTRY,CLM_RXN,CLMDec,POOLS')
          call InputReadDouble(input,option,temp_real)
@@ -676,6 +677,7 @@ subroutine CLMDec_Read(this,input,option)
          prev_pool => new_pool
          nullify(new_pool)
        enddo
+       call InputPopBlock(input,option)
 
       case('REACTION')
       
@@ -690,12 +692,13 @@ subroutine CLMDec_Read(this,input,option)
         turnover_time = 0.d0
         rate_constant = 0.d0
         
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
             'CHEMISTRY,CLM_RXN,CLMDec')
           call StringToUpper(word)   
@@ -756,10 +759,11 @@ subroutine CLMDec_Read(this,input,option)
                   UnitsConvertToInternal(word,internal_units,option)
               endif
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,CLM_RXN,CLMDec,REACTION',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         
         ! check to ensure that one of turnover time or rate constant is set.
         if (turnover_time > 0.d0 .and. rate_constant > 0.d0) then
@@ -781,9 +785,11 @@ subroutine CLMDec_Read(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN,CLMDec',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'CHEMISTRY,CLM_RXN,CLMDec',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine CLMDec_Read
 
@@ -794,8 +800,6 @@ subroutine CLMDec_Setup(this,reaction,option)
   ! Sets up CLMDec reaction after it has been read from input
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Reaction_Aux_module
   use Option_module
   use String_module
@@ -806,7 +810,7 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   class(clm_rxn_clmdec_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   
   character(len=MAXWORDLENGTH), allocatable :: pool_names(:)
   character(len=MAXWORDLENGTH) :: word
@@ -819,7 +823,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   PetscReal :: stoich_c, stoich_n
 
   type(pool_type), pointer :: cur_pool
-  type(clmdec_reaction_type), pointer :: cur_rxn
+  type(clmdec_reaction_rt_type), pointer :: cur_rxn
   
   ! count # pools
   icount = 0
@@ -1182,7 +1186,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   class(clm_rxn_clmdec_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3052,7 +3056,7 @@ subroutine CLMDec_Destroy(this)
   class(clm_rxn_clmdec_type) :: this
   
   type(pool_type), pointer :: cur_pool, prev_pool
-  type(clmdec_reaction_type), pointer :: cur_reaction, prev_reaction
+  type(clmdec_reaction_rt_type), pointer :: cur_reaction, prev_reaction
   
   cur_pool => this%pools
   do
@@ -3123,12 +3127,13 @@ module CLM_Rxn_PlantN_class
 ! Date:   07/08/14 
 ! -----------------------------------------------------------------------------
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_plantn_type
     PetscReal :: rate_plantntake
@@ -3178,8 +3183,6 @@ contains
 !
 ! **************************************************************************** !
 function PlantNCreate()
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
   
@@ -3226,8 +3229,6 @@ end function PlantNCreate
 !
 ! **************************************************************************** !
 subroutine PlantNRead(this,input,option)
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use String_module
@@ -3243,12 +3244,13 @@ subroutine PlantNRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,CLM_RXN,PLANTN')
     call StringToUpper(word)   
@@ -3327,10 +3329,11 @@ subroutine PlantNRead(this,input,option)
       case('JACOBIAN_PLANT_NO3_SKIP')
         this%bskippno3jacobian = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                'CHEMISTRY,CLM_RXN,PLANTN,REACTION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PlantNRead
 
@@ -3340,8 +3343,6 @@ end subroutine PlantNRead
 !
 ! **************************************************************************** !
 subroutine PlantNSetup(this,reaction,option)
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Reaction_Aux_module
   use Option_module
@@ -3350,7 +3351,7 @@ subroutine PlantNSetup(this,reaction,option)
   implicit none
   
   class(clm_rxn_plantn_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -3437,7 +3438,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   class(clm_rxn_plantn_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3727,6 +3728,9 @@ module CLM_Rxn_Nitr_class
 ! by t6g 2/13/2015
 ! ------------------------------------------------------------------------------
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use CLM_Rxn_Base_class
   
   use Global_Aux_module
@@ -3737,8 +3741,6 @@ module CLM_Rxn_Nitr_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
 
@@ -3787,8 +3789,6 @@ contains
 !
 ! ************************************************************************** !
 function NitrCreate()
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
   
@@ -3827,8 +3827,6 @@ end function NitrCreate
 !
 ! ************************************************************************** !
 subroutine NitrRead(this,input,option)
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use String_module
@@ -3844,24 +3842,26 @@ subroutine NitrRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,CLM_RXN,NITRIFICATION')
     call StringToUpper(word)   
 
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
             'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
           call StringToUpper(word)   
@@ -3877,11 +3877,13 @@ subroutine NitrRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
             case default
-              call InputKeywordUnrecognized(word, &
-                'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
+              call InputKeywordUnrecognized(input,word, &
+                'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE &
+                &RESPONSE FUNCTION', &
                 option)
           end select
-        enddo 
+        enddo
+        call InputPopBlock(input,option)
       case('RATE_CONSTANT_NO3')
         call InputReadDouble(input,option,this%k_nitr_max)
         call InputErrorMsg(input,option,'nitr rate coefficient', &
@@ -3929,10 +3931,11 @@ subroutine NitrRead(this,input,option)
       case('JACOBIAN_NITR_SKIP')
         this%bskipnitrjacobian = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                 'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine NitrRead
 
@@ -3944,16 +3947,14 @@ end subroutine NitrRead
 ! ************************************************************************** !
 subroutine NitrSetup(this,reaction,option)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
 
   implicit none
   
   class(clm_rxn_nitr_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -4047,7 +4048,7 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
 
   class(clm_rxn_nitr_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -4450,6 +4451,8 @@ module CLM_Rxn_Deni_class
 ! kmax   = 2.5e-5
 ! by t6g 10/06/2014 
 ! ------------------------------------------------------------------------------
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
   use CLM_Rxn_Base_class
   use Global_Aux_module
@@ -4460,7 +4463,6 @@ module CLM_Rxn_Deni_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
@@ -4499,8 +4501,6 @@ contains
 !
 ! ************************************************************************** !
 function DeniCreate()
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
   
@@ -4533,8 +4533,6 @@ end function DeniCreate
 ! ************************************************************************** !
 subroutine DeniRead(this,input,option)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -4549,24 +4547,26 @@ subroutine DeniRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,CLM_RXN,DENITRIFICATION')
     call StringToUpper(word)   
 
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
             'CHEMISTRY,CLM_RXN,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
           call StringToUpper(word)   
@@ -4582,11 +4582,13 @@ subroutine DeniRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN,DENITRI,TEMPERATURE RESPONSE FUNCTION')
             case default
-              call InputKeywordUnrecognized(word, &
-                'CHEMISTRY,CLM_RXN,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
+              call InputKeywordUnrecognized(input,word, &
+                'CHEMISTRY,CLM_RXN,DENITRIFICATION,TEMPERATURE &
+                &RESPONSE FUNCTION', &
                 option)
           end select
         enddo 
+        call InputPopBlock(input,option)
 
       case('RATE_CONSTANT')
         call InputReadDouble(input,option,this%k_deni_max)
@@ -4618,10 +4620,11 @@ subroutine DeniRead(this,input,option)
       case('JACOBIAN_DENI_SKIP')
         this%bskipdenijacobian = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine DeniRead
 
@@ -4633,16 +4636,14 @@ end subroutine DeniRead
 ! ************************************************************************** !
 subroutine DeniSetup(this,reaction,option)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
 
   implicit none
   
   class(clm_rxn_deni_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -4700,7 +4701,7 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
 
   class(clm_rxn_deni_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -4867,6 +4868,9 @@ end module CLM_Rxn_Deni_class
 
 module CLM_Rxn_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   ! extended from reaction_sandbox to implement demand based down regulation
   ! in RCLMRxn t6g 10/06/2014 
 
@@ -4882,8 +4886,6 @@ module CLM_Rxn_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   class(clm_rxn_base_type), pointer, public :: clmrxn_list
 
   PetscBool :: bdownreg
@@ -4922,8 +4924,6 @@ subroutine RCLMRxnInit(option)
   ! 
   ! Initializes the clmrxn list
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   implicit none
   type(option_type) :: option
@@ -4955,11 +4955,11 @@ subroutine RCLMRxnSetup(reaction,option)
   ! 
 
   use Option_module
-  use Reaction_Aux_module, only : reaction_type 
+  use Reaction_Aux_module, only : reaction_rt_type 
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   class(clm_rxn_base_type), pointer :: cur_clmrxn  
@@ -5004,8 +5004,6 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
   ! 
   ! RCLMRxnRead: Reads input deck for reaction clmrxn parameters
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -5022,12 +5020,13 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
   class(clm_rxn_base_type), pointer :: new_clmrxn, cur_clmrxn
   
   nullify(new_clmrxn)
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,CLM_RXN')
     call StringToUpper(word)   
 
@@ -5079,7 +5078,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
         endif
 
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN',option)
+        call InputKeywordUnrecognized(input,word,'CHEMISTRY,CLM_RXN',option)
     end select
     
     call new_clmrxn%ReadInput(input,option)
@@ -5095,6 +5094,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
       cur_clmrxn%next => new_clmrxn
     endif
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine RCLMRxnRead2
 
@@ -5130,8 +5130,6 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
@@ -5142,7 +5140,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   implicit none
 
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar

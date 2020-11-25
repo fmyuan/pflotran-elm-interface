@@ -1,7 +1,7 @@
 module Output_VTK_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Logging_module 
   use Output_Aux_module
   use Output_Common_module
@@ -23,8 +23,6 @@ contains
 
 subroutine OutputVTK(realization_base)
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -51,7 +49,7 @@ subroutine OutputVTK(realization_base)
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch 
-  type(reaction_type), pointer :: reaction 
+  class(reaction_rt_type), pointer :: reaction 
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
   PetscReal, pointer :: vec_ptr(:)
@@ -64,7 +62,7 @@ subroutine OutputVTK(realization_base)
   grid => patch%grid
   option => realization_base%option
   field => realization_base%field
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
   output_option => realization_base%output_option
   
   ! open file
@@ -130,7 +128,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           X_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
+        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               X_DIRECTION)
       end select
@@ -139,7 +137,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           Y_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
+        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               Y_DIRECTION)
       end select
@@ -148,7 +146,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           Z_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
+        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               Z_DIRECTION)
       end select
@@ -166,8 +164,6 @@ subroutine OutputVelocitiesVTK(realization_base)
   ! 
   ! Print velocities to Tecplot file in BLOCK format
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Base_class, only : realization_base_type, &
                                      RealizationGetVariable
   use Discretization_module
@@ -304,8 +300,6 @@ subroutine WriteVTKGrid(fid,realization_base)
   ! Writes a grid in VTK format
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -414,8 +408,7 @@ subroutine WriteVTKDataSetFromVec(fid,realization_base,dataset_name,vec,datatype
   ! 
 
   use Realization_Base_class, only : realization_base_type
-#include "petsc/finclude/petscvec.h"
-  use petscvec
+
   implicit none
 
   PetscInt :: fid

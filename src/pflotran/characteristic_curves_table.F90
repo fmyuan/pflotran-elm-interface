@@ -141,13 +141,14 @@ subroutine CharCurvesTableRead(this,input,option)
   error_string = 'CHARACTERISTIC_CURVES_TABLE,' // trim(this%name)
   press_unit_found = PETSC_FALSE
   table_found = PETSC_FALSE
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -186,9 +187,10 @@ subroutine CharCurvesTableRead(this,input,option)
                                                         error_string,option)
         table_found = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,error_string,option)  
+        call InputKeywordUnrecognized(input,keyword,error_string,option)  
    end select        
  end do
+ call InputPopBlock(input,option)
 
  if ( .not. table_found ) then
    option%io_buffer = trim(error_string) // ', data block not found.'

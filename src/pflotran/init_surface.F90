@@ -123,15 +123,15 @@ subroutine SurfaceInit(surf_realization,input,option)
   input%ierr = 0
   ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
-
+  call InputPushBlock(input,option)
   call InputReadPflotranString(input,option)
-  call InputReadWord(input,option,word,PETSC_TRUE)
+  call InputReadCard(input,option,word)
   call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
   call StringToUpper(word)
     
   select case(trim(word))
     case ('TYPE')
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword','TYPE')
       call StringToUpper(word)
 
@@ -166,6 +166,7 @@ subroutine SurfaceInit(surf_realization,input,option)
           call PrintErrMsg(option)
       end select
   end select
+  call InputPopBlock(input,option)
 
 end subroutine SurfaceInit
 
@@ -291,7 +292,6 @@ subroutine InitSurfaceSetupSolvers(surf_realization,solver,final_time)
   
   type(option_type), pointer :: option
   type(convergence_context_type), pointer :: convergence_context
-  SNESLineSearch :: linesearch
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
   
@@ -375,8 +375,10 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
       ! initialize to "unset"
       cur_patch%imat = UNINITIALIZED_INTEGER
       ! also allocate saturation function id
-      allocate(cur_patch%sat_func_id(cur_patch%grid%ngmax))
-      cur_patch%sat_func_id = UNINITIALIZED_INTEGER
+      allocate(cur_patch%cc_id(cur_patch%grid%ngmax))
+      cur_patch%cc_id = UNINITIALIZED_INTEGER
+      allocate(cur_patch%cct_id(cur_patch%grid%ngmax))
+      cur_patch%cct_id = UNINITIALIZED_INTEGER
     endif
     cur_patch => cur_patch%next
   enddo

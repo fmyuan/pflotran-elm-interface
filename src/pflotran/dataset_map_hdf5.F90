@@ -132,13 +132,14 @@ subroutine DatasetMapHDF5Read(this,input,option)
   PetscBool :: found
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','DATASET')
     call StringToUpper(keyword)   
       
@@ -152,11 +153,12 @@ subroutine DatasetMapHDF5Read(this,input,option)
           call InputReadWord(input,option,this%map_filename,PETSC_TRUE)
           call InputErrorMsg(input,option,'map filename','DATASET')
         case default
-          call InputKeywordUnrecognized(keyword,'dataset',option)
+          call InputKeywordUnrecognized(input,keyword,'dataset',option)
       end select
     endif
   
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(this%hdf5_dataset_name) < 1) then
     this%hdf5_dataset_name = this%name
@@ -244,8 +246,6 @@ subroutine DatasetMapHDF5ReadData(this,option)
   call PetscLogEventBegin(logging%event_dataset_map_hdf5_read, &
                           ierr);CHKERRQ(ierr)
 
-  ! open the file
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   
@@ -398,7 +398,6 @@ subroutine DatasetMapHDF5ReadData(this,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
   
   call PetscLogEventEnd(logging%event_dataset_map_hdf5_read, &
                         ierr);CHKERRQ(ierr)
@@ -448,8 +447,6 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   call PetscLogEventBegin(logging%event_dataset_map_hdf5_read, &
                           ierr);CHKERRQ(ierr)
 
-  ! open the file
-  call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%map_filename)
   call PrintMsg(option)
   
@@ -550,7 +547,6 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)  
   
   call PetscLogEventEnd(logging%event_dataset_map_hdf5_read, &
                         ierr);CHKERRQ(ierr)

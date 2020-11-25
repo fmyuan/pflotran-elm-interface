@@ -1,0 +1,13 @@
+#=========================== discretization ===================================
+GRID
+  TYPE unstructured ./mesh_ugi.h5
+END
+
+REGION bc
+  FILE ./bc.ss
+END
+
+REGION obs_pt
+  COORDINATE 1.45d0 1.495d0 1.4995d0
+END
+

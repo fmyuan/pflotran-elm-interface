@@ -1,13 +1,14 @@
 module Surface_Material_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public :: surface_material_property_type
     
     character(len=MAXWORDLENGTH) :: name
@@ -72,8 +73,6 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/09/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -87,12 +86,13 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     
     if (InputCheckExit(input,option)) exit
   
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','SURFACE_MATERIAL_PROPERTY')
     call StringToUpper(keyword)
     
@@ -104,9 +104,11 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
         call InputReadDouble(input,option,surf_material_property%mannings)
         call InputErrorMsg(input,option,'MANNINGS','SURFACE_MATERIAL_PROPERTY')
       case default
-        call InputKeywordUnrecognized(keyword,'SURFACE_MATERIAL_PROPERTY',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'SURFACE_MATERIAL_PROPERTY',option)
       end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine SurfaceMaterialPropertyRead
 
@@ -175,8 +177,6 @@ subroutine SurfaceMaterialPropConvertListToArray(list,array,option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/11/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
 

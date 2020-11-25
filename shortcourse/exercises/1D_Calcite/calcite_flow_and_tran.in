@@ -7,12 +7,29 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -29,7 +46,7 @@ CHEMISTRY
     CaHCO3+
     CaOH+
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
   /
   MINERALS
@@ -52,13 +69,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

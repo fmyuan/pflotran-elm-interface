@@ -31,7 +31,10 @@ module PM_TOWG_class
     !procedure(TOWGMaxChangeDummy), pointer :: MaxChange => null()
     !procedure(MaxChange), pointer :: MaxChange => null()
   contains
-    procedure, public :: ReadSimulationBlock => PMTOWGRead
+    procedure, public :: ReadSimulationOptionsBlock => PMTOWGReadSimOptionsBlock
+    procedure, public :: ReadTSBlock => PMTOWGReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMTOWGReadNewtonSelectCase
+    procedure, public :: InitializeSolver => PMTOWGInitializeSolver
     procedure, public :: InitializeRun => PMTOWGInitializeRun
     procedure, public :: InitializeTimestep => PMTOWGInitializeTimestep
     procedure, public :: Residual => PMTOWGResidual
@@ -57,7 +60,7 @@ module PM_TOWG_class
 contains
 
 ! ************************************************************************** !
-function PMTOWGCreate(miscibility_model,option)
+function PMTOWGCreate(input,miscibility_model,option)
   ! 
   ! Creates TOWG process models shell
   ! 
@@ -75,6 +78,7 @@ function PMTOWGCreate(miscibility_model,option)
   
   class(pm_towg_type), pointer :: PMTOWGCreate
 
+  type(input_type) :: input
   character(len=MAXWORDLENGTH) :: miscibility_model
   type(option_type), pointer :: option
 
@@ -106,7 +110,7 @@ function PMTOWGCreate(miscibility_model,option)
       allocate(towg_pm%max_change_isubvar(6))
       towg_pm%max_change_isubvar = [0,0,0,0,0,0]
     case default
-      call InputKeywordUnrecognized(miscibility_model, &
+      call InputKeywordUnrecognized(input,miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
   end select
 
@@ -142,7 +146,7 @@ function PMTOWGCreate(miscibility_model,option)
       towg_energy_eq_idx = TOWG_SOLV_TL_ENERGY_EQ_IDX
       option%iflow_sub_mode = TOWG_SOLVENT_TL
     case default
-      call InputKeywordUnrecognized(miscibility_model, &
+      call InputKeywordUnrecognized(input,miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
   end select 
 
@@ -160,7 +164,7 @@ function PMTOWGCreate(miscibility_model,option)
   end if  
 
 
-  call PMSubsurfaceFlowCreate(towg_pm)
+  call PMSubsurfaceFlowInit(towg_pm)
   towg_pm%name = 'TOWG Flow'
   towg_pm%header = 'TOWG FLOW'
 
@@ -170,7 +174,7 @@ end function PMTOWGCreate
 
 ! ************************************************************************** !
 
-subroutine PMTOWGRead(this,input)
+subroutine PMTOWGReadSimOptionsBlock(this,input)
   ! 
   ! Read TOWG options and set up miscibility, and functions to be use in 
   ! the Residual and Jacobian 
@@ -202,19 +206,20 @@ subroutine PMTOWGRead(this,input)
   !this%miscibility_model = UNINITIALIZED_INTEGER
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                        error_string,option)    
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
@@ -223,59 +228,12 @@ subroutine PMTOWGRead(this,input)
         call InputDefaultMsg(input,option,'towg tl_omega')
       case('FMIS' )
         call FMISOWGRead(input,option)
-      case('ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,this%itol_scaled_res)
-        call InputDefaultMsg(input,option,'towg itol_scaled_res')
-        this%check_post_convergence = PETSC_TRUE
-      case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,this%itol_rel_update)
-        call InputDefaultMsg(input,option,'towg itol_rel_update')
-        this%check_post_convergence = PETSC_TRUE        
-      case('TOUGH2_ITOL_SCALED_RESIDUAL')
-        ! tgh2_itol_scld_res_e1 is an array: assign same value to all entries
-        tempreal = UNINITIALIZED_DOUBLE
-        call InputReadDouble(input,option,tempreal)
-        ! tempreal will remain uninitialized if the read fails.
-        call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e1')
-        if (Initialized(tempreal)) then
-          this%tgh2_itol_scld_res_e1 = tempreal
-        endif
-        call InputReadDouble(input,option,this%tgh2_itol_scld_res_e2)
-        call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e2')
-        this%tough2_conv_criteria = PETSC_TRUE
-        this%check_post_convergence = PETSC_TRUE
-      case('T2_ITOL_SCALED_RESIDUAL_TEMP')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option, &
-                           'tough_itol_scaled_residual_e1 for temperature', &
-                           error_string)
-        this%tgh2_itol_scld_res_e1(3,:) = tempreal
-      case('WINDOW_EPSILON') 
-        call InputReadDouble(input,option,towg_window_epsilon)
-        call InputErrorMsg(input,option,'towg window epsilon',error_string)
-      ! read this in the gas EOS
-      !case('GAS_COMPONENT_FORMULA_WEIGHT')
-      !  !geh: assuming gas component is index 2
-      !  call InputReadDouble(input,option,fmw_comp(2))
-      !  call InputErrorMsg(input,option,'gas component formula wt.', &
-      !                     error_string)
       case('ISOTHERMAL')
         towg_isothermal = PETSC_TRUE
       case('NO_OIL')
         towg_no_oil = PETSC_TRUE
       case('NO_GAS')
         towg_no_gas = PETSC_TRUE
-      case('MAXIMUM_PRESSURE_CHANGE')
-        call InputReadDouble(input,option,this%trunc_max_pressure_change)
-        call InputErrorMsg(input,option,'maximum pressure change', &
-                           error_string)
-      case('MAX_ITERATION_BEFORE_DAMPING')
-        call InputReadInt(input,option,this%max_it_before_damping)
-        call InputErrorMsg(input,option,'maximum iteration before damping', &
-                           error_string)
-      case('DAMPING_FACTOR')
-        call InputReadDouble(input,option,this%damping_factor)
-        call InputErrorMsg(input,option,'damping factor',error_string)
       case('DEBUG_CELL')
         call InputReadInt(input,option,towg_debug_cell_id)
         call InputErrorMsg(input,option,'debug cell id',error_string)
@@ -285,6 +243,9 @@ subroutine PMTOWGRead(this,input)
         TL4P_slv_sat_truncate = PETSC_TRUE
       case('TL4P_MOBILITY_SAFE')
         TL4P_safemobs = PETSC_TRUE
+      case('WINDOW_EPSILON') 
+        call InputReadDouble(input,option,towg_window_epsilon)
+        call InputErrorMsg(input,option,keyword,error_string)
 
       !case('DIFFUSE_XMASS')
       !  general_diffuse_xmol = PETSC_FALSE
@@ -295,10 +256,11 @@ subroutine PMTOWGRead(this,input)
       !case('ANALYTICAL_DERIVATIVES')
       !  general_analytical_derivatives = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'TOWG Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'TOWG Mode',option)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
   !if (Uninitialized(towg_miscibility_model)) then 
   !  option%io_buffer = 'TOWG MISCIBILITY_MODEL not set up'
@@ -314,7 +276,145 @@ subroutine PMTOWGRead(this,input)
   !    call PrintErrMsg(option)
   !end select
 
-end subroutine PMTOWGRead
+end subroutine PMTOWGReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMTOWGReadTSSelectCase(this,input,keyword,found, &
+                                  error_string,option)
+  ! 
+  ! Read timestepper settings specific to the TOWG process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+  
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  
+  implicit none
+
+  class(pm_towg_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  found = PETSC_TRUE
+  call PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine PMTOWGReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMTOWGReadNewtonSelectCase(this,input,keyword,found, &
+                                      error_string,option)
+  ! 
+  ! Reads input file parameters associated with the TOWG process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Option_module
+  use PM_TOWG_Aux_module
+ 
+  implicit none
+  
+  class(pm_towg_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  PetscReal :: tempreal
+
+  option => this%option
+
+  error_string = 'TOWG Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,this%itol_scaled_res)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE
+    case('ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,this%itol_rel_update)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE        
+    case('TOUGH2_ITOL_SCALED_RESIDUAL')
+      ! tgh2_itol_scld_res_e1 is an array: assign same value to all entries
+      tempreal = UNINITIALIZED_DOUBLE
+      call InputReadDouble(input,option,tempreal)
+      ! tempreal will remain uninitialized if the read fails.
+      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E1', &
+                         error_string)
+      if (Initialized(tempreal)) then
+        this%tgh2_itol_scld_res_e1 = tempreal
+      endif
+      call InputReadDouble(input,option,this%tgh2_itol_scld_res_e2)
+      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E2', &
+                         error_string)
+      this%tough2_conv_criteria = PETSC_TRUE
+      this%check_post_convergence = PETSC_TRUE
+    case('T2_ITOL_SCALED_RESIDUAL_TEMP')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%tgh2_itol_scld_res_e1(3,:) = tempreal
+    case('MAXIMUM_PRESSURE_CHANGE')
+      call InputReadDouble(input,option,this%trunc_max_pressure_change)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ITERATION_BEFORE_DAMPING')
+      call InputReadInt(input,option,this%max_it_before_damping)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('DAMPING_FACTOR')
+      call InputReadDouble(input,option,this%damping_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMTOWGReadNewtonSelectCase
+
+! ************************************************************************** !
+
+subroutine PMTOWGInitializeSolver(this)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Solver_module
+
+  implicit none
+
+  class(pm_towg_type) :: this
+
+  call PMBaseInitializeSolver(this)
+
+  ! helps accommodate rise in residual due to change in state
+  this%solver%newton_dtol = 1.d20
+
+end subroutine PMTOWGInitializeSolver
 
 ! ************************************************************************** !
 
@@ -459,11 +559,13 @@ subroutine PMTOWGPreSolve(this)
 
   class(pm_towg_type) :: this
 
+  call PMSubsurfaceFlowPreSolve(this)
+
 end subroutine PMTOWGPreSolve
 
 ! ************************************************************************** !
 
-subroutine PMTOWGCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMTOWGCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Paolo Orsini (OGS)
   ! Date: 10/22/15
@@ -474,13 +576,13 @@ subroutine PMTOWGCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_towg_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
 
-  call TOWGCheckUpdatePre(line_search,X,dX,changed,this%realization, &
+  call TOWGCheckUpdatePre(snes,X,dX,changed,this%realization, &
                           this%max_it_before_damping,this%damping_factor, &
                           this%trunc_max_pressure_change,ierr)
 
@@ -616,7 +718,7 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   !  call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
   !  call GlobalSetAuxVarVecLoc(this%realization,field%work_loc, &
   !                             GAS_SATURATION,TIME_NULL)
-  !  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+  !  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   !endif
 
 end subroutine PMTOWGUpdateTimestep

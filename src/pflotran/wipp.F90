@@ -154,8 +154,6 @@ subroutine FractureRead(this,input,option)
   ! Author: Heeho Park
   ! Date: 4/7/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -168,7 +166,7 @@ subroutine FractureRead(this,input,option)
   character(len=MAXWORDLENGTH) :: word
 
   option%flow%fracture_on = PETSC_TRUE
-  
+  call InputPushBlock(input,option)
   do
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option, &
@@ -177,7 +175,7 @@ subroutine FractureRead(this,input,option)
       if (InputCheckExit(input,option)) exit
           
       if (InputError(input)) exit
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword', &
                           'MATERIAL_PROPERTY,WIPP-FRACTURE')   
       select case(trim(word))
@@ -212,10 +210,11 @@ subroutine FractureRead(this,input,option)
         case('ALTER_PERM_Z')
           this%change_perm_z = 1.d0
         case default
-          call InputKeywordUnrecognized(word, &
+          call InputKeywordUnrecognized(input,word, &
                   'MATERIAL_PROPERTY,WIPP-FRACTURE',option)
       end select
     enddo
+    call InputPopBlock(input,option)
 
 end subroutine FractureRead
 
@@ -416,14 +415,15 @@ end module Fracture_module
   
 module Creep_Closure_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use Lookup_Table_module
 
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: creep_closure_type
     character(len=MAXWORDLENGTH) :: name
@@ -504,8 +504,6 @@ subroutine CreepClosureRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -529,12 +527,12 @@ subroutine CreepClosureRead(this,input,option)
   time_units_conversion = 1.d0
   filename = ''
   input%ierr = 0
-
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -549,9 +547,10 @@ subroutine CreepClosureRead(this,input,option)
         call InputReadDouble(input,option,this%time_closeoff)
         call InputErrorMsg(input,option,'time closeoff',error_string)
      case default
-        call InputKeywordUnrecognized(keyword,'CREEP_CLOSURE',option)
+        call InputKeywordUnrecognized(input,keyword,'CREEP_CLOSURE',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(filename) < 1) then
     option%io_buffer = 'FILENAME must be specified for CREEP_CLOSURE.'
@@ -562,11 +561,12 @@ subroutine CreepClosureRead(this,input,option)
   error_string = 'CREEP_CLOSURE file'
   input2 => InputCreate(IUNIT_TEMP,filename,option)
   input2%ierr = 0
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input2,option)
     if (InputError(input2)) exit
 
-    call InputReadWord(input2,option,keyword,PETSC_TRUE)
+    call InputReadCard(input2,option,keyword)
     call InputErrorMsg(input2,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -581,7 +581,7 @@ subroutine CreepClosureRead(this,input,option)
         internal_units = 'sec'
         call InputReadWord(input2,option,word,PETSC_TRUE) 
         call InputErrorMsg(input2,option,'UNITS','CONDITION')   
-        call StringToLower(word)
+        call StringToUpper(word)
         time_units_conversion = UnitsConvertToInternal(word, &
                                 internal_units,option)
       case('TIME')
@@ -615,9 +615,10 @@ subroutine CreepClosureRead(this,input,option)
                               string,input2,option)
      case default
         error_string = trim(error_string) // ': ' // filename
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   call InputDestroy(input2)
   
   if (size(this%lookup_table%axis1%values) /= this%num_times) then
@@ -864,13 +865,14 @@ end module Creep_Closure_module
   
 module Klinkenberg_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: klinkenberg_type
     PetscReal :: a
@@ -937,8 +939,6 @@ subroutine KlinkenbergRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -955,13 +955,14 @@ subroutine KlinkenbergRead(this,input,option)
   character(len=MAXSTRINGLENGTH) :: error_string = 'KLINKENBERG_EFFECT'
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -973,9 +974,10 @@ subroutine KlinkenbergRead(this,input,option)
         call InputReadDouble(input,option,this%b)
         call InputErrorMsg(input,option,'b',error_string)
      case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
   if (Uninitialized(this%a)) then
     option%io_buffer = &
@@ -1103,14 +1105,15 @@ end module Klinkenberg_module
 
 module WIPP_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use Creep_Closure_module
 
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type :: wipp_type
     class(creep_closure_type), pointer :: creep_closure_tables
@@ -1178,8 +1181,6 @@ subroutine WIPPRead(input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -1197,13 +1198,14 @@ subroutine WIPPRead(input,option)
   wipp => WIPPGetPtr()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -1215,9 +1217,10 @@ subroutine WIPPRead(input,option)
 !        option%flow%transient_porosity = PETSC_TRUE
 !        wipp%creep_closure => creep_closure      
      case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine WIPPRead
 

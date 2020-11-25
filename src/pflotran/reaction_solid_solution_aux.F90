@@ -1,5 +1,8 @@
 module Reaction_Solid_Soln_Aux_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Mineral_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Reaction_Solid_Soln_Aux_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: solid_solution_type
     character(len=MAXWORDLENGTH) :: name

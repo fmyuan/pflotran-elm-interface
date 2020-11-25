@@ -13,7 +13,8 @@ module PM_Flash2_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_flash2_type
   contains
-    procedure, public :: ReadSimulationBlock => PMFlash2Read
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMFlash2ReadSimOptionsBlock
     procedure, public :: InitializeTimestep => PMFlash2InitializeTimestep
     procedure, public :: Residual => PMFlash2Residual
     procedure, public :: Jacobian => PMFlash2Jacobian
@@ -54,7 +55,7 @@ function PMFlash2Create()
   class(pm_flash2_type), pointer :: flash2_pm
   
   allocate(flash2_pm)
-  call PMSubsurfaceFlowCreate(flash2_pm)
+  call PMSubsurfaceFlowInit(flash2_pm)
   flash2_pm%name = 'Flash2 Flow'
   flash2_pm%header = 'FLASH2 FLOW'
 
@@ -64,7 +65,7 @@ end function PMFlash2Create
 
 ! ************************************************************************** !
 
-subroutine PMFlash2Read(this,input)
+subroutine PMFlash2ReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Flash2 process model
   ! 
@@ -92,28 +93,30 @@ subroutine PMFlash2Read(this,input)
   error_string = 'Flash2 Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
-end subroutine PMFlash2Read
+end subroutine PMFlash2ReadSimOptionsBlock
 
 ! ************************************************************************** !
 
@@ -235,7 +238,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       
   dt = dtt
 
-  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   
 end subroutine PMFlash2UpdateTimestep
 
@@ -287,7 +290,7 @@ end subroutine PMFlash2Jacobian
 
 ! ************************************************************************** !
 
-subroutine PMFlash2CheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMFlash2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -298,19 +301,19 @@ subroutine PMFlash2CheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_flash2_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call Flash2CheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
+  call Flash2CheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMFlash2CheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMFlash2CheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMFlash2CheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                    X1_changed,ierr)
   ! 
   ! Author: Gautam Bisht
@@ -322,7 +325,7 @@ subroutine PMFlash2CheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_flash2_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -330,7 +333,7 @@ subroutine PMFlash2CheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call Flash2CheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
+  call Flash2CheckUpdatePost(snes,X0,dX,X1,dX_changed, &
                              X1_changed,this%realization,ierr)
 
 end subroutine PMFlash2CheckUpdatePost

@@ -1,0 +1,22 @@
+GRID
+  TYPE structured
+  NXYZ 2 2 2
+  ORIGIN 0.d0 0.d0 0.d0
+  DXYZ
+    0.9d0 1.1d0
+    0.99d0 1.01d0
+    0.999d0 1.001d0
+  /
+END
+
+REGION bc
+  FACE EAST
+  COORDINATES
+    2.d0 0.99d0 0.999d0
+    2.d0 2.d0 2.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 1.45d0 1.495d0 1.4995d0
+END

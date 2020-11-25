@@ -7,5 +7,5 @@ ls -l ${PETSC_DIR}/${PETSC_ARCH}/lib
 
 cd src/clm-pflotran;
 ./link_files.sh;
-make pflotran_interface;
+make codedov=1 pflotran_interface;
 

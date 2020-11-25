@@ -262,13 +262,13 @@ contains
     
     string = "MAPPING_FILES"
     call InputFindStringInFile(input,model%option,string)
-
+    call InputPushBlock(input,'MAPPING_FILES',model%option)
     do
       call InputReadPflotranString(input, model%option)
       if (InputCheckExit(input, model%option)) exit
       if (input%ierr /= 0) exit
 
-      call InputReadWord(input, model%option, word, PETSC_TRUE)
+      call InputReadCard(input, model%option, word)
       call InputErrorMsg(input, model%option, 'keyword', 'MAPPING_FILES')
       call StringToUpper(word)
 
@@ -335,6 +335,7 @@ contains
       endif
 
     enddo
+    call InputPopBlock(input,model%option)
     call InputDestroy(input)
 
     if ((.not. clm2pf_soil_file) .or. (.not. clm2pf_flux_file) .or. &
@@ -827,13 +828,13 @@ end subroutine pflotranModelSetICs
 
     do ghosted_id = 1, grid%ngmax
 
-      if (patch%sat_func_id(ghosted_id) < 1) cycle
+      if (patch%cc_id(ghosted_id) < 1) cycle
 
       local_id = grid%nG2L(ghosted_id)
 
       select case(pflotran_model%option%iflowmode)
       case(RICHARDS_MODE)
-         characteristic_curve => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
+         characteristic_curve => patch%characteristic_curves_array(patch%cc_id(ghosted_id))%ptr
 
          select type(sf => characteristic_curve%saturation_function)
          class is(sat_func_VG_type)
@@ -850,7 +851,7 @@ end subroutine pflotranModelSetICs
             call PrintErrMsg(pflotran_model%option)
          end select
       case(TH_MODE)
-         saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+         saturation_function = patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr
          th_aux_var => th_aux_vars(ghosted_id)
          bc_alpha  = saturation_function%alpha
          select case(saturation_function%saturation_function_itype)
@@ -2779,6 +2780,7 @@ end subroutine pflotranModelSetICs
     PetscReal, pointer :: sat_pf_p(:)
     PetscReal, pointer :: sat_clm_p(:)
     type(TH_auxvar_type),pointer :: TH_auxvars(:)
+    type(option_type), pointer :: option
 
     select type (simulation => pflotran_model%simulation)
       class is (simulation_subsurface_type)
@@ -2793,6 +2795,7 @@ end subroutine pflotranModelSetICs
     patch           => realization%patch
     grid            => patch%grid
     global_aux_vars => patch%aux%Global%auxvars
+    option          => realization%option
     
     ! Save the saturation values
     call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
@@ -2807,7 +2810,7 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%sat_clm)
 
     if (pflotran_model%option%iflowmode == TH_MODE .and. &
-        pflotran_model%option%use_th_freezing) then
+        option%th_freezing) then
 
       TH_auxvars => patch%aux%TH%auxvars
 

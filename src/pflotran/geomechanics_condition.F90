@@ -302,6 +302,7 @@ subroutine GeomechConditionRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -309,7 +310,7 @@ subroutine GeomechConditionRead(condition,input,option)
           
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CONDITION')   
       
     select case(trim(word))
@@ -331,7 +332,7 @@ subroutine GeomechConditionRead(condition,input,option)
       case('SYNC_TIMESTEP_WITH_UPDATE')
         condition%sync_time_with_update = PETSC_TRUE
       case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')   
         call StringToUpper(word)
         select case(word)
@@ -343,6 +344,7 @@ subroutine GeomechConditionRead(condition,input,option)
               INTERPOLATION_LINEAR
         end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -350,7 +352,7 @@ subroutine GeomechConditionRead(condition,input,option)
           if (InputCheckExit(input,option)) exit          
           
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')   
           call StringToUpper(word)
           select case(trim(word))
@@ -368,25 +370,26 @@ subroutine GeomechConditionRead(condition,input,option)
             case('FORCE_Z')
               sub_condition_ptr => force_z 
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'geomechanics condition type',option)
           end select
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')   
-          call StringToLower(word)
+          call StringToUpper(word)
           sub_condition_ptr%ctype = word
           select case(word)
-            case('dirichlet')
+            case('DIRICHLET')
               sub_condition_ptr%itype = DIRICHLET_BC
-            case('neumann')
+            case('NEUMANN')
               sub_condition_ptr%itype = NEUMANN_BC
-            case('zero_gradient')
+            case('ZERO_GRADIENT')
               sub_condition_ptr%itype = ZERO_GRADIENT_BC
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'geomechanics condition bc type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('TIME','TIMES')
         call InputReadDouble(input,option,default_time)
         call InputErrorMsg(input,option,'TIME','CONDITION')   
@@ -427,11 +430,12 @@ subroutine GeomechConditionRead(condition,input,option)
                                  force_z%units, &
                                  internal_units)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'geomechanics condition',option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
   
   word = 'displacement_x'
   call GeomechSubConditionVerify(option,condition,word,displacement_x, &

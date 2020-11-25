@@ -1,0 +1,113 @@
+-- CONCENTRATION: Total Bulk Conc. PU239L --
+      Max:   2.9870815211398E+19
+      Min:   2.9870815211398E+19
+     Mean:   2.9870815211398E+19
+        1:   2.9870815211398E+19
+-- CONCENTRATION: Total Bulk Conc. PU238L --
+      Max:   6.1685530484731E-07
+      Min:   6.1685530484731E-07
+     Mean:   6.1685530484731E-07
+        1:   6.1685530484731E-07
+-- CONCENTRATION: Total Bulk Conc. U234L --
+      Max:   2.9987255057173E+19
+      Min:   2.9987255057173E+19
+     Mean:   2.9987255057173E+19
+        1:   2.9987255057173E+19
+-- CONCENTRATION: Total Bulk Conc. TH230L --
+      Max:   1.2744517989002E+16
+      Min:   1.2744517989002E+16
+     Mean:   1.2744517989002E+16
+        1:   1.2744517989002E+16
+-- CONCENTRATION: Aq. Conc. PU239L --
+      Max:   9.9569384037994E+19
+      Min:   9.9569384037994E+19
+     Mean:   9.9569384037994E+19
+        1:   9.9569384037994E+19
+-- CONCENTRATION: Aq. Conc. PU238L --
+      Max:   2.0561843494910E-06
+      Min:   2.0561843494910E-06
+     Mean:   2.0561843494910E-06
+        1:   2.0561843494910E-06
+-- CONCENTRATION: Aq. Conc. U234L --
+      Max:   9.9957516857244E+19
+      Min:   9.9957516857244E+19
+     Mean:   9.9957516857244E+19
+        1:   9.9957516857244E+19
+-- CONCENTRATION: Aq. Conc. TH230L --
+      Max:   4.2481726630008E+16
+      Min:   4.2481726630008E+16
+     Mean:   4.2481726630008E+16
+        1:   4.2481726630008E+16
+-- CONCENTRATION: Mnrl. Conc. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Conc. PU238L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Conc. U234L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Conc. TH230L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. PU238L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. U234L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Sorb. Conc. TH230L --
+      Max:   4.2481726630008E+11
+      Min:   4.2481726630008E+11
+     Mean:   4.2481726630008E+11
+        1:   4.2481726630008E+11
+-- CONCENTRATION: Mnrl. Vol. Frac. PU239L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. PU238L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. U234L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- CONCENTRATION: Mnrl. Vol. Frac. TH230L --
+      Max:   0.0000000000000E+00
+      Min:   0.0000000000000E+00
+     Mean:   0.0000000000000E+00
+        1:   0.0000000000000E+00
+-- DISCRETE: Material ID --
+      Max:         3
+      Min:         3
+     Mean:   3.0000000000000E+00
+        1:         3
+-- SOLUTION: Transport --
+   Time (seconds):   2.4743080139160E-03
+   Time Steps:            8
+   Newton Iterations:           19
+   Linear Solver Iterations:           19
+   Time Step Cuts:            0
+   Solution 2-Norm:   4.2326129396393E+19
+   Residual 2-Norm:   7.5005991204826E+04

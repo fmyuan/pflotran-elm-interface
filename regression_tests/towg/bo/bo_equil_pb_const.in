@@ -8,7 +8,6 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE BLACK_OIL
       OPTIONS
-       ANALYTICAL_JACOBIAN
        ISOTHERMAL
       /
     / ! end of subsurface_flow
@@ -18,10 +17,27 @@ END  !! end simulation block
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 100
+  /
+
+  NEWTON_SOLVER
+    STOL 1.0D-18
+    RTOL 1.0D-8
+    ITOL 1.0D-8
+    MAXIMUM_NUMBER_OF_ITERATIONS 20
+    ANALYTICAL_JACOBIAN
+  /
+
+END
+
 #=========================== regression =======================================
 
 REGRESSION
-  CELLS 
+  CELL_IDS
     2
     5
     7
@@ -49,19 +65,8 @@ END
 
 #=========================== solver options ===================================
 
-TIMESTEPPER FLOW
-  TS_ACCELERATION 100
-/
 
-NEWTON_SOLVER FLOW
-  STOL 1.0D-18
-  RTOL 1.0D-8
-  ITOL 1.0D-8
-  MAXIT 20
-END
 
-LINEAR_SOLVER FLOW
-END
 
 #=========================== times ============================================
 TIME

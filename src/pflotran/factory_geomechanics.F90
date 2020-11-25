@@ -1,8 +1,9 @@
 
 module Factory_Geomechanics_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+
   use Simulation_Geomechanics_class
   use PFLOTRAN_Constants_module
 
@@ -42,8 +43,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   ! Author: Gautam Bisht, LBNL and Satish Karra, LANL
   ! Date: 01/01/14, 02/10/15
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Simulation_Geomechanics_class
   use Simulation_Subsurface_class
   use Factory_Subsurface_module
@@ -126,8 +125,15 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     pmc_geomech%pm_ptr%pm => pm_geomech
     pmc_geomech%geomech_realization => simulation%geomech_realization
     pmc_geomech%subsurf_realization => simulation%realization
+
+    ! add time integrator
     timestepper => TimestepperSteadyCreate()
     pmc_geomech%timestepper => timestepper
+
+    ! add solver 
+    call pm_geomech%InitializeSolver()
+    timestepper%solver => pm_geomech%solver
+
     ! set up logging stage
     string = trim(pmc_geomech%name) // 'Geomechanics'
     call LoggingCreateStage(string,pmc_geomech%stage)
@@ -146,25 +152,18 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
     pm_geomech%output_option => geomech_realization%output_option
 
-
-
     ! Hijack subsurface waypoint to geomechanics waypoint
     ! Subsurface controls the output now
     ! Always have snapshot on at t=0
     pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
     
-
     ! link geomech and flow timestepper waypoints to geomech way point list
     if (associated(simulation%geomech_process_model_coupler)) then
-      if (associated(simulation%geomech_process_model_coupler% &
-                     timestepper)) then
-        simulation%geomech_process_model_coupler%timestepper%cur_waypoint => &
-          pmc_geomech%waypoint_list%first
-      endif
-
-      if (associated(simulation%flow_process_model_coupler%timestepper)) then
-        simulation%flow_process_model_coupler%timestepper%cur_waypoint => &
-          pmc_geomech%waypoint_list%first
+      call simulation%geomech_process_model_coupler% &
+             SetWaypointPtr(pmc_geomech%waypoint_list)
+      if (associated(simulation%flow_process_model_coupler)) then
+        call simulation%flow_process_model_coupler% &
+               SetWaypointPtr(pmc_geomech%waypoint_list)
       endif
     endif
     
@@ -177,9 +176,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     ! initialize geomech realization
     call GeomechInitSetupRealization(simulation)
 
-    if (associated(timestepper)) then
-      call pm_geomech%SetSolver(timestepper%solver)
-    endif
     call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
     call pm_geomech%Setup()
 
@@ -225,8 +221,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
 
   ! sim_aux: Set pointer
   simulation%flow_process_model_coupler%sim_aux => simulation%sim_aux
-  if (associated(simulation%rt_process_model_coupler)) &
-    simulation%rt_process_model_coupler%sim_aux => simulation%sim_aux
+  if (associated(simulation%tran_process_model_coupler)) &
+    simulation%tran_process_model_coupler%sim_aux => simulation%sim_aux
   if (option%ngeomechdof>0 .and. &
      associated(simulation%geomech_process_model_coupler)) &
     simulation%geomech_process_model_coupler%sim_aux => simulation%sim_aux
@@ -421,17 +417,18 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
   ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,card)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS')
     call StringToUpper(word)
     
     select case(trim(word))
       case ('TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword','TYPE')
         call StringToUpper(word)
 
@@ -468,9 +465,10 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
             & )') option%geomech_gravity(1:3)
       case default    
-        call InputKeywordUnrecognized(word,'GEOMECHANICS_GRID',option)
+        call InputKeywordUnrecognized(input,word,'GEOMECHANICS_GRID',option)
     end select
   enddo
+  call InputPopBlock(input,option)
     
 end subroutine GeomechanicsInit
 
@@ -553,11 +551,12 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   if (associated(geomech_realization%geomech_patch)) grid => &
     geomech_realization%geomech_patch%geomech_grid
     
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS')
     call StringToUpper(word)
     option%io_buffer = 'word :: ' // trim(word)
@@ -627,7 +626,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                  
       !.........................................................................
       case('NEWTON_SOLVER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('GEOMECHANICS')
@@ -636,7 +635,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
         
      !....................
       case ('LINEAR_SOLVER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('GEOMECHANICS')
@@ -649,11 +648,12 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
 
       !.........................................................................
       case ('GEOMECHANICS_TIME')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'word','GEOMECHANICS_TIME')
           select case(trim(word))
             case('COUPLING_TIMESTEP_SIZE')
@@ -668,9 +668,11 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                             temp_real*UnitsConvertToInternal(word, &
                             internal_units,option)
             case default
-              call InputKeywordUnrecognized(word,'GEOMECHANICS_TIME',option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'GEOMECHANICS_TIME',option)
             end select
         enddo
+        call InputPopBlock(input,option)
                 
       !.........................................................................
       case ('GEOMECHANICS_DEBUG')
@@ -679,7 +681,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
       !.........................................................................
       case ('GEOMECHANICS_SUBSURFACE_COUPLING')
         option%geomech_subsurf_coupling = -1
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (word)
           case ('ONE_WAY_COUPLED')      
@@ -687,9 +689,10 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
           case ('TWO_WAY_COUPLED')      
             option%geomech_subsurf_coupling = GEOMECH_TWO_WAY_COUPLED 
           case default
-            call InputKeywordUnrecognized(word, &
+            call InputKeywordUnrecognized(input,word, &
                    'GEOMECHANICS_SUBSURFACE_COUPLING',option)
         end select
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -701,13 +704,15 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
           call GeomechSubsurfMapFromFilename(grid,grid%mapping_filename, &
                                              option)
         enddo
+        call InputPopBlock(input,option)
       !.........................................................................
       case ('GEOMECHANICS_OUTPUT')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','GEOMECHANICS_OUTPUT')
           call StringToUpper(word)
           select case(trim(word))
@@ -717,14 +722,14 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
               'GEOMECHANICS_OUTPUT.'
               call PrintWrnMsg(option)
             case('FORMAT')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'keyword','GEOMECHANICS_OUTPUT,&
                                                          &FORMAT') 
               call StringToUpper(word)
               select case(trim(word))
                 case ('HDF5')
                   output_option%print_hdf5 = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputDefaultMsg(input,option, &
                                        'GEOMECHANICS_OUTPUT,FORMAT,HDF5,&
                                         &# FILES')
@@ -742,25 +747,24 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                         call PrintErrMsg(option)
                     end select
                   endif
-                case ('MAD')
-                  output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
                   output_option%print_tecplot = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'TECPLOT','GEOMECHANICS_OUTPUT,FORMAT') 
                   call StringToUpper(word)
                   output_option%tecplot_format = TECPLOT_FEQUADRILATERAL_FORMAT ! By default it is unstructured
                 case ('VTK')
                   output_option%print_vtk = PETSC_TRUE
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                                  'GEOMECHANICS_OUTPUT,FORMAT',option)
               end select
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                              'GEOMECHANICS_OUTPUT',option)
           end select
         enddo
+        call InputPopBlock(input,option)
                         
       !.........................................................................
       case ('GEOMECHANICS_STRATIGRAPHY','GEOMECHANICS_STRATA')
@@ -774,10 +778,11 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
         
       !.........................................................................
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                                  'GeomechanicsInitReadInput',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine GeomechanicsInitReadInput
 
@@ -791,8 +796,6 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Geomechanics_Realization_class
   use Geomechanics_Discretization_module
   use Geomechanics_Strata_module
@@ -1006,8 +1009,6 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use Realization_Subsurface_class
   use Geomechanics_Realization_class
   use Option_module
@@ -1059,16 +1060,6 @@ stop
   call MatSetOptionsPrefix(solver%Jpre,"geomech_", &
                             ierr);CHKERRQ(ierr)
     
-#if 1
-  call SNESSetFunction(solver%snes,geomech_realization%geomech_field%disp_r, &
-                       GeomechForceResidual, &
-                       geomech_realization,ierr);CHKERRQ(ierr)
-
-  call SNESSetJacobian(solver%snes,solver%J, &
-                       solver%Jpre,GeomechForceJacobian, &
-                       geomech_realization,ierr);CHKERRQ(ierr)
-#endif
-
   ! by default turn off line search
   call SNESGetLineSearch(solver%snes,linesearch, ierr);CHKERRQ(ierr)
   call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC, &

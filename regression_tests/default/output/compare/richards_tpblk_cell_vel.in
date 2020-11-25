@@ -1,0 +1,14 @@
+SIMULATION
+  EXTERNAL_FILE simulation/richards.txt
+END
+
+SUBSURFACE
+  OUTPUT
+    EXTERNAL_FILE output/richards_variables.txt
+    FORMAT TECPLOT FEBRICK
+    VELOCITY_AT_CENTER
+  /
+  EXTERNAL_FILE grid/structured.txt
+  EXTERNAL_FILE subsurface/all.txt
+  EXTERNAL_FILE subsurface/richards_th.txt
+END_SUBSURFACE

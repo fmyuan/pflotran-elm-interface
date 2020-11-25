@@ -5,11 +5,9 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
-      MODE GENERAL
+      MODE HYDRATE
       OPTIONS
-        WITH_HYDRATE
         RESTRICT_STATE_CHANGE
-        USE_INFINITY_NORM_CONVERGENCE
       /
     /
   /
@@ -17,13 +15,25 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     2
   /
 END
-
+#=========================== hydrate ==========================================
+HYDRATE
+  ADJUST_SOLUBILITY_WITHIN_GHSZ
+END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED CARTESIAN
@@ -116,7 +126,7 @@ OUTPUT
    HYDRATE_SATURATION
    ICE_SATURATION
    LIQUID_MOLE_FRACTIONS
-   EFFECTIVE_POROSITY
+   POROSITY
   /
 END
 

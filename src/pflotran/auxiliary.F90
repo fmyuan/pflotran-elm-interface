@@ -12,6 +12,7 @@ module Auxiliary_module
   use Miscible_Aux_module
   use Flash2_Aux_module
   use General_Aux_module
+  use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
   !use TOilIms_Aux_module
   use Material_Aux_class
@@ -38,6 +39,7 @@ module Auxiliary_module
     type(miscible_type), pointer :: Miscible
     type(flash2_type), pointer :: Flash2
     type(general_type), pointer :: General
+    type(hydrate_type), pointer :: Hydrate
     type(wippflo_type), pointer :: WIPPFlo
     type(material_type), pointer :: Material
     type(sc_heat_type), pointer :: SC_heat
@@ -77,6 +79,7 @@ subroutine AuxInit(aux)
   nullify(aux%Flash2)
   nullify(aux%Miscible)
   nullify(aux%General)
+  nullify(aux%Hydrate)
   nullify(aux%WIPPFlo)
   nullify(aux%TOWG)
   nullify(aux%TOil_ims)
@@ -109,6 +112,7 @@ subroutine AuxDestroy(aux)
   call MphaseAuxDestroy(aux%Mphase)
   call MiscibleAuxDestroy(aux%Miscible)
   call GeneralAuxDestroy(aux%General)
+  call HydrateAuxDestroy(aux%Hydrate)
   call WIPPFloAuxDestroy(aux%WIPPFlo)
   call TOWGAuxDestroy(aux%TOWG)
   call TOilImsAuxDestroy(aux%TOil_ims) 
@@ -125,6 +129,7 @@ subroutine AuxDestroy(aux)
   nullify(aux%Immis)
   nullify(aux%Miscible)
   nullify(aux%General)
+  nullify(aux%Hydrate)
   nullify(aux%WIPPFlo)
   nullify(aux%TOWG)
   nullify(aux%TOil_ims) 

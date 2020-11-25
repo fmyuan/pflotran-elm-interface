@@ -4,6 +4,7 @@ module Characteristic_Curves_Common_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Characteristic_Curves_Base_module
+  use Dataset_Ascii_class
 
   implicit none
 
@@ -82,6 +83,15 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => SF_IGHCC2_Comp_Verify
     procedure, public :: CapillaryPressure => SF_IGHCC2_Comp_CapillaryPressure
   end type sat_func_IGHCC2_Comp_type
+!---------------------------------------------------------------------------
+  type, public, extends(sat_func_base_type) :: sat_func_Table_type
+    class(dataset_ascii_type), pointer :: pc_dataset
+  contains
+    procedure, public :: Init => SF_Table_Init
+    procedure, public :: Verify => SF_Table_Verify
+    procedure, public :: CapillaryPressure => SF_Table_CapillaryPressure
+    procedure, public :: Saturation => SF_Table_Saturation
+  end type sat_func_Table_type
   
 !-----------------------------------------------------------------------------
 !-- Relative Permeability Functions ------------------------------------------
@@ -98,13 +108,12 @@ module Characteristic_Curves_Common_module
   contains
     procedure, public :: Init => RPF_Mualem_VG_Liq_Init
     procedure, public :: Verify => RPF_Mualem_VG_Liq_Verify
-    procedure, public :: SetupPolynomials => RPF_Mualem_SetupPolynomials
+    procedure, public :: SetupPolynomials => RPF_Mualem_VG_SetupPolynomials
     procedure, public :: RelativePermeability => RPF_Mualem_VG_Liq_RelPerm
   end type rpf_Mualem_VG_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_VG_gas_type
     PetscReal :: m
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Mualem_VG_Gas_Init
     procedure, public :: Verify => RPF_Mualem_VG_Gas_Verify
@@ -122,7 +131,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_BC_gas_type
     PetscReal :: lambda
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Burdine_BC_Gas_Init
     procedure, public :: Verify => RPF_Burdine_BC_Gas_Verify
@@ -139,7 +147,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_BC_gas_type
     PetscReal :: lambda
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Mualem_BC_Gas_Init
     procedure, public :: Verify => RPF_Mualem_BC_Gas_Verify
@@ -151,12 +158,12 @@ module Characteristic_Curves_Common_module
   contains
     procedure, public :: Init => RPF_Burdine_VG_Liq_Init
     procedure, public :: Verify => RPF_Burdine_VG_Liq_Verify
+    procedure, public :: SetupPolynomials => RPF_Burdine_VG_SetupPolynomials
     procedure, public :: RelativePermeability => RPF_Burdine_VG_Liq_RelPerm
   end type rpf_Burdine_VG_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_VG_gas_type
     PetscReal :: m
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Burdine_VG_Gas_Init
     procedure, public :: Verify => RPF_Burdine_VG_Gas_Verify
@@ -174,7 +181,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rpf_Mualem_Linear_liq_type) :: & 
                         rpf_Mualem_Linear_gas_type
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Mualem_Linear_Gas_Init
     procedure, public :: Verify => RPF_Mualem_Linear_Gas_Verify
@@ -190,7 +196,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: & 
                         rpf_Burdine_Linear_gas_type
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Burdine_Linear_Gas_Init
     procedure, public :: Verify => RPF_Burdine_Linear_Gas_Verify
@@ -214,13 +219,11 @@ module Characteristic_Curves_Common_module
   end type rpf_mK_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_mK_gas_type
-    PetscReal :: Srg
     PetscReal :: sigmaz
   contains
     procedure, public :: Verify => RPF_mK_Gas_Verify
     procedure, public :: RelativePermeability => RPF_mK_Gas_RelPerm
   end type rpf_mK_gas_type
-  
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
                                      rpf_IGHCC2_Comp_liq_type
@@ -231,18 +234,37 @@ module Characteristic_Curves_Common_module
     procedure, public :: RelativePermeability => &
                                   RPF_IGHCC2_Comp_Liq_RelPerm
   end type rpf_IGHCC2_Comp_liq_type  
- 
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: &
                                        rpf_IGHCC2_Comp_gas_type
     PetscReal :: lambda
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_IGHCC2_Comp_Gas_Init
     procedure, public :: Verify => RPF_IGHCC2_Comp_Gas_Verify
     procedure, public :: RelativePermeability => &
                                   RPF_IGHCC2_Comp_Gas_RelPerm
   end type rpf_IGHCC2_Comp_gas_type
+  !---------------------------------------------------------------------------
+  type, public, extends(rel_perm_func_base_type) :: &
+                                     rpf_Table_liq_type
+    class(dataset_ascii_type), pointer :: rpf_dataset
+  contains
+    procedure, public :: Init => RPF_Table_Liq_Init
+    procedure, public :: Verify => RPF_Table_Liq_Verify
+    procedure, public :: RelativePermeability => &
+                                  RPF_Table_Liq_RelPerm
+  end type rpf_Table_liq_type
+  !---------------------------------------------------------------------------
+  type, public, extends(rel_perm_func_base_type) :: &
+                                       rpf_Table_gas_type
+    class(dataset_ascii_type), pointer :: rpf_dataset
+  contains
+    procedure, public :: Init => RPF_Table_Gas_Init
+    procedure, public :: Verify => RPF_Table_Gas_Verify
+    procedure, public :: RelativePermeability => &
+                                  RPF_Table_Gas_RelPerm
+  end type rpf_Table_gas_type
+
  
   public :: &! standard char. curves:
             SF_Default_Create, &
@@ -252,6 +274,7 @@ module Characteristic_Curves_Common_module
             SF_Linear_Create, &
             SF_mK_Create, &
             SF_IGHCC2_Comp_Create, &
+            SF_Table_Create, &
             ! standard rel. perm. curves:
             RPF_Default_Create, &
             RPF_Constant_Create, &  
@@ -271,7 +294,9 @@ module Characteristic_Curves_Common_module
             RPF_mK_Gas_Create, &
             RPF_Mualem_VG_Liq_RelPerm, &
             RPF_IGHCC2_Comp_Liq_Create, &
-            RPF_IGHCC2_Comp_Gas_Create
+            RPF_IGHCC2_Comp_Gas_Create, &
+            RPF_Table_Liq_Create, &
+            RPF_Table_Gas_Create
   
 contains
 
@@ -489,7 +514,8 @@ subroutine SFConstantVerify(this,name,option)
           trim(string) // '.'
         call PrintErrMsg(option)
       endif
-    case(WF_MODE,G_MODE,TOIL_IMS_MODE,IMS_MODE,MIS_MODE,MPH_MODE,FLASH2_MODE)
+    case(WF_MODE,G_MODE,TOIL_IMS_MODE,IMS_MODE,MIS_MODE,MPH_MODE,FLASH2_MODE, &
+         H_MODE)
       if (Initialized(this%constant_saturation)) then
         option%io_buffer = 'CONSTANT_SATURATION is not supported for &
           &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &
@@ -919,6 +945,8 @@ end subroutine SF_IGHCC2_Comp_Init
 
 ! ************************************************************************** !
 
+
+
 subroutine SF_IGHCC2_Comp_Verify(this,name,option)
 
   use Option_module
@@ -1008,6 +1036,205 @@ subroutine SF_IGHCC2_Comp_CapillaryPressure(this,liquid_saturation, &
   endif
 
 end subroutine SF_IGHCC2_Comp_CapillaryPressure
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function SF_Table_Create()
+
+  ! Creates the Lookup Table capillary pressure function object
+
+  implicit none
+
+  class(sat_func_Table_type), pointer :: &
+                              SF_Table_Create
+
+  allocate(SF_Table_Create)
+  call SF_Table_Create%Init()
+
+end function SF_Table_Create
+
+! ************************************************************************** !
+
+subroutine SF_Table_Init(this)
+
+  ! Creates the Lookup Table capillary pressure function object
+
+  implicit none
+
+  class(sat_func_Table_type) :: this
+
+  call SFBaseInit(this)
+  this%pc_dataset => DatasetAsciiCreate()
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine SF_Table_Init
+
+
+! ************************************************************************** !
+
+subroutine SF_Table_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(sat_func_Table_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'SATURATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'SATURATION_FUNCTION, Lookup Table'
+  endif
+  call SFBaseVerify(this,string,option)
+  if (.not.associated(this%pc_dataset)) then
+    option%io_buffer = UninitializedMessage('TABLE',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SF_Table_Verify
+
+! ************************************************************************** !
+
+subroutine SF_Table_CapillaryPressure(this,liquid_saturation, &
+                                   capillary_pressure,dpc_dsatl,option)
+  ! 
+  ! Computes the capillary pressure as a function of saturation.
+  ! 
+  ! Author: Michael Nole
+  ! Date: 01/15/20
+  !
+  use Option_module
+
+  implicit none
+
+  class(sat_func_Table_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+
+  PetscReal, intent(out) :: capillary_pressure
+  PetscReal, intent(out) :: dpc_dsatl
+  type(option_type), intent(inout) :: option
+
+  class(dataset_ascii_type), pointer :: dataset
+  PetscReal, pointer :: times(:)
+  PetscInt :: i, j, num_entries
+
+  dataset => this%pc_dataset
+  times => dataset%time_storage%times
+  num_entries = 0
+  j = 0
+  do i = 1,size(times)
+    if (times(i) <= dataset%time_storage%cur_time) then
+      if (i > 1 .and. times(i) > times(i-1)) then
+        j = 0
+        num_entries = 0
+      endif
+      if (j==0) j = i
+      num_entries = num_entries + 1
+    endif
+  enddo
+
+
+  if (liquid_saturation < dataset%rbuffer(2*j-1)) then
+    capillary_pressure = dataset%rbuffer(2*j)
+    dpc_dsatl = 0.d0
+  elseif (liquid_saturation > dataset%rbuffer(2*(j-1+num_entries)-1)) then
+    dpc_dsatl = (capillary_pressure - dataset%rbuffer(2*(j-1+num_entries))) / &
+               (liquid_saturation - dataset%rbuffer(2*(j-1+num_entries)-1))
+    capillary_pressure = (liquid_saturation - dataset% &
+                         rbuffer(2*(j-1+num_entries)-1)) * dpc_dsatl + &
+                         dataset%rbuffer(2*(j-1+num_entries))
+  else
+    do i = j+1, j+num_entries-1
+      if (liquid_saturation <= dataset%rbuffer(2*i-1)) then
+        dpc_dsatl = (dataset%rbuffer(2*i) - dataset%rbuffer(2*i-2)) / &
+                    (dataset%rbuffer(2*i-1) - dataset%rbuffer(2*i-3))
+        capillary_pressure = (liquid_saturation - dataset%rbuffer(2*i-3)) * &
+                         dpc_dsatl + dataset%rbuffer(2*i-2)
+        exit
+      endif
+    enddo
+  endif
+
+  if (capillary_pressure > this%pcmax) then
+    capillary_pressure = this%pcmax
+    dpc_dsatl = 0.d0
+  endif
+
+end subroutine SF_Table_CapillaryPressure
+
+! ************************************************************************** !
+
+subroutine SF_Table_Saturation(this,capillary_pressure, &
+                            liquid_saturation,dsat_dpres,option)
+  ! 
+  ! Computes saturation as a function of capillary pressure.
+  ! 
+  ! Author: Michael Nole
+  ! Date: 02/04/20
+  !
+  use Option_module
+
+  implicit none
+
+  class(sat_func_Table_type) :: this
+  PetscReal, intent(in) :: capillary_pressure
+
+  PetscReal, intent(out) :: liquid_saturation
+  PetscReal, intent(out) :: dsat_dpres
+  type(option_type), intent(inout) :: option
+
+  class(dataset_ascii_type), pointer :: dataset
+  PetscReal, pointer :: times(:)
+  PetscInt :: i, j, num_entries
+
+  dataset => this%pc_dataset
+  times => dataset%time_storage%times
+  num_entries = 0
+  j = 0
+  do i = 1,size(times)
+    if (times(i) <= dataset%time_storage%cur_time) then
+      if (i > 1 .and. times(i) > times(i-1)) then
+        j = 0
+        num_entries = 0
+      endif
+      if (j==0) j = i
+      num_entries = num_entries + 1
+    endif
+  enddo
+
+  if (capillary_pressure >  dataset%rbuffer(2*j)) then
+    dsat_dpres = (dataset%rbuffer(2*j+1) - dataset%rbuffer(2*j-1)) / &
+                 (dataset%rbuffer(2*j+2) - dataset%rbuffer(2*j))
+    liquid_saturation = dataset%rbuffer(2*j-1) - dsat_dpres * &
+                        (capillary_pressure - dataset%rbuffer(2*j))
+  elseif (capillary_pressure < dataset%rbuffer(2*(j-1+num_entries))) then
+    dsat_dpres = (liquid_saturation - dataset%rbuffer(2*(j-1+num_entries)-1))/ &
+                 (capillary_pressure - dataset%rbuffer(2*(j-1+num_entries)))
+    liquid_saturation = dsat_dpres * (0.d0 - &
+                        dataset%rbuffer(2*(j-1+num_entries))) + &
+                        dataset%rbuffer(2*(j-1+num_entries))
+  else
+    do i = j+1, j+num_entries-1
+      if (capillary_pressure >= dataset%rbuffer(2*i)) then
+        dsat_dpres = (dataset%rbuffer(2*i-1) - dataset%rbuffer(2*i-3)) / &
+                    (dataset%rbuffer(2*i) - dataset%rbuffer(2*i-2))
+        liquid_saturation = (dataset%rbuffer(2*i) - capillary_pressure) * &
+                            dsat_dpres  + dataset%rbuffer(2*i-1)
+        exit
+      endif
+    enddo
+  endif
+
+  liquid_saturation = maxval([0.d0,liquid_saturation])
+  liquid_saturation = minval([1.d0,liquid_saturation])
+
+end subroutine SF_Table_Saturation
 
 ! ************************************************************************** !
 
@@ -1799,9 +2026,10 @@ end subroutine RPF_Mualem_VG_Liq_Verify
 
 ! ************************************************************************** !
 
-subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
+subroutine RPF_Mualem_VG_SetupPolynomials(this,option,error_string)
 
-  ! Sets up polynomials for smoothing Mualem permeability function
+  ! Sets up polynomials for smoothing Mualem - van Genuchten relative 
+  ! permeability function
 
   use Option_module
   use Utility_module
@@ -1835,7 +2063,7 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
   
   this%poly%coefficients(1:4) = b(1:4)
   
-end subroutine RPF_Mualem_SetupPolynomials
+end subroutine RPF_Mualem_VG_SetupPolynomials
 
 ! ************************************************************************** !
 
@@ -1931,7 +2159,6 @@ subroutine RPF_Mualem_VG_Gas_Init(this)
   class(rpf_Mualem_VG_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2245,6 +2472,131 @@ end subroutine RPF_IGHCC2_Comp_Liq_RelPerm
 ! ************************************************************************** !
 ! ************************************************************************** !
 
+function RPF_Table_Liq_Create()
+
+  ! Creates the Lookup Table relative permeability function object
+
+  implicit none
+
+  class(rpf_Table_liq_type), pointer :: &
+                        RPF_Table_Liq_Create
+
+  allocate(RPF_Table_Liq_Create)
+  call RPF_Table_Liq_Create%Init()
+
+end function RPF_Table_Liq_Create
+
+! ************************************************************************** !
+
+subroutine RPF_Table_Liq_Init(this)
+
+  implicit none
+
+  class(rpf_Table_liq_type) :: this
+
+  call RPFBaseInit(this)
+  this%rpf_dataset => DatasetAsciiCreate()
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine RPF_Table_Liq_Init
+
+! ************************************************************************** !
+
+subroutine RPF_Table_Liq_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Table_liq_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,LOOKUP_TABLE'
+  endif
+  call RPFBaseVerify(this,name,option)
+  if (.not.associated(this%rpf_dataset)) then
+    option%io_buffer = UninitializedMessage('TABLE',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RPF_Table_Liq_Verify
+
+! ************************************************************************** !
+
+subroutine RPF_Table_Liq_RelPerm(this,liquid_saturation, &
+                              relative_permeability,dkr_sat,option)
+
+  use Option_module
+  
+  implicit none
+
+  class(rpf_Table_liq_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  class(dataset_ascii_type), pointer :: dataset
+  PetscReal, pointer :: times(:)
+  PetscInt :: i, j, num_entries
+
+  dataset => this%rpf_dataset
+  times => dataset%time_storage%times
+  num_entries = 0
+  j = 0
+  do i = 1,size(times)
+    if (times(i) <= dataset%time_storage%cur_time) then
+      if (i > 1 .and. times(i) > times(i-1)) then
+        j = 0
+        num_entries = 0
+      endif
+      if (j==0) j = i
+      num_entries = num_entries + 1
+    endif
+  enddo
+
+  if (liquid_saturation <= this%sr) then
+    relative_permeability = 0.d0
+    dkr_sat = 0.d0 !Not exactly true
+    return
+  endif
+
+  if (liquid_saturation < dataset%rbuffer(2*j-1)) then
+    relative_permeability = dataset%rbuffer(2*j)
+    dkr_sat = 0.d0
+  elseif (liquid_saturation > dataset%rbuffer(2*(j-1+num_entries)-1)) then
+    dkr_sat = (relative_permeability - dataset%rbuffer(2*(j-1+num_entries))) / &
+              (liquid_saturation - dataset%rbuffer(2*(j-1+num_entries)-1))
+    relative_permeability = (liquid_saturation - dataset% &
+                         rbuffer(2*(j-1+num_entries)-1)) * dkr_sat + & 
+                         dataset%rbuffer(2*(j-1+num_entries))
+  else
+    do i = j+1, j+num_entries-1
+      if (liquid_saturation <= dataset%rbuffer(2*i-1)) then
+        dkr_sat = (dataset%rbuffer(2*i) - dataset%rbuffer(2*i-2)) / &
+                  (dataset%rbuffer(2*i-1) - dataset%rbuffer(2*i-3))
+        relative_permeability = (liquid_saturation - dataset%rbuffer(2*i-3)) * &
+                         dkr_sat + dataset%rbuffer(2*i-2)
+        exit
+      endif
+    enddo
+  endif
+  
+  relative_permeability = maxval([relative_permeability, 0.d0])
+  relative_permeability = minval([relative_permeability, 1.d0])
+
+end subroutine RPF_Table_Liq_RelPerm
+
+! ************************************************************************** !
+! ************************************************************************** !
+
 function RPF_Burdine_BC_Gas_Create()
 
   ! Creates the Brooks-Corey Burdine gas relative permeability function
@@ -2271,7 +2623,6 @@ subroutine RPF_Burdine_BC_Gas_Init(this)
   class(rpf_Burdine_BC_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2393,7 +2744,6 @@ subroutine RPF_IGHCC2_Comp_Gas_Init(this)
   class(rpf_IGHCC2_Comp_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
 
   this%analytical_derivative_available = PETSC_TRUE
 
@@ -2474,6 +2824,130 @@ subroutine RPF_IGHCC2_Comp_Gas_RelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
 
 end subroutine RPF_IGHCC2_Comp_Gas_RelPerm
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function RPF_Table_Gas_Create()
+
+  ! Creates the Lookup Table relative permeability function object
+
+  implicit none
+
+  class(rpf_Table_gas_type), pointer :: &
+                        RPF_Table_Gas_Create
+
+  allocate(RPF_Table_Gas_Create)
+  call RPF_Table_Gas_Create%Init()
+
+end function RPF_Table_Gas_Create
+
+! ************************************************************************** !
+
+subroutine RPF_Table_Gas_Init(this)
+
+  implicit none
+
+  class(rpf_Table_gas_type) :: this
+
+  call RPFBaseInit(this)
+  this%rpf_dataset => DatasetAsciiCreate()
+
+  this%analytical_derivative_available = PETSC_TRUE
+
+end subroutine RPF_Table_Gas_Init
+
+! ************************************************************************** !
+
+subroutine RPF_Table_Gas_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(rpf_Table_gas_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'PERMEABILITY_FUNCTION,LOOKUP_TABLE'
+  endif
+  call RPFBaseVerify(this,name,option)
+  if (.not.associated(this%rpf_dataset)) then
+    option%io_buffer = UninitializedMessage('TABLE',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RPF_Table_Gas_Verify
+
+! ************************************************************************** !
+
+subroutine RPF_Table_Gas_RelPerm(this,liquid_saturation, &
+                              relative_permeability,dkr_sat,option)
+  use Option_module
+
+  implicit none
+
+  class(rpf_Table_gas_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_sat
+  type(option_type), intent(inout) :: option
+
+  class(dataset_ascii_type), pointer :: dataset
+  PetscReal, pointer :: times(:)
+  PetscInt :: i, j, num_entries
+
+  dataset => this%rpf_dataset
+  times => dataset%time_storage%times
+  num_entries = 0
+  j = 0
+  do i = 1,size(times)
+    if (times(i) <= dataset%time_storage%cur_time) then
+      if (i > 1 .and. times(i) > times(i-1)) then
+        j = 0
+        num_entries = 0
+      endif
+      if (j==0) j = i
+      num_entries = num_entries + 1
+    endif
+  enddo
+
+  if (1.d0 - liquid_saturation <= this%srg) then
+    relative_permeability = 0.d0
+    dkr_sat = 0.d0 !Not exactly true
+    return
+  endif
+
+  if (liquid_saturation < dataset%rbuffer(2*j-1)) then
+    relative_permeability = dataset%rbuffer(2*j)
+    dkr_sat = 0.d0
+  elseif (liquid_saturation > dataset%rbuffer(2*(j-1+num_entries)-1)) then
+    dkr_sat = (relative_permeability - dataset%rbuffer(2*(j-1+num_entries))) / &
+              (liquid_saturation - dataset%rbuffer(2*(j-1+num_entries)-1))
+    relative_permeability = (liquid_saturation - dataset% &
+                         rbuffer(2*(j-1+num_entries)-1)) * dkr_sat + &
+                         dataset%rbuffer(2*(j-1+num_entries))
+  else
+    do i = j+1, j+num_entries-1
+      if (liquid_saturation <= dataset%rbuffer(2*i-1)) then
+        dkr_sat = (dataset%rbuffer(2*i) - dataset%rbuffer(2*i-2)) / &
+                  (dataset%rbuffer(2*i-1) - dataset%rbuffer(2*i-3))
+        relative_permeability = (liquid_saturation - dataset%rbuffer(2*i-3)) * &
+                         dkr_sat + dataset%rbuffer(2*i-2)
+        exit
+      endif
+    enddo
+  endif
+
+  relative_permeability = maxval([relative_permeability, 0.d0])
+  relative_permeability = minval([relative_permeability, 1.d0])
+
+end subroutine RPF_Table_Gas_RelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -2618,7 +3092,6 @@ subroutine RPF_Mualem_BC_Gas_Init(this)
   class(rpf_Mualem_BC_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2770,6 +3243,45 @@ end subroutine RPF_Burdine_VG_Liq_Verify
 
 ! ************************************************************************** !
 
+subroutine RPF_Burdine_VG_SetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing Burdine - van Genuchten relative 
+  ! permeability function
+
+  use Option_module
+  use Utility_module
+  
+  implicit none
+  
+  class(rpf_Burdine_VG_liq_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+  
+  PetscReal :: b(4)
+  PetscReal :: one_over_m, Se_one_over_m, m
+
+  this%poly => PolynomialCreate()
+  ! fill matix with values
+  this%poly%low = 0.99d0  ! just below saturated
+  this%poly%high = 1.d0   ! saturated
+  
+  m = this%m
+  one_over_m = 1.d0/m
+  Se_one_over_m = this%poly%low**one_over_m
+  b(1) = 1.d0
+  b(2) = this%poly%low*this%poly%low*(1.d0-(1.d0-Se_one_over_m)**this%m)
+  b(3) = 0.d0
+  b(4) = 2.d0*b(2)/this%poly%low + &
+         this%poly%low*Se_one_over_m*(1.d0-Se_one_over_m)**(this%m-1.d0)
+
+  call CubicPolynomialSetup(this%poly%high,this%poly%low,b)
+  
+  this%poly%coefficients(1:4) = b(1:4)
+  
+end subroutine RPF_Burdine_VG_SetupPolynomials
+
+! ************************************************************************** !
+
 subroutine RPF_Burdine_VG_Liq_RelPerm(this,liquid_saturation, &
                               relative_permeability,dkr_sat,option)
   ! 
@@ -2813,6 +3325,14 @@ subroutine RPF_Burdine_VG_Liq_RelPerm(this,liquid_saturation, &
     return
   endif
   
+  if (associated(this%poly)) then
+    if (Se > this%poly%low) then
+      call CubicPolynomialEvaluate(this%poly%coefficients, &
+                                   Se,relative_permeability,dkr_Se)
+      return
+    endif
+  endif
+
   one_over_m = 1.d0/this%m
   Se_one_over_m = Se**one_over_m
   relative_permeability = Se*Se*(1.d0-(1.d0-Se_one_over_m)**this%m)
@@ -2851,7 +3371,6 @@ subroutine RPF_Burdine_VG_Gas_Init(this)
   class(rpf_Burdine_VG_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -3095,7 +3614,6 @@ subroutine RPF_Mualem_Linear_Gas_Init(this)
   class(rpf_Mualem_Linear_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   this%alpha = UNINITIALIZED_DOUBLE
   this%pcmax = UNINITIALIZED_DOUBLE
   
@@ -3322,7 +3840,6 @@ subroutine RPF_Burdine_Linear_Gas_Init(this)
   class(rpf_Burdine_Linear_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   

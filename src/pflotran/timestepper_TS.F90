@@ -29,7 +29,7 @@ module Timestepper_TS_class
   contains
     procedure, public :: CheckpointBinary => TimestepperTSCheckpointBinary
     procedure, public :: Init => TimestepperTSInit
-    procedure, public :: ReadInput => TimestepperTSRead
+    procedure, public :: ReadSelectCase => TimestepperTSReadSelectCase
     procedure, public :: RestartBinary => TimestepperTSRestartBinary
     procedure, public :: Reset => TimestepperTSReset
     procedure, public :: InputRecord => TimestepperSurfInputRecord
@@ -47,8 +47,6 @@ module Timestepper_TS_class
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: timestepper_surface_header_type
       implicit none
       PetscBag :: bag
@@ -80,8 +78,6 @@ function TimestepperTSCreate()
   allocate(ts_timestepper)
 
   call ts_timestepper%Init()
-  
-  ts_timestepper%solver => SolverCreate()
   
   TimestepperTSCreate => ts_timestepper
   
@@ -125,12 +121,13 @@ end subroutine TimestepperTSInit
 
 ! ************************************************************************** !
 
-subroutine TimestepperTSRead(this,input,option)
+subroutine TimestepperTSReadSelectCase(this,input,keyword,found, &
+                                       error_string,option)
   ! 
-  ! Reads parameters associated with time stepper
+  ! Reads select case statement for TS
   ! 
-  ! Author: Gautam Bisht
-  ! Date: 07/03/18
+  ! Author: Glenn Hammond
+  ! Date: 03/16/20
   ! 
 
   use Option_module
@@ -142,44 +139,38 @@ subroutine TimestepperTSRead(this,input,option)
 
   class(timestepper_TS_type) :: this
   type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
 
-  input%ierr = 0
-  do
+  found = PETSC_TRUE
+  call TimestepperBaseReadSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+
+    case('TS_ACCELERATION')
+      call InputReadInt(input,option,this%iaccel)
+      call InputDefaultMsg(input,option,'iaccel')
+
+    case('DT_FACTOR')
+      string='time_step_factor'
+      call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
+          option)
+      this%ntfac = size(this%tfac)
+
+    case default
+      found = PETSC_FALSE
+  end select 
   
-    call InputReadPflotranString(input,option)
+end subroutine TimestepperTSReadSelectCase
 
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','TIMESTEPPER_BE')
-    call StringToUpper(keyword)
-
-    select case(trim(keyword))
-  
-      case('TS_ACCELERATION')
-        call InputReadInt(input,option,this%iaccel)
-        call InputDefaultMsg(input,option,'iaccel')
-
-      case('DT_FACTOR')
-        string='time_step_factor'
-        call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
-            option)
-        this%ntfac = size(this%tfac)
-
-      case default
-        call TimestepperBaseProcessKeyword(this,input,option,keyword)
-    end select
-  
-  enddo
-
-  this%solver%print_ekg = this%print_ekg
-
-end subroutine TimestepperTSRead
-
+! ************************************************************************** !
 ! ************************************************************************** !
 
 subroutine TimestepperTSStepDT(this,process_model,stop_flag)
@@ -218,7 +209,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
 
-  solver => this%solver
+  solver => process_model%solver
   option => process_model%option
 
   option%dt = this%dt
@@ -228,14 +219,10 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call process_model%PreSolve()
 
   call TSSetTime(solver%ts,0.d0,ierr);CHKERRQ(ierr)
-#if (PETSC_VERSION_MINOR >= 8)
   call TSSetMaxTime(solver%ts,option%flow_dt,ierr);CHKERRQ(ierr)
-#endif
   call TSSetTimeStep(solver%ts,option%flow_dt,ierr);CHKERRQ(ierr)
 
-#if (PETSC_VERSION_MINOR >= 8)
   call TSSetStepNumber(solver%ts,ZERO_INTEGER,ierr);CHKERRQ(ierr)
-#endif
   call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
                            ierr);CHKERRQ(ierr)
  
@@ -395,8 +382,6 @@ subroutine TimestepperTSRegisterHeader(this,bag,header)
   ! Date: 06/19/18
   !
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -560,7 +545,6 @@ subroutine TimestepperTSStrip(this)
   class(timestepper_TS_type) :: this
   
   call TimestepperBaseStrip(this)
-  call SolverDestroy(this%solver)
 
 end subroutine TimestepperTSStrip
 
@@ -660,7 +644,7 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
 #endif
   
   if (OptionPrintToScreen(option)) then
-    write(*,'(/,a," PETSc TS steps = ",i6," newton = ",i8," linear = ",i10, &
+    write(*,'(/,x,a," PETSc TS steps = ",i6," newton = ",i8," linear = ",i10, &
             & " cuts = ",i6)') &
             trim(this%name), &
             this%steps, &
@@ -668,7 +652,7 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
             this%cumulative_linear_iterations, &
             this%cumulative_time_step_cuts
     write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(a)') trim(this%name) // ' PETSc TS SNES time = ' // &
+    write(*,'(x,a)') trim(this%name) // ' PETSc TS SNES time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
   

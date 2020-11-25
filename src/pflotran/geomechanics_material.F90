@@ -90,12 +90,13 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     
     if (InputCheckExit(input,option)) exit
   
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS_MATERIAL_PROPERTY')
     call StringToUpper(keyword)
     
@@ -129,10 +130,11 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
         call InputErrorMsg(input,option,'THERMAL_EXPANSION_COEFFICIENT', &
                            'GEOMECHANICS_MATERIAL_PROPERTY')
       case default
-        call InputKeywordUnrecognized(keyword, &
+        call InputKeywordUnrecognized(input,keyword, &
                                  'GEOMECHANICS_MATERIAL_PROPERTY',option)
       end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine GeomechanicsMaterialPropertyRead
 

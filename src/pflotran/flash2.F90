@@ -273,7 +273,6 @@ subroutine Flash2ComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   type(grid_type), pointer :: grid
   type(Flash2_auxvar_type), pointer :: Flash2_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscReal, pointer :: icap_loc_p(:)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id
@@ -289,8 +288,6 @@ subroutine Flash2ComputeMassBalancePatch(realization,mass_balance,mass_trapped)
 
   Flash2_auxvars => patch%aux%Flash2%auxvars
   material_auxvars => patch%aux%Material%auxvars
-
-  call VecGetArrayF90(field%icap_loc,icap_loc_p, ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -311,7 +308,7 @@ subroutine Flash2ComputeMassBalancePatch(realization,mass_balance,mass_trapped)
       enddo
 
       pckr_sir(iphase) = &
-      patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr%sr(iphase)
+      patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr%sr(iphase)
 
       if (iphase == 1 .and. &
         Flash2_auxvars(ghosted_id)%auxvar_elem(0)%sat(iphase) <= pckr_sir(iphase)) then
@@ -334,8 +331,6 @@ subroutine Flash2ComputeMassBalancePatch(realization,mass_balance,mass_trapped)
       endif
     enddo
   enddo
-
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine Flash2ComputeMassBalancePatch
 
@@ -756,9 +751,10 @@ subroutine Flash2UpdateAuxVarsPatch(realization)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
   PetscInt :: iphasebc, iphase
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscReal :: mnacl, ynacl, xphi
+  PetscInt :: icc
   PetscErrorCode :: ierr
   
   option => realization%option
@@ -773,7 +769,6 @@ subroutine Flash2UpdateAuxVarsPatch(realization)
 
   
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -783,14 +778,15 @@ subroutine Flash2UpdateAuxVarsPatch(realization)
     endif
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    if (.not. associated(patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr))then
-       print*, 'error!!! saturation function not allocated', ghosted_id,icap_loc_p(ghosted_id)
+    icc = patch%cc_id(ghosted_id)
+    if (.not. associated(patch%saturation_function_array(icc)%ptr))then
+       print*, 'error!!! saturation function not allocated', ghosted_id, icc
     endif
     
     call Flash2AuxVarCompute_NINC(xx_loc_p(istart:iend), &
                        auxvars(ghosted_id)%auxvar_elem(0), &
                        global_auxvars(ghosted_id), &
-                       patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+                       patch%saturation_function_array(icc)%ptr, &
                        realization%fluid_properties,option)
                       
  ! update global variables
@@ -851,7 +847,7 @@ subroutine Flash2UpdateAuxVarsPatch(realization)
  
       call Flash2AuxVarCompute_NINC(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0), &
                          global_auxvars_bc(sum_connection), &
-                         patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+                         patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
                          realization%fluid_properties, option, xphi)
 
       if (associated(global_auxvars_bc)) then
@@ -884,7 +880,6 @@ subroutine Flash2UpdateAuxVarsPatch(realization)
   enddo
 
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
   
   patch%aux%Flash2%auxvars_up_to_date = PETSC_TRUE
 
@@ -996,8 +991,8 @@ subroutine Flash2UpdateFixedAccumPatch(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   
   PetscInt :: ghosted_id, local_id, istart, iend, iphase
-  PetscReal, pointer :: xx_p(:), icap_loc_p(:), iphase_loc_p(:)
-  PetscReal, pointer :: ithrm_loc_p(:), accum_p(:)
+  PetscReal, pointer :: xx_p(:)
+  PetscReal, pointer :: accum_p(:)
                           
   PetscErrorCode :: ierr
   
@@ -1013,8 +1008,6 @@ subroutine Flash2UpdateFixedAccumPatch(realization)
   material_auxvars => patch%aux%Material%auxvars
     
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -1028,16 +1021,14 @@ subroutine Flash2UpdateFixedAccumPatch(realization)
     istart = iend-option%nflowdof+1
 
     call Flash2Accumulation(auxvars(ghosted_id)%auxvar_elem(0), &
-                              global_auxvars(ghosted_id), &
-                              material_auxvars(ghosted_id)%porosity, &
-                              material_auxvars(ghosted_id)%volume, &
-                              Flash2_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
-                              option,ZERO_INTEGER, accum_p(istart:iend)) 
+                            global_auxvars(ghosted_id), &
+                            material_auxvars(ghosted_id)%porosity, &
+                            material_auxvars(ghosted_id)%volume, &
+                            Flash2_parameter%dencpr(patch%cct_id(ghosted_id)), &
+                            option,ZERO_INTEGER, accum_p(istart:iend)) 
   enddo
 
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -1090,16 +1081,17 @@ subroutine Flash2Accumulation(auxvar,global_auxvar,por,vol,rock_dencpr,option,ii
  
 ! Reaction terms here
 ! Note if iireac > 0, then it is the node global index
-  if (option%ntrandof > 0) then
-    if (iireac > 0) then
-!     H2O
-      mol(1) = mol(1) + vol * global_auxvar%reaction_rate_store(1) &
-        *option%flow_dt*1.D-3
-!     CO2
-      mol(2) = mol(2) + vol * global_auxvar%reaction_rate_store(2) &
-        *option%flow_dt*1.D-3
-    endif
-  endif
+  select case(option%itranmode)
+    case(RT_MODE)
+      if (iireac > 0) then
+  !     H2O
+        mol(1) = mol(1) + vol * global_auxvar%reaction_rate_store(1) &
+          *option%flow_dt*1.D-3
+  !     CO2
+        mol(2) = mol(2) + vol * global_auxvar%reaction_rate_store(2) &
+          *option%flow_dt*1.D-3
+      endif
+  end select
 ! if (option%use_isothermal) then
 !   Res(1:option%nflowdof) = mol(:)
 ! else
@@ -1660,7 +1652,7 @@ subroutine Flash2BCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
   do np = 1, option%nphase  
     select case(ibndtype(1))
         ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
       Dq = perm_dn / dd_up
         ! Flow term
       ukvr=0.D0
@@ -1811,7 +1803,7 @@ subroutine Flash2BCFluxAdv(ibndtype,auxvars,auxvar_up,auxvar_dn, &
   do np = 1, option%nphase  
     select case(ibndtype(1))
         ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
       Dq = perm_dn / dd_up
         ! Flow term
       ukvr = 0.D0
@@ -2017,8 +2009,6 @@ subroutine Flash2Residual(snes,xx,r,realization,ierr)
   ! Communication -----------------------------------------
   ! These 3 must be called before Flash2UpdateAuxVars()
 !  call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
-
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                PERMEABILITY_X,ZERO_INTEGER)
   call DiscretizationLocalToLocal(discretization,field%work_loc, &
@@ -2037,8 +2027,6 @@ subroutine Flash2Residual(snes,xx,r,realization,ierr)
                                   field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                PERMEABILITY_Z,ZERO_INTEGER)
-
-  call DiscretizationLocalToLocal(discretization,field%ithrm_loc,field%ithrm_loc,ONEDOF)
 
 ! pass #0 prepare numerical increment  
   call Flash2ResidualPatch0(snes,xx,r,realization,ierr)
@@ -2103,11 +2091,8 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
                           
-               
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
-
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -2167,9 +2152,6 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
  
   call VecGetArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
   allocate(Resold_AR(option%nflowdof), Resold_FL(option%nflowdof), delx(option%nflowdof))
  
 ! Multiphase flash calculation is more expensive, so calculate once per iteration
@@ -2182,10 +2164,9 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
     endif
     ghosted_id = ng
     istart =  (ng-1) * option%nflowdof +1 ; iend = istart -1 + option%nflowdof
-     ! iphase =int(iphase_loc_p(ng))
     call Flash2AuxVarCompute_Ninc(xx_loc_p(istart:iend),auxvars(ng)%auxvar_elem(0),&
           global_auxvars(ng),&
-          patch%saturation_function_array(int(icap_loc_p(ng)))%ptr,&
+          patch%saturation_function_array(patch%cc_id(ng))%ptr,&
           realization%fluid_properties,option, xphi)
 !   print *,'flash ', xx_loc_p(istart:iend),auxvars(ng)%auxvar_elem(0)%den
 #if 1
@@ -2229,7 +2210,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
       patch%aux%Flash2%delx(:,ng)=delx(:)
       call Flash2AuxVarCompute_Winc(xx_loc_p(istart:iend),delx(:),&
             auxvars(ng)%auxvar_elem(1:option%nflowdof),global_auxvars(ng),&
-            patch%saturation_function_array(int(icap_loc_p(ng)))%ptr,&
+            patch%saturation_function_array(patch%cc_id(ng))%ptr,&
             realization%fluid_properties,option)
 !         if (auxvars(ng)%auxvar_elem(option%nflowdof)%sat(2)>1D-8 .and. &
 !            auxvars(ng)%auxvar_elem(0)%sat(2)<1D-12)then
@@ -2260,7 +2241,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
                             global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id)%porosity, &
                             material_auxvars(ghosted_id)%volume, &
-                            Flash2_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                            Flash2_parameter%dencpr(patch%cct_id(ghosted_id)), &
                             option,ONE_INTEGER,Res) 
     r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
     !print *,'REs, acm: ', res
@@ -2362,8 +2343,8 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = Flash2_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = Flash2_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
@@ -2375,7 +2356,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icap_dn = int(icap_loc_p(ghosted_id))  
+      icc_dn = patch%cc_id(ghosted_id)  
 ! Then need fill up increments for BCs
       do idof =1, option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
@@ -2389,14 +2370,13 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
         case(NEUMANN_BC, ZERO_GRADIENT_BC)
           ! solve for pb from Darcy's law given qb /= 0
           xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
-!          iphase = int(iphase_loc_p(ghosted_id))
         end select
       enddo
 
  
       call Flash2AuxVarCompute_Ninc(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0),&
            global_auxvars_bc(sum_connection),&
-           patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+           patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
            realization%fluid_properties, option)
 #if 1
       if (associated(global_auxvars_bc)) then
@@ -2419,7 +2399,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
          auxvars(ghosted_id)%auxvar_elem(0), &
          material_auxvars(ghosted_id)%porosity, &
          material_auxvars(ghosted_id)%tortuosity, &
-         Flash2_parameter%sir(:,icap_dn), &
+         Flash2_parameter%sir(:,icc_dn), &
          cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
          cur_connection_set%area(iconn), &
          distance_gravity,option, &
@@ -2479,23 +2459,23 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
       call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
                             cur_connection_set%dist(:,iconn),perm_dn)
 
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
    
-      D_up = Flash2_parameter%ckwet(ithrm_up)
-      D_dn = Flash2_parameter%ckwet(ithrm_dn)
+      D_up = Flash2_parameter%ckwet(icct_up)
+      D_dn = Flash2_parameter%ckwet(icct_dn)
 
       call Flash2Flux(auxvars(ghosted_id_up)%auxvar_elem(0), &
                       material_auxvars(ghosted_id_up)%porosity, &
                       material_auxvars(ghosted_id_up)%tortuosity, &
-                      Flash2_parameter%sir(:,icap_up), &
+                      Flash2_parameter%sir(:,icc_up), &
                       dd_up,perm_up,D_up, &
                       auxvars(ghosted_id_dn)%auxvar_elem(0), &
                       material_auxvars(ghosted_id_dn)%porosity, &
                       material_auxvars(ghosted_id_dn)%tortuosity, &
-                      Flash2_parameter%sir(:,icap_dn), &
+                      Flash2_parameter%sir(:,icc_dn), &
                       dd_dn,perm_dn,D_dn, &
                       cur_connection_set%area(iconn),distance_gravity, &
                       upweight,option,v_darcy,Res)
@@ -2560,8 +2540,8 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
 
 
   if (patch%aux%Flash2%inactive_cells_exist) then
-    do i=1,patch%aux%Flash2%n_zero_rows
-      r_p(patch%aux%Flash2%zero_rows_local(i)) = 0.d0
+    do i=1,patch%aux%Flash2%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%Flash2%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
 
@@ -2569,9 +2549,6 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
   call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-!  call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
   deallocate(Resold_AR, Resold_FL, delx)
   
   if (realization%debug%vecview_residual) then
@@ -2629,10 +2606,8 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:), xx_loc_p(:)
                
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
-
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -2685,8 +2660,6 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90( r, r_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
   r_p = 0.d0
  
@@ -2713,8 +2686,8 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = Flash2_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = Flash2_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
@@ -2726,7 +2699,7 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icap_dn = int(icap_loc_p(ghosted_id))  
+      icc_dn = patch%cc_id(ghosted_id)  
 ! Then need fill up increments for BCs
       do idof = 1, option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
@@ -2740,14 +2713,13 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
         case(NEUMANN_BC, ZERO_GRADIENT_BC)
           ! solve for pb from Darcy's law given qb /= 0
           xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
-!          iphase = int(iphase_loc_p(ghosted_id))
         end select
       enddo
 
  
       call Flash2AuxVarCompute_Ninc(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0),&
            global_auxvars_bc(sum_connection),&
-           patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+           patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
            realization%fluid_properties, option,xphi)
 
       if (associated(global_auxvars_bc)) then
@@ -2769,7 +2741,7 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
          auxvars(ghosted_id)%auxvar_elem(0), &
          material_auxvars(ghosted_id)%porosity, &
          material_auxvars(ghosted_id)%tortuosity, &
-         Flash2_parameter%sir(:,icap_dn), &
+         Flash2_parameter%sir(:,icc_dn), &
          cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
          cur_connection_set%area(iconn), &
          distance_gravity,option, &
@@ -2828,23 +2800,23 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
       call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
                             cur_connection_set%dist(:,iconn),perm_dn)
 
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
    
-      D_up = Flash2_parameter%ckwet(ithrm_up)
-      D_dn = Flash2_parameter%ckwet(ithrm_dn)
+      D_up = Flash2_parameter%ckwet(icct_up)
+      D_dn = Flash2_parameter%ckwet(icct_dn)
 
       call Flash2Flux(auxvars(ghosted_id_up)%auxvar_elem(0), &
                       material_auxvars(ghosted_id_up)%porosity, &
                       material_auxvars(ghosted_id_up)%tortuosity, &
-                      Flash2_parameter%sir(:,icap_up), &
+                      Flash2_parameter%sir(:,icc_up), &
                       dd_up,perm_up,D_up, &
                       auxvars(ghosted_id_dn)%auxvar_elem(0), &
                       material_auxvars(ghosted_id_dn)%porosity, &
                       material_auxvars(ghosted_id_dn)%tortuosity, &
-                      Flash2_parameter%sir(:,icap_dn), &
+                      Flash2_parameter%sir(:,icc_dn), &
                       dd_dn,perm_dn,D_dn, &
                       cur_connection_set%area(iconn),distance_gravity, &
                       upweight,option,v_darcy,Res)
@@ -2870,8 +2842,6 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
 
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90( r, r_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine Flash2ResidualPatch1
 
@@ -2909,7 +2879,6 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
   PetscReal, pointer ::accum_p(:)
 
   PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:)
 
   PetscReal :: dw_kg, dw_mol,dddt,dddp
   PetscReal :: rho, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt, dvdp, xphi
@@ -2951,7 +2920,6 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
   allocate(delx(option%nflowdof))
 
@@ -2969,10 +2937,9 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
     endif
     ghosted_id = ng   
     istart =  (ng-1) * option%nflowdof +1 ; iend = istart -1 + option%nflowdof
-     ! iphase =int(iphase_loc_p(ng))
     call Flash2AuxVarCompute_Ninc(xx_loc_p(istart:iend),auxvars(ng)%auxvar_elem(0),&
           global_auxvars(ng),&
-          patch%saturation_function_array(int(icap_loc_p(ng)))%ptr,&
+          patch%saturation_function_array(patch%cc_id(ng))%ptr,&
           realization%fluid_properties,option, xphi)
 !    print *,'flash ', xx_loc_p(istart:iend),auxvars(ng)%auxvar_elem(0)%den
 #if 1
@@ -3016,7 +2983,7 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
       patch%aux%Flash2%delx(:,ng)=delx(:)
       call Flash2AuxVarCompute_Winc(xx_loc_p(istart:iend),delx(:),&
             auxvars(ng)%auxvar_elem(1:option%nflowdof),global_auxvars(ng),&
-            patch%saturation_function_array(int(icap_loc_p(ng)))%ptr,&
+            patch%saturation_function_array(patch%cc_id(ng))%ptr,&
             realization%fluid_properties,option)
 !         if (auxvars(ng)%auxvar_elem(option%nflowdof)%sat(2)>1D-8 .and. &
 !            auxvars(ng)%auxvar_elem(0)%sat(2)<1D-12)then
@@ -3027,7 +2994,6 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
 #endif
   deallocate(delx)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine Flash2ResidualPatch0
 
@@ -3068,8 +3034,6 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:)
                
-  PetscReal, pointer :: ithrm_loc_p(:)
-
   PetscReal :: dw_kg, dw_mol,dddt,dddp
   PetscReal :: tsrc1, qsrc1, csrc1, enth_src_h2o, enth_src_co2 , hsrc1
   PetscReal :: rho, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt, dvdp, xphi
@@ -3121,7 +3085,6 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
 ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
  
   ! Accumulation terms (include reaction------------------------------------
   if (.not.option%steady_state) then
@@ -3140,7 +3103,7 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
                             global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id)%porosity, &
                             material_auxvars(ghosted_id)%volume, &
-                            Flash2_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                            Flash2_parameter%dencpr(patch%cct_id(ghosted_id)), &
                             option,ONE_INTEGER,Res) 
       r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
     !print *,'REs, acm: ', res
@@ -3264,14 +3227,13 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
   endif
  
   if (patch%aux%Flash2%inactive_cells_exist) then
-    do i=1,patch%aux%Flash2%n_zero_rows
-      r_p(patch%aux%Flash2%zero_rows_local(i)) = 0.d0
+    do i=1,patch%aux%Flash2%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%Flash2%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
  
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
  
 end subroutine Flash2ResidualPatch2
 
@@ -3392,12 +3354,12 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: i
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:), tortuosity_loc_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
+  PetscInt :: iphas,iphas_up,iphas_dn
+  PetscInt :: icc_up,icc_dn, icct_up, icct_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
@@ -3486,10 +3448,6 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
 
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
-
  ResInc = 0.D0
 #if 1
   ! Accumulation terms ------------------------------------
@@ -3501,14 +3459,13 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
     endif
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    icap = int(icap_loc_p(ghosted_id))
      
     do nvar =1, option%nflowdof
       call Flash2Accumulation(auxvars(ghosted_id)%auxvar_elem(nvar), &
              global_auxvars(ghosted_id),& 
              material_auxvars(ghosted_id)%porosity, &
              material_auxvars(ghosted_id)%volume, &
-             Flash2_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+             Flash2_parameter%dencpr(patch%cct_id(ghosted_id)), &
              option,ONE_INTEGER, res) 
       ResInc( local_id,:,nvar) =  ResInc(local_id,:,nvar) + Res(:)
     enddo
@@ -3604,8 +3561,8 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = Flash2_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = Flash2_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
@@ -3616,7 +3573,7 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
       distance_gravity = cur_connection_set%dist(0,iconn) * &
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = patch%cc_id(ghosted_id)
 
 ! Then need fill up increments for BCs
       delxbc = 0.D0;
@@ -3634,7 +3591,6 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
         case(NEUMANN_BC, ZERO_GRADIENT_BC)
           ! solve for pb from Darcy's law given qb /= 0
           xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
-          !iphasebc = int(iphase_loc_p(ghosted_id))
           delxbc(idof)=patch%aux%Flash2%delx(idof,ghosted_id)
         end select
       enddo
@@ -3643,12 +3599,12 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
  
       call Flash2AuxVarCompute_Ninc(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0),&
          global_auxvars_bc(sum_connection),&
-         patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+         patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
          realization%fluid_properties, option)
       call Flash2AuxVarCompute_Winc(xxbc,delxbc,&
          auxvars_bc(sum_connection)%auxvar_elem(1:option%nflowdof),&
          global_auxvars_bc(sum_connection),&
-         patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+         patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
          realization%fluid_properties,option)
     
       do nvar=1,option%nflowdof
@@ -3658,7 +3614,7 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
           auxvars(ghosted_id)%auxvar_elem(nvar), &
           material_auxvars(ghosted_id)%porosity, &
           material_auxvars(ghosted_id)%tortuosity, &
-          Flash2_parameter%sir(:,icap_dn), &
+          Flash2_parameter%sir(:,icc_dn), &
           cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
           cur_connection_set%area(iconn), &
           distance_gravity,option, &
@@ -3758,24 +3714,24 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
       call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
                             cur_connection_set%dist(:,iconn),perm_dn)
     
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      D_up = Flash2_parameter%ckwet(ithrm_up)
-      D_dn = Flash2_parameter%ckwet(ithrm_dn)
-    
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
+
+      D_up = Flash2_parameter%ckwet(icct_up)
+      D_dn = Flash2_parameter%ckwet(icct_dn)
       
       do nvar = 1, option%nflowdof 
         call Flash2Flux(auxvars(ghosted_id_up)%auxvar_elem(nvar), &
                          material_auxvars(ghosted_id_up)%porosity, &
                          material_auxvars(ghosted_id_up)%tortuosity, &
-                         Flash2_parameter%sir(:,icap_up), &
+                         Flash2_parameter%sir(:,icc_up), &
                          dd_up,perm_up,D_up, &
                          auxvars(ghosted_id_dn)%auxvar_elem(0), &
                          material_auxvars(ghosted_id_dn)%porosity, &
                          material_auxvars(ghosted_id_dn)%tortuosity, &
-                         Flash2_parameter%sir(:,icap_dn), &
+                         Flash2_parameter%sir(:,icc_dn), &
                          dd_dn,perm_dn,D_dn, &
                          cur_connection_set%area(iconn),distance_gravity, &
                          upweight, option, vv_darcy, Res)
@@ -3784,12 +3740,12 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
         call Flash2Flux(auxvars(ghosted_id_up)%auxvar_elem(0), &
                          material_auxvars(ghosted_id_up)%porosity, &
                          material_auxvars(ghosted_id_up)%tortuosity, &
-                         Flash2_parameter%sir(:,icap_up), &
+                         Flash2_parameter%sir(:,icc_up), &
                          dd_up,perm_up,D_up, &
                          auxvars(ghosted_id_dn)%auxvar_elem(nvar), &
                          material_auxvars(ghosted_id_dn)%porosity, &
                          material_auxvars(ghosted_id_dn)%tortuosity, &
-                         Flash2_parameter%sir(:,icap_dn), &
+                         Flash2_parameter%sir(:,icc_dn), &
                          dd_dn,perm_dn,D_dn, &
                          cur_connection_set%area(iconn),distance_gravity, &
                          upweight, option, vv_darcy, Res)
@@ -3856,9 +3812,6 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
 #endif
   
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-! call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 ! print *,'end jac'
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -3892,8 +3845,9 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
 
   if (patch%aux%Flash2%inactive_cells_exist) then
     f_up = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%Flash2%n_zero_rows, &
-                          patch%aux%Flash2%zero_rows_local_ghosted,f_up, &
+    call MatZeroRowsLocal(A,patch%aux%Flash2%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%Flash2%matrix_zeroing% &
+                            inactive_rows_local_ghosted,f_up, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
@@ -3950,12 +3904,11 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: icct_up, icct_dn, i
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:), tortuosity_loc_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
+  PetscInt :: iphas,iphas_up,iphas_dn,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
@@ -4042,9 +3995,6 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
  !  call MatZeroEntries(A,ierr)
 
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
  ResInc = 0.D0
 
@@ -4073,8 +4023,8 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = Flash2_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = Flash2_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
@@ -4085,7 +4035,7 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
       distance_gravity = cur_connection_set%dist(0,iconn) * &
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = patch%cc_id(ghosted_id)
 
 ! Then need fill up increments for BCs
       delxbc = 0.D0;
@@ -4103,7 +4053,6 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
         case(NEUMANN_BC, ZERO_GRADIENT_BC)
           ! solve for pb from Darcy's law given qb /= 0
           xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
-          !iphasebc = int(iphase_loc_p(ghosted_id))
           delxbc(idof)=patch%aux%Flash2%delx(idof,ghosted_id)
         end select
       enddo
@@ -4112,12 +4061,12 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
  
       call Flash2AuxVarCompute_Ninc(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0),&
          global_auxvars_bc(sum_connection),&
-         patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+         patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
          realization%fluid_properties, option)
       call Flash2AuxVarCompute_Winc(xxbc,delxbc,&
          auxvars_bc(sum_connection)%auxvar_elem(1:option%nflowdof),&
          global_auxvars_bc(sum_connection),&
-         patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+         patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
          realization%fluid_properties,option)
     
       do nvar=1,option%nflowdof
@@ -4127,7 +4076,7 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
           auxvars(ghosted_id)%auxvar_elem(nvar), &
           material_auxvars(ghosted_id)%porosity, &
           material_auxvars(ghosted_id)%tortuosity, &
-          Flash2_parameter%sir(:,icap_dn), &
+          Flash2_parameter%sir(:,icc_dn), &
           cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
           cur_connection_set%area(iconn), &
           distance_gravity,option, &
@@ -4227,27 +4176,24 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
       call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
                             cur_connection_set%dist(:,iconn),perm_dn)
     
-!     iphas_up = iphase_loc_p(ghosted_id_up)
-!     iphas_dn = iphase_loc_p(ghosted_id_dn)
-
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      D_up = Flash2_parameter%ckwet(ithrm_up)
-      D_dn = Flash2_parameter%ckwet(ithrm_dn)
-    
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
       
+      D_up = Flash2_parameter%ckwet(icct_up)
+      D_dn = Flash2_parameter%ckwet(icct_dn)
+
       do nvar = 1, option%nflowdof 
         call Flash2Flux(auxvars(ghosted_id_up)%auxvar_elem(nvar), &
                          material_auxvars(ghosted_id_up)%porosity, &
                          material_auxvars(ghosted_id_up)%tortuosity, &
-                         Flash2_parameter%sir(:,icap_up), &
+                         Flash2_parameter%sir(:,icc_up), &
                          dd_up,perm_up,D_up, &
                          auxvars(ghosted_id_dn)%auxvar_elem(0), &
                          material_auxvars(ghosted_id_dn)%porosity, &
                          material_auxvars(ghosted_id_dn)%tortuosity, &
-                         Flash2_parameter%sir(:,icap_dn), &
+                         Flash2_parameter%sir(:,icc_dn), &
                          dd_dn,perm_dn,D_dn, &
                          cur_connection_set%area(iconn),distance_gravity, &
                          upweight, option, vv_darcy, Res)
@@ -4256,12 +4202,12 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
         call Flash2Flux(auxvars(ghosted_id_up)%auxvar_elem(0), &
                          material_auxvars(ghosted_id_up)%porosity, &
                          material_auxvars(ghosted_id_up)%tortuosity, &
-                         Flash2_parameter%sir(:,icap_up), &
+                         Flash2_parameter%sir(:,icc_up), &
                          dd_up,perm_up,D_up, &
                          auxvars(ghosted_id_dn)%auxvar_elem(nvar), &
                          material_auxvars(ghosted_id_dn)%porosity, &
                          material_auxvars(ghosted_id_dn)%tortuosity, &
-                         Flash2_parameter%sir(:,icap_dn), &
+                         Flash2_parameter%sir(:,icc_dn), &
                          dd_dn,perm_dn,D_dn, &
                          cur_connection_set%area(iconn),distance_gravity, &
                          upweight, option, vv_darcy, Res)
@@ -4318,8 +4264,6 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
   endif
   
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine Flash2JacobianPatch1
 
@@ -4352,12 +4296,11 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: icct_up, icct_dn, i
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:), tortuosity_loc_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
+  PetscInt :: iphas,iphas_up,iphas_dn,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
@@ -4444,10 +4387,6 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
  ! print *,'*********** In Jacobian ********************** '
 !  call MatZeroEntries(A,ierr)
 
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
-
  ResInc = 0.D0
 #if 1
   ! Accumulation terms ------------------------------------
@@ -4459,14 +4398,13 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
     endif
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    icap = int(icap_loc_p(ghosted_id))
      
     do nvar =1, option%nflowdof
       call Flash2Accumulation(auxvars(ghosted_id)%auxvar_elem(nvar), &
              global_auxvars(ghosted_id),& 
              material_auxvars(ghosted_id)%porosity, &
              material_auxvars(ghosted_id)%volume, &
-             Flash2_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+             Flash2_parameter%dencpr(patch%cct_id(ghosted_id)), &
              option,ONE_INTEGER, res) 
       ResInc( local_id,:,nvar) =  ResInc(local_id,:,nvar) + Res(:)
     enddo
@@ -4582,9 +4520,6 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-! call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 ! print *,'end jac'
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -4593,12 +4528,15 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
 ! zero out isothermal and inactive cells
 #ifdef ISOTHERMAL
   zero = 0.d0
-  call MatZeroRowsLocal(A,n_zero_rows,zero_rows_local_ghosted,zero, &
+  call MatZeroRowsLocal(A,patch%aux%Flash2%matrix_zeroing%n_inactive_rows, &
+                        patch%aux%Flash2%matrix_zeroing% &
+                          inactive_rows_local_ghosted,zero, &
                         PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
-  do i=1, n_zero_rows
-    ii = mod(zero_rows_local(i),option%nflowdof)
-    ip1 = zero_rows_local_ghosted(i)
+  do i=1, patch%aux%Flash2%matrix_zeroing%n_inactive_rows
+    ii = mod(patch%aux%Flash2%matrix_zeroing%inactive_rows_local(i), &
+             option%nflowdof)
+    ip1 = patch%aux%Flash2%matrix_zeroing%inactive_rows_local_ghosted(i)
     if (ii == 0) then
       ip2 = ip1-1
     elseif (ii == option%nflowdof-1) then
@@ -4618,8 +4556,9 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
 
   if (patch%aux%Flash2%inactive_cells_exist) then
     f_up = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%Flash2%n_zero_rows, &
-                          patch%aux%Flash2%zero_rows_local_ghosted,f_up, &
+    call MatZeroRowsLocal(A,patch%aux%Flash2%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%Flash2%matrix_zeroing% &
+                            inactive_rows_local_ghosted,f_up, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif

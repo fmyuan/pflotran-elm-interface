@@ -11,6 +11,7 @@ util_obj  = \
 	${common_src}option_flow.o \
 	${common_src}option_transport.o \
 	${common_src}output_aux.o \
+	${common_src}matrix_zeroing.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
@@ -44,6 +45,7 @@ mode_aux_obj = \
 	${common_src}auxvars_towg.o \
 	${common_src}flash2_aux.o \
 	${common_src}general_aux.o \
+	${common_src}hydrate_aux.o \
 	${common_src}wipp_flow_aux.o \
 	${common_src}pm_base_aux.o \
 	${common_src}pm_toil_ims_aux.o \
@@ -52,10 +54,12 @@ mode_aux_obj = \
 	${common_src}miscible_aux.o \
 	${common_src}mphase_aux.o \
         ${common_src}nw_transport_aux.o \
+	${common_src}kdtree.o \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_general.o \
+	${common_src}pm_hydrate.o \
 	${common_src}pm_wipp_flow.o \
 	${common_src}pm_toil_ims.o \
 	${common_src}pm_towg.o \
@@ -66,6 +70,7 @@ mode_aux_obj = \
         ${common_src}pm_nwt.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \
+	${common_src}pm_osrt.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_surface_flow.o \
@@ -85,9 +90,10 @@ mode_obj = \
 	${common_src}flash2.o \
 	${common_src}general.o \
 	${common_src}general_common.o \
-        ${common_src}wipp_flow.o \
+	${common_src}wipp_flow.o \
 	${common_src}hydrate.o \
-        ${common_src}wipp_flow_common.o \
+	${common_src}hydrate_common.o \
+	${common_src}wipp_flow_common.o \
 	${common_src}toil_ims.o \
 	${common_src}towg.o \
 	${common_src}global.o \
@@ -118,7 +124,6 @@ shared_mode_aux_obj = \
 # DO NOT place any object files that depend on the discretization within 
 # util_obj
 chem_obj = \
-	${common_src}transport_constraint.o \
 	${common_src}reaction_database.o \
 	${common_src}reaction_database_aux.o \
 	${common_src}reaction_database_hpt.o \
@@ -131,6 +136,7 @@ chem_obj = \
 	${common_src}reaction_mineral.o \
 	${common_src}reaction_mineral_aux.o \
 	${common_src}reaction.o \
+	${common_src}reaction_base.o \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_clm.o \
 	${common_src}reaction_sandbox.o \
@@ -144,7 +150,12 @@ chem_obj = \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
-	${common_src}reaction_surf_complex_aux.o 
+	${common_src}reaction_surf_complex_aux.o \
+	${common_src}nw_transport_equilibrium.o \
+	${common_src}transport_constraint.o \
+	${common_src}transport_constraint_base.o \
+	${common_src}transport_constraint_rt.o \
+	${common_src}transport_constraint_nwt.o
 
 grid_obj = \
 	${common_src}connection.o \
@@ -171,6 +182,7 @@ relations_obj = \
 	${common_src}characteristic_curves_common.o \
 	${common_src}characteristic_curves_owg.o \
 	${common_src}characteristic_curves_wipp.o \
+	${common_src}characteristic_curves_thermal.o \
 	${common_src}mphase_pckr_mod.o
 
 properties_obj = \
@@ -239,6 +251,7 @@ misc_obj = \
 	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
 	${common_src}pmc_subsurface.o \
+	${common_src}pmc_subsurface_osrt.o \
 	${common_src}pmc_third_party.o \
 	${common_src}realization_base.o \
 	${common_src}realization_subsurface.o \
@@ -252,6 +265,7 @@ misc_obj = \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
+	${common_src}timestepper_KSP.o \
 	${common_src}timestepper_BE.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \

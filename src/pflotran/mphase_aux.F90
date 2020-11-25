@@ -5,6 +5,7 @@ module Mphase_Aux_module
   use Mphase_pckr_module
 
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -12,7 +13,6 @@ module Mphase_Aux_module
 
 !#define GARCIA 1
 #define DUANDEN 1
-
 
   type, public :: mphase_auxvar_elem_type
     PetscReal :: pres
@@ -35,7 +35,7 @@ module Mphase_Aux_module
   end type mphase_auxvar_elem_type
 
   type, public :: mphase_auxvar_type
-    
+    PetscInt :: istate_store
     type(mphase_auxvar_elem_type), pointer :: auxvar_elem(:) 
 #if 0
     PetscReal , pointer :: davgmw_dx(:)
@@ -62,9 +62,6 @@ module Mphase_Aux_module
   end type mphase_parameter_type
   
   type, public :: mphase_type
-    PetscInt :: n_zero_rows
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
-
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -77,6 +74,7 @@ module Mphase_Aux_module
     type(mphase_auxvar_type), pointer :: auxvars(:)
     type(mphase_auxvar_type), pointer :: auxvars_bc(:)
     type(mphase_auxvar_type), pointer :: auxvars_ss(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type mphase_type
 
 
@@ -111,13 +109,11 @@ function MphaseAuxCreate()
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_zero_rows = 0
+  nullify(aux%matrix_zeroing)
   allocate(aux%mphase_parameter)
   nullify(aux%mphase_parameter%sir)
   nullify(aux%mphase_parameter%ckwet)
   nullify(aux%mphase_parameter%dencpr)
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
   nullify(aux%res_old_AR)
   nullify(aux%res_old_FL)
   nullify(aux%delx)
@@ -161,6 +157,7 @@ subroutine MphaseAuxVarInit(auxvar,option)
      if (nvar>0) &
        auxvar%auxvar_elem(nvar)%hysdat => auxvar%auxvar_elem(0)%hysdat
 
+     auxvar%istate_store = 0
      auxvar%auxvar_elem(nvar)%pres = 0.d0
      auxvar%auxvar_elem(nvar)%temp = 0.d0
      auxvar%auxvar_elem(nvar)%sat = 0.d0
@@ -391,12 +388,13 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
     endif
 
     m_na=option%m_nacl; m_cl=m_na; m_nacl=m_na 
-    if (option%ntrandof > 0) then
-      m_na = global_auxvar%m_nacl(1)
-      m_cl = global_auxvar%m_nacl(2)
-      m_nacl = m_na
-      if (m_cl > m_na) m_nacl = m_cl
-    endif  
+    select case(option%itranmode)
+      case(RT_MODE)
+        m_na = global_auxvar%m_nacl(1)
+        m_cl = global_auxvar%m_nacl(2)
+        m_nacl = m_na
+        if (m_cl > m_na) m_nacl = m_cl
+    end select
 
 
     call Henry_duan_sun(t,p2*1.D-5,henry,lngamco2,m_na,m_cl)
@@ -675,10 +673,8 @@ subroutine MphaseAuxDestroy(aux)
     nullify(aux%auxvars_ss)
   endif
   
-  if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
-  nullify(aux%zero_rows_local)
-  if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)
-  nullify(aux%zero_rows_local_ghosted)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
+
   if (associated(aux%mphase_parameter)) then
     if (associated(aux%mphase_parameter%dencpr)) deallocate(aux%mphase_parameter%dencpr)
     nullify(aux%mphase_parameter%dencpr)

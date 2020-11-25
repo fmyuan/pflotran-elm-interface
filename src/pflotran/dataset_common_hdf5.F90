@@ -152,23 +152,25 @@ subroutine DatasetCommonHDF5Read(this,input,option)
   PetscBool :: found
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','DATASET')
     call StringToUpper(keyword)   
       
     call DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
 
     if (.not.found) then
-      call InputKeywordUnrecognized(keyword,'dataset',option)
+      call InputKeywordUnrecognized(input,keyword,'dataset',option)
     endif
   
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(this%hdf5_dataset_name) < 1) then
     this%hdf5_dataset_name = this%name
@@ -278,8 +280,6 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   
   h5fopen_err = 0
   if (option%myrank == option%io_rank) then
-    ! open the file
-    call h5open_f(hdf5_err)
     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
     call PrintMsg(option)
   
@@ -380,7 +380,6 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
     call PrintMsg(option)
     call h5fclose_f(file_id,hdf5_err)
-    call h5close_f(hdf5_err) 
     internal_units = 'sec'
     time_storage%times = time_storage%times * &
       UnitsConvertToInternal(time_units,internal_units,option)
@@ -427,6 +426,7 @@ function DatasetCommonHDF5Load(this,option)
   type(option_type) :: option
   
   PetscBool :: read_due_to_time
+  PetscInt :: end_of_buffer
   
   DatasetCommonHDF5Load = PETSC_FALSE
   
@@ -437,21 +437,22 @@ function DatasetCommonHDF5Load(this,option)
     ! DatasetCommonHDF5ReadTimes()
   endif
   
+  read_due_to_time = PETSC_FALSE
   if (associated(this%time_storage)) then
     this%time_storage%cur_time = option%time
     ! sets correct cur_time_index
     call TimeStorageUpdate(this%time_storage)
-    read_due_to_time = &
-      (this%time_storage%cur_time_index > 0 & 
-       .and. &
-       this%time_storage%cur_time_index >= &
-        ! both of the below will be zero initially
-         this%buffer_slice_offset + this%buffer_nslice &
-       .and. &
-       this%time_storage%cur_time_index < &
-         this%time_storage%max_time_index)
-  else
-    read_due_to_time = PETSC_FALSE
+    ! this > 0 conditional prevents repetitive loads of the same data
+    ! during initialization
+    if (this%time_storage%cur_time_index > 0) then
+                      ! both of the below will be zero initially
+      end_of_buffer = this%buffer_slice_offset + this%buffer_nslice
+      read_due_to_time = this%time_storage%cur_time_index >= &
+                         end_of_buffer .and. &
+                         ! this conditional prevents repetitive loads once
+                         ! max_time_index is reached
+                         end_of_buffer < this%time_storage%max_time_index
+    endif
   endif
   
   if (read_due_to_time .or. &

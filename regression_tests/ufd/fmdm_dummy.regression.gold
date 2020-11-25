@@ -13,7 +13,7 @@
       Min:   1.0000000000000E-03
      Mean:   1.0000000000000E-03
         1:   1.0000000000000E-03
--- CONCENTRATION: Total HCO3- --
+-- CONCENTRATION: Total CO3-- --
       Max:   1.0000000000000E-03
       Min:   1.0000000000000E-03
      Mean:   1.0000000000000E-03
@@ -39,18 +39,18 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Flow --
-   Time (seconds):   9.9651336669922E-02
+   Time (seconds):   5.9436321258545E-02
    Time Steps:          279
    Newton Iterations:          279
-   Solver Iterations:            0
+   Linear Solver Iterations:            0
    Time Step Cuts:            0
    Solution 2-Norm:   2.0132500000000E+05
    Residual 2-Norm:   0.0000000000000E+00
 -- SOLUTION: Transport --
-   Time (seconds):   1.0465407371521E-01
+   Time (seconds):   6.0469865798950E-02
    Time Steps:          279
    Newton Iterations:          279
-   Solver Iterations:          242
+   Linear Solver Iterations:          242
    Time Step Cuts:            0
    Solution 2-Norm:   2.0056075658978E-03
    Residual 2-Norm:   1.7993917248091E-27

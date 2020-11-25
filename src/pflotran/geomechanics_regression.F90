@@ -117,13 +117,14 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
   geomechanics_regression => GeomechanicsRegressionCreate()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS_REGRESSION')
     call StringToUpper(keyword)   
       
@@ -131,13 +132,14 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
     
       case('VARIABLES') 
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'variable','GEOMECHANICS_REGRESSION,VARIABLES')
-          call StringToLower(word)
+          call StringToUpper(word)
           new_variable => GeomechanicsRegressionVariableCreate()
           new_variable%name = word
           if (.not.associated(geomechanics_regression%variable_list)) then
@@ -147,6 +149,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
           endif
           cur_variable => new_variable
         enddo
+        call InputPopBlock(input,option)
       case('VERTICES')
         max_vertices = 100
         allocate(int_array(max_vertices))
@@ -171,10 +174,12 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
         call InputReadInt(input,option,geomechanics_regression%num_vertices_per_process)
         call InputErrorMsg(input,option,'num vertices per process','GEOMECHANICS_REGRESSION')
       case default
-        call InputKeywordUnrecognized(keyword,'GEOMECHANICS_REGRESSION',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'GEOMECHANICS_REGRESSION',option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine GeomechanicsRegressionRead
 
@@ -498,8 +503,9 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
   ! 
   ! Author: Satish Karra
   ! Date: 06/22/2016
-  ! 
-
+  !
+  
+  use String_module
   use Geomechanics_Realization_class
   use Timestepper_Steady_class
   use Option_module
@@ -553,7 +559,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
     cur_variable1 => geomechanics_regression%variable_list
     do
       if (.not.associated(cur_variable1)) exit
-      if (cur_variable%name == cur_variable1%name) then
+      if (StringCompareIgnoreCase(cur_variable%name,cur_variable1%name)) then
         found = PETSC_TRUE
         exit
        endif

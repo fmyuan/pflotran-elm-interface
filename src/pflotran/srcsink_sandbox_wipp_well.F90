@@ -2,6 +2,9 @@ module SrcSink_Sandbox_WIPP_Well_class
 
 ! Sandbox srcsink for WIPP well source terms
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   
@@ -9,8 +12,6 @@ module SrcSink_Sandbox_WIPP_Well_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter, public :: WIPP_WELL_LIQUID_MOBILITY = 1
   PetscInt, parameter, public :: WIPP_WELL_GAS_MOBILITY = 2
   PetscInt, parameter, public :: WIPP_WELL_LIQUID_PRESSURE = 3
@@ -66,8 +67,6 @@ subroutine WIPPWellRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -82,12 +81,13 @@ subroutine WIPPWellRead(this,input,option)
   character(len=MAXWORDLENGTH) :: word, internal_units
   PetscBool :: found
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'SRCSINK_SANDBOX,WIPP')
     call StringToUpper(word)   
@@ -109,9 +109,10 @@ subroutine WIPPWellRead(this,input,option)
         call InputReadDouble(input,option,this%productivity_index)
         call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,WIPP,WELL')
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,WIPP',option)
+        call InputKeywordUnrecognized(input,word,'SRCSINK_SANDBOX,WIPP',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine WIPPWellRead
 

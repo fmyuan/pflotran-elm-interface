@@ -43,6 +43,7 @@ module Characteristic_Curves_Base_module
   type, public :: rel_perm_func_base_type
     type(polynomial_type), pointer :: poly
     PetscReal :: Sr
+    PetscReal :: Srg
     PetscBool :: analytical_derivative_available
   contains
     procedure, public :: Init => RPFBaseInit
@@ -141,6 +142,7 @@ subroutine RPFBaseInit(this)
   ! Cannot allocate here.  Allocation takes place in daughter class
   nullify(this%poly)
   this%Sr = UNINITIALIZED_DOUBLE
+  this%Srg = UNINITIALIZED_DOUBLE
   this%analytical_derivative_available = PETSC_FALSE
   
 end subroutine RPFBaseInit
@@ -420,7 +422,7 @@ subroutine RPF_Base_Test(this,cc_name,phase,option)
                                 + liquid_saturation(i)*perturbation
     call this%RelativePermeability(liquid_saturation_pert(i),kr_pert(i), &
                                    dummy_real(i),option)
-    if( i>1 ) then
+    if (i > 1) then
       dkr_dsat_numerical(i) = (kr_pert(i) - kr(i))/ &
                               (liquid_saturation(i)*perturbation)
     else

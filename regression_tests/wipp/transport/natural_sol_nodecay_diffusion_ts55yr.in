@@ -1,0 +1,215 @@
+
+
+!=========================== flow mode ========================================
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  
+  PROCESS_MODELS
+  
+    SUBSURFACE_TRANSPORT  nw_trans
+      MODE NWT
+    END
+    
+  END
+END
+
+!==============================================================================
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 30
+    DT_FACTOR 2. 2. 2. 2. 2. 2. 2. 2. 2. 2. 1.8 1.6 1.4 1.2 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.
+  /
+
+  NEWTON_SOLVER
+    RTOL 1.0d-06
+    ATOL 1.0d-25
+  /
+
+END
+!==============================================================================
+
+!=========================== REGRESSION =======================================
+
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+!=========================== discretization ===================================
+
+GRID
+  GRAVITY 0.0d0  -9.80665d+00  0.0d0  ! use y as the vertical direction
+  TYPE structured
+  NXYZ 5 1 1
+  DXYZ
+     1*100.0d0 
+     1*100.0d0 
+     1*4.38406d1
+  /
+END
+
+!=========================== fluid properties =================================
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+!=========================== material properties ==============================
+
+MATERIAL_PROPERTY REPO
+  ID 3
+  CHARACTERISTIC_CURVES cc_KRP4
+  POROSITY 3.000000D-01
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 1.0D-09
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  PERMEABILITY
+    PERM_ISO 1.0D-12
+  /
+END
+
+!=========================== regions ==========================================
+
+REGION rgs_repo
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+REGION bc_face
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0   0.d0
+    0.d0 100.d0 4.38406d1
+  /
+END
+
+!=========================== stratigraphy couplers ============================
+
+STRATA
+  MATERIAL REPO
+  REGION rgs_repo
+END
+
+!=========================== transport conditions =============================
+
+TRANSPORT_CONDITION transport_initial_condition
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    ! time[s]    constraint
+    0.0d0      constraint_chemistry_initial
+  /
+END
+
+TRANSPORT_CONDITION transport_bc_condition
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    ! time[s]    constraint
+    0.0d0      constraint_chemistry_bc
+  /
+END
+
+!=========================== condition couplers ===============================
+
+INITIAL_CONDITION
+  TRANSPORT_CONDITION transport_initial_condition
+  REGION rgs_repo
+END
+
+BOUNDARY_CONDITION
+  TRANSPORT_CONDITION transport_bc_condition
+  REGION bc_face
+END
+
+!=========================== solver options ===================================
+
+
+
+!=========================== times ============================================
+
+TIME
+  FINAL_TIME 550.d0 yr
+  INITIAL_TIMESTEP_SIZE 1.d0 yr
+  MAXIMUM_TIMESTEP_SIZE 55.d0 yr
+END
+
+!=========================== output options ===================================
+
+OBSERVATION
+  REGION rgs_repo
+END
+
+skip
+OUTPUT 
+  OBSERVATION_FILE
+    NO_PRINT_INITIAL
+    ! NO_PRINT_FINAL
+    PERIODIC TIMESTEP 1
+    VARIABLES
+      VOLUME
+    /
+  /
+END
+noskip
+
+!=============================== transport ====================================
+
+NUCLEAR_WASTE_CHEMISTRY
+
+  SPECIES
+    NAME                 AM241L
+    SOLUBILITY           3.08531847680638d-03    # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3                 # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         0.0d0                   # [m^3-water/m^3-bulk]
+  /
+
+  SPECIES
+    NAME                      PU239L
+    SOLUBILITY                5.94620667361208d-03   # [mol/m^3-liq]
+    PRECIPITATE_MOLAR_DENSITY 38.61d3                # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD              0.0d0                  # [m^3-water/m^3-bulk]
+  /                     
+
+  OUTPUT
+    ALL_SPECIES
+    ALL_CONCENTRATIONS
+    MINERAL_VOLUME_FRACTION
+  /
+
+END
+
+!=========================== transport constraints ============================
+
+CONSTRAINT constraint_chemistry_initial
+  CONCENTRATIONS
+   ! species_name  concentration  constraint_type 
+   ! AQ is for aqueous concentration [mol/m^3-liq]
+   ! Cell volume is 100.0 x 100.0 x 4.38406d1 m^3 = 438406.0 m^3
+
+    AM241L    1.d-20    AQ  # [mol/m^3-liq]
+    PU239L    1.d-20    AQ  # [mol/m^3-liq]
+  /
+END
+
+CONSTRAINT constraint_chemistry_bc
+  CONCENTRATIONS
+   ! species_name  concentration  constraint_type 
+   ! VF is for mineral volume fraction [m^3-mnrl/m^3-void]
+   ! Cell volume is 100.0 x 100.0 x 4.38406d1 m^3 = 438406.0 m^3
+
+    AM241L    1.d-8    VF  # [m^3-mnrl/m^3-void]
+    PU239L    1.d-5    VF  # [m^3-mnrl/m^3-void]
+  /
+END
+
+!==============================================================================
+END_SUBSURFACE
+!==============================================================================
+

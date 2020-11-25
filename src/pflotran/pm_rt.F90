@@ -1,6 +1,8 @@
 module PM_RT_class
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
+
   use PM_Base_class
 !geh: using Reactive_Transport_module here fails with gfortran (internal 
 !     compiler error)
@@ -32,9 +34,12 @@ module PM_RT_class
     PetscBool :: temperature_dependent_diffusion
     ! for transport only
     PetscBool :: transient_porosity
+    PetscBool :: operator_split
   contains
     procedure, public :: Setup => PMRTSetup
-    procedure, public :: ReadSimulationBlock => PMRTRead
+    procedure, public :: ReadSimulationOptionsBlock => PMRTReadSimOptionsBlock
+    procedure, public :: ReadTSBlock => PMRTReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMRTReadNewtonSelectCase
     procedure, public :: SetRealization => PMRTSetRealization
     procedure, public :: InitializeRun => PMRTInitializeRun
     procedure, public :: FinalizeRun => PMRTFinalizeRun
@@ -67,7 +72,11 @@ module PM_RT_class
     PetscInt :: checkpoint_activity_coefs
   end type pm_rt_header_type  
   
-  public :: PMRTCreate
+  public :: PMRTCreate, &
+            PMRTInit, &
+            PMRTInitializeRun, &
+            PMRTWeightFlowParameters, &
+            PMRTStrip
 
 contains
 
@@ -75,53 +84,65 @@ contains
 
 function PMRTCreate()
   ! 
-  ! Creates reactive transport process models shell
+  ! Creates reactive transport process model
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
-
   implicit none
   
   class(pm_rt_type), pointer :: PMRTCreate
 
-  class(pm_rt_type), pointer :: rt_pm
+  class(pm_rt_type), pointer :: pm_rt
   
-#ifdef PM_RT_DEBUG  
-  print *, 'PMRTCreate()'
-#endif
+  allocate(pm_rt)
+  call PMRTInit(pm_rt)
+  pm_rt%name = 'Reactive Transport'
+  pm_rt%header = 'REACTIVE TRANSPORT'
   
-  allocate(rt_pm)
-  nullify(rt_pm%option)
-  nullify(rt_pm%output_option)
-  nullify(rt_pm%realization)
-  nullify(rt_pm%comm1)
-  nullify(rt_pm%commN)
-  
-  ! local variables
-  rt_pm%steady_flow = PETSC_FALSE
-  rt_pm%tran_weight_t0 = 0.d0
-  rt_pm%tran_weight_t1 = 0.d0
-  rt_pm%check_post_convergence = PETSC_FALSE
-  nullify(rt_pm%max_concentration_change)
-  nullify(rt_pm%max_volfrac_change)
-  rt_pm%volfrac_change_governor = 1.d0
-  rt_pm%cfl_governor = UNINITIALIZED_DOUBLE
-  rt_pm%temperature_dependent_diffusion = PETSC_FALSE
-  ! these flags can only be true for transport only
-  rt_pm%transient_porosity = PETSC_FALSE
-
-  call PMBaseInit(rt_pm)
-  rt_pm%name = 'Reactive Transport'
-  rt_pm%header = 'REACTIVE TRANSPORT'
-  
-  PMRTCreate => rt_pm
+  PMRTCreate => pm_rt
   
 end function PMRTCreate
 
 ! ************************************************************************** !
 
-subroutine PMRTRead(this,input)
+subroutine PMRTInit(pm_rt)
+  ! 
+  ! Initializes reactive transport process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/09/19
+  ! 
+  implicit none
+  
+  class(pm_rt_type) :: pm_rt
+  
+  call PMBaseInit(pm_rt)
+  nullify(pm_rt%option)
+  nullify(pm_rt%output_option)
+  nullify(pm_rt%realization)
+  nullify(pm_rt%comm1)
+  nullify(pm_rt%commN)
+  
+  ! local variables
+  pm_rt%steady_flow = PETSC_FALSE
+  pm_rt%tran_weight_t0 = 0.d0
+  pm_rt%tran_weight_t1 = 0.d0
+  pm_rt%check_post_convergence = PETSC_FALSE
+  nullify(pm_rt%max_concentration_change)
+  nullify(pm_rt%max_volfrac_change)
+  pm_rt%volfrac_change_governor = 1.d0
+  pm_rt%cfl_governor = UNINITIALIZED_DOUBLE
+  pm_rt%temperature_dependent_diffusion = PETSC_FALSE
+  ! these flags can only be true for transport only
+  pm_rt%transient_porosity = PETSC_FALSE
+  pm_rt%operator_split = PETSC_FALSE
+
+end subroutine PMRTInit
+
+! ************************************************************************** !
+
+subroutine PMRTReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the reactive transport 
   ! process model
@@ -149,54 +170,125 @@ subroutine PMRTRead(this,input)
   error_string = 'Reactive Transport Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+    call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                        error_string,option)
     if (found) cycle
 
     select case(trim(keyword))
-      case('GLOBAL_IMPLICIT','OPERATOR_SPLIT','OPERATOR_SPLITTING')
-      case('MAX_VOLUME_FRACTION_CHANGE')
-        call InputReadDouble(input,option,this%volfrac_change_governor)
-        call InputDefaultMsg(input,option,'maximum volume fraction change')
-      case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,rt_itol_rel_update)
-        call InputErrorMsg(input,option,'rt_itol_rel_update', &
-                           'SUBSURFACE_TRANSPORT OPTIONS')
-        this%check_post_convergence = PETSC_TRUE
-      case('MINIMUM_SATURATION')
-        call InputReadDouble(input,option,rt_min_saturation)
-        call InputErrorMsg(input,option,'min_saturation', &
-                           'SUBSURFACE_TRANSPORT OPTIONS')
-      case('NUMERICAL_JACOBIAN')
-        option%transport%numerical_derivatives = PETSC_TRUE
       case('INCLUDE_GAS_PHASE')
         option%io_buffer = 'INCLUDE_GAS_PHASE under SUBSURFACE_TRANSPORT &
                            &has been deprecated.'
         call PrintErrMsg(option)
-      case('TEMPERATURE_DEPENDENT_DIFFUSION')
-        this%temperature_dependent_diffusion = PETSC_TRUE
-      case('MAX_CFL')
-        call InputReadDouble(input,option,this%cfl_governor)
-        call InputErrorMsg(input,option,'MAX_CFL', &
-                           'SUBSURFACE_TRANSPORT OPTIONS')
+      case('MINIMUM_SATURATION')
+        call InputReadDouble(input,option,rt_min_saturation)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE
+      case('TEMPERATURE_DEPENDENT_DIFFUSION')
+        this%temperature_dependent_diffusion = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
-end subroutine PMRTRead
+end subroutine PMRTReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMRTReadTSSelectCase(this,input,keyword,found, &
+                                error_string,option)
+  ! 
+  ! Read timestepper settings specific to this process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use Option_module
+ 
+  implicit none
+  
+  class(pm_rt_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+!  found = PETSC_TRUE
+!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('CFL_GOVERNOR')
+      call InputReadDouble(input,option,this%cfl_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('VOLUME_FRACTION_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%volfrac_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMRTReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMRTReadNewtonSelectCase(this,input,keyword,found, &
+                                    error_string,option)
+  ! 
+  ! Reads input file parameters associated with the RT process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/25/20
+
+  use Input_Aux_module
+  use Option_module
+  use Reactive_Transport_Aux_module
+ 
+  implicit none
+  
+  class(pm_rt_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+
+!  found = PETSC_TRUE
+!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('NUMERICAL_JACOBIAN')
+      option%transport%numerical_derivatives = PETSC_TRUE
+    case('ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,rt_itol_rel_update)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMRTReadNewtonSelectCase
 
 ! ************************************************************************** !
 
@@ -221,10 +313,6 @@ subroutine PMRTSetup(this)
   class(pm_rt_type) :: this
 
   type(reactive_transport_param_type), pointer :: rt_parameter
-
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%Setup()')
-#endif
 
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
   
@@ -280,10 +368,6 @@ subroutine PMRTSetRealization(this,realization)
   class(pm_rt_type) :: this
   class(realization_subsurface_type), pointer :: realization
 
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%SetRealization()')
-#endif
-  
   this%realization => realization
   this%realization_base => realization
   
@@ -313,18 +397,16 @@ recursive subroutine PMRTInitializeRun(this)
   use Reactive_Transport_module, only : RTUpdateAuxVars, &
                                         RTClearActivityCoefficients
   use Variables_module, only : POROSITY
-  use Material_Aux_class, only : POROSITY_MINERAL 
+  use Material_Aux_class, only : POROSITY_BASE 
   use Material_module, only : MaterialGetAuxVarVecLoc
+  use String_module, only : StringWrite
+  use Utility_module, only : Equal
 
   implicit none
   
   class(pm_rt_type) :: this
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%InitializeRun()')
-#endif
-
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
 
@@ -332,7 +414,7 @@ recursive subroutine PMRTInitializeRun(this)
     call RealizationCalcMineralPorosity(this%realization)
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_MINERAL)
+                                 POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity0)
     call VecCopy(this%realization%field%porosity0, &
@@ -352,7 +434,9 @@ recursive subroutine PMRTInitializeRun(this)
   
   ! update boundary concentrations so that activity coefficients can be 
   ! calculated at first time step
-  call RTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+  !geh: need to update cells also, as the flow solution may have changed
+  !     during restart and transport may have been skipped
+  call RTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_TRUE,PETSC_FALSE)
   ! pass PETSC_FALSE to turn off update of kinetic state variables
   call PMRTUpdateSolution2(this,PETSC_FALSE)
   
@@ -371,6 +455,13 @@ recursive subroutine PMRTInitializeRun(this)
   endif
   ! check on MAX_STEPS < 0 to quit after initialization.
 #endif  
+
+  ! ensure that time step size was set to zero
+  if (.not.Equal(this%option%tran_dt,0.d0)) then
+    this%option%io_buffer = 'Non-zero transport time step (' // &
+      trim(StringWrite(this%option%tran_dt)) // ') during initialization.'
+    call PrintErrMsg(this%option)
+  endif
     
 end subroutine PMRTInitializeRun
 
@@ -393,10 +484,6 @@ subroutine PMRTInitializeTimestep(this)
   
   class(pm_rt_type) :: this
  
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%InitializeTimestep()')
-#endif
-
   this%option%tran_dt = this%option%dt
 
   call PMBasePrintHeader(this)
@@ -404,22 +491,7 @@ subroutine PMRTInitializeTimestep(this)
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)
-  if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
-    call this%SetTranWeights()
-    if (this%option%flow%transient_porosity) then
-      ! weight material properties (e.g. porosity)
-      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
-                                 this%tran_weight_t0, &
-                                 this%realization%field,this%comm1)
-    endif
-    ! set densities and saturations to t
-    call GlobalWeightAuxVars(this%realization,this%tran_weight_t0)
-  else if (this%transient_porosity) then
-    this%tran_weight_t0 = 0.d0
-    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
-                               this%tran_weight_t0, &
-                               this%realization%field,this%comm1)
-  endif
+  call PMRTWeightFlowParameters(this,TIME_T)
 
   call RTInitializeTimestep(this%realization)
 
@@ -429,6 +501,51 @@ subroutine PMRTInitializeTimestep(this)
   endif
 
 end subroutine PMRTInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMRTWeightFlowParameters(this,time_level)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/14/13
+  ! 
+
+  use Global_module  
+  use Material_module
+
+  implicit none
+  
+  class(pm_rt_type) :: this
+  PetscInt :: time_level
+  
+  PetscReal :: tran_weight
+  PetscErrorCode :: ierr
+
+  if (time_level == TIME_T) then ! for ts initialization and ts cut
+    if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
+      call this%SetTranWeights()
+    endif
+    tran_weight = this%tran_weight_t0
+  else !TIME_TpDT
+    tran_weight = this%tran_weight_t1
+  endif
+
+  if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
+    if (this%option%flow%transient_porosity) then
+      ! weight material properties (e.g. porosity)
+      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                                 tran_weight, &
+                                 this%realization%field,this%comm1)
+    endif
+    ! set densities and saturations to t
+    call GlobalWeightAuxVars(this%realization,tran_weight)
+  else if (this%transient_porosity) then
+    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                               tran_weight, &
+                               this%realization%field,this%comm1)
+  endif
+  
+end subroutine PMRTWeightFlowParameters
 
 ! ************************************************************************** !
 
@@ -449,25 +566,7 @@ subroutine PMRTPreSolve(this)
   
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%UpdatePreSolve()')
-#endif
-  
-  ! set densities and saturations to t+dt
-  if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
-    if (this%option%flow%transient_porosity) then
-      ! weight material properties (e.g. porosity)
-      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
-                                 this%tran_weight_t1, &
-                                 this%realization%field,this%comm1)
-    endif
-    call GlobalWeightAuxVars(this%realization,this%tran_weight_t1)
-  else if (this%transient_porosity) then
-    this%tran_weight_t1 = 1.d0
-    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
-                               this%tran_weight_t1, &
-                               this%realization%field,this%comm1)
-  endif
+  call PMRTWeightFlowParameters(this,TIME_TpDT)
 
   call RTUpdateTransportCoefs(this%realization)
   
@@ -507,10 +606,6 @@ subroutine PMRTPostSolve(this)
   
   class(pm_rt_type) :: this
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%PostSolve()')
-#endif
-  
 end subroutine PMRTPostSolve
 
 ! ************************************************************************** !
@@ -524,7 +619,7 @@ subroutine PMRTFinalizeTimestep(this)
   use Reactive_Transport_module, only : RTMaxChange
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
-  use Material_Aux_class, only : POROSITY_MINERAL 
+  use Material_Aux_class, only : POROSITY_BASE 
   use Global_module
 
   implicit none
@@ -539,7 +634,7 @@ subroutine PMRTFinalizeTimestep(this)
     call RealizationUpdatePropertiesTS(this%realization)
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_MINERAL)
+                                 POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
   endif
@@ -590,9 +685,6 @@ function PMRTAcceptSolution(this)
   
   PetscBool :: PMRTAcceptSolution
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%AcceptSolution()')
-#endif
   ! do nothing
   PMRTAcceptSolution = PETSC_TRUE
   
@@ -621,10 +713,6 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dtt, uvf, dt_vf, dt_tfac, fac
   PetscInt :: ifac
   PetscReal, parameter :: pert = 1.d-20
-  
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%UpdateTimestep()')
-#endif
   
   if (this%volfrac_change_governor < 1.d0) then
     ! with volume fraction potentially scaling the time step.
@@ -668,7 +756,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   
 end subroutine PMRTUpdateTimestep
 
@@ -686,10 +774,6 @@ recursive subroutine PMRTFinalizeRun(this)
   
   class(pm_rt_type) :: this
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%PMRTFinalizeRun()')
-#endif
-  
   ! do something here
   
   if (associated(this%next)) then
@@ -705,7 +789,6 @@ subroutine PMRTResidual(this,snes,xx,r,ierr)
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
-
   use Reactive_Transport_module, only : RTResidual
 
   implicit none
@@ -715,10 +798,6 @@ subroutine PMRTResidual(this,snes,xx,r,ierr)
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%Residual()')
-#endif
   
   call RTResidual(snes,xx,r,this%realization,ierr)
 
@@ -731,7 +810,6 @@ subroutine PMRTJacobian(this,snes,xx,A,B,ierr)
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
-
   use Reactive_Transport_module, only : RTJacobian
 
   implicit none
@@ -742,17 +820,13 @@ subroutine PMRTJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%Jacobian()')
-#endif
-
   call RTJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMRTJacobian
 
 ! ************************************************************************** !
 
-subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! In the case of the log formulation, ensures that the update
   ! vector does not exceed a prescribed tolerance
@@ -760,7 +834,6 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! Author: Glenn Hammond
   ! Date: 03/16/09
   ! 
-
   use Realization_Subsurface_class
   use Grid_module
   use Option_module
@@ -769,7 +842,7 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_rt_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -778,7 +851,7 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal, pointer :: C_p(:)
   PetscReal, pointer :: dC_p(:)
   type(grid_type), pointer :: grid
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   PetscReal :: ratio, min_ratio
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
@@ -861,7 +934,7 @@ end subroutine PMRTCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMRTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                X1_changed,ierr)
   ! 
   ! Checks convergence after to update
@@ -881,7 +954,7 @@ subroutine PMRTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_rt_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -950,7 +1023,7 @@ subroutine PMRTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   endif
   
   if (option%use_mc) then  
-    call SecondaryRTUpdateIterate(line_search,X0,dX,X1,dX_changed, &
+    call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
                                   X1_changed,this%realization,ierr)
   endif
   
@@ -1037,10 +1110,6 @@ subroutine PMRTTimeCut(this)
   
   class(pm_rt_type) :: this
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%TimeCut()')
-#endif
-  
   this%option%tran_dt = this%option%dt
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
     call this%SetTranWeights()
@@ -1084,10 +1153,6 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   
   class(pm_rt_type) :: this
   PetscBool :: update_kinetics
-  
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%UpdateSolution()')
-#endif
   
   ! begin from RealizationUpdate()
   call TranConditionUpdate(this%realization%transport_conditions, &
@@ -1150,10 +1215,6 @@ subroutine PMRTMaxChange(this)
   
   class(pm_rt_type) :: this
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%MaxChange()')
-#endif
-
   print *, 'PMRTMaxChange not implemented'
   stop
 !  call RTMaxChange(this%realization)
@@ -1174,10 +1235,6 @@ subroutine PMRTComputeMassBalance(this,mass_balance_array)
   
   class(pm_rt_type) :: this
   PetscReal :: mass_balance_array(:)
-
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%MassBalance()')
-#endif
 
 #ifndef SIMPLIFY 
   call RTComputeMassBalance(this%realization,-999,mass_balance_array)
@@ -1225,8 +1282,6 @@ subroutine PMRTCheckpointBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/29/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1243,12 +1298,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   implicit none
 
   interface PetscBagGetData
-
-! ************************************************************************** !
-
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: pm_rt_header_type
       implicit none
       PetscBag :: bag
@@ -1369,8 +1419,6 @@ subroutine PMRTRestartBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/29/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1388,12 +1436,7 @@ subroutine PMRTRestartBinary(this,viewer)
   implicit none
 
   interface PetscBagGetData
-
-! ************************************************************************** !
-
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: pm_rt_header_type
       implicit none
       PetscBag :: bag
@@ -1526,8 +1569,6 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   ! Date: 07/30/15
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1709,8 +1750,6 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   ! Date: 07/30/15
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1930,14 +1969,13 @@ end subroutine PMRTInputRecord
 
 ! ************************************************************************** !
 
-subroutine PMRTDestroy(this)
+subroutine PMRTStrip(this)
   ! 
-  ! Destroys RT process model
+  ! Strips members of RT process model
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 12/09/19
   ! 
-
   use Reactive_Transport_module, only : RTDestroy
   use Utility_module, only : DeallocateArray
 
@@ -1948,14 +1986,31 @@ subroutine PMRTDestroy(this)
   call DeallocateArray(this%max_concentration_change)
   call DeallocateArray(this%max_volfrac_change)
 
+  call PMBaseDestroy(this)
   call RTDestroy(this%realization)
   ! destroyed in realization
+  nullify(this%realization)
   nullify(this%comm1)
-  nullify(this%option)
-  nullify(this%output_option)
   call this%commN%Destroy()
   if (associated(this%commN)) deallocate(this%commN)
   nullify(this%commN)  
+
+end subroutine PMRTStrip
+  
+! ************************************************************************** !
+
+subroutine PMRTDestroy(this)
+  ! 
+  ! Destroys RT process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/14/13
+  ! 
+  implicit none
+  
+  class(pm_rt_type) :: this
+
+  call PMRTStrip(this)
 
 end subroutine PMRTDestroy
   

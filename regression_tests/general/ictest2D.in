@@ -11,13 +11,22 @@ SIMULATION
       MODE GENERAL
       OPTIONS
         #ISOTHERMAL
-        MAX_PRESSURE_CHANGE 1.d8 #Pa
       /
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  MAX_STEPS 1
+    PRESSURE_CHANGE_GOVERNOR 1.d8 #Pa
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -58,9 +67,6 @@ GRID
 END
 
 #=========================== timestepper ======================================
-TIMESTEPPER FLOW
-#  MAX_STEPS 1
-END
 
 #=========================== times ============================================
 TIME

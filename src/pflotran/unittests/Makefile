@@ -19,12 +19,16 @@ TEST_OBJS = $(TEST_SRCS:.pf=$(OBJ_EXT))
 # their dependancies)! Probably need a more complex .o dependancy
 # setup like the main makefile...
 PFLOTRAN_OBJS = \
-        $(EXE_DIR)/characteristic_curves.o \
-        $(EXE_DIR)/characteristic_curves_base.o \
-        $(EXE_DIR)/characteristic_curves_common.o \
-        $(EXE_DIR)/characteristic_curves_owg.o \
-        $(EXE_DIR)/characteristic_curves_wipp.o \
+	$(EXE_DIR)/characteristic_curves.o \
+	$(EXE_DIR)/characteristic_curves_base.o \
+	$(EXE_DIR)/characteristic_curves_common.o \
+	$(EXE_DIR)/characteristic_curves_owg.o \
+	$(EXE_DIR)/characteristic_curves_wipp.o \
 	$(EXE_DIR)/characteristic_curves_table.o \
+	$(EXE_DIR)/characteristic_curves_thermal.o \
+	$(EXE_DIR)/dataset_ascii.o \
+	$(EXE_DIR)/dataset_base.o \
+	$(EXE_DIR)/time_storage.o \
 	$(EXE_DIR)/eos_database.o \
 	$(EXE_DIR)/eos_gas.o \
 	$(EXE_DIR)/eos_water.o \
@@ -45,6 +49,7 @@ PFLOTRAN_OBJS = \
 
 FFLAGS = -g -I. -I$(EXE_DIR) -I$(PFUNIT_DIR)/source -I$(PFUNIT_DIR)/include
 LIBS   =
+
 ifdef codecov
   FFLAGS += -fprofile-arcs -ftest-coverage
   LIBS += -lgcov

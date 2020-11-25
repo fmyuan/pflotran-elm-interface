@@ -585,8 +585,6 @@ subroutine OutputGetVertexCoordinatesGeomech(grid,vec,direction,option)
   ! Date: 07/02/2013
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -663,8 +661,6 @@ subroutine OutputGeomechGetVarFromArray(geomech_realization,vec,ivar,isubvar, &
   ! Date: 07/3/13
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Geomechanics_Realization_class
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -1202,8 +1198,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
@@ -1302,9 +1296,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   endif
 
   grid => patch%geomech_grid
-
-    ! initialize fortran interface
-  call h5open_f(hdf5_err)
 
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
@@ -1447,7 +1438,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   call h5gclose_f(grp_id,hdf5_err)
 
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 
   if (option%myrank == option%io_rank) then
     call OutputXMFFooterGeomech(OUTPUT_UNIT)
@@ -1469,8 +1459,6 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   ! Date: 07/3/13
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use Geomechanics_Realization_class
@@ -1570,6 +1558,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1690,6 +1679,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_INTEGER,file_space_id, &
                      data_set_id,hdf5_err,prop_id)

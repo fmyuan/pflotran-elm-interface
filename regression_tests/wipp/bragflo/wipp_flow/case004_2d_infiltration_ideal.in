@@ -28,8 +28,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE WIPP_FLOW
       OPTIONS
-        MAX_PRESSURE_CHANGE 1.d20
-        MAX_SATURATION_CHANGE 1.d20
         GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
         NO_GAS_GENERATION
       /
@@ -39,12 +37,33 @@ END
 
 !==============================================================================
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    PRESSURE_CHANGE_GOVERNOR 1.d20
+    SATURATION_CHANGE_GOVERNOR 1.d20
+  /
+
+  NEWTON_SOLVER
+    !  RTOL 1.d-08
+    !  ATOL 1.d-08
+    !  STOL 1.d-30       ! Turn off STOL criteria
+    MAXIMUM_NUMBER_OF_ITERATIONS 20          ! Maximum newton iteration number
+  /
+
+  LINEAR_SOLVER
+    !  SOLVER DIRECT
+  /
+
+END
 !==============================================================================
 
 !=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
-  CELLS
+  CELL_IDS
     1
     2
     3
@@ -632,16 +651,7 @@ SOURCE_SINK well4
 END
 
 !========================== solver ============================================
-NEWTON_SOLVER FLOW
-!  RTOL 1.d-08
-!  ATOL 1.d-08
-!  STOL 1.d-30       ! Turn off STOL criteria
-  MAXIMUM_NUMBER_OF_ITERATIONS 20          ! Maximum newton iteration number
-END
 
-LINEAR_SOLVER FLOW
-!  SOLVER DIRECT
-END
 
 !=========================== output options ===================================
 skip

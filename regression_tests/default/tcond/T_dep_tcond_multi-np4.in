@@ -1,0 +1,37 @@
+#Description: Test multiple thermal characteristic curves in parallel
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        CHECK_MAX_DPL_LIQ_STATE_ONLY
+        GAS_STATE_AIR_MASS_DOF WATER_MOL_FRAC
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE subsurface_block.txt
+
+NUMERICAL_METHODS FLOW
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+END
+
+REGRESSION
+  CELL_IDS
+    2
+    5
+    8
+    11
+    14
+  /
+  CELLS_PER_PROCESS 1
+END
+
+END_SUBSURFACE

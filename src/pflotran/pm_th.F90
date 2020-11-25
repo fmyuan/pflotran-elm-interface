@@ -33,7 +33,8 @@ module PM_TH_class
     PetscReal :: rel_update_inf_tol(2)
   contains
     procedure, public :: Setup => PMTHSetup
-    procedure, public :: ReadSimulationBlock => PMTHRead
+    procedure, public :: ReadSimulationOptionsBlock => PMTHReadSimOptionsBlock
+    procedure, public :: ReadNewtonBlock => PMTHReadNewtonSelectCase
     procedure, public :: InitializeTimestep => PMTHInitializeTimestep
     procedure, public :: Residual => PMTHResidual
     procedure, public :: Jacobian => PMTHJacobian
@@ -93,7 +94,7 @@ function PMTHCreate()
 
   nullify(this%commN)
 
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   this%name = 'TH Flow'
   this%header = 'TH FLOW'
 
@@ -108,12 +109,13 @@ end function PMTHCreate
 
 ! ************************************************************************** !
 
-subroutine PMTHRead(this,input)
+subroutine PMTHReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the TH process model
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/29/15
+
   use Input_Aux_module
   use String_module
   use Utility_module
@@ -126,140 +128,187 @@ subroutine PMTHRead(this,input)
   class(pm_th_type) :: this
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
-  PetscInt :: lid, eid
   PetscReal :: tempreal
 
   option => this%option
 
-  lid = option%liquid_phase
-  eid = option%energy_id
-  
   error_string = 'TH Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(word)
+    call StringToUpper(keyword)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)
     if (found) cycle
     
-    select case(trim(word))
-
-      ! Tolerances
-
-      ! All Residual
-      case('RESIDUAL_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_abs_inf_tol(:) = tempreal
-        this%residual_scaled_inf_tol(:) = tempreal
-
-      ! Absolute Residual
-      case('RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_abs_inf_tol(:) = tempreal
-      case('LIQUID_RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,this%residual_abs_inf_tol(lid))
-        call InputErrorMsg(input,option,word,error_string)
-      case('ENERGY_RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
-        call InputErrorMsg(input,option,word,error_string)
-
-      ! Scaled Residual
-      case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_scaled_inf_tol(:) = tempreal
-      case('LIQUID_RESIDUAL_SCALED_INF_TOL')
-        call InputReadDouble(input,option,this%residual_scaled_inf_tol(lid))
-        call InputErrorMsg(input,option,word,error_string)
-      case('ENERGY_RESIDUAL_SCALED_INF_TOL')
-        call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
-        call InputErrorMsg(input,option,word,error_string)
-
-      ! All Updates
-      case('UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(:) = tempreal
-        this%rel_update_inf_tol(:) = tempreal
-
-      ! Absolute Updates
-      case('ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(:) = tempreal
-      case('PRES_ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(1) = tempreal
-      case('TEMP_ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(2) = tempreal
-
-      ! Relative Updates
-      case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(:) = tempreal
-      case('PRES_REL_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(1) = tempreal
-      case('TEMP_REL_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(2) = tempreal
-
+    select case(trim(keyword))
       case('FREEZING')
-        option%use_th_freezing = PETSC_TRUE
+        option%th_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing
         call EOSWaterSetDensity('PAINTER')
         call EOSWaterSetEnthalpy('PAINTER')
       case('ICE_MODEL')
-        call InputReadWord(input,option,word,PETSC_FALSE)
-        call StringToUpper(word)
-        select case (trim(word))
+        call InputReadCard(input,option,keyword,PETSC_FALSE)
+        call StringToUpper(keyword)
+        select case (trim(keyword))
           case ('PAINTER_EXPLICIT')
-            option%ice_model = PAINTER_EXPLICIT
+            th_ice_model = PAINTER_EXPLICIT
           case ('PAINTER_KARRA_IMPLICIT')
-            option%ice_model = PAINTER_KARRA_IMPLICIT
+            th_ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
-            option%ice_model = PAINTER_KARRA_EXPLICIT
+            th_ice_model = PAINTER_KARRA_EXPLICIT
           case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
-            option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
+            th_ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('DALL_AMICO')
-            option%ice_model = DALL_AMICO
+            th_ice_model = DALL_AMICO
           case default
-            option%io_buffer = 'Cannot identify the specificed ice model.' // &
-             'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
-             ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
-             ' or DALL_AMICO.'
+            option%io_buffer = 'Cannot identify the specificed ice model. &
+             &Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT &
+             &or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO &
+             &or DALL_AMICO.'
             call PrintErrMsg(option)
           end select
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
-end subroutine PMTHRead
+end subroutine PMTHReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMTHReadNewtonSelectCase(this,input,keyword,found, &
+                                    error_string,option)
+  ! 
+  ! Reads input file parameters associated with the TH process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Option_module
+  use TH_Aux_module
+ 
+  implicit none
+  
+  class(pm_th_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  PetscReal :: tempreal
+  PetscInt :: lid, eid
+
+  option => this%option
+
+  lid = option%liquid_phase
+  eid = option%energy_id
+  
+  error_string = 'TH Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+
+    ! Tolerances
+
+    ! All Residual
+    case('RESIDUAL_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol(:) = tempreal
+      this%residual_scaled_inf_tol(:) = tempreal
+
+    ! Absolute Residual
+    case('RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol(:) = tempreal
+    case('LIQUID_RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,this%residual_abs_inf_tol(lid))
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('ENERGY_RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    ! Scaled Residual
+    case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_scaled_inf_tol(:) = tempreal
+    case('LIQUID_RESIDUAL_SCALED_INF_TOL')
+      call InputReadDouble(input,option,this%residual_scaled_inf_tol(lid))
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('ENERGY_RESIDUAL_SCALED_INF_TOL')
+      call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    ! All Updates
+    case('UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(:) = tempreal
+      this%rel_update_inf_tol(:) = tempreal
+
+    ! Absolute Updates
+    case('ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(:) = tempreal
+    case('PRES_ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(1) = tempreal
+    case('TEMP_ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(2) = tempreal
+
+    ! Relative Updates
+    case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(:) = tempreal
+    case('PRES_REL_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(1) = tempreal
+    case('TEMP_REL_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(2) = tempreal
+
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMTHReadNewtonSelectCase
 
 ! ************************************************************************** !
 
@@ -313,12 +362,6 @@ subroutine PMTHInitializeTimestep(this)
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
   ! update porosity
-  call this%comm1%LocalToLocal(this%realization%field%icap_loc, &
-                               this%realization%field%icap_loc)
-  call this%comm1%LocalToLocal(this%realization%field%ithrm_loc, &
-                               this%realization%field%ithrm_loc)
-  call this%comm1%LocalToLocal(this%realization%field%iphas_loc, &
-                               this%realization%field%iphas_loc)
 
   call THInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
@@ -429,7 +472,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   
 end subroutine PMTHUpdateTimestep
 
@@ -483,7 +526,7 @@ end subroutine PMTHJacobian
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! This routine
   ! 
@@ -503,7 +546,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_th_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -635,7 +678,7 @@ end subroutine PMTHCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMTHCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                   X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
@@ -651,7 +694,7 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_th_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1

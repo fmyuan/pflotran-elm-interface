@@ -78,7 +78,7 @@ module PM_UFD_Biosphere_class
   contains
     procedure, public :: SetRealization => PMUFDBSetRealization
     procedure, public :: Setup => PMUFDBSetup
-    procedure, public :: ReadPMBlock => PMUFDBRead
+    procedure, public :: ReadPMBlock => PMUFDBReadPMBlock
     procedure, public :: InitializeRun => PMUFDBInitializeRun
     procedure, public :: InitializeTimestep => PMUFDBInitializeTimestep
     procedure, public :: FinalizeTimestep => PMUFDBFinalizeTimestep
@@ -274,7 +274,7 @@ end subroutine PMUFDBSetRealization
 
 ! *************************************************************************** !
 
-subroutine PMUFDBRead(this,input)
+subroutine PMUFDBReadPMBlock(this,input)
   !
   ! Reads input file parameters for the UFD Biosphere process model.
   !
@@ -299,26 +299,22 @@ subroutine PMUFDBRead(this,input)
   type(ERB_1A_type), pointer :: new_ERB1A
   class(ERB_base_type), pointer :: cur_ERB
   PetscBool :: added
-  PetscBool :: found
   
   option => this%option
   input%ierr = 0
   option%io_buffer = 'pflotran card:: UFD_BIOSPHERE'
   call PrintMsg(option)
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     error_string = 'UFD_BIOSPHERE'
     call StringToUpper(word)
-
-    found = PETSC_FALSE
-    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
-    if (found) cycle
 
     select case(trim(word))
     !-----------------------------------------
@@ -398,10 +394,11 @@ subroutine PMUFDBRead(this,input)
     !-----------------------------------------
     !-----------------------------------------
       case default
-        call InputKeywordUnrecognized(word,'UFD_BIOSPHERE',option)
+        call InputKeywordUnrecognized(input,word,'UFD_BIOSPHERE',option)
     !-----------------------------------------
     end select  
   enddo
+  call InputPopBlock(input,option)
   
   ! error messages
   if (.not.associated(this%ERB_list)) then
@@ -427,7 +424,7 @@ subroutine PMUFDBRead(this,input)
   endif
   
   
-end subroutine PMUFDBRead
+end subroutine PMUFDBReadPMBlock
 
 ! *************************************************************************** !
 
@@ -456,11 +453,12 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
   PetscInt :: num_errors
   
   num_errors = 0
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
     select case(trim(word))
@@ -496,11 +494,12 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
         this%unsupp_rads_needed = PETSC_TRUE
     !-----------------------------------    
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     !----------------------------------- 
     end select
   enddo
-
+  call InputPopBlock(input,option)
+  
   ! error messages
   if (ERB_model%region_name == '') then
     option%io_buffer = 'ERROR: REGION must be specified in the ' // &
@@ -562,11 +561,12 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
   PetscInt :: num_errors
   PetscBool :: added
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     num_errors = 0
     call StringToUpper(word)
@@ -580,11 +580,12 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
         call InputErrorMsg(input,option,'radionuclide name',error_string)
         new_supp_rad%name = adjustl(trim(word))
         error_string = trim(error_string) // ' ' // trim(new_supp_rad%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
           select case(trim(word))
@@ -606,10 +607,11 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
               new_supp_rad%decay_rate = double
           !-----------------------------------  
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           !----------------------------------- 
           end select
         enddo
+        call InputPopBlock(input,option)
         ! error messages
         if (Uninitialized(new_supp_rad%kd)) then
           option%io_buffer = 'ERROR: ELEMENT_KD must be specified &
@@ -654,10 +656,11 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
         nullify(new_supp_rad)
     !-----------------------------------
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     !-----------------------------------
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMUFDBReadSupportedRad
 
@@ -690,11 +693,12 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
   PetscInt :: num_errors
   PetscBool :: added
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     num_errors = 0
     call StringToUpper(word)
@@ -708,11 +712,12 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
         call InputErrorMsg(input,option,'radionuclide name',error_string)
         new_unsupp_rad%name = adjustl(trim(word))
         error_string = trim(error_string) // ' ' // trim(new_unsupp_rad%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
           select case(trim(word))
@@ -743,10 +748,11 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
               call InputErrorMsg(input,option,'EMANATION_FACTOR',error_string)
           !-----------------------------------  
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           !----------------------------------- 
           end select
         enddo
+        call InputPopBlock(input,option)
         ! error messages
         if (Uninitialized(new_unsupp_rad%kd)) then
           option%io_buffer = 'ERROR: ELEMENT_KD must be specified in the ' // &
@@ -797,10 +803,11 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
         nullify(new_unsupp_rad)
     !-----------------------------------
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     !-----------------------------------
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMUFDBReadUnsuppRad
 
@@ -1841,6 +1848,8 @@ subroutine PMUFDBStrip(this)
   type(unsupported_rad_type), pointer :: cur_unsupp_rad
   type(unsupported_rad_type), pointer :: prev_unsupp_rad
   
+  call PMBaseDestroy(this)
+
   nullify(this%realization)
   
   cur_ERB => this%ERB_list

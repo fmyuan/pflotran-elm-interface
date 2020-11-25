@@ -1,6 +1,18 @@
 #Description: Batch CLM-CN simulation
 # Rate constants, C/N ratios, respiration fractions from Bonan et al., 2012
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /    
+  /
+END
+
+SUBSURFACE
+
+
 #=========================== useful tranport parameters =======================
 UNIFORM_VELOCITY 0.d0 0.d0 0.d0 
 
@@ -94,14 +106,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
-NEWTON_SOLVER TRANSPORT
-  ATOL 1.d-50
-#  RTOL 1.d-12
-END
 
 #=========================== discretization ===================================
 GRID

@@ -811,7 +811,7 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
   type(surface_global_auxvar_type), pointer :: surf_global_auxvars_ss(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(1)
   PetscReal :: xxss(1)
   PetscReal :: tsrc1
@@ -856,7 +856,7 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
       endif
 
         select case(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF))
-          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,HET_DIRICHLET_BC)
+          case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HET_DIRICHLET_BC)
             xxbc(1) = boundary_condition%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC)
             xxbc(1) = xx_loc_p(ghosted_id)

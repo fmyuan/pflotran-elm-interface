@@ -1,23 +1,25 @@
 module Richards_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
 #ifdef BUFFER_MATRIX
   use Matrix_Buffer_module
 #endif
 
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, public :: richards_itol_scaled_res = 1.d-5
   PetscReal, public :: richards_itol_rel_update = UNINITIALIZED_DOUBLE
   PetscInt, public :: richards_ni_count
   PetscInt, public :: richards_ts_cut_count
   PetscInt, public :: richards_ts_count
-  
+
   type, public :: richards_auxvar_type
   
     PetscReal :: pc
@@ -49,9 +51,6 @@ module Richards_Aux_module
   end type richards_auxvar_type
   
   type, public :: richards_type
-    PetscInt :: n_zero_rows
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
-
     PetscBool :: auxvars_up_to_date
     PetscBool :: auxvars_cell_pressures_up_to_date
     PetscBool :: inactive_cells_exist
@@ -62,6 +61,7 @@ module Richards_Aux_module
 #ifdef BUFFER_MATRIX
     type(matrix_buffer_type), pointer :: matrix_buffer
 #endif
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type richards_type
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-6
@@ -82,8 +82,6 @@ function RichardsAuxCreate()
   ! Author: Glenn Hammond
   ! Date: 02/14/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
 
@@ -103,12 +101,10 @@ function RichardsAuxCreate()
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_zero_rows = 0
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
 #ifdef BUFFER_MATRIX
   nullify(aux%matrix_buffer)
 #endif
+  nullify(aux%matrix_zeroing)
 
   RichardsAuxCreate => aux
   
@@ -205,7 +201,8 @@ end subroutine RichardsAuxVarCopy
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
-                                 characteristic_curves,natural_id,option)
+                                 characteristic_curves,natural_id, &
+                                 update_porosity,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -213,8 +210,6 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! Date: 02/22/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Global_Aux_module
   
@@ -232,6 +227,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
+  PetscBool :: update_porosity
   
   PetscInt :: i
   PetscBool :: saturated
@@ -245,6 +241,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dkr_sat
   PetscReal :: aux(1)
   PetscReal, parameter :: tol = 1.d-3
+  PetscReal :: compressed_porosity, dcompressed_porosity_dp
   
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
@@ -257,6 +254,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
  
   global_auxvar%pres = x(1)
   global_auxvar%temp = option%reference_temperature
+
+  if (update_porosity) then
+    call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
+  endif
  
   ! For a very large negative liquid pressure (e.g. -1.d18), the capillary 
   ! pressure can go near infinite, resulting in ds_dp being < 1.d-40 below 
@@ -381,8 +382,6 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   ! Date: 07/02/18, 06/26/19
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Global_Aux_module
   
@@ -422,7 +421,7 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
                        material_auxvar_pert, &
                        characteristic_curves, &
-                       -999, &
+                       -999, PETSC_TRUE, &
                        option)   
 
   rich_auxvar%d2den_dp2 = (rich_auxvar_pert%dden_dp - rich_auxvar%dden_dp)/pert
@@ -494,8 +493,7 @@ subroutine RichardsAuxDestroy(aux)
   endif
   nullify(aux%auxvars_ss)
   
-  call DeallocateArray(aux%zero_rows_local)
-  call DeallocateArray(aux%zero_rows_local_ghosted)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
 #ifdef BUFFER_MATRIX
   if (associated(aux%matrix_buffer)) then

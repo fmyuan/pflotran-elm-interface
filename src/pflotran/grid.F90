@@ -536,8 +536,6 @@ subroutine GridComputeVolumes(grid,volume,option)
   ! Date: 10/25/07
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Grid_Unstructured_Explicit_module
   use Grid_Unstructured_Polyhedra_module
@@ -574,8 +572,6 @@ subroutine GridComputeAreas(grid,area,option)
   ! Date: 03/07/2012
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   
   implicit none
@@ -666,12 +662,24 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           'for unstructured region DEFINED_BY_VERTEX_IDS'
         call PrintErrMsg(option)
       case (DEFINED_BY_SIDESET_UGRID)
+        if (grid%itype /= IMPLICIT_UNSTRUCTURED_GRID) then
+          option%io_buffer = 'Regions defined through sidesets are &
+                             &only supported for IMPLICIT_UNSTRUCTURED_GRIDS.'
+          call PrintErrMsg(option)
+        endif
         call UGridMapSideSet2(grid%unstructured_grid, &
                              region%sideset%face_vertices, &
                              region%sideset%nfaces,region%name, &
                              option,region%cell_ids,region%faces)
-        region%num_cells = size(region%cell_ids)
+        if (associated(region%cell_ids)) then
+          region%num_cells = size(region%cell_ids)
+        endif
       case (DEFINED_BY_FACE_UGRID_EXP)
+        if (grid%itype /= EXPLICIT_UNSTRUCTURED_GRID) then
+          option%io_buffer = 'Regions defined through explicit facesets are &
+                             &only supported for EXPLICIT_UNSTRUCTURED_GRIDS.'
+          call PrintErrMsg(option)
+        endif
         call GridLocalizeExplicitFaceset(grid%unstructured_grid,region, &
                                          option)
         ! For explicit unstructured grids, the face locations are not 
@@ -692,17 +700,26 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           enddo
         endif
       case (DEFINED_BY_POLY_BOUNDARY_FACE)
+        if (grid%itype /= IMPLICIT_UNSTRUCTURED_GRID) then
+          option%io_buffer = 'Regions defined through poly boundary faces are &
+                             &only supported for IMPLICIT_UNSTRUCTURED_GRID.'
+          call PrintErrMsg(option)
+        endif
         call UGridMapBoundFacesInPolVol(grid%unstructured_grid, &
                                         region%polygonal_volume, &
                                         region%name,option, &
                                         region%cell_ids,region%faces)
-        region%num_cells = size(region%cell_ids)
+        if (associated(region%cell_ids)) then
+          region%num_cells = size(region%cell_ids)
+        endif
       case (DEFINED_BY_POLY_CELL_CENTER)
         call GridMapCellsInPolVol(grid, &
                                   region%polygonal_volume, &
                                   region%name,option, &
                                   region%cell_ids)
-        region%num_cells = size(region%cell_ids)
+        if (associated(region%cell_ids)) then
+          region%num_cells = size(region%cell_ids)
+        endif
       case default
         option%io_buffer = 'GridLocalizeRegions: Region definition not recognized'
         call PrintErrMsg(option)
@@ -760,8 +777,6 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
   ! Author: Gautam Bisht, Glenn Hammond
   ! Date: 5/30/2011, 09/14/16
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Region_module
   use Utility_module
@@ -1070,8 +1085,6 @@ subroutine GridCopyIntegerArrayToVec(grid, array,vector,num_values)
   ! Author: Glenn Hammond
   ! Date: 12/18/07
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   implicit none
 
   type(grid_type) :: grid
@@ -1098,8 +1111,6 @@ subroutine GridCopyRealArrayToVec(grid,array,vector,num_values)
   ! Author: Glenn Hammond
   ! Date: 12/18/07
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   implicit none
     
   type(grid_type) :: grid
@@ -1126,8 +1137,6 @@ subroutine GridCopyVecToIntegerArray(grid,array,vector,num_values)
   ! Author: Glenn Hammond
   ! Date: 12/18/07
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   implicit none
   
   type(grid_type) :: grid
@@ -1161,8 +1170,6 @@ subroutine GridCopyVecToRealArray(grid,array,vector,num_values)
   ! Author: Glenn Hammond
   ! Date: 12/18/07
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   implicit none
     
   type(grid_type) :: grid

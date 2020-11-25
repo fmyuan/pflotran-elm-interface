@@ -7,16 +7,29 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 10
+  CELLS_PER_PROCESS 4
 END
 
 #=========================== flow mode ========================================
@@ -35,21 +48,10 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-END
 
-NEWTON_SOLVER FLOW
-  ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
-END
 
-LINEAR_SOLVER FLOW
-END
 
-NEWTON_SOLVER TRANSPORT
-END
 
-LINEAR_SOLVER TRANSPORT
-END
 
 #=========================== discretization ===================================
 GRID
@@ -94,7 +96,7 @@ MATERIAL_PROPERTY soil1
   CHARACTERISTIC_CURVES cc1
   PERMEABILITY
     PERM_X 1.d-10
-    PERM_Y 1.d-10
+    PERM_Y 2.d-10
     PERM_Z 1.d-11
   /
 END

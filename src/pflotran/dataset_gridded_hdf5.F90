@@ -324,6 +324,13 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
     else if (this%max_buffer_size < 0) then
       this%max_buffer_size = default_max_buffer_size
     endif
+    if (this%interpolation_method /= INTERPOLATION_STEP .and. &
+        this%max_buffer_size < 2) then
+      option%io_buffer = 'Dataset "Max Buffer Size" is set to ' // &
+        trim(StringWrite(this%max_buffer_size)) // &
+        ', but must be greater than 1 for non-STEP time interpolation.'
+      call PrintErrMsg(option)
+    endif
   endif ! this%data_dim == DIM_NULL
 
 #ifdef BROADCAST_DATASET
@@ -536,7 +543,6 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
   call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
 #ifdef BROADCAST_DATASET
   endif
 #endif
@@ -683,6 +689,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
   PetscReal :: x, y, z
   PetscReal :: x1, x2, y1, y2, z1
   PetscReal :: v1, v2, v3, v4
+  PetscReal :: c, c0, c1, c00, c01, c10, c11, c000, c001, c010, c100, c011, c101, c110, c111, xd, yd, zd, z2
   PetscInt :: index
   PetscInt :: ii, jj, kk
   PetscInt :: i_upper, j_upper, k_upper
@@ -958,8 +965,110 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           
           real_value = InterpolateBilinear(x,y,x1,x2,y1,y2,v1,v2,v3,v4)
         case(DIM_XYZ)
-          option%io_buffer = 'Trilinear interpolation not yet supported'
-          call PrintErrMsgByRank(option)
+          if (i < 1 .or. i+1 > this%dims(1)) then
+            lerr = PETSC_TRUE
+            write(word,*) i
+            word = adjustl(word)
+            write(option%io_buffer,*) 'X value (', xx, &
+              ') outside of dataset X bounds (', this%origin(1), &
+              this%extent(1), '), i = ' // trim(word)
+            call PrintMsgByRank(option)
+          endif
+          if (j < 1 .or. j+1 > this%dims(2)) then
+            lerr = PETSC_TRUE
+            write(word,*) j
+            word = adjustl(word)
+            write(option%io_buffer,*) 'Y value (', yy, &
+              ') outside of dataset Y bounds (', this%origin(2), &
+              this%extent(2), '), j = ' // trim(word)
+            call PrintMsgByRank(option)
+          endif
+          if (k < 1 .or. k+1 > this%dims(3)) then
+            lerr = PETSC_TRUE
+            write(word,*) k
+            word = adjustl(word)
+            write(option%io_buffer,*) 'Z value (', zz, &
+              ') outside of dataset Z bounds (', this%origin(3), &
+              this%extent(3), '), k = ' // trim(word)
+            call PrintMsgByRank(option)
+          endif
+          if (lerr) then
+            option%io_buffer = trim(DatasetGriddedHDF5GetNameInfo(this)) // &
+              ' - See "Extent of Gridded Domain" above.'
+            call PrintErrMsgByRank(option)
+          endif
+
+          dx = this%discretization(1)
+          dy = this%discretization(2)
+          dz = this%discretization(3)
+          
+          x1 = this%origin(1) + (i-1)*dx
+          if (this%is_cell_centered) x1 = x1 + 0.5d0*dx
+          x2 = x1 + dx
+
+          y1 = this%origin(2) + (j-1)*dy
+          if (this%is_cell_centered) y1 = y1 + 0.5d0*dy
+          y2 = y1 + dy
+
+          z1 = this%origin(3) + (k-1)*dz
+          if (this%is_cell_centered) z1 = z1 + 0.5d0*dz
+          z2 = z1 + dz         
+
+          nx = this%dims(1)
+          ny = this%dims(1)
+          
+          index = i + (j-1)*nx + (k-1)*nx*ny
+
+          c000 = this%rarray(index)
+          c100 = this%rarray(index+1)
+
+          index = i + j*nx + (k-1)*nx*ny
+          
+          c001 = this%rarray(index)
+          c101 = this%rarray(index+1)
+
+          index = i + (j-1)*nx + k*nx*ny
+          
+          c010 = this%rarray(index)
+          c110 = this%rarray(index+1)
+
+          index = i + j*nx + k*nx*ny
+          
+          c011 = this%rarray(index)
+          c111 = this%rarray(index+1)
+
+          if (x2>x1) then
+            xd = (x-x1)/(x2-x1)
+            c00 = c000*(1-xd) + c100*xd
+            c01 = c001*(1-xd) + c101*xd
+            c10 = c010*(1-xd) + c110*xd
+            c11 = c011*(1-xd) + c111*xd
+          else
+            c00 = c000
+            c01 = c001
+            c10 = c010
+            c11 = c011
+          endif
+
+          if (y2>y1) then
+            yd = (y-y1)/(y2-y1)
+            c0 = c00*(1-yd) + c10*yd
+            c1 = c01*(1-yd) + c11*yd
+          else
+            c0 = c00
+            c1 = c01
+          endif
+
+          if (z2>z1) then
+            zd = (z-z1)/(z2-z1)
+            c = c0*(1-zd) +c1*zd
+          else
+            c=c0
+          endif
+           
+          real_value = c
+
+           
       end select
   end select
   

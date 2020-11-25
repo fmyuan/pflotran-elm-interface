@@ -11,7 +11,8 @@ module PM_Surface_Flow_class
 
   type, public, extends(pm_surface_type) :: pm_surface_flow_type
   contains
-    procedure, public :: ReadSimulationBlock => PMSurfaceFlowRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMSurfaceFlowReadSimOptions
     procedure, public :: UpdateTimestep => PMSurfaceFlowUpdateTimestep
     procedure, public :: PreSolve => PMSurfaceFlowPreSolve
     procedure, public :: PostSolve => PMSurfaceFlowPostSolve
@@ -54,7 +55,7 @@ end function PMSurfaceFlowCreate
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceFlowRead(this,input)
+subroutine PMSurfaceFlowReadSimOptions(this,input)
   ! 
   ! Reads input file parameters associated with the Surface process model
   ! 
@@ -81,27 +82,29 @@ subroutine PMSurfaceFlowRead(this,input)
   error_string = 'Surface Flow Options'
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSurfaceReadSelectCase(this,input,word,found,option)
+    call PMSurfaceReadSelectCase(this,input,word,found,error_string,option)
     if (found) cycle
 
     select case(trim(word))
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
-end subroutine PMSurfaceFlowRead
+end subroutine PMSurfaceFlowReadSimOptions
 
 ! ************************************************************************** !
 

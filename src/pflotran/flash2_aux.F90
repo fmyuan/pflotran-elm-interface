@@ -1,8 +1,11 @@
 module Flash2_Aux_module
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  use Mphase_pckr_module
+
   use PFLOTRAN_Constants_module
+  use Mphase_pckr_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -59,8 +62,6 @@ module Flash2_Aux_module
   end type Flash2_parameter_type
     
   type, public :: Flash2_type
-    PetscInt :: n_zero_rows
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -68,6 +69,7 @@ module Flash2_Aux_module
     type(Flash2_auxvar_type), pointer :: auxvars(:)
     type(Flash2_auxvar_type), pointer :: auxvars_bc(:)
     type(Flash2_auxvar_type), pointer :: auxvars_ss(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
     PetscReal , pointer :: Resold_AR(:,:)
     PetscReal , pointer :: Resold_BC(:,:)
     PetscReal , pointer :: Resold_FL(:,:)
@@ -108,13 +110,11 @@ function Flash2AuxCreate()
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_zero_rows = 0
+  nullify(aux%matrix_zeroing)
   allocate(aux%Flash2_parameter)
   nullify(aux%Flash2_parameter%sir)
   nullify(aux%Flash2_parameter%ckwet)
   nullify(aux%Flash2_parameter%dencpr)
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
 
   Flash2AuxCreate => aux
   
@@ -347,12 +347,13 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
  
 !*********** Get Salinity properties ***********************
     m_na=option%m_nacl; m_cl=m_na; m_nacl=m_na 
-    if (option%ntrandof>0) then
-      m_na = global_auxvar%m_nacl(1)
-      m_cl = global_auxvar%m_nacl(2)
-      m_nacl = m_na
-      if (m_cl> m_na) m_nacl = m_cl
-    endif  
+    select case(option%itranmode)
+      case(RT_MODE)
+        m_na = global_auxvar%m_nacl(1)
+        m_cl = global_auxvar%m_nacl(2)
+        m_nacl = m_na
+        if (m_cl> m_na) m_nacl = m_cl
+    end select
 
 !** Calculate solubility of CO2 in aqueous phase *************
     call Henry_duan_sun(t,p2*1.D-5,henry,lngamco2,m_na,m_cl)
@@ -375,7 +376,7 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
       auxvar%sat(2) = 0.D0
       iphase = 1
     elseif (x(3) > (1.D0-sat_pressure/p)) then
-	    !gas only
+      !gas only
       iphase = 2
       auxvar%xmol(4) = x(3)
       auxvar%xmol(3) = 1.D0 - auxvar%xmol(4)
@@ -609,10 +610,7 @@ subroutine Flash2AuxDestroy(aux, option)
   if (associated(aux%auxvars_ss)) deallocate(aux%auxvars_ss)
   nullify(aux%auxvars_ss)
 
-  if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
-  nullify(aux%zero_rows_local)
-  if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)
-  nullify(aux%zero_rows_local_ghosted)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%Flash2_parameter)) then
     if (associated(aux%Flash2_parameter%dencpr)) deallocate(aux%Flash2_parameter%dencpr)

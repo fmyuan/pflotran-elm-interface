@@ -1,44 +1,6 @@
 !=======================================================================
-! PFLOTRAN v2.0 LA-CC-09-047
+! Please see LICENSE and COPYRIGHT files at top of repository.
 !=======================================================================
-
-!Copyright 2009. Los Alamos National Security, LLC. This material was produced under U.S. 
-!Government contract DE-AC52-06NA25396 for Los Alamos National Laboratory (LANL), which is operated 
-!by Los Alamos National Security, LLC for the U.S. Department of Energy. The U.S. Government has 
-!rights to use, reproduce, and distribute this software.  NEITHER THE GOVERNMENT NOR LOS ALAMOS 
-!NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS OR IMPLIED, OR ASSUMES ANY LIABILITY FOR THE 
-!USE OF THIS SOFTWARE.  If software is modified to produce derivative works, such modified software 
-!should be clearly marked, so as not to confuse it with the version available from LANL.
-!Additionally, this library is free software; you can redistribute it and/or modify it under the 
-!terms of the GNU Lesser General Public License as published by the Free Software Foundation; 
-!either version 2.1 of the License, or (at your option) any later version. Accordingly, this 
-!library is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even 
-!the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser 
-!General Public License for more details.
-
-! Send all bug reports/questions/comments to:
-!
-! Peter C. Lichtner
-! Los Alamos National Laboratory
-! Earth and Environmental Sciences
-! EES-16, MS: D469
-! (505) 667-3420
-! lichtner@lanl.gov
-! Los Alamos, NM
-
-! or
-
-! Glenn E. Hammond
-! Sandia National Laboratories
-! Applied Systems Analysis & Research
-! 413 Cherry Blossom Lp
-! Richland, WA 99352
-! (505) 235-0665
-! gehammo@sandia.gov
-
-!=======================================================================
-
-
 module BatchChem
 
 #include "petsc/finclude/petscsys.h"
@@ -58,9 +20,6 @@ contains
 
 subroutine BatchChemInitializeReactions(option, input, reaction)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_module
@@ -72,7 +31,7 @@ subroutine BatchChemInitializeReactions(option, input, reaction)
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   character(len=MAXSTRINGLENGTH) :: string
 
   ! check for a chemistry block in the  input file
@@ -114,8 +73,6 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
      global_auxvars, rt_auxvars, material_auxvars, transport_constraints, &
      constraint_coupler)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_module
@@ -123,6 +80,8 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
   use Global_Aux_module
   use Material_Aux_class
   use Transport_Constraint_module
+  use Transport_Constraint_RT_module
+  use Transport_Constraint_Base_module
   use Option_module
   use Input_Aux_module
   use String_module
@@ -132,17 +91,19 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
-  type(reaction_type), pointer :: reaction
-  character(len=MAXSTRINGLENGTH) :: string
+  class(reaction_rt_type), pointer :: reaction
   type(global_auxvar_type), pointer :: global_auxvars
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars
   class(material_auxvar_type), pointer :: material_auxvars
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler 
+  type(tran_constraint_list_type), pointer :: transport_constraints
 
+  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: word
-  type(tran_constraint_type), pointer :: tran_constraint
-  type(tran_constraint_list_type), pointer :: transport_constraints
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler 
+  class(tran_constraint_base_type), pointer :: base_constraint
+  class(tran_constraint_rt_type), pointer :: tran_constraint
+  class(tran_constraint_rt_type), pointer :: constraint
   PetscBool :: use_prev_soln_as_guess
   PetscInt :: num_iterations
   
@@ -170,12 +131,13 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
           option%io_buffer = 'CONSTRAINTs not supported without CHEMISTRY.'
           call PrintErrMsg(option)
         endif
-        tran_constraint => TranConstraintCreate(option)
+        tran_constraint => TranConstraintRTCreate(option)
+        base_constraint => tran_constraint
         call InputReadWord(input, option, tran_constraint%name, PETSC_TRUE)
         call InputErrorMsg(input, option, 'constraint', 'name') 
         call PrintMsg(option, tran_constraint%name)
-        call TranConstraintReadRT(tran_constraint, reaction, input, option)
-        call TranConstraintAddToList(tran_constraint, transport_constraints)
+        call TranConstraintRTRead(tran_constraint, reaction, input, option)
+        call TranConstraintAddToList(base_constraint, transport_constraints)
         nullify(tran_constraint)
 
       case default
@@ -188,32 +150,28 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
   !
   num_iterations = 0
   use_prev_soln_as_guess = PETSC_FALSE
-  tran_constraint => transport_constraints%first
+  base_constraint => transport_constraints%first
   ! NOTE(bja): we only created one set of global and rt auxvars, so if
   ! there is more than one constratint in the input file, they will be
   ! over written.
   do 
-     if (.not. associated(tran_constraint)) exit
+     if (.not. associated(base_constraint)) exit
+     tran_constraint => TranConstraintRTCast(base_constraint)
      ! initialize constraints
      option%io_buffer = "initializing constraint : " // tran_constraint%name
      call PrintMsg(option)
      call ReactionProcessConstraint(reaction, &
-                                    tran_constraint%name, &
-                                    tran_constraint%aqueous_species, &
-                                    tran_constraint%free_ion_guess, &
-                                    tran_constraint%minerals, &
-                                    tran_constraint%surface_complexes, &
-                                    tran_constraint%colloids, &
-                                    tran_constraint%immobile_species, &
+                                    tran_constraint, &
                                     option)
 
      ! link the constraint to the constraint coupler
+     constraint => TranConstraintRTCast(constraint_coupler%constraint)
      constraint_coupler%constraint_name = tran_constraint%name
-     constraint_coupler%aqueous_species => tran_constraint%aqueous_species
-     constraint_coupler%free_ion_guess => tran_constraint%free_ion_guess
-     constraint_coupler%minerals => tran_constraint%minerals
-     constraint_coupler%surface_complexes => tran_constraint%surface_complexes
-     constraint_coupler%colloids => tran_constraint%colloids
+     constraint%aqueous_species => tran_constraint%aqueous_species
+     constraint%free_ion_guess => tran_constraint%free_ion_guess
+     constraint%minerals => tran_constraint%minerals
+     constraint%surface_complexes => tran_constraint%surface_complexes
+     constraint%colloids => tran_constraint%colloids
      constraint_coupler%global_auxvar => global_auxvars
      constraint_coupler%rt_auxvar => rt_auxvars
      
@@ -222,18 +180,12 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
      call PrintMsg(option)
      call ReactionEquilibrateConstraint(rt_auxvars, global_auxvars, &
                                         material_auxvars, reaction, &
-                                        tran_constraint%name, &
-                                        tran_constraint%aqueous_species, &
-                                        tran_constraint%free_ion_guess, &
-                                        tran_constraint%minerals, &
-                                        tran_constraint%surface_complexes, &
-                                        tran_constraint%colloids, &
-                                        tran_constraint%immobile_species, &
+                                        tran_constraint, &
                                         num_iterations, &
                                         use_prev_soln_as_guess, &
                                         option)
      call ReactionPrintConstraint(constraint_coupler, reaction, option)
-     tran_constraint => tran_constraint%next
+     base_constraint => base_constraint%next
   enddo
 
 end subroutine BatchChemProcessConstraints
@@ -258,6 +210,8 @@ program pflotran_rxn
   use String_module
   
   use Transport_Constraint_module
+  use Transport_Constraint_RT_module
+  use Transport_Constraint_Base_module
   use PFLOTRAN_Constants_module
 
   use BatchChem
@@ -269,7 +223,7 @@ program pflotran_rxn
   PetscBool :: option_found  
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: filename_out
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
   type(input_type), pointer :: input
 
@@ -280,7 +234,7 @@ program pflotran_rxn
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: word
   type(tran_constraint_list_type), pointer :: transport_constraints
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler 
+  class(tran_constraint_coupler_base_type), pointer :: constraint_coupler 
 
   option => OptionCreate()
   option%fid_out = OUT_UNIT
@@ -354,16 +308,16 @@ program pflotran_rxn
   allocate(transport_constraints)
   call TranConstraintInitList(transport_constraints)
   allocate(constraint_coupler)
-  constraint_coupler => TranConstraintCouplerCreate(option)
+  constraint_coupler => TranConstraintCouplerRTCreate(option)
 
   call BatchChemProcessConstraints(option, input, reaction, &
                                    global_auxvars, rt_auxvars, &
                                    material_auxvars, transport_constraints, &
-                                   constraint_coupler)
+                               TranConstraintCouplerRTCast(constraint_coupler))
 
   ! cleanup
   call TranConstraintCouplerDestroy(constraint_coupler)
-  call TranConstraintDestroyList(transport_constraints)
+  call TranConstraintListDestroy(transport_constraints)
   ! FIXME(bja) : causes error freeing memory.
   !call RTAuxVarDestroy(rt_auxvars)
   !call GlobalAuxVarDestroy(global_auxvars)

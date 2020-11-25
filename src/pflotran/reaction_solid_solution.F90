@@ -1,5 +1,8 @@
 module Reaction_Solid_Solution_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Mineral_Aux_module
   use Reaction_Aux_module
   use Reaction_Solid_Soln_Aux_module
@@ -9,8 +12,6 @@ module Reaction_Solid_Solution_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   public :: SolidSolutionReadFromInputFile, &
             SolidSolutionLinkNamesToIDs
@@ -27,8 +28,6 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -50,6 +49,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
   type(solid_solution_type), pointer :: solid_solution, prev_solid_solution
   
   nullify(prev_solid_solution)
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -64,12 +64,13 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
       solid_solution_list => solid_solution
     endif
     
-    call InputReadWord(input,option,solid_solution%name,PETSC_TRUE)  
+    call InputReadCard(input,option,solid_solution%name)  
     call InputErrorMsg(input,option,'Solid Solution Name', &
                        'CHEMISTRY,SOLID_SOLUTIONS')
 
     stoich_solid_count = 0
     stoich_solid_names = ''
+    call InputPushBlock(input,option)
     do
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
@@ -85,12 +86,12 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
           'SolidSolutionReadFromInputFile.'
         call PrintErrMsg(option)
       endif
-      call InputReadWord(input,option, &
-                         stoich_solid_names(stoich_solid_count), &
-                         PETSC_TRUE)  
+      call InputReadCard(input,option, &
+                         stoich_solid_names(stoich_solid_count))  
       call InputErrorMsg(input,option,'Stoichiometric Solid Name', &
                          'CHEMISTRY,SOLID_SOLUTIONS')
     enddo
+    call InputPopBlock(input,option)
     
     allocate(solid_solution%stoich_solid_ids(stoich_solid_count))
     solid_solution%stoich_solid_ids = 0
@@ -106,6 +107,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
     call StringToUpper(card)
     select case(card)
       case('DATABASE')
+        call InputPushCard(input,card,option)
         call InputReadNChars(string, &
                              solid_solution_rxn%database_filename, &
                              MAXSTRINGLENGTH,PETSC_TRUE,input%ierr)  
@@ -126,6 +128,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
     end select
 #endif  
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine SolidSolutionReadFromInputFile
 
@@ -183,8 +186,6 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
   ! Author: Glenn Hammond
   ! Date: 08/20/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -213,6 +214,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
   endif
   input => InputCreate(IUNIT_TEMP,solid_solution_rxn%database_filename,option)
 
+  call InputPushBlock(input,option)
   do ! loop over every entry in the database
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'SolidSolutionReadFromDatabase')
@@ -288,10 +290,11 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
         solid_solution_rxn%num_dbase_temperatures = &
           size(solid_solution_rxn%dbase_temperatures)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'SOLID SOLUTION,DATABASE',option)
     end select
   enddo
+  call InputPopBlock(input,option)
     
 end subroutine SolidSolutionReadFromDatabase
 #endif

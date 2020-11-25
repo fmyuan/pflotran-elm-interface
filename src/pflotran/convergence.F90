@@ -248,6 +248,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
  
     ! This is to check if the secondary continuum residual convergences
     ! for nonlinear problems specifically transport
+    !TODO(geh): move to PMRTCheckConvergence
     if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
        reason > 0 .and. i_iteration > 0) then
       if (option%infnorm_res_sec < solver%newton_inf_res_tol_sec) then
@@ -258,7 +259,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     endif
     
     ! force the minimum number of iterations
-    if (i_iteration < solver%newton_min_iterations) then
+    if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
       reason = 0
     endif
 
@@ -361,7 +362,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     endif
     
     ! force the minimum number of iterations
-    if (i_iteration < solver%newton_min_iterations) then
+    if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
       reason = 0
     endif
 
@@ -510,8 +511,13 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
           string = "SNES_CONVERGED_SNORM_RELATIVE"
         case(SNES_CONVERGED_ITS)
           string = "SNES_CONVERGED_ITS"
+#if PETSC_VERSION_GE(3,11,99)
+        case(SNES_DIVERGED_TR_DELTA)
+          string = "SNES_DIVERGED_TR_DELTA"
+#else
         case(SNES_CONVERGED_TR_DELTA)
           string = "SNES_CONVERGED_TR_DELTA"
+#endif
   !      case(SNES_DIVERGED_FUNCTION_DOMAIN)
   !        string = "SNES_DIVERGED_FUNCTION_DOMAIN"
         case(SNES_DIVERGED_FUNCTION_COUNT)

@@ -1,0 +1,197 @@
+!=========================== flow mode ========================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  
+  PROCESS_MODELS
+  
+    SUBSURFACE_TRANSPORT  nw_trans
+      MODE NWT
+    END
+    
+  END
+END
+
+!==============================================================================
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 30
+    DT_FACTOR 2. 2. 2. 2. 2. 2. 2. 2. 2. 2. 1.8 1.6 1.4 1.2 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.
+  /
+
+  NEWTON_SOLVER
+    RTOL 1.0d-06
+    ATOL 1.0d-25
+  /
+
+END
+!==============================================================================
+
+!=========================== REGRESSION =======================================
+
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+!=========================== discretization ===================================
+
+GRID
+  GRAVITY 0.0d0  -9.80665d+00  0.0d0  ! use y as the vertical direction
+  TYPE structured
+  NXYZ 1 1 1
+  DXYZ
+     1*100.0d0 
+     1*100.0d0 
+     1*4.38406d1
+  /
+END
+
+!=========================== fluid properties =================================
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+!=========================== material properties ==============================
+
+MATERIAL_PROPERTY REPO
+  ID 3
+  CHARACTERISTIC_CURVES cc_KRP4
+  POROSITY 0.30d0
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 1.0D-09
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  PERMEABILITY
+    PERM_ISO 1.0D-12
+  /
+END
+
+MATERIAL_PROPERTY LOPOR
+  ID 4
+  CHARACTERISTIC_CURVES cc_KRP4
+  POROSITY 0.03d0
+  SOIL_COMPRESSIBILITY_FUNCTION POROSITY_EXPONENTIAL
+  POROSITY_COMPRESSIBILITY 1.0D-09
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  PERMEABILITY
+    PERM_ISO 1.0D-12
+  /
+END
+
+!=========================== regions ==========================================
+
+REGION rgs_repo
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+!=========================== stratigraphy couplers ============================
+
+STRATA
+  MATERIAL REPO
+  REGION rgs_repo
+END
+
+STRATA
+  REGION rgs_repo
+  MATERIAL LOPOR
+  START_TIME 50.0d0 yr  
+  FINAL_TIME 2500.0d0 yr  
+END
+
+!=========================== transport conditions =============================
+
+TRANSPORT_CONDITION transport_initial_condition
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    ! time[s]    constraint
+    0.0d0      constraint_inventory_initial
+  /
+END
+
+!=========================== condition couplers ===============================
+
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION transport_initial_condition
+  REGION rgs_repo
+END
+
+!=========================== solver options ===================================
+
+
+
+!=========================== times ============================================
+
+TIME
+  FINAL_TIME 150.d0 yr
+  INITIAL_TIMESTEP_SIZE 1.d0 yr
+  MAXIMUM_TIMESTEP_SIZE 5.d0 yr
+END
+
+!=========================== output options ===================================
+
+OBSERVATION
+  REGION rgs_repo
+END
+
+!=============================== transport ====================================
+
+NUCLEAR_WASTE_CHEMISTRY
+
+  SPECIES
+    NAME                 U234L
+    SOLUBILITY           1.0d20     # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3    # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         0.0d0      # [m^3-water/m^3-bulk]
+  /
+
+  SPECIES
+    NAME                 TH230L
+    SOLUBILITY           1.0d20     # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3    # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         1.0d-5     # [m^3-water/m^3-bulk]
+  /
+
+  RADIOACTIVE_DECAY
+  # [1/sec]
+    8.983245d-14  U234L -> TH230L
+    0.d0          TH230L      
+  /                       
+
+  OUTPUT
+    ALL_SPECIES
+    ALL_CONCENTRATIONS
+    MINERAL_VOLUME_FRACTION
+  /
+
+END
+
+!=========================== transport constraints ============================
+
+CONSTRAINT constraint_inventory_initial
+  CONCENTRATIONS
+   ! species_name  concentration  constraint_type 
+   ! T is for total bulk concentration [mol/m^3-bulk]
+   ! AQ is for aqueous concentration [mol/m^3-liq]
+   ! VF is for mineral volume fraction [m^3-mnrl/m^3-void]
+   ! PPT is for precipitated concentration [mol/m^3-bulk]
+   ! SB is for sorbed concentration [mol/m^3-bulk]
+   ! Cell volume is 100.0 x 100.0 x 4.38406d1 m^3 = 438406.0 m^3
+
+    U234L     5.940705d-4   VF    # [m^3-mnrl/m^3-void]
+    TH230L    2.717432d-6   VF    # [m^3-mnrl/m^3-void]
+  /
+END
+
+!==============================================================================
+END_SUBSURFACE
+!==============================================================================
+

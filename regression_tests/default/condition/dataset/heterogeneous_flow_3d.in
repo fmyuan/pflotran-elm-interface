@@ -1,0 +1,301 @@
+#Description: 1D Calcite dissolution problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d0
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+END
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 9
+END
+
+#=========================== datasets =========================================
+DATASET porosity
+  HDF5_DATASET_NAME Porosity
+  FILENAME perm_and_poros.h5
+END
+
+DATASET permeability
+  HDF5_DATASET_NAME Permeability
+  FILENAME perm_and_poros.h5
+END
+
+#=========================== solver options ===================================
+
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 3 3 3
+#  NXYZ 256 256 16
+  BOUNDS
+    0.d0 0.d0 0.d0
+    256.d0 256.d0 16.d0
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+    Tracer2
+    Tracer3
+  /
+  OUTPUT
+    TOTAL
+    ALL
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION water_table
+  TYPE 
+    PRESSURE HYDROSTATIC
+  /
+  DATUM 128.d0 128.d0 16.d0
+  GRADIENT
+    PRESSURE LIST
+      CYCLIC
+      INTERPOLATION STEP
+      TIME_UNITS y
+      0.d0    0.d0  -2.d-4 0.d0
+      0.125d0 -2.d-4 0.d0  0.d0
+      0.375d0 0.d0   2.d-4 0.d0
+      0.625d0 2.d-4  0.d0  0.d0
+      0.875d0 0.d0  -2.d-4 0.d0
+      1.d0    0.d0  -2.d-4 0.d0
+    /
+  /
+  PRESSURE 1.d6
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION groundwater
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 groundwater
+  /
+END
+
+TRANSPORT_CONDITION river
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 river
+  /
+END
+
+TRANSPORT_CONDITION source
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 source
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT groundwater
+  CONCENTRATIONS
+    Tracer  1.d-10    F
+    Tracer2 1.d-3     F
+    Tracer3 1.d-10    F
+  /
+END
+
+CONSTRAINT river
+  CONCENTRATIONS
+    Tracer  1.d-10    F
+    Tracer2 1.d-10    F
+    Tracer3 1.d-3     F
+  /
+END
+
+CONSTRAINT source
+  CONCENTRATIONS
+    Tracer  1.d-3     F
+    Tracer2 1.d-10    F
+    Tracer3 1.d-10    F
+  /
+END
+
+#=========================== solver options ===================================
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+EOS WATER
+  DENSITY CONSTANT 1.d3
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.d3
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2000.d0   ! bulk density = 1600 kg/m^3
+  CHARACTERISTIC_CURVES cc1
+  PERMEABILITY
+    DATASET permeability 
+  /
+END
+
+#=========================== characteristic curves =============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA  1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== observation points ================================
+OBSERVATION
+  REGION middle_of_source_zone
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  PERIODIC TIMESTEP 16
+  PERIODIC TIME 0.125 y
+  PRINT_COLUMN_IDS
+  FORMAT HDF5
+  VARIABLES
+    PERMEABILITY
+    LIQUID_PRESSURE
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 100.d0 d
+# 256
+#  INITIAL_TIMESTEP_SIZE 3.90625d-3 y
+#  MAXIMUM_TIMESTEP_SIZE 3.90625d-3 y
+# 64
+  INITIAL_TIMESTEP_SIZE 1.5625d-2 y
+  MAXIMUM_TIMESTEP_SIZE 1.5625d-2 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 -1.d20 -1.d20
+    0.d0 1.d20 1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    256.d0 -1.d20 -1.d20
+    256.d0 1.d20 1.d20
+  /
+END
+
+REGION south
+  FACE SOUTH
+  COORDINATES
+    -1.d20 0.d0 -1.d20
+    1.d20 0.d0 1.d20
+  /
+END
+
+REGION north
+  FACE NORTH
+  COORDINATES
+    -1.d20 256.d0 -1.d20
+    1.d20 256.d0 1.d20
+  /
+END
+
+REGION source_zone
+  COORDINATES
+    128.d0 96.d0 4.d0
+    192.d0 160.d0 12.d0
+  /
+END
+
+REGION middle_of_source_zone
+  COORDINATE 160.d0 128.d0 8.d0
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION water_table
+  TRANSPORT_CONDITION groundwater
+  REGION all
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION water_table
+  TRANSPORT_CONDITION source
+  REGION source_zone
+END
+
+BOUNDARY_CONDITION inland
+  FLOW_CONDITION water_table
+  TRANSPORT_CONDITION groundwater
+  REGION west
+END
+
+BOUNDARY_CONDITION river
+  FLOW_CONDITION water_table
+  TRANSPORT_CONDITION river
+  REGION east
+END
+
+BOUNDARY_CONDITION south
+  FLOW_CONDITION water_table
+  TRANSPORT_CONDITION groundwater
+  REGION south
+END
+
+BOUNDARY_CONDITION north
+  FLOW_CONDITION water_table
+  TRANSPORT_CONDITION groundwater
+  REGION north
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

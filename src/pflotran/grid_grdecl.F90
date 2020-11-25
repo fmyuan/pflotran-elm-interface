@@ -55,12 +55,16 @@ module Grid_Grdecl_module
   PetscInt :: g_nxpnyp = 4
   PetscInt :: g_nxyz   = 1
 
+  ! Flag indicating SATNUM satn. table indices read and max. SATNUM value
+
   PetscInt :: g_rsatn  = 0
   PetscInt :: g_maxsatn= 0
 
+  ! Flag indicating DIMENS read (contains problem dimensions)
+
   PetscBool :: g_dimens_read = PETSC_FALSE
 
-  ! z-flip from Eclipse to Pflotran convention
+  ! z-flip from Eclipse to Pflotran convention and corner-point flags
 
   PetscBool :: g_iscpg = PETSC_FALSE
   PetscReal :: z_flip  = -1.0
@@ -68,7 +72,7 @@ module Grid_Grdecl_module
   PetscBool :: g_cpgallocated = PETSC_FALSE
   PetscBool :: g_isnewtran    = PETSC_FALSE
 
-  ! Counters for active cells, connections and max connections.
+  ! Counters for active cells, connections, max connections, faults, pinchouts
 
   PetscInt :: g_na  = 1
   PetscInt :: g_nc  = 0
@@ -105,16 +109,19 @@ module Grid_Grdecl_module
   PetscInt , pointer :: g_satn(:) => null()
 
   PetscInt , pointer :: g_gtoa(:) => null()
-  PetscInt , pointer :: g_atog(:) => null()
-  PetscInt , pointer :: g_atoc(:) => null()
 
   ! Active sized arrays
+
+  PetscInt , pointer :: g_atog(:) => null()
+  PetscInt , pointer :: g_atoc(:) => null()
 
   PetscReal, pointer :: g_bvol(:) => null()
 
   PetscReal, pointer :: g_x   (:) => null()
   PetscReal, pointer :: g_y   (:) => null()
   PetscReal, pointer :: g_z   (:) => null()
+
+  ! Connection sized arrays
 
   PetscInt , pointer :: g_cia (:) => null()
   PetscInt , pointer :: g_cja (:) => null()
@@ -351,7 +358,7 @@ subroutine UGrdEclExplicitRead(unstructured_grid, filename, option)
 
   !  Set non-blocking error detection only (reader will not exit)
 
-  call OptionSetBlocking(option,PETSC_FALSE)
+  call OptionSetBlocking(option, PETSC_FALSE)
   option%error_while_nonblocking = PETSC_FALSE
 
   !  Now read grdecl file on the io-rank only
@@ -370,7 +377,7 @@ subroutine UGrdEclExplicitRead(unstructured_grid, filename, option)
 
   ! Reset default blocking error state
 
-  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionSetBlocking(option, PETSC_TRUE)
   call OptionCheckNonBlockingError(option)
 
   ! Destroy the input system
@@ -460,7 +467,7 @@ end subroutine WriteStaticDataAndCleanup
 
 subroutine SetUGrdEclCmplLocation(wname, ci, cj, ckuser, cijk_d, qerr)
   !
-  ! Set up a completion for well wname at location (ci, cj, ck)
+  ! Set up a completion for well wname at location (ci, cj, ckuser)
   !
   ! Author: Dave Ponting
   ! Date: 11/21/18
@@ -476,7 +483,8 @@ subroutine SetUGrdEclCmplLocation(wname, ci, cj, ckuser, cijk_d, qerr)
   PetscInt :: ck, ik, iw
   PetscBool :: found
 
-  ! Set up Pflotran ck value
+  ! Set up Pflotran ck value.
+  ! If entered using cijk_d, is count from top, set negative to flag this later
 
   ck = ckuser
   if (cijk_d) ck = -ckuser
@@ -809,20 +817,20 @@ subroutine GrdeclReader(input, option)
   oldtran_force = PETSC_FALSE
 
   ! Read through items in the grdecl file
-
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranStringNotComment(input, option)
     if (option%error_while_nonblocking) then
       ! I/O error detected so set qerr and exit
       call SetError('Unable to read from GRDECL file', qerr)
-      exit;
+      exit
     endif
     if (input%ierr /= 0) exit                   ! Detect eof and leave
 
   ! Keyword found
 
-    call InputReadWord(input, option, word, PETSC_TRUE)
+    call InputReadCard(input, option, word)
     call CheckError(input, 'ECLGRD subkeyword', qerr);if ( qerr ) exit
     call StringToUpper(word)
 
@@ -862,13 +870,13 @@ subroutine GrdeclReader(input, option)
         call ReadEGridArrR(g_kz, 'PERMZ', &
                            input, option, dep_no, prm_yes, nn_yes, qerr)
       case('MULTX')
-        call ReadEGridArrR(g_kx, 'MULTX', &
+        call ReadEGridArrR(g_mx, 'MULTX', &
                            input, option, dep_no, prm_no , nn_yes, qerr)
       case('MULTY')
-        call ReadEGridArrR(g_ky, 'MULTY', &
+        call ReadEGridArrR(g_my, 'MULTY', &
                            input, option, dep_no, prm_no , nn_yes, qerr)
       case('MULTZ')
-        call ReadEGridArrR(g_kz, 'MULTZ', &
+        call ReadEGridArrR(g_mz, 'MULTZ', &
                            input, option, dep_no, prm_no , nn_yes, qerr)
       case('PORO')
         call ReadEGridArrR(g_poro, 'PORO', &
@@ -954,6 +962,7 @@ subroutine GrdeclReader(input, option)
 
     if (qerr) exit
   enddo
+  call InputPopBlock(input,option)
 
   !  Case in which NEWTRAN or OLDTRAN specified explicitly
 
@@ -968,7 +977,7 @@ subroutine GrdeclReader(input, option)
 
   !  Check for errors and process data
 
-  if( .not.qerr ) then
+  if (.not.qerr) then
 
     ! Process the grid data read
 
@@ -1056,8 +1065,8 @@ subroutine ReadFaults(zkey, input, option, qerr)
 !   Convert to Pflotran layer convention
 !   Note lower E-conv. layer becomes the upper P-conv. layer and v.v.
 
-    izl=g_nz-izue+1
-    izu=g_nz-izle+1
+    izl = g_nz-izue+1
+    izu = g_nz-izle+1
 
     call StoreFault(za(1), ixl, ixu, iyl, iyu, izl, izu, zface, qerr)
     if (qerr) exit
@@ -1282,8 +1291,8 @@ subroutine HandleOpKeyword(zkey, input, option, qerr)
 !   Convert to Pflotran layer convention
 !   Note lower E-conv. layer becomes the upper P-conv. layer and v.v.
 
-    izl=g_nz-izue+1
-    izu=g_nz-izle+1
+    izl = g_nz-izue+1
+    izu = g_nz-izle+1
 
     call BoxOp( za(1), za(2), ixl, ixu, iyl, iyu, izl, izu, &
                 isadd, iscpy, iseql, ismlt, zkey, qerr )
@@ -1344,8 +1353,8 @@ subroutine BoxOp( zto, zfr, ixl, ixu, &
 
   nullify(ai, ar, bi, br)
 
-  v = 0.0
-  iv= 0
+  v  = 0.0
+  iv = 0
 
   qerr = PETSC_FALSE
 
@@ -1373,14 +1382,14 @@ subroutine BoxOp( zto, zfr, ixl, ixu, &
 !     Case of depth array like TOPS: convert set-or-add value to an elevation
 
       if (is_depth) then
-        if (isadd .or. iseql) v=-v
+        if (isadd .or. iseql) v = -v
       endif
 
 !     Case of perm array like PERMX: convert set-or-add value from mD to m^2
 
       if (is_perm) then
         conv = GetMDtoM2Conv()
-        if (isadd .or. iseql) v=v*conv
+        if (isadd .or. iseql) v = v*conv
       endif
 
       do iz = izl, izu
@@ -1691,8 +1700,15 @@ subroutine ProcessGridData()
 
   PetscInt  :: ix, iy, iz, izp, ize, ig, ia, iact, ng, ic
   PetscReal :: porv, bvol, eps
+  PetscReal :: x000(3), x100(3), x010(3), x110(3), &
+               x001(3), x101(3), x011(3), x111(3)
+  PetscReal, allocatable :: bvg(:)
 
-!  Process faults
+  ! Set up bulk volume by grid index work array
+
+  allocate(bvg(g_nxyz));bvg =  0.0
+
+  !  Process faults
 
   call ProcessFaults()
 
@@ -1751,22 +1767,38 @@ subroutine ProcessGridData()
         bvol = 0.0
         porv = 0.0
 
-        ! Uses non-dip dx.dy.dz volume calculation
+        if (g_iscpg) then
+          call GetCorners( ix, iy, iz, &
+                           x000, x100, x010, x110, &
+                           x001, x101, x011, x111, &
+                           g_coord, g_zcorn, g_nx, g_ny )
+          bvg(ig) = findVolume( x000, x100, x010, x110, &
+                                x001, x101, x011, x111 )
+        else
+          bvg(ig) = g_dx(ig)*g_dy(ig)*g_dz(ig)
+        endif
+
+        bvol = bvg(ig)
+
+        ! iact is the ACTNUM array value
 
         iact = g_actn(ig)
 
-        bvol = g_dx(ig)*g_dy(ig)*g_dz(ig)
         if (iact == 1) then
           porv = g_poro(ig)*g_ntg(ig)*bvol
         endif
-        if (iact == 2) then
-          porv = bvol
+        if (iact == 2) then ! Rock volume only, tiny pore vol, no fluid flow
+          porv     = eps
+          g_kx(ig) = 0.0
+          g_ky(ig) = 0.0
+          g_kz(ig) = 0.0
         endif
-        if (iact == 3) then
-          porv = eps
+        if (iact == 3) then ! Pore volume only, but ntg honoured
+          porv = bvol*g_ntg(ig)
         endif
 
-        if (porv > g_minpv(1) ) then
+        if (                        (porv > g_minpv(1))  &
+            .or. ((iact == 2) .and. (bvol > 0.0       )) ) then
           g_na = g_na+1
           g_gtoa(ig) = g_na
         endif
@@ -1809,7 +1841,7 @@ subroutine ProcessGridData()
       enddo
     enddo
 
-    ! Initial estmate for number of connections
+    ! Initial estimate for number of connections
     ! Sufficient for normal connections + some space for wells
 
     g_mc = 3*g_na
@@ -1821,9 +1853,13 @@ subroutine ProcessGridData()
 
     ! Find the cell locations and connections
 
-    call GenerateGridConnections()
+    call GenerateGridConnections(bvg)
 
   endif
+
+  !  Deallocate the bulk volume by grid indexc work array
+
+  if (allocated(bvg)) deallocate(bvg)
 
 end subroutine ProcessGridData
 
@@ -2074,7 +2110,7 @@ end subroutine ProcessWellData
 
 subroutine DistributeWells(option)
   !
-  ! Distribute the well information from the I/O ranks to other ranks
+  ! Distribute the well information from the I/O rank to other ranks
   !
   ! Author: Dave Ponting
   ! Date: 11/23/18
@@ -2608,7 +2644,7 @@ end subroutine ReAllocateConnectionArrays
 
 ! *************************************************************************** !
 
-subroutine GenerateGridConnections
+subroutine GenerateGridConnections(bvg)
   !
   ! Given the cell locations, generate the connections
   !
@@ -2617,10 +2653,10 @@ subroutine GenerateGridConnections
 
   implicit none
 
+  PetscReal, allocatable, intent(in) :: bvg(:)
+
   PetscInt  :: ix, iy, iz, ig, ia
   PetscReal :: x, y, z, dx, dy, dz, mx, my, ntgi
-  PetscReal :: x000(3), x100(3), x010(3), x110(3), &
-               x001(3), x101(3), x011(3), x111(3)
 
   ! Set up grid connections
 
@@ -2643,16 +2679,7 @@ subroutine GenerateGridConnections
 
           ntgi = g_ntg(ig)
 
-          if (g_iscpg) then
-            call GetCorners( ix, iy, iz, &
-                             x000, x100, x010, x110, &
-                             x001, x101, x011, x111, &
-                             g_coord, g_zcorn, g_nx, g_ny )
-            g_bvol(ia) = findVolume( x000, x100, x010, x110, &
-                                     x001, x101, x011, x111 )
-          else
-            g_bvol(ia) = dx*dy*dz
-          endif
+          g_bvol(ia) = bvg(ig)
 
           g_x(ia) = g_xloc(ig)
           g_y(ia) = g_yloc(ig)
@@ -2669,7 +2696,7 @@ subroutine GenerateGridConnections
               call getArea1( ia, ix, iy, iz, g_xdir, mx, my, ntgi )
             else
               call getArea0( ia, ig, ix, iy, iz, g_xdir, &
-                             x, y, z, dx, dy, dz, mx, my, ntgi )
+                             dx, dy, dz, mx, my, ntgi )
             endif
           endif
 
@@ -2680,7 +2707,7 @@ subroutine GenerateGridConnections
               call getArea1( ia, ix, iy, iz, g_ydir, mx, my, ntgi )
             else
               call getArea0( ia, ig, ix, iy, iz, g_ydir, &
-                             x, y, z, dx, dy, dz, mx, my, ntgi )
+                             dx, dy, dz, mx, my, ntgi )
             endif
           endif
 
@@ -2691,7 +2718,7 @@ subroutine GenerateGridConnections
               call getArea1( ia, ix, iy, iz, g_zdir, mx, my, ntgi )
             else
               call getArea0( ia, ig, ix, iy, iz, g_zdir, &
-                             x, y, z, dx, dy, dz, mx, my, ntgi )
+                             dx, dy, dz, mx, my, ntgi )
             endif
           endif
 
@@ -3400,7 +3427,7 @@ subroutine GetNextWord(word, exitTime, input, option)
   PetscInt :: i, l, j, startcol, ic
   PetscBool :: lastCharRead, somethingRead, iws
 
-  PetscBool :: started
+  PetscBool :: started,inquotes,quote
 
   started       = PETSC_FALSE
   somethingRead = PETSC_FALSE
@@ -3418,16 +3445,20 @@ subroutine GetNextWord(word, exitTime, input, option)
   ! Rest of current line
 
     lastCharRead = PETSC_FALSE
+    started      = PETSC_FALSE
+    inquotes     = PETSC_FALSE
 
     startcol = g_column
     do i = startcol, l
       c = line(i:i)
       iws = IsWhiteSpace(c)
       ic = ichar(c)
+      quote=IsQuote(c)
+      if ( quote ) inquotes = .not.inquotes
       if ((.not. started) .and. (.not.iws)) started = PETSC_TRUE
-      if (       started  .and. ( iws .or. (i == l) )) exit
+      if (       started  .and. ((iws.and. (.not.inquotes)) .or. (i == l) )) exit
       if (started) then
-        if (.not.IsQuote(c)) then
+        if (.not.quote) then
           j = j + 1
           word(j:j) = c
           somethingRead = PETSC_TRUE
@@ -3575,7 +3606,7 @@ subroutine ReadEGridArrI(a, keyword, input, option, is_nn, qerr)
         column_buffer(iz) = a(ig)
       enddo
 
-      ! Place into Pflotran-converion array with appropriate data modifications
+      ! Place into Pflotran-conversion array with appropriate data modifications
 
       do iz = 1, g_nz
         izpft = g_nz - iz + 1
@@ -3855,7 +3886,7 @@ subroutine ReadEvalues(a, n, keyword, section, input, option, is_nn, qerr)
 
       else
 
-        ! Case of no value if stack
+        ! Case of no value in stack
 
         call getNextWord(word, exitTime, input, option)
         if (exitTime) exit
@@ -4209,6 +4240,7 @@ end subroutine isCPG
 ! *************************************************************************** !
 
 subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
+                                  permxy_p, permxz_p, permyz_p, &
                                   inatsend, nlmax, option)
   !
   ! Perm and porosity values from the grdecl file are known on the IO rank
@@ -4225,6 +4257,9 @@ subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
   PetscReal, pointer :: permx_p (:)
   PetscReal, pointer :: permy_p (:)
   PetscReal, pointer :: permz_p (:)
+  PetscReal, pointer :: permxy_p (:)
+  PetscReal, pointer :: permxz_p (:)
+  PetscReal, pointer :: permyz_p (:)
   PetscInt , pointer :: inatsend(:)
   PetscInt, intent(in) :: nlmax
   type(option_type) :: option
@@ -4289,6 +4324,11 @@ subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
           permx_p(ilt) = wperm(ibp+1)
           permy_p(ilt) = wperm(ibp+2)
           permz_p(ilt) = wperm(ibp+3)
+          if (option%flow%full_perm_tensor) then
+            permxy_p(ilt) = 0.d0
+            permxz_p(ilt) = 0.d0
+            permyz_p(ilt) = 0.d0
+          endif
         enddo
 
         ! Free buffers
@@ -4611,7 +4651,7 @@ end function  findVolume1
 
 ! *************************************************************************** !
 
-subroutine getArea0(ia, ig, ix, iy, iz, idir, x, y, z, &
+subroutine getArea0(ia, ig, ix, iy, iz, idir, &
                     dxi, dyi, dzi, mx, my, ntgi)
   !
   ! Do a block-based area calculation between cell (ix,iy,iz) and its
@@ -4623,7 +4663,7 @@ subroutine getArea0(ia, ig, ix, iy, iz, idir, x, y, z, &
   implicit none
 
   PetscInt , intent(in) :: ia, ig, ix, iy, iz, idir
-  PetscReal, intent(in) :: x, y, z, dxi, dyi, dzi, mx, my, ntgi
+  PetscReal, intent(in) :: dxi, dyi, dzi, mx, my, ntgi
 
   PetscInt  :: jx, jy, jz, jg, ja
   PetscReal :: xf, yf, zf, a, ai, aj, mz, ntgj, dxj, dyj, dzj, wi, wj, dd, dh
@@ -4722,7 +4762,7 @@ subroutine getArea0(ia, ig, ix, iy, iz, idir, x, y, z, &
 
     ! Add in the connection
 
-    if( a>0.0 ) then
+    if (a>0.0) then
       call AddConnection(ia, ja, xf, yf, zf, a)
     endif
 
@@ -4778,8 +4818,8 @@ subroutine getArea1(ia, ix, iy, iz, idir, mx, my, ntgi)
   !  Find average ntg and set ntg factor
 
   fntg = 1.0
-  if(     (idir == g_xdir) &
-     .or. (idir == g_ydir) ) then
+  if (     (idir == g_xdir) &
+      .or. (idir == g_ydir) ) then
     fntg  = 0.5*(ntgi+g_ntg(jg))
   endif
 
@@ -4841,16 +4881,16 @@ subroutine getArea1(ia, ix, iy, iz, idir, mx, my, ntgi)
         ! Look for active cell
 
         kg = GetNaturalIndex(ix, iy, kz)
-
-        ! Take z-mult from upper cell (down dirn, lower cell in Eclipse terms)
-
-        fm = g_mz(kg)
-
-        !  No ntg in vertical
-
-        fntg = 1.0
-
+        ka = g_gtoa(kg)
         if (ka > 0) then
+
+          ! z-mult from upper cell (downwrds dirn, lower cell in Eclipse terms)
+
+          fm = g_mz(kg)
+
+          ! No ntg in vertical
+
+          fntg = 1.0
 
           ! Find pinch-out distance
 
@@ -4900,15 +4940,20 @@ subroutine GetMif(ix, iy, iz, jx, jy, jz, idir, a, xf, yf, zf, match, found)
                x001(3), x101(3), x011(3), x111(3), &
                fl(0:1, 0:1, 3), fu(0:1, 0:1, 3), &
                fcl(3), fcu(3), cl(3), cu(3), dlu(3), &
-               d, ax, ay, az, srayl, srayu, srayl2, srayu2, &
+               d, ax, ay, az, ax1, ay1, az1, &
+               srayl, srayu, srayl2, srayu2, &
                sdlu, sdlu2, elu(3), sdlui, f, sraylu, auns
 
-  PetscReal, parameter :: missdistance = 0.01 ! 1cm
+  PetscReal, parameter :: missdistance = 0.01   ! 1 cm
+  PetscReal, parameter :: minfacearea  = 0.0001 ! 1 cm2
   PetscBool, parameter :: positive_yes = PETSC_TRUE
   PetscBool, parameter :: positive_no  = PETSC_FALSE
 
+  PetscBool :: missed
+
   PetscInt  :: i, j, k
-  PetscReal :: diff
+  PetscReal :: diff,dl,du,topl,botl,topu,botu
+  PetscReal :: axl,ayl,azl,axu,ayu,azu,areal,areau
 
   ! Default return values
 
@@ -4945,76 +4990,140 @@ subroutine GetMif(ix, iy, iz, jx, jy, jz, idir, a, xf, yf, zf, match, found)
                 x000, x100, x010, x110, &
                 x001, x101, x011, x111, fu )
 
-  do i = 1, 3
-    dlu(i) = cu(i)-cl(i)
-    fcl(i) = 0.25*(fl(0, 0, i)+fl(0, 1, i)+fl(1, 0, i)+fl(1, 1, i))
-    fcu(i) = 0.25*(fu(0, 0, i)+fu(0, 1, i)+fu(1, 0, i)+fu(1, 1, i))
-  enddo
+  ! Check for depth miss if x or y direction area
 
-  srayl2 = 0.0
-  srayu2 = 0.0
-  sdlu2  = 0.0
+  missed = PETSC_FALSE
 
-  do i = 1, 3
-    d = fcl(i)-cl(i)
-    srayl2 = srayl2 + d*d
-    d = fcu(i)-cu(i)
-    srayu2 = srayu2 + d*d
-    sdlu2 = sdlu2 + dlu(i)*dlu(i)
-  enddo
+  if (idir /= g_zdir) then
 
-  srayl = sqrt(srayl2)
-  srayu = sqrt(srayu2)
-  sdlu  = sqrt(sdlu2)
+    dl=fl(0, 0, g_zdir)
+    du=fu(0, 0, g_zdir)
 
-  sdlui = 0.0
-  if (sdlu > 0.0) sdlui = 1.0/sdlu
+    topl = dl
+    botl = dl
+    topu = du
+    botu = du
 
-  do i = 1, 3
-    elu(i) = dlu(i)*sdlui
-  enddo
+    do i = 0, 1
+      do j = 0, 1
+        dl=fl(i, j, g_zdir)
+        du=fu(i, j, g_zdir)
+        topl = max(topl,dl)
+        botl = min(botl,dl)
+        topu = max(topu,du)
+        botu = min(botu,du)
+      enddo
+    enddo
+
+    if ( (botl>topu) .or. (topl<botu) ) missed=PETSC_TRUE
+
+  endif
+
+  ! If not a depth miss, calculate area
+
+  if (missed) then
+    match=PETSC_FALSE
+  else
+
+    ! Store values
+
+    do i = 1, 3
+      dlu(i) = cu(i)-cl(i)
+      fcl(i) = 0.25*(fl(0, 0, i)+fl(0, 1, i)+fl(1, 0, i)+fl(1, 1, i))
+      fcu(i) = 0.25*(fu(0, 0, i)+fu(0, 1, i)+fu(1, 0, i)+fu(1, 1, i))
+    enddo
+
+    srayl2 = 0.0
+    srayu2 = 0.0
+    sdlu2  = 0.0
+
+    do i = 1, 3
+      d = fcl(i)-cl(i)
+      srayl2 = srayl2 + d*d
+      d = fcu(i)-cu(i)
+      srayu2 = srayu2 + d*d
+      sdlu2 = sdlu2 + dlu(i)*dlu(i)
+    enddo
+
+    srayl = sqrt(srayl2)
+    srayu = sqrt(srayu2)
+    sdlu  = sqrt(sdlu2)
+
+    sdlui = 0.0
+    if (sdlu > 0.0) sdlui = 1.0/sdlu
+
+    do i = 1, 3
+      elu(i) = dlu(i)*sdlui
+    enddo
 
   !  Check for a match
 
-  do i = 0, 1
-    do j = 0, 1
-      do k = 1, 3
-        diff = fu(i, j, k)-fl(i, j, k)
-        if (abs(diff)>missdistance) match = PETSC_FALSE
+    do i = 0, 1
+      do j = 0, 1
+        do k = 1, 3
+          diff = fu(i, j, k)-fl(i, j, k)
+          if (abs(diff)>missdistance) match = PETSC_FALSE
+        enddo
       enddo
     enddo
-  enddo
 
   !  If a match, can use simple quad area calculation
   !  otherwise do mutual interface area calculation
 
-  if (match) then
-    ax = qarea(fl, g_xdir)
-    ay = qarea(fl, g_ydir)
-    az = qarea(fl, g_zdir)
-  else
-    ax = marea(fl, fu, g_xdir)
-    ay = marea(fl, fu, g_ydir)
-    az = marea(fl, fu, g_zdir)
-  endif
+    if (match) then
 
-  !  Set up projection of area onto cell centre connection
-  !  shifted pro rata the centre to face distances
+      ax = qarea(fl, g_xdir)
+      ay = qarea(fl, g_ydir)
+      az = qarea(fl, g_zdir)
 
-  auns = ax*elu(g_xdir) + ay*elu(g_ydir) + az*elu(g_zdir)
-  a  = abs(auns)
-  sraylu = srayl+srayu
-  f = 0.5
-  if (sraylu > 0.0) then
-    f = srayl/(srayl+srayu)
-  endif
+    else
 
-  xf = cl(g_xdir) + f*dlu(g_xdir)
-  yf = cl(g_ydir) + f*dlu(g_ydir)
-  zf = cl(g_zdir) + f*dlu(g_zdir)
+      ! Check that the individual quads are not of zero area
 
-  if (a>0.0) then
-    found = PETSC_TRUE
+      axl = qarea(fl, g_xdir)
+      ayl = qarea(fl, g_ydir)
+      azl = qarea(fl, g_zdir)
+
+      axu = qarea(fu, g_xdir)
+      ayu = qarea(fu, g_ydir)
+      azu = qarea(fu, g_zdir)
+
+      areal=sqrt(axl*axl+ayl*ayl+azl*azl)
+      areau=sqrt(axu*axu+ayu*ayu+azu*azu)
+
+      ! If both have significant area, find overlap
+
+      if ( (areal>minfacearea) .and. (areau>minfacearea) ) then
+        ax = marea(fl, fu, g_xdir)
+        ay = marea(fl, fu, g_ydir)
+        az = marea(fl, fu, g_zdir)
+      else
+        ax = 0.0
+        ay = 0.0
+        az = 0.0
+      endif
+
+    endif
+
+    !  Set up projection of area onto cell centre connection
+    !  shifted pro rata the centre to face distances
+
+    auns = ax*elu(g_xdir) + ay*elu(g_ydir) + az*elu(g_zdir)
+    a  = abs(auns)
+    sraylu = srayl+srayu
+    f = 0.5
+    if (sraylu > 0.0) then
+      f = srayl/(srayl+srayu)
+    endif
+
+    xf = cl(g_xdir) + f*dlu(g_xdir)
+    yf = cl(g_ydir) + f*dlu(g_ydir)
+    zf = cl(g_zdir) + f*dlu(g_zdir)
+
+    if (a>0.0) then
+      found = PETSC_TRUE
+    endif
+
   endif
 
 end subroutine GetMif
@@ -5241,11 +5350,11 @@ function marea(fl, fu, idir)
   PetscReal, intent(in) :: fl(0:1, 0:1, 3)
   PetscReal, intent(in) :: fu(0:1, 0:1, 3)
   PetscInt , intent(in) :: idir
-  PetscReal :: xv(24), xvdd(24), x , y, diff, dy1, dy2
+  PetscReal :: xv(28), xvdd(28), x , y, diff, dy1, dy2
 
-  PetscInt  :: jdir, kdir, nxv, nxvd, i, j, ierr
+  PetscInt  :: jdir, kdir, nxv, nxvd, i, j, ierr, ifacepair, icell
   PetscReal :: alx, aly, aux, auy, &
-               blx, bly, bux, buy, px, py, yll, yuu, x1, x2
+               blx, bly, bux, buy, px, py, yll, yuu, x1, x2, dx, dy
   PetscBool :: qinter, qoverlap1, qoverlap2
 
   alx = 0.0
@@ -5260,7 +5369,7 @@ function marea(fl, fu, idir)
   px = -1.0
   py = -1.0
 
-  diff  = 0.01
+  diff  = 1.0E-9
   marea = 0.0
 
   !  Find other directions
@@ -5297,7 +5406,7 @@ function marea(fl, fu, idir)
     enddo
   enddo
 
-  !  Look for intersections
+  !  Look for intersections between quads
 
   do i = 1, 4
     call GetQuadSegment(i, idir, fl, alx, aly, aux, auy)
@@ -5307,7 +5416,27 @@ function marea(fl, fu, idir)
                            blx, bly, bux, buy, px, py, qinter)
       if (qinter) then
         nxv = nxv +1
-        xv(nxv) = x
+        xv(nxv) = px
+      endif
+    enddo
+  enddo
+
+  !  Look for self-crossed quads
+
+  do icell=1,2
+    do ifacepair=1,2  ! Segment pairs (1 and 3) and (2 and 4)
+      if (icell == 1) then
+        call GetQuadSegment(ifacepair  , idir, fl, alx, aly, aux, auy)
+        call GetQuadSegment(ifacepair+2, idir, fl, blx, bly, bux, buy)
+      else
+        call GetQuadSegment(ifacepair  , idir, fu, alx, aly, aux, auy)
+        call GetQuadSegment(ifacepair+2, idir, fu, blx, bly, bux, buy)
+      endif
+      call GetIntersection(alx, aly, aux, auy, &
+                           blx, bly, bux, buy, px, py, qinter)
+      if (qinter) then
+        nxv = nxv +1
+        xv(nxv) = px
       endif
     enddo
   enddo
@@ -5339,12 +5468,16 @@ function marea(fl, fu, idir)
 
       x1 = xvdd(i  )
       x2 = xvdd(i+1)
+      dx = x2 - x1
 
       call FindYLimitsAtThisX(fl, fu, idir, x1, yll, yuu, dy1, qoverlap1)
       call FindYLimitsAtThisX(fl, fu, idir, x2, yll, yuu, dy2, qoverlap2)
 
       if (qoverlap1 .and. qoverlap2) then
-        marea = marea + 0.5*(x2-x1)*(dy1+dy2)
+        dy = 0.5*(dy1+dy2)
+        if ( (dx > 0.0) .and. (dy > 0.0) ) then
+          marea = marea + dx*dy
+        endif
       endif
 
     enddo
@@ -5358,7 +5491,7 @@ end function marea
 subroutine FindYLimitsAtThisX(fl, fu, idir, x, yll, yuu, dy, qoverlap)
 
   !
-  ! Given two quadrilaterals fl and fu, find width of overlap region at x
+  ! Given two quads fl and fu, find width of overlap region in y at x
   !
   ! Author: Dave Ponting
   ! Date: 02/05/18
@@ -5380,8 +5513,8 @@ subroutine FindYLimitsAtThisX(fl, fu, idir, x, yll, yuu, dy, qoverlap)
 
   alx = x
   aux = x
-  aly = yll - 1.0
-  auy = yuu + 1.0
+  aly = yll - 10.0
+  auy = yuu + 10.0
 
   !  For each quad, find the min and max intersections
 
@@ -5423,7 +5556,7 @@ end subroutine FindYLimitsAtThisX
 subroutine InputReadPflotranStringNotComment(input, option)
 
   !
-  ! Read a new input line ,throwing away Eclipse comment lines (start with --)
+  ! Read a new input line, throwing away Eclipse comment lines (start with --)
   !
   ! Author: Dave Ponting
   ! Date: 02/11/18

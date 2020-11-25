@@ -285,7 +285,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
     if (.not.associated(observation)) exit
     next_observation => observation%next
     select case(observation%itype)
-      case(OBSERVATION_SCALAR)
+      case(OBSERVATION_SCALAR,OBSERVATION_AGGREGATE)
         ! pointer to region
         observation%region => RegionGetPtrFromList(observation%linkage_name, &
                                                     patch%region_list)
@@ -571,7 +571,7 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
   implicit none
 
   type(option_type), pointer :: option
-  !type(reaction_type), pointer :: reaction
+  !class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(geomech_field_type), pointer :: geomech_field
   type(geomech_patch_type), pointer :: patch  

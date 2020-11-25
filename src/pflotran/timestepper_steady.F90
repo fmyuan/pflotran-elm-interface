@@ -1,5 +1,8 @@
 module Timestepper_Steady_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+ 
   use Timestepper_BE_class
   use Timestepper_Base_class
   use Convergence_module
@@ -9,16 +12,7 @@ module Timestepper_Steady_class
 
   implicit none
 
-#include "petsc/finclude/petscsys.h"
- 
   type, public, extends(timestepper_BE_type) :: timestepper_steady_type
-  
- !   PetscInt :: num_newton_iterations ! number of Newton iterations in a time step
- !   PetscInt :: num_linear_iterations ! number of linear solver iterations in a time step
- !   PetscInt :: cumulative_newton_iterations       ! Total number of Newton iterations
- !   PetscInt :: cumulative_linear_iterations     ! Total number of linear iterations
-
- !   type(solver_type), pointer :: solver
   
   contains
 
@@ -54,8 +48,6 @@ function TimestepperSteadyCreate()
   allocate(stepper)
   call stepper%Init()
 
-  stepper%solver => SolverCreate()
-
   TimestepperSteadyCreate => stepper
 
 end function TimestepperSteadyCreate
@@ -79,6 +71,7 @@ function TimestepperSteadyCreateFromBase(timestepper_base)
   class(timestepper_steady_type), pointer :: stepper
 
   allocate(stepper)
+  call stepper%Init()
 
   stepper%name = timestepper_base%name
   stepper%steps = timestepper_base%steps
@@ -113,9 +106,6 @@ function TimestepperSteadyCreateFromBase(timestepper_base)
   stepper%prev_waypoint => timestepper_base%prev_waypoint
 
   stepper%solver => timestepper_base%solver
-  ! decouple the solver pointer or the upcoming TimestepperDestroy will 
-  ! destory it
-  nullify(timestepper_base%solver)
 
   TimestepperSteadyCreateFromBase => stepper
 
@@ -141,6 +131,7 @@ function TimestepperSteadyCreateFromBE(timestepper_BE)
   PetscInt :: i
 
   allocate(stepper)
+  call stepper%Init()
   
   stepper%name = timestepper_BE%name
   stepper%steps = timestepper_BE%steps
@@ -188,9 +179,6 @@ function TimestepperSteadyCreateFromBE(timestepper_BE)
   enddo
 
   stepper%solver => timestepper_BE%solver
-  ! decouple the solver pointer or the upcoming TimestepperDestroy will 
-  ! destory it
-  nullify(timestepper_BE%solver)
 
   TimestepperSteadyCreateFromBE => stepper
 
@@ -277,7 +265,7 @@ subroutine TimestepperSteadyStepDT(this, process_model, stop_flag)
   type(option_type), pointer :: option
   type(solver_type), pointer :: solver
 
-  solver => this%solver
+  solver => process_model%solver
   option => process_model%option
 
   sum_newton_iterations = 0

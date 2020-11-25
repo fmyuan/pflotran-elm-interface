@@ -6,6 +6,7 @@ module Output_Eclipse_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
+  use Grid_Grdecl_Util_module
   use, intrinsic :: iso_fortran_env, only: int32, real32, real64
 
   implicit none
@@ -482,8 +483,6 @@ subroutine WriteGridFile(coord, zcorn, gtoa)
   ! Author: Dave Ponting
   ! Date: 01/15/19
 
-  use Grid_Grdecl_Util_module
-
   implicit none
 
   PetscReal, intent(in) :: coord(:)
@@ -594,8 +593,6 @@ subroutine WriteInitFile(kx, ky, kz, &
   !
   ! Author: Dave Ponting
   ! Date: 01/15/19
-
-  use Grid_Grdecl_Util_module, only : GetM2toMDConv
 
   implicit none
 

@@ -30,6 +30,7 @@ module String_module
             StringNull, &
             StringFindEntryInList, &
             StringSplit, &
+            StringsMerge, &
             StringSwapChar, &
             StringFormatInt, &
             StringFormatDouble, &
@@ -49,6 +50,9 @@ module String_module
     module procedure StringWriteES1
     module procedure StringWriteES2
     module procedure StringWriteString
+    module procedure StringWriteIArray
+    module procedure StringWriteESArray1
+    module procedure StringWriteESArray2
   end interface
 
   interface StringWriteF
@@ -380,6 +384,12 @@ function StringStartsWith(string,string2)
 
   length = min(len_trim(string),len_trim(string2))
   
+  ! if either is a blank line, false
+  if (length == 0) then
+    StringStartsWith = PETSC_FALSE
+    return
+  endif
+
   do i = 1, length
     if (string(i:i) /= string2(i:i)) then
       StringStartsWith = PETSC_FALSE
@@ -626,6 +636,35 @@ end function StringSplit
 
 ! ************************************************************************** !
 
+function StringsMerge(strings,chars)
+  ! 
+  ! Merges a list of strings into a single string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/16/19
+  ! 
+      
+  implicit none
+
+  character(len=*) :: strings(:)
+  character(len=*) :: chars
+
+  character(len=MAXSTRINGLENGTH) :: StringsMerge
+
+  PetscInt :: i
+
+  StringsMerge = ''
+  do i = 1, size(strings)
+    StringsMerge = trim(StringsMerge) // trim(strings(i))
+    if (len_trim(chars) > 0 .and. i < size(strings)) then
+      StringsMerge = trim(StringsMerge) // trim(chars)
+    endif
+  enddo
+  
+end function StringsMerge
+
+! ************************************************************************** !
+
 function StringFormatInt(int_value)
   ! 
   ! Writes a integer to a string
@@ -801,15 +840,94 @@ function StringCenter(string,center_column,center_characters)
     icol = center_column - index(string,center_characters)
     if (icol > 0) then
       buffer(1:icol) = ''
-      string = buffer(1:icol) // string
+      string = trim(buffer(1:icol)) // string
     endif
   else if (len(center_characters) > 0) then
-    string = center_characters // string
+    string = trim(center_characters) // string
   endif
 
   StringCenter = string
  
 end function StringCenter
+
+! ************************************************************************** !
+
+function StringWriteIArray(i_array)
+  ! 
+  ! Writes an array of integers to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/12/19
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteIArray
+
+  PetscInt :: i_array(:)
+
+  PetscInt :: i
+
+  StringWriteIArray = ''
+  do i = 1, size(i_array)
+    StringWriteIArray = trim(StringWriteIArray) // ' ' // &
+                        trim(StringWrite(i_array(i)))
+  enddo
+
+end function StringWriteIArray
+
+! ************************************************************************** !
+
+function StringWriteESArray1(es_array)
+  ! 
+  ! Writes a double precision array in scientific notation to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/12/19
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteESArray1
+
+  PetscReal :: es_array(:)
+
+  PetscInt :: i
+
+  StringWriteESArray1 = ''
+  do i = 1, size(es_array)
+    StringWriteESArray1 = trim(StringWriteESArray1) // ' ' // &
+                          trim(StringWrite(es_array(i)))
+  enddo
+
+end function StringWriteESArray1
+
+! ************************************************************************** !
+
+function StringWriteESArray2(format_string,es_array)
+  ! 
+  ! Writes a double precision array in scientific notation to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/12/19
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteESArray2
+
+  character(len=*) format_string
+  PetscReal :: es_array(:)
+
+  PetscInt :: i
+
+  StringWriteESArray2 = ''
+  do i = 1, size(es_array)
+    StringWriteESArray2 = trim(StringWriteESArray2) // ' ' // &
+                          trim(StringWrite(format_string,es_array(i)))
+  enddo
+
+end function StringWriteESArray2
 
 ! ************************************************************************** !
 

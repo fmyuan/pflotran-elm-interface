@@ -164,13 +164,14 @@ subroutine GeomechStrataRead(strata,input,option)
   character(len=MAXSTRINGLENGTH) :: string
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS STRATA')   
       
     select case(trim(keyword))
@@ -184,6 +185,7 @@ subroutine GeomechStrataRead(strata,input,option)
         call InputErrorMsg(input,option, &
                    'geomechancis material property name','GEOMECHANICS STRATA')
         if (StringCompareIgnoreCase(string,'realization_dependent')) then
+          call InputPushCard(input,string,option)
           strata%realization_dependent = PETSC_TRUE
           call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
           call InputErrorMsg(input,option, &
@@ -194,10 +196,12 @@ subroutine GeomechStrataRead(strata,input,option)
       case('INACTIVE')
         strata%active = PETSC_FALSE
       case default
-        call InputKeywordUnrecognized(keyword,'GEOMECHANICS_STRATA',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'GEOMECHANICS_STRATA',option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine GeomechStrataRead
 

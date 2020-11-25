@@ -11,14 +11,10 @@ SIMULATION
     SUBSURFACE_FLOW FLOW
       MODE MPHASE
         OPTIONS
-          MAX_PRESSURE_CHANGE 5.e5
-          MAX_TEMPERATURE_CHANGE 5.d0
-          MAX_CONCENTRATION_CHANGE 0.1
-          MAX_SATURATION_CHANGE 0.025
         /
     /
     SUBSURFACE_TRANSPORT TRANSPORT
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
@@ -26,9 +22,54 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 16
+    !MAX_STEPS 10
+    PRESSURE_CHANGE_GOVERNOR 5.e5
+    TEMPERATURE_CHANGE_GOVERNOR 5.d0
+    CONCENTRATION_CHANGE_GOVERNOR 0.1
+    SATURATION_CHANGE_GOVERNOR 0.025
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-8
+    RTOL 1D-6
+    STOL 1D-30
+    DTOL 1D4
+    ITOL 1D-8
+    !MAXIMUM_NUMBER_OF_ITERATIONS 25
+    !MAXF 100
+    !PRINT_DETAILED_CONVERGENCE
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 16
+    !MAX_STEPS 10
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-8
+    RTOL 1D-6
+    STOL 1D-30
+    DTOL 1D4
+    ITOL 1D-8
+    !MAXIMUM_NUMBER_OF_ITERATIONS 25
+    !MAXF 100
+    !PRINT_DETAILED_CONVERGENCE
+  /
+
+END
+
 #=========================== regression test ========================================
 REGRESSION
-  CELLS
+  CELL_IDS
     22
     23
     54
@@ -101,7 +142,7 @@ CHEMISTRY
     CO2(g)
     O2(g)
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
     O2(g)
   /
@@ -127,18 +168,18 @@ CHEMISTRY
   MINERAL_KINETICS
     Quartz
       RATE_CONSTANT -17.99d0 mol/cm^2-sec
-      ACTIVATION_ENERGY 87.7d0
+      ACTIVATION_ENERGY 87.7d0 kJ/mol
     /
 
     skip
     K-Feldspar
       PREFACTOR
         RATE_CONSTANT -16.41d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 38.d0
+        ACTIVATION_ENERGY 38.d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -14.06d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 51.7d0
+        ACTIVATION_ENERGY 51.7d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.5d0
         ! BETA
@@ -147,7 +188,7 @@ CHEMISTRY
       /
       PREFACTOR
         RATE_CONSTANT -25.20d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 94.1d0
+        ACTIVATION_ENERGY 94.1d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           -0.82d0
         /
@@ -157,11 +198,11 @@ CHEMISTRY
    Oligoclase
       PREFACTOR
         RATE_CONSTANT -16.84d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 69.8d0
+        ACTIVATION_ENERGY 69.8d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -14.67d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 65.0d0
+        ACTIVATION_ENERGY 65.0d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.46d0
         ! BETA
@@ -178,11 +219,11 @@ CHEMISTRY
 #   Chlorite
 #     PREFACTOR
 #       RATE_CONSTANT -16.52d0 mol/cm^2-sec
-#       ACTIVATION_ENERGY 88.d0
+#       ACTIVATION_ENERGY 88.d0 kJ/mol
 #     /
 #     PREFACTOR
 #       RATE_CONSTANT -15.11d0 mol/cm^2-sec
-#       ACTIVATION_ENERGY 88.0d0
+#       ACTIVATION_ENERGY 88.0d0 kJ/mol
 #       PREFACTOR_SPECIES H+
 #         ALPHA           0.5d0
 #       ! BETA
@@ -195,11 +236,11 @@ CHEMISTRY
     Illite
       PREFACTOR
         RATE_CONSTANT -16.78d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 35.0d0
+        ACTIVATION_ENERGY 35.0d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -14.98d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 23.6d0
+        ACTIVATION_ENERGY 23.6d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.34d0
         ! BETA
@@ -208,7 +249,7 @@ CHEMISTRY
       /
       PREFACTOR
         RATE_CONSTANT -20.52d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 58.9d0
+        ACTIVATION_ENERGY 58.9d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           -0.40d0
         /
@@ -218,11 +259,11 @@ CHEMISTRY
     Hematite
       PREFACTOR
         RATE_CONSTANT -18.60d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 66.2d0
+        ACTIVATION_ENERGY 66.2d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -13.39d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 66.2d0
+        ACTIVATION_ENERGY 66.2d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           1.0d0
         ! BETA
@@ -234,11 +275,11 @@ CHEMISTRY
     Dawsonite
       PREFACTOR
         RATE_CONSTANT -12.90d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 62.8d0
+        ACTIVATION_ENERGY 62.8d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -17.19d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 36.1d0
+        ACTIVATION_ENERGY 36.1d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.5d0
         ! BETA
@@ -251,11 +292,11 @@ CHEMISTRY
     Siderite
       PREFACTOR
         RATE_CONSTANT -12.90d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 62.8d0
+        ACTIVATION_ENERGY 62.8d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -17.19d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 36.1d0
+        ACTIVATION_ENERGY 36.1d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.5d0
         ! BETA
@@ -267,11 +308,11 @@ CHEMISTRY
 #   Ankerite
 #     PREFACTOR
 #       RATE_CONSTANT -12.90d0 mol/cm^2-sec
-#       ACTIVATION_ENERGY 62.8d0
+#       ACTIVATION_ENERGY 62.8d0 kJ/mol
 #     /
 #     PREFACTOR
 #       RATE_CONSTANT -17.19d0 mol/cm^2-sec
-#       ACTIVATION_ENERGY 36.1d0
+#       ACTIVATION_ENERGY 36.1d0 kJ/mol
 #       PREFACTOR_SPECIES H+
 #         ALPHA           0.5d0
 #       ! BETA
@@ -283,11 +324,11 @@ CHEMISTRY
     Magnesite
       PREFACTOR
         RATE_CONSTANT -13.34d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 23.5d0
+        ACTIVATION_ENERGY 23.5d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -10.38d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 14.4d0
+        ACTIVATION_ENERGY 14.4d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           1.0d0
         ! BETA
@@ -299,11 +340,11 @@ CHEMISTRY
     Albite
       PREFACTOR
         RATE_CONSTANT -16.56d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 69.8d0
+        ACTIVATION_ENERGY 69.8d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -14.16d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 65.0d0
+        ACTIVATION_ENERGY 65.0d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.457d0
         ! BETA
@@ -312,7 +353,7 @@ CHEMISTRY
       /
       PREFACTOR
         RATE_CONSTANT -19.60d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 71.0d0
+        ACTIVATION_ENERGY 71.0d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           -0.572d0
         /
@@ -322,11 +363,11 @@ CHEMISTRY
     Smectite-Na
       PREFACTOR
         RATE_CONSTANT -16.78d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 35.0d0
+        ACTIVATION_ENERGY 35.0d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -14.98d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 23.6d0
+        ACTIVATION_ENERGY 23.6d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.34d0
         ! BETA
@@ -335,7 +376,7 @@ CHEMISTRY
       /
       PREFACTOR
         RATE_CONSTANT -20.52d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 58.9
+        ACTIVATION_ENERGY 58.9 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           -0.40d0
         /
@@ -345,11 +386,11 @@ CHEMISTRY
     Smectite-Ca
       PREFACTOR
         RATE_CONSTANT -16.78d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 35.0d0
+        ACTIVATION_ENERGY 35.0d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -14.98d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 23.6d0
+        ACTIVATION_ENERGY 23.6d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.34d0
         ! BETA
@@ -358,7 +399,7 @@ CHEMISTRY
       /
       PREFACTOR
         RATE_CONSTANT -20.52d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 58.9
+        ACTIVATION_ENERGY 58.9 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           -0.40d0
         /
@@ -368,11 +409,11 @@ CHEMISTRY
     Kaolinite
       PREFACTOR
         RATE_CONSTANT -17.16d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 22.2d0
+        ACTIVATION_ENERGY 22.2d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -15.31d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 65.9d0
+        ACTIVATION_ENERGY 65.9d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.78d0
         ! BETA
@@ -381,7 +422,7 @@ CHEMISTRY
       /
       PREFACTOR
         RATE_CONSTANT -21.05d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 17.9
+        ACTIVATION_ENERGY 17.9 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           -0.47d0
         /
@@ -391,11 +432,11 @@ CHEMISTRY
     Dolomite
       PREFACTOR
         RATE_CONSTANT -11.53d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 52.2d0
+        ACTIVATION_ENERGY 52.2d0 kJ/mol
       /
       PREFACTOR
         RATE_CONSTANT -7.19d0 mol/cm^2-sec
-        ACTIVATION_ENERGY 36.1d0
+        ACTIVATION_ENERGY 36.1d0 kJ/mol
         PREFACTOR_SPECIES H+
           ALPHA           0.5d0
         ! BETA
@@ -420,16 +461,8 @@ END
 
 
 !=========================== solver options ===================================
-TIMESTEPPER FLOW
-TS_ACCELERATION 16
-!MAX_STEPS 10
-/
 
 
-TIMESTEPPER TRANSPORT
-TS_ACCELERATION 16
-!MAX_STEPS 10
-/
 
 
 !NEWTON_SOLVER FLOW
@@ -438,34 +471,14 @@ TS_ACCELERATION 16
 !  STOL 1D-30
 !  DTOL 1D15
 !  ITOL 1D-8
-!  MAXIT 25
+!  MAXIMUM_NUMBER_OF_ITERATIONS 25
 !  MAXF 100
 !END
 
 
-NEWTON_SOLVER FLOW
-ATOL 1D-8
-RTOL 1D-6
-STOL 1D-30
-DTOL 1D4
-ITOL 1D-8
-!MAXIT 25
-!MAXF 100
-!PRINT_DETAILED_CONVERGENCE
-END
 
 
 
-NEWTON_SOLVER TRANSPORT
-ATOL 1D-8
-RTOL 1D-6
-STOL 1D-30
-DTOL 1D4
-ITOL 1D-8
-!MAXIT 25
-!MAXF 100
-!PRINT_DETAILED_CONVERGENCE
-END
 
 !=========================== discretization ===================================
 GRID

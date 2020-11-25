@@ -8,16 +8,21 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     3
     5
@@ -49,8 +54,6 @@ GRID
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-END
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY
@@ -89,6 +92,11 @@ OUTPUT
   FORMAT TECPLOT BLOCK
   FORMAT HDF5
   VELOCITY_AT_CENTER
+  VARIABLES
+    LIQUID_PRESSURE
+    LIQUID_SATURATION
+    K_ORTHOGONALITY_ERROR
+  /
 END
 
 #=========================== times ============================================

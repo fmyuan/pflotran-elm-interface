@@ -2,6 +2,9 @@ module SrcSink_Sandbox_WIPP_Gas_class
 
 ! Sandbox srcsink for WIPP gas generation source terms
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   
@@ -9,8 +12,6 @@ module SrcSink_Sandbox_WIPP_Gas_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter, public :: WIPP_GAS_WATER_SATURATION_INDEX = 1
   PetscInt, parameter, public :: WIPP_GAS_TEMPERATURE_INDEX = 2
   
@@ -74,8 +75,6 @@ subroutine WIPPGasGenerationRead(this,input,option)
   ! Author: Glenn Hammond, Edit: Heeho Park, Jenn Frederick
   ! Date: 04/11/14, 05/15/14, 01/09/2017
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -94,12 +93,13 @@ subroutine WIPPGasGenerationRead(this,input,option)
   
   error_strg = 'SRCSINK_SANDBOX,WIPP-GAS_GENERATION'
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_strg)
     call StringToUpper(word)   
 
@@ -137,10 +137,11 @@ subroutine WIPPGasGenerationRead(this,input,option)
         call InputReadDouble(input,option,this%satwick)
         call InputErrorMsg(input,option,'satwick',error_strg)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
           'SRCSINK_SANDBOX,WIPP-GAS_GENERATION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine WIPPGasGenerationRead
 

@@ -7,12 +7,25 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 32
+  /
+
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -64,7 +77,7 @@ CHEMISTRY
     FeSO4+
     Fe(SO4)2-
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
     O2(g)
   /
@@ -146,14 +159,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  INITIALIZE_TO_STEADY_STATE 1.d-8
-  RUN_AS_STEADY_STATE
-END
 
-TIMESTEPPER TRANSPORT
-  TS_ACCELERATION 32
-END
 
 #=========================== discretization ===================================
 GRID

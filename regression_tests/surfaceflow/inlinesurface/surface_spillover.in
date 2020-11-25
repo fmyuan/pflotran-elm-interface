@@ -16,8 +16,17 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    DTOL 1.d20
+  /
+
+END
+
   REGRESSION
-    CELLS
+  CELL_IDS
       1
       2
       3
@@ -40,6 +49,7 @@ SUBSURFACE
     FORMAT TECPLOT POINT
   END
   noskip
+
   
   ! Domain and region information -----------------------------------
 

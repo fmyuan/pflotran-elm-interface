@@ -12,8 +12,9 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
-      NUMERICAL_JACOBIAN
+      MODE GIRT
+      OPTIONS
+      /
     /
   /
 END
@@ -22,9 +23,22 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
 1
     2
 3
@@ -87,9 +101,6 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

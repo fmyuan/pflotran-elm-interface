@@ -1,5 +1,8 @@
 module Reaction_Gas_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module  
   use Global_Aux_module
@@ -10,8 +13,6 @@ module Reaction_Gas_module
   implicit none
  
   private
-
-#include "petsc/finclude/petscsys.h"
 
   
   public :: RGasRead, &
@@ -29,8 +30,6 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/02/13/ 08/01/16
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -59,12 +58,13 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
     nullify(prev_gas_species)
   endif
   ! read in new gases
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     new_gas_species => GasSpeciesCreate()
-    call InputReadWord(input,option,new_gas_species%name,PETSC_TRUE)  
+    call InputReadCard(input,option,new_gas_species%name)  
     call InputErrorMsg(input,option,'keyword',error_msg)    
     new_gas_species%itype = gas_type
     if (associated(prev_gas_species)) then
@@ -76,7 +76,8 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
     endif
     prev_gas_species => new_gas_species
     nullify(new_gas_species)
-  enddo                                          
+  enddo         
+  call InputPopBlock(input,option)
                                           
 end subroutine RGasRead
 
@@ -97,7 +98,7 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt, parameter :: iphase = 2
@@ -185,7 +186,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   PetscErrorCode :: ierr

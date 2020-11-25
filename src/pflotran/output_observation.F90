@@ -15,6 +15,7 @@ module Output_Observation_module
   ! flags signifying the first time a routine is called during a given
   ! simulation
   PetscBool :: observation_first
+  PetscBool :: observation_aggregate_first
   PetscBool :: check_for_obs_points
   PetscBool :: calculate_velocities ! true if any obs. pt. prints velocity
   PetscBool :: secondary_observation_first
@@ -58,11 +59,13 @@ subroutine OutputObservationInit(num_steps)
     secondary_observation_first = PETSC_TRUE
     mass_balance_first = PETSC_TRUE
     integral_flux_first = PETSC_TRUE
+    observation_aggregate_first = PETSC_TRUE
   else
     observation_first = PETSC_FALSE
     secondary_observation_first = PETSC_FALSE
     mass_balance_first = PETSC_FALSE
     integral_flux_first = PETSC_FALSE
+    observation_aggregate_first = PETSC_FALSE
   endif
 
   ewriter_summ_count = 0
@@ -88,15 +91,9 @@ subroutine OutputObservation(realization_base)
   
   class(realization_base_type) :: realization_base
 
-!  if (realization_base%output_option%print_hdf5) then
-!    call OutputObservationHDF5(realization)
-!    call OutputObservationTecplot(realization)
-!  endif
- 
-!  if (realization_base%output_option%print_tecplot .or. &
-!      realization_base%output_option%print_hdf5) then
   if (realization_base%output_option%print_observation) then
     call OutputObservationTecplotColumnTXT(realization_base)
+    call OutputAggregateToFile(realization_base)
     call OutputIntegralFlux(realization_base)
     if (realization_base%option%use_mc) then
       call OutputObservationTecplotSecTXT(realization_base)
@@ -123,6 +120,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   use Patch_module
   use Observation_module
   use Utility_module
+  use String_module
  
   implicit none
 
@@ -137,11 +135,15 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   type(patch_type), pointer :: patch  
   type(output_option_type), pointer :: output_option
   type(observation_type), pointer :: observation
+  type(observation_aggregate_type), pointer :: aggregate
+  type(output_variable_type), pointer :: cur_variable
   PetscBool, save :: open_file = PETSC_FALSE
   PetscReal, allocatable :: velocities(:,:,:)
   PetscInt :: local_id
   PetscInt :: icolumn
   PetscInt :: nphase
+  PetscInt :: i
+  PetscReal :: temp_real_comp, temp_real
   PetscErrorCode :: ierr
 
   call PetscLogEventBegin(logging%event_output_observation,ierr);CHKERRQ(ierr)
@@ -168,7 +170,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
     enddo
     check_for_obs_points = PETSC_FALSE
   endif
-  
+
   if (calculate_velocities) then
     nphase = max(option%nphase,option%transport%nphase)
     allocate(velocities(3,realization_base%patch%grid%nlmax,nphase))
@@ -183,7 +185,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   if (open_file) then
     write(string,'(i6)') option%myrank
     filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-obs-' // trim(adjustl(string)) // '.tec'
+               '-obs-' // trim(adjustl(string)) // '.pft'
   
     ! open file
     fid = 86
@@ -268,7 +270,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
             call WriteObservationDataForBC(fid,realization_base, &
                                             patch, &
                                             observation%connection_set)
-      end select
+        end select
       observation => observation%next
     enddo
     write(fid,'(a)',advance="yes") ""
@@ -282,6 +284,181 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   call PetscLogEventEnd(logging%event_output_observation,ierr);CHKERRQ(ierr)
       
 end subroutine OutputObservationTecplotColumnTXT
+
+! ************************************************************************** !
+
+subroutine OutputAggregateToFile(realization_base)
+  ! 
+  ! Print to observation aggregate data to text file
+  ! 
+  ! Author: Michael Nole
+  ! Date: 05/07/20
+  !
+
+  use Realization_Base_class, only : realization_base_type
+  use Discretization_module
+  use Grid_module
+  use Option_module
+  use Field_module
+  use Patch_module
+  use Observation_module
+  use Utility_module
+  use String_module
+
+  implicit none
+
+  class(realization_base_type) :: realization_base
+
+  PetscInt :: fid, icell
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(output_option_type), pointer :: output_option
+  type(observation_type), pointer :: observation
+  type(observation_aggregate_type), pointer :: aggregate
+  PetscInt :: icolumn
+  PetscErrorCode :: ierr
+
+  call PetscLogEventBegin(logging%event_output_observation_agg,ierr);CHKERRQ(ierr)
+
+  patch => realization_base%patch
+  option => realization_base%option
+  output_option => realization_base%output_option
+
+  ! Write aggregate output separately because any rank could write.
+  observation => patch%observation_list%first
+  do
+    if (.not. associated(observation)) exit
+    if (observation%itype == OBSERVATION_AGGREGATE) then
+      aggregate => observation%aggregate
+      if (.not. associated(aggregate%output_variable)) then
+        do
+          if (.not. associated(aggregate)) exit
+        ! Link aggregates with their output variables if it hasn't already
+        ! been done.
+          call ObservationAggregateLinkToVar(aggregate%output_variable, &
+                                       output_option%output_obs_variable_list, &
+                                       aggregate%var_name, option)
+          aggregate => aggregate%next
+        enddo
+        aggregate => observation%aggregate
+      endif
+
+      do
+        if (.not. associated(aggregate)) exit
+
+        write(string,'(i6)') observation%id
+        write(string2,'(i6)') aggregate%id
+        filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+               '-obs-' // trim(adjustl(string)) // '-agg-' // &
+               trim(adjustl(string2)) // '.pft'
+        fid = 86
+
+        if (observation_aggregate_first .or. .not.FileExists(filename)) then
+          if (option%myrank == option%io_rank) then
+            open(unit=fid,file=filename,action="write",status="replace")
+            ! write header
+            ! write title
+            write(fid,'(a)',advance="no") ' Aggregate Metric: '
+            select case(aggregate%metric)
+              case(OBSERVATION_AGGREGATE_MAX)
+                 write(fid,'(a)',advance="no") 'Max '
+              case(OBSERVATION_AGGREGATE_MIN)
+                 write(fid,'(a)',advance="no") 'Min '
+              case(OBSERVATION_AGGREGATE_AVG)
+                 write(fid,'(a)',advance="no") 'Average '
+            end select
+            write(fid,'(a)',advance="yes") trim(aggregate%var_name)
+
+            write(fid,'(a)',advance="no") ' "Time [' // &
+                  trim(output_option%tunit) // ']"'
+
+            ! must initialize icolumn here so that icolumn does not restart with
+            ! each observation point
+            if (output_option%print_column_ids) then
+              icolumn = 1
+            else
+              icolumn = -1
+            endif
+
+            call WriteObservationHeaderAgg(fid,realization_base, &
+                                           observation%region,icell, &
+                                           observation%print_velocities, &
+                                           icolumn)
+
+            write(fid,'(a)',advance="yes") ""
+            close(fid)
+          endif
+        endif
+        aggregate => aggregate%next
+      enddo
+
+      aggregate => observation%aggregate
+      do
+        if (.not. associated(aggregate)) exit
+
+        write(string,'(i6)') observation%id
+        write(string2,'(i6)') aggregate%id
+        filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+               '-obs-' // trim(adjustl(string)) // '-agg-' // &
+               trim(adjustl(string2)) // '.pft'
+        fid = 86
+
+        ! Compute the aggregate metric on each process
+        call ObservationAggComputeMetric(realization_base, aggregate, &
+                                         observation%region, option)
+        ! Do the reduction and write
+        call WriteObservationAggData(aggregate,realization_base, &
+                                     string,filename,fid,output_option,option)
+        aggregate => aggregate%next
+      enddo
+
+    endif
+    observation => observation%next
+  enddo
+
+  observation_aggregate_first = PETSC_FALSE
+  call PetscLogEventEnd(logging%event_output_observation_agg,ierr);CHKERRQ(ierr)
+
+end subroutine OutputAggregateToFile
+
+! ************************************************************************** !
+
+subroutine WriteObservationHeaderAgg(fid,realization_base,region,icell, &
+                                     print_velocities,icolumn)
+  ! Print a header for aggregated data
+  ! 
+  ! Author: Michael Nole
+  ! Date: 04/16/20
+  ! 
+  
+  use Realization_Base_class, only : realization_base_type
+  use Output_Aux_module
+  use Region_module
+
+  implicit none
+
+  PetscInt :: fid
+  class(realization_base_type) :: realization_base
+  type(region_type) :: region
+  PetscInt :: icell
+  PetscBool :: print_velocities
+  PetscInt :: icolumn
+
+  character(len=MAXSTRINGLENGTH) :: cell_string
+
+  cell_string = ' '
+
+  call OutputWriteToHeader(fid,'x(m)',' ',cell_string,icolumn)
+  call OutputWriteToHeader(fid,'y(m)',' ',cell_string,icolumn)
+  call OutputWriteToHeader(fid,'z(m)',' ',cell_string,icolumn)
+
+  call WriteObservationHeader(fid,realization_base,cell_string, &
+                              print_velocities,icolumn)
+
+
+end subroutine WriteObservationHeaderAgg
 
 ! ************************************************************************** !
 
@@ -392,13 +569,11 @@ subroutine WriteObservationHeader(fid,realization_base,cell_string, &
                                   
   use Realization_Base_class, only : realization_base_type
   use Option_module
-  use Reaction_Aux_module
 
   implicit none
   
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  type(reaction_type), pointer :: reaction 
   PetscBool :: print_velocities
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
@@ -497,7 +672,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   if (open_file) then
     write(string,'(i6)') option%myrank
     filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-obs-sec-' // trim(adjustl(string)) // '.tec'
+               '-obs-sec-' // trim(adjustl(string)) // '.pft'
   
     ! open file
     fid = 86
@@ -721,7 +896,7 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  type(reaction_type), pointer :: reaction 
+  class(reaction_rt_type), pointer :: reaction 
   PetscBool :: print_secondary_data(5)
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
@@ -749,55 +924,61 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   
   ! add secondary concentrations to header
   if (option%ntrandof > 0) then 
-    reaction => realization_base%reaction
-    if (print_secondary_data(2)) then
-      do j = 1, reaction%naqcomp
-        do i = 1, option%nsec_cells
-          write(string,'(i2)') i
-          string = 'C(' // trim(adjustl(string)) // ') ' &
-                     // trim(reaction%primary_species_names(j))
-          call OutputWriteToHeader(fid,string,'molal',cell_string, &
-                                   icolumn)
-        enddo
-      enddo
-    endif
-  
-  ! add secondary mineral volume fractions to header
-    if (print_secondary_data(3)) then
-      do j = 1, reaction%mineral%nkinmnrl
-        do i = 1, option%nsec_cells
-          write(string,'(i2)') i
-          string = 'VF(' // trim(adjustl(string)) // ') ' &
-                   // trim(reaction%mineral%mineral_names(j))
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      enddo
-    endif  
-    
-  ! add secondary mineral rates to header
-    if (print_secondary_data(4)) then
-      do j = 1, reaction%mineral%nkinmnrl
-        do i = 1, option%nsec_cells
-          write(string,'(i2)') i
-          string = 'Rate(' // trim(adjustl(string)) // ') ' &
-                   // trim(reaction%mineral%mineral_names(j))
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      enddo
-    endif    
-    
-  ! add secondary mineral volume fractions to header
-    if (print_secondary_data(5)) then
-      do j = 1, reaction%mineral%nkinmnrl
-        do i = 1, option%nsec_cells
-          write(string,'(i2)') i
-          string = 'SI(' // trim(adjustl(string)) // ') ' &
-                   // trim(reaction%mineral%mineral_names(j))
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      enddo
-    endif    
-    
+    select case(option%itranmode)
+      case(RT_MODE)
+        reaction => ReactionCast(realization_base%reaction_base)
+        if (print_secondary_data(2)) then
+          do j = 1, reaction%naqcomp
+            do i = 1, option%nsec_cells
+              write(string,'(i2)') i
+              string = 'C(' // trim(adjustl(string)) // ') ' &
+                         // trim(reaction%primary_species_names(j))
+              call OutputWriteToHeader(fid,string,'molal',cell_string, &
+                                       icolumn)
+            enddo
+          enddo
+        endif
+      
+      ! add secondary mineral volume fractions to header
+        if (print_secondary_data(3)) then
+          do j = 1, reaction%mineral%nkinmnrl
+            do i = 1, option%nsec_cells
+              write(string,'(i2)') i
+              string = 'VF(' // trim(adjustl(string)) // ') ' &
+                       // trim(reaction%mineral%mineral_names(j))
+              call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+            enddo
+          enddo
+        endif  
+        
+      ! add secondary mineral rates to header
+        if (print_secondary_data(4)) then
+          do j = 1, reaction%mineral%nkinmnrl
+            do i = 1, option%nsec_cells
+              write(string,'(i2)') i
+              string = 'Rate(' // trim(adjustl(string)) // ') ' &
+                       // trim(reaction%mineral%mineral_names(j))
+              call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+            enddo
+          enddo
+        endif    
+        
+      ! add secondary mineral volume fractions to header
+        if (print_secondary_data(5)) then
+          do j = 1, reaction%mineral%nkinmnrl
+            do i = 1, option%nsec_cells
+              write(string,'(i2)') i
+              string = 'SI(' // trim(adjustl(string)) // ') ' &
+                       // trim(reaction%mineral%mineral_names(j))
+              call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+            enddo
+          enddo
+        endif    
+      case(NWT_MODE)
+        option%io_buffer = 'WriteObservationHeaderSec has not been setup &
+          &for NW Transport.'
+        call PrintErrMsg(option)
+    end select
   endif 
   
 end subroutine WriteObservationHeaderSec
@@ -825,10 +1006,10 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
   PetscInt :: i
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction 
+  class(reaction_rt_type), pointer :: reaction 
   
   option => realization_base%option
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
   
   select case(option%iflowmode)
     case(FLASH2_MODE)
@@ -857,6 +1038,68 @@ end subroutine WriteObservationHeaderForBC
 
 ! ************************************************************************** !
 
+subroutine WriteObservationAggData(aggregate,realization_base,string,&
+                                   filename,fid,output_option,option)
+  !
+  ! Print aggregate data of interest
+  !
+  ! Author: Michael Nole
+  ! Date: 04/16/20
+
+  use Realization_Base_class, only : realization_base_type
+  use Option_module
+  use Observation_module
+
+  implicit none
+
+  type(observation_aggregate_type), pointer :: aggregate
+  class(realization_base_type) :: realization_base
+  type(output_option_type), pointer :: output_option
+  type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: string, filename
+  PetscInt :: fid  
+
+  PetscErrorCode :: ierr
+  PetscInt :: agg_rank, local_id
+  PetscReal :: local_metric(2), global_metric(2)
+
+110 format(es14.6)
+
+  local_metric(1) = aggregate%metric_value
+  local_metric(2) = option%myrank
+
+  select case(aggregate%metric)
+    case(OBSERVATION_AGGREGATE_MAX)
+      call MPI_Allreduce(local_metric,global_metric,ONE_INTEGER, &
+                         MPI_2DOUBLE_PRECISION,MPI_MAXLOC,option%mycomm,ierr) 
+  end select
+
+  agg_rank = global_metric(2)
+
+  if (option%myrank == agg_rank) then
+
+    local_id = aggregate%local_id
+
+    open(unit=fid,file=filename,action="write",status="old",position="append")
+    write(fid,'(1es14.6)',advance="no") option%time/output_option%tconv
+
+    write(fid,110,advance="no") realization_base%patch%grid%x(realization_base%&
+                                patch%grid%nL2G(local_id))
+    write(fid,110,advance="no") realization_base%patch%grid%y(realization_base%&
+                                patch%grid%nL2G(local_id))
+    write(fid,110,advance="no") realization_base%patch%grid%z(realization_base%&
+                                patch%grid%nL2G(local_id))
+
+    call WriteObservationDataForCell(fid,realization_base,local_id)
+
+    write(fid,'(a)',advance="yes") ""
+    close(fid)    
+  endif
+
+end subroutine WriteObservationAggData
+
+! ************************************************************************** !
+
 subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   ! 
   ! Print data for data at a cell
@@ -871,7 +1114,6 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
   use Variables_module
   
   implicit none
@@ -885,7 +1127,6 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  type(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option  
   type(output_variable_type), pointer :: cur_variable
   
@@ -936,7 +1177,6 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
   use Variables_module
   
   use Grid_Structured_module
@@ -954,7 +1194,6 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  type(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
     
@@ -1078,11 +1317,11 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   PetscReal :: sum_solute_flux(realization_base%option%ntrandof)
   PetscReal :: sum_solute_flux_global(realization_base%option%ntrandof)
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   PetscErrorCode :: ierr
   
   option => realization_base%option
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
 
 110 format(es14.6)
  
@@ -1092,7 +1331,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   if (associated(connection_set)) then
     offset = connection_set%offset
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+      case(MPH_MODE,TH_MODE,TH_TS_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE)
       case(WF_MODE)
         option%io_buffer = 'WriteObservationDataForBC() needs to be set up &
           & for WIPP Flow, and perhaps the other multiphase flow modes.'
@@ -1549,7 +1788,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
   type(output_option_type), pointer :: output_option 
-  type(reaction_type), pointer :: reaction   
+  class(reaction_rt_type), pointer :: reaction   
   PetscInt :: ivar
   
   option => realization_base%option
@@ -1574,47 +1813,158 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
         end select
      endif
     if (option%ntrandof > 0) then
-      reaction => realization_base%reaction 
-      if (ivar == PRINT_SEC_CONC) then
-        do naqcomp = 1, reaction%naqcomp
-          do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                           SECONDARY_CONCENTRATION,i,naqcomp)
-          enddo
-        enddo 
-      endif
-      if (ivar == PRINT_SEC_MIN_VOLFRAC) then
-        do nkinmnrl = 1, reaction%mineral%nkinmnrl
-          do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                           SEC_MIN_VOLFRAC,i,nkinmnrl)
-          enddo
-        enddo
-      endif
-       if (ivar == PRINT_SEC_MIN_RATE) then
-        do nkinmnrl = 1, reaction%mineral%nkinmnrl
-          do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                           SEC_MIN_RATE,i,nkinmnrl)
-          enddo
-        enddo
-      endif
-      if (ivar == PRINT_SEC_MIN_SI) then
-        do nkinmnrl = 1, reaction%mineral%nkinmnrl
-          do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                           SEC_MIN_SI,i,nkinmnrl)
-          enddo
-        enddo
-      endif           
+      select case(option%itranmode)
+        case(RT_MODE)
+          reaction => ReactionCast(realization_base%reaction_base)
+          if (ivar == PRINT_SEC_CONC) then
+            do naqcomp = 1, reaction%naqcomp
+              do i = 1, option%nsec_cells 
+                write(fid,110,advance="no") &
+                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                             SECONDARY_CONCENTRATION,i,naqcomp)
+              enddo
+            enddo 
+          endif
+          if (ivar == PRINT_SEC_MIN_VOLFRAC) then
+            do nkinmnrl = 1, reaction%mineral%nkinmnrl
+              do i = 1, option%nsec_cells 
+                write(fid,110,advance="no") &
+                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                               SEC_MIN_VOLFRAC,i,nkinmnrl)
+              enddo
+            enddo
+          endif
+           if (ivar == PRINT_SEC_MIN_RATE) then
+            do nkinmnrl = 1, reaction%mineral%nkinmnrl
+              do i = 1, option%nsec_cells 
+                write(fid,110,advance="no") &
+                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                               SEC_MIN_RATE,i,nkinmnrl)
+              enddo
+            enddo
+          endif
+          if (ivar == PRINT_SEC_MIN_SI) then
+            do nkinmnrl = 1, reaction%mineral%nkinmnrl
+              do i = 1, option%nsec_cells 
+                write(fid,110,advance="no") &
+                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                               SEC_MIN_SI,i,nkinmnrl)
+              enddo
+            enddo
+          endif           
+        case(NWT_MODE)
+          option%io_buffer = 'WriteObservationSecondaryDataAtCell has not &
+            &been setup for NW Transport.'
+          call PrintErrMsg(option)
+      end select
     endif 
-   endif 
+  endif 
    
 end subroutine WriteObservationSecondaryDataAtCell
+
+! ************************************************************************** !
+
+subroutine ObservationAggregateLinkToVar(aggregate_var,output_var_list, &
+                                         var_name,option)
+  !
+  ! Links aggregator variable to output variable
+  !
+  ! Author: Michael Nole
+  ! Date: 04/17/20
+ 
+  use Option_module 
+  use String_module
+
+  implicit none
+
+  type(output_variable_type), pointer :: aggregate_var
+  type(output_variable_list_type), pointer :: output_var_list
+  character(len=MAXWORDLENGTH) :: var_name
+  type(option_type), pointer :: option
+
+  type(output_variable_type), pointer :: cur_variable
+
+  cur_variable => output_var_list%first
+  do
+    if (.not. associated(cur_variable)) then
+      option%io_buffer = 'Variable requested for aggregate metric ' //&
+                         'does not match any output variables.'
+      call PrintErrMsg(option)
+    elseif (StringCompareIgnoreCase(cur_variable%name,var_name)) then
+      aggregate_var => cur_variable
+      exit
+    endif
+      cur_variable => cur_variable%next
+  enddo
+
+end subroutine ObservationAggregateLinkToVar
+
+! ************************************************************************** !
+
+subroutine ObservationAggComputeMetric(realization_base,aggregate,region,option)
+  !
+  ! Computes the user-specified aggregate metric
+  !
+  ! Author: Michael Nole
+  ! Date: 04/17/20
+
+  use Realization_Base_class, only : realization_base_type
+  use Observation_module
+  use Option_module
+  use Region_module
+
+  implicit none
+
+  class(realization_base_type) :: realization_base
+  type(observation_aggregate_type), pointer :: aggregate
+  type(region_type), pointer :: region
+  type(option_type), pointer :: option
+
+  type(output_variable_type), pointer :: cur_variable
+  PetscReal :: temp_real, temp_real_comp
+  PetscInt :: icell, local_id, ghosted_id
+
+  cur_variable => aggregate%output_variable
+  temp_real = UNINITIALIZED_DOUBLE
+  
+  if (region%num_cells == 0) then
+    select case(aggregate%metric)
+      case(OBSERVATION_AGGREGATE_MAX)
+        aggregate%metric_value = -1.d20
+        aggregate%local_id = 0
+      case(OBSERVATION_AGGREGATE_MIN)
+        aggregate%metric_value = 1.d20
+        aggregate%local_id = 0
+    end select
+  else
+    do icell= 1,region%num_cells
+      local_id = region%cell_ids(icell)
+      ghosted_id = realization_base%patch%grid%nL2G(local_id)
+      temp_real_comp = OutputGetVariableAtCell(realization_base, &
+                                               ghosted_id,cur_variable)
+      select case(aggregate%metric)
+        case(OBSERVATION_AGGREGATE_MAX)
+          if (temp_real_comp > temp_real .or. temp_real == &
+              UNINITIALIZED_DOUBLE) then
+            aggregate%metric_value = temp_real_comp
+            aggregate%local_id = local_id
+            temp_real = temp_real_comp
+          endif
+        case(OBSERVATION_AGGREGATE_MIN)
+          if (temp_real_comp < temp_real .or. temp_real == &
+              UNINITIALIZED_DOUBLE) then
+            aggregate%metric_value = temp_real_comp
+            aggregate%local_id = local_id
+            temp_real = temp_real_comp
+          endif
+        case default
+          option%io_buffer = 'Aggregate metric not assigned.'
+          call PrintErrMsg(option)
+      end select
+    enddo
+  endif
+
+end subroutine ObservationAggComputeMetric
 
 ! ************************************************************************** !
 
@@ -1646,7 +1996,7 @@ subroutine OutputIntegralFlux(realization_base)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(output_option_type), pointer :: output_option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word, units
@@ -1668,7 +2018,7 @@ subroutine OutputIntegralFlux(realization_base)
   grid => patch%grid
   option => realization_base%option
   output_option => realization_base%output_option
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
 
   if (.not.associated(patch%integral_flux_list%first)) return
 
@@ -1681,7 +2031,7 @@ subroutine OutputIntegralFlux(realization_base)
     case(MIS_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWGLYC
-    case(G_MODE)
+    case(G_MODE,H_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = general_fmw(2)
     case(WF_MODE)
@@ -1701,9 +2051,6 @@ subroutine OutputIntegralFlux(realization_base)
   
   ! open file
   if (option%myrank == option%io_rank) then
-
-!geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -1731,7 +2078,7 @@ subroutine OutputIntegralFlux(realization_base)
         if (.not.associated(integral_flux)) exit
         select case(option%iflowmode)
           case(RICHARDS_MODE,RICHARDS_TS_MODE, &
-               TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE, &
+               TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,H_MODE,MPH_MODE,FLASH2_MODE, &
                IMS_MODE,WF_MODE)
             string = trim(integral_flux%name) // ' Water'
             call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -1746,7 +2093,7 @@ subroutine OutputIntegralFlux(realization_base)
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(integral_flux%name) // ' Glycol'
             call OutputWriteToHeader(fid,string,units,'',icol)
-          case(G_MODE)
+          case(G_MODE,H_MODE)
             string = trim(integral_flux%name) // ' Air'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             units = 'kg/' // trim(output_option%tunit) // ''
@@ -1766,7 +2113,8 @@ subroutine OutputIntegralFlux(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
         end select
         select case(option%iflowmode)
-          case(TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE,IMS_MODE)
+          case(TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,H_MODE,MPH_MODE,FLASH2_MODE, &
+               IMS_MODE)
             string = trim(integral_flux%name) // ' Energy'
             call OutputWriteToHeader(fid,string,'MJ','',icol)
             units = 'MJ/' // trim(output_option%tunit) // ''
@@ -1775,17 +2123,24 @@ subroutine OutputIntegralFlux(realization_base)
         end select
         
         if (option%ntrandof > 0) then
-          units = 'mol/' // trim(output_option%tunit) // ''
-          do i=1,reaction%naqcomp
-            if (reaction%primary_species_print(i)) then
-              string = trim(integral_flux%name) // ' ' // &
-                       trim(reaction%primary_species_names(i))
-              call OutputWriteToHeader(fid,string,'mol','',icol)
-              string = trim(integral_flux%name) // ' ' // &
-                       trim(reaction%primary_species_names(i))
-              call OutputWriteToHeader(fid,string,units,'',icol)
-            endif
-          enddo
+          select case(option%itranmode)
+            case(RT_MODE)
+              units = 'mol/' // trim(output_option%tunit) // ''
+              do i=1,reaction%naqcomp
+                if (reaction%primary_species_print(i)) then
+                  string = trim(integral_flux%name) // ' ' // &
+                           trim(reaction%primary_species_names(i))
+                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                  string = trim(integral_flux%name) // ' ' // &
+                           trim(reaction%primary_species_names(i))
+                  call OutputWriteToHeader(fid,string,units,'',icol)
+                endif
+              enddo
+            case(NWT_MODE)
+              option%io_buffer = 'OutputIntegralFlux has not &
+                &been setup for NW Transport.'
+              call PrintErrMsg(option)
+          end select
         endif
         integral_flux => integral_flux%next
       enddo
@@ -1870,18 +2225,22 @@ subroutine OutputIntegralFlux(realization_base)
       endif
       if (option%ntrandof > 0) then
         istart = option%nflowdof
-        do i=1,reaction%naqcomp
-          do j = 1, 2  ! 1 = integral, 2 = instantaneous
-            if (reaction%primary_species_print(i)) then
-              tempreal = array_global(istart+i,j)
-              if (dabs(tempreal) > 0.d0 .and. dabs(tempreal) < 1.d-99) then
-                write(fid,120,advance="no") tempreal
-              else
-                write(fid,110,advance="no") tempreal
-              endif
-            endif
-          enddo
-        enddo
+        select case(option%itranmode)
+          case(RT_MODE)
+            do i=1,reaction%naqcomp
+              do j = 1, 2  ! 1 = integral, 2 = instantaneous
+                if (reaction%primary_species_print(i)) then
+                  tempreal = array_global(istart+i,j)
+                  if (dabs(tempreal) > 0.d0 .and. dabs(tempreal) < 1.d-99) then
+                    write(fid,120,advance="no") tempreal
+                  else
+                    write(fid,110,advance="no") tempreal
+                  endif
+                endif
+              enddo
+            enddo
+          case(NWT_MODE)
+        end select
       endif
     endif
     integral_flux => integral_flux%next
@@ -1926,6 +2285,7 @@ subroutine OutputMassBalance(realization_base)
   use TH_module, only : THComputeMassBalance
   use Reactive_Transport_module, only : RTComputeMassBalance
   use General_module, only : GeneralComputeMassBalance
+  use Hydrate_module, only : HydrateComputeMassBalance
   use WIPP_Flow_module, only : WIPPFloComputeMassBalance
   use TOilIms_module, only : TOilImsComputeMassBalance
   use TOWG_module, only : TOWGComputeMassBalance
@@ -1954,8 +2314,7 @@ subroutine OutputMassBalance(realization_base)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc_or_ss(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word, units
@@ -1993,12 +2352,18 @@ subroutine OutputMassBalance(realization_base)
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
   output_option => realization_base%output_option
 
   if (option%ntrandof > 0) then
-    rt_auxvars => patch%aux%RT%auxvars
-    material_auxvars => patch%aux%Material%auxvars
+    select case(option%itranmode)
+      case(RT_MODE)
+        rt_auxvars => patch%aux%RT%auxvars
+      case(NWT_MODE)
+        option%io_buffer = 'OutputMassBalance has not been setup &
+          &for NW Transport.'
+        call PrintErrMsg(option)
+    end select
   endif
 
   if (len_trim(output_option%plot_name) > 2) then
@@ -2010,9 +2375,6 @@ subroutine OutputMassBalance(realization_base)
   
   ! open file
   if (option%myrank == option%io_rank) then
-
-!geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -2042,7 +2404,7 @@ subroutine OutputMassBalance(realization_base)
         case(TH_MODE,TH_TS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
-        case(G_MODE)
+        case(G_MODE,H_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
@@ -2101,35 +2463,39 @@ subroutine OutputMassBalance(realization_base)
       end select
 
       if (option%ntrandof > 0) then
-        do i=1,reaction%naqcomp
-          if (reaction%primary_species_print(i)) then
-            string = 'Global ' // trim(reaction%primary_species_names(i))
-            call OutputWriteToHeader(fid,string,'mol','',icol)
-          endif
-        enddo
+        select case(option%itranmode)
+          case(RT_MODE)
+            do i=1,reaction%naqcomp
+              if (reaction%primary_species_print(i)) then
+                string = 'Global ' // trim(reaction%primary_species_names(i))
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+            enddo
 
-        do i=1,reaction%immobile%nimmobile
-          if (reaction%immobile%print_me(i)) then
-            string = 'Global ' // trim(reaction%immobile%names(i))
-            call OutputWriteToHeader(fid,string,'mol','',icol)
-          endif
-        enddo
+            do i=1,reaction%immobile%nimmobile
+              if (reaction%immobile%print_me(i)) then
+                string = 'Global ' // trim(reaction%immobile%names(i))
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+            enddo
 
-        do i=1,reaction%gas%nactive_gas
-          if (reaction%gas%active_print_me(i)) then
-            string = 'Global ' // trim(reaction%gas%active_names(i))
-            call OutputWriteToHeader(fid,string,'mol','',icol)
-          endif
-        enddo
+            do i=1,reaction%gas%nactive_gas
+              if (reaction%gas%active_print_me(i)) then
+                string = 'Global ' // trim(reaction%gas%active_names(i))
+                call OutputWriteToHeader(fid,string,'mol','',icol)
+              endif
+            enddo
 
-        if (option%mass_bal_detailed) then
-          do i=1,reaction%mineral%nkinmnrl
-            if (reaction%mineral%kinmnrl_print(i)) then
-              string = 'Global ' // trim(reaction%mineral%kinmnrl_names(i))
-              call OutputWriteToHeader(fid,string,'mol','',icol)
+            if (option%mass_bal_detailed) then
+              do i=1,reaction%mineral%nkinmnrl
+                if (reaction%mineral%kinmnrl_print(i)) then
+                  string = 'Global ' // trim(reaction%mineral%kinmnrl_names(i))
+                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                endif
+              enddo
             endif
-          enddo
-        endif
+          case(NWT_MODE)
+        end select
       endif
       
       coupler => patch%boundary_condition_list%first
@@ -2175,7 +2541,7 @@ subroutine OutputMassBalance(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Glycol Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
-          case(G_MODE)
+          case(G_MODE,H_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             string = trim(coupler%name) // ' Air Mass'
@@ -2245,25 +2611,26 @@ subroutine OutputMassBalance(realization_base)
         end select
         
         if (option%ntrandof > 0) then
-          do i=1,reaction%naqcomp
-            if (reaction%primary_species_print(i)) then
-!              option%io_buffer = 'Check OutputObservation to ensure that ' // &
-!                'reactive transport species units are really kmol.'
-!              call PrintErrMsg(option)
-              string = trim(coupler%name) // ' ' // &
-                       trim(reaction%primary_species_names(i))
-              call OutputWriteToHeader(fid,string,'mol','',icol)
-            endif
-          enddo
-          
-          units = 'mol/' // trim(output_option%tunit) // ''
-          do i=1,reaction%naqcomp
-            if (reaction%primary_species_print(i)) then
-              string = trim(coupler%name) // ' ' // &
-                       trim(reaction%primary_species_names(i))
-              call OutputWriteToHeader(fid,string,units,'',icol)
-            endif
-          enddo
+          select case(option%itranmode)
+            case(RT_MODE)
+              do i=1,reaction%naqcomp
+                if (reaction%primary_species_print(i)) then
+                  string = trim(coupler%name) // ' ' // &
+                           trim(reaction%primary_species_names(i))
+                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                endif
+              enddo
+  
+              units = 'mol/' // trim(output_option%tunit) // ''
+              do i=1,reaction%naqcomp
+                if (reaction%primary_species_print(i)) then
+                  string = trim(coupler%name) // ' ' // &
+                           trim(reaction%primary_species_names(i))
+                  call OutputWriteToHeader(fid,string,units,'',icol)
+                endif
+              enddo
+            case(NWT_MODE)
+          end select
         endif
         coupler => coupler%next
       
@@ -2301,34 +2668,6 @@ subroutine OutputMassBalance(realization_base)
           end select
         endif
       endif
-      
-#ifdef YE_FLUX
-!geh      do offset = 1, 4
-!geh        write(word,'(i6)') offset*100
-        select case(option%iflowmode)
-          case(FLASH2_MODE,MPH_MODE)
-            write(fid,'(a)',advance="no") ',"' // &
-              'Plane Water Flux [mol/s]","Plane CO2 Flux [mol/s]",' // &
-              '"Plane Energy Flux [MJ/s]"'
-          case(RICHARDS_MODE,RICHARDS_TS_MODE)
-            write(fid,'(a)',advance="no") ',"' // &
-              'Plane Water Flux [mol/s]"'
-          case(TH_MODE,TH_TS_MODE)
-            write(fid,'(a)',advance="no") ',"' // &
-              trim(adjustl(word)) // 'm Water Mass [kg]"'
-        end select
-        
-        if (option%ntrandof > 0) then
-          do i=1,reaction%naqcomp
-            if (reaction%primary_species_print(i)) then
-              write(fid,'(a)',advance="no") ',"' // &
-                  trim(adjustl(word)) // 'm ' // &
-                  trim(reaction%primary_species_names(i)) // ' [mol]"'
-            endif
-          enddo
-        endif
-!geh      enddo
-#endif      
       write(fid,'(a)') '' 
     else
       open(unit=fid,file=filename,action="write",status="old",position="append")
@@ -2375,6 +2714,8 @@ subroutine OutputMassBalance(realization_base)
             call ImmisComputeMassBalance(realization_base,sum_kg(:,1))
           case(G_MODE)
             call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
+          case(H_MODE)
+            call HydrateComputeMassBalance(realization_base,sum_kg(:,:))
           case(WF_MODE)
             call WIPPFloComputeMassBalance(realization_base,sum_kg(:,1))
           case(TOIL_IMS_MODE)
@@ -2402,7 +2743,7 @@ subroutine OutputMassBalance(realization_base)
 
     if (option%myrank == option%io_rank) then
       select case(option%iflowmode)
-        case(RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE,G_MODE, &
+        case(RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE,G_MODE,H_MODE, &
              TH_MODE,TH_TS_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
@@ -2501,7 +2842,11 @@ subroutine OutputMassBalance(realization_base)
   coupler => patch%boundary_condition_list%first
   global_auxvars_bc_or_ss => patch%aux%Global%auxvars_bc
   if (option%ntrandof > 0) then
-    rt_auxvars_bc_or_ss => patch%aux%RT%auxvars_bc
+    select case(option%itranmode)
+      case(RT_MODE)
+        rt_auxvars_bc_or_ss => patch%aux%RT%auxvars_bc
+      case(NWT_MODE)
+    end select
   endif    
   bcs_done = PETSC_FALSE
   do 
@@ -2515,7 +2860,11 @@ subroutine OutputMassBalance(realization_base)
           if (.not.associated(coupler)) exit
           global_auxvars_bc_or_ss => patch%aux%Global%auxvars_ss
           if (option%ntrandof > 0) then
-            rt_auxvars_bc_or_ss => patch%aux%RT%auxvars_ss
+            select case(option%itranmode)
+              case(RT_MODE)
+                rt_auxvars_bc_or_ss => patch%aux%RT%auxvars_ss
+              case(NWT_MODE)
+            end select
           endif    
         else
           exit
@@ -2781,7 +3130,7 @@ subroutine OutputMassBalance(realization_base)
               write(fid,110,advance="no") -sum_kg_global(icomp,1)*output_option%tconv
             endif
           enddo
-        case(G_MODE)
+        case(G_MODE,H_MODE)
           ! print out cumulative H2O flux
           sum_kg = 0.d0
           do iconn = 1, coupler%connection_set%num_connections
@@ -2929,52 +3278,55 @@ subroutine OutputMassBalance(realization_base)
     endif
     
     if (option%ntrandof > 0) then
+      select case(option%itranmode)
+        case(RT_MODE)
+          nmobilecomp = reaction%naqcomp
+          allocate(sum_mol(nmobilecomp,option%transport%nphase))
+          allocate(sum_mol_global(nmobilecomp,option%transport%nphase))
+          ! print out cumulative boundary flux
+          sum_mol = 0.d0
+          do iconn = 1, coupler%connection_set%num_connections
+            sum_mol = sum_mol + &
+              rt_auxvars_bc_or_ss(offset+iconn)%mass_balance(1:nmobilecomp,:)
+          enddo
 
-      nmobilecomp = reaction%naqcomp
-      allocate(sum_mol(nmobilecomp,option%transport%nphase))
-      allocate(sum_mol_global(nmobilecomp,option%transport%nphase))
-      ! print out cumulative boundary flux
-      sum_mol = 0.d0
-      do iconn = 1, coupler%connection_set%num_connections
-        sum_mol = sum_mol + &
-          rt_auxvars_bc_or_ss(offset+iconn)%mass_balance(1:nmobilecomp,:)
-      enddo
+          int_mpi = nmobilecomp
+          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
+                          MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
 
-      int_mpi = nmobilecomp
-      call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                      MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%io_rank,option%mycomm,ierr)
-
-      if (option%myrank == option%io_rank) then
-        ! change sign for positive in / negative out
-        do icomp = 1, reaction%naqcomp
-          if (reaction%primary_species_print(icomp)) then
-            write(fid,110,advance="no") -sum_mol_global(icomp,1)
+          if (option%myrank == option%io_rank) then
+            ! change sign for positive in / negative out
+            do icomp = 1, reaction%naqcomp
+              if (reaction%primary_species_print(icomp)) then
+                write(fid,110,advance="no") -sum_mol_global(icomp,1)
+              endif
+            enddo
           endif
-        enddo
-      endif
-    
-      ! print out boundary flux
-      sum_mol = 0.d0
-      do iconn = 1, coupler%connection_set%num_connections
-        sum_mol = sum_mol + &
-          rt_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta(1:nmobilecomp,:) 
-      enddo
 
-      int_mpi = nmobilecomp
-      call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                      MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%io_rank,option%mycomm,ierr)
-                      
-      if (option%myrank == option%io_rank) then
-        ! change sign for positive in / negative out
-        do icomp = 1, reaction%naqcomp
-          if (reaction%primary_species_print(icomp)) then
-            write(fid,110,advance="no") -sum_mol_global(icomp,1)* &
-                                          output_option%tconv
+          ! print out boundary flux
+          sum_mol = 0.d0
+          do iconn = 1, coupler%connection_set%num_connections
+            sum_mol = sum_mol + rt_auxvars_bc_or_ss(offset+iconn)% &
+                                  mass_balance_delta(1:nmobilecomp,:) 
+          enddo
+
+          int_mpi = nmobilecomp
+          call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
+                          MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+
+          if (option%myrank == option%io_rank) then
+            ! change sign for positive in / negative out
+            do icomp = 1, reaction%naqcomp
+              if (reaction%primary_species_print(icomp)) then
+                write(fid,110,advance="no") -sum_mol_global(icomp,1)* &
+                                              output_option%tconv
+              endif
+            enddo
           endif
-        enddo
-      endif
+        case(NWT_MODE)
+      end select
       deallocate(sum_mol,sum_mol_global)
     endif
 
@@ -3008,89 +3360,17 @@ subroutine OutputMassBalance(realization_base)
         select type(realization_base)
          class is(realization_subsurface_type)
           call WriteWellValues(fid,realization_base, &
-                               output_option%tconv, towg_miscibility_model, &
+                               towg_miscibility_model, &
                                option, wecl, sum_kg_global)
           if (output_option%write_masses) then
             call WriteWellMassValues(fid,realization_base, &
-                                     output_option%tconv,towg_miscibility_model)
+                                     towg_miscibility_model)
           endif
         end select
       endif
     endif
   endif
 
-#ifdef YE_FLUX
-
-!geh  do offset = 1, 4
-!geh    iconn = offset*20-1
-
-    !TODO(ye): The flux will be calculated at the plane intersecting the top
-    !          of the kth cell in the z-direction.  You need to update this.
-    k = 30
-
-    if (option%nflowdof > 0) then
-      ! really summation of moles, but we are hijacking the variable
-      sum_mol_ye = 0.d0
-      if (k-1 >= grid%structured_grid%lzs .and. &
-          k-1 < grid%structured_grid%lze) then
-        offset = (grid%structured_grid%ngx-1)*grid%structured_grid%nlyz + &
-                 (grid%structured_grid%ngy-1)*grid%structured_grid%nlxz
-        do j = grid%structured_grid%lys, grid%structured_grid%lye-1
-          do i = grid%structured_grid%lxs, grid%structured_grid%lxe-1
-            iconn = offset + (i-grid%structured_grid%lxs)* &
-                             (grid%structured_grid%ngz-1) + &
-                             (j-grid%structured_grid%lys)* &
-                             grid%structured_grid%nlx* &
-                             (grid%structured_grid%ngz-1) + &
-                             k-grid%structured_grid%lzs+1
-!gehprint *, option%myrank, grid%nG2A(grid%internal_connection_set_list%first%id_up(iconn)), &
-!gehpatch%internal_fluxes(1:option%nflowdof,1,iconn), 'sum_mol_by_conn'
-            sum_mol_ye(1:option%nflowdof) = sum_mol_ye(1:option%nflowdof) + &
-                             patch%internal_flow_fluxes(1:option%nflowdof,iconn)
-          enddo
-        enddo
-      endif
-!geh      int_mpi = option%nphase
-      int_mpi = option%nflowdof
-!gehprint *, option%myrank, sum_mol_ye(1,1), 'sum_mol_ye'
-      call MPI_Reduce(sum_mol_ye,sum_mol_global_ye, &
-                      int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%io_rank,option%mycomm,ierr)
-                          
-      if (option%myrank == option%io_rank) then
-        ! change sign for positive in / negative out
-        ! for mphase use:
-        write(fid,110,advance="no") -sum_mol_global_ye(1:option%nflowdof)/option%flow_dt
-
-!     for Richards eqn. use:
-!       write(fid,110,advance="no") -sum_mol_global_ye(1:option%nflowdof)
-      endif
-    endif
-    
-    if (option%ntrandof > 0) then
-
-      sum_mol = 0.d0
-      sum_mol = sum_mol + patch%aux%RT%auxvars(iconn)%mass_balance
-
-      int_mpi = option%transport%nphase*option%ntrandof
-      call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                      MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%io_rank,option%mycomm,ierr)
-
-      if (option%myrank == option%io_rank) then
-        do iphase = 1, option%transport%nphase
-          do icomp = 1, reaction%naqcomp
-            if (reaction%primary_species_print(icomp)) then
-              ! change sign for positive in / negative out
-              write(fid,110,advance="no") -sum_mol_global(icomp,iphase)
-            endif
-          enddo
-        enddo
-      endif
-    endif
-!geh  enddo
-#endif
-  
   if (option%myrank == option%io_rank) then
     write(fid,'(a)') ''
     close(fid)
@@ -3232,7 +3512,6 @@ subroutine OutputEclipseFiles(realization_base)
         select type(realization_base)
          class is(realization_subsurface_type)
            call WriteWellValues(fid, realization_base, &
-                                output_option%tconv, &
                                 towg_miscibility_model, &
                                 option, wecl, sum_kg_global)
         end select
@@ -3548,7 +3827,7 @@ end subroutine WriteWellMassHeaders
 
 ! *************************************************************************** !
 
-subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
+subroutine WriteWellValues(fid, realization, towg_miscibility_model, &
                            option, wecl, sum_kg_global)
   !
   ! Used to write out mas file values specific to TOIL and TOWG modes
@@ -3598,6 +3877,8 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
 
   PetscReal, pointer :: vd(:)
   PetscInt           :: nd, md, iphase
+
+  tconv = 3600.0*24.0
 
   nd = 0
 
@@ -3867,7 +4148,7 @@ end subroutine WriteWellValues
 
 ! *************************************************************************** !
 
-subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
+subroutine WriteWellMassValues(fid, realization, towg_miscibility_model)
   !
   ! Used to write out mass rates to the mas file values
   ! Specific to TOIL and TOWG modes
@@ -3900,6 +4181,8 @@ subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
                fgmpr, fgmpt, fgmir, fgmit, &
                fwmpr, fwmpt, fwmir, fwmit, &
                fsmpr, fsmpt, fsmir, fsmit
+
+  tconv = 3600.0*24.0
 
   !  Find well list and loop over wells
 
@@ -4177,20 +4460,22 @@ subroutine WriteLineRept(realization, option)
   PetscReal :: time, tconv, dt
   type(well_data_list_type), pointer :: well_data_list
 
+  PetscInt :: icountp
+
   PetscReal :: fopt, fopr, &
                fgpr, fgir, &
                fwpr, fwir, &
                flpr, fgor, fwct, fpav
-  character(len=8) :: sopt, sopr, swpr, sgpr, swir, sgir
+  character(len=8) :: stime, sdt, sopt, sopr, swpr, sgpr, swir, sgir, sgor, spav
 
-100 format('Step  time    tstep  fopt     fopr     fwpr     ', &
-           'fgpr     fwir     fgir     fwct    fgor     fpav    NL LI Ch')
-101 format('      days    days   ksm3     sm3/d    ksm3/d   ', &
-           'ksm3/d   ksm3/d   ksm3/d          ksm3/sm3 Bar')
-102 format('----- ------- ------ -------- -------- -------- ', &
-           '-------- -------- -------- ------- -------- ------- -- -- --')
-103 format(I5, 1X, F7.1, 1X, F6.2, 1X, A8, 1X, A8, 1X, A8, 1X, A8, &
-           1X, A8, 1X, A8, 1X, F7.5, 1X, F8.3, 1X, F7.2, &
+100 format('Step   time     tstep    fopt     fopr     fwpr     ', &
+           'fgpr     fwir     fgir     fwct    fgor     fpav     NL LI Ch')
+101 format('       days     days     ksm3     sm3/d    ksm3/d   ', &
+           'ksm3/d   ksm3/d   ksm3/d           ksm3/sm3 Bar')
+102 format('------ -------- -------- -------- -------- -------- ', &
+           '-------- -------- -------- ------- -------- -------- -- -- --')
+103 format(I6, 1X, A8, 1X, A8, 1X, A8, 1X, A8, 1X, A8, 1X, A8, &
+           1X, A8, 1X, A8, 1X, F7.5, 1X, A8, 1X, A8, &
            1X, I2, 1X, I2, 1X, I2)
 
   well_data_list => realization%well_data
@@ -4238,19 +4523,47 @@ subroutine WriteLineRept(realization, option)
       write(*, 102)
     endif
 
+!   Increment linecount
+
+    icountp = linerept_count + 1
+
+!  Format the time field (prefer F8.1 if possible)
+
+    if      (time<999999.0) then
+      write(stime,'(F8.1)') time    ! Write as XXXXXX.X days
+    else if (time<99999999.0 ) then
+      write(stime,'(I8)') int(time) ! Write as XXXXXXXX days
+    else
+      call PrintTidy8(time,stime)   ! Write as general real days
+    endif
+
+!  Format the steplength (prefer F8.3 if possible)
+
+    if      (dt<9999.0) then
+      write(sdt,'(F8.3)') dt    ! Write as XXXX.XXX days
+    else
+      call PrintTidy8(dt,sdt)   ! Write as general real days
+    endif
+
+!  Format other real values
+
     call PrintTidy8(fopt, sopt)
     call PrintTidy8(fopr, sopr)
     call PrintTidy8(fwpr, swpr)
     call PrintTidy8(fgpr, sgpr)
     call PrintTidy8(fwir, swir)
     call PrintTidy8(fgir, sgir)
+    call PrintTidy8(fgor, sgor)
+    call PrintTidy8(fpav, spav)
 
-    write(*, 103) linerept_count+1, time, dt, &
+! Print line report
+
+    write(*, 103) icountp, stime, sdt, &
                   sopt, sopr, swpr, sgpr, &
-                  swir, sgir, fwct, fgor, fpav, &
+                  swir, sgir, fwct, sgor, spav, &
                   option%nnl, option%linpernl, option%nchperst
 
-    linerept_count = linerept_count + 1
+    linerept_count = icountp
 
   endif
 

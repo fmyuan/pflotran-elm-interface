@@ -19,7 +19,7 @@ SUBSURFACE
   ! Simulation details and output control ---------------------------
 
   REGRESSION
-    CELLS
+  CELL_IDS
       7
       8
       9

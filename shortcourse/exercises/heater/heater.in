@@ -6,15 +6,23 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE GENERAL
-      OPTIONS
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
-      /
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    RTOL 1.d-5
+    STOL 1.d-9
+    NUMERICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+
+END
 
 #=========================== discretization ===================================
 GRID
@@ -22,10 +30,6 @@ GRID
 END
 
 #=========================== newton solver ====================================
-NEWTON_SOLVER FLOW
-  RTOL 1.d-5
-  STOL 1.d-9
-END
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

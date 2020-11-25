@@ -7,16 +7,39 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+  /
+
+  LINEAR_SOLVER
+    KSP_TYPE PREONLY
+    PC_TYPE LU
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    KSP_TYPE PREONLY
+    PC_TYPE LU
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     ! eight corners
     1
     5
@@ -53,25 +76,10 @@ CHEMISTRY
 /
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-/
 
-NEWTON_SOLVER FLOW
-/
 
-LINEAR_SOLVER FLOW
-  KSP_TYPE PREONLY
-  PC_TYPE LU
-/
 
-NEWTON_SOLVER TRANSPORT
-/
 
-LINEAR_SOLVER TRANSPORT
-  KSP_TYPE PREONLY
-  PC_TYPE LU
-/
 
 #=========================== discretization ===================================
 GRID

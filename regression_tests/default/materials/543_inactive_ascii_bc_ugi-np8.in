@@ -8,16 +8,39 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+  /
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+    #  SOLVER DIRECT
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+    #  SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     # have to list cells here as the Mac produces a slightly different 
     # decomposition
     1
@@ -52,19 +75,8 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-END
 
-LINEAR_SOLVER FLOW
-  SOLVER ITERATIVE
-#  SOLVER DIRECT
-END
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER ITERATIVE
-#  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

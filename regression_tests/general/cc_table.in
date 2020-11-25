@@ -1,0 +1,231 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+       RESTRICT_STATE_CHANGE
+      END
+    END
+  END
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    5
+  /
+END
+
+#=========================== numerical methods ================================
+
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+
+  TIMESTEPPER
+    SATURATION_CHANGE_GOVERNOR 1.d-2
+  /  
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  # 1D vertical column
+  NXYZ 1 1 10
+  DXYZ
+    0.1
+    0.1
+    3.0
+  END
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.0d-1 day
+  INITIAL_TIMESTEP_SIZE 1.0d-3 day
+  MAXIMUM_TIMESTEP_SIZE 1.0d-1 day
+END
+
+#=========================== material properties ==============================
+
+MATERIAL_PROPERTY formation
+  ID 1
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2.350d3
+  SPECIFIC_HEAT 1.0d3
+  THERMAL_CONDUCTIVITY_DRY 1.541d0
+  THERMAL_CONDUCTIVITY_WET 1.541d0
+  CHARACTERISTIC_CURVES vg_table
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  END
+  POROSITY 2.5d-1
+END
+
+#=========================== output ==========================================
+
+OUTPUT
+  SNAPSHOT_FILE
+    VARIABLES
+      CAPILLARY_PRESSURE
+      LIQUID_PRESSURE
+      LIQUID_SATURATION
+      LIQUID_DENSITY
+      LIQUID_MOBILITY
+      LIQUID_RELATIVE_PERMEABILITY
+      GAS_PRESSURE
+      GAS_SATURATION
+      GAS_DENSITY
+      GAS_MOBILITY
+      GAS_RELATIVE_PERMEABILITY
+      PERMEABILITY
+      POROSITY
+      TEMPERATURE
+      THERMODYNAMIC_STATE
+    END
+  END
+END
+
+#=========================== characteristic curves ============================
+
+CHARACTERISTIC_CURVES vg_table
+  SATURATION_FUNCTION LOOKUP_TABLE
+    FILE ./vg_pc_table.dat
+    LIQUID_RESIDUAL_SATURATION 0.2
+    MAX_CAPILLARY_PRESSURE 1.0E+8
+  END
+  PERMEABILITY_FUNCTION TABLE_LIQ
+    FILE ./vg_liq_rp_table.dat
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.2
+  END
+  PERMEABILITY_FUNCTION TABLE_GAS
+    FILE ./vg_gas_rp_table.dat
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.2
+    GAS_RESIDUAL_SATURATION 0.0
+  END
+END
+
+#=========================== EOSs =============================================
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== regions ==========================================
+REGION all
+ COORDINATES
+  -1.d20 -1.d20 -1.d20
+   1.d20  1.d20  1.d20
+ END
+END
+
+REGION water_table_reg
+  FACE BOTTOM
+  BLOCK 1 1  1 1  1 1
+END
+
+REGION open_top_reg
+  FACE TOP
+  BLOCK 1 1  1 1  10 10
+END
+
+REGION top_obs
+  BLOCK 1 1  1 1  10 10
+END
+
+REGION bot_obs
+  BLOCK 1 1  1 1  1 1
+END
+
+#=========================== flow conditions ==================================
+
+# fully saturated hydrostatic condition
+# water table at top of column
+FLOW_CONDITION initial_press 
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  END
+  DATUM 0.0 0.0 30.0
+  # liquid ~ gas pressure at saturation, since capillary pressure is small
+  LIQUID_PRESSURE 101325.5 Pa 
+  MOLE_FRACTION 1.0E-5 
+  TEMPERATURE 25.0 C  
+END
+
+# single-phase water boundary condition
+# water table at bottom of column
+# (lower pressure than initial condition, allow column to drain)
+FLOW_CONDITION water_table 
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  END
+  # liquid ~ gas pressure at saturation, since capillary pressure is small
+  # initial condition is liquid pressure = 30 meters of water head
+  LIQUID_PRESSURE 101325.5 Pa 
+  MOLE_FRACTION 1.0E-5
+  TEMPERATURE 25.0 C 
+END
+
+# single-phase gas BC at top of column
+FLOW_CONDITION open_to_atmosphere 
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    RELATIVE_HUMIDITY DIRICHLET
+    TEMPERATURE DIRICHLET
+  END
+  
+  # at or near residual saturation (~max capillary pressure)
+  # capillary pressure = gas - liquid
+  # max capillary pressure = ~10^8
+  # gas pressure = 10^5
+  # liquid pressure ~ -10^3
+  RELATIVE_HUMIDITY 90.0 # percent
+  GAS_PRESSURE 101325.0 Pa
+  TEMPERATURE 25.0 C
+END
+
+#=========================== condition couplers ==============================
+
+INITIAL_CONDITION initial_ic
+  FLOW_CONDITION initial_press
+  REGION all
+END
+
+BOUNDARY_CONDITION water_table_bc
+  FLOW_CONDITION water_table
+  REGION water_table_reg
+END
+
+BOUNDARY_CONDITION open_bc
+  FLOW_CONDITION open_to_atmosphere
+  REGION open_top_reg
+END
+
+#=========================== stratigraphy couplers ============================
+
+OBSERVATION bot
+  REGION bot_obs
+END
+
+OBSERVATION top
+  REGION top_obs
+END
+
+STRATA
+  REGION all
+  MATERIAL formation
+END
+
+END_SUBSURFACE

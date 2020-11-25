@@ -404,8 +404,6 @@ subroutine RegionRead(region,input,option)
   ! Author: Glenn Hammond
   ! Date: 02/20/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use String_module
   use Option_module
@@ -420,13 +418,14 @@ subroutine RegionRead(region,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','REGION')
     call StringToUpper(keyword)   
 
@@ -454,7 +453,7 @@ subroutine RegionRead(region,input,option)
         call InputErrorMsg(input,option,'k2','REGION')
       case('CARTESIAN_BOUNDARY')
         region%def_type = DEFINED_BY_CARTESIAN_BOUNDARY
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'cartesian boundary face','REGION')
         call StringToUpper(word)
         select case(word)
@@ -498,16 +497,17 @@ subroutine RegionRead(region,input,option)
         if (.not.associated(region%polygonal_volume)) then
           region%polygonal_volume => GeometryCreatePolygonalVolume()
         endif
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','REGION')
           call StringToUpper(word)   
           select case(trim(word))
             case('TYPE')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'polygon type','REGION')
               call StringToUpper(word)
               select case(word)
@@ -534,6 +534,7 @@ subroutine RegionRead(region,input,option)
               call PrintErrMsg(option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('FILE')
         call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','REGION')
@@ -541,7 +542,7 @@ subroutine RegionRead(region,input,option)
         option%io_buffer = 'REGION LIST currently not implemented'
         call PrintErrMsg(option)
       case('FACE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'face','REGION')
         call StringToUpper(word)
         select case(word)
@@ -563,9 +564,10 @@ subroutine RegionRead(region,input,option)
             call PrintErrMsg(option)
         end select
       case default
-        call InputKeywordUnrecognized(keyword,'REGION',option)
+        call InputKeywordUnrecognized(input,keyword,'REGION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
  
 end subroutine RegionRead
 
@@ -606,8 +608,6 @@ subroutine RegionReadFromFileId(region,input,option)
   ! Date: 10/29/07
   ! 
 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use Option_module
   use Utility_module
@@ -900,8 +900,6 @@ subroutine RegionReadSideSet(sideset,filename,option)
   ! Date: 12/19/11
   ! 
 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -1059,8 +1057,6 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
   ! Author: Glenn Hammond
   ! Date: 05/18/12
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -1103,11 +1099,12 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
 ! id_M x_M y_M z_M area_M
 ! -----------------------------------------------------------------
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     hint = trim(word)
   
@@ -1147,10 +1144,11 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
           call InputErrorMsg(input,option,'face area',hint)
         enddo
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                'REGION (explicit unstructured grid)',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   call InputDestroy(input)
 

@@ -1,5 +1,9 @@
 module Reaction_Aux_module
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   
+  use Reaction_Base_module
   use Reaction_Database_Aux_module
   use Reaction_Mineral_Aux_module
   use Reaction_Microbial_Aux_module
@@ -13,13 +17,10 @@ module Reaction_Aux_module
 
   use PFLOTRAN_Constants_module
   use Generic_module
-  use petscsys
 
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   ! activity coefficients
   PetscInt, parameter, public :: ACT_COEF_FREQUENCY_OFF = 0
@@ -81,6 +82,17 @@ module Reaction_Aux_module
     type(ion_exchange_cation_type), pointer :: next
   end type ion_exchange_cation_type
 
+  type, public :: dynamic_kd_rxn_type
+    PetscInt :: id
+    character(len=MAXWORDLENGTH) :: kd_species_name
+    character(len=MAXWORDLENGTH) :: ref_species_name
+    PetscReal :: ref_species_high
+    PetscReal :: KD_high
+    PetscReal :: KD_low
+    PetscReal :: KD_power
+    type(dynamic_kd_rxn_type), pointer :: next
+  end type dynamic_kd_rxn_type    
+
   type, public :: kd_rxn_type
     PetscInt :: id
     PetscInt :: itype
@@ -141,10 +153,9 @@ module Reaction_Aux_module
     PetscReal, pointer :: basis_conc_imb(:)
   end type colloid_constraint_type
 
-  type, public :: reaction_type
+  type, public, extends(reaction_base_type) :: reaction_rt_type
     character(len=MAXSTRINGLENGTH) :: database_filename
     PetscBool :: use_full_geochemistry
-    PetscBool :: use_log_formulation ! flag for solving for the change in the log of the concentration
     PetscReal :: truncated_concentration
     PetscBool :: check_update
     PetscBool :: print_all_species
@@ -180,6 +191,7 @@ module Reaction_Aux_module
     type(ion_exchange_rxn_type), pointer :: ion_exchange_rxn_list
     type(general_rxn_type), pointer :: general_rxn_list
     type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn_list
+    type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn_list
     type(kd_rxn_type), pointer :: kd_rxn_list
     type(aq_species_type), pointer :: redox_species_list
     type(generic_parameter_type), pointer :: aq_diffusion_coefficients
@@ -305,6 +317,15 @@ module Reaction_Aux_module
     PetscReal, pointer :: generalh2ostoich(:)
     PetscReal, pointer :: general_kf(:)
     PetscReal, pointer :: general_kr(:)  
+
+    ! dynamic kd rxn
+    PetscInt :: neqdynamickdrxn
+    PetscInt, pointer :: eqdynamickdspecid(:)
+    PetscInt, pointer :: eqdynamickdrefspecid(:)
+    PetscReal, pointer :: eqdynamickdrefspechigh(:)
+    PetscReal, pointer :: eqdynamickdlow(:)
+    PetscReal, pointer :: eqdynamickdhigh(:)
+    PetscReal, pointer :: eqdynamickdpower(:)
     
     ! kd rxn
     PetscInt :: neqkdrxn
@@ -339,7 +360,7 @@ module Reaction_Aux_module
     PetscBool :: use_sandbox
     PetscInt :: nauxiliary
     
-  end type reaction_type
+  end type reaction_rt_type
 
   interface GetPrimarySpeciesIDFromName
     module procedure GetPrimarySpeciesIDFromName1
@@ -352,6 +373,7 @@ module Reaction_Aux_module
   end interface  
 
   public :: ReactionCreate, &
+            ReactionCast, &
             SpeciesIndexCreate, &
             GasSpeciesCreate, &
             GetPrimarySpeciesCount, &
@@ -385,6 +407,8 @@ module Reaction_Aux_module
             RadioactiveDecayRxnDestroy, &
             GeneralRxnCreate, &
             GeneralRxnDestroy, &
+            DynamicKDRxnCreate, &
+            DynamicKDRxnDestroy, &
             KDRxnCreate, &
             KDRxnDestroy, &
             ColloidCreate, &
@@ -410,11 +434,12 @@ function ReactionCreate()
   ! 
   implicit none
   
-  type(reaction_type), pointer :: ReactionCreate
+  class(reaction_rt_type), pointer :: ReactionCreate
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
 
   allocate(reaction)  
+  call ReactionBaseInit(reaction)
 
   reaction%database_filename = ''
   reaction%num_dbase_temperatures = 0
@@ -436,7 +461,6 @@ function ReactionCreate()
   reaction%print_total_sorb_mobile = PETSC_FALSE
   reaction%print_colloid = PETSC_FALSE
   reaction%print_act_coefs = PETSC_FALSE
-  reaction%use_log_formulation = PETSC_FALSE
   reaction%truncated_concentration = UNINITIALIZED_DOUBLE
   reaction%check_update = PETSC_TRUE
   reaction%use_full_geochemistry = PETSC_FALSE
@@ -463,6 +487,7 @@ function ReactionCreate()
   nullify(reaction%ion_exchange_rxn_list)
   nullify(reaction%radioactive_decay_rxn_list)
   nullify(reaction%general_rxn_list)
+  nullify(reaction%dynamic_kd_rxn_list)
   nullify(reaction%kd_rxn_list)
   nullify(reaction%redox_species_list)
   nullify(reaction%aq_diffusion_coefficients)
@@ -562,6 +587,14 @@ function ReactionCreate()
   nullify(reaction%radiodecayforwardspecid)
   nullify(reaction%radiodecay_kf)
 
+  reaction%neqdynamickdrxn = 0
+  nullify(reaction%eqdynamickdspecid)
+  nullify(reaction%eqdynamickdrefspecid)
+  nullify(reaction%eqdynamickdrefspechigh)
+  nullify(reaction%eqdynamickdlow)
+  nullify(reaction%eqdynamickdhigh)
+  nullify(reaction%eqdynamickdpower)
+
   reaction%neqkdrxn = 0
   nullify(reaction%eqkdspecid)
   nullify(reaction%eqkdtype)
@@ -595,6 +628,29 @@ function ReactionCreate()
   ReactionCreate => reaction
   
 end function ReactionCreate
+
+! ************************************************************************** !
+
+function ReactionCast(reaction_base)
+  ! 
+  ! Casts a reaction_base type to reaction_nw type if applicable.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/21/19
+  ! 
+  implicit none
+
+  class(reaction_base_type), pointer :: reaction_base
+
+  class(reaction_rt_type), pointer :: ReactionCast
+
+  nullify(ReactionCast)
+  select type(r=>reaction_base)
+    class is(reaction_rt_type)
+      ReactionCast => r
+  end select
+
+end function ReactionCast
 
 ! ************************************************************************** !
 
@@ -802,6 +858,36 @@ end function GeneralRxnCreate
 
 ! ************************************************************************** !
 
+function DynamicKDRxnCreate()
+  ! 
+  ! Allocate and initialize a dynamic KD sorption reaction
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/21/19
+  ! 
+
+  implicit none
+    
+  type(dynamic_kd_rxn_type), pointer :: DynamicKDRxnCreate
+
+  type(dynamic_kd_rxn_type), pointer :: rxn
+  
+  allocate(rxn)
+  rxn%id = 0
+  rxn%kd_species_name = ''
+  rxn%ref_species_name = ''
+  rxn%ref_species_high = UNINITIALIZED_DOUBLE
+  rxn%KD_low = UNINITIALIZED_DOUBLE
+  rxn%KD_high = UNINITIALIZED_DOUBLE
+  rxn%KD_power = UNINITIALIZED_DOUBLE
+  nullify(rxn%next)
+  
+  DynamicKDRxnCreate => rxn
+  
+end function DynamicKDRxnCreate
+
+! ************************************************************************** !
+
 function KDRxnCreate()
   ! 
   ! Allocate and initialize a KD sorption reaction
@@ -844,7 +930,7 @@ function AqueousSpeciesConstraintCreate(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   type(aq_species_constraint_type), pointer :: AqueousSpeciesConstraintCreate
 
@@ -885,7 +971,7 @@ function GuessConstraintCreate(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   type(guess_constraint_type), pointer :: GuessConstraintCreate
 
@@ -915,7 +1001,7 @@ function ColloidConstraintCreate(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   type(colloid_constraint_type), pointer :: ColloidConstraintCreate
 
@@ -950,7 +1036,7 @@ function GetPrimarySpeciesNames(reaction)
   implicit none
   
   character(len=MAXWORDLENGTH), pointer :: GetPrimarySpeciesNames(:)
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
@@ -985,7 +1071,7 @@ function GetPrimarySpeciesCount(reaction)
   implicit none
   
   PetscInt :: GetPrimarySpeciesCount
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
 
   type(aq_species_type), pointer :: species
 
@@ -1014,7 +1100,7 @@ function GetPrimarySpeciesIDFromName1(name,reaction,option)
   implicit none
   
   character(len=MAXWORDLENGTH) :: name
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: GetPrimarySpeciesIDFromName1
@@ -1040,7 +1126,7 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
   implicit none
   
   character(len=MAXWORDLENGTH) :: name
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: GetPrimarySpeciesIDFromName2
@@ -1095,7 +1181,7 @@ function GetSecondarySpeciesNames(reaction)
   implicit none
   
   character(len=MAXWORDLENGTH), pointer :: GetSecondarySpeciesNames(:)
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
@@ -1130,7 +1216,7 @@ function GetSecondarySpeciesCount(reaction)
   implicit none
   
   PetscInt :: GetSecondarySpeciesCount
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
 
   type(aq_species_type), pointer :: species
 
@@ -1157,7 +1243,7 @@ function GetSecondarySpeciesIDFromName1(name,reaction,option)
   use String_module
   implicit none
   character(len=MAXWORDLENGTH) :: name
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: GetSecondarySpeciesIDFromName1
@@ -1179,7 +1265,7 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
   use String_module
   implicit none
   character(len=MAXWORDLENGTH) :: name
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscInt :: GetSecondarySpeciesIDFromName2
   type(aq_species_type), pointer :: species
@@ -1233,7 +1319,7 @@ function GetColloidIDFromName(reaction,name)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   character(len=MAXWORDLENGTH) :: name
 
   PetscInt :: GetColloidIDFromName
@@ -1266,7 +1352,7 @@ function GetColloidNames(reaction)
   implicit none
   
   character(len=MAXWORDLENGTH), pointer :: GetColloidNames(:)
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
@@ -1301,7 +1387,7 @@ function GetColloidCount(reaction)
   implicit none
   
   PetscInt :: GetColloidCount
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
 
   type(colloid_type), pointer :: colloid
 
@@ -1328,7 +1414,7 @@ function GetImmobileCount(reaction)
   implicit none
   
   PetscInt :: GetImmobileCount
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
 
   GetImmobileCount = ImmobileGetCount(reaction%immobile)
   
@@ -1350,7 +1436,7 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: coefs(FIVE_INTEGER)
   character(len=MAXWORDLENGTH) :: name 
   PetscReal :: logK(reaction%num_dbase_temperatures)
@@ -1424,7 +1510,7 @@ subroutine ReactionInitializeLogK(logKcoef,logKs,logK,option,reaction)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: logKcoef(FIVE_INTEGER)
   PetscReal :: logKs(reaction%num_dbase_temperatures)
   PetscReal :: logK, logK_1D_Array(ONE_INTEGER)
@@ -1504,7 +1590,7 @@ subroutine ReactionInitializeLogK_hpt(logKcoef,logK,option,reaction)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: logKcoef(17)
   PetscReal :: logK, logK_1D_Array(ONE_INTEGER)
   type(option_type) :: option
@@ -1612,7 +1698,7 @@ subroutine ReactionInputRecord(rxn)
 
   implicit none
 
-  type(reaction_type), pointer :: rxn
+  class(reaction_rt_type), pointer :: rxn
   
   type(aq_species_type), pointer :: cur_aq_species
   type(gas_species_type), pointer :: cur_gas_species
@@ -1938,6 +2024,27 @@ end subroutine GeneralRxnDestroy
 
 ! ************************************************************************** !
 
+subroutine DynamicKDRxnDestroy(rxn)
+  ! 
+  ! Deallocates a dynamic KD reaction
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/21/19
+  ! 
+
+  implicit none
+    
+  type(dynamic_kd_rxn_type), pointer :: rxn
+
+  if (.not.associated(rxn)) return
+  
+  deallocate(rxn)  
+  nullify(rxn)
+
+end subroutine DynamicKDRxnDestroy
+
+! ************************************************************************** !
+
 subroutine KDRxnDestroy(rxn)
   ! 
   ! Deallocates a KD reaction
@@ -2060,7 +2167,7 @@ subroutine ReactionDestroy(reaction,option)
   
   implicit none
 
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   
   type(aq_species_type), pointer :: aq_species, prev_aq_species
   type(gas_species_type), pointer :: gas_species, prev_gas_species
@@ -2071,10 +2178,13 @@ subroutine ReactionDestroy(reaction,option)
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn, &
                                                prev_radioactive_decay_rxn
+  type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn, prev_dynamic_kd_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
   type(option_type) :: option
 
   if (.not.associated(reaction)) return
+
+  call ReactionBaseStrip(reaction)
   
   !species index
   call SpeciesIndexDestroy(reaction%species_idx)
@@ -2129,6 +2239,16 @@ subroutine ReactionDestroy(reaction,option)
   enddo    
   nullify(reaction%general_rxn_list)
   
+  ! dynamic kd reactions
+  dynamic_kd_rxn => reaction%dynamic_kd_rxn_list
+  do
+    if (.not.associated(dynamic_kd_rxn)) exit
+    prev_dynamic_kd_rxn => dynamic_kd_rxn
+    dynamic_kd_rxn => dynamic_kd_rxn%next
+    call DynamicKDRxnDestroy(prev_dynamic_kd_rxn)
+  enddo    
+  nullify(reaction%dynamic_kd_rxn_list)
+
   ! kd reactions
   kd_rxn => reaction%kd_rxn_list
   do
@@ -2232,6 +2352,13 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%generalh2ostoich)
   call DeallocateArray(reaction%general_kf)
   call DeallocateArray(reaction%general_kr)
+
+  call DeallocateArray(reaction%eqdynamickdspecid)
+  call DeallocateArray(reaction%eqdynamickdrefspecid)
+  call DeallocateArray(reaction%eqdynamickdrefspechigh)
+  call DeallocateArray(reaction%eqdynamickdlow)
+  call DeallocateArray(reaction%eqdynamickdhigh)
+  call DeallocateArray(reaction%eqdynamickdpower)
   
   call DeallocateArray(reaction%eqkdspecid)
   call DeallocateArray(reaction%eqkdtype)

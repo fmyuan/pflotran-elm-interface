@@ -70,6 +70,7 @@ module Logging_module
     PetscLogEvent :: event_output_get_cell_vel
     PetscLogEvent :: event_output_vec_tecplot
     PetscLogEvent :: event_output_observation
+    PetscLogEvent :: event_output_observation_agg
     PetscLogEvent :: event_output_coordinates_hdf5
     PetscLogEvent :: event_output_hydrograph
     PetscLogEvent :: event_output_secondary_tecplot
@@ -261,9 +262,6 @@ subroutine LoggingCreate()
   call PetscLogEventRegister('OutputVTK', &
                              logging%class_pflotran, &
                              logging%event_output_vtk,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('OutputMAD', &
-                             logging%class_pflotran, &
-                             logging%event_output_mad,ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('OutputHDF5', &
                              logging%class_pflotran, &
                              logging%event_output_hdf5,ierr);CHKERRQ(ierr)

@@ -4,12 +4,25 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    MAX_STEPS -1
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -54,13 +67,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER TRANSPORT
-  MAX_STEPS -1
-END
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

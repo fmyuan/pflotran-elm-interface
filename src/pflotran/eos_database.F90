@@ -176,10 +176,11 @@ subroutine ReadUserUnits(this,input,option)
       prop_array =>  this%lookup_table_gen%var_array
   end select
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     select case(keyword)
       case('PRESSURE')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
@@ -223,9 +224,10 @@ subroutine ReadUserUnits(this,input,option)
       case default
         error_string = trim(error_string) // ': ' // this%name // &
         ': EOS DATA units'
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
-  end do
+  enddo
+  call InputPopBlock(input,option)
 
   call this%UnitConversionFactors(option)
   nullify(prop_array)
@@ -702,13 +704,14 @@ subroutine EOSDatabaseRead(this,option)
   set_visc_lin_log = PETSC_FALSE
 
   !reading the database file header
+  call InputPushBlock(input_table,option)
   do
 
     call InputReadPflotranString(input_table,option)
     !if (InputCheckExit(input_table,option)) exit
     if (InputError(input_table)) exit
 
-    call InputReadWord(input_table,option,keyword,PETSC_TRUE)
+    call InputReadCard(input_table,option,keyword,PETSC_FALSE)
     call InputErrorMsg(input_table,option,'keyword',error_string)
     call StringToUpper(keyword)
     select case(keyword)
@@ -734,10 +737,11 @@ subroutine EOSDatabaseRead(this,option)
         pres_present = PETSC_FALSE; 
         temp_present = PETSC_FALSE;
         prop_count = 0
+        call InputPushBlock(input_table,option)
         do
           call InputReadPflotranString(input_table,option)
           if (InputCheckExit(input_table,option)) exit
-          call InputReadWord(input_table,option,word,PETSC_TRUE)
+          call InputReadCard(input_table,option,word,PETSC_FALSE)
           select case(word)
             case('PRESSURE')
               pres_present = PETSC_TRUE
@@ -778,9 +782,11 @@ subroutine EOSDatabaseRead(this,option)
               this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
             case default
               error_string = trim(error_string) // ': DATA_LIST_ORDER'
-              call InputKeywordUnrecognized(keyword,error_string,option)
+              call InputKeywordUnrecognized(input_table,keyword, &
+                                            error_string,option)
           end select
-        end do
+        enddo
+        call InputPopBlock(input_table,option)
         this%num_prop = prop_count
         if ( prop_count == 0 ) then
           option%io_buffer =  'EOS databse = ' // trim(this%file_name) // &
@@ -806,10 +812,11 @@ subroutine EOSDatabaseRead(this,option)
       case('DATA')
         exit
       case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input_table,keyword,error_string,option)
     end select
 
-  end do
+  enddo
+  call InputPopBlock(input_table,option)
 
   nullify(db_var)
 
@@ -1134,6 +1141,7 @@ subroutine EOSTableRead(this,input,option)
   error_string =  trim(this%name)
 
   !reading pvt table
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -1141,13 +1149,14 @@ subroutine EOSTableRead(this,input,option)
       option%io_buffer = 'Error found as reading PVT table'
       call PrintErrMsg(option)
     end if
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     select case(keyword)
       case('DATA_UNITS')
         call this%ReadUserUnits(input,option)
       case('DATA')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
@@ -1156,7 +1165,7 @@ subroutine EOSTableRead(this,input,option)
                                // ' DATA block'
             call PrintErrMsg(option)
           end if
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'word',error_string)
           call StringToUpper(keyword)
           select case(word)
@@ -1190,16 +1199,18 @@ subroutine EOSTableRead(this,input,option)
             case default
               error_string = trim(error_string) // ': ' // trim(this%name) // &
                              ', DATA'
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         end do
+        call InputPopBlock(input,option)
       case('VISCOSITY_LINLOG_INTERPOLATION')
         set_visc_lin_log = PETSC_TRUE
       case default
         error_string = trim(error_string) // ': ' // this%name
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
-  end do
+  enddo
+  call InputPopBlock(input,option)
 
   if (n_temp_count == 0) then
     option%io_buffer = 'PVT Table = ' // trim(this%name) // &

@@ -1,30 +1,27 @@
 module Realization_Subsurface_class
   
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Realization_Base_class
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
+  use PFLOTRAN_Constants_module
+  use Realization_Base_class
   use Option_module
-  use Output_Aux_module
   use Input_Aux_module
   use Region_module
   use Condition_module
   use Well_Data_class
+  use Transport_Constraint_Base_module
   use Transport_Constraint_module
   use Material_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Dataset_Base_class
   use Fluid_module
-  use Discretization_module
-  use Field_module
-  use Debug_module
-  use Output_Aux_module
   use Patch_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
   
-  use PFLOTRAN_Constants_module
 
   implicit none
 
@@ -38,16 +35,20 @@ private
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
     
-    type(tran_constraint_type), pointer :: sec_transport_constraint
+    class(tran_constraint_base_type), pointer :: sec_transport_constraint
     type(material_property_type), pointer :: material_properties
     type(fluid_property_type), pointer :: fluid_properties
     type(fluid_property_type), pointer :: fluid_property_array(:)
     type(saturation_function_type), pointer :: saturation_functions
     class(characteristic_curves_type), pointer :: characteristic_curves
+    class(cc_thermal_type), pointer :: characteristic_curves_thermal
     class(dataset_base_type), pointer :: datasets
     
     class(dataset_base_type), pointer :: uniform_velocity_dataset
     character(len=MAXSTRINGLENGTH) :: nonuniform_velocity_filename
+
+    class(reaction_rt_type), pointer :: reaction
+    class(reaction_nw_type), pointer :: reaction_nw
     
   end type realization_subsurface_type
 
@@ -58,7 +59,6 @@ private
   
   public :: RealizationCreate, &
             RealizationStrip, &
-            RealizationDestroyLegacy, &
             RealizationProcessCouplers, &
             RealizationInitAllCouplerAuxVars, &
             RealizationProcessConditions, &
@@ -128,7 +128,7 @@ function RealizationCreate2(option)
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   ! 
-
+  
   implicit none
   
   type(option_type), pointer :: option
@@ -158,9 +158,12 @@ function RealizationCreate2(option)
   nullify(realization%fluid_property_array)
   nullify(realization%saturation_functions)
   nullify(realization%characteristic_curves)
+  nullify(realization%characteristic_curves_thermal)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
+  nullify(realization%reaction)
+  nullify(realization%reaction_nw)
   realization%nonuniform_velocity_filename = ''
 
   RealizationCreate2 => realization
@@ -179,6 +182,7 @@ subroutine RealizationCreateDiscretization(realization)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
+  use Field_module
   use Grid_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_module, only : UGridEnsureRightHandRule
@@ -255,16 +259,18 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%perm0_yy)
     call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%perm0_zz)
+    if (option%flow%full_perm_tensor) then
+      call DiscretizationDuplicateVector(discretization,field%work, &
+                                         field%perm0_xy)
+      call DiscretizationDuplicateVector(discretization,field%work, &
+                                         field%perm0_xz)
+      call DiscretizationDuplicateVector(discretization,field%work, &
+                                         field%perm0_yz)
+    endif
 
     ! 1-dof local
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%ithrm_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%icap_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%iphas_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%iphas_old_loc)
+    !call DiscretizationDuplicateVector(discretization,field%work_loc, &
+    !                                   field%xyz)
     
     ! ndof degrees of freedom, global
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx, &
@@ -314,16 +320,8 @@ subroutine RealizationCreateDiscretization(realization)
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx_loc, &
                                       LOCAL,option)
       
-      if (associated(realization%reaction)) then
-        if (realization%reaction%use_log_formulation) then
-          call DiscretizationDuplicateVector(discretization,field%tran_xx, &
-                                             field%tran_log_xx)
-          call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
-                                             field%tran_work_loc)
-        endif
-      endif
-      if (associated(realization%nw_trans)) then
-        if (realization%nw_trans%use_log_formulation) then
+      if (associated(realization%reaction_base)) then
+        if (realization%reaction_base%use_log_formulation) then
           call DiscretizationDuplicateVector(discretization,field%tran_xx, &
                                              field%tran_log_xx)
           call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
@@ -552,7 +550,8 @@ subroutine RealizationPassPtrsToPatches(realization)
   realization%patch%field => realization%field
   realization%patch%datasets => realization%datasets
   realization%patch%reaction => realization%reaction
-  realization%patch%nw_trans => realization%nw_trans
+  realization%patch%reaction_nw => realization%reaction_nw
+  realization%patch%reaction_base => realization%reaction_base
   
 end subroutine RealizationPassPtrsToPatches
 
@@ -639,9 +638,9 @@ subroutine RealizationProcessCouplers(realization)
   
   class(realization_subsurface_type) :: realization
   
-  call PatchProcessCouplers( realization%patch,realization%flow_conditions, &
-                             realization%transport_conditions, &
-                             realization%option)
+  call PatchProcessCouplers(realization%patch,realization%flow_conditions, &
+                            realization%transport_conditions, &
+                            realization%option)
   
 end subroutine RealizationProcessCouplers
 
@@ -741,18 +740,22 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   use String_module
   use Dataset_Common_HDF5_class
   use Dataset_module
+  use TH_Aux_module, only : th_ice_model
+  
   
   implicit none
   
   class(realization_subsurface_type) :: realization
   
   PetscBool :: found
-  PetscInt :: i
+  PetscInt :: i, num_mat_prop
   type(option_type), pointer :: option
   type(material_property_type), pointer :: cur_material_property
+  PetscReal, allocatable :: check_thermal_conductivity(:,:)
   type(patch_type), pointer :: patch
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: string, verify_string, mat_string
   class(dataset_base_type), pointer :: dataset
+  class(cc_thermal_type), pointer :: thermal_cc
 
   option => realization%option
   patch => realization%patch
@@ -775,13 +778,105 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                                       patch%characteristic_curves_array, &
                                       option)
   endif
-                                      
+
+  ! set up analogous mapping to thermal characteristic curves, if used    
+  num_mat_prop = size(patch%material_property_array)
+  allocate(check_thermal_conductivity(2,num_mat_prop))
+  do i = 1, num_mat_prop
+    if (associated(patch%material_property_array(i)%ptr)) then
+      check_thermal_conductivity(1,i) = &
+        patch%material_property_array(i)%ptr%thermal_conductivity_dry
+      check_thermal_conductivity(2,i) = &
+        patch%material_property_array(i)%ptr%thermal_conductivity_wet
+    endif
+  enddo  
+  if (associated(realization%characteristic_curves_thermal)) then
+    if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
+      option%io_buffer = 'Cannot combine material-based thermal conductivity'//&
+                         ' input format with thermal characteristic curves. '//&
+                         'Use TCC with "DEFAULT" specification instead.' 
+      call PrintErrMsg(option)
+    endif
+    patch%characteristic_curves_thermal => &
+         realization%characteristic_curves_thermal
+    call CharCurvesThermalConvertListToArray( &
+         patch%characteristic_curves_thermal, &
+         patch%char_curves_thermal_array, option)
+  else if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
+    ! use default tcc curve for legacy thermal conductivity input by material
+    do i = 1, num_mat_prop
+      if (.not. option%iflowmode == G_MODE) then
+        ! some modes outside of general will only use one thermal conductivity
+        ! if that is the case, use default values as fallback options
+        if (patch%material_property_array(i)%ptr%thermal_conductivity_wet == &
+          UNINITIALIZED_DOUBLE) then
+          patch%material_property_array(i)%ptr%thermal_conductivity_wet = 2.d0
+        endif
+        if (patch%material_property_array(i)%ptr%thermal_conductivity_dry == &
+          UNINITIALIZED_DOUBLE) then
+          patch%material_property_array(i)%ptr%thermal_conductivity_dry = 5.d-1
+        endif
+      endif 
+      thermal_cc => CharCurvesThermalCreate()
+      thermal_cc%name = patch%material_property_array(i)%ptr% &
+                                thermal_conductivity_function_name
+      if (option%iflowmode == TH_MODE .or. option%iflowmode == TH_TS_MODE) then
+        thermal_cc%thermal_conductivity_function => TCFFrozenCreate()    
+        call TCFAssignFrozen(thermal_cc%thermal_conductivity_function,&
+          patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
+          patch%material_property_array(i)%ptr%thermal_conductivity_dry, &      
+          patch%material_property_array(i)%ptr%thermal_conductivity_frozen, &      
+          patch%material_property_array(i)%ptr%alpha, &      
+          patch%material_property_array(i)%ptr%alpha_fr, &      
+          th_ice_model, &      
+          option)
+      else
+        thermal_cc%thermal_conductivity_function => TCFDefaultCreate()    
+        call TCFAssignDefault(thermal_cc%thermal_conductivity_function,&
+          patch%material_property_array(i)%ptr%thermal_conductivity_wet, &
+          patch%material_property_array(i)%ptr%thermal_conductivity_dry, &      
+          patch%material_property_array(i)%ptr%alpha, &      
+          option)
+      endif
+      if (associated(thermal_cc%thermal_conductivity_function)) then
+        write (mat_string,*) patch%material_property_array(i)%ptr%external_id
+        verify_string = 'THERMAL_CHARACTERISTIC_CURVES(' // & 
+          trim(thermal_cc%name) // ') used for material ID #'// &
+          trim(adjustl(mat_string)) // '. '
+        call thermal_cc%thermal_conductivity_function% & 
+          Verify(verify_string,option)
+      else
+        write (mat_string,*) patch%material_property_array(i)%ptr%external_id
+        option%io_buffer = 'A thermal conductivity function has &
+          &not been set under THERMAL_CHARACTERISTIC_CURVES "' // &
+          trim(thermal_cc%name) // '" intended for material ID #'// &
+          trim(adjustl(mat_string)) // '. '
+      endif
+      call CharCurvesThermalAddToList(thermal_cc, &
+        realization%characteristic_curves_thermal)  
+      nullify(thermal_cc)
+    enddo    
+    ! afterwards, proceed with normal TCC procedure
+    if (associated(realization%characteristic_curves_thermal)) then
+      patch%characteristic_curves_thermal => &
+           realization%characteristic_curves_thermal
+      call CharCurvesThermalConvertListToArray( &
+         patch%characteristic_curves_thermal, &
+         patch%char_curves_thermal_array, option)
+    else
+      option%io_buffer = 'Manual assignments of DEFAULT thermal '//&
+                         'characteristic curve failed!'
+      call PrintErrMsg(option)
+    endif
+  endif
+  deallocate(check_thermal_conductivity)
+  
   ! create mapping of internal to external material id
   call MaterialCreateIntToExtMapping(patch%material_property_array, &
                                      patch%imat_internal_to_external)
-    
-  cur_material_property => realization%material_properties                            
-  do                                      
+
+  cur_material_property => realization%material_properties
+  do
     if (.not.associated(cur_material_property)) exit
 
     ! obtain saturation function id
@@ -807,10 +902,27 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         if (associated(patch%characteristic_curves_array)) then
           call CharCurvesProcessTables(patch%characteristic_curves_array(  &
                         cur_material_property%saturation_function_id)%ptr,option)
-        end if                
-      end if
+        endif
+      endif
     endif
-    
+
+    ! thermal conducitivity function id 
+    if (associated(patch%char_curves_thermal_array)) then
+      if (cur_material_property%thermal_conductivity_function_id < 1) then
+        cur_material_property%thermal_conductivity_function_id = &
+           CharCurvesThermalGetID( &
+           patch%char_curves_thermal_array, &
+           cur_material_property%thermal_conductivity_function_name, &
+           cur_material_property%name,option)
+      endif
+    endif
+    if (cur_material_property%thermal_conductivity_function_id == 0) then
+      option%io_buffer = 'Thermal characteristic curve "' // &
+        trim(cur_material_property%thermal_conductivity_function_name) // &
+        '" not found.'
+        call PrintErrMsg(option)
+    endif
+
     ! if named, link dataset to property
     if (associated(cur_material_property%porosity_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
@@ -890,6 +1002,54 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           cur_material_property%permeability_dataset_z => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for permeability Z.'
+          call PrintErrMsg(option)
+      end select      
+    endif
+    if (associated(cur_material_property%permeability_dataset_xy)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),PERMEABILITY XY'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                          cur_material_property%permeability_dataset_xy%name, &
+                          string,option)
+      call DatasetDestroy(cur_material_property%permeability_dataset_xy)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%permeability_dataset_xy => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for permeability XY.'
+          call PrintErrMsg(option)
+      end select      
+    endif
+    if (associated(cur_material_property%permeability_dataset_xz)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),PERMEABILITY XZ'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                          cur_material_property%permeability_dataset_xz%name, &
+                          string,option)
+      call DatasetDestroy(cur_material_property%permeability_dataset_xz)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%permeability_dataset_xz => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for permeability XZ.'
+          call PrintErrMsg(option)
+      end select      
+    endif
+    if (associated(cur_material_property%permeability_dataset_yz)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),PERMEABILITY YZ'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                          cur_material_property%permeability_dataset_yz%name, &
+                          string,option)
+      call DatasetDestroy(cur_material_property%permeability_dataset_yz)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%permeability_dataset_yz => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for permeability YZ.'
           call PrintErrMsg(option)
       end select      
     endif
@@ -982,11 +1142,11 @@ subroutine RealProcessFluidProperties(realization)
   ! check that matches characteristic curves count
 
   satnum_set = GetSatnumSet(maxsatn)
-  if( satnum_set ) then
+  if (satnum_set) then
     ccset = associated(realization%patch%characteristic_curves_array)
     if (ccset) then
       ncc = size(realization%patch%characteristic_curves_array(:))
-      if( maxsatn > ncc ) then
+      if (maxsatn > ncc) then
         option%io_buffer = &
          'SATNUM data does not match CHARACTERISTIC CURVES count'
         call PrintErrMsg(option)
@@ -998,9 +1158,9 @@ subroutine RealProcessFluidProperties(realization)
     else
       option%io_buffer = 'SATNUM data but no CHARACTERISTIC CURVES'
       call PrintErrMsg(option)
-    end if
+    endif
   endif
-
+  
 end subroutine RealProcessFluidProperties
 
 ! ************************************************************************** !
@@ -1068,20 +1228,23 @@ subroutine RealProcessTranConditions(realization)
   ! Date: 10/14/08
   ! 
 
-  use String_module
   use Reaction_module
+  use String_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_NWT_module
+  use Transport_Constraint_RT_module
   use Transport_Constraint_module
   
   implicit none
   
   class(realization_subsurface_type) :: realization
   
-  
   PetscBool :: found, coupling_needed
   type(option_type), pointer :: option
   type(tran_condition_type), pointer :: cur_condition
-  type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
-  type(tran_constraint_type), pointer :: cur_constraint, another_constraint
+  class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
+  class(tran_constraint_base_type), pointer :: cur_constraint, &
+                                              another_constraint
   
   option => realization%option
   coupling_needed = PETSC_FALSE
@@ -1113,38 +1276,23 @@ subroutine RealProcessTranConditions(realization)
   cur_constraint => realization%transport_constraints%first
   do
     if (.not.associated(cur_constraint)) exit
-    if (associated(realization%reaction)) &
-      call ReactionProcessConstraint(realization%reaction, &
-                                     cur_constraint%name, &
-                                     cur_constraint%aqueous_species, &
-                                     cur_constraint%free_ion_guess, &
-                                     cur_constraint%minerals, &
-                                     cur_constraint%surface_complexes, &
-                                     cur_constraint%colloids, &
-                                     cur_constraint%immobile_species, &
-                                     realization%option)
-#if 0
-!geh: breaks pflotran_rxn build
-    if (associated(realization%nw_trans)) &
-      call NWTProcessConstraint(realization%nw_trans,cur_constraint%name, &
-                                cur_constraint%nwt_species,realization%option)
-#endif
-   
+    select type(constraint=>cur_constraint)
+      class is (tran_constraint_rt_type)
+        call ReactionProcessConstraint(realization%reaction, &
+                                       constraint,realization%option)
+      class is (tran_constraint_nwt_type)
+        call NWTConstraintProcess(realization%reaction_nw, &
+                                  constraint,realization%option)
+    end select
     cur_constraint => cur_constraint%next
   enddo
   
   if (option%use_mc) then
-    if (associated(realization%reaction)) &
-      call ReactionProcessConstraint(realization%reaction, &
-                     realization%sec_transport_constraint%name, &
-                     realization%sec_transport_constraint%aqueous_species, &
-                     realization%sec_transport_constraint%free_ion_guess, &
-                     realization%sec_transport_constraint%minerals, &
-                     realization%sec_transport_constraint%surface_complexes, &
-                     realization%sec_transport_constraint%colloids, &
-                     realization%sec_transport_constraint%immobile_species, &
-                     realization%option)
-  ! jenn:todo Make NWT work with sec_transport_constraint?
+    select type(constraint=>realization%sec_transport_constraint)
+      class is (tran_constraint_rt_type)
+        call ReactionProcessConstraint(realization%reaction, &
+                                       constraint,realization%option)
+    end select
   endif
   
   ! tie constraints to couplers, if not already associated
@@ -1154,41 +1302,23 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint_coupler => cur_condition%constraint_coupler_list
     do
       if (.not.associated(cur_constraint_coupler)) exit
-      ! if aqueous_species exists, it was coupled during the embedded read.
-#if 0
-!geh: breaks pflotran_rxn build
-      if ( ((associated(realization%reaction)) .and. &
-           (.not.associated(cur_constraint_coupler%aqueous_species))) &
-           .or. &
-           ((associated(realization%nw_trans)) .and. &
-           (.not.associated(cur_constraint_coupler%nwt_species))) ) then
-#else
-      if (associated(realization%reaction) .and. &
-          .not.associated(cur_constraint_coupler%aqueous_species)) then
-#endif
+      ! if constraint exists, it was coupled during the embedded read.
+      if (.not.associated(cur_constraint_coupler%constraint)) then
         cur_constraint => realization%transport_constraints%first
         do
           if (.not.associated(cur_constraint)) exit
           if (StringCompare(cur_constraint%name, &
                             cur_constraint_coupler%constraint_name, &
                             MAXWORDLENGTH)) then
-            call TranConstraintMapToCoupler(cur_constraint_coupler, &
-                                            cur_constraint)
+            cur_constraint_coupler%constraint => cur_constraint
+            cur_constraint_coupler%equilibrate_at_each_cell = &
+              (realization%reaction_base%equilibrate_at_each_cell .or. &
+               cur_constraint%equilibrate_at_each_cell)
             exit
           endif
           cur_constraint => cur_constraint%next
         enddo
-#if 0
-!geh: breaks pflotran_rxn build
-        if ( ((associated(realization%reaction)) .and. &
-           (.not.associated(cur_constraint_coupler%aqueous_species))) &
-           .or. &
-           ((associated(realization%nw_trans)) .and. &
-           (.not.associated(cur_constraint_coupler%nwt_species))) ) then
-#else
-        if (associated(realization%reaction) .and. &
-            .not.associated(cur_constraint_coupler%aqueous_species)) then
-#endif
+        if (.not.associated(cur_constraint_coupler%constraint)) then
           option%io_buffer = 'Transport constraint "' // &
                    trim(cur_constraint_coupler%constraint_name) // &
                    '" not found in input file constraints.'
@@ -1197,7 +1327,9 @@ subroutine RealProcessTranConditions(realization)
       endif
       cur_constraint_coupler => cur_constraint_coupler%next
     enddo
-    if (associated(cur_condition%constraint_coupler_list%next)) then ! more than one
+!TODO(geh) remove this?
+    if (associated(cur_condition%constraint_coupler_list%next)) then 
+      ! there are more than one
       cur_condition%is_transient = PETSC_TRUE
     else
       cur_condition%is_transient = PETSC_FALSE
@@ -1210,14 +1342,15 @@ subroutine RealProcessTranConditions(realization)
   do
     if (.not.associated(cur_condition)) exit
     ! is the condition transient?
-    if (associated(cur_condition%constraint_coupler_list%next)) then ! more than one
+    if (associated(cur_condition%constraint_coupler_list%next)) then 
+      ! there are more than one
       cur_condition%is_transient = PETSC_TRUE
     else
       cur_condition%is_transient = PETSC_FALSE
     endif
     ! set pointer to first constraint coupler
-    cur_condition%cur_constraint_coupler => cur_condition%constraint_coupler_list
-    
+    cur_condition%cur_constraint_coupler => &
+                         cur_condition%constraint_coupler_list
     cur_condition => cur_condition%next
   enddo
 
@@ -1242,8 +1375,8 @@ subroutine RealizationInitConstraints(realization)
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
-    call PatchInitConstraints(cur_patch,realization%reaction, &
-                              realization%nw_trans,realization%option)
+    call PatchInitConstraints(cur_patch,realization%reaction_base, &
+                              realization%option)
     cur_patch => cur_patch%next
   enddo
  
@@ -1260,6 +1393,7 @@ subroutine RealizationPrintCouplers(realization)
   ! 
 
   use Coupler_module
+  use Reaction_Aux_module
   
   implicit none
   
@@ -1268,7 +1402,7 @@ subroutine RealizationPrintCouplers(realization)
   type(patch_type), pointer :: cur_patch
   type(coupler_type), pointer :: cur_coupler
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
  
   option => realization%option
   reaction => realization%reaction
@@ -1314,22 +1448,24 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/28/08
   ! 
-
   use Coupler_module
   use Reaction_module
+  use Reaction_Aux_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
   
   implicit none
   
   type(coupler_type) :: coupler
   type(option_type) :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   
   character(len=MAXSTRINGLENGTH) :: string
   
   type(flow_condition_type), pointer :: flow_condition
   type(tran_condition_type), pointer :: tran_condition
   type(region_type), pointer :: region
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler
+  class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
    
 98 format(40('=+'))
 99 format(80('-'))
@@ -1371,11 +1507,12 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
     constraint_coupler => tran_condition%cur_constraint_coupler
     write(option%fid_out,'(/,2x,''Transport Condition: '',a)') &
       trim(tran_condition%name)
-    if (associated(reaction)) then
-      call ReactionPrintConstraint(constraint_coupler,reaction,option)
-      write(option%fid_out,'(/)')
-      write(option%fid_out,99)
-    endif
+    select type(c=>constraint_coupler)
+      class is (tran_constraint_coupler_rt_type)
+        call ReactionPrintConstraint(c,reaction,option)
+        write(option%fid_out,'(/)')
+        write(option%fid_out,99)
+    end select
   endif
  
 end subroutine RealizationPrintCoupler
@@ -1435,7 +1572,8 @@ end subroutine RealizUpdateAllCouplerAuxVars
 
 subroutine RealizationRevertFlowParameters(realization)
   ! 
-  ! Assigns initial porosity/perms to vecs
+  ! Overwrites porosity/permeability in materials_auxvars with values stored in 
+  ! Vecs
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/09/08
@@ -1445,9 +1583,10 @@ subroutine RealizationRevertFlowParameters(realization)
   use Field_module
   use Discretization_module
   use Material_Aux_class, only : material_type, &
-                                 POROSITY_CURRENT, POROSITY_MINERAL
+                              POROSITY_CURRENT, POROSITY_BASE, POROSITY_INITIAL
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z, &
-                               POROSITY
+                               PERMEABILITY_XY, PERMEABILITY_XZ, &
+                               PERMEABILITY_YZ, POROSITY
 
   implicit none
   
@@ -1476,11 +1615,27 @@ subroutine RealizationRevertFlowParameters(realization)
                                      field%work_loc,ONEDOF)  
     call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Z, &
                                  ZERO_INTEGER)
+    if (option%flow%full_perm_tensor) then
+      call DiscretizationGlobalToLocal(discretization,field%perm0_xy, &
+                                       field%work_loc,ONEDOF)  
+      call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_XY, &
+                                   ZERO_INTEGER)
+      call DiscretizationGlobalToLocal(discretization,field%perm0_xz, &
+                                       field%work_loc,ONEDOF)  
+      call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_XZ, &
+                                   ZERO_INTEGER)
+      call DiscretizationGlobalToLocal(discretization,field%perm0_yz, &
+                                       field%work_loc,ONEDOF)  
+      call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_YZ, &
+                                   ZERO_INTEGER)
+     endif
   endif   
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                    field%work_loc,ONEDOF)  
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_MINERAL)
+                               POROSITY_INITIAL)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_BASE)
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
                                POROSITY_CURRENT)
   ! tortuosity is not currently checkpointed
@@ -1495,7 +1650,8 @@ end subroutine RealizationRevertFlowParameters
 
 subroutine RealizStoreRestartFlowParams(realization)
   ! 
-  ! Assigns initial porosity/perms to vecs
+  ! Overwrites porosity/permeability Vecs with restart values stored in 
+  ! material_auxvars
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/09/08
@@ -1534,11 +1690,28 @@ subroutine RealizStoreRestartFlowParams(realization)
                                  ZERO_INTEGER)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                      field%perm0_zz,ONEDOF)
+    if (option%flow%full_perm_tensor) then
+      call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_XY, &
+                                   ZERO_INTEGER)
+      call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                       field%perm0_xy,ONEDOF)
+      call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_XZ, &
+                                   ZERO_INTEGER)
+      call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                       field%perm0_xz,ONEDOF)
+      call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_YZ, &
+                                   ZERO_INTEGER)
+      call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                       field%perm0_yz,ONEDOF)
+    endif
   endif   
   call MaterialGetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_CURRENT)
+                               POROSITY_BASE)
+  ! might as well update initial and base at the same time
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_MINERAL)
+                               POROSITY_INITIAL)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_CURRENT)
   call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                    field%porosity0,ONEDOF)
   ! tortuosity is not currently checkpointed
@@ -1600,7 +1773,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   type(flow_condition_type), pointer :: cur_flow_condition
   type(tran_condition_type), pointer :: cur_tran_condition
   type(flow_sub_condition_type), pointer :: sub_condition
-  type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
+  class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   class(data_mediator_base_type), pointer :: cur_data_mediator
   type(waypoint_type), pointer :: waypoint, cur_waypoint
   type(option_type), pointer :: option
@@ -1777,11 +1950,18 @@ subroutine RealizationUpdatePropertiesTS(realization)
   ! Date: 08/05/09
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Discretization_module
+  use Field_module
   use Grid_module
-  use Reactive_Transport_Aux_module
   use Material_Aux_class
+  use Reaction_Aux_module
+  use Reactive_Transport_Aux_module
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+                               PERMEABILITY_Y, PERMEABILITY_Z, &
+                               PERMEABILITY_XY, PERMEABILITY_XZ, &
+                               PERMEABILITY_YZ
  
   implicit none
   
@@ -1790,7 +1970,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
@@ -1806,10 +1986,11 @@ subroutine RealizationUpdatePropertiesTS(realization)
   PetscReal, pointer :: porosity0_p(:)
   PetscReal, pointer :: tortuosity0_p(:)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
+  PetscReal, pointer :: perm0_xy_p(:), perm0_xz_p(:), perm0_yz_p(:)
   PetscReal, pointer :: perm_ptr(:)
   PetscReal :: min_value
   PetscReal :: critical_porosity
-  PetscReal :: porosity_base
+  PetscReal :: porosity_base_
   PetscInt :: ivalue
   PetscErrorCode :: ierr
 
@@ -1829,30 +2010,12 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call RealizationCalcMineralPorosity(realization)
   endif
   
-  if ((porosity_updated .and. &
-       (reaction%update_tortuosity .or. &
-        reaction%update_permeability)) .or. &
-      ! if porosity ratio is used in mineral surface area update, we must
-      ! recalculate it every time.
-      (reaction%update_mineral_surface_area .and. &
-       reaction%update_mnrl_surf_with_porosity)) then
-    call VecGetArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      vec_p(local_id) = material_auxvars(ghosted_id)%porosity_base / &
-                        porosity0_p(local_id)
-    enddo
-    call VecRestoreArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-  endif      
-
   if (reaction%update_mineral_surface_area) then
 
     if (reaction%update_mnrl_surf_with_porosity) then
       ! placing the get/restore array calls within the condition will
       ! avoid improper access.
-      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     endif
 
     do local_id = 1, grid%nlmax
@@ -1861,7 +2024,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
 
         porosity_scale = 1.d0
         if (reaction%update_mnrl_surf_with_porosity) then
-          porosity_scale = vec_p(local_id)** &
+          porosity_scale = &
+            ((1.d0-material_auxvars(ghosted_id)%porosity_base) / &
+             (1.d0-porosity0_p(local_id)))** &
              reaction%mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
 !       geh: srf_area_vol_frac_pwr must be defined on a per mineral basis, not
 !       solely material type.
@@ -1933,7 +2098,8 @@ subroutine RealizationUpdatePropertiesTS(realization)
     enddo
 
     if (reaction%update_mnrl_surf_with_porosity) then
-      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%porosity0,porosity0_p, &
+                                  ierr);CHKERRQ(ierr)
     endif
 !geh:remove
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
@@ -1945,18 +2111,19 @@ subroutine RealizationUpdatePropertiesTS(realization)
   endif
       
   if (reaction%update_tortuosity) then
-    call VecGetArrayF90(field%tortuosity0,tortuosity0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tortuosity0,tortuosity0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      scale = vec_p(local_id)** &
+      scale = (material_auxvars(ghosted_id)%porosity_base / &
+               porosity0_p(local_id))** &
         material_property_array(patch%imat(ghosted_id))%ptr%tortuosity_pwr
       material_auxvars(ghosted_id)%tortuosity = &
         tortuosity0_p(local_id)*scale
     enddo
-    call VecRestoreArrayF90(field%tortuosity0,tortuosity0_p, &
+    call VecRestoreArrayReadF90(field%tortuosity0,tortuosity0_p, &
                             ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  TORTUOSITY,ZERO_INTEGER)
     call DiscretizationLocalToLocal(discretization,field%work_loc, &
@@ -1966,20 +2133,25 @@ subroutine RealizationUpdatePropertiesTS(realization)
   endif
       
   if (reaction%update_permeability) then
-    call VecGetArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+    if (option%flow%full_perm_tensor) then
+      call VecGetArrayReadF90(field%perm0_xy,perm0_xy_p,ierr);CHKERRQ(ierr)
+      call VecGetArrayReadF90(field%perm0_xz,perm0_xz_p,ierr);CHKERRQ(ierr)
+      call VecGetArrayReadF90(field%perm0_yz,perm0_yz_p,ierr);CHKERRQ(ierr)
+    endif
+    call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       imat = patch%imat(ghosted_id)
       critical_porosity = material_property_array(imat)%ptr% &
                             permeability_crit_por
-      porosity_base = material_auxvars(ghosted_id)%porosity_base
+      porosity_base_ = material_auxvars(ghosted_id)%porosity_base
       scale = 0.d0
-      if (porosity_base > critical_porosity .and. &
+      if (porosity_base_ > critical_porosity .and. &
           porosity0_p(local_id) > critical_porosity) then
-        scale = ((porosity_base - critical_porosity) / &
+        scale = ((porosity_base_ - critical_porosity) / &
                  (porosity0_p(local_id) - critical_porosity)) ** &
                 material_property_array(imat)%ptr%permeability_pwr
       endif
@@ -1993,18 +2165,37 @@ subroutine RealizationUpdatePropertiesTS(realization)
       perm_ptr(perm_xx_index) = perm0_xx_p(local_id)*scale
       perm_ptr(perm_yy_index) = perm0_yy_p(local_id)*scale
       perm_ptr(perm_zz_index) = perm0_zz_p(local_id)*scale
+      if (option%flow%full_perm_tensor) then
+        perm_ptr(perm_xy_index) = perm0_xy_p(local_id)*scale
+        perm_ptr(perm_xz_index) = perm0_xz_p(local_id)*scale
+        perm_ptr(perm_yz_index) = perm0_yz_p(local_id)*scale
+      endif
 #else
-      material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
-        perm0_xx_p(local_id)*scale
-      material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
-        perm0_yy_p(local_id)*scale
-      material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
-        perm0_zz_p(local_id)*scale
+        material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
+          perm0_xx_p(local_id)*scale
+        material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
+          perm0_yy_p(local_id)*scale
+        material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
+          perm0_zz_p(local_id)*scale
+      if (option%flow%full_perm_tensor) then
+        material_auxvars(ghosted_id)%permeability(perm_xy_index) = &
+          perm0_xy_p(local_id)*scale
+        material_auxvars(ghosted_id)%permeability(perm_xz_index) = &
+          perm0_xz_p(local_id)*scale
+        material_auxvars(ghosted_id)%permeability(perm_yz_index) = &
+          perm0_yz_p(local_id)*scale
+      endif
 #endif
     enddo
-    call VecRestoreArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+    if (option%flow%full_perm_tensor) then
+      call VecRestoreArrayReadF90(field%perm0_xy,perm0_xy_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%perm0_xz,perm0_xz_p,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(field%perm0_yz,perm0_yz_p,ierr);CHKERRQ(ierr)
+    endif
+    call VecRestoreArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
 
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_X,ZERO_INTEGER)
@@ -2024,12 +2215,32 @@ subroutine RealizationUpdatePropertiesTS(realization)
                                     field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
+    if (option%flow%full_perm_tensor) then
+      call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                   PERMEABILITY_XY,ZERO_INTEGER)
+      call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                      field%work_loc,ONEDOF)
+      call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                   PERMEABILITY_XY,ZERO_INTEGER)
+      call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                   PERMEABILITY_XZ,ZERO_INTEGER)
+      call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                      field%work_loc,ONEDOF)
+      call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                   PERMEABILITY_XZ,ZERO_INTEGER)
+      call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                   PERMEABILITY_YZ,ZERO_INTEGER)
+      call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                      field%work_loc,ONEDOF)
+      call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                   PERMEABILITY_YZ,ZERO_INTEGER)
+    endif
   endif  
   
   ! perform check to ensure that porosity is bounded between 0 and 1
   ! since it is calculated as 1.d-sum_volfrac, it cannot be > 1
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_BASE)
   call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                   field%work,ONEDOF)
   call VecMin(field%work,ivalue,min_value,ierr);CHKERRQ(ierr)
@@ -2051,11 +2262,16 @@ subroutine RealizationUpdatePropertiesNI(realization)
   ! Date: 08/05/09
   ! 
 
+  use Discretization_module
+  use Field_module
   use Grid_module
+  use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Material_Aux_class
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+                               PERMEABILITY_Y, PERMEABILITY_Z, &
+                               PERMEABILITY_XY, PERMEABILITY_XZ, &
+                               PERMEABILITY_YZ
  
   implicit none
   
@@ -2065,7 +2281,7 @@ subroutine RealizationUpdatePropertiesNI(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
@@ -2109,7 +2325,10 @@ subroutine RealizationCalcMineralPorosity(realization)
   ! Date: 11/03/14
   !
 
+  use Discretization_module
+  use Field_module
   use Grid_module
+  use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Material_Aux_class
   use Variables_module, only : POROSITY
@@ -2121,7 +2340,7 @@ subroutine RealizationCalcMineralPorosity(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
   type(discretization_type), pointer :: discretization
@@ -2159,13 +2378,15 @@ subroutine RealizationCalcMineralPorosity(realization)
   endif
   ! update ghosted porosities
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_BASE)
   call DiscretizationLocalToLocal(discretization,field%work_loc, &
                                   field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_CURRENT)
+                               POROSITY,POROSITY_BASE)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_CURRENT)
+!  call MaterialSetAuxVarScalar(patch%aux%Material,UNINITIALIZED_DOUBLE, &
+!                               POROSITY,POROSITY_CURRENT)
 
 end subroutine RealizationCalcMineralPorosity
 
@@ -2180,6 +2401,8 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
   ! Date: 06/09/11
   ! 
 
+  use Discretization_module
+  use Field_module
   use Grid_module
 
   implicit none
@@ -2199,8 +2422,11 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(MATERIAL_ID_ARRAY)
       call GridCopyIntegerArrayToVec(grid,patch%imat,field%work_loc, &
                                      grid%ngmax)
-    case(SATURATION_FUNCTION_ID_ARRAY)
-      call GridCopyIntegerArrayToVec(grid,patch%sat_func_id, &
+    case(CC_ID_ARRAY)
+      call GridCopyIntegerArrayToVec(grid,patch%cc_id, &
+                                     field%work_loc, grid%ngmax)
+    case(CCT_ID_ARRAY)
+      call GridCopyIntegerArrayToVec(grid,patch%cct_id, &
                                      field%work_loc, grid%ngmax)
   end select
 
@@ -2211,8 +2437,11 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(MATERIAL_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%imat,field%work_loc, &
                                       grid%ngmax)
-    case(SATURATION_FUNCTION_ID_ARRAY)
-      call GridCopyVecToIntegerArray(grid,patch%sat_func_id, &
+    case(CC_ID_ARRAY)
+      call GridCopyVecToIntegerArray(grid,patch%cc_id, &
+                                      field%work_loc, grid%ngmax)
+    case(CCT_ID_ARRAY)
+      call GridCopyVecToIntegerArray(grid,patch%cct_id, &
                                       field%work_loc, grid%ngmax)
   end select
 
@@ -2463,7 +2692,8 @@ end subroutine RealizationPrintGridStatistics
 
 ! ************************************************************************** !
 
-subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
+subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1, &
+                                            max_pore_velocity)
   ! 
   ! Calculates largest time step that
   ! preserves a CFL # of 1 in a realization
@@ -2476,23 +2706,13 @@ subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
 
   class(realization_subsurface_type) realization
   PetscReal :: max_dt_cfl_1
-  
-  type(patch_type), pointer :: patch
-  PetscReal :: max_dt_cfl_1_patch
-  PetscReal :: tempreal
-  PetscErrorCode :: ierr
+  PetscReal :: max_pore_velocity
   
   max_dt_cfl_1 = 1.d20
-  patch => realization%patch
-  call PatchCalculateCFL1Timestep(patch,realization%option, &
-                                  max_dt_cfl_1_patch)
-  max_dt_cfl_1 = min(max_dt_cfl_1,max_dt_cfl_1_patch)
-
-  ! get the minimum across all cores
-  call MPI_Allreduce(max_dt_cfl_1,tempreal,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MIN, &
-                     realization%option%mycomm,ierr)
-  max_dt_cfl_1 = tempreal
+  max_pore_velocity = 0.d0
+  call PatchCalculateCFL1Timestep(realization%patch,realization%option, &
+                                  max_dt_cfl_1, &
+                                  max_pore_velocity)
 
 end subroutine RealizationCalculateCFL1Timestep
 
@@ -2507,8 +2727,10 @@ subroutine RealizUnInitializedVarsFlow(realization)
   ! 
   use Option_module
   use Material_Aux_class
-  use Variables_module, only : VOLUME, MINERAL_POROSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+  use Variables_module, only : VOLUME, BASE_POROSITY, PERMEABILITY_X, &
+                               PERMEABILITY_Y, PERMEABILITY_Z, &
+                               PERMEABILITY_XY, PERMEABILITY_XZ, &
+                               PERMEABILITY_YZ
 
   implicit none
   
@@ -2519,10 +2741,15 @@ subroutine RealizUnInitializedVarsFlow(realization)
 
   call RealizUnInitializedVar1(realization,VOLUME,'volume')
   ! mineral porosity is the base, unmodified porosity
-  call RealizUnInitializedVar1(realization,MINERAL_POROSITY,'porosity')
+  call RealizUnInitializedVar1(realization,BASE_POROSITY,'porosity')
   call RealizUnInitializedVar1(realization,PERMEABILITY_X,'permeability X')
   call RealizUnInitializedVar1(realization,PERMEABILITY_Y,'permeability Y')
   call RealizUnInitializedVar1(realization,PERMEABILITY_Z,'permeability Z')
+  if (realization%option%flow%full_perm_tensor) then
+    call RealizUnInitializedVar1(realization,PERMEABILITY_XY,'permeability XY')
+    call RealizUnInitializedVar1(realization,PERMEABILITY_XZ,'permeability XZ')
+    call RealizUnInitializedVar1(realization,PERMEABILITY_YZ,'permeability YZ')
+  endif
   do i = 1, max_material_index
     var_name = MaterialAuxIndexToPropertyName(i)
     call RealizUnInitializedVar1(realization,i,var_name)
@@ -2545,7 +2772,7 @@ subroutine RealizUnInitializedVarsTran(realization)
   use Option_module
   use Material_module
   use Material_Aux_class
-  use Variables_module, only : VOLUME, MINERAL_POROSITY, TORTUOSITY
+  use Variables_module, only : VOLUME, BASE_POROSITY, TORTUOSITY
 
   implicit none
   
@@ -2553,7 +2780,7 @@ subroutine RealizUnInitializedVarsTran(realization)
 
   call RealizUnInitializedVar1(realization,VOLUME,'volume')
   ! mineral porosity is the base, unmodified porosity
-  call RealizUnInitializedVar1(realization,MINERAL_POROSITY,'porosity')
+  call RealizUnInitializedVar1(realization,BASE_POROSITY,'porosity')
   call RealizUnInitializedVar1(realization,TORTUOSITY,'tortuosity')
 
 end subroutine RealizUnInitializedVarsTran
@@ -2568,6 +2795,8 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
   ! Date: 07/06/16
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Field_module
   use Patch_module
@@ -2616,7 +2845,7 @@ end subroutine RealizUnInitializedVar1
 
 ! ************************************************************************** !
 
-subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt)
+subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt,dt_max)
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/09/16 
@@ -2629,102 +2858,45 @@ subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt)
   class(realization_subsurface_type) :: realization
   PetscReal :: cfl_governor
   PetscReal :: dt
+  PetscReal :: dt_max
 
   PetscReal :: max_dt_cfl_1
+  PetscReal :: max_pore_velocity
   PetscReal :: prev_dt
+  PetscBool :: print_to_screen, print_to_file
+  character(len=MAXSTRINGLENGTH) :: string
   type(output_option_type), pointer :: output_option
 
   if (Initialized(cfl_governor)) then
-    call RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
+    call RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1, &
+                                          max_pore_velocity)
+    print_to_screen = OptionPrintToScreen(realization%option)
+    print_to_file = OptionPrintToFile(realization%option)
+    if (print_to_screen .or. print_to_file) then
+      output_option => realization%output_option
+      write(string,'(" Maximum Pore Velocity: ",1pe12.4," [m/",a,"]")') &
+        max_pore_velocity*output_option%tconv,trim(output_option%tunit)
+      if (print_to_screen) write(STDOUT_UNIT,'(a)') trim(string)
+      if (print_to_file) write(realization%option%fid_out,'(a)') trim(string)
+    endif
     if (dt/cfl_governor > max_dt_cfl_1) then
       prev_dt = dt
       dt = max_dt_cfl_1*cfl_governor
-      output_option => realization%output_option
-      if (OptionPrintToScreen(realization%option)) then
-        write(*, &
-          '(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4," [",a,"]")') &
+      ! have to set dt_max here so that timestepper%dt_max is truncated
+      ! for timestepper_base%revert_dt in TimestepperBaseSetTargetTime
+      dt_max = dt
+      if (print_to_screen .or. print_to_file) then
+        write(string,'(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4, &
+              &" [",a,"]")') &
               cfl_governor,prev_dt/output_option%tconv, &
               dt/output_option%tconv,trim(output_option%tunit)
-      endif
-      if (OptionPrintToFile(realization%option)) then
-        write(realization%option%fid_out, &
-          '(" CFL Limiting (",f4.1,"): ",1pe12.4," -> ",1pe12.4," [",a,"]")') &
-              cfl_governor,prev_dt/output_option%tconv, &
-              dt/output_option%tconv,trim(output_option%tunit)
+        if (print_to_screen) write(STDOUT_UNIT,'(a)') trim(string)
+        if (print_to_file) write(realization%option%fid_out,'(a)') trim(string)
       endif
     endif
   endif
 
 end subroutine RealizationLimitDTByCFL
-
-! ************************************************************************** !
-
-subroutine RealizationDestroyLegacy(realization)
-  ! 
-  ! Deallocates a realization
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 11/01/07
-  ! 
-
-  use Dataset_module
-  use Output_Eclipse_module, only : ReleaseEwriterBuffers
-
-  implicit none
-  
-  class(realization_subsurface_type), pointer :: realization
-  
-  if (.not.associated(realization)) return
-    
-  call FieldDestroy(realization%field)
-
-  !  call OptionDestroy(realization%option) !geh it will be destroy externally
-  call OutputOptionDestroy(realization%output_option)
-  call RegionDestroyList(realization%region_list)
-  
-  call FlowConditionDestroyList(realization%flow_conditions)
-
-  !  Destroy the list of wells held by well_data
-  call WellDataDestroyList(realization%well_data, realization%option)
-  !  Release output buffers held by Output_Eclipse_module
-  if (realization%output_option%write_ecl) then
-    call ReleaseEwriterBuffers()
-  endif
-
-  call TranConditionDestroyList(realization%transport_conditions)
-  call TranConstraintDestroyList(realization%transport_constraints)
-
-  call PatchDestroyList(realization%patch_list)
-
-  if (associated(realization%debug)) deallocate(realization%debug)
-  nullify(realization%debug)
-  
-  if (associated(realization%fluid_property_array)) &
-    deallocate(realization%fluid_property_array)
-  nullify(realization%fluid_property_array)
-  call FluidPropertyDestroy(realization%fluid_properties)
-  
-  call MaterialPropertyDestroy(realization%material_properties)
-
-  call SaturationFunctionDestroy(realization%saturation_functions)
-  print *, 'RealizationDestroyLegacy cannot be removed.'
-  stop
-  call CharacteristicCurvesDestroy(realization%characteristic_curves)
-
-  call DatasetDestroy(realization%datasets)
-  
-  call DatasetDestroy(realization%uniform_velocity_dataset)
-  
-  call DiscretizationDestroy(realization%discretization)
-  
-  call ReactionDestroy(realization%reaction,realization%option)
-  
-  call TranConstraintDestroy(realization%sec_transport_constraint)
-  
-  deallocate(realization)
-  nullify(realization)
-  
-end subroutine RealizationDestroyLegacy
 
 ! ************************************************************************** !
 
@@ -2754,7 +2926,7 @@ subroutine RealizationStrip(this)
   call ReleaseEwriterBuffers()
 
   call TranConditionDestroyList(this%transport_conditions)
-  call TranConstraintDestroyList(this%transport_constraints)
+  call TranConstraintListDestroy(this%transport_constraints)
 
   if (associated(this%fluid_property_array)) &
     deallocate(this%fluid_property_array)
@@ -2766,13 +2938,17 @@ subroutine RealizationStrip(this)
   call SaturationFunctionDestroy(this%saturation_functions)
   call CharacteristicCurvesDestroy(this%characteristic_curves)  
 
+  if (associated(this%characteristic_curves_thermal)) then
+    call CharCurvesThermalDestroy(this%characteristic_curves_thermal)
+  endif
+  
   call DatasetDestroy(this%datasets)
   
   call DatasetDestroy(this%uniform_velocity_dataset)
-  
-  call ReactionDestroy(this%reaction,this%option)
-  
-  call NWTransDestroy(this%nw_trans,this%option)
+
+  ! nullify since they are pointers to reaction_base in realization_base
+  nullify(this%reaction)
+  nullify(this%reaction_nw)
   
   call TranConstraintDestroy(this%sec_transport_constraint)
   

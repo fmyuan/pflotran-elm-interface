@@ -1,5 +1,8 @@
 module Reaction_Sandbox_Simple_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   use PFLOTRAN_Constants_module
 
@@ -7,8 +10,6 @@ module Reaction_Sandbox_Simple_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_simple_type
     ! Aqueous species
@@ -57,14 +58,14 @@ subroutine SimpleSetup(this,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 12/03/15
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Option_module
 
   implicit none
   
   class(reaction_sandbox_simple_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -122,7 +123,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_simple_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

@@ -237,13 +237,14 @@ subroutine CouplerRead(coupler,input,option)
   character(len=MAXWORDLENGTH) :: word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','COUPLER')   
     call StringToUpper(word)      
     
@@ -256,10 +257,11 @@ subroutine CouplerRead(coupler,input,option)
       case('TRANSPORT_CONDITION')
         call InputReadWord(input,option,coupler%tran_condition_name,PETSC_TRUE)
       case default
-        call InputKeywordUnrecognized(word,'coupler ',option)
+        call InputKeywordUnrecognized(input,word,'coupler ',option)
     end select 
   
-  enddo  
+  enddo 
+  call InputPopBlock(input,option)
 
 end subroutine CouplerRead
 
@@ -368,8 +370,10 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       if (associated(coupler%flow_condition)) then
         if (associated(coupler%flow_condition%pressure)) then
           if (coupler%flow_condition%pressure%itype /= HYDROSTATIC_BC .and. &
-              coupler%flow_condition%pressure%itype /= SEEPAGE_BC .and. &
-              coupler%flow_condition%pressure%itype /= CONDUCTANCE_BC) then
+              coupler%flow_condition%pressure%itype /= &
+                HYDROSTATIC_SEEPAGE_BC .and. &
+              coupler%flow_condition%pressure%itype /= &
+                HYDROSTATIC_CONDUCTANCE_BC) then
             select type(selector => coupler%flow_condition%pressure%dataset)
               class is(dataset_gridded_hdf5_type)
               class default
@@ -483,7 +487,7 @@ end function CouplerGetNumConnectionsInList
 
 ! ************************************************************************** !
 
-function CouplerGetPtrFromList(coupler_name,coupler_list)
+function CouplerGetPtrFromList(coupler_name,coupler_list,option)
   ! 
   ! Returns a pointer to the coupler matching
   ! coupler_name
@@ -491,7 +495,7 @@ function CouplerGetPtrFromList(coupler_name,coupler_list)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   ! 
-
+  use Option_module
   use String_module
 
   implicit none
@@ -500,6 +504,7 @@ function CouplerGetPtrFromList(coupler_name,coupler_list)
   character(len=MAXWORDLENGTH) :: coupler_name
   PetscInt :: length
   type(coupler_list_type) :: coupler_list
+  type(option_type) :: option
 
   type(coupler_type), pointer :: coupler
     
@@ -516,6 +521,11 @@ function CouplerGetPtrFromList(coupler_name,coupler_list)
     endif
     coupler => coupler%next
   enddo
+
+  option%io_buffer = 'Coupler "' // trim(coupler_name) // &
+    '" not found in CouplerGetPtrFromList().  Please ensure that all &
+    &initial and boundary conditions and source/sinks are named.'
+  call PrintErrMsg(option)
   
 end function CouplerGetPtrFromList
 
