@@ -974,16 +974,16 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       if (rel_update > nwt_itol_rel_update) then
         problem_cells = problem_cells + 1
         if (scaled_res < nwt_itol_scaled_res) problem_cells = problem_cells - 1
-        WRITE(*,*)  '   problem cell = ', temp_int, 'rel_update = ', rel_update
+        !WRITE(*,*)  '   problem cell = ', temp_int, 'rel_update = ', rel_update
       endif
       if (abs_update > nwt_itol_abs_update) then
-        WRITE(*,*)  '   problem cell = ', temp_int, 'abs_update = ', abs_update
+        !WRITE(*,*)  '   problem cell = ', temp_int, 'abs_update = ', abs_update
       endif
       if (scaled_res > nwt_itol_scaled_res) then
-        WRITE(*,*)  '   problem cell = ', temp_int, 'scaled_res = ', scaled_res
+        !WRITE(*,*)  '   problem cell = ', temp_int, 'scaled_res = ', scaled_res
       endif
       if (abs_res > nwt_itol_abs_res) then
-        WRITE(*,*)  '   problem cell = ', temp_int, 'abs_res = ', abs_res
+        !WRITE(*,*)  '   problem cell = ', temp_int, 'abs_res = ', abs_res
       endif
       if (rel_update >= max_relative_change) then
         maxloc1 = temp_int
@@ -1027,17 +1027,17 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       converged_flag = 1
     endif
   endif
-  WRITE(*,*) ' max_scaled_residual = ', max_scaled_residual
-  WRITE(*,*) ' relative_change here = ', rel_update_at
-  WRITE(*,*) '              maxloc = ', maxloc2
-  WRITE(*,*)  ' max_relative_change = ', max_relative_change
-  WRITE(*,*)  ' scaled_residual here = ', scaled_res_at
-  WRITE(*,*)  '              maxloc = ', maxloc1
-  WRITE(*,*) ' max_absolute_residual = ', max_absolute_residual
-  WRITE(*,*) '              maxloc = ', maxloc4
-  WRITE(*,*) ' max_absolute_update = ', max_absolute_change
-  WRITE(*,*) '              maxloc = ', maxloc3
-  WRITE(*,*)  '      converged_flag = ', converged_flag
+  !WRITE(*,*) ' max_scaled_residual = ', max_scaled_residual
+  !WRITE(*,*) ' relative_change here = ', rel_update_at
+  !WRITE(*,*) '              maxloc = ', maxloc2
+  !WRITE(*,*)  ' max_relative_change = ', max_relative_change
+  !WRITE(*,*)  ' scaled_residual here = ', scaled_res_at
+  !WRITE(*,*)  '              maxloc = ', maxloc1
+  !WRITE(*,*) ' max_absolute_residual = ', max_absolute_residual
+  !WRITE(*,*) '              maxloc = ', maxloc4
+  !WRITE(*,*) ' max_absolute_update = ', max_absolute_change
+  !WRITE(*,*) '              maxloc = ', maxloc3
+  !WRITE(*,*)  '      converged_flag = ', converged_flag
 
   
   ! get global minimum
