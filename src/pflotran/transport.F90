@@ -52,10 +52,10 @@ contains
 ! ************************************************************************** !
 
 subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
-                      cell_centered_velocity_up,dispersivity_up, &
+                      cell_centered_velocity_up,dispersivity_up,epsilon_up, &
                       global_auxvar_dn,material_auxvar_dn, &
-                      cell_centered_velocity_dn,dispersivity_dn,dist, &
-                      rt_parameter,option,qdarcy, &
+                      cell_centered_velocity_dn,dispersivity_dn,epsilon_dn, &
+                      dist,rt_parameter,option,qdarcy, &
                       harmonic_tran_coefs_over_dist)
   ! 
   ! Computes a single coefficient representing:
@@ -78,6 +78,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: dispersivity_up(3), dispersivity_dn(3)
   PetscReal :: cell_centered_velocity_up(3,2), &
                cell_centered_velocity_dn(3,2)
+  PetscReal :: epsilon_up, epsilon_dn
   PetscReal :: dist(-1:3)
   PetscReal :: qdarcy(*)
   type(reactive_transport_param_type) :: rt_parameter
@@ -235,12 +236,12 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
     !   saturation * porosity * tortuosity * molecular diffusion
     hydrodynamic_dispersion_up(:) = &
       max(mechanical_dispersion_up + &
-          sat_up * material_auxvar_up%porosity * &
+          epsilon_up * sat_up * material_auxvar_up%porosity * &
           material_auxvar_up%tortuosity * molecular_diffusion_up(:), &
           1.d-40)
     hydrodynamic_dispersion_dn(:) = &
       max(mechanical_dispersion_dn + &
-          sat_dn * material_auxvar_dn%porosity * &
+          epsilon_dn * sat_dn * material_auxvar_dn%porosity * &
           material_auxvar_dn%tortuosity * molecular_diffusion_dn(:), &
           1.d-40)
     ! harmonic average of hydrodynamic dispersion divided by distance
@@ -257,8 +258,8 @@ end subroutine TDispersion
 subroutine TDispersionBC(ibndtype, &
                           global_auxvar_up, &
                           global_auxvar_dn,material_auxvar_dn, &
-                          cell_centered_velocity_dn,dispersivity_dn, &
-                          dist_dn, &
+                          cell_centered_velocity_dn,dispersivity_dn,&
+                          epsilon_dn,dist_dn, &
                           rt_parameter,option,qdarcy, &
                           tran_coefs_over_dist)
   ! 
@@ -282,6 +283,7 @@ subroutine TDispersionBC(ibndtype, &
   class(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: dispersivity_dn(3)
   PetscReal :: cell_centered_velocity_dn(3,2)
+  PetscReal :: epsilon_dn
   PetscReal :: dist_dn(-1:3)
   PetscReal :: qdarcy(*)
   type(reactive_transport_param_type) :: rt_parameter
@@ -392,7 +394,9 @@ subroutine TDispersionBC(ibndtype, &
         !   saturation * porosity * tortuosity * molecular diffusion
         hydrodynamic_dispersion(:) = &
           max(mechanical_dispersion + &
-              sat_up * material_auxvar_dn%porosity * &
+              ! yes, sat_up due to boundary saturation governing, but
+              ! perhaps we could use an average in the future
+              epsilon_dn * sat_up * material_auxvar_dn%porosity * &
               material_auxvar_dn%tortuosity * molecular_diffusion(:), &
               1.d-40)
         ! hydrodynamic dispersion divided by distance
