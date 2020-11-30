@@ -2267,6 +2267,7 @@ subroutine SecondaryRTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reactio
 end subroutine SecondaryRTotalSorbKD
 
 ! ************************************************************************** !
+
 subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
  
   ! Extracts a secondary continuum variable for a layer of secondary
@@ -2337,6 +2338,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
 end subroutine SecondaryRTGetVariable
 
 ! ************************************************************************** !
+
 subroutine SecondaryRTSetVariable(realization, vec, vec_format, ivar, isubvar, mc_layer)
   
   ! Sets a secondary continuum variable to a layer of secondary
