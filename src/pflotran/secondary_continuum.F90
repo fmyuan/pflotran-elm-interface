@@ -2300,7 +2300,7 @@ subroutine SecondaryRTGetVariable(realization, vec, ivar, isubvar, mc_layer)
   call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
   
   select case(ivar)
-    case(SEC_CONT_UPD_CONC)
+    case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1,grid%nlmax
         vec_p(local_id) = &
           patch%aux%SC_RT%sec_transport_vars(local_id)% &
@@ -2378,7 +2378,7 @@ SecondaryRTSetVariable')
   call VecGetArrayF90(vec,vec_p,ierr);CHKERRQ(ierr)
   
   select case(ivar)
-    case(SEC_CONT_UPD_CONC)
+    case(SECONDARY_CONTINUUM_UPDATED_CONC)
       do local_id=1, grid%nlmax
         patch%aux%SC_RT%sec_transport_vars(local_id)% &
           updated_conc(isubvar,mc_layer) = vec_p(local_id)

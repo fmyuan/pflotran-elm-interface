@@ -1296,7 +1296,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
                                REACTION_AUXILIARY, &
-                               SEC_CONT_UPD_CONC
+                               SECONDARY_CONTINUUM_UPDATED_CONC
   
   implicit none
 
@@ -1414,7 +1414,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
                    secondary_continuum_ncells
         do i = 1, realization%reaction%naqcomp
           call SecondaryRTGetVariable(realization,global_vec, &
-                                    SEC_CONT_UPD_CONC, i, mc_i)
+                                    SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
           call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
         enddo
         if (realization%reaction%checkpoint_activity_coefs .and. &
@@ -1481,7 +1481,7 @@ subroutine PMRTRestartBinary(this,viewer)
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
                                REACTION_AUXILIARY, &
-                               SEC_CONT_UPD_CONC
+                               SECONDARY_CONTINUUM_UPDATED_CONC
   use Secondary_Continuum_module
   
   implicit none
@@ -1599,7 +1599,7 @@ subroutine PMRTRestartBinary(this,viewer)
       do i = 1, realization%reaction%naqcomp
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
-                                  SEC_CONT_UPD_CONC, i, mc_i)
+                                  SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
       enddo
       if (realization%reaction%checkpoint_activity_coefs .and. &
           realization%reaction%act_coef_update_frequency /= &
@@ -1677,7 +1677,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
                                REACTION_AUXILIARY, &
-                               SEC_CONT_UPD_CONC
+                               SECONDARY_CONTINUUM_UPDATED_CONC
   use hdf5
   use Checkpoint_module, only: CheckPointWriteIntDatasetHDF5
   use HDF5_module, only : HDF5WriteDataSetFromVec
@@ -1840,7 +1840,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
                    secondary_continuum_ncells
         do i = 1, realization%reaction%naqcomp
           call SecondaryRTGetVariable(realization,global_vec, &
-                                      SEC_CONT_UPD_CONC, i, mc_i)
+                                      SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
           call DiscretizationGlobalToNatural(realization%discretization, &
                                              global_vec, natural_vec, ONEDOF)
           write(dataset_name,"(i0,a,i0)") i, "_", mc_i
@@ -1933,7 +1933,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
                                REACTION_AUXILIARY, &
-                               SEC_CONT_UPD_CONC
+                               SECONDARY_CONTINUUM_UPDATED_CONC
   use hdf5
   use Checkpoint_module, only: CheckPointReadIntDatasetHDF5
   use HDF5_module, only : HDF5ReadDataSetInVec
@@ -2109,7 +2109,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
           call DiscretizationNaturalToGlobal(discretization, natural_vec, &
                                              global_vec, ONEDOF)
           call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
-                                    SEC_CONT_UPD_CONC, i, mc_i)
+                                    SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
         enddo
         if (checkpoint_activity_coefs == ONE_INTEGER) then
           ! allocated vector
