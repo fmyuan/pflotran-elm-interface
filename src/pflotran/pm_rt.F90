@@ -2152,6 +2152,8 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
           do i = 1, realization%reaction%nauxiliary
             write(dataset_name,"(i0,a,i0)") i, "_", mc_i
             dataset_name = 'MC_Reaction_auxiliary_' // trim(adjustl(dataset_name))
+            call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+              pm_grp_id, H5T_NATIVE_DOUBLE)
             call DiscretizationNaturalToGlobal(discretization, natural_vec, &
                                                global_vec, ONEDOF)
             call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
