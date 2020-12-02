@@ -1221,6 +1221,9 @@ subroutine RTUpdateRHSCoefs(realization)
   material_auxvars => patch%aux%Material%auxvars
   grid => patch%grid
 
+  option%io_buffer = 'RTUpdateRHSCoefs() not implemented for immobile species'
+  call PrintErrMsg(option)
+
   ! Get vectors
   call VecGetArrayF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
 
@@ -1284,6 +1287,9 @@ subroutine RTCalculateRHS_t0(realization)
   rt_auxvars => patch%aux%RT%auxvars
   grid => patch%grid
   reaction => realization%reaction
+
+  option%io_buffer = 'RTCalculateRHS_t0() not implemented for immobile species'
+  call PrintErrMsg(option)
 
   ! Get vectors
   call VecGetArrayReadF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
@@ -1420,8 +1426,9 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
                      coef_up,coef_dn)
 
       ! coef_dn not needed 
-      iendaq = local_id*reaction%naqcomp
-      istartaq = iendaq-reaction%naqcomp+1
+      offset = (local_id-1)*reaction%ncomp
+      istartaq = offset + 1
+      iendaq = offset + reaction%naqcomp
       
       rhs_p(istartaq:iendaq) = rhs_p(istartaq:iendaq) + &
         coef_up(:,iphase)*rt_auxvars_bc(sum_connection)%total(:,iphase)
