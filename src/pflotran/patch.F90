@@ -149,6 +149,7 @@ module Patch_module
             PatchGetCompMassInRegion, &
             PatchGetWaterMassInRegion, &
             PatchGetCompMassInRegionAssign, &
+            PatchUpdateCouplerSaturation, &
             PatchSetupUpwindDirection
 
 contains
@@ -1167,7 +1168,6 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -1475,7 +1475,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
   use EOS_Water_module
   use Utility_module
 
@@ -2087,7 +2086,6 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
   use EOS_Water_module
   use Utility_module
 
@@ -3130,6 +3128,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsH
+
 ! ************************************************************************** !
 
 subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
@@ -3146,7 +3145,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
   use Condition_module
   use Hydrostatic_module
   use HydrostaticMultiPhase_module
-  use Saturation_module
 
   !use TOilIms_Aux_module
   use PM_TOilIms_Aux_module
@@ -3354,7 +3352,6 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
   use Option_module
   use Condition_module
   use HydrostaticMultiPhase_module
-  use Saturation_module
   !use EOS_Water_module
 
   use PM_TOWG_Aux_module
@@ -3767,7 +3764,6 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -3847,8 +3843,8 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
 
@@ -3868,7 +3864,6 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use General_Aux_module
@@ -3949,8 +3944,8 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
 
@@ -3970,7 +3965,6 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4050,8 +4044,8 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
 
@@ -4071,7 +4065,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4326,8 +4319,8 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
 
@@ -4347,7 +4340,6 @@ subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4425,7 +4417,6 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4500,8 +4491,8 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
   if (associated(flow_condition%rate)) then
@@ -4625,6 +4616,66 @@ subroutine PatchUpdateCouplerGridDataset(coupler,option,grid,dataset,dof)
   enddo
 
 end subroutine PatchUpdateCouplerGridDataset
+
+! ************************************************************************** !
+
+subroutine PatchUpdateCouplerSaturation(coupler,option,grid,cc_array,cc_id)
+  ! 
+  ! Computes the pressures for a saturation
+  ! initial/boundary condition
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/07/11
+  !
+  ! Author: Heeho Park 
+  ! Modified Date: 10/05/20
+  ! 
+
+  use Option_module
+  use Condition_module
+  use Connection_module
+  
+  implicit none
+
+  type(coupler_type) :: coupler
+  type(option_type) :: option
+  type(grid_type) :: grid
+  type(characteristic_curves_ptr_type), intent(in) :: cc_array(:)
+  class(characteristic_curves_type), pointer :: cc_ptr
+
+  PetscInt :: cc_id(:)
+  PetscInt :: local_id, ghosted_id, iconn
+  PetscReal :: saturation
+  PetscReal :: capillary_pressure
+  PetscReal :: dpc_dsat
+  PetscReal :: liquid_pressure
+  
+  type(flow_condition_type), pointer :: condition
+  
+  type(connection_set_type), pointer :: cur_connection_set
+  
+  condition => coupler%flow_condition
+
+  if (option%iflowmode /= RICHARDS_MODE) then
+    option%io_buffer = 'PatchUpdateCouplerSaturation is not set up for this flow mode.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! in this case, the saturation is stored within concentration dataset
+  saturation = condition%saturation%dataset%rarray(1)
+
+  do iconn = 1, coupler%connection_set%num_connections
+    local_id = coupler%connection_set%id_dn(iconn)
+    ghosted_id = grid%nL2G(local_id)
+    cc_ptr => cc_array(cc_id(ghosted_id))%ptr
+
+    call cc_ptr%saturation_function%CapillaryPressure(saturation,&
+                                           capillary_pressure,dpc_dsat,option)
+    liquid_pressure = option%reference_pressure - capillary_pressure
+    coupler%flow_aux_real_var(1,iconn) = liquid_pressure
+  enddo
+
+end subroutine PatchUpdateCouplerSaturation
 
 ! ************************************************************************** !
 
