@@ -5,9 +5,6 @@ module General_Common_module
 
   use PFLOTRAN_Constants_module
   use petscsys
-
-  ! needed for c library version of expm1()
-  use, intrinsic :: iso_c_binding
   
   implicit none
   
@@ -31,16 +28,7 @@ module General_Common_module
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24
-
-  ! use the c math library version of this function
-  interface
-    real(c_double) function expm1(x) bind(C)
-      import:: c_double
-      real(c_double), intent(in)::x
-    end function expm1
-  end interface
-  
+  PetscReal, parameter :: floweps   = 1.d-24  
   
   public :: GeneralAccumulation, &
             GeneralFlux, &
@@ -57,23 +45,6 @@ module General_Common_module
 contains
 
 ! ************************************************************************** !
-
-  ! a fortran version of expm1 from Math stack exchange, called "William Kahan's trick"
-    !PetscReal function expm1(x)
-    !  
-    !  PetscReal :: x, s, t
-    !  
-    !  s = exp(x)
-    !  t = s - 1.0d0;
-    !  if (t == 0.0) then
-    !    t = x
-    !  else if (abs(x) < 1.0) then
-    !    s = log(s)
-    !    t = x * t
-    !    t = t / s
-    !  endif
-    !  expm1 = t
-    !end function expm1
     
 subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,Res,Jac, &
@@ -456,6 +427,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Klinkenberg_module
   use Upwind_Direction_module
   use Characteristic_Curves_Thermal_module
+  use Utility_module
   
   implicit none
   
@@ -684,8 +656,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
       if (general_non_darcy_flow) then
          tot_mole_flux_ddel_pressure = area*density_ave* &
-           (K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn))* &
-           (1.d0 - 1.d0/(I*exp(grad/I)))) 
+           (K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn)))* &
+           (-expm1(-grad/I))
       endif
       
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
@@ -1156,8 +1128,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
       if (general_non_darcy_flow) then
         tot_mole_flux_ddel_pressure = area*density_ave* &
-          (K/(density_kg_ave*EARTH_GRAVITY*(dist_dn+dist_up))* &
-          (1.0d0 - 1.0d0/(I*exp(grad/I))))
+           (K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn)))* &
+           (-expm1(-grad/I))
       endif
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
@@ -2544,6 +2516,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   use Klinkenberg_module
   use Upwind_Direction_module
   use Characteristic_Curves_Thermal_module
+  use Utility_module
   
   implicit none
   
@@ -2795,9 +2768,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
         if (general_non_darcy_flow) then
-          dv_darcy_ddelta_pressure = (K/(density_kg_ave* &
-            EARTH_GRAVITY*(dist(0)))*(1.d0 - 1.d0/(I* &
-            exp(grad/I))))
+          dv_darcy_ddelta_pressure = K/(density_kg_ave*EARTH_GRAVITY* &
+             dist(0))*(-expm1(-grad/I))
           ! expm1() to avoid cancelation
           ! dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
           !  EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
@@ -3163,9 +3135,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
         if (general_non_darcy_flow) then
-          dv_darcy_ddelta_pressure = (K/(density_kg_ave* &
-            EARTH_GRAVITY*(dist(0)))*(1.d0 - 1.d0/(I* &
-            exp(grad/I))))
+          dv_darcy_ddelta_pressure = K/(density_kg_ave* &
+            EARTH_GRAVITY*(dist(0)))*(-expm1(-grad/I))
           ! expm1() to avoid cancelation
           ! dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
           !  EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
