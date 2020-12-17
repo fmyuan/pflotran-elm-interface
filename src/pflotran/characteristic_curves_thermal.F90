@@ -79,22 +79,22 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateFTCond => TCFFrozenConductivity2  ! freezing active
   end type kT_frozen_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_dry_conditions_type
+  type, public, extends(kT_default_type) :: kT_ASM_dry_type
     PetscReal :: dry_T_coeff ! coefficient of T-dependent term
     PetscReal :: dry_T_power ! exponent of temperature in T-dependent term
   contains
-    procedure, public :: Verify => TCFDryConditionsVerify
-    procedure, public :: CalculateTCond => TCFDryConditionsConductivity
-  end type kT_dry_conditions_type
+    procedure, public :: Verify => TCFASMDryVerify
+    procedure, public :: CalculateTCond => TCFASMDryConductivity
+  end type kT_ASM_dry_type
   !---------------------------------------------------------------------------
-  type, public, extends(kT_default_type) :: kT_water_filled_conditions_type
+  type, public, extends(kT_default_type) :: kT_ASM_water_filled_type
     PetscReal :: kT_water     ! thermal conductivity of water
     PetscReal :: kT_solid     ! thermal conductivity of solid components
     PetscReal :: porosity_asm ! porosity of the assembly
   contains
-    procedure, public :: Verify => TCFWaterFilledConditionsVerify
-    procedure, public :: CalculateTCond => TCFWaterFilledConditionsConductivity
-  end type kT_water_filled_conditions_type
+    procedure, public :: Verify => TCFASMWaterFilledVerify
+    procedure, public :: CalculateTCond => TCFASMWaterFilledConductivity
+  end type kT_ASM_water_filled_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_ASM_radial_type
     PetscReal :: dry_T_coeff  ! coefficient of T-dependent term
@@ -158,8 +158,8 @@ module Characteristic_Curves_Thermal_module
             TCFPowerCreate, &
             TCFCubicPolynomialCreate, &
             TCFLinearResistivityCreate, &
-            TCFDryConditionsCreate, &
-            TCFWaterFilledConditionsCreate, &
+            TCFASMDryCreate, &
+            TCFASMWaterFilledCreate, &
             TCFASMRadialCreate, &
             TCFASMAxialCreate, &
             TCFCompositeCreate, &
@@ -528,41 +528,41 @@ end subroutine TCFDefaultConductivity
 
 ! ************************************************************************** !
 
-function TCFDryConditionsCreate()
+function TCFASMDryCreate()
 
   implicit none
 
-  class(kT_dry_conditions_type), pointer :: TCFDryConditionsCreate
+  class(kT_ASM_dry_type), pointer :: TCFASMDryCreate
 
-  allocate(TCFDryConditionsCreate)
+  allocate(TCFASMDryCreate)
   ! User doesn't need to initialize wet thermal conditivity for this case
-  TCFDryConditionsCreate%kT_wet         = 0.0d0 
-  TCFDryConditionsCreate%alpha          = 1.0d0
-  TCFDryConditionsCreate%kT_dry         = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%dry_T_coeff    = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%dry_T_power    = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT             = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kTf            = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT_y           = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT_z           = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT_xy          = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT_xz          = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%kT_yz          = UNINITIALIZED_DOUBLE
-  TCFDryConditionsCreate%isotropic      = PETSC_TRUE
-  TCFDryConditionsCreate%full_tensor    = PETSC_FALSE
+  TCFASMDryCreate%kT_wet         = 0.0d0 
+  TCFASMDryCreate%alpha          = 1.0d0
+  TCFASMDryCreate%kT_dry         = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%dry_T_coeff    = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%dry_T_power    = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%kT             = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%kTf            = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%kT_x           = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%kT_y           = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%kT_z           = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%kT_xy          = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%kT_xz          = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%kT_yz          = UNINITIALIZED_DOUBLE
+  TCFASMDryCreate%isotropic      = PETSC_TRUE
+  TCFASMDryCreate%full_tensor    = PETSC_FALSE
 
-end function TCFDryConditionsCreate
+end function TCFASMDryCreate
 
 ! ************************************************************************** !
 
-subroutine TCFDryConditionsVerify(this,name,option)
+subroutine TCFASMDryVerify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_dry_conditions_type) :: this
+  class(kT_ASM_dry_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -571,15 +571,15 @@ subroutine TCFDryConditionsVerify(this,name,option)
   if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
     string = name
   else
-    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,DRY_CONDITIONS'
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,ASM_DRY'
   endif
   call TCFBaseVerify(this,string,option)
   if (Uninitialized(this%dry_T_coeff)) then
-    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_COEFFICIENT',string)
+    option%io_buffer = UninitializedMessage('ASM_DRY_COEFFICIENT',string)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%dry_T_power)) then
-    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_EXPONENT',string)
+    option%io_buffer = UninitializedMessage('ASM_DRY_EXPONENT',string)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%kT_dry)) then
@@ -587,18 +587,18 @@ subroutine TCFDryConditionsVerify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine TCFDryConditionsVerify
+end subroutine TCFASMDryVerify
 
 ! ************************************************************************** !
 
-subroutine TCFDryConditionsConductivity(this,liquid_saturation,temperature, &
+subroutine TCFASMDryConductivity(this,liquid_saturation,temperature, &
      thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_dry_conditions_type) :: this
+  class(kT_ASM_dry_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -638,47 +638,47 @@ subroutine TCFDryConditionsConductivity(this,liquid_saturation,temperature, &
     dkT_dsatl = 0.d0
   endif
 
-end subroutine TCFDryConditionsConductivity
+end subroutine TCFASMDryConductivity
 
 ! ************************************************************************** !
 
-function TCFWaterFilledConditionsCreate()
+function TCFASMWaterFilledCreate()
 
   implicit none
 
-  class(kT_water_filled_conditions_type), pointer :: & 
-    TCFWaterFilledConditionsCreate
+  class(kT_ASM_water_filled_type), pointer :: & 
+    TCFASMWaterFilledCreate
 
-  allocate(TCFWaterFilledConditionsCreate)
+  allocate(TCFASMWaterFilledCreate)
   ! User doesn't need to initialize dry or wet thermal conditivity for this case
-  TCFWaterFilledConditionsCreate%kT_dry         = 0.0d0
-  TCFWaterFilledConditionsCreate%kT_wet         = 0.0d0
-  TCFWaterFilledConditionsCreate%alpha          = 1.0d0
-  TCFWaterFilledConditionsCreate%kT_water       = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kT_solid       = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%porosity_asm   = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kT             = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kTf            = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kT_x           = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kT_y           = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kT_z           = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kT_xy          = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kT_xz          = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%kT_yz          = UNINITIALIZED_DOUBLE
-  TCFWaterFilledConditionsCreate%isotropic      = PETSC_TRUE
-  TCFWaterFilledConditionsCreate%full_tensor    = PETSC_FALSE
+  TCFASMWaterFilledCreate%kT_dry         = 0.0d0
+  TCFASMWaterFilledCreate%kT_wet         = 0.0d0
+  TCFASMWaterFilledCreate%alpha          = 1.0d0
+  TCFASMWaterFilledCreate%kT_water       = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kT_solid       = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%porosity_asm   = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kT             = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kTf            = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kT_x           = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kT_y           = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kT_z           = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kT_xy          = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kT_xz          = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%kT_yz          = UNINITIALIZED_DOUBLE
+  TCFASMWaterFilledCreate%isotropic      = PETSC_TRUE
+  TCFASMWaterFilledCreate%full_tensor    = PETSC_FALSE
 
-end function TCFWaterFilledConditionsCreate
+end function TCFASMWaterFilledCreate
 
 ! ************************************************************************** !
 
-subroutine TCFWaterFilledConditionsVerify(this,name,option)
+subroutine TCFASMWaterFilledVerify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_water_filled_conditions_type) :: this
+  class(kT_ASM_water_filled_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -688,7 +688,7 @@ subroutine TCFWaterFilledConditionsVerify(this,name,option)
     string = name
   else
     string = trim(name) // &
-      'THERMAL_CONDUCTIVITY_FUNCTION,WATER_FILLED_CONDITIONS'
+      'THERMAL_CONDUCTIVITY_FUNCTION,ASM_WATER_FILLED'
   endif
   call TCFBaseVerify(this,string,option)
   if (Uninitialized(this%kT_water)) then
@@ -704,18 +704,18 @@ subroutine TCFWaterFilledConditionsVerify(this,name,option)
     call PrintErrMsg(option)
   endif  
 
-end subroutine TCFWaterFilledConditionsVerify
+end subroutine TCFASMWaterFilledVerify
 
 ! ************************************************************************** !
 
-subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation, &
+subroutine TCFASMWaterFilledConductivity(this,liquid_saturation, &
      temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
-  class(kT_water_filled_conditions_type) :: this
+  class(kT_ASM_water_filled_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -752,7 +752,7 @@ subroutine TCFWaterFilledConditionsConductivity(this,liquid_saturation, &
   
   dkT_dtemp = 0.0d0
   
-end subroutine TCFWaterFilledConditionsConductivity
+end subroutine TCFASMWaterFilledConductivity
 
 ! ************************************************************************** !
 
@@ -806,11 +806,11 @@ subroutine TCFASMRadialVerify(this,name,option)
   endif
   call TCFBaseVerify(this,string,option)
   if (Uninitialized(this%dry_T_coeff)) then
-    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_COEFFICIENT',string)
+    option%io_buffer = UninitializedMessage('ASM_DRY_COEFFICIENT',string)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%dry_T_power)) then
-    option%io_buffer = UninitializedMessage('DRY_CONDITIONS_EXPONENT',string)
+    option%io_buffer = UninitializedMessage('ASM_DRY_EXPONENT',string)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%kT_dry)) then
@@ -1712,10 +1712,10 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFLinearResistivityCreate()
       case('FROZEN')
         this%thermal_conductivity_function => TCFFrozenCreate()
-      case('DRY_CONDITIONS')
-        this%thermal_conductivity_function => TCFDryConditionsCreate()
-      case('WATER_FILLED_CONDITIONS')
-        this%thermal_conductivity_function => TCFWaterFilledConditionsCreate()
+      case('ASM_DRY')
+        this%thermal_conductivity_function => TCFASMDryCreate()
+      case('ASM_WATER_FILLED')
+        this%thermal_conductivity_function => TCFASMWaterFilledCreate()
       case('ASM_RADIAL')
         this%thermal_conductivity_function => TCFASMRadialCreate()
       case('ASM_AXIAL')
@@ -1837,10 +1837,10 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
     error_string = trim(error_string) // 'LINEAR_RESISTIVITY'
   class is(kT_frozen_type)
     error_string = trim(error_string) // 'FROZEN'
-  class is(kT_dry_conditions_type)
-    error_string = trim(error_string) // 'DRY_CONDITIONS'
-  class is(kT_water_filled_conditions_type)
-    error_string = trim(error_string) // 'WATER_FILLED_CONDITIONS'
+  class is(kT_ASM_dry_type)
+    error_string = trim(error_string) // 'ASM_DRY'
+  class is(kT_ASM_water_filled_type)
+    error_string = trim(error_string) // 'ASM_WATER_FILLED'
   class is(kT_ASM_radial_type)
     error_string = trim(error_string) // 'ASM_RADIAL'
   class is(kT_ASM_axial_type)
@@ -1915,24 +1915,24 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
           'cubic polynomial',option)
       end select
       !------------------------------------------
-    class is(kT_dry_conditions_type)
+    class is(kT_ASM_dry_type)
       select case(keyword)
-      case('DRY_CONDITIONS_COEFFICIENT')
+      case('ASM_DRY_COEFFICIENT')
         call InputReadDouble(input,option,tcf%dry_T_coeff)
         call InputErrorMsg(input,option, &
-             'dry conditions thermal conductivity temperature coefficient', &
-             error_string)
-      case('DRY_CONDITIONS_EXPONENT')
+             'assembly dry conditions thermal conductivity temperature '// &
+             'coefficient',error_string)
+      case('ASM_DRY_EXPONENT')
         call InputReadDouble(input,option,tcf%dry_T_power)
         call InputErrorMsg(input,option, &
-             'dry conditions thermal conductivity temperature exponent', &
-               error_string)
+             'assembly dry conditions thermal conductivity temperature '// &
+             'exponent',error_string)
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string, &
                             'assembly dry conditions',option)
       end select
       !------------------------------------------
-    class is(kT_water_filled_conditions_type)
+    class is(kT_ASM_water_filled_type)
       select case(keyword)
       case('THERMAL_CONDUCTIVITY_WATER')
         call InputReadDouble(input,option,tcf%kT_water)
@@ -1949,7 +1949,7 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       case('POROSITY_ASSEMBLY')
         call InputReadDouble(input,option,tcf%porosity_asm)
         call InputErrorMsg(input,option, &
-             'water-filled conditions assembly porosity', &
+             'assembly porosity', &
              error_string)
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string, &
@@ -1958,16 +1958,16 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       !------------------------------------------
     class is(kT_ASM_radial_type)
       select case(keyword)
-      case('DRY_CONDITIONS_COEFFICIENT')
+      case('ASM_DRY_COEFFICIENT')
         call InputReadDouble(input,option,tcf%dry_T_coeff)
         call InputErrorMsg(input,option, &
-             'assembly dry conditions temperature coefficient', &
-             error_string)
-      case('DRY_CONDITIONS_EXPONENT')
+             'assembly dry conditions thermal conductivity temperature '// &
+             'coefficient',error_string)
+      case('ASM_DRY_EXPONENT')
         call InputReadDouble(input,option,tcf%dry_T_power)
         call InputErrorMsg(input,option, &
-             'assembly dry conditions temperature exponent', &
-               error_string)
+             'assembly dry conditions thermal conductivity temperature '// &
+             'exponent',error_string)
       case('THERMAL_CONDUCTIVITY_WATER')
         call InputReadDouble(input,option,tcf%kT_water)
         call InputErrorMsg(input,option,'thermal conductivity water', &
@@ -3154,8 +3154,8 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%gamma
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_dry_conditions_type)
-        write(id,'(a)') 'temp.-dependent/optional sat. (dry conditions)'
+      class is (kT_ASM_dry_type)
+        write(id,'(a)') 'temp.-dependent/optional sat. (asm. dry)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
         write(id,'(a)') adjustl(trim(word1))
@@ -3169,8 +3169,8 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(word1,*) tcf%dry_T_power
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
-      class is (kT_water_filled_conditions_type)
-        write(id,'(a)') 'not sat.- or temp.-dependent (water-filled conditions)'
+      class is (kT_ASM_water_filled_type)
+        write(id,'(a)') 'not sat.- or temp.-dependent (asm. water-filled)'
         write(id,'(a29)',advance='no') 'kT_dry: '
         write(word1,*) tcf%kT_dry
         write(id,'(a)') adjustl(trim(word1))
