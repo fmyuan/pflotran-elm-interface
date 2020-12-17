@@ -175,7 +175,6 @@ grid_obj = \
 	${common_src}grid_unstructured_polyhedra.o
 
 relations_obj = \
-	${common_src}saturation.o \
 	${common_src}saturation_function.o \
 	${common_src}characteristic_curves.o \
 	${common_src}characteristic_curves_base.o \
@@ -183,6 +182,7 @@ relations_obj = \
 	${common_src}characteristic_curves_owg.o \
 	${common_src}characteristic_curves_wipp.o \
 	${common_src}characteristic_curves_thermal.o \
+	${common_src}characteristic_curves_VG.o \
 	${common_src}mphase_pckr_mod.o
 
 properties_obj = \

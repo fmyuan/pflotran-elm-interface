@@ -7,6 +7,7 @@ module Characteristic_Curves_OWG_module
   use Characteristic_Curves_Common_module
   use Characteristic_Curves_WIPP_module
   use Characteristic_Curves_Table_module
+  use Characteristic_Curves_VG_module
 
   implicit none
 
@@ -462,11 +463,20 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
+  class(sat_func_base_type), pointer :: sf_swap
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
   PetscBool :: smooth
 
+  ! Lexicon for VG saturation function parameters
+  PetscReal :: alpha = 0d0
+  PetscReal :: m = 0d0
+  PetscReal :: Pcmax = 1d9
+  PetscReal :: Sr = 0d0
+  PetscInt  :: extension = 1
+
+  sf_swap => sat_func_owg%sat_func_sl
 
   input%ierr = 0
   smooth = PETSC_FALSE
@@ -501,6 +511,9 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
         end if
       case('SMOOTH')
         smooth = PETSC_TRUE
+      case('EXTENSION')
+        call InputReadInt(input,option,extension)
+        call InputErrorMsg(input,option,'EXTENSION', error_string)
       case('TABLE_NAME')
         !read table name
       case default
@@ -540,18 +553,18 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
           class is(sat_func_VG_type)
             select case(keyword)              
               case('M')
-                call InputReadDouble(input,option,sf_owg%m)
+                call InputReadDouble(input,option,m)
+                sf_owg%m = m
                 call InputErrorMsg(input,option,'M',error_string)
-                sf_sl%m = sf_owg%m
               case('ALPHA')
-                call InputReadDouble(input,option,sf_owg%alpha)
+                call InputReadDouble(input,option,alpha)
+                sf_owg%alpha = alpha
                 call InputErrorMsg(input,option,'ALPHA',error_string)
-                sf_sl%alpha = sf_owg%alpha
               case('WATER_RESIDUAL_SATURATION')
-                call InputReadDouble(input,option,sf_owg%Swcr)
+                call InputReadDouble(input,option,Sr)
+                sf_owg%Swcr = Sr
                 call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
                                    error_string)
-                sf_sl%Sr = sf_owg%Swcr
               case default
                 call InputKeywordUnrecognized(input,keyword, &
                      'Van Genuchten Oil-Water saturation function',option)
@@ -593,18 +606,18 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
           class is(sat_func_VG_type)
             select case(keyword)
               case('M')
-                call InputReadDouble(input,option,sf_owg%m)
+                call InputReadDouble(input,option,m)
+                sf_owg%m = m
                 call InputErrorMsg(input,option,'M',error_string)
-                sf_sl%m = sf_owg%m
               case('ALPHA')
-                call InputReadDouble(input,option,sf_owg%alpha)
+                call InputReadDouble(input,option,alpha)
+                sf_owg%alpha = alpha
                 call InputErrorMsg(input,option,'ALPHA',error_string)
-                sf_sl%alpha = sf_owg%alpha
               case('LIQUID_RESIDUAL_SATURATION')
-                call InputReadDouble(input,option,sf_owg%Slcr)
+                call InputReadDouble(input,option,Sr)
+                sf_owg%Slcr = Sr
                 call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
                                    error_string)
-                sf_sl%Sr = sf_owg%Slcr
               case default
                 call InputKeywordUnrecognized(input,keyword, &
                        'Van Genuchten Oil-Gas-SL saturation function',option)
@@ -623,6 +636,28 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
   !add reading instructions for other OWG saturation functions (tables etc)
   end do
   call InputPopBlock(input,option)
+
+  ! Call constructors for SF_VG type
+  select type(sf_sl => sat_func_owg%sat_func_sl)
+  class is(sat_func_VG_type)
+    select case(extension)
+    case (0)
+      sf_swap => SF_VG_NEVG_ctor(alpha,m,Sr)
+    case (1)
+      sf_swap => SF_VG_FCPC_ctor(alpha,m,Sr,Pcmax)
+    case (2)
+      sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,Pcmax)
+    end select
+  end select
+
+  ! Check for null pointers as the constructor failed 
+  if (associated(sf_swap)) then  
+    ! Replace the original sf_sl object if a new object was constructed
+    if (.NOT. associated(sat_func_owg%sat_func_sl,sf_swap)) then
+      deallocate(sat_func_owg%sat_func_sl)
+      sat_func_owg%sat_func_sl => sf_swap
+    end if
+  end if
 
   if ( smooth .and. associated(sat_func_owg%sat_func_sl) ) then
     call sat_func_owg%sat_func_sl%SetupPolynomials(option,error_string)
@@ -1339,7 +1374,7 @@ function SF_XW_VG_Create()
 
   call SFXWBaseInit(SF_XW_VG_Create)
 
-  SF_XW_VG_Create%sat_func_sl => SF_VG_Create()
+  SF_XW_VG_Create%sat_func_sl => SFVGCreate()
 
   call SF_XW_VG_Create%Init()
 
@@ -1475,7 +1510,7 @@ function SF_XW_BC_Create()
 
   call SFXWBaseInit(SF_XW_BC_Create)
 
-  SF_XW_BC_Create%sat_func_sl => SF_BC_Create()
+  SF_XW_BC_Create%sat_func_sl => SFBCCreate()
 
   call SF_XW_BC_Create%Init()
 
@@ -2097,7 +2132,7 @@ function SF_OG_VG_SL_Create()
 
   call SFOGBaseInit(SF_OG_VG_SL_Create)
 
-  SF_OG_VG_SL_Create%sat_func_sl => SF_VG_Create()
+  SF_OG_VG_SL_Create%sat_func_sl => SFVGCreate()
 
   call SF_OG_VG_SL_Create%Init()
 
@@ -2901,7 +2936,7 @@ function RPF_wat_owg_Mualem_VG_Create()
 
   call RPF_wat_owg_Mualem_VG_Create%Init()
   
-  RPF_wat_owg_Mualem_VG_Create%rel_perm_func_sl => RPF_Mualem_VG_liq_create()
+  RPF_wat_owg_Mualem_VG_Create%rel_perm_func_sl => RPFMualemVGLiqCreate()
 
 end function RPF_wat_owg_Mualem_VG_Create
 
@@ -2918,7 +2953,7 @@ function RPF_wat_owg_Burdine_VG_Create()
 
   call RPF_wat_owg_Burdine_VG_Create%Init()
 
-  RPF_wat_owg_Burdine_VG_Create%rel_perm_func_sl => RPF_Burdine_VG_liq_create()
+  RPF_wat_owg_Burdine_VG_Create%rel_perm_func_sl => RPFBurdineVGLiqCreate()
 
 end function RPF_wat_owg_Burdine_VG_Create
 
@@ -2935,7 +2970,7 @@ function RPF_wat_owg_Burdine_BC_Create()
 
   call RPF_wat_owg_Burdine_BC_Create%Init()
 
-  RPF_wat_owg_Burdine_BC_Create%rel_perm_func_sl => RPF_Burdine_BC_liq_create()
+  RPF_wat_owg_Burdine_BC_Create%rel_perm_func_sl => RPFBurdineBCLiqCreate()
 
 end function RPF_wat_owg_Burdine_BC_Create
 
@@ -3409,7 +3444,7 @@ function RPF_gas_owg_Mualem_VG_Create()
 
   call RPF_gas_owg_Mualem_VG_Create%Init()
 
-  RPF_gas_owg_Mualem_VG_Create%rel_perm_func_sl => RPF_Mualem_VG_gas_create()
+  RPF_gas_owg_Mualem_VG_Create%rel_perm_func_sl => RPFMualemVGGasCreate()
 
 end function RPF_gas_owg_Mualem_VG_Create
 
@@ -3429,7 +3464,7 @@ function RPF_gas_owg_TOUGH2_IRP7_Create()
   call RPF_gas_owg_TOUGH2_IRP7_Create%Init()
 
   RPF_gas_owg_TOUGH2_IRP7_Create%rel_perm_func_sl => &
-                                      RPF_TOUGH2_IRP7_gas_create()
+                                      RPFTOUGH2IRP7GasCreate()
 
 end function RPF_gas_owg_TOUGH2_IRP7_Create
 
@@ -3447,7 +3482,7 @@ function RPF_gas_owg_Burdine_VG_Create()
 
   call RPF_gas_owg_Burdine_VG_Create%Init()
 
-  RPF_gas_owg_Burdine_VG_Create%rel_perm_func_sl => RPF_Burdine_VG_gas_create()
+  RPF_gas_owg_Burdine_VG_Create%rel_perm_func_sl => RPFBurdineVGGasCreate()
 
 end function RPF_gas_owg_Burdine_VG_Create
 
@@ -3465,7 +3500,7 @@ function RPF_gas_owg_Burdine_BC_Create()
 
   call RPF_gas_owg_Burdine_BC_Create%Init()
 
-  RPF_gas_owg_Burdine_BC_Create%rel_perm_func_sl => RPF_Burdine_BC_gas_create()
+  RPF_gas_owg_Burdine_BC_Create%rel_perm_func_sl => RPFBurdineBCGasCreate()
 
 end function RPF_gas_owg_Burdine_BC_Create
 

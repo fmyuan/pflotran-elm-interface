@@ -8,6 +8,7 @@ module Characteristic_Curves_module
   use Characteristic_Curves_OWG_module
   use Characteristic_Curves_WIPP_module
   use Characteristic_Curves_Table_module
+  use Characteristic_Curves_VG_module
 
   implicit none
 
@@ -116,6 +117,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
   class(rel_perm_func_base_type), pointer :: rel_perm_function_ptr
   class(char_curves_table_type), pointer :: char_curves_table
 
+  class(sat_func_base_type), pointer :: sf_swap
+  nullify(sf_swap)
   nullify(rel_perm_function_ptr)
 
   input%ierr = 0
@@ -139,42 +142,49 @@ subroutine CharacteristicCurvesRead(this,input,option)
         call StringToUpper(word)
         select case(word)
           case('CONSTANT')
-            this%saturation_function => SF_Constant_Create()
+            this%saturation_function => SFConstantCreate()
           case('VAN_GENUCHTEN')
-            this%saturation_function => SF_VG_Create()
+            this%saturation_function => SFVGCreate()
           case('BROOKS_COREY')
-            this%saturation_function => SF_BC_Create()
+            this%saturation_function => SFBCCreate()
           case('LINEAR')
-            this%saturation_function => SF_Linear_Create()
+            this%saturation_function => SFLinearCreate()
           case('MODIFIED_KOSUGI')
-            this%saturation_function => SF_mK_Create()
+            this%saturation_function => SFmKCreate()
           case('BRAGFLO_KRP1')
-            this%saturation_function => SF_KRP1_Create()
+            this%saturation_function => SFKRP1Create()
           case('BRAGFLO_KRP2')
-            this%saturation_function => SF_KRP2_Create()
+            this%saturation_function => SFKRP2Create()
           case('BRAGFLO_KRP3')
-            this%saturation_function => SF_KRP3_Create()
+            this%saturation_function => SFKRP3Create()
           case('BRAGFLO_KRP4')
-            this%saturation_function => SF_KRP4_Create()
+            this%saturation_function => SFKRP4Create()
           case('BRAGFLO_KRP5')
-            this%saturation_function => SF_KRP5_Create()
+            this%saturation_function => SFKRP5Create()
           case('BRAGFLO_KRP8')
-            this%saturation_function => SF_KRP8_Create()
+            this%saturation_function => SFKRP8Create()
           case('BRAGFLO_KRP9')
-            this%saturation_function => SF_KRP9_Create()
+            this%saturation_function => SFKRP9Create()
           case('BRAGFLO_KRP11')
-            this%saturation_function => SF_KRP11_Create()
+            this%saturation_function => SFKRP11Create()
           case('BRAGFLO_KRP12')
-            this%saturation_function => SF_KRP12_Create()
+            this%saturation_function => SFKRP12Create()
           case('IGHCC2_COMP')
-            this%saturation_function => SF_IGHCC2_Comp_Create()
+            this%saturation_function => SFIGHCC2CompCreate()
           case('LOOKUP_TABLE')
-            this%saturation_function => SF_Table_Create()
+            this%saturation_function => SFTableCreate()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
                                           option)
         end select
-        call SaturationFunctionRead(this%saturation_function,input,option)
+
+        sf_swap => SaturationFunctionRead(this%saturation_function,input,option)
+        ! Deallocate this%saturation_function if it is replaced
+        if (associated(sf_swap)) then
+          deallocate(this%saturation_function)
+          this%saturation_function => sf_swap
+        end if
+
     !-----------------------------------------------------------------------
       case('SATURATION_FUNCTION_OWG')
         option%io_buffer = 'SATURATION_FUNCTION_OWG is not supported any more &
@@ -278,121 +288,121 @@ subroutine CharacteristicCurvesRead(this,input,option)
         call StringToUpper(word)
         select case(word)
           case('MUALEM','MUALEM_VG_LIQ')
-            rel_perm_function_ptr => RPF_Mualem_VG_Liq_Create()
+            rel_perm_function_ptr => RPFMualemVGLiqCreate()
             phase_keyword = 'LIQUID'
           case('MUALEM_VG_GAS')
-            rel_perm_function_ptr => RPF_Mualem_VG_Gas_Create()
+            rel_perm_function_ptr => RPFMualemVGGasCreate()
             phase_keyword = 'GAS'
           case('BURDINE','BURDINE_BC_LIQ')
-            rel_perm_function_ptr => RPF_Burdine_BC_Liq_Create()
+            rel_perm_function_ptr => RPFBurdineBCLiqCreate()
             phase_keyword = 'LIQUID'
           case('BURDINE_BC_GAS')
-            rel_perm_function_ptr => RPF_Burdine_BC_Gas_Create()
+            rel_perm_function_ptr => RPFBurdineBCGasCreate()
             phase_keyword = 'GAS'
           case('TOUGH2_IRP7_LIQ')
-            rel_perm_function_ptr => RPF_Mualem_VG_Liq_Create()
+            rel_perm_function_ptr => RPFMualemVGLiqCreate()
             phase_keyword = 'LIQUID'
           case('TOUGH2_IRP7_GAS')
-            rel_perm_function_ptr => RPF_TOUGH2_IRP7_Gas_Create()
+            rel_perm_function_ptr => RPFTOUGH2IRP7GasCreate()
             phase_keyword = 'GAS'
           case('MUALEM_BC_LIQ')
-            rel_perm_function_ptr => RPF_Mualem_BC_Liq_Create()
+            rel_perm_function_ptr => RPFMualemBCLiqCreate()
             phase_keyword = 'LIQUID'
           case('MUALEM_BC_GAS')
-            rel_perm_function_ptr => RPF_Mualem_BC_Gas_Create()
+            rel_perm_function_ptr => RPFMualemBCGasCreate()
             phase_keyword = 'GAS'
           case('BURDINE_VG_LIQ')
-            rel_perm_function_ptr => RPF_Burdine_VG_Liq_Create()
+            rel_perm_function_ptr => RPFBurdineVGLiqCreate()
             phase_keyword = 'LIQUID'
           case('BURDINE_VG_GAS')
-            rel_perm_function_ptr => RPF_Burdine_VG_Gas_Create()
+            rel_perm_function_ptr => RPFBurdineVGGasCreate()
             phase_keyword = 'GAS'
           case('MUALEM_LINEAR_LIQ')
-            rel_perm_function_ptr => RPF_Mualem_Linear_Liq_Create()
+            rel_perm_function_ptr => RPFMualemLinearLiqCreate()
             phase_keyword = 'LIQUID'
           case('MUALEM_LINEAR_GAS')
-            rel_perm_function_ptr => RPF_Mualem_Linear_Gas_Create()
+            rel_perm_function_ptr => RPFMualemLinearGasCreate()
             phase_keyword = 'GAS'
           case('BURDINE_LINEAR_LIQ')
-            rel_perm_function_ptr => RPF_Burdine_Linear_Liq_Create()
+            rel_perm_function_ptr => RPFBurdineLinearLiqCreate()
             phase_keyword = 'LIQUID'
           case('BURDINE_LINEAR_GAS')
-            rel_perm_function_ptr => RPF_Burdine_Linear_Gas_Create()
+            rel_perm_function_ptr => RPFBurdineLinearGasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP1_LIQ')
-            rel_perm_function_ptr => RPF_KRP1_Liq_Create()
+            rel_perm_function_ptr => RPFKRP1LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP1_GAS')
-            rel_perm_function_ptr => RPF_KRP1_Gas_Create()
+            rel_perm_function_ptr => RPFKRP1GasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP2_LIQ')
-            rel_perm_function_ptr => RPF_KRP2_Liq_Create()
+            rel_perm_function_ptr => RPFKRP2LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP2_GAS')
-            rel_perm_function_ptr => RPF_KRP2_Gas_Create()
+            rel_perm_function_ptr => RPFKRP2GasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP3_LIQ')
-            rel_perm_function_ptr => RPF_KRP3_Liq_Create()
+            rel_perm_function_ptr => RPFKRP3LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP3_GAS')
-            rel_perm_function_ptr => RPF_KRP3_Gas_Create()
+            rel_perm_function_ptr => RPFKRP3GasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP4_LIQ')
-            rel_perm_function_ptr => RPF_KRP4_Liq_Create()
+            rel_perm_function_ptr => RPFKRP4LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP4_GAS')
-            rel_perm_function_ptr => RPF_KRP4_Gas_Create()
+            rel_perm_function_ptr => RPFKRP4GasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP5_LIQ')
-            rel_perm_function_ptr => RPF_KRP5_Liq_Create()
+            rel_perm_function_ptr => RPFKRP5LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP5_GAS')
-            rel_perm_function_ptr => RPF_KRP5_Gas_Create()
+            rel_perm_function_ptr => RPFKRP5GasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP8_LIQ')
-            rel_perm_function_ptr => RPF_KRP8_Liq_Create()
+            rel_perm_function_ptr => RPFKRP8LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP8_GAS')
-            rel_perm_function_ptr => RPF_KRP8_Gas_Create()
+            rel_perm_function_ptr => RPFKRP8GasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP9_LIQ')
-            rel_perm_function_ptr => RPF_KRP9_Liq_Create()
+            rel_perm_function_ptr => RPFKRP9LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP9_GAS')
-            rel_perm_function_ptr => RPF_KRP9_Gas_Create()
+            rel_perm_function_ptr => RPFKRP9GasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP11_LIQ')
-            rel_perm_function_ptr => RPF_KRP11_Liq_Create()
+            rel_perm_function_ptr => RPFKRP11LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP11_GAS')
-            rel_perm_function_ptr => RPF_KRP11_Gas_Create()
+            rel_perm_function_ptr => RPFKRP11GasCreate()
             phase_keyword = 'GAS'
           case('BRAGFLO_KRP12_LIQ')
-            rel_perm_function_ptr => RPF_KRP12_Liq_Create()
+            rel_perm_function_ptr => RPFKRP12LiqCreate()
             phase_keyword = 'LIQUID'
           case('BRAGFLO_KRP12_GAS')
-            rel_perm_function_ptr => RPF_KRP12_Gas_Create()
+            rel_perm_function_ptr => RPFKRP12GasCreate()
             phase_keyword = 'GAS'
           case('MODIFIED_KOSUGI_LIQ')
-            rel_perm_function_ptr => RPF_mK_Liq_Create()
+            rel_perm_function_ptr => RPFmKLiqCreate()
             phase_keyword = 'LIQUID'
           case('MODIFIED_KOSUGI_GAS')
-            rel_perm_function_ptr => RPF_mK_Gas_Create()
+            rel_perm_function_ptr => RPFmKGasCreate()
             phase_keyword = 'GAS'
           case('IGHCC2_COMP_LIQ')
-            rel_perm_function_ptr => RPF_IGHCC2_Comp_Liq_Create()
+            rel_perm_function_ptr => RPFIGHCC2CompLiqCreate()
             phase_keyword = 'LIQUID'
           case('IGHCC2_COMP_GAS')
-            rel_perm_function_ptr => RPF_IGHCC2_Comp_Gas_Create()
+            rel_perm_function_ptr => RPFIGHCC2CompGasCreate()
             phase_keyword = 'GAS'
           case('TABLE_LIQ')
-            rel_perm_function_ptr => RPF_TABLE_Liq_Create()
+            rel_perm_function_ptr => RPFTABLELiqCreate()
             phase_keyword = 'LIQUID'
           case('TABLE_GAS')
-            rel_perm_function_ptr => RPF_TABLE_Gas_Create()
+            rel_perm_function_ptr => RPFTABLEGasCreate()
             phase_keyword = 'GAS'
           case('CONSTANT')
-            rel_perm_function_ptr => RPF_Constant_Create()
+            rel_perm_function_ptr => RPFConstantCreate()
             ! phase_keyword = 'NONE'
           case default
             call InputKeywordUnrecognized(input,word,'PERMEABILITY_FUNCTION', &
@@ -571,8 +581,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
       case('TEST')
         this%test = PETSC_TRUE
       case('DEFAULT')
-        this%saturation_function => SF_Default_Create()
-        this%liq_rel_perm_function => RPF_Default_Create()
+        this%saturation_function => SFDefaultCreate()
+        this%liq_rel_perm_function => RPFDefaultCreate()
         this%gas_rel_perm_function => this%liq_rel_perm_function
         ! PO TODO: adds default for OWG functions
       case default
@@ -594,7 +604,8 @@ end subroutine CharacteristicCurvesRead
 
 ! ************************************************************************** !
 
-subroutine SaturationFunctionRead(saturation_function,input,option)
+function SaturationFunctionRead(saturation_function,input,option) &
+  result (sf_swap)
   !
   ! Reads in contents of a SATURATION_FUNCTION block
   !
@@ -605,17 +616,39 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
 
   implicit none
   
-  class(sat_func_base_type) :: saturation_function
+  class(sat_func_base_type), target :: saturation_function
   type(input_type), pointer :: input
   type(option_type) :: option
+  class(sat_func_base_type), pointer :: sf_swap
   
   character(len=MAXWORDLENGTH) :: keyword, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
   PetscBool :: found
+
+  ! Lexicon is small and finite within SaturationFunctionRead 
+  ! Could be replaced with dynamic structure, but not of critical importance
   PetscBool :: smooth
+  PetscReal :: Sr
+  PetscReal :: Sj
+  PetscReal :: Pcmax
+  PetscReal :: alpha
+  PetscReal :: m
+  PetscReal :: lambda
+  PetscBool :: tension
+  PetscInt  :: extension
+  nullify(sf_swap)
 
   input%ierr = 0
+  ! Provide default values for unspecified parameters         
   smooth = PETSC_FALSE
+  Sr = 0d0
+  Sj = 0d0
+  Pcmax = 1d9
+  alpha = 0d0
+  m = 0d0
+  tension = .FALSE.
+  extension = 1
+
   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION,'
   select type(sf => saturation_function)
     class is(sat_func_constant_type)
@@ -665,16 +698,19 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     found = PETSC_TRUE
     select case(keyword)
       case('LIQUID_RESIDUAL_SATURATION') 
-        call InputReadDouble(input,option,saturation_function%Sr)
+        call InputReadDouble(input,option,Sr)
         call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
                            error_string)
+      case('LIQUID_JUNCTION_SATURATION')
+        call InputReadDouble(input,option,Sj)
+        call InputErrorMsg(input,option,'LIQUID_JUNCTION_SATURATION', &
+                           error_string)
       case('MAX_CAPILLARY_PRESSURE') 
-        call InputReadDouble(input,option,saturation_function%pcmax)
+        call InputReadDouble(input,option,Pcmax)
         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
                             error_string)
       case('CALCULATE_INTERFACIAL_TENSION')
-        saturation_function%calc_int_tension = PETSC_TRUE
-      
+        tension = .TRUE.
       case('SMOOTH')
         smooth = PETSC_TRUE
       case default
@@ -703,11 +739,14 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       class is(sat_func_VG_type)
         select case(keyword)
           case('M') 
-            call InputReadDouble(input,option,sf%m)
+            call InputReadDouble(input,option,m)
             call InputErrorMsg(input,option,'m',error_string)
           case('ALPHA') 
-            call InputReadDouble(input,option,sf%alpha)
+            call InputReadDouble(input,option,alpha)
             call InputErrorMsg(input,option,'alpha',error_string)
+          case('EXTENSION')
+            call InputReadInt(input,option,extension)
+            call InputErrorMsg(input,option,'extension',error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'van Genuchten saturation function',option)
@@ -1000,6 +1039,35 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  ! At end of Saturation_Function block, call constructors or assign compiled
+  ! variables to public attributes.
+  select type (sf => saturation_function)
+  class is (sat_func_VG_type)
+    select case (extension)
+    case (0) ! NEVG
+      sf_swap => SF_VG_NEVG_ctor(alpha,m,Sr)
+    case (1) ! FCPC
+      sf_swap => SF_VG_FCPC_ctor(alpha,m,Sr,Pcmax)
+    case (2) ! ECPC
+      sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,Pcmax)
+    case (3) ! LNOC - If unspecified, default to 5% effective saturation
+      if (Sj == 0d0) Sj = Sr + 0.05d0*(1d0-Sr)
+      sf_swap => SF_VG_LNOC_ctor(alpha,m,Sr,Sj)
+    case (4) ! LCPC
+      sf_swap => SF_VG_LCPC_ctor(alpha,m,Sr,Pcmax)
+    case default
+    end select
+    if (associated(sf_swap)) then ! Check that the contructor succeeded
+      sf_swap%calc_int_tension = tension
+    end if
+    ! TODO throw an error message if it did not
+  class default
+    ! Traditional assignment of public parameters
+    saturation_function%Sr = Sr
+    saturation_function%pcmax = Pcmax
+    saturation_function%calc_int_tension = tension
+  end select
   
   if (smooth) then
     call saturation_function%SetupPolynomials(option,error_string)
@@ -1033,7 +1101,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   !------------------------------------------
   end select
 
-end subroutine SaturationFunctionRead
+end function SaturationFunctionRead
 
 ! ************************************************************************** !
 

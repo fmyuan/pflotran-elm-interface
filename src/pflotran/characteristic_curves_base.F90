@@ -22,11 +22,12 @@ module Characteristic_Curves_Base_module
   type, public :: sat_func_base_type
     type(polynomial_type), pointer :: sat_poly
     type(polynomial_type), pointer :: pres_poly
-    PetscReal :: Sr
-    PetscReal :: pcmax
     PetscBool :: analytical_derivative_available
     PetscBool :: calc_int_tension
+    PetscReal :: pcmax
+    PetscReal :: Sr
   contains
+
     procedure, public :: Init => SFBaseInit
     procedure, public :: Verify => SFBaseVerify
     procedure, public :: Test => SFBaseTest
@@ -271,97 +272,80 @@ end subroutine SFBaseD2SatDP2
 ! ************************************************************************** !
 
 subroutine SFBaseTest(this,cc_name,option)
-
   use Option_module
   use Material_Aux_class
 
   implicit none
   
-  class(sat_func_base_type) :: this
-  character(len=MAXWORDLENGTH) :: cc_name
+  class(sat_func_base_type), intent(in) :: this
+  character(len=MAXWORDLENGTH), intent(in) :: cc_name
   type(option_type), intent(inout) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, parameter :: num_values = 101
-  PetscReal :: pc, pc_increment
-  PetscReal :: capillary_pressure(num_values)
-  PetscReal :: liquid_saturation(num_values)
-  PetscReal :: dpc_dsatl(num_values)
-  PetscReal :: dpc_dsatl_numerical(num_values)
-  PetscReal :: dsat_dpres(num_values)
-  PetscReal :: dsat_dpres_numerical(num_values)
-  PetscReal :: capillary_pressure_pert
-  PetscReal :: liquid_saturation_pert
-  PetscReal :: perturbation
-  PetscReal :: pert
+  PetscInt, parameter :: num_values = 1000
+  PetscReal, parameter :: perturbation = 1d-6  
   PetscReal :: dummy_real
-  PetscInt :: count, i
- 
-  ! calculate saturation as a function of capillary pressure
-  ! start at 1 Pa up to maximum capillary pressure
-  pc = 1.d0
-  pc_increment = 1.d0
-  perturbation = 1.d-6
-  count = 0
-  do
-    if (pc > this%pcmax) exit
-    count = count + 1
-    call this%Saturation(pc,liquid_saturation(count),dsat_dpres(count),option)
-    capillary_pressure(count) = pc
-    ! calculate numerical derivative dsat_dpres_numerical
-    capillary_pressure_pert = pc + pc*perturbation
-    call this%Saturation(capillary_pressure_pert,liquid_saturation_pert, &
-                         dummy_real,option)
-    dsat_dpres_numerical(count) = (liquid_saturation_pert - &
-         & liquid_saturation(count))/(pc*perturbation)*(-1.d0) ! dPc/dPres
-    ! get next value for pc
-    if (pc > 0.99d0*pc_increment*10.d0) pc_increment = pc_increment*10.d0
-    pc = pc + pc_increment
-  enddo
+  PetscReal :: Pc, Sl, dSl_dPc, dPc_dSl ! Analytical values
+  PetscReal :: nPc, nSl, nder ! Numerical derivative values
+  PetscReal :: slogPc, sSl ! Spacing
 
+  ! Open file and write header
   write(string,*) cc_name
   string = trim(cc_name) // '_sat_from_pc.dat'
   open(unit=86,file=string)
   write(86,*) '"capillary pressure", "saturation", "dsat/dpres", &
               &"dsat/dpres_numerical"'
-  do i = 1, count
-    write(86,'(4es14.6)') capillary_pressure(i), liquid_saturation(i), &
-                          dsat_dpres(i), dsat_dpres_numerical(i)
-  enddo
-  close(86)
 
- ! calculate capillary pressure as a function of saturation
-  do i = 1, num_values
-    liquid_saturation(i) = dble(i-1)*0.01d0
-    if (liquid_saturation(i) < 1.d-7) then
-      liquid_saturation(i) = 1.d-7
-    else if (liquid_saturation(i) > (1.d0-1.d-7)) then
-      liquid_saturation(i) = 1.d0-1.d-7
-    endif
-    call this%CapillaryPressure(liquid_saturation(i), &
-                                capillary_pressure(i),dpc_dsatl(i),option)
-    ! calculate numerical derivative dpc_dsatl_numerical
-    pert = liquid_saturation(i) * perturbation
-    if (liquid_saturation(i) > 0.5d0) then
-      pert = -1.d0 * pert
-    endif
-    liquid_saturation_pert = liquid_saturation(i) + pert
-    call this%CapillaryPressure(liquid_saturation_pert, &
-                                capillary_pressure_pert,dummy_real,option)
-    dpc_dsatl_numerical(i) = (capillary_pressure_pert - &
-         & capillary_pressure(i))/pert 
-  enddo
-  count = num_values
+  ! Evaluate saturation function at zero capillary pressure
+  Pc = 0d0
+  call this%Saturation(Pc,Sl,dSl_dPc,option)
+  nPc = epsilon(Pc)
+  call this%Saturation(epsilon(Pc),nSl,dummy_real,option)
+  nder = (nSl - Sl) / epsilon(Pc)
+  write(86,'(4es14.6)') Pc, Sl, dSl_dPc, nder
+
+  ! Continue at a minimum capillary pressure of 1 Pa
+  Pc = 1d0
+  slogPc = exp(log(this%Pcmax/Pc)/num_values) 
+  do while (Pc < this%Pcmax)
+    call this%Saturation(Pc,Sl,dSl_dPc,option)
+    nPc = Pc + Pc*perturbation
+    call this%Saturation(nPc,nSl,dummy_real,option)
+    nder = (nSl - Sl) / (nPc - Pc)
+    write(86,'(4es14.6)') Pc, Sl, dSl_dPc, nder
+    ! Using logarithmic spacing
+    Pc = Pc * slogPc
+  end do
+  close(86)
 
   write(string,*) cc_name
   string = trim(cc_name) // '_pc_from_sat.dat'
   open(unit=86,file=string)
   write(86,*) '"saturation", "capillary pressure", "dpc/dsat", &
-              &dpc_dsat_numerical"'
-  do i = 1, count
-    write(86,'(4es14.6)') liquid_saturation(i), capillary_pressure(i), &
-                          dpc_dsatl(i), dpc_dsatl_numerical(i)
-  enddo
+             &dpc_dsat_numerical"'
+
+  ! Calculate capillary pressure as a function of saturation
+  ! Using linear spacing over 0 to 1
+  Sl = 0d0
+  sSl = 1d0/num_values
+  do while (Sl <= 1d0)
+    call this%CapillaryPressure(Sl,Pc,dPc_dSl,option)
+    ! calculate numerical derivative dpc_dsatl_numerical
+    if (Sl > 0.5d0) then
+      nSl = Sl-1d6*epsilon(Sl)
+    else
+      nSl = Sl+1d6*epsilon(Sl)
+    end if
+
+    call this%CapillaryPressure(nSl,nPc,dummy_real,option)
+    nder = (nPc - Pc) / (nSl - Sl)
+
+    ! Write data to file 86
+    write(86,'(4es14.6)') Sl, Pc, dPc_dSl, nder
+
+    ! Using linear spacing
+    Sl = Sl + sSl
+  end do
   close(86)
 
 end subroutine SFBaseTest
