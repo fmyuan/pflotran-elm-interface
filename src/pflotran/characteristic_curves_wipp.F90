@@ -21,83 +21,84 @@ module Characteristic_Curves_WIPP_module
     PetscReal :: alpha
     PetscBool :: ignore_permeability
   contains
-    procedure, public :: Init => SF_WIPP_Init
-    procedure, public :: Verify => SF_WIPP_Verify
-    procedure, public :: CapillaryPressure => SF_WIPP_CapillaryPressure
-    procedure, public :: Saturation => SF_WIPP_Saturation
+    procedure, public :: Init => SFWIPPInit
+    procedure, public :: Verify => SFWIPPVerify
+    procedure, public :: CapillaryPressure => SFWIPPCapillaryPressure
+    procedure, public :: Saturation => SFWIPPSaturation
   end type sat_func_WIPP_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_WIPP_type) :: sat_func_KRP1_type
     PetscReal :: Srg
     PetscReal :: m
   contains
-    procedure, public :: Init => SF_KRP1_Init
-    procedure, public :: Verify => SF_KRP1_Verify
-    procedure, public :: CapillaryPressure => SF_KRP1_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP1_Saturation
+    procedure, public :: Init => SFKRP1Init
+    procedure, public :: Verify => SFKRP1Verify
+    procedure, public :: CapillaryPressure => SFKRP1CapillaryPressure
+    procedure, public :: Saturation => SFKRP1Saturation
   end type sat_func_KRP1_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_WIPP_type) :: sat_func_KRP2_type
     PetscReal :: lambda
   contains
-    procedure, public :: Init => SF_KRP2_Init
-    procedure, public :: Verify => SF_KRP2_Verify
-    procedure, public :: CapillaryPressure => SF_KRP2_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP2_Saturation
+    procedure, public :: Init => SFKRP2Init
+    procedure, public :: Verify => SFKRP2Verify
+    procedure, public :: CapillaryPressure => SFKRP2CapillaryPressure
+    procedure, public :: Saturation => SFKRP2Saturation
   end type sat_func_KRP2_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_WIPP_type) :: sat_func_KRP3_type
     PetscReal :: Srg
     PetscReal :: lambda
   contains
-    procedure, public :: Init => SF_KRP3_Init
-    procedure, public :: Verify => SF_KRP3_Verify
-    procedure, public :: CapillaryPressure => SF_KRP3_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP3_Saturation
+    procedure, public :: Init => SFKRP3Init
+    procedure, public :: Verify => SFKRP3Verify
+    procedure, public :: CapillaryPressure => SFKRP3CapillaryPressure
+    procedure, public :: Saturation => SFKRP3Saturation
   end type sat_func_KRP3_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_WIPP_type) :: sat_func_KRP4_type
     PetscReal :: Srg
     PetscReal :: lambda
   contains
-    procedure, public :: Verify => SF_KRP4_Verify
-    procedure, public :: CapillaryPressure => SF_KRP4_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP4_Saturation
+    procedure, public :: Init => SFKRP4Init
+    procedure, public :: Verify => SFKRP4Verify
+    procedure, public :: CapillaryPressure => SFKRP4CapillaryPressure
+    procedure, public :: Saturation => SFKRP4Saturation
   end type sat_func_KRP4_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_WIPP_type) :: sat_func_KRP5_type
     PetscReal :: Srg
   contains
-    procedure, public :: Init => SF_KRP5_Init
-    procedure, public :: Verify => SF_KRP5_Verify
-    procedure, public :: CapillaryPressure => SF_KRP5_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP5_Saturation
+    procedure, public :: Init => SFKRP5Init
+    procedure, public :: Verify => SFKRP5Verify
+    procedure, public :: CapillaryPressure => SFKRP5CapillaryPressure
+    procedure, public :: Saturation => SFKRP5Saturation
   end type sat_func_KRP5_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_WIPP_type) :: sat_func_KRP8_type
     PetscReal :: Srg
     PetscReal :: m
   contains
-    procedure, public :: Init => SF_KRP8_Init
-    procedure, public :: Verify => SF_KRP8_Verify
-    procedure, public :: CapillaryPressure => SF_KRP8_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP8_Saturation
+    procedure, public :: Init => SFKRP8Init
+    procedure, public :: Verify => SFKRP8Verify
+    procedure, public :: CapillaryPressure => SFKRP8CapillaryPressure
+    procedure, public :: Saturation => SFKRP8Saturation
   end type sat_func_KRP8_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_KRP9_type
   contains
-    procedure, public :: Init => SF_KRP9_Init
-    procedure, public :: Verify => SF_KRP9_Verify
-    procedure, public :: CapillaryPressure => SF_KRP9_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP9_Saturation
+    procedure, public :: Init => SFKRP9Init
+    procedure, public :: Verify => SFKRP9Verify
+    procedure, public :: CapillaryPressure => SFKRP9CapillaryPressure
+    procedure, public :: Saturation => SFKRP9Saturation
   end type sat_func_KRP9_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_KRP11_type
   contains
-    procedure, public :: Init => SF_KRP11_Init
-    procedure, public :: Verify => SF_KRP11_Verify
-    procedure, public :: CapillaryPressure => SF_KRP11_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP11_Saturation
+    procedure, public :: Init => SFKRP11Init
+    procedure, public :: Verify => SFKRP11Verify
+    procedure, public :: CapillaryPressure => SFKRP11CapillaryPressure
+    procedure, public :: Saturation => SFKRP11Saturation
   end type sat_func_KRP11_type 
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_WIPP_type) :: sat_func_KRP12_type
@@ -105,10 +106,10 @@ module Characteristic_Curves_WIPP_module
     PetscReal :: s_min
     PetscReal :: s_effmin
   contains
-    procedure, public :: Init => SF_KRP12_Init
-    procedure, public :: Verify => SF_KRP12_Verify
-    procedure, public :: CapillaryPressure => SF_KRP12_CapillaryPressure
-    procedure, public :: Saturation => SF_KRP12_Saturation
+    procedure, public :: Init => SFKRP12Init
+    procedure, public :: Verify => SFKRP12Verify
+    procedure, public :: CapillaryPressure => SFKRP12CapillaryPressure
+    procedure, public :: Saturation => SFKRP12Saturation
   end type sat_func_KRP12_type 
   
 !-----------------------------------------------------------------------------
@@ -118,130 +119,130 @@ module Characteristic_Curves_WIPP_module
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP1_liq_type
     PetscReal :: m
   contains
-    procedure, public :: Init => RPF_KRP1_Liq_Init
-    procedure, public :: Verify => RPF_KRP1_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP1_Liq_RelPerm
+    procedure, public :: Init => RPFKRP1LiqInit
+    procedure, public :: Verify => RPFKRP1LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP1LiqRelPerm
   end type rpf_KRP1_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP1_gas_type
     PetscReal :: m
   contains
-    procedure, public :: Init => RPF_KRP1_Gas_Init
-    procedure, public :: Verify => RPF_KRP1_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_KRP1_Gas_RelPerm
+    procedure, public :: Init => RPFKRP1GasInit
+    procedure, public :: Verify => RPFKRP1GasVerify
+    procedure, public :: RelativePermeability => RPFKRP1GasRelPerm
   end type rpf_KRP1_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP2_liq_type
     PetscReal :: lambda
   contains
-    procedure, public :: Init => RPF_KRP2_Liq_Init
-    procedure, public :: Verify => RPF_KRP2_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP2_Liq_RelPerm
+    procedure, public :: Init => RPFKRP2LiqInit
+    procedure, public :: Verify => RPFKRP2LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP2LiqRelPerm
   end type rpf_KRP2_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP2_gas_type
     PetscReal :: lambda
   contains
-    procedure, public :: Init => RPF_KRP2_Gas_Init
-    procedure, public :: Verify => RPF_KRP2_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_KRP2_Gas_RelPerm
+    procedure, public :: Init => RPFKRP2GasInit
+    procedure, public :: Verify => RPFKRP2GasVerify
+    procedure, public :: RelativePermeability => RPFKRP2GasRelPerm
   end type rpf_KRP2_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP3_liq_type
     PetscReal :: lambda
   contains
-    procedure, public :: Init => RPF_KRP3_Liq_Init
-    procedure, public :: Verify => RPF_KRP3_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP3_Liq_RelPerm
+    procedure, public :: Init => RPFKRP3LiqInit
+    procedure, public :: Verify => RPFKRP3LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP3LiqRelPerm
   end type rpf_KRP3_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP3_gas_type
     PetscReal :: lambda
   contains
-    procedure, public :: Init => RPF_KRP3_Gas_Init
-    procedure, public :: Verify => RPF_KRP3_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_KRP3_Gas_RelPerm
+    procedure, public :: Init => RPFKRP3GasInit
+    procedure, public :: Verify => RPFKRP3GasVerify
+    procedure, public :: RelativePermeability => RPFKRP3GasRelPerm
   end type rpf_KRP3_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_KRP3_liq_type) :: rpf_KRP4_liq_type
   contains
-    procedure, public :: Verify => RPF_KRP4_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP4_Liq_RelPerm
+    procedure, public :: Verify => RPFKRP4LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP4LiqRelPerm
   end type rpf_KRP4_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_KRP3_gas_type) :: rpf_KRP4_gas_type
   contains
-    procedure, public :: Verify => RPF_KRP4_Gas_Verify
+    procedure, public :: Verify => RPFKRP4GasVerify
   end type rpf_KRP4_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP5_liq_type
   contains
-    procedure, public :: Init => RPF_KRP5_Liq_Init
-    procedure, public :: Verify => RPF_KRP5_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP5_Liq_RelPerm
+    procedure, public :: Init => RPFKRP5LiqInit
+    procedure, public :: Verify => RPFKRP5LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP5LiqRelPerm
   end type rpf_KRP5_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP5_gas_type
   contains
-    procedure, public :: Init => RPF_KRP5_Gas_Init
-    procedure, public :: Verify => RPF_KRP5_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_KRP5_Gas_RelPerm
+    procedure, public :: Init => RPFKRP5GasInit
+    procedure, public :: Verify => RPFKRP5GasVerify
+    procedure, public :: RelativePermeability => RPFKRP5GasRelPerm
   end type rpf_KRP5_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP8_liq_type
     PetscReal :: m
   contains
-    procedure, public :: Init => RPF_KRP8_Liq_Init
-    procedure, public :: Verify => RPF_KRP8_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP8_Liq_RelPerm
+    procedure, public :: Init => RPFKRP8LiqInit
+    procedure, public :: Verify => RPFKRP8LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP8LiqRelPerm
   end type rpf_KRP8_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP8_gas_type
     PetscReal :: m
   contains
-    procedure, public :: Init => RPF_KRP8_Gas_Init
-    procedure, public :: Verify => RPF_KRP8_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_KRP8_Gas_RelPerm
+    procedure, public :: Init => RPFKRP8GasInit
+    procedure, public :: Verify => RPFKRP8GasVerify
+    procedure, public :: RelativePermeability => RPFKRP8GasRelPerm
   end type rpf_KRP8_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP9_liq_type
   contains
-    procedure, public :: Init => RPF_KRP9_Liq_Init
-    procedure, public :: Verify => RPF_KRP9_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP9_Liq_RelPerm
+    procedure, public :: Init => RPFKRP9LiqInit
+    procedure, public :: Verify => RPFKRP9LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP9LiqRelPerm
   end type rpf_KRP9_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_KRP9_liq_type) :: rpf_KRP9_gas_type
   contains
-    procedure, public :: Init => RPF_KRP9_Gas_Init
-    procedure, public :: Verify => RPF_KRP9_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_KRP9_Gas_RelPerm
+    procedure, public :: Init => RPFKRP9GasInit
+    procedure, public :: Verify => RPFKRP9GasVerify
+    procedure, public :: RelativePermeability => RPFKRP9GasRelPerm
   end type rpf_KRP9_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP11_liq_type
     PetscReal :: tolc
   contains
-    procedure, public :: Init => RPF_KRP11_Liq_Init
-    procedure, public :: Verify => RPF_KRP11_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP11_Liq_RelPerm
+    procedure, public :: Init => RPFKRP11LiqInit
+    procedure, public :: Verify => RPFKRP11LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP11LiqRelPerm
   end type rpf_KRP11_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_KRP11_liq_type) :: rpf_KRP11_gas_type
   contains
-    procedure, public :: Verify => RPF_KRP11_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_KRP11_Gas_RelPerm
+    procedure, public :: Verify => RPFKRP11GasVerify
+    procedure, public :: RelativePermeability => RPFKRP11GasRelPerm
   end type rpf_KRP11_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_KRP4_liq_type) :: rpf_KRP12_liq_type
   contains
-    procedure, public :: Verify => RPF_KRP12_Liq_Verify
-    procedure, public :: RelativePermeability => RPF_KRP12_Liq_RelPerm
+    procedure, public :: Verify => RPFKRP12LiqVerify
+    procedure, public :: RelativePermeability => RPFKRP12LiqRelPerm
   end type rpf_KRP12_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rpf_KRP3_gas_type) :: rpf_KRP12_gas_type
   contains
-    procedure, public :: Verify => RPF_KRP12_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_KRP12_Gas_RelPerm
+    procedure, public :: Verify => RPFKRP12GasVerify
+    procedure, public :: RelativePermeability => RPFKRP12GasRelPerm
   end type rpf_KRP12_gas_type
   !---------------------------------------------------------------------------
   ! since the TOUGH2_Corey relative permeability function (IRP=7 in 
@@ -250,47 +251,47 @@ module Characteristic_Curves_WIPP_module
   ! the rpf_Mualem_type to save code
   type, public, extends(rpf_Mualem_VG_liq_type) :: rpf_TOUGH2_IRP7_gas_type
   contains
-    procedure, public :: Init => RPF_TOUGH2_IRP7_Gas_Init
-    procedure, public :: Verify => RPF_TOUGH2_IRP7_Gas_Verify
-    procedure, public :: RelativePermeability => RPF_TOUGH2_IRP7_Gas_RelPerm
+    procedure, public :: Init => RPFTOUGH2IRP7GasInit
+    procedure, public :: Verify => RPFTOUGH2IRP7GasVerify
+    procedure, public :: RelativePermeability => RPFTOUGH2IRP7GasRelPerm
   end type rpf_TOUGH2_IRP7_gas_type
   
   public :: &! WIPP saturation functions:
-            SF_KRP1_Create, &
-            SF_KRP2_Create, &
-            SF_KRP3_Create, &
-            SF_KRP4_Create, &
-            SF_KRP5_Create, &
-            SF_KRP8_Create, &
-            SF_KRP9_Create, &
-            SF_KRP11_Create, &
-            SF_KRP12_Create, &
+            SFKRP1Create, &
+            SFKRP2Create, &
+            SFKRP3Create, &
+            SFKRP4Create, &
+            SFKRP5Create, &
+            SFKRP8Create, &
+            SFKRP9Create, &
+            SFKRP11Create, &
+            SFKRP12Create, &
             ! WIPP rel. perm. curves:
-            RPF_KRP1_Liq_Create, &
-            RPF_KRP1_Gas_Create, &
-            RPF_KRP2_Liq_Create, &
-            RPF_KRP2_Gas_Create, &
-            RPF_KRP3_Liq_Create, &
-            RPF_KRP3_Gas_Create, &
-            RPF_KRP4_Liq_Create, &
-            RPF_KRP4_Gas_Create, &
-            RPF_KRP5_Liq_Create, &
-            RPF_KRP5_Gas_Create, &
-            RPF_KRP8_Liq_Create, &
-            RPF_KRP8_Gas_Create, &
-            RPF_KRP9_Liq_Create, &
-            RPF_KRP9_Gas_Create, &
-            RPF_KRP11_Liq_Create, &
-            RPF_KRP11_Gas_Create, &
-            RPF_KRP12_Liq_Create, &
-            RPF_KRP12_Gas_Create, &
-            RPF_TOUGH2_IRP7_Gas_Create
+            RPFKRP1LiqCreate, &
+            RPFKRP1GasCreate, &
+            RPFKRP2LiqCreate, &
+            RPFKRP2GasCreate, &
+            RPFKRP3LiqCreate, &
+            RPFKRP3GasCreate, &
+            RPFKRP4LiqCreate, &
+            RPFKRP4GasCreate, &
+            RPFKRP5LiqCreate, &
+            RPFKRP5GasCreate, &
+            RPFKRP8LiqCreate, &
+            RPFKRP8GasCreate, &
+            RPFKRP9LiqCreate, &
+            RPFKRP9GasCreate, &
+            RPFKRP11LiqCreate, &
+            RPFKRP11GasCreate, &
+            RPFKRP12LiqCreate, &
+            RPFKRP12GasCreate, &
+            RPFTOUGH2IRP7GasCreate
   
 contains
 
 ! ************************************************************************** !
 
-subroutine SF_WIPP_Init(this)
+subroutine SFWIPPInit(this)
 
   ! Initializes a sat_func_WIPP_type object.
 
@@ -305,11 +306,11 @@ subroutine SF_WIPP_Init(this)
   this%ignore_permeability = PETSC_FALSE
   this%alpha = UNINITIALIZED_DOUBLE
   
-end subroutine SF_WIPP_Init
+end subroutine SFWIPPInit
 
 ! ************************************************************************** !
 
-subroutine SF_WIPP_Verify(this,name,option)
+subroutine SFWIPPVerify(this,name,option)
 
   use Option_module
   
@@ -361,11 +362,11 @@ subroutine SF_WIPP_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine SF_WIPP_Verify
+end subroutine SFWIPPVerify
 
 ! ************************************************************************** !
 
-subroutine SF_WIPP_CapillaryPressure(this,liquid_saturation, & 
+subroutine SFWIPPCapillaryPressure(this,liquid_saturation, & 
                                      capillary_pressure,dpc_dsatl,option)
   use Option_module
   
@@ -377,14 +378,14 @@ subroutine SF_WIPP_CapillaryPressure(this,liquid_saturation, &
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
   
-  option%io_buffer = 'SF_WIPP_CapillaryPressure must be extended.'
+  option%io_buffer = 'SFWIPPCapillaryPressure must be extended.'
   call PrintErrMsg(option)
   
-end subroutine SF_WIPP_CapillaryPressure
+end subroutine SFWIPPCapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_WIPP_Saturation(this,capillary_pressure, &
+subroutine SFWIPPSaturation(this,capillary_pressure, &
                               liquid_saturation,dsat_dpres,option)
   use Option_module
 
@@ -396,14 +397,14 @@ subroutine SF_WIPP_Saturation(this,capillary_pressure, &
   PetscReal, intent(out) :: dsat_dpres
   type(option_type), intent(inout) :: option
   
-  option%io_buffer = 'SF_WIPP_Saturation must be extended.'
+  option%io_buffer = 'SFWIPPSaturation must be extended.'
   call PrintErrMsg(option)
   
-end subroutine SF_WIPP_Saturation
+end subroutine SFWIPPSaturation
 
 ! ************************************************************************** !
 
-subroutine SF_WIPP_KPC(this,lambda,PT,Se,capillary_pressure)
+subroutine SFWIPPKPC(this,lambda,PT,Se,capillary_pressure)
   !
   ! Calculates the SEMIN value that is used for truncation of capillary 
   ! pressure in the CapillaryPressure functions if KPC=2.
@@ -462,27 +463,27 @@ subroutine SF_WIPP_KPC(this,lambda,PT,Se,capillary_pressure)
     capillary_pressure = this%pcmax
   endif
   
-end subroutine SF_WIPP_KPC
+end subroutine SFWIPPKPC
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP1_Create()
+function SFKRP1Create()
 
   ! Creates the BRAGFLO KRP1 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP1_type), pointer :: SF_KRP1_Create
+  class(sat_func_KRP1_type), pointer :: SFKRP1Create
   
-  allocate(SF_KRP1_Create)
-  call SF_KRP1_Create%Init()
+  allocate(SFKRP1Create)
+  call SFKRP1Create%Init()
   
-end function SF_KRP1_Create
+end function SFKRP1Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP1_Init(this)
+subroutine SFKRP1Init(this)
 
   ! Creates the BRAGFLO KRP1 capillary pressure function object
 
@@ -491,17 +492,17 @@ subroutine SF_KRP1_Init(this)
   class(sat_func_KRP1_type) :: this
 
   call SFBaseInit(this)
-  call SF_WIPP_Init(this)
+  call SFWIPPInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%m = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_FALSE
   
-end subroutine SF_KRP1_Init
+end subroutine SFKRP1Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP1_Verify(this,name,option)
+subroutine SFKRP1Verify(this,name,option)
 
   use Option_module
   
@@ -521,7 +522,7 @@ subroutine SF_KRP1_Verify(this,name,option)
     string = trim(name) // 'SATURATION_FUNCTION,BRAGFLO_KRP1'
   endif
   call SFBaseVerify(this,string,option)
-  call SF_WIPP_Verify(this,string,option)
+  call SFWIPPVerify(this,string,option)
   
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
@@ -540,11 +541,11 @@ subroutine SF_KRP1_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine SF_KRP1_Verify
+end subroutine SFKRP1Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP1CapillaryPressure(this,liquid_saturation, &
                                      capillary_pressure,dpc_dsatl,option)     
   ! 
   ! Computes the capillary pressure as a function of saturation using the
@@ -610,13 +611,13 @@ subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
   endif
 #endif
 
-  call SF_WIPP_KPC(this,lambda,P0,Se2,capillary_pressure)
+  call SFWIPPKPC(this,lambda,P0,Se2,capillary_pressure)
 
-end subroutine SF_KRP1_CapillaryPressure
+end subroutine SFKRP1CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP1_Saturation(this,capillary_pressure, &
+subroutine SFKRP1Saturation(this,capillary_pressure, &
                               liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure using
@@ -677,27 +678,27 @@ subroutine SF_KRP1_Saturation(this,capillary_pressure, &
     liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
   endif
   
-end subroutine SF_KRP1_Saturation
+end subroutine SFKRP1Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP2_Create()
+function SFKRP2Create()
 
   ! Creates the BRAGFLO KRP2 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP2_type), pointer :: SF_KRP2_Create
+  class(sat_func_KRP2_type), pointer :: SFKRP2Create
   
-  allocate(SF_KRP2_Create)
-  call SF_KRP2_Create%Init()
+  allocate(SFKRP2Create)
+  call SFKRP2Create%Init()
   
-end function SF_KRP2_Create
+end function SFKRP2Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP2_Init(this)
+subroutine SFKRP2Init(this)
 
   ! Creates the BRAGFLO KRP2 capillary pressure function object
 
@@ -706,16 +707,16 @@ subroutine SF_KRP2_Init(this)
   class(sat_func_KRP2_type) :: this
 
   call SFBaseInit(this)
-  call SF_WIPP_Init(this)
+  call SFWIPPInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_FALSE
   
-end subroutine SF_KRP2_Init
+end subroutine SFKRP2Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP2_Verify(this,name,option)
+subroutine SFKRP2Verify(this,name,option)
 
   use Option_module
   
@@ -733,18 +734,18 @@ subroutine SF_KRP2_Verify(this,name,option)
     string = trim(name) // 'SATURATION_FUNCTION,BRAGFLO_KRP2'
   endif
   call SFBaseVerify(this,string,option)
-  call SF_WIPP_Verify(this,string,option)
+  call SFWIPPVerify(this,string,option)
   
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
     call PrintErrMsg(option)
   endif    
 
-end subroutine SF_KRP2_Verify
+end subroutine SFKRP2Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP2_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP2CapillaryPressure(this,liquid_saturation, &
                                      capillary_pressure,dpc_dsatl,option)     
   ! 
   ! Computes the capillary pressure as a function of saturation using the
@@ -792,13 +793,13 @@ subroutine SF_KRP2_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = this%pct/(Se1**(1.d0/this%lambda))
   endif
   
-  call SF_WIPP_KPC(this,this%lambda,this%pct,Se1,capillary_pressure)
+  call SFWIPPKPC(this,this%lambda,this%pct,Se1,capillary_pressure)
   
-end subroutine SF_KRP2_CapillaryPressure
+end subroutine SFKRP2CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP2_Saturation(this,capillary_pressure, &
+subroutine SFKRP2Saturation(this,capillary_pressure, &
                               liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure using 
@@ -847,27 +848,27 @@ subroutine SF_KRP2_Saturation(this,capillary_pressure, &
   Se1 = (capillary_pressure/this%pct)**(-1.d0*this%lambda)
   liquid_saturation = this%Sr + (1.d0-this%Sr)*Se1
   
-end subroutine SF_KRP2_Saturation
+end subroutine SFKRP2Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP3_Create()
+function SFKRP3Create()
 
   ! Creates the BRAGFLO KRP3 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP3_type), pointer :: SF_KRP3_Create
+  class(sat_func_KRP3_type), pointer :: SFKRP3Create
   
-  allocate(SF_KRP3_Create)
-  call SF_KRP3_Create%Init()
+  allocate(SFKRP3Create)
+  call SFKRP3Create%Init()
   
-end function SF_KRP3_Create
+end function SFKRP3Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP3_Init(this)
+subroutine SFKRP3Init(this)
 
   ! Creates the BRAGFLO KRP3 capillary pressure function object
 
@@ -876,17 +877,17 @@ subroutine SF_KRP3_Init(this)
   class(sat_func_KRP3_type) :: this
 
   call SFBaseInit(this)
-  call SF_WIPP_Init(this)
+  call SFWIPPInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%lambda = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_FALSE
   
-end subroutine SF_KRP3_Init
+end subroutine SFKRP3Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP3_Verify(this,name,option)
+subroutine SFKRP3Verify(this,name,option)
 
   use Option_module
   
@@ -905,7 +906,7 @@ subroutine SF_KRP3_Verify(this,name,option)
     string = trim(name) // 'SATURATION_FUNCTION,BRAGFLO_KRP3'
   endif
   call SFBaseVerify(this,string,option)
-  call SF_WIPP_Verify(this,string,option)
+  call SFWIPPVerify(this,string,option)
   
   num_errors = 0
   if (Uninitialized(this%lambda)) then
@@ -925,11 +926,11 @@ subroutine SF_KRP3_Verify(this,name,option)
     call PrintErrMsg(option)
   endif   
 
-end subroutine SF_KRP3_Verify
+end subroutine SFKRP3Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP3_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP3CapillaryPressure(this,liquid_saturation, &
                                      capillary_pressure,dpc_dsatl,option)     
   ! 
   ! Computes the capillary pressure as a function of saturation using the
@@ -980,13 +981,13 @@ subroutine SF_KRP3_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = 0.d0
   endif
   
-  call SF_WIPP_KPC(this,this%lambda,this%pct,Se2,capillary_pressure)
+  call SFWIPPKPC(this,this%lambda,this%pct,Se2,capillary_pressure)
   
-end subroutine SF_KRP3_CapillaryPressure
+end subroutine SFKRP3CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP3_Saturation(this,capillary_pressure, &
+subroutine SFKRP3Saturation(this,capillary_pressure, &
                               liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure using
@@ -1039,27 +1040,27 @@ subroutine SF_KRP3_Saturation(this,capillary_pressure, &
   Se2 = (this%pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
   
-end subroutine SF_KRP3_Saturation
+end subroutine SFKRP3Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP4_Create()
+function SFKRP4Create()
 
   ! Creates the BRAGFLO KRP4 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP4_type), pointer :: SF_KRP4_Create
+  class(sat_func_KRP4_type), pointer :: SFKRP4Create
   
-  allocate(SF_KRP4_Create)
-  call SF_KRP4_Create%Init()
+  allocate(SFKRP4Create)
+  call SFKRP4Create%Init()
   
-end function SF_KRP4_Create
+end function SFKRP4Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP4_Init(this)
+subroutine SFKRP4Init(this)
 
   ! Creates the BRAGFLO KRP4 capillary pressure function object
 
@@ -1068,17 +1069,17 @@ subroutine SF_KRP4_Init(this)
   class(sat_func_KRP4_type) :: this
 
   call SFBaseInit(this)
-  call SF_WIPP_Init(this)
+  call SFWIPPInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%lambda = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_FALSE
   
-end subroutine SF_KRP4_Init
+end subroutine SFKRP4Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP4_Verify(this,name,option)
+subroutine SFKRP4Verify(this,name,option)
 
   use Option_module
   
@@ -1097,7 +1098,7 @@ subroutine SF_KRP4_Verify(this,name,option)
     string = trim(name) // 'SATURATION_FUNCTION,BRAGFLO_KRP4'
   endif
   call SFBaseVerify(this,string,option)
-  call SF_WIPP_Verify(this,string,option)
+  call SFWIPPVerify(this,string,option)
   
   num_errors = 0
   if (Uninitialized(this%lambda)) then
@@ -1117,11 +1118,11 @@ subroutine SF_KRP4_Verify(this,name,option)
     call PrintErrMsg(option)
   endif   
 
-end subroutine SF_KRP4_Verify
+end subroutine SFKRP4Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP4_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP4CapillaryPressure(this,liquid_saturation, &
                                      capillary_pressure,dpc_dsatl,option)     
   ! 
   ! Computes the capillary pressure as a function of saturation using the
@@ -1172,13 +1173,13 @@ subroutine SF_KRP4_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = this%pct/(Se2**(1.d0/this%lambda))
   endif
   
-  call SF_WIPP_KPC(this,this%lambda,this%pct,Se2,capillary_pressure)
+  call SFWIPPKPC(this,this%lambda,this%pct,Se2,capillary_pressure)
   
-end subroutine SF_KRP4_CapillaryPressure
+end subroutine SFKRP4CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP4_Saturation(this,capillary_pressure, &
+subroutine SFKRP4Saturation(this,capillary_pressure, &
                               liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure using 
@@ -1231,27 +1232,27 @@ subroutine SF_KRP4_Saturation(this,capillary_pressure, &
   Se2 = (this%pct/capillary_pressure)**this%lambda
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
   
-end subroutine SF_KRP4_Saturation
+end subroutine SFKRP4Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP5_Create()
+function SFKRP5Create()
 
   ! Creates the BRAGFLO KRP5 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP5_type), pointer :: SF_KRP5_Create
+  class(sat_func_KRP5_type), pointer :: SFKRP5Create
   
-  allocate(SF_KRP5_Create)
-  call SF_KRP5_Create%Init()
+  allocate(SFKRP5Create)
+  call SFKRP5Create%Init()
   
-end function SF_KRP5_Create
+end function SFKRP5Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP5_Init(this)
+subroutine SFKRP5Init(this)
 
   ! Creates the BRAGFLO KRP5 capillary pressure function object
 
@@ -1260,17 +1261,17 @@ subroutine SF_KRP5_Init(this)
   class(sat_func_KRP5_type) :: this
 
   call SFBaseInit(this)
-  call SF_WIPP_Init(this)
+  call SFWIPPInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%pcmax = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_FALSE
   
-end subroutine SF_KRP5_Init
+end subroutine SFKRP5Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP5_Verify(this,name,option)
+subroutine SFKRP5Verify(this,name,option)
 
   use Option_module
   
@@ -1289,7 +1290,7 @@ subroutine SF_KRP5_Verify(this,name,option)
     string = trim(name) // 'SATURATION_FUNCTION,BRAGFLO_KRP5'
   endif
   call SFBaseVerify(this,string,option)
-  call SF_WIPP_Verify(this,string,option)
+  call SFWIPPVerify(this,string,option)
   
   num_errors = 0
   if (Uninitialized(this%pcmax)) then
@@ -1309,11 +1310,11 @@ subroutine SF_KRP5_Verify(this,name,option)
     call PrintErrMsg(option)
   endif   
 
-end subroutine SF_KRP5_Verify
+end subroutine SFKRP5Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP5CapillaryPressure(this,liquid_saturation, &
                                      capillary_pressure,dpc_dsatl,option)  
   ! 
   ! Computes the capillary pressure as a function of saturation linearly.
@@ -1364,11 +1365,11 @@ subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = (this%pct-this%pcmax)*Se2 + this%pcmax
   endif
   
-end subroutine SF_KRP5_CapillaryPressure
+end subroutine SFKRP5CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP5_Saturation(this,capillary_pressure, &
+subroutine SFKRP5Saturation(this,capillary_pressure, &
                               liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure linearly.
@@ -1416,27 +1417,27 @@ subroutine SF_KRP5_Saturation(this,capillary_pressure, &
   Se2 = (capillary_pressure-this%pcmax)/(this%pct-this%pcmax)
   liquid_saturation = this%Sr + (1.d0-this%Sr-this%Srg)*Se2
 
-end subroutine SF_KRP5_Saturation
+end subroutine SFKRP5Saturation
                             
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP8_Create()
+function SFKRP8Create()
 
   ! Creates the BRAGFLO KRP8 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP8_type), pointer :: SF_KRP8_Create
+  class(sat_func_KRP8_type), pointer :: SFKRP8Create
   
-  allocate(SF_KRP8_Create)
-  call SF_KRP8_Create%Init()
+  allocate(SFKRP8Create)
+  call SFKRP8Create%Init()
   
-end function SF_KRP8_Create
+end function SFKRP8Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP8_Init(this)
+subroutine SFKRP8Init(this)
 
   ! Creates the BRAGFLO KRP8 capillary pressure function object
 
@@ -1445,17 +1446,17 @@ subroutine SF_KRP8_Init(this)
   class(sat_func_KRP8_type) :: this
 
   call SFBaseInit(this)
-  call SF_WIPP_Init(this)
+  call SFWIPPInit(this)
   this%Srg = UNINITIALIZED_DOUBLE
   this%m = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_FALSE
   
-end subroutine SF_KRP8_Init
+end subroutine SFKRP8Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP8_Verify(this,name,option)
+subroutine SFKRP8Verify(this,name,option)
 
   use Option_module
   
@@ -1475,7 +1476,7 @@ subroutine SF_KRP8_Verify(this,name,option)
     string = trim(name) // 'SATURATION_FUNCTION,BRAGFLO_KRP8'
   endif
   call SFBaseVerify(this,string,option)
-  call SF_WIPP_Verify(this,string,option)
+  call SFWIPPVerify(this,string,option)
   
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
@@ -1494,11 +1495,11 @@ subroutine SF_KRP8_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine SF_KRP8_Verify
+end subroutine SFKRP8Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP8_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP8CapillaryPressure(this,liquid_saturation, &
                                      capillary_pressure,dpc_dsatl,option)     
   ! 
   ! Computes the capillary pressure as a function of saturation using the
@@ -1556,13 +1557,13 @@ subroutine SF_KRP8_CapillaryPressure(this,liquid_saturation, &
     capillary_pressure = 0.d0
   endif
 
-  call SF_WIPP_KPC(this,lambda,P0,Se1,capillary_pressure)
+  call SFWIPPKPC(this,lambda,P0,Se1,capillary_pressure)
   
-end subroutine SF_KRP8_CapillaryPressure
+end subroutine SFKRP8CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP8_Saturation(this,capillary_pressure, &
+subroutine SFKRP8Saturation(this,capillary_pressure, &
                               liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure using
@@ -1624,27 +1625,27 @@ subroutine SF_KRP8_Saturation(this,capillary_pressure, &
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se1
   endif
   
-end subroutine SF_KRP8_Saturation
+end subroutine SFKRP8Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP9_Create()
+function SFKRP9Create()
 
   ! Creates the BRAGFLO KRP9 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP9_type), pointer :: SF_KRP9_Create
+  class(sat_func_KRP9_type), pointer :: SFKRP9Create
   
-  allocate(SF_KRP9_Create)
-  call SF_KRP9_Create%Init()
+  allocate(SFKRP9Create)
+  call SFKRP9Create%Init()
   
-end function SF_KRP9_Create
+end function SFKRP9Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP9_Init(this)
+subroutine SFKRP9Init(this)
 
   ! Creates the BRAGFLO KRP9 capillary pressure function object
 
@@ -1656,11 +1657,11 @@ subroutine SF_KRP9_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine SF_KRP9_Init
+end subroutine SFKRP9Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP9_Verify(this,name,option)
+subroutine SFKRP9Verify(this,name,option)
 
   use Option_module
   
@@ -1679,11 +1680,11 @@ subroutine SF_KRP9_Verify(this,name,option)
   endif
   call SFBaseVerify(this,string,option)
 
-end subroutine SF_KRP9_Verify
+end subroutine SFKRP9Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP9_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP9CapillaryPressure(this,liquid_saturation, &
                                      capillary_pressure,dpc_dsatl,option)
   ! 
   ! Computes the capillary_pressure as a function of saturation
@@ -1729,11 +1730,11 @@ subroutine SF_KRP9_CapillaryPressure(this,liquid_saturation, &
   endif
 #endif
   
-end subroutine SF_KRP9_CapillaryPressure
+end subroutine SFKRP9CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP9_Saturation(this,capillary_pressure, &
+subroutine SFKRP9Saturation(this,capillary_pressure, &
                               liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure
@@ -1779,27 +1780,27 @@ subroutine SF_KRP9_Saturation(this,capillary_pressure, &
     dsat_dpres = dS_dSe*dSe_dpc*dpc_dpres
   endif 
 
-end subroutine SF_KRP9_Saturation
+end subroutine SFKRP9Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP11_Create()
+function SFKRP11Create()
 
   ! Creates the BRAGFLO KRP11 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP11_type), pointer :: SF_KRP11_Create
+  class(sat_func_KRP11_type), pointer :: SFKRP11Create
   
-  allocate(SF_KRP11_Create)
-  call SF_KRP11_Create%Init()
+  allocate(SFKRP11Create)
+  call SFKRP11Create%Init()
   
-end function SF_KRP11_Create
+end function SFKRP11Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP11_Init(this)
+subroutine SFKRP11Init(this)
 
   ! Creates the BRAGFLO KRP11 capillary pressure function object
 
@@ -1811,11 +1812,11 @@ subroutine SF_KRP11_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine SF_KRP11_Init
+end subroutine SFKRP11Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP11_Verify(this,name,option)
+subroutine SFKRP11Verify(this,name,option)
 
   use Option_module
   
@@ -1841,11 +1842,11 @@ subroutine SF_KRP11_Verify(this,name,option)
   call SFBaseVerify(this,string,option)
   this%Sr = tempreal
 
-end subroutine SF_KRP11_Verify
+end subroutine SFKRP11Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP11_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP11CapillaryPressure(this,liquid_saturation, &
                                       capillary_pressure,dpc_dsatl,option)
   ! 
   ! Computes the capillary pressure as a function of saturation using the
@@ -1870,11 +1871,11 @@ subroutine SF_KRP11_CapillaryPressure(this,liquid_saturation, &
   dpc_dsatl = 0.d0
   capillary_pressure = 0.0d0
   
-end subroutine SF_KRP11_CapillaryPressure
+end subroutine SFKRP11CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP11_Saturation(this,capillary_pressure, &
+subroutine SFKRP11Saturation(this,capillary_pressure, &
                                liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure using
@@ -1899,27 +1900,27 @@ subroutine SF_KRP11_Saturation(this,capillary_pressure, &
   dsat_dpres = 0.d0
   liquid_saturation = 1.d0
 
-end subroutine SF_KRP11_Saturation
+end subroutine SFKRP11Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function SF_KRP12_Create()
+function SFKRP12Create()
 
   ! Creates the BRAGFLO KRP12 capillary pressure function object
 
   implicit none
   
-  class(sat_func_KRP12_type), pointer :: SF_KRP12_Create
+  class(sat_func_KRP12_type), pointer :: SFKRP12Create
   
-  allocate(SF_KRP12_Create)
-  call SF_KRP12_Create%Init()
+  allocate(SFKRP12Create)
+  call SFKRP12Create%Init()
   
-end function SF_KRP12_Create
+end function SFKRP12Create
 
 ! ************************************************************************** !
 
-subroutine SF_KRP12_Init(this)
+subroutine SFKRP12Init(this)
 
   ! Creates the BRAGFLO KRP12 capillary pressure function object
 
@@ -1928,18 +1929,18 @@ subroutine SF_KRP12_Init(this)
   class(sat_func_KRP12_type) :: this
 
   call SFBaseInit(this)
-  call SF_WIPP_Init(this)
+  call SFWIPPInit(this)
   this%lambda = UNINITIALIZED_DOUBLE
   this%s_min = UNINITIALIZED_DOUBLE
   this%s_effmin = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_FALSE
   
-end subroutine SF_KRP12_Init
+end subroutine SFKRP12Init
 
 ! ************************************************************************** !
 
-subroutine SF_KRP12_Verify(this,name,option)
+subroutine SFKRP12Verify(this,name,option)
 
   use Option_module
 
@@ -1959,7 +1960,7 @@ subroutine SF_KRP12_Verify(this,name,option)
     string = trim(name) // 'SATURATION_FUNCTION,BRAGFLO_KRP12'
   endif  
   call SFBaseVerify(this,string,option)
-  call SF_WIPP_Verify(this,string,option)
+  call SFWIPPVerify(this,string,option)
  
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
@@ -1983,11 +1984,11 @@ subroutine SF_KRP12_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
   
-end subroutine SF_KRP12_Verify
+end subroutine SFKRP12Verify
 
 ! ************************************************************************** !
 
-subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
+subroutine SFKRP12CapillaryPressure(this,liquid_saturation, &
                                       capillary_pressure,dpc_dsatl,option)
   ! 
   ! Computes the capillary pressure as a function of saturation using the
@@ -2038,13 +2039,13 @@ subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
   
   ! do not pass in Se21 into the following function, it needs Se1:
   Se1 = (liquid_saturation - this%Sr)/(1.d0 - this%Sr)
-  call SF_WIPP_KPC(this,this%lambda,this%pct,Se1,capillary_pressure)
+  call SFWIPPKPC(this,this%lambda,this%pct,Se1,capillary_pressure)
 
-end subroutine SF_KRP12_CapillaryPressure
+end subroutine SFKRP12CapillaryPressure
 
 ! ************************************************************************** !
 
-subroutine SF_KRP12_Saturation(this,capillary_pressure, &
+subroutine SFKRP12Saturation(this,capillary_pressure, &
                                liquid_saturation,dsat_dpres,option)
   ! 
   ! Computes the liquid saturation as a function of capillary pressure using 
@@ -2095,27 +2096,27 @@ subroutine SF_KRP12_Saturation(this,capillary_pressure, &
   liquid_saturation = Se21*(1.d0 - this%s_min - this%s_effmin) + &
                       this%s_min + this%s_effmin
                                
-end subroutine SF_KRP12_Saturation
+end subroutine SFKRP12Saturation
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP1_Liq_Create()
+function RPFKRP1LiqCreate()
 
   ! Creates the BRAGFLO_KRP1_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP1_liq_type), pointer :: RPF_KRP1_Liq_Create
+  class(rpf_KRP1_liq_type), pointer :: RPFKRP1LiqCreate
   
-  allocate(RPF_KRP1_Liq_Create)
-  call RPF_KRP1_Liq_Create%Init()
+  allocate(RPFKRP1LiqCreate)
+  call RPFKRP1LiqCreate%Init()
   
-end function RPF_KRP1_Liq_Create
+end function RPFKRP1LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP1_Liq_Init(this)
+subroutine RPFKRP1LiqInit(this)
 
   ! Initializes the BRAGFLO_KRP1_LIQ relative permeability function object
 
@@ -2129,11 +2130,11 @@ subroutine RPF_KRP1_Liq_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP1_Liq_Init
+end subroutine RPFKRP1LiqInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP1_Liq_Verify(this,name,option)
+subroutine RPFKRP1LiqVerify(this,name,option)
 
   use Option_module
 
@@ -2160,11 +2161,11 @@ subroutine RPF_KRP1_Liq_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
   
-end subroutine RPF_KRP1_Liq_Verify
+end subroutine RPFKRP1LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP1_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP1LiqRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -2213,27 +2214,27 @@ subroutine RPF_KRP1_Liq_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-end subroutine RPF_KRP1_Liq_RelPerm
+end subroutine RPFKRP1LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP1_Gas_Create()
+function RPFKRP1GasCreate()
 
   ! Creates the BRAGFLO_KRP1_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP1_gas_type), pointer :: RPF_KRP1_Gas_Create
+  class(rpf_KRP1_gas_type), pointer :: RPFKRP1GasCreate
   
-  allocate(RPF_KRP1_Gas_Create)
-  call RPF_KRP1_Gas_Create%Init() 
+  allocate(RPFKRP1GasCreate)
+  call RPFKRP1GasCreate%Init() 
   
-end function RPF_KRP1_Gas_Create
+end function RPFKRP1GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP1_Gas_Init(this)
+subroutine RPFKRP1GasInit(this)
 
   ! Initializes the BRAGFLO_KRP1_GAS relative permeability function object
 
@@ -2247,11 +2248,11 @@ subroutine RPF_KRP1_Gas_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP1_Gas_Init
+end subroutine RPFKRP1GasInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP1_Gas_Verify(this,name,option)
+subroutine RPFKRP1GasVerify(this,name,option)
 
   use Option_module
   
@@ -2278,11 +2279,11 @@ subroutine RPF_KRP1_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif 
   
-end subroutine RPF_KRP1_Gas_Verify
+end subroutine RPFKRP1GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP1_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP1GasRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -2331,27 +2332,27 @@ subroutine RPF_KRP1_Gas_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-end subroutine RPF_KRP1_Gas_RelPerm
+end subroutine RPFKRP1GasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP2_Liq_Create()
+function RPFKRP2LiqCreate()
 
   ! Creates the BRAGFLO_KRP2_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP2_liq_type), pointer :: RPF_KRP2_Liq_Create
+  class(rpf_KRP2_liq_type), pointer :: RPFKRP2LiqCreate
   
-  allocate(RPF_KRP2_Liq_Create)
-  call RPF_KRP2_Liq_Create%Init()
+  allocate(RPFKRP2LiqCreate)
+  call RPFKRP2LiqCreate%Init()
   
-end function RPF_KRP2_Liq_Create
+end function RPFKRP2LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP2_Liq_Init(this)
+subroutine RPFKRP2LiqInit(this)
 
   ! Initializes the BRAGFLO_KRP2_LIQ relative permeability function object
 
@@ -2364,11 +2365,11 @@ subroutine RPF_KRP2_Liq_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP2_Liq_Init
+end subroutine RPFKRP2LiqInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP2_Liq_Verify(this,name,option)
+subroutine RPFKRP2LiqVerify(this,name,option)
 
   use Option_module
 
@@ -2391,11 +2392,11 @@ subroutine RPF_KRP2_Liq_Verify(this,name,option)
     call PrintErrMsg(option)
   endif   
   
-end subroutine RPF_KRP2_Liq_Verify
+end subroutine RPFKRP2LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP2_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP2LiqRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -2437,27 +2438,27 @@ subroutine RPF_KRP2_Liq_RelPerm(this,liquid_saturation, &
     dkr_sat = dkr_Se1 * dSe1_sat
   endif
   
-end subroutine RPF_KRP2_Liq_RelPerm
+end subroutine RPFKRP2LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP2_Gas_Create()
+function RPFKRP2GasCreate()
 
   ! Creates the BRAGFLO_KRP2_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP2_gas_type), pointer :: RPF_KRP2_Gas_Create
+  class(rpf_KRP2_gas_type), pointer :: RPFKRP2GasCreate
   
-  allocate(RPF_KRP2_Gas_Create)
-  call RPF_KRP2_Gas_Create%Init()
+  allocate(RPFKRP2GasCreate)
+  call RPFKRP2GasCreate%Init()
   
-end function RPF_KRP2_Gas_Create
+end function RPFKRP2GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP2_Gas_Init(this)
+subroutine RPFKRP2GasInit(this)
 
   ! Initializes the BRAGFLO_KRP2_GAS relative permeability function object
 
@@ -2470,11 +2471,11 @@ subroutine RPF_KRP2_Gas_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP2_Gas_Init
+end subroutine RPFKRP2GasInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP2_Gas_Verify(this,name,option)
+subroutine RPFKRP2GasVerify(this,name,option)
 
   use Option_module
 
@@ -2497,11 +2498,11 @@ subroutine RPF_KRP2_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif   
   
-end subroutine RPF_KRP2_Gas_Verify
+end subroutine RPFKRP2GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP2_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP2GasRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -2545,27 +2546,27 @@ subroutine RPF_KRP2_Gas_RelPerm(this,liquid_saturation, &
     dkr_sat = dkr_Se1 * dSe1_sat
   endif
     
-end subroutine RPF_KRP2_Gas_RelPerm
+end subroutine RPFKRP2GasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP3_Liq_Create()
+function RPFKRP3LiqCreate()
 
   ! Creates the BRAGFLO_KRP3_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP3_liq_type), pointer :: RPF_KRP3_Liq_Create
+  class(rpf_KRP3_liq_type), pointer :: RPFKRP3LiqCreate
   
-  allocate(RPF_KRP3_Liq_Create)
-  call RPF_KRP3_Liq_Create%Init() 
+  allocate(RPFKRP3LiqCreate)
+  call RPFKRP3LiqCreate%Init() 
   
-end function RPF_KRP3_Liq_Create
+end function RPFKRP3LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP3_Liq_Init(this)
+subroutine RPFKRP3LiqInit(this)
 
   ! Initializes the BRAGFLO_KRP3_LIQ relative permeability function object
 
@@ -2579,11 +2580,11 @@ subroutine RPF_KRP3_Liq_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP3_Liq_Init
+end subroutine RPFKRP3LiqInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP3_Liq_Verify(this,name,option)
+subroutine RPFKRP3LiqVerify(this,name,option)
 
   use Option_module
 
@@ -2610,11 +2611,11 @@ subroutine RPF_KRP3_Liq_Verify(this,name,option)
     call PrintErrMsg(option)
   endif 
   
-end subroutine RPF_KRP3_Liq_Verify
+end subroutine RPFKRP3LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP3_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP3LiqRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -2653,27 +2654,27 @@ subroutine RPF_KRP3_Liq_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-end subroutine RPF_KRP3_Liq_RelPerm
+end subroutine RPFKRP3LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP3_Gas_Create()
+function RPFKRP3GasCreate()
 
   ! Creates the BRAGFLO_KRP3_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP3_gas_type), pointer :: RPF_KRP3_Gas_Create
+  class(rpf_KRP3_gas_type), pointer :: RPFKRP3GasCreate
   
-  allocate(RPF_KRP3_Gas_Create)
-  call RPF_KRP3_Gas_Create%Init() 
+  allocate(RPFKRP3GasCreate)
+  call RPFKRP3GasCreate%Init() 
   
-end function RPF_KRP3_Gas_Create
+end function RPFKRP3GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP3_Gas_Init(this)
+subroutine RPFKRP3GasInit(this)
 
   ! Initializes the BRAGFLO_KRP3_GAS relative permeability function object
 
@@ -2687,11 +2688,11 @@ subroutine RPF_KRP3_Gas_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP3_Gas_Init
+end subroutine RPFKRP3GasInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP3_Gas_Verify(this,name,option)
+subroutine RPFKRP3GasVerify(this,name,option)
 
   use Option_module
 
@@ -2718,11 +2719,11 @@ subroutine RPF_KRP3_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif 
   
-end subroutine RPF_KRP3_Gas_Verify
+end subroutine RPFKRP3GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP3_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP3GasRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -2763,27 +2764,27 @@ subroutine RPF_KRP3_Gas_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
    
-end subroutine RPF_KRP3_Gas_RelPerm
+end subroutine RPFKRP3GasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP4_Liq_Create()
+function RPFKRP4LiqCreate()
 
   ! Creates the BRAGFLO_KRP4_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP4_liq_type), pointer :: RPF_KRP4_Liq_Create
+  class(rpf_KRP4_liq_type), pointer :: RPFKRP4LiqCreate
   
-  allocate(RPF_KRP4_Liq_Create)
-  call RPF_KRP4_Liq_Create%Init() ! Calls KRP3_Liq's Init()
+  allocate(RPFKRP4LiqCreate)
+  call RPFKRP4LiqCreate%Init() ! Calls KRP3_Liq's Init()
   
-end function RPF_KRP4_Liq_Create
+end function RPFKRP4LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP4_Liq_Verify(this,name,option)
+subroutine RPFKRP4LiqVerify(this,name,option)
 
   use Option_module
 
@@ -2810,11 +2811,11 @@ subroutine RPF_KRP4_Liq_Verify(this,name,option)
     call PrintErrMsg(option)
   endif 
   
-end subroutine RPF_KRP4_Liq_Verify
+end subroutine RPFKRP4LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP4_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP4LiqRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -2856,27 +2857,27 @@ subroutine RPF_KRP4_Liq_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-end subroutine RPF_KRP4_Liq_RelPerm
+end subroutine RPFKRP4LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP4_Gas_Create()
+function RPFKRP4GasCreate()
 
   ! Creates the BRAGFLO_KRP4_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP4_gas_type), pointer :: RPF_KRP4_Gas_Create
+  class(rpf_KRP4_gas_type), pointer :: RPFKRP4GasCreate
   
-  allocate(RPF_KRP4_Gas_Create)
-  call RPF_KRP4_Gas_Create%Init() ! calls KRP3_Gas's Init()
+  allocate(RPFKRP4GasCreate)
+  call RPFKRP4GasCreate%Init() ! calls KRP3_Gas's Init()
   
-end function RPF_KRP4_Gas_Create
+end function RPFKRP4GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP4_Gas_Verify(this,name,option)
+subroutine RPFKRP4GasVerify(this,name,option)
 
   use Option_module
 
@@ -2903,27 +2904,27 @@ subroutine RPF_KRP4_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif  
   
-end subroutine RPF_KRP4_Gas_Verify
+end subroutine RPFKRP4GasVerify
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP5_Liq_Create()
+function RPFKRP5LiqCreate()
 
   ! Creates the BRAGFLO_KRP5_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP5_liq_type), pointer :: RPF_KRP5_Liq_Create
+  class(rpf_KRP5_liq_type), pointer :: RPFKRP5LiqCreate
   
-  allocate(RPF_KRP5_Liq_Create)
-  call RPF_KRP5_Liq_Create%Init()
+  allocate(RPFKRP5LiqCreate)
+  call RPFKRP5LiqCreate%Init()
   
-end function RPF_KRP5_Liq_Create
+end function RPFKRP5LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP5_Liq_Init(this)
+subroutine RPFKRP5LiqInit(this)
 
   ! Initializes the BRAGFLO_KRP5_LIQ relative permeability function object
 
@@ -2936,11 +2937,11 @@ subroutine RPF_KRP5_Liq_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP5_Liq_Init
+end subroutine RPFKRP5LiqInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP5_Liq_Verify(this,name,option)
+subroutine RPFKRP5LiqVerify(this,name,option)
 
   use Option_module
 
@@ -2963,11 +2964,11 @@ subroutine RPF_KRP5_Liq_Verify(this,name,option)
     call PrintErrMsg(option)
   endif  
     
-end subroutine RPF_KRP5_Liq_Verify
+end subroutine RPFKRP5LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP5_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP5LiqRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   !
   ! Author: Heeho Park; Modified by Jennifer Frederick
@@ -2997,27 +2998,27 @@ subroutine RPF_KRP5_Liq_RelPerm(this,liquid_saturation, &
     dkr_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
   endif
    
-end subroutine RPF_KRP5_Liq_RelPerm
+end subroutine RPFKRP5LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP5_Gas_Create()
+function RPFKRP5GasCreate()
 
   ! Creates the BRAGFLO_KRP5_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP5_gas_type), pointer :: RPF_KRP5_Gas_Create
+  class(rpf_KRP5_gas_type), pointer :: RPFKRP5GasCreate
   
-  allocate(RPF_KRP5_Gas_Create)
-  call RPF_KRP5_Gas_Create%Init()
+  allocate(RPFKRP5GasCreate)
+  call RPFKRP5GasCreate%Init()
   
-end function RPF_KRP5_Gas_Create
+end function RPFKRP5GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP5_Gas_Init(this)
+subroutine RPFKRP5GasInit(this)
 
   ! Initializes the BRAGFLO_KRP5_GAS relative permeability function object
 
@@ -3030,11 +3031,11 @@ subroutine RPF_KRP5_Gas_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP5_Gas_Init
+end subroutine RPFKRP5GasInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP5_Gas_Verify(this,name,option)
+subroutine RPFKRP5GasVerify(this,name,option)
 
   use Option_module
 
@@ -3057,11 +3058,11 @@ subroutine RPF_KRP5_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif  
     
-end subroutine RPF_KRP5_Gas_Verify
+end subroutine RPFKRP5GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP5_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP5GasRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   !
   ! Author: Jennifer Frederick
@@ -3095,27 +3096,27 @@ subroutine RPF_KRP5_Gas_RelPerm(this,liquid_saturation, &
     dkr_sat = dkr_Se2 * dSe2_sat
   endif
    
-end subroutine RPF_KRP5_Gas_RelPerm
+end subroutine RPFKRP5GasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP8_Liq_Create()
+function RPFKRP8LiqCreate()
 
   ! Creates the BRAGFLO_KRP8_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP8_liq_type), pointer :: RPF_KRP8_Liq_Create
+  class(rpf_KRP8_liq_type), pointer :: RPFKRP8LiqCreate
   
-  allocate(RPF_KRP8_Liq_Create)
-  call RPF_KRP8_Liq_Create%Init()
+  allocate(RPFKRP8LiqCreate)
+  call RPFKRP8LiqCreate%Init()
   
-end function RPF_KRP8_Liq_Create
+end function RPFKRP8LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP8_Liq_Init(this)
+subroutine RPFKRP8LiqInit(this)
 
   ! Initializes the BRAGFLO_KRP8_LIQ relative permeability function object
 
@@ -3128,11 +3129,11 @@ subroutine RPF_KRP8_Liq_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP8_Liq_Init
+end subroutine RPFKRP8LiqInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP8_Liq_Verify(this,name,option)
+subroutine RPFKRP8LiqVerify(this,name,option)
 
   use Option_module
 
@@ -3155,11 +3156,11 @@ subroutine RPF_KRP8_Liq_Verify(this,name,option)
     call PrintErrMsg(option)
   endif   
   
-end subroutine RPF_KRP8_Liq_Verify
+end subroutine RPFKRP8LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP8_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP8LiqRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -3208,27 +3209,27 @@ subroutine RPF_KRP8_Liq_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-end subroutine RPF_KRP8_Liq_RelPerm
+end subroutine RPFKRP8LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP8_Gas_Create()
+function RPFKRP8GasCreate()
 
   ! Creates the BRAGFLO_KRP8_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP8_gas_type), pointer :: RPF_KRP8_Gas_Create
+  class(rpf_KRP8_gas_type), pointer :: RPFKRP8GasCreate
   
-  allocate(RPF_KRP8_Gas_Create)
-  call RPF_KRP8_Gas_Create%Init()
+  allocate(RPFKRP8GasCreate)
+  call RPFKRP8GasCreate%Init()
   
-end function RPF_KRP8_Gas_Create
+end function RPFKRP8GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP8_Gas_Init(this)
+subroutine RPFKRP8GasInit(this)
 
   ! Initializes the BRAGFLO_KRP8_GAS relative permeability function object
 
@@ -3241,11 +3242,11 @@ subroutine RPF_KRP8_Gas_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP8_Gas_Init
+end subroutine RPFKRP8GasInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP8_Gas_Verify(this,name,option)
+subroutine RPFKRP8GasVerify(this,name,option)
 
   use Option_module
 
@@ -3268,11 +3269,11 @@ subroutine RPF_KRP8_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif   
   
-end subroutine RPF_KRP8_Gas_Verify
+end subroutine RPFKRP8GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP8_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP8GasRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -3321,27 +3322,27 @@ subroutine RPF_KRP8_Gas_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-end subroutine RPF_KRP8_Gas_RelPerm
+end subroutine RPFKRP8GasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
                                      
-function RPF_KRP9_Liq_Create()
+function RPFKRP9LiqCreate()
 
   ! Creates the BRAGFLO_KRP9_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP9_liq_type), pointer :: RPF_KRP9_Liq_Create
+  class(rpf_KRP9_liq_type), pointer :: RPFKRP9LiqCreate
   
-  allocate(RPF_KRP9_Liq_Create)
-  call RPF_KRP9_Liq_Create%Init()
+  allocate(RPFKRP9LiqCreate)
+  call RPFKRP9LiqCreate%Init()
   
-end function RPF_KRP9_Liq_Create
+end function RPFKRP9LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP9_Liq_Init(this)
+subroutine RPFKRP9LiqInit(this)
 
   ! Initializes the BRAGFLO_KRP9_LIQ relative permeability function object
 
@@ -3353,11 +3354,11 @@ subroutine RPF_KRP9_Liq_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP9_Liq_Init
+end subroutine RPFKRP9LiqInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP9_Liq_Verify(this,name,option)
+subroutine RPFKRP9LiqVerify(this,name,option)
 
   use Option_module
 
@@ -3376,11 +3377,11 @@ subroutine RPF_KRP9_Liq_Verify(this,name,option)
   endif  
   call RPFBaseVerify(this,string,option)
   
-end subroutine RPF_KRP9_Liq_Verify
+end subroutine RPFKRP9LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP9_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP9LiqRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -3425,27 +3426,27 @@ subroutine RPF_KRP9_Liq_RelPerm(this,liquid_saturation, &
   dSe_dsat = -1.d0/(liquid_saturation**2.d0)
   dkr_sat = dkr_dSe * dSe_dsat
   
-end subroutine RPF_KRP9_Liq_RelPerm
+end subroutine RPFKRP9LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP9_Gas_Create()
+function RPFKRP9GasCreate()
 
   ! Creates the BRAGFLO_KRP9_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP9_gas_type), pointer :: RPF_KRP9_Gas_Create
+  class(rpf_KRP9_gas_type), pointer :: RPFKRP9GasCreate
   
-  allocate(RPF_KRP9_Gas_Create)
-  call RPF_KRP9_Gas_Create%Init()
+  allocate(RPFKRP9GasCreate)
+  call RPFKRP9GasCreate%Init()
   
-end function RPF_KRP9_Gas_Create
+end function RPFKRP9GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP9_Gas_Init(this)
+subroutine RPFKRP9GasInit(this)
 
   ! Initializes the BRAGFLO_KRP9_GAS relative permeability function object
 
@@ -3457,11 +3458,11 @@ subroutine RPF_KRP9_Gas_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP9_Gas_Init
+end subroutine RPFKRP9GasInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP9_Gas_Verify(this,name,option)
+subroutine RPFKRP9GasVerify(this,name,option)
 
   use Option_module
 
@@ -3480,11 +3481,11 @@ subroutine RPF_KRP9_Gas_Verify(this,name,option)
   endif    
   call RPFBaseVerify(this,string,option)
   
-end subroutine RPF_KRP9_Gas_Verify
+end subroutine RPFKRP9GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP9_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP9GasRelPerm(this,liquid_saturation, &
                                 relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -3521,34 +3522,34 @@ subroutine RPF_KRP9_Gas_RelPerm(this,liquid_saturation, &
     return
   endif
   
-  call RPF_KRP9_Liq_RelPerm(this,liquid_saturation, &
+  call RPFKRP9LiqRelPerm(this,liquid_saturation, &
                             liquid_relative_permeability, &
                             liquid_dkr_sat,option)
   
   relative_permeability = 1.d0 - liquid_relative_permeability
   dkr_sat = -1.d0 * liquid_dkr_sat
   
-end subroutine RPF_KRP9_Gas_RelPerm
+end subroutine RPFKRP9GasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
  
-function RPF_KRP11_Liq_Create()
+function RPFKRP11LiqCreate()
 
   ! Creates the BRAGFLO_KRP11_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP11_liq_type), pointer :: RPF_KRP11_Liq_Create
+  class(rpf_KRP11_liq_type), pointer :: RPFKRP11LiqCreate
   
-  allocate(RPF_KRP11_Liq_Create)
-  call RPF_KRP11_Liq_Create%Init()
+  allocate(RPFKRP11LiqCreate)
+  call RPFKRP11LiqCreate%Init()
   
-end function RPF_KRP11_Liq_Create
+end function RPFKRP11LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP11_Liq_Init(this)
+subroutine RPFKRP11LiqInit(this)
 
   ! Initializes the BRAGFLO_KRP11_LIQ relative permeability function object
 
@@ -3562,11 +3563,11 @@ subroutine RPF_KRP11_Liq_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_KRP11_Liq_Init
+end subroutine RPFKRP11LiqInit
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP11_Liq_Verify(this,name,option)
+subroutine RPFKRP11LiqVerify(this,name,option)
 
   use Option_module
 
@@ -3593,11 +3594,11 @@ subroutine RPF_KRP11_Liq_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine RPF_KRP11_Liq_Verify
+end subroutine RPFKRP11LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP11_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP11LiqRelPerm(this,liquid_saturation, &
                                  relative_permeability,dkr_sat,option)
   !
   ! Author: Heeho Park
@@ -3640,27 +3641,27 @@ subroutine RPF_KRP11_Liq_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
     
-end subroutine RPF_KRP11_Liq_RelPerm
+end subroutine RPFKRP11LiqRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP11_Gas_Create()
+function RPFKRP11GasCreate()
 
   ! Creates the BRAGFLO_KRP11_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP11_gas_type), pointer :: RPF_KRP11_Gas_Create
+  class(rpf_KRP11_gas_type), pointer :: RPFKRP11GasCreate
   
-  allocate(RPF_KRP11_Gas_Create)
-  call RPF_KRP11_Gas_Create%Init() ! calls KRP11_LIQ's Init()
+  allocate(RPFKRP11GasCreate)
+  call RPFKRP11GasCreate%Init() ! calls KRP11_LIQ's Init()
   
-end function RPF_KRP11_Gas_Create
+end function RPFKRP11GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP11_Gas_Verify(this,name,option)
+subroutine RPFKRP11GasVerify(this,name,option)
 
   use Option_module
 
@@ -3687,11 +3688,11 @@ subroutine RPF_KRP11_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine RPF_KRP11_Gas_Verify
+end subroutine RPFKRP11GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP11_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP11GasRelPerm(this,liquid_saturation, &
                                  relative_permeability,dkr_sat,option)
   !
   ! Author: Heeho Park
@@ -3735,27 +3736,27 @@ subroutine RPF_KRP11_Gas_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-  end subroutine RPF_KRP11_Gas_RelPerm
+  end subroutine RPFKRP11GasRelPerm
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP12_Liq_Create()
+function RPFKRP12LiqCreate()
 
   ! Creates the BRAGFLO_KRP12_LIQ relative permeability function object
 
   implicit none
   
-  class(rpf_KRP12_liq_type), pointer :: RPF_KRP12_Liq_Create
+  class(rpf_KRP12_liq_type), pointer :: RPFKRP12LiqCreate
   
-  allocate(RPF_KRP12_Liq_Create)
-  call RPF_KRP12_Liq_Create%Init()
+  allocate(RPFKRP12LiqCreate)
+  call RPFKRP12LiqCreate%Init()
   
-end function RPF_KRP12_Liq_Create
+end function RPFKRP12LiqCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP12_Liq_Verify(this,name,option)
+subroutine RPFKRP12LiqVerify(this,name,option)
 
   use Option_module
 
@@ -3782,11 +3783,11 @@ subroutine RPF_KRP12_Liq_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine RPF_KRP12_Liq_Verify
+end subroutine RPFKRP12LiqVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP12_Liq_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP12LiqRelPerm(this,liquid_saturation, &
                                  relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -3829,27 +3830,27 @@ subroutine RPF_KRP12_Liq_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-end subroutine RPF_KRP12_Liq_RelPerm
+end subroutine RPFKRP12LiqRelPerm
   
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_KRP12_Gas_Create()
+function RPFKRP12GasCreate()
 
   ! Creates the BRAGFLO_KRP12_GAS relative permeability function object
 
   implicit none
   
-  class(rpf_KRP12_gas_type), pointer :: RPF_KRP12_Gas_Create
+  class(rpf_KRP12_gas_type), pointer :: RPFKRP12GasCreate
   
-  allocate(RPF_KRP12_Gas_Create)
-  call RPF_KRP12_Gas_Create%Init()
+  allocate(RPFKRP12GasCreate)
+  call RPFKRP12GasCreate%Init()
   
-end function RPF_KRP12_Gas_Create
+end function RPFKRP12GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP12_Gas_Verify(this,name,option)
+subroutine RPFKRP12GasVerify(this,name,option)
 
   use Option_module
 
@@ -3876,11 +3877,11 @@ subroutine RPF_KRP12_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif
 
-end subroutine RPF_KRP12_Gas_Verify
+end subroutine RPFKRP12GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_KRP12_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFKRP12GasRelPerm(this,liquid_saturation, &
                                  relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
@@ -3922,27 +3923,27 @@ subroutine RPF_KRP12_Gas_RelPerm(this,liquid_saturation, &
     dkr_sat = 0.d0
   endif
   
-end subroutine RPF_KRP12_Gas_RelPerm
+end subroutine RPFKRP12GasRelPerm
   
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-function RPF_TOUGH2_IRP7_Gas_Create()
+function RPFTOUGH2IRP7GasCreate()
 
   ! Creates the Brooks-Corey Burdine gas relative permeability function object
 
   implicit none
   
-  class(rpf_TOUGH2_IRP7_gas_type), pointer :: RPF_TOUGH2_IRP7_Gas_Create
+  class(rpf_TOUGH2_IRP7_gas_type), pointer :: RPFTOUGH2IRP7GasCreate
   
-  allocate(RPF_TOUGH2_IRP7_Gas_Create)
-  call RPF_TOUGH2_IRP7_Gas_Create%Init()
+  allocate(RPFTOUGH2IRP7GasCreate)
+  call RPFTOUGH2IRP7GasCreate%Init()
   
-end function RPF_TOUGH2_IRP7_Gas_Create
+end function RPFTOUGH2IRP7GasCreate
 
 ! ************************************************************************** !
 
-subroutine RPF_TOUGH2_IRP7_Gas_Init(this)
+subroutine RPFTOUGH2IRP7GasInit(this)
 
   ! Initializes the Brooks-Corey Burdine gas relative permeability function 
   ! object
@@ -3956,11 +3957,11 @@ subroutine RPF_TOUGH2_IRP7_Gas_Init(this)
   
   this%analytical_derivative_available = PETSC_TRUE
   
-end subroutine RPF_TOUGH2_IRP7_Gas_Init
+end subroutine RPFTOUGH2IRP7GasInit
 
 ! ************************************************************************** !
 
-subroutine RPF_TOUGH2_IRP7_Gas_Verify(this,name,option)
+subroutine RPFTOUGH2IRP7GasVerify(this,name,option)
 
   use Option_module
 
@@ -3983,11 +3984,11 @@ subroutine RPF_TOUGH2_IRP7_Gas_Verify(this,name,option)
     call PrintErrMsg(option)
   endif  
   
-end subroutine RPF_TOUGH2_IRP7_Gas_Verify
+end subroutine RPFTOUGH2IRP7GasVerify
 
 ! ************************************************************************** !
 
-subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
+subroutine RPFTOUGH2IRP7GasRelPerm(this,liquid_saturation, &
                                        relative_permeability,dkr_sat,option)
   ! 
   ! TOUGH2 IRP(7) equations from Appendix G of TOUGH2 user manual
@@ -4014,9 +4015,9 @@ subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
   
                  ! essentially zero
   if (this%Srg <= 0.d0) then
-    call RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
-                            liquid_relative_permeability, &
-                            liquid_dkr_sat,option)
+    call RPFMualemVGLiqRelPerm(this,liquid_saturation, &
+                               liquid_relative_permeability, &
+                               liquid_dkr_sat,option)
     relative_permeability = 1.d0 - liquid_relative_permeability 
   else if ((1.d0 - liquid_saturation) <= this%Srg) then
     relative_permeability = 0.d0
@@ -4034,6 +4035,6 @@ subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
     end if
   end if
     
-end subroutine RPF_TOUGH2_IRP7_Gas_RelPerm
+end subroutine RPFTOUGH2IRP7GasRelPerm
 
 end module Characteristic_Curves_WIPP_module

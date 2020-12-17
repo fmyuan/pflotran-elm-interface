@@ -173,4 +173,6 @@ module Variables_module
 
   PetscInt, parameter, public :: K_ORTHOGONALITY_ERROR   = 140
 
+  PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 141
+
 end module Variables_module

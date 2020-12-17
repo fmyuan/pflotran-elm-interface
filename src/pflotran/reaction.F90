@@ -3794,8 +3794,8 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   endif
   
   if (associated(rxn_sandbox_list)) then
-    call RSandbox(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                  material_auxvar,reaction,option)
+    call RSandboxEvaluate(Res,Jac,derivative,rt_auxvar,global_auxvar, &
+                          material_auxvar,reaction,option)
   endif
   
   ! add new reactions here and in RReactionDerivative

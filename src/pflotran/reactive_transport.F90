@@ -221,7 +221,7 @@ subroutine RTSetup(realization)
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1
-        option%io_buffer = 'Non-initialized soil particle density.'
+        option%io_buffer = 'Non-initialized rock density.'
         call PrintMsg(option)
       endif
     endif
@@ -253,11 +253,13 @@ subroutine RTSetup(realization)
   if (option%use_mc) then
     patch%aux%SC_RT => SecondaryAuxRTCreate(option)
     initial_condition => patch%initial_condition_list%first
-    allocate(rt_sec_transport_vars(grid%nlmax))  
-    do local_id = 1, grid%nlmax
+    ! Must allocate to ngmax since rt_sec_transport_vars()%epsilon is used in
+    ! the calculation of effective diffusion coef in fluxes.
+    allocate(rt_sec_transport_vars(grid%ngmax))  
+    do ghosted_id = 1, grid%ngmax
     ! Assuming the same secondary continuum type for all regions
       call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr, &
-                                 rt_sec_transport_vars(local_id), &
+                                 rt_sec_transport_vars(ghosted_id), &
                                  reaction,initial_condition, &
                                  sec_tran_constraint,option)
     enddo      
@@ -770,7 +772,7 @@ subroutine RTUpdateEquilibriumState(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-        call SecondaryRTUpdateEquilState(rt_sec_transport_vars(local_id), &
+        call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
                                           global_auxvars(ghosted_id), &
                                           reaction,option)                     
     enddo
@@ -854,7 +856,7 @@ subroutine RTUpdateKineticState(realization)
         sec_porosity = patch%material_property_array(1)%ptr% &
                         secondary_continuum_porosity
 
-        call SecondaryRTUpdateKineticState(rt_sec_transport_vars(local_id), &
+        call SecondaryRTUpdateKineticState(rt_sec_transport_vars(ghosted_id), &
                                            global_auxvars(ghosted_id), &
                                            reaction,sec_porosity,option)                     
     enddo
@@ -900,7 +902,6 @@ subroutine RTUpdateFixedAccumulation(realization)
   PetscInt :: istartim, iendim
   PetscInt :: istartcoll, iendcoll
   PetscErrorCode :: ierr
-  PetscReal :: vol_frac_prim
   
   option => realization%option
   field => realization%field
@@ -919,8 +920,6 @@ subroutine RTUpdateFixedAccumulation(realization)
   call VecGetArrayReadF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(field%tran_accum, accum_p, ierr);CHKERRQ(ierr)
-  
-  vol_frac_prim = 1.d0
   
 ! Do not use RTUpdateAuxVars() as it loops over ghosted ids
 
@@ -977,8 +976,8 @@ subroutine RTUpdateFixedAccumulation(realization)
     endif
         
     if (option%use_mc) then
-      vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
-      accum_p(istart:iendall) = accum_p(istart:iendall)*vol_frac_prim
+      accum_p(istart:iendall) = accum_p(istart:iendall)* &
+        rt_sec_transport_vars(ghosted_id)%epsilon
     endif
     
   enddo
@@ -1006,6 +1005,7 @@ subroutine RTUpdateTransportCoefs(realization)
   use Option_module
   use Field_module  
   use Grid_module  
+  use Secondary_Continuum_Aux_module
 
   implicit none
   
@@ -1028,12 +1028,14 @@ subroutine RTUpdateTransportCoefs(realization)
   PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
   PetscReal, allocatable :: cell_centered_Darcy_velocities(:,:)
   PetscReal, allocatable :: cell_centered_Darcy_velocities_ghosted(:,:,:)
+  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal ::  local_Darcy_velocities_up(3,2)
   PetscReal ::  local_Darcy_velocities_dn(3,2)
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
   PetscInt :: iphase
   PetscInt :: nphase
+  PetscReal :: epsilon_up, epsilon_dn
   PetscErrorCode :: ierr
     
   option => realization%option
@@ -1045,6 +1047,12 @@ subroutine RTUpdateTransportCoefs(realization)
   grid => patch%grid
   rt_parameter => patch%aux%RT%rt_parameter
   nphase = rt_parameter%nphase
+  if (option%use_mc) then
+    rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
+  endif
+
+  epsilon_up = 1.d0
+  epsilon_dn = 1.d0
   
   local_Darcy_velocities_up = UNINITIALIZED_DOUBLE
   local_Darcy_velocities_dn = UNINITIALIZED_DOUBLE
@@ -1101,16 +1109,23 @@ subroutine RTUpdateTransportCoefs(realization)
           cell_centered_Darcy_velocities_ghosted(:,1:nphase,ghosted_id_dn)
       endif
 
+      if (option%use_mc) then
+        epsilon_up = rt_sec_transport_vars(ghosted_id_up)%epsilon
+        epsilon_dn = rt_sec_transport_vars(ghosted_id_dn)%epsilon
+      endif
+
       call TDispersion(global_auxvars(ghosted_id_up), &
                       material_auxvars(ghosted_id_up), &
                       local_Darcy_velocities_up, &
-                      patch%material_property_array(patch%imat(ghosted_id_up))% &
+                     patch%material_property_array(patch%imat(ghosted_id_up))% &
                         ptr%dispersivity, &
+                      epsilon_up, &
                       global_auxvars(ghosted_id_dn), &
                       material_auxvars(ghosted_id_dn), &
                       local_Darcy_velocities_dn, &
-                      patch%material_property_array(patch%imat(ghosted_id_dn))% &
+                     patch%material_property_array(patch%imat(ghosted_id_dn))% &
                         ptr%dispersivity, &
+                      epsilon_dn, &
                       cur_connection_set%dist(:,iconn), &
                       rt_parameter,option, &
                       patch%internal_velocities(:,sum_connection), &
@@ -1139,6 +1154,10 @@ subroutine RTUpdateTransportCoefs(realization)
         local_Darcy_velocities_up(:,1:nphase) = &
           cell_centered_Darcy_velocities_ghosted(:,1:nphase,ghosted_id)
       endif
+
+      if (option%use_mc) then
+        epsilon_dn = rt_sec_transport_vars(ghosted_id)%epsilon
+      endif
       
       call TDispersionBC(boundary_condition%tran_condition%itype, &
                         global_auxvars_bc(sum_connection), &
@@ -1147,6 +1166,7 @@ subroutine RTUpdateTransportCoefs(realization)
                         local_Darcy_velocities_up, &
                         patch%material_property_array(patch%imat(ghosted_id))% &
                           ptr%dispersivity, &
+                        epsilon_dn, &
                         cur_connection_set%dist(:,iconn), &
                         rt_parameter,option, &
                         patch%boundary_velocities(:,sum_connection), &
@@ -1200,6 +1220,9 @@ subroutine RTUpdateRHSCoefs(realization)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   grid => patch%grid
+
+  option%io_buffer = 'RTUpdateRHSCoefs() not implemented for immobile species'
+  call PrintErrMsg(option)
 
   ! Get vectors
   call VecGetArrayF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
@@ -1264,6 +1287,9 @@ subroutine RTCalculateRHS_t0(realization)
   rt_auxvars => patch%aux%RT%auxvars
   grid => patch%grid
   reaction => realization%reaction
+
+  option%io_buffer = 'RTCalculateRHS_t0() not implemented for immobile species'
+  call PrintErrMsg(option)
 
   ! Get vectors
   call VecGetArrayReadF90(field%tran_rhs_coef,rhs_coef_p,ierr);CHKERRQ(ierr)
@@ -1400,8 +1426,9 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
                      coef_up,coef_dn)
 
       ! coef_dn not needed 
-      iendaq = local_id*reaction%naqcomp
-      istartaq = iendaq-reaction%naqcomp+1
+      offset = (local_id-1)*reaction%ncomp
+      istartaq = offset + 1
+      iendaq = offset + reaction%naqcomp
       
       rhs_p(istartaq:iendaq) = rhs_p(istartaq:iendaq) + &
         coef_up(:,iphase)*rt_auxvars_bc(sum_connection)%total(:,iphase)
@@ -2378,9 +2405,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   PetscInt :: axis, side, nlx, nly, nlz, ngx, ngxy, pstart, pend, flux_id
   PetscInt :: direction, max_x_conn, max_y_conn
   
-  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  PetscReal :: vol_frac_prim
-  
 #ifdef CENTRAL_DIFFERENCE  
   PetscReal :: T_11(realization%option%transport%nphase)
   PetscReal :: T_12(realization%option%transport%nphase)
@@ -2410,9 +2434,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   rt_auxvars_bc => patch%aux%RT%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
-  if (option%use_mc) then
-    rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
-  endif
 
   if (reaction%act_coef_update_frequency == &
       ACT_COEF_FREQUENCY_NEWTON_ITER) then
@@ -2430,7 +2451,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
  
   r_p = 0.d0
-  vol_frac_prim = 1.d0
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -2454,18 +2474,13 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       ! called only once per flux interface at the beginning of a transport
       ! time step.
       
-      if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(local_id_up)%epsilon
-      endif  
-      
-      
 #ifndef CENTRAL_DIFFERENCE        
       call TFluxCoef(rt_parameter, &
                 global_auxvars(ghosted_id_up), &
                 global_auxvars(ghosted_id_dn), &
                 option,cur_connection_set%area(iconn), &
                 patch%internal_velocities(:,sum_connection), &
-                patch%internal_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
+                patch%internal_tran_coefs(:,:,sum_connection), &
                 cur_connection_set%dist(-1,iconn), &
                 coef_up,coef_dn)
                       
@@ -2499,7 +2514,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                  global_auxvars(ghosted_id_dn), &
                  cur_connection_set%area(iconn), &
                  patch%internal_velocities(:,sum_connection), &
-                 patch%internal_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
+                 patch%internal_tran_coefs(:,:,sum_connection), &
                  cur_connection_set%dist(-1,iconn), &
                  T_11,T_12,T_21,T_22)
       call TFlux_CD(rt_parameter, &
@@ -2545,10 +2560,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
-      endif  
-      
 #ifndef CENTRAL_DIFFERENCE
       ! TFluxCoef accomplishes the same as what TBCCoef would
       call TFluxCoef(rt_parameter, &
@@ -2556,7 +2567,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                   global_auxvars(ghosted_id), &
                   option,cur_connection_set%area(iconn), &
                   patch%boundary_velocities(:,sum_connection), &
-                  patch%boundary_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
+                  patch%boundary_tran_coefs(:,:,sum_connection), &
                   0.5d0, &
                   coef_up,coef_dn)
       ! TFlux accomplishes the same as what TBCFlux would
@@ -2585,7 +2596,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
                 global_auxvars(ghosted_id), &
                 option,cur_connection_set%area(iconn), &
                 patch%boundary_velocities(:,sum_connection), &
-                patch%boundary_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
+                patch%boundary_tran_coefs(:,:,sum_connection), &
                 0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
                 T_11,T_12,T_21,T_22)
       call TFlux_CD(rt_parameter, &
@@ -2696,7 +2707,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscInt :: icomp, ieqgas
 
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  PetscReal :: vol_frac_prim
   PetscReal :: sec_diffusion_coefficient
   PetscReal :: sec_porosity
   PetscReal :: res_sec_transport(realization%reaction%ncomp)
@@ -2720,8 +2730,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   ! Get pointer to Vector data
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
  
-  vol_frac_prim = 1.d0
-
   if (.not.option%steady_state) then
 #if 1
     call VecGetArrayF90(field%tran_accum, accum_p, ierr);CHKERRQ(ierr)
@@ -2750,8 +2758,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       Res = Res / option%tran_dt
 
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
-        Res = Res*vol_frac_prim
+        Res = Res*rt_sec_transport_vars(ghosted_id)%epsilon
       endif        
       
       r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)
@@ -2792,7 +2799,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       sec_porosity = patch%material_property_array(1)%ptr% &
                      secondary_continuum_porosity
 
-      call SecondaryRTResJacMulti(rt_sec_transport_vars(local_id), &
+      call SecondaryRTResJacMulti(rt_sec_transport_vars(ghosted_id), &
                                   rt_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id)%volume, &
@@ -2939,8 +2946,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
                      material_auxvars(ghosted_id), &
                      reaction,option)
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
-        Res = Res*vol_frac_prim
+        Res = Res*rt_sec_transport_vars(ghosted_id)%epsilon
       endif 
       r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)                    
 
@@ -3246,9 +3252,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
   PetscReal :: fraction_upwind, distance, dist_up, dist_dn
   
-  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  PetscReal :: vol_frac_prim
-
 #ifdef CENTRAL_DIFFERENCE
   PetscReal :: T_11(realization%option%transport%nphase)
   PetscReal :: T_12(realization%option%transport%nphase)
@@ -3279,12 +3282,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   rt_auxvars_bc => patch%aux%RT%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
-  if (option%use_mc) then
-    rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
-  endif
-
-
-  vol_frac_prim = 1.d0
 
   ! Interior Flux Terms -----------------------------------
   ! must zero out Jacobian blocks
@@ -3308,17 +3305,13 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
 
-      if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(local_id_up)%epsilon
-      endif 
-
 #ifndef CENTRAL_DIFFERENCE
       call TFluxCoef(rt_parameter, &
                 global_auxvars(ghosted_id_up), &
                 global_auxvars(ghosted_id_dn), &
                 option,cur_connection_set%area(iconn), &
                 patch%internal_velocities(:,sum_connection), &
-                patch%internal_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
+                patch%internal_tran_coefs(:,:,sum_connection), &
                 cur_connection_set%dist(-1,iconn), &
                 coef_up,coef_dn)
       call TFluxDerivative(rt_parameter, &
@@ -3349,7 +3342,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
                 global_auxvars(ghosted_id_dn), &
                 option,cur_connection_set%area(iconn), &
                 patch%internal_velocities(:,sum_connection), &
-                patch%internal_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
+                patch%internal_tran_coefs(:,:,sum_connection), &
                 cur_connection_set%dist(-1,iconn), &
                 T_11,T_12,T_21,T_22)
       call TFluxDerivative_CD(rt_parameter, &
@@ -3401,10 +3394,6 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
     
-      if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
-      endif 
-
 #ifndef CENTRAL_DIFFERENCE
       ! TFluxCoef accomplishes the same as what TBCCoef would
       call TFluxCoef(rt_parameter, &
@@ -3412,7 +3401,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
                 global_auxvars(ghosted_id), &
                 option,cur_connection_set%area(iconn), &
                 patch%boundary_velocities(:,sum_connection), &
-                patch%boundary_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
+                patch%boundary_tran_coefs(:,:,sum_connection), &
                 0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
                 coef_up,coef_dn)
       ! TFluxDerivative accomplishes the same as what TBCFluxDerivative would
@@ -3435,7 +3424,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
                  global_auxvars(ghosted_id), &
                  option,cur_connection_set%area(iconn), &
                  patch%boundary_velocities(:,sum_connection), &
-                 patch%boundary_tran_coefs(:,:,sum_connection)*vol_frac_prim, &
+                 patch%boundary_tran_coefs(:,:,sum_connection), &
                  0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
                  T_11,T_12,T_21,T_22)
       call TFluxDerivative_CD(rt_parameter, &
@@ -3519,7 +3508,6 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   
   ! secondary continuum variables
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  PetscReal :: vol_frac_prim
   PetscReal :: sec_diffusion_coefficient
   PetscReal :: sec_porosity
   PetscReal :: jac_transport(realization%reaction%naqcomp,realization%reaction%naqcomp)
@@ -3543,8 +3531,6 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   endif
   nphase = rt_parameter%nphase
 
-  vol_frac_prim = 1.d0
-  
   if (.not.option%steady_state) then
   call PetscLogEventBegin(logging%event_rt_jacobian_accum,ierr);CHKERRQ(ierr)
 #if 1  
@@ -3567,8 +3553,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       
       if (option%use_mc) then
       
-        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
-        Jup = Jup*vol_frac_prim
+        Jup = Jup*rt_sec_transport_vars(ghosted_id)%epsilon
 
         sec_diffusion_coefficient = patch%material_property_array(1)% &
                                     ptr%secondary_continuum_diff_coeff
@@ -3581,8 +3566,8 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
           call PrintErrMsg(option)
         endif
         
-        if (rt_sec_transport_vars(local_id)%sec_jac_update) then
-          jac_transport = rt_sec_transport_vars(local_id)%sec_jac
+        if (rt_sec_transport_vars(ghosted_id)%sec_jac_update) then
+          jac_transport = rt_sec_transport_vars(ghosted_id)%sec_jac
         else
           option%io_buffer = 'RT secondary continuum term in primary '// &
                              'jacobian not updated'
@@ -3668,8 +3653,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
                                material_auxvars(ghosted_id), &
                                reaction,option)
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
-        Jup = Jup*vol_frac_prim
+        Jup = Jup*rt_sec_transport_vars(ghosted_id)%epsilon
       endif
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1, &
                                     Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
