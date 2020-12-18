@@ -740,6 +740,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   use String_module
   use Dataset_Common_HDF5_class
   use Dataset_module
+  use Characteristic_Curves_Thermal_module
   use TH_Aux_module, only : th_ice_model
   
   
@@ -802,6 +803,14 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     call CharCurvesThermalConvertListToArray( &
          patch%characteristic_curves_thermal, &
          patch%char_curves_thermal_array, option)
+    do i = 1, size(patch%char_curves_thermal_array)
+      select type(tcf => patch%char_curves_thermal_array(i)%ptr% & 
+                  thermal_conductivity_function)
+      class is(kT_composite_type)
+        call CompositeTCCList(patch%characteristic_curves_thermal, &
+                              tcf,option)
+      end select
+    enddo
   else if (maxval(check_thermal_conductivity(:,:)) >= 0.d0) then
     ! use default tcc curve for legacy thermal conductivity input by material
     do i = 1, num_mat_prop
@@ -863,6 +872,14 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       call CharCurvesThermalConvertListToArray( &
          patch%characteristic_curves_thermal, &
          patch%char_curves_thermal_array, option)
+      do i = 1, size(patch%char_curves_thermal_array)
+         select type(tcf => patch%char_curves_thermal_array(i)%ptr% & 
+                     thermal_conductivity_function)
+         class is(kT_composite_type)
+           call CompositeTCCList(patch%characteristic_curves_thermal, &
+                                 tcf,option)
+         end select
+      enddo
     else
       option%io_buffer = 'Manual assignments of DEFAULT thermal '//&
                          'characteristic curve failed!'
