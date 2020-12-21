@@ -24,8 +24,8 @@ addons:
 
 matrix:
   include:
-    - env: CMAKE_BUILD=0 PETSC_MASTER=0 MINIMAL_BUILD=1
-      os: linux
+#    - env: CMAKE_BUILD=0 PETSC_MASTER=0 MINIMAL_BUILD=1
+#      os: linux
 
     - env: CMAKE_BUILD=0 PETSC_MASTER=0 MINIMAL_BUILD=0
       os: linux
