@@ -401,21 +401,7 @@ subroutine CondControlAssignFlowInitCond(realization)
               trim(initial_condition%flow_condition%name) // &
               '" must be of type Dirichlet or Hydrostatic'
             ! error checking.  the data must match the state
-            ! MAN: this needs to be expanded.
             select case(initial_condition%flow_condition%iphase)
-              case(GA_STATE)
-                if (.not. &
-                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
-                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
-                  option%io_buffer = 'Gas pressure ' // trim(string)
-                  call PrintErrMsg(option)
-                endif
-                if (.not. &
-                    (hydrate%gas_saturation%itype == DIRICHLET_BC .or. &
-                      hydrate%gas_saturation%itype == HYDROSTATIC_BC)) then
-                  option%io_buffer = 'Gas saturation ' // trim(string)
-                  call PrintErrMsg(option)
-                endif
               case(L_STATE)
                 if (.not. &
                     (hydrate%liquid_pressure%itype == DIRICHLET_BC .or. &
@@ -429,6 +415,13 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Mole fraction ' // trim(string)
                   call PrintErrMsg(option)
                 endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
               case(G_STATE)
                 if (.not. &
                     (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
@@ -442,14 +435,266 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
-              case (HA_STATE)
-            end select
-            if (.not. &
-                (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
                   hydrate%temperature%itype == HYDROSTATIC_BC)) then
-              option%io_buffer = 'Temperature ' // trim(string)
-              call PrintErrMsg(option)
-            endif
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case(H_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case(I_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case(GA_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%gas_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+              case(HG_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%gas_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+              case(HA_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%hydrate_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%hydrate_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Hydrate saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+              case(HI_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%hydrate_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%hydrate_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Hydrate saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+              case(GI_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%ice_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%ice_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Ice saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+              case(AI_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid Mole Fraction ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+              case(HGA_STATE)
+                if (.not. &
+                    (hydrate%liquid_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%liquid_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%hydrate_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%hydrate_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Hydrate saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                   (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+              case(HAI_STATE)
+
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%liquid_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%liquid_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%ice_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%ice_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Ice saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+              case(HGI_STATE)
+
+                if (.not. &
+                    (hydrate%ice_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%ice_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Ice saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%hydrate_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%hydrate_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Hydrate saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                      hydrate%temperature%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Temperature ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+
+              case(GAI_STATE)
+
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%liquid_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%liquid_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%ice_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%ice_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Ice saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+
+              case(QUAD_STATE)
+
+                if (.not. &
+                    (hydrate%gas_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%liquid_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%liquid_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%ice_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%ice_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Ice saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+
+
+            end select
 
 
             do icell=1,initial_condition%region%num_cells

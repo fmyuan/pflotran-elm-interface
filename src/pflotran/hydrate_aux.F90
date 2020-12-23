@@ -17,7 +17,6 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: hydrate_phase_chng_epsilon = 0.d0 !1.d-6
-  PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: hydrate_max_pressure_change = 5.d4
   PetscInt, public :: hydrate_max_it_before_damping = UNINITIALIZED_INTEGER
   PetscReal, public :: hydrate_damping_factor = 0.6d0
@@ -123,10 +122,12 @@ module Hydrate_Aux_module
   PetscReal, parameter :: HYDRATE_DENSITY_KG = 920.d0 !kg/m^3
   PetscReal, parameter :: HYDRATE_DENSITY = 52.15551276d0 !mol/L
   PetscReal, parameter :: MW_CH4 = 16.04d0
-  PetscReal, parameter :: MW_H20 = 18.01d0
+  PetscReal, parameter :: MW_H2O = 18.01d0
+
+  PetscReal, public :: hydrate_fmw_comp(2) = [MW_H2O,MW_CH4]
 
   PetscReal, parameter, public :: MOL_RATIO_METH = 0.14285714285d0
-  PetscReal, parameter :: MOL_RATIO_H20 = 1.d0 - MOL_RATIO_METH
+  PetscReal, parameter :: MOL_RATIO_H2O = 1.d0 - MOL_RATIO_METH
 
   PetscReal, parameter :: TQD = 1.d-2 !0.d0 !1.0d-2 !Quad point temperature (C)
 
@@ -686,7 +687,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   endif
 #endif
 
-  hyd_auxvar%xmol(wid,hid) = MOL_RATIO_H20
+  hyd_auxvar%xmol(wid,hid) = MOL_RATIO_H2O
   hyd_auxvar%xmol(acid,hid) = MOL_RATIO_METH
   hyd_auxvar%den(hid) = HYDRATE_DENSITY
   hyd_auxvar%den_kg(hid) = HYDRATE_DENSITY_KG
@@ -1366,7 +1367,6 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
   end select
 
-  !MAN Check EOS temperature
   !eos_henry_ierr = 0
   !call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
   !                       eos_henry_ierr)
@@ -1454,7 +1454,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
     h_water_vapor = h_water_vapor * 1.d-6 ! J/kmol -> MJ/kmol
     u_water_vapor = u_water_vapor * 1.d-6 ! J/kmol -> MJ/kmol
     hyd_auxvar%den(gid) = den_water_vapor + den_air
-    hyd_auxvar%den_kg(gid) = den_kg_water_vapor + den_air*fmw_comp(gid)
+    hyd_auxvar%den_kg(gid) = den_kg_water_vapor + den_air*hydrate_fmw_comp(gid)
     xmol_air_in_gas = hyd_auxvar%xmol(acid,gid)
     xmol_water_in_gas = hyd_auxvar%xmol(wid,gid)
 
@@ -1633,10 +1633,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   liq_epsilon = 0.d0
   hyd_epsilon = 0.d0
   two_phase_epsilon = 0.d0
-
-  !man: right now comparing hydrate equilib pressure to gas
-  !pressure (assuming low water solubility in methane). 
-  !Ideally would compare to partial pressure of methane.
 
   if (global_auxvar%istate == ZERO_INTEGER .and. hyd_auxvar%sat(gid) &
        < 0.d0) then
@@ -3727,8 +3723,6 @@ subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,&
   !endif
 
 
-  !MAN debugging
-  !dTf = 0.d0
 end subroutine GibbsThomsonFreezing
 
 ! ************************************************************************** !
@@ -3791,7 +3785,7 @@ subroutine EOSHydrateEnthalpy(T,H)
   !H = H / (Nhyd+1.d0) 
 
   !Constant Cp
-  Cph = 1620.d0*(MW_H20*Nhyd + MW_CH4)/1.d3
+  Cph = 1620.d0*(MW_H2O*Nhyd + MW_CH4)/1.d3
   H = Cph * (T-TQD) + Hh0 / (Nhyd + 1.d0)
   H = H / 1.d3
 

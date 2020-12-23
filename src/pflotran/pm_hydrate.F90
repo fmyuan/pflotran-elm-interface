@@ -470,7 +470,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         hydrate_diffuse_xmol = PETSC_FALSE
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         !geh: assuming gas component is index 2
-        call InputReadDouble(input,option,fmw_comp(2))
+        call InputReadDouble(input,option,hydrate_fmw_comp(2))
         call InputErrorMsg(input,option,keyword,error_string)
       case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
         hydrate_harmonic_diff_density = PETSC_TRUE
@@ -478,7 +478,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         hydrate_immiscible = PETSC_TRUE
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
         !heeho: assuming liquid component is index 1
-        call InputReadDouble(input,option,fmw_comp(1))
+        call InputReadDouble(input,option,hydrate_fmw_comp(1))
         call InputErrorMsg(input,option,keyword,error_string)
       case('NO_STATE_TRANSITION_OUTPUT')
         hydrate_print_state_transition = PETSC_FALSE
@@ -570,7 +570,6 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         this%abs_update_inf_tol(2:3,14) = tempreal
         this%abs_update_inf_tol(:,15) = tempreal
         
-      !man: phase change
       case('MAX_NEWTON_ITERATIONS')
         call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
                                     'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
