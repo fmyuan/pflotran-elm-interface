@@ -8,6 +8,7 @@ module Characteristic_Curves_module
   use Characteristic_Curves_OWG_module
   use Characteristic_Curves_WIPP_module
   use Characteristic_Curves_Table_module
+  use Characteristic_Curves_VG_module
 
   implicit none
 
@@ -116,6 +117,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
   class(rel_perm_func_base_type), pointer :: rel_perm_function_ptr
   class(char_curves_table_type), pointer :: char_curves_table
 
+  class(sat_func_base_type), pointer :: sf_swap
+  nullify(sf_swap)
   nullify(rel_perm_function_ptr)
 
   input%ierr = 0
@@ -174,7 +177,14 @@ subroutine CharacteristicCurvesRead(this,input,option)
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
                                           option)
         end select
-        call SaturationFunctionRead(this%saturation_function,input,option)
+
+        sf_swap => SaturationFunctionRead(this%saturation_function,input,option)
+        ! Deallocate this%saturation_function if it is replaced
+        if (associated(sf_swap)) then
+          deallocate(this%saturation_function)
+          this%saturation_function => sf_swap
+        end if
+
     !-----------------------------------------------------------------------
       case('SATURATION_FUNCTION_OWG')
         option%io_buffer = 'SATURATION_FUNCTION_OWG is not supported any more &
@@ -594,7 +604,8 @@ end subroutine CharacteristicCurvesRead
 
 ! ************************************************************************** !
 
-subroutine SaturationFunctionRead(saturation_function,input,option)
+function SaturationFunctionRead(saturation_function,input,option) &
+  result (sf_swap)
   !
   ! Reads in contents of a SATURATION_FUNCTION block
   !
@@ -605,17 +616,39 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
 
   implicit none
   
-  class(sat_func_base_type) :: saturation_function
+  class(sat_func_base_type), target :: saturation_function
   type(input_type), pointer :: input
   type(option_type) :: option
+  class(sat_func_base_type), pointer :: sf_swap
   
   character(len=MAXWORDLENGTH) :: keyword, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
   PetscBool :: found
+
+  ! Lexicon is small and finite within SaturationFunctionRead 
+  ! Could be replaced with dynamic structure, but not of critical importance
   PetscBool :: smooth
+  PetscReal :: Sr
+  PetscReal :: Sj
+  PetscReal :: Pcmax
+  PetscReal :: alpha
+  PetscReal :: m
+  PetscReal :: lambda
+  PetscBool :: tension
+  PetscInt  :: extension
+  nullify(sf_swap)
 
   input%ierr = 0
+  ! Provide default values for unspecified parameters         
   smooth = PETSC_FALSE
+  Sr = 0d0
+  Sj = 0d0
+  Pcmax = 1d9
+  alpha = 0d0
+  m = 0d0
+  tension = .FALSE.
+  extension = 1
+
   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION,'
   select type(sf => saturation_function)
     class is(sat_func_constant_type)
@@ -665,16 +698,19 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     found = PETSC_TRUE
     select case(keyword)
       case('LIQUID_RESIDUAL_SATURATION') 
-        call InputReadDouble(input,option,saturation_function%Sr)
+        call InputReadDouble(input,option,Sr)
         call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
                            error_string)
+      case('LIQUID_JUNCTION_SATURATION')
+        call InputReadDouble(input,option,Sj)
+        call InputErrorMsg(input,option,'LIQUID_JUNCTION_SATURATION', &
+                           error_string)
       case('MAX_CAPILLARY_PRESSURE') 
-        call InputReadDouble(input,option,saturation_function%pcmax)
+        call InputReadDouble(input,option,Pcmax)
         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
                             error_string)
       case('CALCULATE_INTERFACIAL_TENSION')
-        saturation_function%calc_int_tension = PETSC_TRUE
-      
+        tension = .TRUE.
       case('SMOOTH')
         smooth = PETSC_TRUE
       case default
@@ -703,11 +739,14 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       class is(sat_func_VG_type)
         select case(keyword)
           case('M') 
-            call InputReadDouble(input,option,sf%m)
+            call InputReadDouble(input,option,m)
             call InputErrorMsg(input,option,'m',error_string)
           case('ALPHA') 
-            call InputReadDouble(input,option,sf%alpha)
+            call InputReadDouble(input,option,alpha)
             call InputErrorMsg(input,option,'alpha',error_string)
+          case('EXTENSION')
+            call InputReadInt(input,option,extension)
+            call InputErrorMsg(input,option,'extension',error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'van Genuchten saturation function',option)
@@ -1000,6 +1039,35 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  ! At end of Saturation_Function block, call constructors or assign compiled
+  ! variables to public attributes.
+  select type (sf => saturation_function)
+  class is (sat_func_VG_type)
+    select case (extension)
+    case (0) ! NEVG
+      sf_swap => SF_VG_NEVG_ctor(alpha,m,Sr)
+    case (1) ! FCPC
+      sf_swap => SF_VG_FCPC_ctor(alpha,m,Sr,Pcmax)
+    case (2) ! ECPC
+      sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,Pcmax)
+    case (3) ! LNOC - If unspecified, default to 5% effective saturation
+      if (Sj == 0d0) Sj = Sr + 0.05d0*(1d0-Sr)
+      sf_swap => SF_VG_LNOC_ctor(alpha,m,Sr,Sj)
+    case (4) ! LCPC
+      sf_swap => SF_VG_LCPC_ctor(alpha,m,Sr,Pcmax)
+    case default
+    end select
+    if (associated(sf_swap)) then ! Check that the contructor succeeded
+      sf_swap%calc_int_tension = tension
+    end if
+    ! TODO throw an error message if it did not
+  class default
+    ! Traditional assignment of public parameters
+    saturation_function%Sr = Sr
+    saturation_function%pcmax = Pcmax
+    saturation_function%calc_int_tension = tension
+  end select
   
   if (smooth) then
     call saturation_function%SetupPolynomials(option,error_string)
@@ -1033,7 +1101,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   !------------------------------------------
   end select
 
-end subroutine SaturationFunctionRead
+end function SaturationFunctionRead
 
 ! ************************************************************************** !
 
