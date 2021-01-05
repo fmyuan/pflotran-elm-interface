@@ -239,6 +239,7 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_Common_module
+  use Characteristic_Curves_VG_module
   use Material_Aux_class
   use Option_module
   
@@ -264,13 +265,10 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   endif
   if (.not.associated(characteristic_curves)) then
     characteristic_curves => CharacteristicCurvesCreate()
-    sf => SFVGCreate()
+    ! Create default FCPC VG saturation function
+    sf => SF_VG_FCPC_ctor(1d-4,0.5d0,0d0,1d6)
     rpf_liq => RPFMualemVGLiqCreate()
     rpf_gas => RPFMualemVGGasCreate()
-    sf%m = 0.5d0
-    sf%alpha = 1.d-4
-    sf%Sr = 0.d0
-    sf%pcmax = 1.d6
     characteristic_curves%saturation_function => sf
     rpf_liq%m = 0.5d0
     rpf_liq%Sr = 0.d0

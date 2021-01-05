@@ -144,7 +144,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('CONSTANT')
             this%saturation_function => SFConstantCreate()
           case('VAN_GENUCHTEN')
-            this%saturation_function => SFVGCreate()
+            this%saturation_function => SF_VG_Create()
           case('BROOKS_COREY')
             this%saturation_function => SFBCCreate()
           case('LINEAR')
@@ -2732,10 +2732,10 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (sat_func_VG_type)
           write(id,'(a)') 'van Genuchten'
           write(id,'(a29)',advance='no') 'm: '
-          write(word1,*) sf%m
+          write(word1,*) sf%get_m()
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'alpha: '
-          write(word1,*) sf%alpha
+          write(word1,*) sf%get_alpha()
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
         class is (sat_func_BC_type)

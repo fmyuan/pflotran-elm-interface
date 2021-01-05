@@ -1374,7 +1374,7 @@ function SF_XW_VG_Create()
 
   call SFXWBaseInit(SF_XW_VG_Create)
 
-  SF_XW_VG_Create%sat_func_sl => SFVGCreate()
+  SF_XW_VG_Create%sat_func_sl => SF_VG_Create()
 
   call SF_XW_VG_Create%Init()
 
@@ -2132,7 +2132,7 @@ function SF_OG_VG_SL_Create()
 
   call SFOGBaseInit(SF_OG_VG_SL_Create)
 
-  SF_OG_VG_SL_Create%sat_func_sl => SFVGCreate()
+  SF_OG_VG_SL_Create%sat_func_sl => SF_VG_Create()
 
   call SF_OG_VG_SL_Create%Init()
 
