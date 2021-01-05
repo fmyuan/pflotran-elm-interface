@@ -149,6 +149,7 @@ module Patch_module
             PatchGetCompMassInRegion, &
             PatchGetWaterMassInRegion, &
             PatchGetCompMassInRegionAssign, &
+            PatchUpdateCouplerSaturation, &
             PatchSetupUpwindDirection
 
 contains
@@ -1167,7 +1168,6 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -1475,7 +1475,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
   use EOS_Water_module
   use Utility_module
 
@@ -2087,7 +2086,6 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
   use EOS_Water_module
   use Utility_module
 
@@ -3130,6 +3128,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsH
+
 ! ************************************************************************** !
 
 subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
@@ -3146,7 +3145,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
   use Condition_module
   use Hydrostatic_module
   use HydrostaticMultiPhase_module
-  use Saturation_module
 
   !use TOilIms_Aux_module
   use PM_TOilIms_Aux_module
@@ -3354,7 +3352,6 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
   use Option_module
   use Condition_module
   use HydrostaticMultiPhase_module
-  use Saturation_module
   !use EOS_Water_module
 
   use PM_TOWG_Aux_module
@@ -3767,7 +3764,6 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -3847,8 +3843,8 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
 
@@ -3868,7 +3864,6 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use General_Aux_module
@@ -3949,8 +3944,8 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
 
@@ -3970,7 +3965,6 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4050,8 +4044,8 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
 
@@ -4071,7 +4065,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4326,8 +4319,8 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
 
@@ -4347,7 +4340,6 @@ subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4425,7 +4417,6 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4500,8 +4491,8 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
   if (associated(flow_condition%rate)) then
@@ -4628,6 +4619,66 @@ end subroutine PatchUpdateCouplerGridDataset
 
 ! ************************************************************************** !
 
+subroutine PatchUpdateCouplerSaturation(coupler,option,grid,cc_array,cc_id)
+  ! 
+  ! Computes the pressures for a saturation
+  ! initial/boundary condition
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/07/11
+  !
+  ! Author: Heeho Park 
+  ! Modified Date: 10/05/20
+  ! 
+
+  use Option_module
+  use Condition_module
+  use Connection_module
+  
+  implicit none
+
+  type(coupler_type) :: coupler
+  type(option_type) :: option
+  type(grid_type) :: grid
+  type(characteristic_curves_ptr_type), intent(in) :: cc_array(:)
+  class(characteristic_curves_type), pointer :: cc_ptr
+
+  PetscInt :: cc_id(:)
+  PetscInt :: local_id, ghosted_id, iconn
+  PetscReal :: saturation
+  PetscReal :: capillary_pressure
+  PetscReal :: dpc_dsat
+  PetscReal :: liquid_pressure
+  
+  type(flow_condition_type), pointer :: condition
+  
+  type(connection_set_type), pointer :: cur_connection_set
+  
+  condition => coupler%flow_condition
+
+  if (option%iflowmode /= RICHARDS_MODE) then
+    option%io_buffer = 'PatchUpdateCouplerSaturation is not set up for this flow mode.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! in this case, the saturation is stored within concentration dataset
+  saturation = condition%saturation%dataset%rarray(1)
+
+  do iconn = 1, coupler%connection_set%num_connections
+    local_id = coupler%connection_set%id_dn(iconn)
+    ghosted_id = grid%nL2G(local_id)
+    cc_ptr => cc_array(cc_id(ghosted_id))%ptr
+
+    call cc_ptr%saturation_function%CapillaryPressure(saturation,&
+                                           capillary_pressure,dpc_dsat,option)
+    liquid_pressure = option%reference_pressure - capillary_pressure
+    coupler%flow_aux_real_var(1,iconn) = liquid_pressure
+  enddo
+
+end subroutine PatchUpdateCouplerSaturation
+
+! ************************************************************************** !
+
 subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   !
   ! Scales select source/sinks based on perms*volume
@@ -4645,7 +4696,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   use Condition_module
   use Grid_module
   use Material_Aux_class
-  use Variables_module, only : PERMEABILITY_X
+  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
 
@@ -4736,7 +4787,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           neighbor_ghosted_id = ghosted_neighbors(icount)
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
-                                       PERMEABILITY_X) * &
+                                       PERMEABILITY_Y) * &
                 grid%structured_grid%dx(neighbor_ghosted_id)* &
                 grid%structured_grid%dz(neighbor_ghosted_id)
         enddo
@@ -4746,7 +4797,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           neighbor_ghosted_id = ghosted_neighbors(icount)
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
-                                       PERMEABILITY_X) * &
+                                       PERMEABILITY_Z) * &
                 grid%structured_grid%dx(neighbor_ghosted_id)* &
                 grid%structured_grid%dy(neighbor_ghosted_id)
         enddo
@@ -5414,7 +5465,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             call PatchUnsupportedVariable('TH','for gas phase',option)
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
-              if (th_use_freezing) then
+              if (option%th_freezing) then
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas
               else
@@ -5423,7 +5474,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               endif
             enddo
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice
@@ -5433,7 +5484,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                                       &without freezing option TH')
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice*FMWH2O
@@ -7482,7 +7533,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call PatchUnsupportedVariable('TH','GAS_MOLE_FRACTION',option)
           case(GAS_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
             else
               value = 0.d0
@@ -7490,11 +7541,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(CAPILLARY_PRESSURE)
             value = patch%aux%TH%auxvars(ghosted_id)%pc
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%den_ice*FMWH2O
             endif
           case(LIQUID_MOLE_FRACTION)
@@ -8763,7 +8814,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call PrintErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas = &
@@ -8776,7 +8827,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               endif
             endif
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice = &
@@ -8789,7 +8840,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               endif
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice = &

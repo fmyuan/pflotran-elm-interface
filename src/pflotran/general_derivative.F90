@@ -264,9 +264,9 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   endif
   if (.not.associated(characteristic_curves)) then
     characteristic_curves => CharacteristicCurvesCreate()
-    sf => SF_VG_Create()
-    rpf_liq => RPF_Mualem_VG_Liq_Create()
-    rpf_gas => RPF_Mualem_VG_Gas_Create()
+    sf => SFVGCreate()
+    rpf_liq => RPFMualemVGLiqCreate()
+    rpf_gas => RPFMualemVGGasCreate()
     sf%m = 0.5d0
     sf%alpha = 1.d-4
     sf%Sr = 0.d0

@@ -1,4 +1,4 @@
-#Description: 1D Calcite dissolution problem
+#Description: Reaction Sandbox Simple
 
 #==============================================================================
 # DO NOT MODIFY
@@ -6,8 +6,7 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
-      NUMERICAL_JACOBIAN
+      MODE GIRT
     /
   /
 END
@@ -124,9 +123,17 @@ noskip
   /
 END
 
-#=========================== solver options ===================================
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
 END
 
 #=========================== discretization ===================================

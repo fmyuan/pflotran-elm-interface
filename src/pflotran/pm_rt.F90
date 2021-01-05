@@ -1288,12 +1288,15 @@ subroutine PMRTCheckpointBinary(this,viewer)
   use Field_module
   use Discretization_module
   use Grid_module
+  use Patch_module
+  use Secondary_Continuum_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary  
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
-                               REACTION_AUXILIARY
+                               REACTION_AUXILIARY, &
+                               SECONDARY_CONTINUUM_UPDATED_CONC
   
   implicit none
 
@@ -1316,8 +1319,9 @@ subroutine PMRTCheckpointBinary(this,viewer)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
   Vec :: global_vec
-  PetscInt :: i
+  PetscInt :: i, mc_i
 
   class(pm_rt_header_type), pointer :: header
   type(pm_rt_header_type) :: dummy_header
@@ -1330,6 +1334,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
+  patch => realization%patch
   
   global_vec = PETSC_NULL_VEC
 
@@ -1402,6 +1407,49 @@ subroutine PMRTCheckpointBinary(this,viewer)
         call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
       enddo
     endif
+
+    if (option%use_mc) then
+      ! Add multicontinuum variables
+      do mc_i = 1, patch%material_property_array(1)%ptr% &
+                   secondary_continuum_ncells
+        do i = 1, realization%reaction%naqcomp
+          call SecondaryRTGetVariable(realization,global_vec, &
+                                    SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
+          call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+        enddo
+        if (realization%reaction%checkpoint_activity_coefs .and. &
+            realization%reaction%act_coef_update_frequency /= &
+            ACT_COEF_FREQUENCY_OFF) then
+          ! allocated vector
+          do i = 1, realization%reaction%naqcomp
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                       PRIMARY_ACTIVITY_COEF, i, mc_i)
+            call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+          enddo
+          do i = 1, realization%reaction%neqcplx
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                       SECONDARY_ACTIVITY_COEF, i, mc_i)
+            call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+          enddo
+        endif
+        ! mineral volume fractions for kinetic minerals
+        if (realization%reaction%mineral%nkinmnrl > 0) then
+          do i = 1, realization%reaction%mineral%nkinmnrl
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                       MINERAL_VOLUME_FRACTION, i, mc_i)
+            call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+          enddo
+        endif
+        ! auxiliary data for reactions (e.g. cumulative mass)
+        if (realization%reaction%nauxiliary> 0) then
+          do i = 1, realization%reaction%nauxiliary
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                        REACTION_AUXILIARY, i, mc_i)
+            call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+          enddo
+        endif
+      enddo
+    endif
   endif
 
   if (global_vec /= PETSC_NULL_VEC) then
@@ -1425,13 +1473,16 @@ subroutine PMRTRestartBinary(this,viewer)
   use Field_module
   use Discretization_module
   use Grid_module
+  use Patch_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary, &
                                         RTUpdateAuxVars
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
-                               REACTION_AUXILIARY
+                               REACTION_AUXILIARY, &
+                               SECONDARY_CONTINUUM_UPDATED_CONC
+  use Secondary_Continuum_module
   
   implicit none
 
@@ -1454,8 +1505,9 @@ subroutine PMRTRestartBinary(this,viewer)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
   Vec :: global_vec, local_vec
-  PetscInt :: i
+  PetscInt :: i, mc_i
 
   class(pm_rt_header_type), pointer :: header
   type(pm_rt_header_type) :: dummy_header
@@ -1468,6 +1520,7 @@ subroutine PMRTRestartBinary(this,viewer)
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
+  patch => realization%patch
   
   global_vec = PETSC_NULL_VEC
   local_vec = PETSC_NULL_VEC
@@ -1539,7 +1592,49 @@ subroutine PMRTRestartBinary(this,viewer)
                                   REACTION_AUXILIARY,i)
     enddo
   endif
-    
+
+  if (option%use_mc) then
+    do mc_i = 1, patch%material_property_array(1)%ptr% &
+                 secondary_continuum_ncells
+      do i = 1, realization%reaction%naqcomp
+        call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+        call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
+                                  SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
+      enddo
+      if (realization%reaction%checkpoint_activity_coefs .and. &
+          realization%reaction%act_coef_update_frequency /= &
+          ACT_COEF_FREQUENCY_OFF) then
+        ! allocated vector
+        do i = 1, realization%reaction%naqcomp
+          call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+          call SecondaryRTSetVariable(realization,global_vec, GLOBAL, &
+                                     PRIMARY_ACTIVITY_COEF, i, mc_i)
+        enddo
+        do i = 1, realization%reaction%neqcplx
+          call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+          call SecondaryRTSetVariable(realization,global_vec, GLOBAL, &
+                                     SECONDARY_ACTIVITY_COEF, i, mc_i)
+        enddo
+      endif
+      ! mineral volume fractions for kinetic minerals
+      if (realization%reaction%mineral%nkinmnrl > 0) then
+        do i = 1, realization%reaction%mineral%nkinmnrl
+          call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+          call SecondaryRTSetVariable(realization,global_vec, GLOBAL, &
+                                     MINERAL_VOLUME_FRACTION, i, mc_i)
+        enddo
+      endif
+      ! auxiliary data for reactions (e.g. cumulative mass)
+      if (realization%reaction%nauxiliary> 0) then
+        do i = 1, realization%reaction%nauxiliary
+          call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+          call SecondaryRTSetVariable(realization,global_vec, GLOBAL, &
+                                      REACTION_AUXILIARY, i, mc_i)
+        enddo
+      endif
+    enddo
+  endif
+ 
   ! We are finished, so clean up.
   if (global_vec /= PETSC_NULL_VEC) then
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
@@ -1575,15 +1670,18 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   use Field_module
   use Discretization_module
   use Grid_module
+  use Patch_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
-                               REACTION_AUXILIARY
+                               REACTION_AUXILIARY, &
+                               SECONDARY_CONTINUUM_UPDATED_CONC
   use hdf5
   use Checkpoint_module, only: CheckPointWriteIntDatasetHDF5
   use HDF5_module, only : HDF5WriteDataSetFromVec
+  use Secondary_Continuum_module
 
   implicit none
 
@@ -1606,9 +1704,10 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
   Vec :: global_vec
   Vec :: natural_vec
-  PetscInt :: i
+  PetscInt :: i, mc_i
   PetscErrorCode :: ierr
 
   realization => this%realization
@@ -1616,6 +1715,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
+  patch => realization%patch
 
   allocate(start(1))
   allocate(dims(1))
@@ -1733,6 +1833,75 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
            pm_grp_id, H5T_NATIVE_DOUBLE)
       enddo
     endif
+
+    if (option%use_mc) then
+      ! Add multicontinuum variables
+      do mc_i = 1, patch%material_property_array(1)%ptr% &
+                   secondary_continuum_ncells
+        do i = 1, realization%reaction%naqcomp
+          call SecondaryRTGetVariable(realization,global_vec, &
+                                      SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
+          call DiscretizationGlobalToNatural(realization%discretization, &
+                                             global_vec, natural_vec, ONEDOF)
+          write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+          dataset_name = "MC_Primary_Variable_" // trim(dataset_name)
+          call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+            pm_grp_id, H5T_NATIVE_DOUBLE)
+        enddo
+        if (realization%reaction%checkpoint_activity_coefs .and. &
+            realization%reaction%act_coef_update_frequency /= &
+            ACT_COEF_FREQUENCY_OFF) then
+          ! allocated vector
+          do i = 1, realization%reaction%naqcomp
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                        PRIMARY_ACTIVITY_COEF, i, mc_i)
+            call DiscretizationGlobalToNatural(realization%discretization, &
+                                               global_vec, natural_vec, ONEDOF)
+            write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+            dataset_name = 'MC_Aq_comp_' // trim(adjustl(dataset_name))
+            call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+               pm_grp_id, H5T_NATIVE_DOUBLE)
+          enddo
+          do i = 1, realization%reaction%neqcplx
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                       SECONDARY_ACTIVITY_COEF, i, mc_i)
+            call DiscretizationGlobalToNatural(realization%discretization, &
+                                               global_vec, natural_vec, ONEDOF)
+            write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+            dataset_name = 'MC_Eq_cplx_' // trim(adjustl(dataset_name))
+            call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+               pm_grp_id, H5T_NATIVE_DOUBLE)
+          enddo
+        endif
+        ! mineral volume fractions for kinetic minerals
+        if (realization%reaction%mineral%nkinmnrl > 0) then
+          do i = 1, realization%reaction%mineral%nkinmnrl
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                       MINERAL_VOLUME_FRACTION, i, mc_i)
+            call DiscretizationGlobalToNatural(realization%discretization, &
+                                               global_vec, natural_vec, ONEDOF)
+            write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+            dataset_name = 'MC_Kinetic_mineral_' // trim(adjustl(dataset_name))
+            call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+               pm_grp_id, H5T_NATIVE_DOUBLE)
+          enddo
+        endif
+        ! auxiliary data for reactions (e.g. cumulative mass)
+        if (realization%reaction%nauxiliary> 0) then
+          do i = 1, realization%reaction%nauxiliary
+            call SecondaryRTGetVariable(realization,global_vec, &
+                                        REACTION_AUXILIARY, i, mc_i)
+            call DiscretizationGlobalToNatural(realization%discretization, &
+                                               global_vec, natural_vec, ONEDOF)
+            write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+            dataset_name = 'MC_Reaction_auxiliary_' // trim(adjustl(dataset_name))
+            call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+               pm_grp_id, H5T_NATIVE_DOUBLE)
+          enddo
+        endif
+      enddo
+    endif
+
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
@@ -1756,16 +1925,19 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   use Field_module
   use Discretization_module
   use Grid_module
+  use Patch_module
   use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5, &
                                         RTUpdateAuxVars
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
                                MINERAL_VOLUME_FRACTION, &
-                               REACTION_AUXILIARY
+                               REACTION_AUXILIARY, &
+                               SECONDARY_CONTINUUM_UPDATED_CONC
   use hdf5
   use Checkpoint_module, only: CheckPointReadIntDatasetHDF5
   use HDF5_module, only : HDF5ReadDataSetInVec
+  use Secondary_Continuum_module
 
   implicit none
 
@@ -1788,10 +1960,11 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
   Vec :: local_vec
   Vec :: global_vec
   Vec :: natural_vec
-  PetscInt :: i
+  PetscInt :: i, mc_i
   PetscInt :: checkpoint_activity_coefs
   PetscErrorCode :: ierr
 
@@ -1800,6 +1973,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   field => realization%field
   discretization => realization%discretization
   grid => realization%patch%grid
+  patch => realization%patch
 
   allocate(start(1))
   allocate(dims(1))
@@ -1920,6 +2094,72 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
                                          local_vec, ONEDOF)
         call RealizationSetVariable(realization,local_vec,LOCAL, &
                                     REACTION_AUXILIARY,i)
+      enddo
+    endif
+
+    if (option%use_mc) then
+      ! Add multicontinuum variables
+      do mc_i = 1, patch%material_property_array(1)%ptr% &
+                   secondary_continuum_ncells
+        do i = 1, realization%reaction%naqcomp
+          write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+          dataset_name = "MC_Primary_Variable_" // trim(dataset_name)
+          call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+            pm_grp_id, H5T_NATIVE_DOUBLE)
+          call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                             global_vec, ONEDOF)
+          call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
+                                    SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
+        enddo
+        if (checkpoint_activity_coefs == ONE_INTEGER) then
+          ! allocated vector
+          do i = 1, realization%reaction%naqcomp
+            write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+            dataset_name = 'MC_Aq_comp_' // trim(adjustl(dataset_name))
+            call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+              pm_grp_id, H5T_NATIVE_DOUBLE)
+            call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                               global_vec, ONEDOF)
+            call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
+                                      PRIMARY_ACTIVITY_COEF, i, mc_i)
+          enddo
+          do i = 1, realization%reaction%neqcplx
+            write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+            dataset_name = 'MC_Eq_cplx_' // trim(adjustl(dataset_name))
+            call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+              pm_grp_id, H5T_NATIVE_DOUBLE)
+            call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                               global_vec, ONEDOF)
+            call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
+                                       SECONDARY_ACTIVITY_COEF, i, mc_i)
+          enddo
+        endif
+        ! mineral volume fractions for kinetic minerals
+        if (realization%reaction%mineral%nkinmnrl > 0) then
+          do i = 1, realization%reaction%mineral%nkinmnrl
+            write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+            dataset_name = 'MC_Kinetic_mineral_' // trim(adjustl(dataset_name))
+            call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+              pm_grp_id, H5T_NATIVE_DOUBLE)
+            call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                               global_vec, ONEDOF)
+            call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
+                                       MINERAL_VOLUME_FRACTION, i, mc_i)
+          enddo
+        endif
+        ! auxiliary data for reactions (e.g. cumulative mass)
+        if (realization%reaction%nauxiliary> 0) then
+          do i = 1, realization%reaction%nauxiliary
+            write(dataset_name,"(i0,a,i0)") i, "_", mc_i
+            dataset_name = 'MC_Reaction_auxiliary_' // trim(adjustl(dataset_name))
+            call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+              pm_grp_id, H5T_NATIVE_DOUBLE)
+            call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                               global_vec, ONEDOF)
+            call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
+                                        REACTION_AUXILIARY, i, mc_i)
+          enddo
+        endif
       enddo
     endif
 

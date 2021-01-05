@@ -2728,11 +2728,6 @@ end subroutine PMWFSetup
   PetscErrorCode :: ierr
 ! -------------------------------------------------------
   
-  if (this%option%restart_flag .and. .not.this%skip_restart) then
-      ! need to verify whether this is needed anymore
-      call PMWFSetup(this)
-  endif
-  
   if (this%print_mass_balance) then
     call PMWFOutputHeader(this)
     call PMWFOutput(this)
