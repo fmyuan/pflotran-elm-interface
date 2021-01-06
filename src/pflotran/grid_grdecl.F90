@@ -1414,7 +1414,7 @@ subroutine BoxOp( zto, zfr, ixl, ixu, &
             if (isreal) then
               if (isadd) ar(ig) = ar(ig) + v
               if (iscpy) then
-                if (isintb ) br(ig) = real(ai(ig))
+                if (isintb ) br(ig) = dble(ai(ig))
                 if (isrealb) br(ig) =      ar(ig)
               endif
               if (iseql) ar(ig) = v
@@ -2348,8 +2348,8 @@ subroutine DistributeConnections(explicit_grid, option)
         int_mpi = ncrank*6
         do icl = 1, ncrank
           ic = icl + icbase
-          temp_real_array(1, icl) = real(g_cia  (ic))
-          temp_real_array(2, icl) = real(g_cja  (ic))
+          temp_real_array(1, icl) = dble(g_cia  (ic))
+          temp_real_array(2, icl) = dble(g_cja  (ic))
           temp_real_array(3, icl) =      g_ccx  (ic)
           temp_real_array(4, icl) =      g_ccy  (ic)
           temp_real_array(5, icl) =      g_ccz  (ic)
@@ -4634,7 +4634,7 @@ function findVolume1(id0, id1, id2, c)
           do je = 0, 1
             do jf = 0, 1
 
-              den = real( (jc + je + 1) * (ja + jf + 1) * (jb + jd + 1) )
+              den = dble( (jc + je + 1) * (ja + jf + 1) * (jb + jd + 1) )
               findVolume1 = findVolume1             &
                            + c(1 , ja, jb, id0)     &
                            * c(jc, 1 , jd, id1)     &
