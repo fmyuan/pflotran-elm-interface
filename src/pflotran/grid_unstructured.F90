@@ -2273,6 +2273,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
             v2(1) = point3%x-point4%x
             v2(2) = point3%y-point4%y
             v2(3) = point3%z-point4%z
+            vcross = CrossProduct(v1,v2)
             magnitude = sqrt(DotProduct(vcross,vcross))
             n2 = vcross/magnitude
             area2 = 0.5d0*magnitude
