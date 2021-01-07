@@ -626,19 +626,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
 
-      !Taken from (Liu, 2014)
-      if (general_non_darcy_flow) then
-        grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist_up+dist_dn))
-        I = 4.d-12*(perm_ave_over_dist(iphase)*kr)**(non_darcy_B)
-        K = perm_ave_over_dist(iphase)*mobility*density_kg_ave*EARTH_GRAVITY
-        ! expm1() to avoid cancelation
-        ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
-        v_darcy(iphase) = K*(grad + I*expm1(-grad/I))
-        if (delta_pressure<0) then
-          v_darcy(iphase) = -1.d0*v_darcy(iphase)
-        endif
-      endif
-
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
                                           global_auxvar_dn%istate, &
@@ -654,10 +641,11 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
                                        mobility * area * density_ave
 
+      !Taken from (Liu, 2014)
       if (general_non_darcy_flow) then
-         tot_mole_flux_ddel_pressure = area*density_ave* &
-           (K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn)))* &
-           (-expm1(-grad/I))
+        call GeneralNonDarcyCorrection(delta_pressure,density_kg_ave, &
+          dist_up,dist_dn,perm_ave_over_dist(iphase),kr,mobility,density_ave, &
+          area,v_darcy(iphase),tot_mole_flux_ddel_pressure,q,tot_mole_flux)
       endif
       
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
@@ -1097,19 +1085,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
-
-      !Taken from (Liu, 2014)
-      if (general_non_darcy_flow) then
-        grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist_dn+dist_up))
-        I = 4.d-12*(perm_ave_over_dist(iphase)*kr)**(non_darcy_B)
-        K = perm_ave_over_dist(iphase)*mobility*density_kg_ave*EARTH_GRAVITY
-        ! expm1() to avoid cancelation
-        ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
-        v_darcy(iphase) = K*(grad + I*expm1(-grad/I))
-        if (delta_pressure<0) then
-          v_darcy(iphase) = -1.d0*v_darcy(iphase)
-        endif
-      endif
       
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
@@ -1126,10 +1101,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
                                       mobility * area * density_ave
 
+      !Taken from (Liu, 2014)
       if (general_non_darcy_flow) then
-        tot_mole_flux_ddel_pressure = area*density_ave* &
-           (K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn)))* &
-           (-expm1(-grad/I))
+        call GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,dist_up, &
+             dist_dn,perm_ave_over_dist(iphase),kr,mobility, &
+             density_ave,area,v_darcy(iphase),tot_mole_flux_ddel_pressure, &
+             q,tot_mole_flux)
       endif
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
@@ -2748,21 +2725,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
         v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
-
-!        print *, 'old darcy', v_darcy(iphase)
-
-        !Taken from (Liu, 2014)
-        if (general_non_darcy_flow) then
-          grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(0)))
-          I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
-          K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
-          ! expm1() to avoid cancelation
-          ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-(grad)/I)))
-          v_darcy(iphase) = K*(grad + I*expm1(-grad/I))
-          if (delta_pressure<0) then
-            v_darcy(iphase)=-1.d0*v_darcy(iphase)
-          endif
-        endif
       
         ! only need average density if velocity > 0.
         density_ave = GeneralAverageDensity(iphase, &
@@ -2774,14 +2736,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                             ddensity_ave_dden_dn)    
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+
+        !Taken from (Liu, 2014)
         if (general_non_darcy_flow) then
-          dv_darcy_ddelta_pressure = K/(density_kg_ave*EARTH_GRAVITY* &
-             dist(0))*(-expm1(-grad/I))
-          ! expm1() to avoid cancelation
-          ! dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
-          !  EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
-          dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
-             EARTH_GRAVITY*(grad + I*expm1(-grad/I))
+          call GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
+               dist(0),perm_ave_over_dist,kr,mobility,v_darcy(iphase), &
+               dv_darcy_ddelta_pressure,dv_darcy_dmobility)
         endif
       endif
     case(NEUMANN_BC)
@@ -3118,19 +3078,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
         v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
 
-        !Taken from (Liu, 2014)
-        if (general_non_darcy_flow) then
-          grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(0)))
-          I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
-          K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
-          ! expm1() to avoid cancelation
-          ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
-          v_darcy(iphase) = K*(grad + I*expm1(-grad/I))
-          if (delta_pressure<0) then
-            v_darcy(iphase) = -1.d0*v_darcy(iphase)
-          endif
-        endif
-      
         ! only need average density if velocity > 0.
         density_ave = GeneralAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
@@ -3141,14 +3088,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                             ddensity_ave_dden_dn)    
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+
+        !Taken from (Liu, 2014)
         if (general_non_darcy_flow) then
-          dv_darcy_ddelta_pressure = K/(density_kg_ave* &
-            EARTH_GRAVITY*(dist(0)))*(-expm1(-grad/I))
-          ! expm1() to avoid cancelation
-          ! dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
-          !  EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
-          dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
-            EARTH_GRAVITY*(grad + I*expm1(-grad/I))
+          call GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
+               dist(0),perm_ave_over_dist,kr,mobility,v_darcy(iphase), &
+               dv_darcy_ddelta_pressure,dv_darcy_dmobility)
         endif
       endif
     case(NEUMANN_BC)
@@ -5436,5 +5381,84 @@ subroutine GeneralDiffJacobian(string,numerical_jacobian,analytical_jacobian, &
 #endif  
   
 end subroutine GeneralDiffJacobian
+
+! ************************************************************************** !
+
+subroutine GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,dist_up, &
+                                     dist_dn,perm_ave_over_dist,kr,mobility, &
+                                     density_ave,area,v_darcy, &
+                                     tot_mole_flux_ddel_pressure,q,tot_mole_flux)
+
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: delta_pressure, density_kg_ave, density_ave
+  PetscReal :: mobility, kr, perm_ave_over_dist, area
+  PetscReal :: dist_up, dist_dn
+  
+  PetscReal :: v_darcy,tot_mole_flux_ddel_pressure,q,tot_mole_flux
+
+  PetscReal :: K, I, grad
+
+  grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist_up+dist_dn))
+  I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
+  K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
+  ! expm1() to avoid cancelation
+  ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
+  v_darcy = K*(grad + I*expm1(-grad/I))
+  if (delta_pressure<0) then
+    v_darcy = -1.d0*v_darcy
+  endif
+
+  ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+  q = v_darcy * area  
+  ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
+  !                             density_ave[kmol phase/m^3 phase]        
+  tot_mole_flux = q*density_ave
+        
+  tot_mole_flux_ddel_pressure = area*density_ave* &
+    (K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn)))* &
+    (-expm1(-grad/I))
+
+end subroutine GeneralNonDarcyCorrection
+
+! ************************************************************************** !
+
+subroutine GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave,dist, &
+                                       perm_ave_over_dist,kr,mobility,v_darcy, &
+                                       dv_darcy_ddelta_pressure,dv_darcy_dmobility)
+
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: delta_pressure, density_kg_ave
+  PetscReal :: mobility, kr, perm_ave_over_dist
+  PetscReal :: dist
+  
+  PetscReal :: v_darcy,dv_darcy_ddelta_pressure,dv_darcy_dmobility
+
+  PetscReal :: K, I, grad
+  
+  grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist))
+  I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
+  K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
+  ! expm1() to avoid cancelation
+  ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-(grad)/I)))
+  v_darcy = K*(grad + I*expm1(-grad/I))
+  if (delta_pressure<0) then
+    v_darcy =-1.d0*v_darcy
+  endif
+
+  dv_darcy_ddelta_pressure = K/(density_kg_ave*EARTH_GRAVITY* &
+    dist)*(-expm1(-grad/I))
+  ! expm1() to avoid cancelation
+  ! dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
+  !  EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
+  dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
+    EARTH_GRAVITY*(grad + I*expm1(-grad/I))
+
+end subroutine GeneralNonDarcyCorrectionBC
 
 end module General_Common_module
