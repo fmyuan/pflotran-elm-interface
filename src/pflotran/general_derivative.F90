@@ -266,7 +266,7 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   if (.not.associated(characteristic_curves)) then
     characteristic_curves => CharacteristicCurvesCreate()
     ! Create default FCPC VG saturation function
-    sf => SF_VG_FCPC_ctor(1d-4,0.5d0,0d0,1d6)
+    sf => SF_VG_FCPC_ctor(1d-4,0.5d0,0d0,1,1d6)
     rpf_liq => RPFMualemVGLiqCreate()
     rpf_gas => RPFMualemVGGasCreate()
     characteristic_curves%saturation_function => sf

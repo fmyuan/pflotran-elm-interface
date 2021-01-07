@@ -5,6 +5,7 @@ module Characteristic_Curves_WIPP_module
   use PFLOTRAN_Constants_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
+  use Characteristic_Curves_VG_module
 
   implicit none
 
@@ -4015,7 +4016,7 @@ subroutine RPFTOUGH2IRP7GasRelPerm(this,liquid_saturation, &
   
                  ! essentially zero
   if (this%Srg <= 0.d0) then
-    call RPFMualemVGLiqRelPerm(this,liquid_saturation, &
+    call RPFMualemVGLiqRelPerm(this, liquid_saturation, &
                                liquid_relative_permeability, &
                                liquid_dkr_sat,option)
     relative_permeability = 1.d0 - liquid_relative_permeability 

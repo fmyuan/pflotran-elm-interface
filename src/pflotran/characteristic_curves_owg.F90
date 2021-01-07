@@ -469,14 +469,23 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
   PetscBool :: found
   PetscBool :: smooth
 
-  ! Lexicon for VG saturation function parameters
-  PetscReal :: alpha = 0d0
-  PetscReal :: m = 0d0
-  PetscReal :: Pcmax = 1d9
-  PetscReal :: Sr = 0d0
-  PetscInt  :: extension = 1
+  ! Lexicon for compiled parameters
+  PetscBool :: tension
+  PetscReal :: alpha, m, Pcmax, Sj, Sr
+  PetscInt  ::  vg_rpf_opt, vg_unsat_ext
 
-  sf_swap => sat_func_owg%sat_func_sl
+  nullify(sf_swap)
+
+  ! Default values for VG saturation function paramenters
+  tension = .FALSE.
+  vg_unsat_ext  = 1 ! Maximum capillary pressure at Pcmax
+  vg_rpf_opt = 1 ! Default to Mualem-van Genuchten relation m=1-1/n
+  alpha = 0d0
+  m = 0d0
+  Pcmax = 1d9 ! Default value in MPa
+  Sj = 0d0
+  Sr = 0d0
+
 
   input%ierr = 0
   smooth = PETSC_FALSE
@@ -511,9 +520,12 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
         end if
       case('SMOOTH')
         smooth = PETSC_TRUE
-      case('EXTENSION')
-        call InputReadInt(input,option,extension)
-        call InputErrorMsg(input,option,'EXTENSION', error_string)
+      case('UNSATURATED_EXTENSION')
+        call InputReadInt(input,option,vg_unsat_ext)
+        call InputErrorMsg(input,option,'unsaturated extension', error_string)
+      case('RPF_OPTION')
+        call InputReadInt(input,option,vg_rpf_opt)
+        call InputErrorMsg(input,option,'relative permeability function option',error_string)
       case('TABLE_NAME')
         !read table name
       case default
@@ -639,15 +651,34 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
 
   ! Call constructors for SF_VG type
   select type(sf_sl => sat_func_owg%sat_func_sl)
-  class is(sat_func_VG_type)
-    select case(extension)
-    case (0)
-      sf_swap => SF_VG_NEVG_ctor(alpha,m,Sr)
-    case (1)
-      sf_swap => SF_VG_FCPC_ctor(alpha,m,Sr,Pcmax)
-    case (2)
-      sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,Pcmax)
+  class is (sat_func_VG_type)
+    if (Sj == 0d0) Sj = Sr + 0.05d0*(1d0-Sr) ! Default junction if not specified
+    select case (vg_unsat_ext)
+    case (0) ! No extension van Genuchten
+      sf_swap => SF_VG_NEVG_ctor(alpha,m,Sr,vg_rpf_opt)
+    case (1) ! Flat with cap
+      sf_swap => SF_VG_FCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    case (2) ! Flat without cap
+      sf_swap => SF_VG_FNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
+    case (3) ! Exponential with cap
+      sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    case (4) ! Exponential without cap
+      sf_swap => SF_VG_ENOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
+    case (5) ! Linear with cap
+      sf_swap => SF_VG_LCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    case (6) ! Linear without cap
+      sf_swap => SF_VG_LNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
+    case default
     end select
+    if (associated(sf_swap)) then ! Check that the contructor succeeded
+      sf_swap%calc_int_tension = tension
+    end if
+    ! TODO throw an error message if it did not
+  class default
+    ! Traditional assignment of public parameters
+    sf_sl%Sr = Sr
+    sf_sl%pcmax = Pcmax
+    sf_sl%calc_int_tension = tension
   end select
 
   ! Check for null pointers as the constructor failed 

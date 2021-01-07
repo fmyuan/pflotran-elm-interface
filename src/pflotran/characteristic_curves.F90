@@ -624,31 +624,28 @@ function SaturationFunctionRead(saturation_function,input,option) &
   character(len=MAXWORDLENGTH) :: keyword, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
   PetscBool :: found
-
-  ! Lexicon is small and finite within SaturationFunctionRead 
-  ! Could be replaced with dynamic structure, but not of critical importance
   PetscBool :: smooth
-  PetscReal :: Sr
-  PetscReal :: Sj
-  PetscReal :: Pcmax
-  PetscReal :: alpha
-  PetscReal :: m
-  PetscReal :: lambda
+
+  ! Lexicon for compiled parameters
+  ! Could be replaced with dynamic structure, but not of critical importance
   PetscBool :: tension
-  PetscInt  :: extension
+  PetscInt  :: vg_rpf_opt, vg_unsat_ext
+  PetscReal :: alpha, m, Pcmax, Sj, Sr
+
   nullify(sf_swap)
 
-  input%ierr = 0
-  ! Provide default values for unspecified parameters         
-  smooth = PETSC_FALSE
-  Sr = 0d0
-  Sj = 0d0
-  Pcmax = 1d9
+  ! Provide default values for unspecified parameters
+  tension = .FALSE.
+  vg_rpf_opt = 1 ! Default to Mualem-van Genuchten relation m=1-1/n
+  vg_unsat_ext  = 1 ! Maximum capillary pressure at Pcmax
   alpha = 0d0
   m = 0d0
-  tension = .FALSE.
-  extension = 1
+  Pcmax = 1d9   ! Default value in MPa
+  Sj = 0d0
+  Sr = 0d0
 
+  input%ierr = 0
+  smooth = PETSC_FALSE
   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION,'
   select type(sf => saturation_function)
     class is(sat_func_constant_type)
@@ -744,9 +741,12 @@ function SaturationFunctionRead(saturation_function,input,option) &
           case('ALPHA') 
             call InputReadDouble(input,option,alpha)
             call InputErrorMsg(input,option,'alpha',error_string)
-          case('EXTENSION')
-            call InputReadInt(input,option,extension)
-            call InputErrorMsg(input,option,'extension',error_string)
+          case('UNSATURATED_EXTENSION')
+            call InputReadInt(input,option,vg_unsat_ext)
+            call InputErrorMsg(input,option,'unsaturated extension',error_string)
+          case('RPF_OPTION')
+            call InputReadInt(input,option,vg_rpf_opt)
+            call InputErrorMsg(input,option,'relative permeability function option',error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'van Genuchten saturation function',option)
@@ -1044,18 +1044,22 @@ function SaturationFunctionRead(saturation_function,input,option) &
   ! variables to public attributes.
   select type (sf => saturation_function)
   class is (sat_func_VG_type)
-    select case (extension)
-    case (0) ! NEVG
-      sf_swap => SF_VG_NEVG_ctor(alpha,m,Sr)
-    case (1) ! FCPC
-      sf_swap => SF_VG_FCPC_ctor(alpha,m,Sr,Pcmax)
-    case (2) ! ECPC
-      sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,Pcmax)
-    case (3) ! LNOC - If unspecified, default to 5% effective saturation
-      if (Sj == 0d0) Sj = Sr + 0.05d0*(1d0-Sr)
-      sf_swap => SF_VG_LNOC_ctor(alpha,m,Sr,Sj)
-    case (4) ! LCPC
-      sf_swap => SF_VG_LCPC_ctor(alpha,m,Sr,Pcmax)
+    if (Sj == 0d0) Sj = Sr + 0.05d0*(1d0-Sr) ! Default junction if not specified
+    select case (vg_unsat_ext)
+    case (0) ! No extension van Genuchten
+      sf_swap => SF_VG_NEVG_ctor(alpha,m,Sr,vg_rpf_opt)
+    case (1) ! Flat with cap
+      sf_swap => SF_VG_FCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    case (2) ! Flat without cap
+      sf_swap => SF_VG_FNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
+    case (3) ! Exponential with cap
+      sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    case (4) ! Exponential without cap
+      sf_swap => SF_VG_ENOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
+    case (5) ! Linear with cap
+      sf_swap => SF_VG_LCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    case (6) ! Linear without cap
+      sf_swap => SF_VG_LNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
     case default
     end select
     if (associated(sf_swap)) then ! Check that the contructor succeeded

@@ -39,7 +39,9 @@ characteristic_curves_thermal.o : input_aux.o option.o pflotran_constants.o \
 characteristic_curves_VG.o : characteristic_curves_base.o \
                              option.o pflotran_constants.o 
 characteristic_curves_wipp.o : characteristic_curves_base.o \
-                               characteristic_curves_common.o option.o \
+                               characteristic_curves_common.o \
+                               characteristic_curves_VG.o \
+                               option.o \
                                pflotran_constants.o
 checkpoint.o : discretization.o field.o global.o grid.o hdf5.o hdf5_aux.o \
                input_aux.o material.o material_aux.o option.o output_aux.o \
