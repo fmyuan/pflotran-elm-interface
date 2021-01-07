@@ -73,9 +73,6 @@ mode_aux_obj = \
 	${common_src}pm_osrt.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
-	${common_src}pm_surface_flow.o \
-	${common_src}pm_surface_th.o \
-	${common_src}pm_surface.o \
 	${common_src}pm_th.o \
 	${common_src}pm_th_ts.o \
 	${common_src}pm_ufd_decay.o \
@@ -215,7 +212,6 @@ io_obj = \
 	${common_src}output_ekg.o \
 	${common_src}output_hdf5.o \
 	${common_src}output_observation.o \
-	${common_src}output_surface.o \
 	${common_src}output_tecplot.o \
 	${common_src}output_vtk.o
 
@@ -276,25 +272,6 @@ well_obj = \
 	${common_src}well_data.o \
 	${common_src}well_type.o \
 	${common_src}well_solver.o
-
-surface_obj = \
-	${common_src}checkpoint_surface.o \
-	${common_src}factory_surface.o \
-	${common_src}factory_surfsubsurface.o \
-	${common_src}init_surface.o \
-	${common_src}pmc_surface.o \
-	${common_src}simulation_surface.o \
-	${common_src}simulation_surfsubsurface.o \
-	${common_src}surface_auxiliary.o \
-	${common_src}surface_field.o \
-	${common_src}surface_flow.o \
-	${common_src}surface_global_aux.o \
-	${common_src}surface_global.o \
-	${common_src}surface_material.o \
-	${common_src}realization_surface.o \
-	${common_src}surface_th_aux.o \
-	${common_src}surface_th.o \
-	${common_src}timestepper_surface.o
 
 geomech_obj = \
 	${common_src}factory_geomechanics.o \
