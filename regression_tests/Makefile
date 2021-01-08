@@ -79,7 +79,6 @@ STANDARD_CFG = \
 	default/condition/dataset/dataset.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/scco2/mphase/mphase.cfg \
-	default/scco2/flash2/flash2.cfg \
 	default/regions/regions.cfg \
 	default/regions/cell_mapping/cell_mapping.cfg \
 	default/salinity/salinity.cfg \
@@ -160,7 +159,6 @@ FLOW_CFG = \
 	default/infiltration1d/infiltration1d.cfg \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
-	default/scco2/flash2/flash2.cfg \
 	general/general.cfg \
 	toil_ims/toil_ims.cfg \
 	towg/ims/towg_ims.cfg \
@@ -190,7 +188,6 @@ CHECK_CFG = \
 
 NOHDF5_CFG = \
 	default/column/column.cfg \
-	default/scco2/flash2/flash2.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
 	wipp/nuts/nuts.cfg \

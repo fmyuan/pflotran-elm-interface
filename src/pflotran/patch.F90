@@ -904,7 +904,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
-              case(MPH_MODE, IMS_MODE, FLASH2_MODE, MIS_MODE)
+              case(MPH_MODE)
                 allocate(coupler%flow_aux_real_var(option%nflowdof, &
                                                    num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
@@ -992,7 +992,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                   case(TH_MODE,TH_TS_MODE)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
-                  case(MPH_MODE,FLASH2_MODE,MIS_MODE,IMS_MODE)
+                  case(MPH_MODE)
                     ! do nothing
                   case default
                     string = GetSubConditionName(coupler%flow_condition%rate%itype)
@@ -1158,14 +1158,8 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
             call PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
           case(MPH_MODE)
             call PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
-          case(IMS_MODE)
-            call PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
-          case(FLASH2_MODE)
-            call PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
           case(TH_MODE,TH_TS_MODE)
             call PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
-          case(MIS_MODE)
-            call PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
           case(RICHARDS_MODE, RICHARDS_TS_MODE)
             call PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
           case(TOIL_IMS_MODE)
@@ -3805,207 +3799,6 @@ end subroutine PatchUpdateCouplerAuxVarsMPH
 
 ! ************************************************************************** !
 
-subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
-  !
-  ! Updates flow auxiliary variables associated
-  ! with a coupler for IMS_MODE
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/26/07
-  !
-
-  use Option_module
-  use Condition_module
-  use Hydrostatic_module
-
-
-  use General_Aux_module
-  use Grid_module
-  use Dataset_Common_HDF5_class
-  use Dataset_Gridded_HDF5_class
-
-  implicit none
-
-  type(patch_type) :: patch
-  type(coupler_type), pointer :: coupler
-  type(option_type) :: option
-
-  type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(flow_general_condition_type), pointer :: general
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
-
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
-
-  num_connections = coupler%connection_set%num_connections
-
-  flow_condition => coupler%flow_condition
-
-  if (associated(flow_condition%pressure)) then
-    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-                flow_condition%iphase
-    select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MPH_PRESSURE_DOF,1:num_connections) = &
-                flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
- !  case(SATURATION_BC)
-    end select
-    select case(flow_condition%temperature%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-           (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
-           flow_condition%temperature%itype /= DIRICHLET_BC)) then
-          coupler%flow_aux_real_var(MPH_TEMPERATURE_DOF,1:num_connections) = &
-                  flow_condition%temperature%dataset%rarray(1)
-        endif
-    end select
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
-        if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-           (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
-           flow_condition%concentration%itype /= DIRICHLET_BC)) then
-          coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,1:num_connections) = &
-                  flow_condition%concentration%dataset%rarray(1)
-        endif
-    end select
-  else
-    select case(flow_condition%temperature%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MPH_TEMPERATURE_DOF,1:num_connections) = &
-                  flow_condition%temperature%dataset%rarray(1)
-    end select
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
-         coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,1:num_connections) = &
-                  flow_condition%concentration%dataset%rarray(1)
-    end select
-  endif
-  if (associated(flow_condition%rate)) then
-    select case(flow_condition%rate%itype)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
-                                  option)
-    end select
-  endif
-  if (associated(flow_condition%saturation)) then
-    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
-                                 patch%characteristic_curves_array, &
-                                 patch%cc_id)
-  endif
-
-end subroutine PatchUpdateCouplerAuxVarsIMS
-
-! ************************************************************************** !
-
-subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
-  !
-  ! Updates flow auxiliary variables associated
-  ! with a coupler for FLASH2_MODE
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/26/07
-  !
-
-  use Option_module
-  use Condition_module
-  use Hydrostatic_module
-
-
-  use Grid_module
-  use Dataset_Common_HDF5_class
-  use Dataset_Gridded_HDF5_class
-
-  implicit none
-
-  type(patch_type) :: patch
-  type(coupler_type), pointer :: coupler
-  type(option_type) :: option
-
-  type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(flow_general_condition_type), pointer :: general
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
-
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
-
-  num_connections = coupler%connection_set%num_connections
-
-  flow_condition => coupler%flow_condition
-
-  if (associated(flow_condition%pressure)) then
-    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-                flow_condition%iphase
-    select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MPH_PRESSURE_DOF,1:num_connections) = &
-                flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
- !  case(SATURATION_BC)
-    end select
-    select case(flow_condition%temperature%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-           (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
-           flow_condition%temperature%itype /= DIRICHLET_BC)) then
-          coupler%flow_aux_real_var(MPH_TEMPERATURE_DOF,1:num_connections) = &
-                  flow_condition%temperature%dataset%rarray(1)
-        endif
-    end select
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
-        if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-           (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
-           flow_condition%concentration%itype /= DIRICHLET_BC)) then
-          coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,1:num_connections) = &
-                  flow_condition%concentration%dataset%rarray(1)
-        endif
-    end select
-  else
-    select case(flow_condition%temperature%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MPH_TEMPERATURE_DOF,1:num_connections) = &
-                  flow_condition%temperature%dataset%rarray(1)
-    end select
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
-         coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,1:num_connections) = &
-                  flow_condition%concentration%dataset%rarray(1)
-    end select
-  endif
-  if (associated(flow_condition%rate)) then
-    select case(flow_condition%rate%itype)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
-                                  option)
-    end select
-  endif
-  if (associated(flow_condition%saturation)) then
-    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
-                                 patch%characteristic_curves_array, &
-                                 patch%cc_id)
-  endif
-
-end subroutine PatchUpdateCouplerAuxVarsFLASH2
-
-! ************************************************************************** !
-
 subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   !
   ! Updates flow auxiliary variables associated
@@ -4779,7 +4572,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
            TOIL_IMS_MODE,WF_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
-      case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
+      case(MPH_MODE)
         option%io_buffer = 'PatchScaleSourceSink not set up for flow mode'
         call PrintErrMsg(option)
     end select
@@ -5214,8 +5007,8 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
       end select
       ! update CO2 mole fraction for CO2 modes
       select case(option%iflowmode)
-      ! TODO(jenn) Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.
-        case(MPH_MODE,FLASH2_MODE)
+      ! TODO(jenn) Add error message saying you can't use NW Transport with MPH_MODE, etc. Here is not the best place, do it some where sooner in the set up.
+        case(MPH_MODE)
           if ( (cur_coupler%flow_condition%iphase == 1) .and. &
                (associated(reaction)) ) then
             dum1 = RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
@@ -5320,8 +5113,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Option_module
   use Field_module
 
-  use Immis_Aux_module
-  use Miscible_Aux_module
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
@@ -5532,110 +5323,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
         end select
-      else if (associated(patch%aux%Flash2)) then
-
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-            enddo
-          case(TEMPERATURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%temp
-            enddo
-          case(LIQUID_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
-            enddo
-          case(LIQUID_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(1)
-            enddo
-          case(LIQUID_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
-            enddo
-          case(GAS_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(2)
-            enddo
-          case(GAS_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(2)
-            enddo
-          case(GAS_MOLE_FRACTION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Flash2%auxvars(grid%nL2G(local_id))%&
-                    auxvar_elem(0)%xmol(2+isubvar)
-            enddo
-          case(GAS_ENERGY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(2)
-            enddo
-          case(GAS_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(2)
-            enddo
-          case(GAS_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(2)
-            enddo
-          case(GAS_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%den_kg(2)
-            enddo
-          case(GAS_DENSITY_MOL)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%den(2)
-            enddo
-          case(SC_FUGA_COEFF)
-            if (.not.associated(patch%aux%Global% &
-                auxvars(1)%fugacoeff) .and. &
-                OptionPrintToScreen(option))then
-               print *,'ERROR: fugacoeff not allocated for ', &
-                     option%iflowmode, 1
-            endif
-            do local_id=1,grid%nlmax
-             vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%fugacoeff(1)
-            enddo
-          case(LIQUID_MOLE_FRACTION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%xmol(isubvar)
-            enddo
-          case(LIQUID_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(1)
-            enddo
-          case(LIQUID_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(1)
-            enddo
-          case(LIQUID_ENERGY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(1)
-            enddo
-          case default
-            call PatchUnsupportedVariable('FLASH2',ivar,option)
-        end select
 
       else if (associated(patch%aux%Mphase)) then
 
@@ -5749,118 +5436,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             enddo
           case default
             call PatchUnsupportedVariable('MPHASE',ivar,option)
-        end select
-
-      else if (associated(patch%aux%Miscible)) then
-
-        select case(ivar)
-
-          case(MAXIMUM_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-            enddo
-          case(LIQUID_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
-            enddo
-          case(LIQUID_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
-            enddo
-          case(LIQUID_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Miscible% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(1)
-            enddo
-          case(LIQUID_MOLE_FRACTION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Miscible% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%xmol(isubvar)
-            enddo
-          case default
-            call PatchUnsupportedVariable('MISCIBLE',ivar,option)
-        end select
-
-      else if (associated(patch%aux%immis)) then
-
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-            enddo
-          case(TEMPERATURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%temp
-            enddo
-          case(LIQUID_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%pres(1)
-            enddo
-          case(LIQUID_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%sat(1)
-            enddo
-          case(LIQUID_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%den_kg(1)
-            enddo
-          case(LIQUID_ENERGY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(1)
-            enddo
-          case(LIQUID_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(1)
-            enddo
-          case(LIQUID_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(1)
-            enddo
-          case(GAS_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%pres(2)
-            enddo
-          case(GAS_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%sat(2)
-            enddo
-          case(GAS_ENERGY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(2)
-            enddo
-          case(GAS_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%den_kg(2)
-            enddo
-          case(GAS_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(2)
-            enddo
-          case(GAS_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(2)
-            enddo
-          case default
-            call PatchUnsupportedVariable('IMMISCIBLE',ivar,option)
         end select
 
       else if (associated(patch%aux%General)) then
@@ -7395,7 +6970,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
-  use Miscible_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_Mineral_module
   use Reaction_module
@@ -7545,49 +7119,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
         end select
-      else if (associated(patch%aux%Flash2)) then
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-          case(TEMPERATURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%temp
-          case(LIQUID_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
-          case(LIQUID_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
-          case(LIQUID_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
-          case(LIQUID_VISCOSITY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%vis(1)
-          case(LIQUID_MOBILITY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%kvr(1)
-          case(GAS_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(2)
-          case(GAS_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(2)
-          case(GAS_MOLE_FRACTION)
-            value = patch%aux%Flash2%auxvars(ghosted_id)% &
-                      auxvar_elem(0)%xmol(2+isubvar)
-          case(GAS_ENERGY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%u(2)
-          case(GAS_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(2)
-          case(GAS_DENSITY_MOL)
-            value = patch%aux%Global%auxvars(ghosted_id)%den(2)
-          case(GAS_VISCOSITY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%vis(2)
-          case(GAS_MOBILITY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%kvr(2)
-          case(SC_FUGA_COEFF)
-            value = patch%aux%Global%auxvars(ghosted_id)%fugacoeff(1)
-          case(LIQUID_MOLE_FRACTION)
-            value = patch%aux%Flash2%auxvars(ghosted_id)% &
-                      auxvar_elem(0)%xmol(isubvar)
-          case(LIQUID_ENERGY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%u(1)
-          case default
-            call PatchUnsupportedVariable('FLASH2',ivar,option)
-        end select
       else if (associated(patch%aux%Mphase)) then
         select case(ivar)
           case(MAXIMUM_PRESSURE)
@@ -7641,57 +7172,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
           case default
             call PatchUnsupportedVariable('MPHASE',ivar,option)
-        end select
-      else if (associated(patch%aux%Immis)) then
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-          case(TEMPERATURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%temp
-          case(LIQUID_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
-          case(GAS_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(2)
-          case(LIQUID_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
-          case(LIQUID_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
-          case(LIQUID_ENERGY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%u(1)
-          case(LIQUID_VISCOSITY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%vis(1)
-          case(LIQUID_MOBILITY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%kvr(1)
-          case(GAS_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(2)
-          case(GAS_ENERGY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%u(2)
-          case(GAS_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(2)
-          case(GAS_DENSITY_MOL)
-            value = patch%aux%Global%auxvars(ghosted_id)%den(2)
-          case(GAS_VISCOSITY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%vis(2)
-          case(GAS_MOBILITY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%kvr(2)
-          case default
-            call PatchUnsupportedVariable('IMMISCIBLE',ivar,option)
-        end select
-      else if (associated(patch%aux%Miscible)) then
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-          case(LIQUID_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
-          case(LIQUID_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
-          case(LIQUID_VISCOSITY)
-            value = patch%aux%Miscible%auxvars(ghosted_id)%auxvar_elem(0)%vis(1)
-          case(LIQUID_MOLE_FRACTION)
-            value = patch%aux%Miscible%auxvars(ghosted_id)% &
-                      auxvar_elem(0)%xmol(isubvar)
-          case default
-            call PatchUnsupportedVariable('MISCIBLE',ivar,option)
         end select
       else if (associated(patch%aux%General)) then
         select case(ivar)
@@ -8887,177 +8367,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               enddo
             endif
         end select
-      else if (associated(patch%aux%Flash2)) then
-        select case(ivar)
-          case(TEMPERATURE)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%temp = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%temp = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_PRESSURE)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%pres = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%pres = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%sat(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%sat(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_DENSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%den(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%den(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_VISCOSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%vis(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%vis(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_MOBILITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%kvr(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%kvr(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%sat(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%sat(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_MOLE_FRACTION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%xmol(2+isubvar) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%xmol(2+isubvar) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_ENERGY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%u(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%u(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_DENSITY, GAS_DENSITY_MOL)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%den(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%den(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_VISCOSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%vis(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%vis(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_MOBILITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%kvr(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%kvr(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_MOLE_FRACTION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%xmol(isubvar) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%xmol(isubvar) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_ENERGY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%u(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%u(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-        end select
       else if (associated(patch%aux%Mphase)) then
         select case(ivar)
           case(TEMPERATURE)
@@ -9213,93 +8522,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
                 patch%aux%Mphase%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%u(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-        end select
-      else if (associated(patch%aux%Immis)) then
-        select case(ivar)
-          case(TEMPERATURE)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%temp = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%temp = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_PRESSURE)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%pres = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%pres = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%sat(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%sat(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_DENSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%den(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%den(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%sat(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%sat(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_ENERGY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%u(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%u(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_ENERGY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%u(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
                   auxvar_elem(0)%u(1) = vec_ptr(ghosted_id)
               enddo
             endif

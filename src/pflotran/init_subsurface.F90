@@ -1120,7 +1120,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(TH_MODE,TH_TS_MODE)
         ! second equation is energy
         dof_is_active(TWO_INTEGER) = PETSC_FALSE
-      case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
+      case(MPH_MODE)
         ! third equation is energy
         dof_is_active(THREE_INTEGER) = PETSC_FALSE
     end select
@@ -1142,12 +1142,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         matrix_zeroing => patch%aux%TOil_ims%matrix_zeroing
       case(TOWG_MODE)
         matrix_zeroing => patch%aux%TOWG%matrix_zeroing
-      case(IMS_MODE)
-        matrix_zeroing => patch%aux%Immis%matrix_zeroing
-      case(MIS_MODE)
-        matrix_zeroing => patch%aux%Miscible%matrix_zeroing
-      case(FLASH2_MODE)
-        matrix_zeroing => patch%aux%Flash2%matrix_zeroing
     end select
     call InitSubsurfaceCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
                                        inactive_cells_exist,option)
@@ -1177,15 +1171,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         !PO: same for all pm_XXX_aux - can be defined in PM_Base_Aux_module
         patch%aux%TOWG%matrix_zeroing => matrix_zeroing
         patch%aux%TOWG%inactive_cells_exist = inactive_cells_exist
-      case(IMS_MODE)
-        patch%aux%Immis%matrix_zeroing => matrix_zeroing
-        patch%aux%Immis%inactive_cells_exist = inactive_cells_exist
-      case(MIS_MODE)
-        patch%aux%Miscible%matrix_zeroing => matrix_zeroing
-        patch%aux%Miscible%inactive_cells_exist = inactive_cells_exist
-      case(FLASH2_MODE)
-        patch%aux%Flash2%matrix_zeroing => matrix_zeroing
-        patch%aux%Flash2%inactive_cells_exist = inactive_cells_exist
     end select
     deallocate(dof_is_active)
   endif

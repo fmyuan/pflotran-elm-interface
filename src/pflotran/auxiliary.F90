@@ -8,9 +8,6 @@ module Auxiliary_module
   use Reactive_Transport_Aux_module
   use NW_Transport_Aux_module
   use Mphase_Aux_module
-  use Immis_Aux_module
-  use Miscible_Aux_module
-  use Flash2_Aux_module
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
@@ -35,9 +32,6 @@ module Auxiliary_module
     type(th_type), pointer :: TH
     type(richards_type), pointer :: Richards
     type(mphase_type), pointer :: Mphase
-    type(immis_type), pointer :: Immis
-    type(miscible_type), pointer :: Miscible
-    type(flash2_type), pointer :: Flash2
     type(general_type), pointer :: General
     type(hydrate_type), pointer :: Hydrate
     type(wippflo_type), pointer :: WIPPFlo
@@ -75,9 +69,6 @@ subroutine AuxInit(aux)
   nullify(aux%Richards)
   
   nullify(aux%Mphase)
-  nullify(aux%Immis)
-  nullify(aux%Flash2)
-  nullify(aux%Miscible)
   nullify(aux%General)
   nullify(aux%Hydrate)
   nullify(aux%WIPPFlo)
@@ -110,7 +101,6 @@ subroutine AuxDestroy(aux)
   call THAuxDestroy(aux%TH)
   call RichardsAuxDestroy(aux%Richards)
   call MphaseAuxDestroy(aux%Mphase)
-  call MiscibleAuxDestroy(aux%Miscible)
   call GeneralAuxDestroy(aux%General)
   call HydrateAuxDestroy(aux%Hydrate)
   call WIPPFloAuxDestroy(aux%WIPPFlo)
@@ -126,8 +116,6 @@ subroutine AuxDestroy(aux)
   nullify(aux%NWT)
   nullify(aux%Richards)
   nullify(aux%Mphase)
-  nullify(aux%Immis)
-  nullify(aux%Miscible)
   nullify(aux%General)
   nullify(aux%Hydrate)
   nullify(aux%WIPPFlo)

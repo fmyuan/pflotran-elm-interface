@@ -1120,7 +1120,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
     ! assign initial conditions values to domain
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     select case(option%iflowmode)
-      case(MPH_MODE,FLASH2_MODE)
+      case(MPH_MODE)
         call VecGetArrayF90(field%flow_xx,flow_xx_p, ierr);CHKERRQ(ierr)
     end select
       
@@ -1321,7 +1321,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
           ! we can remove this code in favor of a slighly less accurate
           ! solution.
           select case(option%iflowmode)
-            case(MPH_MODE,FLASH2_MODE)
+            case(MPH_MODE)
               if (global_auxvars(ghosted_id)%istate == 1) then
                 tempreal = &
                   RCO2MoleFraction(rt_auxvars(ghosted_id), &
@@ -1434,7 +1434,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
       
     call VecRestoreArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
     select case(option%iflowmode)
-      case(MPH_MODE,FLASH2_MODE)
+      case(MPH_MODE)
         call VecRestoreArrayF90(field%flow_xx,flow_xx_p, ierr);CHKERRQ(ierr)
     end select
 
@@ -1579,7 +1579,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   vec1_loc = PETSC_NULL_VEC
   vec2_loc = PETSC_NULL_VEC
   
-  !TODO(jenn) Do not allow MPH_MODE or FLASH2_MODE with NW Transport. 
+  !TODO(jenn) Do not allow MPH_MODE with NW Transport. 
   
   cur_patch => realization%patch_list%first
   do
@@ -1882,9 +1882,6 @@ subroutine CondControlScaleSourceSink(realization)
               vec_ptr(local_id) = vec_ptr(local_id) + sum
           case(TH_MODE,TH_TS_MODE)
           case(MPH_MODE)
-          case(IMS_MODE)
-          case(MIS_MODE)
-          case(FLASH2_MODE)
         end select
 
       enddo
@@ -1903,9 +1900,6 @@ subroutine CondControlScaleSourceSink(realization)
               vec_ptr(local_id)
           case(TH_MODE,TH_TS_MODE)
           case(MPH_MODE)
-          case(IMS_MODE)
-          case(MIS_MODE)
-          case(FLASH2_MODE)
         end select
 
       enddo

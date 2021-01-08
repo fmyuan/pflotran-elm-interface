@@ -202,33 +202,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                            'SATURATION_FUNCTION')
       case('PERMEABILITY_END_POINT')
         select case(option%iflowmode)
-          case(FLASH2_MODE)
-            call InputReadCard(input,option,keyword)
-            call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
-            call StringToUpper(keyword)   
-            select case(trim(keyword))
-              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
-                iphase = 1
-              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
-                iphase = 2
-            end select
-            call InputReadDouble(input,option,saturation_function%Kr0(iphase))
-            word = trim(keyword) // 'permeabiliy end point'
-            call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
           case(MPH_MODE)
-            call InputReadCard(input,option,keyword)
-            call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
-            call StringToUpper(keyword)   
-            select case(trim(keyword))
-              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
-                iphase = 1
-              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
-                iphase = 2
-            end select
-            call InputReadDouble(input,option,saturation_function%Kr0(iphase))
-            word = trim(keyword) // 'permeabiliy end point'
-            call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
-          case(IMS_MODE)
             call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
             call StringToUpper(keyword)   
@@ -244,19 +218,6 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
         end select
       case('RESIDUAL_SATURATION') 
         select case(option%iflowmode)
-          case(FLASH2_MODE)
-            call InputReadCard(input,option,keyword)
-            call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
-            call StringToUpper(keyword)   
-            select case(trim(keyword))
-              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
-                iphase = 1
-              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
-                iphase = 2
-            end select
-            call InputReadDouble(input,option,saturation_function%Sr(iphase))
-            word = trim(keyword) // ' residual saturation'
-            call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
           case(MPH_MODE)
             call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
@@ -266,21 +227,6 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                 iphase = 1
               case('CO2','CO2_PHASE','GAS','GAS_PHASE')
                 iphase = 2
-            end select
-            call InputReadDouble(input,option,saturation_function%Sr(iphase))
-            word = trim(keyword) // ' residual saturation'
-            call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
-          case(IMS_MODE)
-            call InputReadCard(input,option,keyword)
-            call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
-            call StringToUpper(keyword)   
-            select case(trim(keyword))
-              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
-                iphase = 1
-              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
-                iphase = 2
-              case('OIL','OIL_PHASE','NAPL','NAPL_PHASE')
-                iphase = 3
             end select
             call InputReadDouble(input,option,saturation_function%Sr(iphase))
             word = trim(keyword) // ' residual saturation'

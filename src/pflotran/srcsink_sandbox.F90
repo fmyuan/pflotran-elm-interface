@@ -478,14 +478,11 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
       flow_dof_scale(1) = FMWH2O
     case(TH_MODE,TH_TS_MODE)
       flow_dof_scale(1) = FMWH2O
-    case(MIS_MODE)
-      flow_dof_scale(1) = FMWH2O
-      flow_dof_scale(2) = FMWGLYC
     case(G_MODE,H_MODE)
       flow_dof_scale(1:2) = general_fmw(1:2)
     case(WF_MODE)
       flow_dof_scale(1:2) = wipp_flow_fmw(1:2)
-    case(MPH_MODE,FLASH2_MODE,IMS_MODE)
+    case(MPH_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWCO2
   end select  
