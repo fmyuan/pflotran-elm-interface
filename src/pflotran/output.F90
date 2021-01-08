@@ -5,7 +5,6 @@ module Output_module
   use Logging_module 
   use Output_Aux_module
 
- ! use Output_Surface_module
   use Output_HDF5_module
   use Output_Tecplot_module
   use Output_VTK_module

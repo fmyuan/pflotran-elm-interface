@@ -279,10 +279,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: INTERPOLATION_STEP = 1
   PetscInt, parameter, public :: INTERPOLATION_LINEAR = 2
   
-  ! surface/subsurface flags
-  PetscInt, parameter, public :: SUBSURFACE = 0
-  PetscInt, parameter, public :: SURFACE    = 1
-  
   PetscInt, parameter, public :: DECOUPLED     = 0
   PetscInt, parameter, public :: SEQ_COUPLED = 1
   PetscInt, parameter, public :: FULLY_COUPLED = 2

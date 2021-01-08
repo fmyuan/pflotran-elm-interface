@@ -4368,8 +4368,6 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
 
       patch%boundary_velocities(1,sum_connection) = v_darcy
       patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
-      patch%boundary_energy_flux(1,sum_connection) = fluxe_bulk
-      patch%boundary_energy_flux(2,sum_connection) = fluxe_cond
 
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
@@ -6401,8 +6399,6 @@ subroutine THUpdateSurfaceBC(realization)
 
         eflux = patch%boundary_flow_fluxes(TH_TEMPERATURE_DOF,sum_connection) 
                                                                      ! [MJ/s]
-        eflux_bulk = patch%boundary_energy_flux(1,sum_connection) ! [MJ/s]
-        eflux_cond = patch%boundary_energy_flux(2,sum_connection) ! [MJ/s]
 
         ! [MJ/s] to [J/s]
         !geh: default internal energy units are MJ (option%scale = 1.d-6 
