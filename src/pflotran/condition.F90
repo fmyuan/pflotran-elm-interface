@@ -1638,7 +1638,7 @@ subroutine FlowConditionRead(condition,input,option)
       option%io_buffer = 'TOilIms mode not supported in original &
         &FlowConditionRead.'
       call PrintMsg(option)
-    case(MPH_MODE,IMS_MODE,FLASH2_MODE)
+    case(MPH_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
            .and. .not.associated(well) .and. .not.associated(saturation)) then
         option%io_buffer = 'pressure, rate and saturation condition null in &
@@ -1789,70 +1789,6 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(temperature)) condition%itype(TWO_INTEGER) = temperature%itype
       if (associated(energy_flux)) condition%itype(TWO_INTEGER) = energy_flux%itype
       if (associated(energy_rate)) condition%itype(TWO_INTEGER) = energy_rate%itype
-
-!#if 0
-    case(MIS_MODE)
-      if (.not.associated(pressure) .and. .not.associated(rate)&
-           .and. .not.associated(well)) then
-        option%io_buffer = 'pressure and rate condition null in &
-                           &condition: ' // trim(condition%name)
-        call PrintErrMsg(option)
-      endif
-
-      if (associated(pressure)) then
-        condition%pressure => pressure
-      endif
-      if (associated(rate)) then
-        condition%rate => rate
-      endif
-      if (associated(well)) then
-        condition%well => well
-      endif
-
-      if (.not.associated(concentration)) then
-        option%io_buffer = 'concentration condition null in condition: ' // &
-                            trim(condition%name)
-        call PrintErrMsg(option)
-      endif
-      condition%concentration => concentration
-
-#if 0
-      if (.not.associated(temperature)) then
-        option%io_buffer = 'temperature condition null in condition: ' // &
-                            trim(condition%name)
-        call PrintErrMsg(option)
-      endif
-      condition%temperature => temperature
-
-      if (.not.associated(enthalpy)) then
-        option%io_buffer = 'enthalpy condition null in condition: ' // &
-                            trim(condition%name)
-        call PrintErrMsg(option)
-      endif
-      condition%enthalpy => enthalpy
-#endif
-
-      condition%num_sub_conditions = 2
-      allocate(condition%sub_condition_ptr(condition%num_sub_conditions))
-      do idof = 1, 2
-        nullify(condition%sub_condition_ptr(idof)%ptr)
-      enddo
-
-      ! must be in this order, which matches the dofs in problem
-      if (associated(pressure)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
-      if (associated(rate)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => rate
-      if (associated(well)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => well
-!     condition%sub_condition_ptr(TWO_INTEGER)%ptr => temperature
-      condition%sub_condition_ptr(TWO_INTEGER)%ptr => concentration
-!     if (associated(enthalpy)) condition%sub_condition_ptr(FOUR_INTEGER)%ptr => enthalpy
-
-      allocate(condition%itype(TWO_INTEGER))
-      condition%itype = 0
-      if (associated(pressure)) condition%itype(ONE_INTEGER) = pressure%itype
-      if (associated(rate)) condition%itype(ONE_INTEGER) = rate%itype
-      if (associated(well)) condition%itype(ONE_INTEGER) = well%itype
-      condition%itype(TWO_INTEGER) = concentration%itype
-!#endif
 
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate) .and. &

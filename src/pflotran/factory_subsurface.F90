@@ -743,12 +743,9 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use Option_module
   use PM_Subsurface_Flow_class
   use PM_Base_class
-  use PM_Flash2_class
   use PM_General_class
   use PM_Hydrate_class
   use PM_WIPP_Flow_class
-  use PM_Immis_class
-  use PM_Miscible_class
   use PM_Mphase_class
   use PM_Richards_class
   use PM_TH_class
@@ -774,17 +771,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   endif
 
   select type(pm_flow)
-    class is (pm_flash2_type)
-      option%iflowmode = FLASH2_MODE
-      option%nphase = 2
-      option%liquid_phase = 1
-      option%gas_phase = 2
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%itable = 2
-      option%use_isothermal = PETSC_FALSE
-      option%water_id = 1
-      option%air_id = 2
     class is (pm_wippflo_type)
       option%iflowmode = WF_MODE
       option%nphase = 2
@@ -898,25 +884,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
           call PrintErrMsg(option)
       end select
       option%use_isothermal = PETSC_FALSE
-    class is (pm_immis_type)
-      option%iflowmode = IMS_MODE
-      option%nphase = 2
-      option%liquid_phase = 1
-      option%gas_phase = 2
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%itable = 2
-      option%io_buffer = 'Material AuxVars must be refactored for IMMIS.'
-      call PrintErrMsg(option)
-    class is (pm_miscible_type)
-      option%iflowmode = MIS_MODE
-      option%nphase = 1
-      option%liquid_phase = 1
-      option%gas_phase = 2
-      option%nflowdof = 2
-      option%nflowspec = 2
-      option%io_buffer = 'Material AuxVars must be refactored for MISCIBLE.'
-      call PrintErrMsg(option)
     class is (pm_mphase_type)
       option%iflowmode = MPH_MODE
       option%nphase = 2
@@ -981,12 +948,9 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use String_module
 
   use PM_Base_class
-  use PM_Flash2_class
   use PM_General_class
   use PM_Hydrate_class
   use PM_WIPP_Flow_class
-  use PM_Immis_class
-  use PM_Miscible_class
   use PM_Mphase_class
   use PM_Richards_class
   use PM_TH_class
@@ -1045,12 +1009,6 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
             call PrintErrMsg(option)
           case('MPHASE')
             pm => PMMphaseCreate()
-          case('FLASH2')
-            pm => PMFlash2Create()
-          case('IMS','IMMIS','THS')
-            pm => PMImmisCreate()
-          case('MIS','MISCIBLE')
-            pm => PMMiscibleCreate()
           case('RICHARDS')
             pm => PMRichardsCreate()
           case('TH')
@@ -3794,7 +3752,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
-      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,MIS_MODE,TH_MODE,WF_MODE, &
+      case(MPH_MODE,G_MODE,TH_MODE,WF_MODE, &
            TOIL_IMS_MODE,TOWG_MODE,RICHARDS_TS_MODE,TH_TS_MODE,H_MODE)
         if (option%steady_state) then
           option%io_buffer = 'Steady state solution is not supported with &

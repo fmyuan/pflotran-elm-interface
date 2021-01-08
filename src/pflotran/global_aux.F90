@@ -152,7 +152,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
 !        allocate(auxvar%den_store(nphase,TWO_INTEGER))
 !        auxvar%den_store = 0.d0
 !      endif
-    case(IMS_MODE, MPH_MODE, FLASH2_MODE)
+    case(MPH_MODE)
       allocate(auxvar%xmass(nphase))
       auxvar%xmass = 1.d0
       allocate(auxvar%pres_store(nphase,TWO_INTEGER))

@@ -392,8 +392,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE, &
-             MIS_MODE,TOIL_IMS_MODE)
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE,H_MODE,TOIL_IMS_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0, &
@@ -433,8 +432,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute pressures below datum, if any
     pressure0 = pressure_array(idatum)
     select case(option%iflowmode)
-      case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE, &
-           G_MODE,TOIL_IMS_MODE)
+      case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE,TOIL_IMS_MODE)
         temperature = temperature_at_datum
     end select
     dist_z = 0.d0
@@ -442,8 +440,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum-1,1,-1
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE, &
-             G_MODE,TOIL_IMS_MODE)
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,G_MODE,TOIL_IMS_MODE)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
@@ -584,7 +581,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     ! assign other dofs
     select case(option%iflowmode)
-      case(MPH_MODE,IMS_MODE,FLASH2_MODE)
+      case(MPH_MODE)
         temperature = temperature_at_datum + &
                     ! gradient in K/m
                     temperature_gradient(X_DIRECTION)*dist_x + & 
@@ -602,17 +599,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                     temperature_gradient(Z_DIRECTION)*dist_z
         coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = temperature
         coupler%flow_aux_int_var(TH_PRESSURE_DOF,iconn) = condition%iphase
-      case(MIS_MODE)
-        temperature = temperature_at_datum + &
-                    ! gradient in K/m
-                    temperature_gradient(X_DIRECTION)*dist_x + & 
-                    temperature_gradient(Y_DIRECTION)*dist_y + &
-                    temperature_gradient(Z_DIRECTION)*dist_z 
-!       coupler%flow_aux_real_var(2,iconn) = temperature
-        coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
-
-        coupler%flow_aux_int_var(1,iconn) = condition%iphase
-
       case(WF_MODE)
       case(G_MODE)
         temperature = temperature_at_datum + &

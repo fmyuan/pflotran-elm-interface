@@ -153,17 +153,14 @@ module PFLOTRAN_Constants_module
   ! flow modes
   PetscInt, parameter, public :: MPH_MODE = 1
   PetscInt, parameter, public :: RICHARDS_MODE = 2
-  PetscInt, parameter, public :: IMS_MODE = 3
-  PetscInt, parameter, public :: FLASH2_MODE = 4
-  PetscInt, parameter, public :: G_MODE = 5
-  PetscInt, parameter, public :: MIS_MODE = 6
-  PetscInt, parameter, public :: TH_MODE = 7
-  PetscInt, parameter, public :: TOIL_IMS_MODE = 8
-  PetscInt, parameter, public :: TOWG_MODE = 9
-  PetscInt, parameter, public :: WF_MODE = 10
-  PetscInt, parameter, public :: RICHARDS_TS_MODE = 11
-  PetscInt, parameter, public :: TH_TS_MODE = 12
-  PetscInt, parameter, public :: H_MODE = 13
+  PetscInt, parameter, public :: G_MODE = 3
+  PetscInt, parameter, public :: TH_MODE = 4
+  PetscInt, parameter, public :: TOIL_IMS_MODE = 5
+  PetscInt, parameter, public :: TOWG_MODE = 6
+  PetscInt, parameter, public :: WF_MODE = 7
+  PetscInt, parameter, public :: RICHARDS_TS_MODE = 8
+  PetscInt, parameter, public :: TH_TS_MODE = 9
+  PetscInt, parameter, public :: H_MODE = 10
 
   ! flow sub-modes
   PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1

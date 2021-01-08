@@ -30,10 +30,7 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use Init_Common_module
   use Material_module
   
-  use Flash2_module
   use Mphase_module
-  use Immis_module
-  use Miscible_module
   use PM_Richards_TS_class
   use PM_TH_TS_class
   use Richards_module
@@ -82,14 +79,6 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
       case(MPH_MODE)
         call init_span_wagner(option)      
         call MphaseSetup(realization)
-      case(IMS_MODE)
-        call init_span_wagner(option)      
-        call ImmisSetup(realization)
-      case(MIS_MODE)
-        call MiscibleSetup(realization)
-      case(FLASH2_MODE)
-        call init_span_wagner(option)      
-        call Flash2Setup(realization)
       case(WF_MODE)
         call WIPPFloSetup(realization)
       case(G_MODE)
@@ -134,12 +123,6 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call PMRichardsTSUpdateAuxVarsPatch(realization)
       case(MPH_MODE)
         call MphaseUpdateAuxVars(realization)
-      case(IMS_MODE)
-        call ImmisUpdateAuxVars(realization)
-      case(MIS_MODE)
-        call MiscibleUpdateAuxVars(realization)
-      case(FLASH2_MODE)
-        call Flash2UpdateAuxVars(realization)
       case(G_MODE)
         !geh: cannot update state during initialization as the guess will be
         !     assigned as the initial condition if the state changes. therefore,

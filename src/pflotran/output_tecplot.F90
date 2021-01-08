@@ -339,7 +339,7 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     tempint = 0
     select case(option%iflowmode)
-      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+      case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
         tempint(0) =  2
         tempint(1) = LIQUID_PHASE
         tempint(2) = GAS_PHASE
@@ -377,7 +377,7 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     tempint = 0
     select case(option%iflowmode)
-      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+      case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
         tempint(0) =  3
         tempint(1) = LIQUID_PHASE
         tempint(2) = GAS_PHASE
