@@ -40,17 +40,17 @@ module Timestepper_TS_class
   end type timestepper_TS_type
 
   ! For checkpointing
-  type, public, extends(stepper_base_header_type) :: timestepper_surface_header_type
+  type, public, extends(stepper_base_header_type) :: timestepper_TS_header_type
     real*8 :: dt_max_allowable
-  end type timestepper_surface_header_type
+  end type timestepper_TS_header_type
   PetscSizeT, parameter, private :: bagsize = 80 ! 64 (base) + 16 (BE)
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-      import :: timestepper_surface_header_type
+      import :: timestepper_TS_header_type
       implicit none
       PetscBag :: bag
-      class(timestepper_surface_header_type), pointer :: header
+      class(timestepper_TS_header_type), pointer :: header
       PetscErrorCode :: ierr
     end subroutine
   end interface PetscBagGetData
@@ -184,10 +184,8 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
 #include "petsc/finclude/petscts.h"
   use petscts
   use PM_Base_class
-  use PM_Surface_Flow_class
   use Option_module
   use Output_module, only : Output
-  use Surface_Flow_module
   
   implicit none
 
@@ -325,7 +323,7 @@ subroutine TimestepperTSCheckpointBinary(this,viewer,option)
   PetscViewer :: viewer
   type(option_type) :: option
 
-  class(timestepper_surface_header_type), pointer :: header
+  class(timestepper_TS_header_type), pointer :: header
   PetscBag :: bag
   PetscErrorCode :: ierr
 
@@ -359,7 +357,7 @@ subroutine TimestepperTSRestartBinary(this,viewer,option)
   PetscViewer :: viewer
   type(option_type) :: option
 
-  class(timestepper_surface_header_type), pointer :: header
+  class(timestepper_TS_header_type), pointer :: header
   PetscBag :: bag
   PetscErrorCode :: ierr
 
@@ -387,7 +385,7 @@ subroutine TimestepperTSRegisterHeader(this,bag,header)
   implicit none
 
   class(timestepper_TS_type) :: this
-  class(timestepper_surface_header_type) :: header
+  class(timestepper_TS_header_type) :: header
   PetscBag :: bag
 
   PetscErrorCode :: ierr
@@ -418,7 +416,7 @@ subroutine TimestepperTSSetHeader(this,bag,header)
 #include "petsc/finclude/petscbag.h"
 
   class(timestepper_TS_type) :: this
-  class(timestepper_surface_header_type) :: header
+  class(timestepper_TS_header_type) :: header
   PetscBag :: bag
 
   PetscErrorCode :: ierr
@@ -446,7 +444,7 @@ subroutine TimestepperTSGetHeader(this,header)
 #include "petsc/finclude/petscviewer.h"
 
   class(timestepper_TS_type) :: this
-  class(timestepper_surface_header_type) :: header
+  class(timestepper_TS_header_type) :: header
 
   PetscErrorCode :: ierr
 

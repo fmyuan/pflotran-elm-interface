@@ -3,6 +3,7 @@ module Patch_module
 #include "petsc/finclude/petscvec.h"
   use petscvec
 
+  use PFLOTRAN_Constants_module
   use Option_module
   use Grid_module
   use Coupler_module
@@ -19,13 +20,7 @@ module Patch_module
   use Saturation_Function_module
   use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_module
-  use Surface_Field_module
-  use Surface_Material_module
-  use Surface_Auxiliary_module
-
   use Auxiliary_module
-
-  use PFLOTRAN_Constants_module
 
   use General_Aux_module
   use Hydrate_Aux_module
@@ -59,9 +54,6 @@ module Patch_module
     PetscReal, pointer :: internal_tran_fluxes(:,:)
     PetscReal, pointer :: boundary_tran_fluxes(:,:)
     PetscReal, pointer :: ss_tran_fluxes(:,:)
-
-    ! for TH surface/subsurface
-    PetscReal, pointer :: boundary_energy_flux(:,:)
 
     ! for upwind direction in multiphase flow
     PetscInt, pointer :: flow_upwind_direction(:,:)
@@ -98,13 +90,6 @@ module Patch_module
     type(auxiliary_type) :: aux
 
     type(patch_type), pointer :: next
-
-    PetscInt :: surf_or_subsurf_flag  ! Flag to identify if the current patch
-                                      ! is a surface or subsurface (default)
-    type(surface_material_property_type), pointer :: surf_material_properties
-    type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
-    type(surface_field_type), pointer :: surf_field
-    type(surface_auxiliary_type) :: surf_aux
 
   end type patch_type
 
@@ -173,7 +158,6 @@ function PatchCreate()
   allocate(patch)
 
   patch%id = 0
-  patch%surf_or_subsurf_flag = SUBSURFACE
   nullify(patch%imat)
   nullify(patch%imat_internal_to_external)
   nullify(patch%cc_id)
@@ -189,7 +173,6 @@ function PatchCreate()
   nullify(patch%ss_flow_fluxes)
   nullify(patch%ss_tran_fluxes)
   nullify(patch%ss_flow_vol_fluxes)
-  nullify(patch%boundary_energy_flux)
 
   nullify(patch%flow_upwind_direction)
   nullify(patch%flow_upwind_direction_bc)
@@ -231,11 +214,6 @@ function PatchCreate()
   nullify(patch%reaction_nw)
 
   nullify(patch%next)
-
-  nullify(patch%surf_material_properties)
-  nullify(patch%surf_material_property_array)
-  nullify(patch%surf_field)
-  call SurfaceAuxInit(patch%surf_aux)
 
   PatchCreate => patch
 
@@ -625,32 +603,15 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
       endif
       if (strata%active) then
         ! pointer to material
-        ! gb: Depending on a surface/subsurface patch, use corresponding
-        !     material properties
-        if (patch%surf_or_subsurf_flag == SUBSURFACE) then
-          strata%material_property => &
-            MaterialPropGetPtrFromArray(strata%material_property_name, &
-                                        patch%material_property_array)
-          if (.not.associated(strata%material_property)) then
-            option%io_buffer = 'Material "' // &
-                              trim(strata%material_property_name) // &
-                              '" not found in material list'
-            call PrintErrMsg(option)
-          endif
+        strata%material_property => &
+          MaterialPropGetPtrFromArray(strata%material_property_name, &
+                                      patch%material_property_array)
+        if (.not.associated(strata%material_property)) then
+          option%io_buffer = 'Material "' // &
+                            trim(strata%material_property_name) // &
+                            '" not found in material list'
+          call PrintErrMsg(option)
         endif
-
-        if (patch%surf_or_subsurf_flag == SURFACE) then
-          strata%surf_material_property => &
-            SurfaceMaterialPropGetPtrFromArray(strata%material_property_name, &
-                                            patch%surf_material_property_array)
-          if (.not.associated(strata%surf_material_property)) then
-            option%io_buffer = 'Material "' // &
-                              trim(strata%material_property_name) // &
-                              '" not found in material list'
-            call PrintErrMsg(option)
-          endif
-        endif
-
       endif
     else
       nullify(strata%region)
@@ -746,8 +707,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   ! flow
   if (option%nflowdof > 0) then
-    if (option%flow%store_fluxes .or. &
-        (patch%surf_or_subsurf_flag == SURFACE)) then
+    if (option%flow%store_fluxes) then
       allocate(patch%internal_flow_fluxes(option%nflowdof,temp_int))
       patch%internal_flow_fluxes = 0.d0
     endif
@@ -771,16 +731,9 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     patch%boundary_velocities = 0.d0
     ! flow
     if (option%nflowdof > 0) then
-      if (option%flow%store_fluxes .or. &
-          (patch%surf_or_subsurf_flag == SURFACE)) then
+      if (option%flow%store_fluxes) then
         allocate(patch%boundary_flow_fluxes(option%nflowdof,temp_int))
         patch%boundary_flow_fluxes = 0.d0
-      endif
-      ! surface/subsurface storage
-      if (option%iflowmode == TH_MODE .or. &
-          option%iflowmode == TH_TS_MODE) then
-        allocate(patch%boundary_energy_flux(2,temp_int))
-        patch%boundary_energy_flux = 0.d0
       endif
     endif
     ! transport
@@ -4142,9 +4095,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           coupler%flow_aux_real_var(TH_CONDUCTANCE_DOF,1:num_connections) = &
             flow_condition%pressure%aux_real(1)
         endif
-      case(HET_SURF_HYDROSTATIC_SEEPAGE_BC)
-        ! Do nothing, since this BC type is only used for coupling of
-        ! surface-subsurface model
       case default
         string = &
           GetSubConditionName(flow_condition%pressure%itype)
@@ -9990,7 +9940,7 @@ end subroutine
 
 ! ************************************************************************** !
 
-subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
+subroutine PatchGetVariable2(patch,option,output_option,vec, &
                              ivar,isubvar,isubvar2)
   !
   ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
@@ -10002,7 +9952,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   use Grid_module
   use Option_module
   use Output_Aux_module
-  use Surface_Field_module
   use Variables_module
 
   implicit none
@@ -10010,7 +9959,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   type(option_type), pointer :: option
   !class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
-  type(surface_field_type), pointer :: surf_field
   type(patch_type), pointer :: patch
   Vec :: vec
   PetscInt :: ivar
@@ -10034,14 +9982,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   iphase = 1
 
   select case(ivar)
-    case(SURFACE_LIQUID_HEAD)
-      do local_id=1,grid%nlmax
-        vec_ptr(local_id) = patch%surf_aux%SurfaceGlobal%auxvars(grid%nL2G(local_id))%head(1)
-      enddo
-    case(SURFACE_LIQUID_TEMPERATURE)
-      do local_id=1,grid%nlmax
-        vec_ptr(local_id) = patch%surf_aux%SurfaceGlobal%auxvars(grid%nL2G(local_id))%temp
-      enddo
     case(MATERIAL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
@@ -11384,8 +11324,6 @@ subroutine PatchDestroy(patch)
   call DeallocateArray(patch%ss_tran_fluxes)
   call DeallocateArray(patch%ss_flow_vol_fluxes)
 
-  call DeallocateArray(patch%boundary_energy_flux)
-
   call DeallocateArray(patch%flow_upwind_direction)
   call DeallocateArray(patch%flow_upwind_direction_bc)
 
@@ -11411,12 +11349,6 @@ subroutine PatchDestroy(patch)
   nullify(patch%char_curves_thermal_array)
   nullify(patch%characteristic_curves_thermal)
   
-  nullify(patch%surf_field)
-  if (associated(patch%surf_material_property_array)) &
-    deallocate(patch%surf_material_property_array)
-  nullify(patch%surf_material_property_array)
-  nullify(patch%surf_material_properties)
-
   ! solely nullify grid since destroyed in discretization
   nullify(patch%grid)
   call RegionDestroyList(patch%region_list)
@@ -11429,7 +11361,6 @@ subroutine PatchDestroy(patch)
   call StrataDestroyList(patch%strata_list)
 
   call AuxDestroy(patch%aux)
-  call SurfaceAuxDestroy(patch%surf_aux)
 
   ! these are solely pointers, must not destroy.
   nullify(patch%reaction_base)
