@@ -154,8 +154,6 @@ subroutine SubsurfaceSimInputRecord(this)
       write(id,'(a)') 'thermo-hydro'
     case(TH_TS_MODE)
       write(id,'(a)') 'thermo-hydro_ts'
-    case(TOIL_IMS_MODE)
-      write(id,'(a)') 'thermal-oil-immiscible'
   end select
   
   ! print time information

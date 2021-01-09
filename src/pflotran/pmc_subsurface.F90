@@ -133,8 +133,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use PM_NWT_class
   use PM_Waste_Form_class
   use PM_UFD_Decay_class
-  use PM_TOilIms_class
-  use PM_TOWG_class
   use Secondary_Continuum_module, only : SecondaryRTUpdateIterate  
   use Solver_module
   use Timestepper_Base_class
@@ -193,7 +191,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
             write(*,'(" mode = Hydrate: p, sg/sh/si/X, T")')
           case(WF_MODE) 
             write(*,'(" mode = WIPP Flow: p, sg")')
-          case(TOIL_IMS_MODE)   
         end select
       endif
       
@@ -323,10 +320,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         class is(pm_general_type)
               add_pre_check = PETSC_TRUE
         class is(pm_wippflo_type)
-              add_pre_check = PETSC_TRUE
-        class is(pm_toil_ims_type)
-              add_pre_check = PETSC_TRUE
-        class is(pm_towg_type)
               add_pre_check = PETSC_TRUE
         class is(pm_th_type)
           if (Initialized(pm%pressure_dampening_factor) .or. &

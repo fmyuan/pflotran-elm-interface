@@ -141,8 +141,6 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_observation = PETSC_TRUE
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
-    case('ECLIPSE_FILE')
-      output_option%write_ecl = PETSC_TRUE
   end select
 
   call InputPushBlock(input,option)
@@ -179,17 +177,6 @@ subroutine OutputFileRead(input,realization,output_option, &
             output_option%print_initial_massbal = PETSC_FALSE
         end select
 
-      case('WRITE_MASS_RATES')
-        select case(trim(block_name))
-          case('MASS_BALANCE_FILE')
-            output_option%write_masses = PETSC_TRUE
-        end select
-
-      case('FORMATTED')
-        select case(trim(block_name))
-          case('ECLIPSE_FILE')
-            output_option%eclipse_options%write_ecl_form = PETSC_TRUE
-        end select
 !...............................
       case('TOTAL_MASS_REGIONS')
         select case(trim(block_name))
@@ -370,46 +357,6 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputKeywordUnrecognized(input,word,'OUTPUT,PERIODIC',option)
         end select
 
-      case('PERIOD_SUM','PERIOD_RST')
-        is_sum=StringCompareIgnoreCase(word,'PERIOD_SUM')
-        is_rst=StringCompareIgnoreCase(word,'PERIOD_RST')
-        string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'periodic time increment type',string)
-        call StringToUpper(word)
-        select case(trim(word))
-          case('TIME')
-            deltat = -1.0
-            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIME'
-            call InputReadDouble(input,option,temp_real)
-            call InputErrorMsg(input,option,'time increment',string)
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'time increment units',string)
-            internal_units = 'sec'
-            units_conversion = UnitsConvertToInternal(word, &
-                 internal_units,option)
-            deltat = temp_real*units_conversion
-            if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltat = deltat
-              output_option%eclipse_options%write_ecl_sum_deltas = -1
-            endif
-            if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltat = deltat
-              output_option%eclipse_options%write_ecl_rst_deltas = -1
-            endif
-          case('TIMESTEP')
-            deltas = -1
-            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
-              call InputReadInt(input,option,deltas)
-            if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltas = deltas
-              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
-            endif
-            if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltas = deltas
-              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
-            endif
-        end select
 !...................
       case('SCREEN')
         string = 'OUTPUT,' // trim(block_name) // ',SCREEN'
@@ -1117,17 +1064,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
 !.................................
   if (massbal_plot_flag) then
     call OutputMassBalance(realization_base)
-  endif
-
-  !  Output Eclipse files for this step if required
-  if( realization_base%output_option%write_ecl ) then
-    call OutputEclipseFiles(realization_base)
-  endif
-
-  ! Output single-line report for this step if required
-  if (option%linerept) then
-    option%print_to_screen = PETSC_FALSE
-    call OutputLineRept(realization_base,option)
   endif
 
   ! Output temporally average variables 

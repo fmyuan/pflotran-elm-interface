@@ -155,18 +155,10 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: RICHARDS_MODE = 2
   PetscInt, parameter, public :: G_MODE = 3
   PetscInt, parameter, public :: TH_MODE = 4
-  PetscInt, parameter, public :: TOIL_IMS_MODE = 5
-  PetscInt, parameter, public :: TOWG_MODE = 6
-  PetscInt, parameter, public :: WF_MODE = 7
-  PetscInt, parameter, public :: RICHARDS_TS_MODE = 8
-  PetscInt, parameter, public :: TH_TS_MODE = 9
-  PetscInt, parameter, public :: H_MODE = 10
-
-  ! flow sub-modes
-  PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
-  PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
-  PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
-  PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
+  PetscInt, parameter, public :: WF_MODE = 5
+  PetscInt, parameter, public :: RICHARDS_TS_MODE = 6
+  PetscInt, parameter, public :: TH_TS_MODE = 7
+  PetscInt, parameter, public :: H_MODE = 8
 
   ! transport modes
   PetscInt, parameter, public :: RT_MODE = 1
@@ -198,23 +190,14 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
   PetscInt, parameter, public :: HET_SURF_HYDROSTATIC_SEEPAGE_BC = 22
   PetscInt, parameter, public :: SPILLOVER_BC = 23
-  PetscInt, parameter, public :: WELL_MASS_RATE_TARGET = 24
-  PetscInt, parameter, public :: WELL_MASS_RATE_MAX = 25
-  PetscInt, parameter, public :: WELL_MASS_RATE_MIN = 26
-  PetscInt, parameter, public :: WELL_VOL_RATE_TARGET = 27
-  PetscInt, parameter, public :: WELL_VOL_RATE_MAX = 28
-  PetscInt, parameter, public :: WELL_VOL_RATE_MIN = 29
-  PetscInt, parameter, public :: WELL_BHP = 30
-  PetscInt, parameter, public :: WELL_BHP_MIN = 31
-  PetscInt, parameter, public :: WELL_BHP_MAX = 32
-  PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
-  PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
-  PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
-  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC = 36
-  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 37
-  PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 38
-  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 38
-  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 39
+  PetscInt, parameter, public :: SURFACE_DIRICHLET = 24
+  PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 25
+  PetscInt, parameter, public :: SURFACE_SPILLOVER = 26
+  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC = 27
+  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 28
+  PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 29
+  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 30
+  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 31
   
   PetscInt, parameter, public :: WELL_SS = 100
   
@@ -257,10 +240,8 @@ module PFLOTRAN_Constants_module
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
-  PetscInt, parameter, public :: OIL_PHASE = 3
-  PetscInt, parameter, public :: SOLVENT_PHASE = 4
 
-  PetscInt, parameter, public :: MAX_PHASE = 4
+  PetscInt, parameter, public :: MAX_PHASE = 2
   
   ! approaches to coupling reactive transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0

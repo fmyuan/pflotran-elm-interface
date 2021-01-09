@@ -5,9 +5,7 @@ module Characteristic_Curves_module
   use PFLOTRAN_Constants_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
-  use Characteristic_Curves_OWG_module
   use Characteristic_Curves_WIPP_module
-  use Characteristic_Curves_Table_module
 
   implicit none
 
@@ -19,20 +17,10 @@ module Characteristic_Curves_module
     PetscBool :: print_me
     PetscBool :: test
     class(sat_func_base_type), pointer :: saturation_function
-    class(sat_func_xw_base_type), pointer :: oil_wat_sat_func
-    class(sat_func_og_base_type), pointer :: oil_gas_sat_func
-    class(sat_func_xw_base_type), pointer :: gas_wat_sat_func
     class(rel_perm_func_base_type), pointer :: liq_rel_perm_function
     class(rel_perm_func_base_type), pointer :: gas_rel_perm_function
-    class(rel_perm_wat_owg_base_type), pointer :: wat_rel_perm_func_owg
-    class(rel_perm_gas_owg_base_type), pointer :: gas_rel_perm_func_owg
-    class(rel_perm_ow_owg_base_type), pointer :: ow_rel_perm_func_owg
-    class(rel_perm_og_owg_base_type), pointer :: og_rel_perm_func_owg
-    class(rel_perm_oil_owg_base_type), pointer :: oil_rel_perm_func_owg
-    class(char_curves_table_type), pointer :: char_curves_tables
     class(characteristic_curves_type), pointer :: next
   contains
-    procedure, public :: GetOWGCriticalAndConnateSats
   end type characteristic_curves_type
   
   type, public :: characteristic_curves_ptr_type
@@ -44,7 +32,6 @@ module Characteristic_Curves_module
             CharacteristicCurvesAddToList, &
             CharCurvesConvertListToArray, &
             CharacteristicCurvesGetID, &
-            CharCurvesProcessTables, &
             CharCurvesGetGetResidualSats, &
             CharacteristicCurvesDestroy, &
             CharCurvesInputRecord
@@ -74,17 +61,8 @@ function CharacteristicCurvesCreate()
   characteristic_curves%print_me = PETSC_FALSE
   characteristic_curves%test = PETSC_FALSE
   nullify(characteristic_curves%saturation_function)
-  nullify(characteristic_curves%oil_wat_sat_func)
-  nullify(characteristic_curves%oil_gas_sat_func)
-  nullify(characteristic_curves%gas_wat_sat_func)
   nullify(characteristic_curves%liq_rel_perm_function)
   nullify(characteristic_curves%gas_rel_perm_function)
-  nullify(characteristic_curves%wat_rel_perm_func_owg)
-  nullify(characteristic_curves%gas_rel_perm_func_owg)
-  nullify(characteristic_curves%ow_rel_perm_func_owg)
-  nullify(characteristic_curves%og_rel_perm_func_owg)
-  nullify(characteristic_curves%oil_rel_perm_func_owg)
-  nullify(characteristic_curves%char_curves_tables)
   nullify(characteristic_curves%next)
 
   CharacteristicCurvesCreate => characteristic_curves
@@ -114,7 +92,6 @@ subroutine CharacteristicCurvesRead(this,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word, phase_keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   class(rel_perm_func_base_type), pointer :: rel_perm_function_ptr
-  class(char_curves_table_type), pointer :: char_curves_table
 
   nullify(rel_perm_function_ptr)
 
@@ -183,93 +160,6 @@ subroutine CharacteristicCurvesRead(this,input,option)
                            &CAP_PRESSURE_FUNCTION_WG or PC_WG for Pcwg or; &
                            &CAP_PRESSURE_FUNCTION_OG or PC_OG for Pcog'
         call PrintErrMsg(option)
-      case('SATURATION_FUNCTION_OW','CAP_PRESSURE_FUNCTION_OW','PC_OW')
-        call InputReadCardDbaseCompatible(input,option,word)
-        call InputErrorMsg(input,option,'SATURATION_FUNCTION_OW',error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('VAN_GENUCHTEN','VAN_GENUCHTEN_OW')
-            this%oil_wat_sat_func => SF_XW_VG_Create()
-          case("BROOKS_COREY")  
-            this%oil_wat_sat_func => SF_XW_BC_Create()            
-          case('CONSTANT') 
-            this%oil_wat_sat_func => SF_XW_constant_Create()
-          ! case('TABLE')
-          !   this%oil_wat_sat_func => SF_XW_table_Create()
-          !   call InputReadWord(input,option,this%oil_wat_sat_func%table_name, &
-          !                                                           PETSC_TRUE)
-          !   call InputErrorMsg(input,option,'SATURATION_FUNCTION_OW,TABLE', &
-          !                                                      error_string)
-          case default
-            call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION_OW', &
-                                          option)
-        end select
-        call SaturationFunctionOWGRead(this%oil_wat_sat_func,input,option)
-      case('PC_OW_TABLE')
-        this%oil_wat_sat_func => SF_XW_table_Create()
-        call InputReadWord(input,option,this%oil_wat_sat_func%table_name, &
-                                                                PETSC_TRUE)
-        call InputErrorMsg(input,option,'SATURATION_FUNCTION_OW,TABLE', &
-                                                           error_string)
-      case('SATURATION_FUNCTION_WG','CAP_PRESSURE_FUNCTION_WG','PC_WG')
-        call InputReadCardDbaseCompatible(input,option,word)
-        call InputErrorMsg(input,option,'SATURATION_FUNCTION_WG',error_string)
-        call StringToUpper(word)
-        select case(word)
-          case("VAN_GENUCHTEN")
-            this%gas_wat_sat_func => SF_XW_VG_Create()
-          case("BROOKS_COREY")  
-            this%gas_wat_sat_func => SF_XW_BC_Create()
-          case('CONSTANT') !suppot only new format
-            this%gas_wat_sat_func => SF_XW_VG_Create()
-          ! case('TABLE')
-          !   this%gas_wat_sat_func => SF_XW_table_Create()
-          !   call InputReadWord(input,option,this%gas_wat_sat_func%table_name, &
-          !                                                          PETSC_TRUE)
-          !   call InputErrorMsg(input,option,'SATURATION_FUNCTION_WG,TABLE', &
-          !                                                    error_string)
-          case default
-            call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION_WG', &
-                                          option)
-        end select
-        call SaturationFunctionOWGRead(this%gas_wat_sat_func,input,option)
-      case('PC_WG_TABLE')
-        this%gas_wat_sat_func => SF_XW_table_Create()
-        call InputReadWord(input,option,this%gas_wat_sat_func%table_name, &
-                                                               PETSC_TRUE)
-        call InputErrorMsg(input,option,'PC_WG_TABLE',error_string)
-      case('SATURATION_FUNCTION_OG','CAP_PRESSURE_FUNCTION_OG','PC_OG')
-        call InputReadCardDbaseCompatible(input,option,word)
-        call InputErrorMsg(input,option,'SATURATION_FUNCTION_OG',error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('VAN_GENUCHTEN_SL','VAN_GENUCHTEN_OG_SL')
-            this%oil_gas_sat_func => SF_OG_VG_SL_Create()
-          case('CONSTANT')
-            this%oil_gas_sat_func => SF_OG_constant_Create()
-          case('BROOKS_COREY_OG')
-            option%io_buffer = 'SATURATION_FUNCTION_OG - BROOKS_COREY_OG&
-                          &in CHARACTERISTIC_CURVES. &
-                          &BROOKS_COREY_OG not supported please use:  &
-                          &CONSTANT for Pcog = const, TABLE for lookup tables &
-                          &VAN_GENUCHTEN_SL for Pcog(Sl)'
-            call PrintErrMsg(option)
-          ! case('TABLE')
-          !   this%oil_gas_sat_func => SF_OG_table_Create()
-          !   call InputReadWord(input,option,this%oil_gas_sat_func%table_name, &
-          !                                                         PETSC_TRUE)
-          !   call InputErrorMsg(input,option,'SATURATION_FUNCTION_OG,TABLE', &
-          !                                                    error_string)
-          case default
-            call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION_OG', &
-                                          option)
-        end select
-        call SaturationFunctionOWGRead(this%oil_gas_sat_func,input,option)
-      case('PC_OG_TABLE')
-        this%oil_gas_sat_func => SF_OG_table_Create()
-        call InputReadWord(input,option,this%oil_gas_sat_func%table_name, &
-                                                              PETSC_TRUE)
-        call InputErrorMsg(input,option,'PC_OG_TABLE',error_string)        
       case('PERMEABILITY_FUNCTION')
         nullify(rel_perm_function_ptr)
         phase_keyword = 'NONE'
@@ -416,158 +306,6 @@ subroutine CharacteristicCurvesRead(this,input,option)
             call InputKeywordUnrecognized(input,word, &
                                           'PERMEABILITY_FUNCTION,PHASE',option)
         end select
-      case('PERMEABILITY_FUNCTION_WAT','KRW')
-        call InputReadCardDbaseCompatible(input,option,word)
-        call InputErrorMsg(input,option,'PERMEABILITY_FUNCTION_WAT - KRW ', &
-                           error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('MOD_BROOKS_COREY')
-            this%wat_rel_perm_func_owg => RPF_wat_owg_MBC_Create()
-          case('MUALEM_VG')
-            this%wat_rel_perm_func_owg => RPF_wat_owg_Mualem_VG_Create()
-          case('BURDINE_VG')
-            this%wat_rel_perm_func_owg => RPF_wat_owg_Burdine_VG_Create()
-          case('BURDINE_BC')
-            this%wat_rel_perm_func_owg => RPF_wat_owg_Burdine_BC_Create()
-          ! case('TABLE')
-          !   this%wat_rel_perm_func_owg => RPF_wat_owg_table_Create()
-          !   call InputReadWord(input,option, &
-          !                 this%wat_rel_perm_func_owg%table_name,PETSC_TRUE)
-          !   call InputErrorMsg(input,option, &
-          !                 'PERMEABILITY_FUNCTION_WAT/KRW,TABLE',error_string)
-          case default
-            call InputKeywordUnrecognized(input,word, &
-                                      'PERMEABILITY_FUNCTION_WAT,KRW',option)
-        end select
-        call PermeabilityFunctionOWGRead(this%wat_rel_perm_func_owg, &
-                                                   input,option)
-      case('KRW_TABLE')
-        this%wat_rel_perm_func_owg => RPF_wat_owg_table_Create()
-        call InputReadWord(input,option, &
-                      this%wat_rel_perm_func_owg%table_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'KRW_TABLE',error_string)        
-      case('PERMEABILITY_FUNCTION_GAS','KRG')
-        call InputReadCardDbaseCompatible(input,option,word)
-        call InputErrorMsg(input,option,'PERMEABILITY_FUNCTION_GAS - KRG ', &
-                           error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('MOD_BROOKS_COREY')
-            this%gas_rel_perm_func_owg => RPF_gas_owg_MBC_Create()
-          case('MUALEM_VG_SL')
-            this%gas_rel_perm_func_owg => RPF_gas_owg_Mualem_VG_Create()
-          case('BURDINE_VG_SL')
-            this%gas_rel_perm_func_owg => RPF_gas_owg_Burdine_VG_Create()
-          case('BURDINE_BC_SL')
-            this%gas_rel_perm_func_owg => RPF_gas_owg_Burdine_BC_Create()
-          case('TOUGH2_IRP7_SL')
-            this%gas_rel_perm_func_owg => RPF_gas_owg_TOUGH2_IRP7_Create()
-          ! case('TABLE')
-          !   this%gas_rel_perm_func_owg => RPF_gas_owg_table_Create()
-          !   call InputReadWord(input,option, &
-          !                 this%gas_rel_perm_func_owg%table_name,PETSC_TRUE)
-          !   call InputErrorMsg(input,option, &
-          !                 'PERMEABILITY_FUNCTION_GAS/KRG,TABLE',error_string)
-          case default
-            call InputKeywordUnrecognized(input,word, &
-                                  'PERMEABILITY_FUNCTION_GAS,KRG',option)
-        end select
-        call PermeabilityFunctionOWGRead(this%gas_rel_perm_func_owg, &
-                                                   input,option)
-      case('KRG_TABLE')
-        this%gas_rel_perm_func_owg => RPF_gas_owg_table_Create()
-        call InputReadWord(input,option, &
-                      this%gas_rel_perm_func_owg%table_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'KRG_TABLE',error_string)
-      case('PERMEABILITY_FUNCTION_OW','KROW', &
-            'PERMEABILITY_FUNCTION_HC','KRH')
-        !krh uses same class than krow    
-        call InputReadCardDbaseCompatible(input,option,word)
-        call InputErrorMsg(input,option,'PERMEABILITY_FUNCTION_OW/KROW/KRH ',&
-                           error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('MOD_BROOKS_COREY')
-            this%ow_rel_perm_func_owg => RPF_ow_owg_MBC_Create()
-          case('TOUGH2_LINEAR')
-            this%ow_rel_perm_func_owg => RPF_ow_owg_linear_Create()
-          ! case('TABLE')
-          !   this%ow_rel_perm_func_owg => RPF_ow_owg_table_Create()
-          !   call InputReadWord(input,option, &
-          !                 this%ow_rel_perm_func_owg%table_name,PETSC_TRUE)
-          !   call InputErrorMsg(input,option, &
-          !               'PERMEABILITY_FUNCTION_OW/KOW/KRH,TABLE',error_string)
-          case default
-            call InputKeywordUnrecognized(input,word, &
-                              'PERMEABILITY_FUNCTION_OW/KROW/KRH',option)
-        end select
-        select case(word)
-          case('PERMEABILITY_FUNCTION_HYDROCARBON','KRH')
-            this%ow_rel_perm_func_owg%So_is_Sh = PETSC_TRUE
-        end select
-        call PermeabilityFunctionOWGRead(this%ow_rel_perm_func_owg, &
-                                                   input,option)
-      case('KROW_TABLE','KRH_TABLE')
-        this%ow_rel_perm_func_owg => RPF_ow_owg_table_Create()
-        call InputReadWord(input,option, &
-                      this%ow_rel_perm_func_owg%table_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'KROW_TABLE/KRH_TABLE',error_string)        
-      case('PERMEABILITY_FUNCTION_OG','KROG')
-        call InputReadCardDbaseCompatible(input,option,word)
-        call InputErrorMsg(input,option,'PERMEABILITY_FUNCTION_OG - KROG ', &
-                           error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('MOD_BROOKS_COREY')
-            this%og_rel_perm_func_owg => RPF_og_owg_MBC_Create()
-          ! case('TABLE')
-          !   this%og_rel_perm_func_owg => RPF_og_owg_table_Create()
-          !   call InputReadWord(input,option, &
-          !                 this%og_rel_perm_func_owg%table_name,PETSC_TRUE)
-          !   call InputErrorMsg(input,option, &
-          !                'PERMEABILITY_FUNCTION_OG/KROG,TABLE',error_string)
-          case default
-            call InputKeywordUnrecognized(input,word, &
-                                  'PERMEABILITY_FUNCTION_OG,KROG',option)
-        end select
-        call PermeabilityFunctionOWGRead(this%og_rel_perm_func_owg, &
-                                                   input,option)
-      case('KROG_TABLE')
-        this%og_rel_perm_func_owg => RPF_og_owg_table_Create()
-        call InputReadWord(input,option, &
-                      this%og_rel_perm_func_owg%table_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'KROG_TABLE',error_string)        
-      case('PERMEABILITY_FUNCTION_OIL','KRO')
-        call InputReadCardDbaseCompatible(input,option,word)
-        call InputErrorMsg(input,option,'PERMEABILITY_FUNCTION_OIL - KRO ', &
-                           error_string)
-        call StringToUpper(word)
-        select case(word)
-        case('ECLIPSE')
-            this%oil_rel_perm_func_owg => RPF_oil_ecl_Create()
-          case default
-            call InputKeywordUnrecognized(input,word, &
-                                  'PERMEABILITY_FUNCTION_OIL,KRO',option)
-        end select
-        call PermeabilityFunctionOWGRead(this%oil_rel_perm_func_owg, &
-                                                   input,option)
-      case('PERMEABILITY_FUNCTION_OWG')
-        option%io_buffer = 'PERMEABILITY_FUNCTION_OWG is not supported &
-                   &any more in CHARACTERISTIC_CURVES. Please use either: &
-                   &PERMEABILITY_FUNCTION_WAT or KRW for krw; &
-                   &PERMEABILITY_FUNCTION_GAS or KRG for krg; &
-                   &PERMEABILITY_FUNCTION_OW or KROW for krow; &
-                   &PERMEABILITY_FUNCTION_OG or KROG for krog; &
-                   &PERMEABILITY_FUNCTION_OIL or KRO for kro;'
-        call PrintErrMsg(option)
-      case('TABLE')
-        char_curves_table => CharCurvesTableCreate()
-        call InputReadWord(input,option,char_curves_table%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'TABLE',error_string)
-        call CharCurvesTableRead(char_curves_table,input,option)
-        call CharCurvesTableAddToList(char_curves_table, &
-                                      this%char_curves_tables)
       case('TEST')
         this%test = PETSC_TRUE
       case('DEFAULT')
@@ -582,13 +320,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
   enddo
   call InputPopBlock(input,option)
   
-  select case(option%iflowmode)
-    case(TOWG_MODE,TOIL_IMS_MODE) 
-      call CharCurvesOWGPostReadProcess(this,option)
-      call CharacteristicCurvesOWGVerify(this,option)
-    case default
-      call CharacteristicCurvesVerify(this,option)
-   end select
+  call CharacteristicCurvesVerify(this,option)
 
 end subroutine CharacteristicCurvesRead
 
@@ -1822,30 +1554,7 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
   PetscReal :: gas_res_sat
 
   select case(option%iflowmode)
-    case(TOWG_MODE)
-      call characteristic_curves%GetOWGCriticalAndConnateSats( &
-                    CharCurvesGetGetResidualSats(option%liquid_phase), &
-                    CharCurvesGetGetResidualSats(option%gas_phase), &
-                    CharCurvesGetGetResidualSats(option%oil_phase), &
-                    sowcr_dummy, & 
-                    sogcr_dummy, &
-                    swco_dummy, &
-                    option)
-      if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
-        CharCurvesGetGetResidualSats(option%gas_phase) = 0.0d0
-      end if
-      if (option%iflow_sub_mode == TOWG_SOLVENT_TL) then
-        CharCurvesGetGetResidualSats(option%solvent_phase) = 0.0d0
-      end if
-    case(TOIL_IMS_MODE)
-      call characteristic_curves%GetOWGCriticalAndConnateSats( &
-                    CharCurvesGetGetResidualSats(option%liquid_phase), &
-                    sgcr_dummy, &
-                    CharCurvesGetGetResidualSats(option%oil_phase), &
-                    sowcr_dummy, &
-                    sogcr_dummy, &
-                    swco_dummy, &
-                    option)
+    ! leave as case to accommodate OGS classes
     case default
       CharCurvesGetGetResidualSats(1) = &
         characteristic_curves%liq_rel_perm_function%Sr
@@ -1949,48 +1658,6 @@ end function CharCurvesGetGetResidualSats
 
 ! ************************************************************************** !
 
-subroutine GetOWGCriticalAndConnateSats(this,swcr,sgcr,socr,sowcr,sogcr,swco,&
-                                                                       option)
-  ! 
-  ! Get Critical Saturations for Water, Oil & Gas phases and Water Connate Sat
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 08/06/18
-  ! 
-
-  use Option_module  
-  
-  class(characteristic_curves_type) :: this
-  type(option_type) :: option
-  PetscReal,intent(out)::swcr
-  PetscReal,intent(out)::sgcr
-  PetscReal,intent(out)::socr
-  PetscReal,intent(out)::sowcr
-  PetscReal,intent(out)::sogcr
-  PetscReal,intent(out)::swco
-
-  swcr = this%wat_rel_perm_func_owg%GetCriticalSaturation(option)
-  
-  if ( associated(this%gas_rel_perm_func_owg) ) then
-    sgcr = this%gas_rel_perm_func_owg%GetCriticalSaturation(option)
-  end if
-  
-  if ( associated(this%ow_rel_perm_func_owg) ) then
-     sowcr = this%ow_rel_perm_func_owg%GetCriticalSaturation(option)
-     socr = sowcr
-     sogcr = 0.0
-  elseif ( associated(this%oil_rel_perm_func_owg) ) then
-    socr = this%oil_rel_perm_func_owg%GetCriticalSaturation(option)
-    sowcr = this%oil_rel_perm_func_owg%GetSowcr(option)
-    sogcr = this%oil_rel_perm_func_owg%GetSogcr(option)
-  end if
-
-  swco = this%wat_rel_perm_func_owg%GetConnateSaturation(option)
-
-end subroutine GetOWGCriticalAndConnateSats
-
-! ************************************************************************** !
-
 function CharacteristicCurvesGetID(characteristic_curves_array, &
                                    characteristic_curves_name, &
                                    material_property_name, option)
@@ -2030,37 +1697,7 @@ function CharacteristicCurvesGetID(characteristic_curves_array, &
 
 end function CharacteristicCurvesGetID
 
-! ************************************************************************** !
-
-subroutine CharCurvesProcessTables(this,option)
-  ! 
-  ! Get Critical Saturations for Water, Oil & Gas phases and Water Connate Sat
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 08/06/18
-  ! 
-
-  use Option_module  
-  
-  class(characteristic_curves_type) :: this
-  type(option_type) :: option
-  
-  class(char_curves_table_type), pointer :: char_curves_table_cur
-  
-  !point to first cc_table in the list
-  char_curves_table_cur => this%char_curves_tables
-  do 
-    if (.not.associated(char_curves_table_cur)) exit
-    char_curves_table_cur%first_index = option%num_table_indices + 1
-    option%num_table_indices = option%num_table_indices + &
-                               char_curves_table_cur%n_indices
-    char_curves_table_cur => char_curves_table_cur%next
-  enddo
-  
-
-end subroutine CharCurvesProcessTables
 ! ************************************************************************** !  
-  
 
 subroutine CharacteristicCurvesTest(characteristic_curves,option)
   ! 
@@ -2084,18 +1721,6 @@ subroutine CharacteristicCurvesTest(characteristic_curves,option)
                                                  option)
   end if
 
-  if (associated(characteristic_curves%oil_wat_sat_func)) then
-    call characteristic_curves%oil_wat_sat_func%Test( &
-                                                 characteristic_curves%name, &
-                                                 option)
-  end if
-
-  if (associated(characteristic_curves%oil_gas_sat_func)) then
-    call characteristic_curves%oil_gas_sat_func%Test( &
-                                                 characteristic_curves%name, &
-                                                 option)
-  end if
-
   if (associated(characteristic_curves%liq_rel_perm_function)) then
   phase = 'liquid'
   call characteristic_curves%liq_rel_perm_function%Test( &
@@ -2110,30 +1735,6 @@ subroutine CharacteristicCurvesTest(characteristic_curves,option)
                                                  phase,option)
   endif
   
-  if ( associated(characteristic_curves%wat_rel_perm_func_owg) ) then
-    call characteristic_curves%wat_rel_perm_func_owg%Test( &
-                                                characteristic_curves%name, &
-                                                option)                                                 
-  end if
-
-  if ( associated(characteristic_curves%gas_rel_perm_func_owg) ) then
-    call characteristic_curves%gas_rel_perm_func_owg%Test( &
-                                                 characteristic_curves%name, &
-                                                 option)
-  end if
-
-  if ( associated(characteristic_curves%ow_rel_perm_func_owg) ) then
-    call characteristic_curves%ow_rel_perm_func_owg%Test( &
-                                                 characteristic_curves%name, &
-                                                 option)
-  end if
-
-  if ( associated(characteristic_curves%oil_rel_perm_func_owg) ) then
-    call characteristic_curves%oil_rel_perm_func_owg%Test( &
-                                                 characteristic_curves%name, &
-                                                 option)
-  end if
-
 end subroutine CharacteristicCurvesTest
 
 ! ************************************************************************** !
@@ -2181,8 +1782,8 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
   if (associated(characteristic_curves%gas_rel_perm_function) ) then
     call characteristic_curves%gas_rel_perm_function%Verify(string,option)
   else
-    if (option%iflowmode == G_MODE .or. option%iflowmode == TOWG_MODE .or. &
-        option%iflowmode == WF_MODE .or. option%iflowmode == H_MODE) then
+    if (option%iflowmode == G_MODE .or. option%iflowmode == WF_MODE .or. &
+        option%iflowmode == H_MODE) then
       option%io_buffer = 'A gas phase relative permeability function has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &
@@ -2194,437 +1795,6 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
 
   
 end subroutine CharacteristicCurvesVerify
-
-! **************************************************************************** !
-
-subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
-  !
-  ! Checks if required parameters have been set for each curve type.
-  ! Copy end points between classes where needed
-  !
-  ! Author: Paolo Orsini
-  ! Date: 11/16/17 - 08/06/2018
-  !
-  use Option_module
-
-  implicit none
-
-  class(characteristic_curves_type) :: characteristic_curves
-  type(option_type) :: option
-  
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: gas_present, oil_gas_interface_present 
-  PetscBool :: wat_gas_interface_present
-  PetscBool :: oil_perm_2ph_ow, oil_perm_3ph_owg
-  PetscReal :: swcr, swco, sgco, sgcr, sowcr, sogcr
- 
-  swcr = 0.0
-  swco = 0.0
-  sgco = 0.0
-  sgcr = 0.0
-  sowcr = 0.0
-  sogcr = 0.0
- 
-  call SetCCOWGPhaseFlags(option,oil_gas_interface_present, &
-                          wat_gas_interface_present, gas_present, &
-                          oil_perm_2ph_ow,oil_perm_3ph_owg)
-
-  string = 'CHARACTERISTIC_CURVES(' // trim(characteristic_curves%name) // &
-           '),'
-
-  !check water rel perm - always
-  if (.not.(associated(characteristic_curves%wat_rel_perm_func_owg))) then
-    option%io_buffer = "A water relative permeability function has &
-                        &not been set under CHARACTERISTIC_CURVES " // &
-                        trim(characteristic_curves%name) // '". A &
-                        &PERMEABILITY_FUNCTION_WAT/KRW block must be &
-                        &specified for the water phase.'
-    call PrintErrMsg(option)
-  else
-    !to avoid that verify for RPF_wat_MBC fails set sgcr and socr to zero
-    !real values assigned later once RPF_gas and RPF_oil have been verirified
-    select type(rpf => characteristic_curves%wat_rel_perm_func_owg)
-      class is(RPF_wat_owg_MBC_type)
-        call rpf%RPF_wat_owg_MBC_SetSowcr(0.d0,option)
-    end select
-    call characteristic_curves%wat_rel_perm_func_owg%verify(string,option)
-    swco = characteristic_curves%wat_rel_perm_func_owg%GetConnateSaturation( &
-                                                                      option)
-    swcr = characteristic_curves%wat_rel_perm_func_owg%GetCriticalSaturation( &
-                                                                       option)                                                                      
-  end if  
-  
-  !check capillary pressures between oil and water - always
-  if (.not.(associated(characteristic_curves%oil_wat_sat_func))) then
-    option%io_buffer = "A water/oil saturation function has  &
-                        &not been set under CHARACTERISTIC_CURVES " // &
-                        trim(characteristic_curves%name) // '". A &
-                        &CAP_PRESSURE_FUNCTION_OW/PC_OW block must be &
-                        &specified for the water/oil phase interface.'
-    call PrintErrMsg(option)
-  else
-    select type (sf => characteristic_curves%oil_wat_sat_func)
-      class is(sat_func_xw_constant_type)
-        call sf%SetConnateSaturation(swco,option)
-        call sf%SetCriticalSaturation(swcr,option)
-      class is(sat_func_xw_VG_type)
-        call sf%SetConnateSaturation(swco,option)
-      class is(sat_func_xw_table_type)
-        !check if sat_func_of_pc_available
-        if (sf%table%pc_inverse_available) then
-          sf%sat_func_of_pc_available = PETSC_TRUE
-        end if  
-    end select
-    call characteristic_curves%oil_wat_sat_func%verify(string,option)
-    !Pm min is computed after function verification
-    call characteristic_curves%oil_wat_sat_func%ComputePcMin(option)
-    !check if swco and swcr defined in krw and pcw are the same
-    if (characteristic_curves%oil_wat_sat_func%GetConnateSaturation(option) &
-        /= swco ) then
-      option%io_buffer = adjustl(trim(string)) // & 
-                         'Swco defined in KRW and PC_XW differs- check input'
-      call PrintErrMsg(option)
-    end if
-    if (characteristic_curves%oil_wat_sat_func%GetCriticalSaturation(option) &
-        /= swcr ) then
-      option%io_buffer = adjustl(trim(string)) // & 
-                        'Swcr defined in KRW and PC_XW differs- check input'
-      call PrintErrMsg(option)
-    end if
-  end if
-
-  !check gas rel perm
-  if (gas_present) then
-    if (.not.(associated(characteristic_curves%gas_rel_perm_func_owg)) ) then
-      option%io_buffer = "A gas relative permeability function has &
-                          &not been set under CHARACTERISTIC_CURVES " // &
-                          trim(characteristic_curves%name) // '". A &
-                          &PERMEABILITY_FUNCTION_GAS/KRG block must be &
-                          &specified for the gas phase.'
-      call PrintErrMsg(option)
-    else
-      !to avoid that verify for RPF_gas_MBC fails set swcr and socr to zero
-      !real values assigned later once RPF_wat and RPF_oil have been verirified      
-      select type(rpf => characteristic_curves%gas_rel_perm_func_owg)
-        class is(RPF_gas_owg_MBC_type)
-          call rpf%RPF_gas_owg_MBC_SetSwcoSogcr(0.d0,0.d0,option)
-      end select  
-      call characteristic_curves%gas_rel_perm_func_owg%verify(string,option)
-      sgco = &
-           characteristic_curves%gas_rel_perm_func_owg%GetConnateSaturation( &
-                                                                      option)
-      sgcr = &
-           characteristic_curves%gas_rel_perm_func_owg%GetCriticalSaturation( &
-                                                                      option)
-    end if
-  end if ! end check gas rel perm
-
-  !check oil/gas capillary pressure (Pcog)
-  if (oil_gas_interface_present .and. gas_present) then
-    if (.not.(associated(characteristic_curves%oil_gas_sat_func))) then
-      option%io_buffer = "An oil/gas saturation function has  &
-                          &not been set under CHARACTERISTIC_CURVES " // &
-                          trim(characteristic_curves%name) // '". A &
-                          &CAP_PRESSURE_FUNCTION_OG/PC_OG block must be &
-                          &specified for the oil/gas phase interface.'
-      call PrintErrMsg(option)
-    else
-      select type(sf => characteristic_curves%oil_gas_sat_func )
-        class is(sat_func_og_constant_type)
-          call sf%SetConnateSaturation(sgco,option)
-          call sf%SetCriticalSaturation(sgcr,option)
-        class is(sat_func_og_VG_SL_type)  
-          call sf%SetConnateSaturation(sgco,option)
-          call sf%SetCriticalSaturation(sgcr,option)
-        class is(sat_func_og_table_type)
-          !check if sat_func_of_pc_available
-          if (sf%table%pc_inverse_available) then
-            sf%sat_func_of_pc_available = PETSC_TRUE
-          end if          
-      end select
-      call characteristic_curves%oil_gas_sat_func%verify(string,option)
-      !Pcmin compute after fucntion vericifation
-      call characteristic_curves%oil_gas_sat_func%ComputePcMin(option)
-      !check if sgco and sgcr defined in KRG and PC_OG have the same values
-      if (characteristic_curves%oil_gas_sat_func%GetConnateSaturation(option) &
-          /= sgco ) then
-        option%io_buffer = adjustl(trim(string)) // &
-                          'Sgco in KRG and PC_OG differs - check input'
-        call PrintErrMsg(option)
-      end if
-      if (characteristic_curves%oil_gas_sat_func%GetCriticalSaturation( &
-          option) /= sgcr ) then
-        option%io_buffer = adjustl(trim(string)) // &
-                           'Sgcr in KRG and PC_OG differs - check input'
-        call PrintErrMsg(option)
-      end if    
-    end if    
-  end if  ! end check oil/gas capillary pressure (Pcog)
-
-  if (oil_perm_2ph_ow) then
-    if (.not.(associated(characteristic_curves%ow_rel_perm_func_owg)) ) then
-      option%io_buffer = "A relative permeability function for oil in water &
-                          &has not been set under CHARACTERISTIC_CURVES " // &
-                          trim(characteristic_curves%name) // '". A &
-                          &PERMEABILITY_FUNCTION_OW/KROW/KRH block must be &
-                          &specified for the oil phase in water.'
-      call PrintErrMsg(option)
-    else
-      select type(rpf => characteristic_curves%ow_rel_perm_func_owg)
-        class is(rel_perm_ow_owg_MBC_type)
-          call rpf%RPF_ow_owg_MBC_SetSwcr(swcr,option)
-      end select
-      call characteristic_curves%ow_rel_perm_func_owg%Verify(string,option)
-      sowcr = characteristic_curves%ow_rel_perm_func_owg% &
-                                              GetCriticalSaturation(option)
-    end if
-    if ( associated(characteristic_curves%oil_rel_perm_func_owg) ) then
-      option%io_buffer = "Three phase (OWG) oil relative perability  &
-                          &defined in CHARACTERISTIC_CURVES " // &
-                          trim(characteristic_curves%name) // '". A &
-                          &This is not supported in TOIL and TOWG_IMMISCIBLE'
-      call PrintErrMsg(option)
-    end if    
-  end if !end oil phase check
-
-  if (oil_perm_3ph_owg) then
-    if (.not.(associated(characteristic_curves%oil_rel_perm_func_owg)) ) then
-      option%io_buffer = "A oil relative permeability function has &
-                          &not been set under CHARACTERISTIC_CURVES " // &
-                          trim(characteristic_curves%name) // '". A &
-                          &PERMEABILITY_FUNCTION_OIL/KRO block must be &
-                          &specified for the oil phase.'
-      call PrintErrMsg(option)
-    else
-      select type(rpf => characteristic_curves%oil_rel_perm_func_owg)
-        class is(rel_perm_oil_owg_ecl_type)
-          call rpf%RPF_oil_ecl_SetSwco(swco,option) 
-          !check if KROW is defined and assign swcr if KROW_MBC
-          if (.not.(associated(rpf%rel_perm_ow )) ) then
-             option%io_buffer = "Within the oil Eclipse model krow has not &
-                                 &been set under CHARACTERISTIC_CURVES " // &
-                                 trim(characteristic_curves%name) // '". A &
-                                 &PERMEABILITY_FUNCTION_OW/KROW block must be &
-                                 &specified - KRO:ECLIPSE:KROW '         
-          else
-            select type (sub_rpf => rpf%rel_perm_ow)
-              class is(rel_perm_ow_owg_MBC_type)
-                call sub_rpf%RPF_ow_owg_MBC_SetSwcr(swcr,option)
-            end select  
-          end if
-          !check if KROG is defined and assign swco and sgcr if KROG_MBC
-          if (.not.(associated(rpf%rel_perm_og )) ) then
-            option%io_buffer = "Within the oil Eclipse model krow has not &
-                                &been set under CHARACTERISTIC_CURVES " // &
-                                trim(characteristic_curves%name) // '". A &
-                                &PERMEABILITY_FUNCTION_OG/KROG block must be &
-                                &specified - KRO:ECLIPSE:KROG '         
-          else
-            select type (sub_rpf => rpf%rel_perm_og)
-              class is(rel_perm_og_owg_MBC_type)
-                call sub_rpf%RPF_og_owg_MBC_SetSwcoSgcr(swco,sgcr,option)
-            end select  
-          end if  
-      end select
-      call characteristic_curves%oil_rel_perm_func_owg%Verify(string,option)
-      sowcr = characteristic_curves%oil_rel_perm_func_owg%GetSowcr(option)
-      sogcr = characteristic_curves%oil_rel_perm_func_owg%GetSogcr(option)
-    end if ! end if oil_rel_perm_func_owg
-    if ( associated(characteristic_curves%ow_rel_perm_func_owg) ) then
-      option%io_buffer = "KROW (Oil relative permeability in water)  &
-                    &defined in CHARACTERISTIC_CURVES " // &
-                    trim(characteristic_curves%name) // '". This is not &
-                    &supported in TOWG:Black Oil,SOLVENT. KROW must be &
-                    &defined within KRO'
-      call PrintErrMsg(option)
-    end if
-    if ( associated(characteristic_curves%og_rel_perm_func_owg) ) then
-      option%io_buffer = "KROG (Oil relative permeability in water) &
-                    &defined in CHARACTERISTIC_CURVES " // &
-                    trim(characteristic_curves%name) // '". This is not &
-                    &supported in TOWG:Black Oil,SOLVENT. KROG must be &
-                    &defined within KRO'
-      call PrintErrMsg(option)
-    end if        
-  end if !end if oil_perm_3ph_owg
-
-  !setup sgcr and socr for RPF_wat_MBC
-  select type(rpf => characteristic_curves%wat_rel_perm_func_owg)
-    class is(RPF_wat_owg_MBC_type)
-      call rpf%RPF_wat_owg_MBC_SetSowcr(sowcr,option)
-      call rpf%Verify(string,option)
-  end select  
-
-  !setup swcr and socr for RPF_gas_MBC
-  if (gas_present) then
-    select type(rpf => characteristic_curves%gas_rel_perm_func_owg)
-      class is(RPF_gas_owg_MBC_type)
-        call rpf%RPF_gas_owg_MBC_SetSwcoSogcr(swco,sogcr,option)
-        call rpf%Verify(string,option)
-    end select      
-  end if
-
-
-end subroutine CharacteristicCurvesOWGVerify
-
-! **************************************************************************** !
-
-subroutine CharCurvesOWGPostReadProcess(cc,option)
-  !
-  ! Process CharCurves:
-  ! - associate cc curves with cc_tables
-  ! - add here any other cc_curves post-read processing 
-  !
-  ! Author: Paolo Orsini
-  ! Date: 08/06/18
-  !
-  use Option_module
-
-  implicit none
-
-  class(characteristic_curves_type) :: cc
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=MAXSTRINGLENGTH) :: error_string_search
-  character(len=MAXWORDLENGTH) :: table_name
-  PetscBool :: gas_present, oil_gas_interface_present 
-  PetscBool :: wat_gas_interface_present
-  PetscBool :: oil_perm_2ph_ow, oil_perm_3ph_owg
-
-  call SetCCOWGPhaseFlags(option,oil_gas_interface_present, &
-                          wat_gas_interface_present, gas_present, &
-                          oil_perm_2ph_ow,oil_perm_3ph_owg)
-
-  error_string = 'CHARACTERISTIC CURVES,(' // trim(cc%name) // '),'
-  error_string_search = ''
- 
-  if (associated(cc%oil_wat_sat_func)) then
-    select type (sf => cc%oil_wat_sat_func)
-      class is (sat_func_xw_table_type)
-        call sf%ProcessTable(cc%char_curves_tables,error_string,option)
-    end select
-  else !attempt to create from list of cc_tables - always
-    error_string_search = trim(error_string) // 'searching for PC_OW,'
-    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCXW, &
-                                    table_name,error_string_search,option)
-    cc%oil_wat_sat_func => SF_XW_table_Create()
-    cc%oil_wat_sat_func%table_name = table_name
-    call cc%oil_wat_sat_func%ProcessTable(cc%char_curves_tables, &
-                                                error_string_search,option)
-  end if
-  
-  if (associated(cc%gas_wat_sat_func)) then 
-    select type (sf => cc%gas_wat_sat_func)
-      class is (sat_func_xw_table_type)
-        call sf%ProcessTable(cc%char_curves_tables,error_string,option)
-    end select
-  elseif (wat_gas_interface_present) then !attempt to create from list of cc_tables
-    error_string_search = trim(error_string) // 'searching for PC_GW,'
-    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCXW, &
-                                    table_name,error_string_search,option)
-    cc%gas_wat_sat_func => SF_XW_table_Create()
-    cc%gas_wat_sat_func%table_name = table_name
-    call cc%gas_wat_sat_func%ProcessTable(cc%char_curves_tables, &
-                                                error_string_search,option)
-  end if
-
-  if (associated(cc%oil_gas_sat_func)) then 
-    select type (sf => cc%oil_gas_sat_func)
-      class is (sat_func_og_table_type)
-        call sf%ProcessTable(cc%char_curves_tables,error_string,option)
-    end select
-  elseif (oil_gas_interface_present) then !attempt to create from list of cc_tables
-    error_string_search = trim(error_string) // 'searching for PC_OG,'
-    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_PCOG, &
-                                     table_name,error_string_search,option)
-    cc%oil_gas_sat_func => SF_OG_table_Create()
-    cc%oil_gas_sat_func%table_name = table_name
-    call cc%oil_gas_sat_func%ProcessTable(cc%char_curves_tables, &
-                                                  error_string_search,option)
-  end if
-
-  if (associated(cc%wat_rel_perm_func_owg)) then
-    select type (rpf => cc%wat_rel_perm_func_owg)
-      class is (RPF_wat_owg_table_type)
-        call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-    end select
-  else !attempt to create from list of cc_tables - always
-    error_string_search = trim(error_string) // 'searching for KRW,'
-    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KRW, &
-                                    table_name,error_string_search,option)
-    cc%wat_rel_perm_func_owg => RPF_wat_owg_table_Create()
-    cc%wat_rel_perm_func_owg%table_name = table_name
-    call cc%wat_rel_perm_func_owg%ProcessTable(cc%char_curves_tables, &
-                                                  error_string_search,option)
-  end if
-
-  if (associated(cc%gas_rel_perm_func_owg)) then
-    select type (rpf => cc%gas_rel_perm_func_owg)
-     class is (RPF_gas_owg_table_type)
-       call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-    end select
-  elseif (gas_present) then !attempt to create from list of cc_tables
-    error_string_search = trim(error_string) // 'searching for KRG,'
-    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KRG, &
-                                    table_name,error_string_search,option)
-    cc%gas_rel_perm_func_owg => RPF_gas_owg_table_Create()
-    cc%gas_rel_perm_func_owg%table_name = table_name
-    call cc%gas_rel_perm_func_owg%ProcessTable(cc%char_curves_tables, &
-                                                  error_string_search,option)
-  end if
-
-  if (associated(cc%ow_rel_perm_func_owg)) then
-    select type (rpf => cc%ow_rel_perm_func_owg)
-      class is (rel_perm_ow_owg_table_type)
-        call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-    end select
-  elseif (oil_perm_2ph_ow) then !attempt to create from list of cc_tables
-    error_string_search = trim(error_string) // 'searching for KROW,'
-    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROW, &
-                                    table_name,error_string_search,option)
-    cc%ow_rel_perm_func_owg => RPF_ow_owg_table_Create()
-    cc%ow_rel_perm_func_owg%table_name = table_name
-    call cc%ow_rel_perm_func_owg%ProcessTable(cc%char_curves_tables, &
-                                               error_string_search,option)
-  end if
-
-  if (associated(cc%oil_rel_perm_func_owg)) then
-    if (associated(cc%oil_rel_perm_func_owg%rel_perm_ow)) then
-      select type (rpf => cc%oil_rel_perm_func_owg%rel_perm_ow)
-       class is(rel_perm_ow_owg_table_type)
-         call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-      end select
-    end if
-    if (associated(cc%oil_rel_perm_func_owg%rel_perm_og)) then
-      select type (rpf => cc%oil_rel_perm_func_owg%rel_perm_og)
-        class is(rel_perm_og_owg_table_type)
-          call rpf%ProcessTable(cc%char_curves_tables,error_string,option)
-       end select
-    end if   
-  elseif (oil_perm_3ph_owg) then
-    !default to eclipse - user must enter the KRO block to define different 
-    !models when available
-    cc%oil_rel_perm_func_owg => RPF_oil_ecl_Create()
-    !attempt to create KROW from list of cc_tables
-    error_string_search = trim(error_string) // 'searching for KROW,'
-    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROW, &
-                                   table_name,error_string_search,option)
-    cc%oil_rel_perm_func_owg%rel_perm_ow => RPF_ow_owg_table_Create()
-    cc%oil_rel_perm_func_owg%rel_perm_ow%table_name = table_name
-    call cc%oil_rel_perm_func_owg%rel_perm_ow%ProcessTable( &
-                        cc%char_curves_tables,error_string_search,option)
-    !attempt to create KROG from list of cc_tables
-    error_string_search = trim(error_string) // 'searching for KROG,'
-    call SearchCCTVarInCCTableList(cc%char_curves_tables,CCT_KROG, &
-                                  table_name,error_string_search,option)
-    cc%oil_rel_perm_func_owg%rel_perm_og => RPF_og_owg_table_Create()
-    cc%oil_rel_perm_func_owg%rel_perm_og%table_name = table_name
-    call cc%oil_rel_perm_func_owg%rel_perm_og%ProcessTable( &
-                         cc%char_curves_tables,error_string_search,option)
-  end if
-
-end subroutine CharCurvesOWGPostReadProcess
 
 ! **************************************************************************** !
 
@@ -3145,10 +2315,6 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
   
   call SaturationFunctionDestroy(cc%saturation_function)
 
-  call SaturationFunctionXWDestroy(cc%oil_wat_sat_func)
-  call SaturationFunctionXWDestroy(cc%gas_wat_sat_func)
-  call SaturationFunctionOGDestroy(cc%oil_gas_sat_func)
-
   ! the liquid and gas relative permeability pointers may pointer to the
   ! same address. if so, destroy one and nullify the other.
   if (associated(cc%liq_rel_perm_function,cc%gas_rel_perm_function)) then
@@ -3158,15 +2324,6 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
     call PermeabilityFunctionDestroy(cc%liq_rel_perm_function)
     call PermeabilityFunctionDestroy(cc%gas_rel_perm_function)
   endif
-
-   call WatPermFunctionOWGDestroy(cc%wat_rel_perm_func_owg)
-   call OWPermFunctionOWGDestroy(cc%ow_rel_perm_func_owg)
-   call OilPermFunctionOWGDestroy(cc%oil_rel_perm_func_owg)
-   call GasPermFunctionOWGDestroy(cc%gas_rel_perm_func_owg)
- 
-  if ( associated(cc%char_curves_tables) ) then
-    call CharCurvesTableDestroy(cc%char_curves_tables)
-  end if  
 
   deallocate(cc)
   nullify(cc)

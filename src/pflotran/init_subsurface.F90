@@ -259,11 +259,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY
   use HDF5_module
-  use Grid_Grdecl_module, only : GetPoroPermValues, &
-                                 WriteStaticDataAndCleanup, &
-                                 DeallocatePoroPermArrays, &
-                                 PermPoroExchangeAndSet,SatnumExchangeAndSet, &
-                                 GetIsGrdecl,GetSatnumSet,GetSatnumValue
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -357,16 +352,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
   enddo
   
-  !  Prepare for exchange of cell indices and check if satnum set
-
-  satnum_set = PETSC_FALSE
-  if (GetIsGrdecl()) then
-    if (option%myrank /= option%io_rank) then
-      allocate(inatsend(grid%nlmax))
-    endif
-    satnum_set = GetSatnumSet(maxsatn)
-  endif
-  
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
@@ -432,56 +417,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
-
-    if (GetIsGrdecl()) then
-
-      natural_id = grid%nG2A(ghosted_id)
-
-      if (option%myrank == option%io_rank) then
-  !  Simply set up the values on the I/O proc
-        call GetPoroPermValues(natural_id,poro,permx,permy,permz)
-        por0_p(local_id)    = poro
-        perm_xx_p(local_id) = permx
-        perm_yy_p(local_id) = permy
-        perm_zz_p(local_id) = permz
-        if (option%flow%full_perm_tensor) then
-          perm_xy_p(local_id) = 0.d0
-          perm_xz_p(local_id) = 0.d0
-          perm_yz_p(local_id) = 0.d0
-        endif
-        if( satnum_set ) then
-  !  Set satnums on this proc
-          isatnum = GetSatnumValue(natural_id)
-          if (option%nflowdof > 0) then
-             patch%cc_id(ghosted_id) = isatnum
-          endif
-        endif
-                
-      else
-  !  Add to the request list on other procs
-        inatsend(local_id)=natural_id
-      endif
-
-    endif
   enddo
-
-  if (GetIsGrdecl()) then
-    call PermPoroExchangeAndSet(por0_p,perm_xx_p,perm_yy_p,perm_zz_p, &
-                                perm_xy_p,perm_xz_p,perm_yz_p, &
-                                inatsend,grid%nlmax,option)
-    if( satnum_set ) then
-      call SatnumExchangeAndSet(patch%cc_id, &
-                                inatsend, grid%nlmax, grid%nL2G, option)
-    endif  
-    if (option%myrank .ne. option%io_rank) then
-      call DeallocateArray(inatsend)
-    endif
-    write_ecl = realization%output_option%write_ecl
-    call WriteStaticDataAndCleanup(write_ecl, &
-                                realization%output_option%eclipse_options, &
-                                option)
-    call DeallocatePoroPermArrays(option)
-  endif
 
   call MaterialPropertyDestroy(null_material_property)
 
@@ -1138,10 +1074,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         matrix_zeroing => patch%aux%Hydrate%matrix_zeroing
       case(WF_MODE)
         matrix_zeroing => patch%aux%WIPPFlo%matrix_zeroing
-      case(TOIL_IMS_MODE)
-        matrix_zeroing => patch%aux%TOil_ims%matrix_zeroing
-      case(TOWG_MODE)
-        matrix_zeroing => patch%aux%TOWG%matrix_zeroing
     end select
     call InitSubsurfaceCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
                                        inactive_cells_exist,option)
@@ -1164,13 +1096,6 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(WF_MODE)
         patch%aux%WIPPFlo%matrix_zeroing => matrix_zeroing
         patch%aux%WIPPFlo%inactive_cells_exist = inactive_cells_exist
-      case(TOIL_IMS_MODE)
-        patch%aux%TOil_ims%matrix_zeroing => matrix_zeroing
-        patch%aux%TOil_ims%inactive_cells_exist = inactive_cells_exist
-      case(TOWG_MODE)
-        !PO: same for all pm_XXX_aux - can be defined in PM_Base_Aux_module
-        patch%aux%TOWG%matrix_zeroing => matrix_zeroing
-        patch%aux%TOWG%inactive_cells_exist = inactive_cells_exist
     end select
     deallocate(dof_is_active)
   endif
