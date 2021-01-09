@@ -20,10 +20,7 @@ util_obj  = \
 	${common_src}variables.o
 
 deriv_obj = \
-	${common_src}toil_ims_derivs.o \
-	${common_src}general_derivative.o \
-	${common_src}derivative_tests.o \
-	${common_src}derivatives_utilities.o
+	${common_src}general_derivative.o
 
 # DO NOT place any object files that depend on the discretization within 
 # util_obj
@@ -32,23 +29,13 @@ eos_obj = \
 	${common_src}co2_span_wagner_spline.o \
 	${common_src}eos.o \
 	${common_src}eos_gas.o \
-	${common_src}eos_oil.o \
-        ${common_src}eos_slv.o \
 	${common_src}gas_eos_mod.o 
 
 mode_aux_obj = \
 	${common_src}auxiliary.o \
-	${common_src}auxvars_base.o \
-	${common_src}auxvars_flow.o \
-	${common_src}auxvars_flow_energy.o \
-	${common_src}auxvars_toil_ims.o \
-	${common_src}auxvars_towg.o \
 	${common_src}general_aux.o \
 	${common_src}hydrate_aux.o \
 	${common_src}wipp_flow_aux.o \
-	${common_src}pm_base_aux.o \
-	${common_src}pm_toil_ims_aux.o \
-	${common_src}pm_towg_aux.o \
 	${common_src}mphase_aux.o \
         ${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
@@ -58,8 +45,6 @@ mode_aux_obj = \
 	${common_src}pm_general.o \
 	${common_src}pm_hydrate.o \
 	${common_src}pm_wipp_flow.o \
-	${common_src}pm_toil_ims.o \
-	${common_src}pm_towg.o \
 	${common_src}pm_mphase.o \
         ${common_src}pm_nwt.o \
 	${common_src}pm_richards.o \
@@ -84,8 +69,6 @@ mode_obj = \
 	${common_src}hydrate.o \
 	${common_src}hydrate_common.o \
 	${common_src}wipp_flow_common.o \
-	${common_src}toil_ims.o \
-	${common_src}towg.o \
 	${common_src}global.o \
 	${common_src}mphase.o \
         ${common_src}nw_transport.o \
@@ -153,8 +136,6 @@ grid_obj = \
 	${common_src}discretization.o \
 	${common_src}dm_kludge.o \
 	${common_src}grid.o \
-	${common_src}grid_grdecl.o \
-	${common_src}grid_grdecl_util.o \
 	${common_src}grid_structured.o \
 	${common_src}grid_unstructured_cell.o \
 	${common_src}grid_unstructured_explicit.o \
@@ -167,7 +148,6 @@ relations_obj = \
 	${common_src}characteristic_curves.o \
 	${common_src}characteristic_curves_base.o \
 	${common_src}characteristic_curves_common.o \
-	${common_src}characteristic_curves_owg.o \
 	${common_src}characteristic_curves_wipp.o \
 	${common_src}characteristic_curves_thermal.o \
 	${common_src}mphase_pckr_mod.o
@@ -195,7 +175,6 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox_wipp_well.o
 
 io_obj = \
-	${common_src}output_eclipse.o \
 	${common_src}hdf5.o \
 	${common_src}hdf5_aux.o \
 	${common_src}output.o \
@@ -209,7 +188,6 @@ io_obj = \
 misc_obj = \
 	${common_src}block_solve.o \
 	${common_src}block_tridiag.o \
-	${common_src}characteristic_curves_table.o \
 	${common_src}checkpoint.o \
 	${common_src}condition.o \
 	${common_src}condition_control.o \
@@ -224,7 +202,6 @@ misc_obj = \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \
 	${common_src}hydrostatic.o \
-	${common_src}hydrostatic_multi_phase.o \
 	${common_src}init_common.o \
 	${common_src}init_subsurface.o \
 	${common_src}init_subsurface_flow.o \
@@ -258,11 +235,6 @@ misc_obj = \
 	${common_src}upwind_direction.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o
-
-well_obj = \
-	${common_src}well_data.o \
-	${common_src}well_type.o \
-	${common_src}well_solver.o
 
 geomech_obj = \
 	${common_src}factory_geomechanics.o \

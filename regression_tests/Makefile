@@ -100,16 +100,11 @@ STANDARD_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
 	wipp/transport/wipp_regular.cfg \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
-	towg/bo/towg_bo.cfg \
 	default/integral_flux/integral_flux.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
-	CPR_preconditioner/CPR_preconditioner.cfg \
 	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
@@ -160,10 +155,6 @@ FLOW_CFG = \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
 	general/general.cfg \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
-	towg/bo/towg_bo.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg

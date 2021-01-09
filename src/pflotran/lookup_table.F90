@@ -1843,6 +1843,8 @@ subroutine LookupTableUniformDestroy(lookup_table)
 
 end subroutine LookupTableUniformDestroy
 
+! ************************************************************************** !
+
 subroutine LookupTableGeneralDestroy(lookup_table)
   ! 
   ! Deallocates any allocated pointers in lookup table
@@ -2170,16 +2172,6 @@ subroutine VarDataRead(this,input,num_fields,min_entries,error_string,option)
   tmp_array_size = 1000 !estimate max table points
   allocate(tmp_data_array(num_fields,tmp_array_size))
   tmp_data_array = UNINITIALIZED_DOUBLE
-  
-  !PO TODO replace this entire block with an internal subroutine
-  ! to support the "*" eclipe default entries
-  !call EclipseTable(input,num_fields,tmp_data_array,num_entries,option)
-  ! inputs : input,num_fields
-  ! output : tmp_data_array,num_entries
-  ! inpout : option
-  ! tmp_data_array has computed default "*" 
-  ! note that this approach is general - since if not "*" are gas_present
-  ! the tables are read as usual. Reading will just be more expensive
   
   num_entries = 0
   do

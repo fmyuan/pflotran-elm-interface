@@ -6,7 +6,6 @@ module Test_Characteristic_Curves_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
-  use Characteristic_Curves_OWG_module
   use Characteristic_Curves_WIPP_module
   use Option_module
 

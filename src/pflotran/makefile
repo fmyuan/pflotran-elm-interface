@@ -240,7 +240,7 @@ include $(SRC_DIR)/pflotran_object_files.txt
 
 # Concatentate dependency groups 
 pflotran_base_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
-	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
+	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(srcsink_obj) $(io_obj) $(misc_obj) $(solver_obj) \
 	$(deriv_obj)
