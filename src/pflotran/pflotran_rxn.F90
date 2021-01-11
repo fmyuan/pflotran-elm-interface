@@ -274,7 +274,7 @@ program pflotran_rxn
   !
   option%nphase = 1
   option%liquid_phase = 1
-  option%reference_density(option%liquid_phase) = 998.2
+  option%flow%reference_density(option%liquid_phase) = 998.2
 
   call BatchChemInitializeReactions(option, input, reaction)
 

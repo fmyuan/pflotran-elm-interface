@@ -1522,12 +1522,12 @@ subroutine ReactionInitializeLogK(logKcoef,logKs,logK,option,reaction)
   PetscInt :: i
   
   ! we always initialize on reference temperature
-  temperature = option%reference_temperature
+  temperature = option%flow%reference_temperature
   
   itemperature = 0
   if (option%use_isothermal) then ! find database temperature if relevant
     do i = 1, reaction%num_dbase_temperatures
-      if (dabs(option%reference_temperature - &
+      if (dabs(option%flow%reference_temperature - &
                reaction%dbase_temperatures(i)) < 1.d-10) then
         itemperature = i
         exit
@@ -1601,8 +1601,8 @@ subroutine ReactionInitializeLogK_hpt(logKcoef,logK,option,reaction)
   PetscInt :: i
   
   ! we always initialize on reference temperature
-  temperature = option%reference_temperature
-  pressure = option%reference_pressure 
+  temperature = option%flow%reference_temperature
+  pressure = option%flow%reference_pressure 
   
   
   coefs(:,ONE_INTEGER) = logKcoef(:)

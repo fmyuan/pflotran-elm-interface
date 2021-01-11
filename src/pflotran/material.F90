@@ -778,13 +778,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%secondary_continuum_init_temp)
               call InputErrorMsg(input,option,'secondary continuum init temp', &
                            'MATERIAL_PROPERTY')
-              option%set_secondary_init_temp = PETSC_TRUE
+              option%flow%set_secondary_init_temp = PETSC_TRUE
             case('CONCENTRATION')
               call InputReadDouble(input,option, &
                              material_property%secondary_continuum_init_conc)
               call InputErrorMsg(input,option,'secondary continuum init conc', &
                            'MATERIAL_PROPERTY')
-              option%set_secondary_init_conc = PETSC_TRUE
             case('POROSITY')
               call InputReadDouble(input,option, &
                              material_property%secondary_continuum_porosity)

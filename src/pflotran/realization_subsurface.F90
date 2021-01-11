@@ -511,13 +511,13 @@ subroutine RealizationLocalizeRegions(realization)
   call RegionDestroyList(realization%region_list)
 
   ! compute regional connections for inline surface flow
-  if (option%inline_surface_flow) then
-     region => RegionGetPtrFromList(option%inline_surface_region_name, &
+  if (option%flow%inline_surface_flow) then
+     region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
           realization%patch%region_list)
      if (.not.associated(region)) then
         option%io_buffer = 'realization_subsurface.F90:RealizationLocalize&
              &Regions() --> Could not find a required region named "' // &
-             trim(option%inline_surface_region_name) // &
+             trim(option%flow%inline_surface_region_name) // &
              '" from the list of regions.'
         call PrintErrMsg(option)
      endif

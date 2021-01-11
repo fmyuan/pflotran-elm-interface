@@ -818,7 +818,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                                       pres_dof)
           if (this%option%iflowmode == RICHARDS_MODE .or. &
               this%option%iflowmode == RICHARDS_TS_MODE) then
-            temp_p(local_id) = this%option%reference_temperature
+            temp_p(local_id) = this%option%flow%reference_temperature
           else
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                         temp_dof)

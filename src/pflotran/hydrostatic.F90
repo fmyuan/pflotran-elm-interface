@@ -96,7 +96,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   ! if zero, assign 1.d0 to avoid divide by zero below. essentially the grid
   ! is flat.
   if (delta_z < 1.d-40) delta_z = 1.d0
-  temperature_at_datum = option%reference_temperature
+  temperature_at_datum = option%flow%reference_temperature
   concentration_at_datum = 0.d0
   datum = 0.d0
 
@@ -126,7 +126,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       endif
       pressure_at_datum = &
         condition%general%liquid_pressure%dataset%rarray(1)    
-      gas_pressure = option%reference_pressure
+      gas_pressure = option%flow%reference_pressure
       if (associated(condition%general%gas_pressure)) then
         gas_pressure = condition%general%gas_pressure%dataset%rarray(1)
       endif
@@ -160,7 +160,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       endif
       pressure_at_datum = &
         condition%hydrate%liquid_pressure%dataset%rarray(1)
-      gas_pressure = option%reference_pressure
+      gas_pressure = option%flow%reference_pressure
       if (associated(condition%hydrate%gas_pressure)) then
         gas_pressure = condition%hydrate%gas_pressure%dataset%rarray(1)
       endif
@@ -209,7 +209,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
             temperature_at_datum = &
               condition%temperature%dataset%rarray(1)
           else
-            temperature_at_datum = option%reference_temperature
+            temperature_at_datum = option%flow%reference_temperature
           endif
 #endif
           if (associated(condition%temperature%gradient)) then
@@ -520,8 +520,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     endif
    
  
-    if (pressure < option%minimum_hydrostatic_pressure) &
-      pressure = option%minimum_hydrostatic_pressure
+    if (pressure < option%flow%minimum_hydrostatic_pressure) &
+      pressure = option%flow%minimum_hydrostatic_pressure
 
     ! assign pressure
     select case(option%iflowmode)
@@ -539,11 +539,11 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       case default
         if (condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
           coupler%flow_aux_real_var(1,iconn) = &
-            max(pressure,option%reference_pressure)
+            max(pressure,option%flow%reference_pressure)
         else if (condition%pressure%itype == HYDROSTATIC_CONDUCTANCE_BC) then
            ! add the conductance
           coupler%flow_aux_real_var(1,iconn) = &
-            max(pressure,option%reference_pressure)
+            max(pressure,option%flow%reference_pressure)
           select case(option%iflowmode)
             case(RICHARDS_MODE,RICHARDS_TS_MODE)
               coupler%flow_aux_real_var(RICHARDS_CONDUCTANCE_DOF,iconn) = &

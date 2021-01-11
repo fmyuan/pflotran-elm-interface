@@ -581,12 +581,12 @@ subroutine SFKRP1CapillaryPressure(this,liquid_saturation, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP1_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   lambda = this%m/(1.d0-this%m)
@@ -654,12 +654,12 @@ subroutine SFKRP1Saturation(this,capillary_pressure, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP1_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   lambda = this%m/(1.d0-this%m)
@@ -777,12 +777,12 @@ subroutine SFKRP2CapillaryPressure(this,liquid_saturation, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP2_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   Se1 = (liquid_saturation-this%Sr)/(1.d0-this%Sr)
@@ -831,12 +831,12 @@ subroutine SFKRP2Saturation(this,capillary_pressure, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP2_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   if (capillary_pressure < this%pct) then
@@ -963,12 +963,12 @@ subroutine SFKRP3CapillaryPressure(this,liquid_saturation, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP3_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
@@ -1021,12 +1021,12 @@ subroutine SFKRP3Saturation(this,capillary_pressure, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP3_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   term = this%pct*((1.d0-this%Sr)/(1.d0-this%Sr-this%Srg))**(-1.d0/this%lambda)
@@ -1155,12 +1155,12 @@ subroutine SFKRP4CapillaryPressure(this,liquid_saturation, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP4_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
@@ -1213,12 +1213,12 @@ subroutine SFKRP4Saturation(this,capillary_pressure, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP1_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   term = this%pct*((1.d0-this%Sr)/(1.d0-this%Sr-this%Srg))**(-1.d0/this%lambda)
@@ -1347,12 +1347,12 @@ subroutine SFKRP5CapillaryPressure(this,liquid_saturation, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP5_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   Se2 = (liquid_saturation-this%Sr)/(1.d0-this%Sr-this%Srg)
@@ -1401,12 +1401,12 @@ subroutine SFKRP5Saturation(this,capillary_pressure, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP5_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
 
   if (capillary_pressure <= 0.d0) then
@@ -1534,12 +1534,12 @@ subroutine SFKRP8CapillaryPressure(this,liquid_saturation, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP8_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   lambda = this%m/(1.d0-this%m)
@@ -1599,12 +1599,12 @@ subroutine SFKRP8Saturation(this,capillary_pressure, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP8_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   lambda = this%m/(1.d0-this%m)
@@ -2023,12 +2023,12 @@ subroutine SFKRP12CapillaryPressure(this,liquid_saturation, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP12_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
 
   Se = (liquid_saturation - (this%s_min - this%s_effmin)) / &
@@ -2078,12 +2078,12 @@ subroutine SFKRP12Saturation(this,capillary_pressure, &
     this%pct = 1.d0/this%alpha
   else
     ! check if pct has been updated before using
-    if (.not.option%pct_updated) then
+    if (.not.option%flow%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP12_type. STOPPING.'
       call PrintErrMsg(option)
     endif
-    option%pct_updated = PETSC_FALSE
+    option%flow%pct_updated = PETSC_FALSE
   endif
   
   if (capillary_pressure < this%pct) then

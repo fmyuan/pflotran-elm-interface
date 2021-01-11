@@ -234,7 +234,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   kr = 0.d0
  
   global_auxvar%pres = x(1)
-  global_auxvar%temp = option%reference_temperature
+  global_auxvar%temp = option%flow%reference_temperature
 
   if (update_porosity) then
     call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
@@ -245,11 +245,11 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! and flipping the cell to saturated, when it is really far from saturated.
   ! The large negative liquid pressure is then passed to the EOS causing it 
   ! to blow up.  Therefore, we truncate to the max capillary pressure here.
-  auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
+  auxvar%pc = min(option%flow%reference_pressure - global_auxvar%pres(1), &
                   characteristic_curves%saturation_function%pcmax)
   
 !***************  Liquid phase properties **************************
-  pw = option%reference_pressure
+  pw = option%flow%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
 
@@ -396,7 +396,7 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   ideriv = 1
   pert = max(dabs(x(ideriv)*perturbation_tolerance),0.1d0)
   x_pert = x
-  if (x_pert(ideriv) < option%reference_pressure) pert = -1.d0*pert
+  if (x_pert(ideriv) < option%flow%reference_pressure) pert = -1.d0*pert
   x_pert(ideriv) = x_pert(ideriv) + pert
 
   call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
