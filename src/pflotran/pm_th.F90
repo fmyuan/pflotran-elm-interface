@@ -990,7 +990,7 @@ subroutine PMTHUpdateSolution(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THUpdateSolution, THUpdateSurfaceBC
+  use TH_module, only : THUpdateSolution
 
   implicit none
   
@@ -998,8 +998,6 @@ subroutine PMTHUpdateSolution(this)
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call THUpdateSolution(this%realization)
-  if (this%option%surf_flow_on) &
-    call THUpdateSurfaceBC(this%realization)
 
 end subroutine PMTHUpdateSolution     
 

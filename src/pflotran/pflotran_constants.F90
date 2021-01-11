@@ -141,7 +141,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: THREENPDOF = 3
   PetscInt, parameter, public :: NFLOWDOF = 4
   PetscInt, parameter, public :: NTRANDOF = 5
-  PetscInt, parameter, public :: SURF_ONEDOF = 6
   PetscInt, parameter, public :: NGEODOF = 7
   
   PetscInt, parameter, public :: GLOBAL = 1
@@ -257,15 +256,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: INTERPOLATION_STEP = 1
   PetscInt, parameter, public :: INTERPOLATION_LINEAR = 2
   
-  PetscInt, parameter, public :: DECOUPLED     = 0
-  PetscInt, parameter, public :: SEQ_COUPLED = 1
-  PetscInt, parameter, public :: FULLY_COUPLED = 2
-  
-  PetscInt, parameter, public :: KINEMATIC_WAVE = 1
-  PetscInt, parameter, public :: DIFFUSION_WAVE = 2
-  
-  PetscReal, parameter, public :: MIN_SURFACE_WATER_HEIGHT = 1.0d-14
-
   ! print secondary continuum variable ids
   PetscInt, parameter, public :: PRINT_SEC_TEMP =           0
   PetscInt, parameter, public :: PRINT_SEC_CONC =           1
@@ -298,8 +288,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: GEOMECH_TWO_WAY_COUPLED = 5
 
   ! Macros that are used as 'vscatter_index' values
-  PetscInt, parameter, public :: SURF_TO_SUBSURF = 1
-  PetscInt, parameter, public :: SUBSURF_TO_SURF = 2
   PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3
   PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 4
   

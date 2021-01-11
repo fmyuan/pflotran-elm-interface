@@ -53,8 +53,6 @@ module TH_Aux_module
     
     ! for ice
     type(th_ice_type), pointer :: ice
-    ! For surface-flow
-    type(th_surface_flow_type), pointer :: surface
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
@@ -90,17 +88,6 @@ module TH_Aux_module
     PetscReal :: dpres_fh2o_dT
   end type th_ice_type
   
-  type, public :: th_surface_flow_type
-    PetscBool :: surf_wat
-    PetscReal :: P_min
-    PetscReal :: P_max
-    PetscReal :: coeff_for_cubic_approx(4)
-    PetscReal :: coeff_for_deriv_cubic_approx(4)
-    PetscReal :: range_for_linear_approx(4)
-    PetscReal :: dlinear_slope_dT
-    PetscBool :: bcflux_default_scheme
- end type th_surface_flow_type
-
   type, public :: th_parameter_type
     PetscReal, pointer :: dencpr(:)
     PetscReal, pointer :: ckdry(:) ! Thermal conductivity (dry)
@@ -260,19 +247,6 @@ subroutine THAuxVarInit(auxvar,option)
   else
     nullify(auxvar%ice)
   endif
-  if (option%surf_flow_on) then
-    allocate(auxvar%surface)
-    auxvar%surface%surf_wat      = PETSC_FALSE
-    auxvar%surface%P_min         = uninit_value
-    auxvar%surface%P_max         = uninit_value
-    auxvar%surface%coeff_for_cubic_approx(:)       = uninit_value
-    auxvar%surface%coeff_for_deriv_cubic_approx(:) = uninit_value
-    auxvar%surface%range_for_linear_approx(:)      = uninit_value
-    auxvar%surface%dlinear_slope_dT                = uninit_value
-    auxvar%surface%bcflux_default_scheme           = PETSC_FALSE
-  else
-    nullify(auxvar%surface)
-  endif
   
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   auxvar%bc_alpha      = uninit_value
@@ -350,21 +324,6 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%ice%du_gas_dT = auxvar%ice%du_gas_dT
     auxvar2%ice%mol_gas = auxvar%ice%mol_gas
     auxvar2%ice%dmol_gas_dT = auxvar%ice%dmol_gas_dT
-  endif
-
-  if (associated(auxvar%surface)) then
-    auxvar2%surface%surf_wat = auxvar%surface%surf_wat
-    auxvar2%surface%P_min = auxvar%surface%P_min
-    auxvar2%surface%P_max = auxvar%surface%P_max
-    auxvar2%surface%coeff_for_cubic_approx(:) = &
-      auxvar%surface%coeff_for_cubic_approx(:)
-    auxvar2%surface%coeff_for_deriv_cubic_approx(:) = &
-      auxvar%surface%coeff_for_deriv_cubic_approx(:)
-    auxvar2%surface%range_for_linear_approx(:) = &
-      auxvar%surface%range_for_linear_approx(:)
-    auxvar2%surface%dlinear_slope_dT = auxvar%surface%dlinear_slope_dT
-    auxvar2%surface%bcflux_default_scheme = &
-      auxvar%surface%bcflux_default_scheme
   endif
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
@@ -1127,8 +1086,6 @@ subroutine THAuxVarDestroy(auxvar)
   
   if (associated(auxvar%ice)) deallocate(auxvar%ice)
   nullify(auxvar%ice)
-  if (associated(auxvar%surface)) deallocate(auxvar%surface)
-  nullify(auxvar%surface)
   
 end subroutine THAuxVarDestroy
 

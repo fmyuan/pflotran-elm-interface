@@ -67,18 +67,6 @@ module Option_module
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
 
-    PetscBool :: surf_flow_on
-    PetscInt :: nsurfflowdof
-    PetscInt :: subsurf_surf_coupling
-    PetscInt :: surface_flow_formulation
-    PetscReal :: surf_flow_time, surf_flow_dt
-    PetscReal :: surf_subsurf_coupling_time
-    PetscReal :: surf_subsurf_coupling_flow_dt
-    PetscReal :: surf_restart_time
-    PetscBool :: surf_restart_flag
-    character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
-    character(len=MAXSTRINGLENGTH) :: surf_restart_filename
-
     PetscBool :: geomech_on
     PetscBool :: geomech_initial
     PetscInt :: ngeomechdof
@@ -453,19 +441,6 @@ subroutine OptionInitRealization(option)
   option%nmechdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0
-
-  option%nsurfflowdof = 0
-  option%surf_flow_on = PETSC_FALSE
-  option%subsurf_surf_coupling = DECOUPLED
-  option%surface_flow_formulation = DIFFUSION_WAVE
-  option%surf_flow_dt = 0.d0
-  option%surf_flow_time =0.d0
-  option%surf_subsurf_coupling_time = 0.d0
-  option%surf_subsurf_coupling_flow_dt = 0.d0
-  option%surf_initialize_flow_filename = ""
-  option%surf_restart_filename = ""
-  option%surf_restart_flag = PETSC_FALSE
-  option%surf_restart_time = UNINITIALIZED_DOUBLE
 
   option%geomech_on = PETSC_FALSE
   option%geomech_initial = PETSC_FALSE
