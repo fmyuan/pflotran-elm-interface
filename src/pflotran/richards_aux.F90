@@ -39,15 +39,6 @@ module Richards_Aux_module
     PetscReal :: dpres_dtime
     PetscReal :: dmass_dtime
 
-    ! OLD-VAR-NAMES            = NEW-VAR
-    ! ------------------------------------------------
-    ! P_min                    = vars_for_sflow(1)
-    ! P_max                    = vars_for_sflow(2)
-    ! coeff_for_cubic_approx   = vars_for_sflow(3:6)
-    ! range_for_linear_approx  = vars_for_sflow(7:10)
-    ! bcflux_default_scheme    = vars_for_sflow(11)
-    PetscReal, pointer :: vars_for_sflow(:)
-
   end type richards_auxvar_type
   
   type, public :: richards_type
@@ -142,13 +133,6 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dpres_dtime = 0.d0
   auxvar%dmass_dtime = 0.0d0
 
-  if (option%surf_flow_on) then
-    allocate(auxvar%vars_for_sflow(11))
-    auxvar%vars_for_sflow(:) = 0.d0
-  else
-    nullify(auxvar%vars_for_sflow)
-  endif
-
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   auxvar%bc_alpha  = 0.0d0
   auxvar%bc_lambda  = 0.0d0
@@ -187,9 +171,6 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%mass = auxvar%mass
   auxvar2%dpres_dtime = auxvar%dpres_dtime
   auxvar2%dmass_dtime = auxvar%dmass_dtime
-
-  if (option%surf_flow_on) &
-    auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   auxvar2%bc_alpha  = auxvar%bc_alpha

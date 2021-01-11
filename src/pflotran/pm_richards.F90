@@ -829,8 +829,7 @@ subroutine PMRichardsUpdateSolution(this)
   ! Date: 03/14/13
   ! 
 
-  use Richards_module, only : RichardsUpdateSolution, &
-                              RichardsUpdateSurfacePress
+  use Richards_module, only : RichardsUpdateSolution
 
   implicit none
   
@@ -838,8 +837,6 @@ subroutine PMRichardsUpdateSolution(this)
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call RichardsUpdateSolution(this%realization)
-  if (this%option%surf_flow_on) &
-    call RichardsUpdateSurfacePress(this%realization)
 
 end subroutine PMRichardsUpdateSolution     
 
