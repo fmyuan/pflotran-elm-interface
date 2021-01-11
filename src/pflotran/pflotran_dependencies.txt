@@ -289,7 +289,7 @@ init_common.o : condition.o connection.o coupler.o discretization.o field.o \
                 grid.o hdf5.o hdf5_aux.o input_aux.o logging.o option.o \
                 output.o output_aux.o output_tecplot.o patch.o \
                 pflotran_constants.o realization_subsurface.o region.o \
-                string.o utility.o waypoint.o
+                utility.o waypoint.o
 init_subsurface.o : dataset_base.o dataset_common_hdf5.o \
                     dataset_gridded_hdf5.o discretization.o field.o \
                     geomechanics_subsurface_properties.o grid.o hdf5.o \
@@ -548,15 +548,14 @@ pmc_geomechanics.o : convergence.o geomechanics_discretization.o \
                      output_geomechanics.o pflotran_constants.o pm_base.o \
                      pm_base_pointer.o pmc_base.o realization_subsurface.o \
                      solver.o timestepper_base.o timestepper_steady.o
-pmc_subsurface.o : connection.o convergence.o coupler.o discretization.o \
-                   eos_water.o field.o general_aux.o grid.o material.o \
-                   material_aux.o option.o patch.o pflotran_constants.o \
+pmc_subsurface.o : convergence.o discretization.o field.o general_aux.o grid.o \
+                   material.o material_aux.o option.o pflotran_constants.o \
                    pm_base.o pm_base_pointer.o pm_general.o pm_nwt.o \
                    pm_richards.o pm_rt.o pm_subsurface_flow.o pm_th.o \
                    pm_ufd_decay.o pm_waste_form.o pm_wipp_flow.o pmc_base.o \
-                   realization_base.o realization_subsurface.o \
-                   secondary_continuum.o solver.o string.o timestepper_BE.o \
-                   timestepper_TS.o timestepper_base.o variables.o
+                   realization_subsurface.o secondary_continuum.o solver.o \
+                   timestepper_BE.o timestepper_TS.o timestepper_base.o \
+                   variables.o
 pmc_subsurface_osrt.o : debug.o discretization.o field.o global_aux.o grid.o \
                         material_aux.o option.o output.o patch.o \
                         pflotran_constants.o pm_osrt.o pm_rt.o \
@@ -730,13 +729,13 @@ regression.o : discretization.o grid.o input_aux.o option.o output.o \
                output_aux.o output_common.o pflotran_constants.o \
                realization_subsurface.o string.o timestepper_BE.o \
                timestepper_KSP.o timestepper_TS.o timestepper_base.o utility.o
-richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
-             field.o global_aux.o grid.o inlinesurface.o inlinesurface_aux.o \
-             logging.o material.o material_aux.o matrix_buffer.o option.o \
-             output_aux.o patch.o pflotran_constants.o realization_base.o \
+richards.o : connection.o coupler.o debug.o discretization.o field.o \
+             global_aux.o grid.o inlinesurface.o inlinesurface_aux.o logging.o \
+             material.o material_aux.o matrix_buffer.o option.o output_aux.o \
+             patch.o pflotran_constants.o realization_base.o \
              realization_subsurface.o region.o richards_aux.o \
              richards_common.o srcsink_sandbox.o srcsink_sandbox_base.o \
-             srcsink_sandbox_downreg.o string.o utility.o variables.o
+             srcsink_sandbox_downreg.o utility.o variables.o
 richards_aux.o : characteristic_curves.o characteristic_curves_common.o \
                  eos_water.o global_aux.o material_aux.o matrix_buffer.o \
                  matrix_zeroing.o option.o pflotran_constants.o utility.o
@@ -812,8 +811,8 @@ th.o : characteristic_curves.o characteristic_curves_thermal.o condition.o \
        fluid.o global_aux.o grid.o logging.o material.o material_aux.o \
        option.o output_aux.o patch.o pflotran_constants.o \
        realization_subsurface.o region.o saturation_function.o \
-       secondary_continuum.o secondary_continuum_aux.o string.o th_aux.o \
-       utility.o variables.o
+       secondary_continuum.o secondary_continuum_aux.o th_aux.o utility.o \
+       variables.o
 th_aux.o : characteristic_curves.o characteristic_curves_common.o \
            characteristic_curves_thermal.o eos_water.o global_aux.o \
            material_aux.o matrix_zeroing.o option.o pflotran_constants.o \
