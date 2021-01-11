@@ -645,10 +645,13 @@ function ReactionCast(reaction_base)
   class(reaction_rt_type), pointer :: ReactionCast
 
   nullify(ReactionCast)
-  select type(r=>reaction_base)
-    class is(reaction_rt_type)
-      ReactionCast => r
-  end select
+  ! workaround for Intel
+  if (associated(reaction_base)) then
+    select type(r=>reaction_base)
+      class is(reaction_rt_type)
+        ReactionCast => r
+    end select
+  endif
 
 end function ReactionCast
 

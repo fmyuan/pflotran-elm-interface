@@ -300,10 +300,12 @@ function NWTReactionCast(reaction_base)
   class(reaction_nw_type), pointer :: NWTReactionCast
 
   nullify(NWTReactionCast)
-  select type(r=>reaction_base)
-    class is(reaction_nw_type)
-      NWTReactionCast => r
-  end select
+  if (associated(reaction_base)) then
+    select type(r=>reaction_base)
+      class is(reaction_nw_type)
+        NWTReactionCast => r
+    end select
+  endif
 
 end function NWTReactionCast
   
