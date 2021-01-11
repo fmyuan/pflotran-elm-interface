@@ -2309,14 +2309,14 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     case(MPH_MODE)
     case(NULL_MODE)
       global_auxvar%den_kg(iphase) = &
-        option%reference_density(option%liquid_phase)
-      global_auxvar%temp = option%reference_temperature
-      global_auxvar%sat(iphase) = option%reference_saturation
+        option%flow%reference_density(option%liquid_phase)
+      global_auxvar%temp = option%flow%reference_temperature
+      global_auxvar%sat(iphase) = option%flow%reference_saturation
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      global_auxvar%temp = option%reference_temperature
+      global_auxvar%temp = option%flow%reference_temperature
   end select
         
-  bulk_vol_to_fluid_vol = option%reference_porosity* &
+  bulk_vol_to_fluid_vol = option%flow%reference_porosity* &
                           global_auxvar%sat(iphase)*1000.d0
 
 ! compute mole and mass fractions of H2O
@@ -3006,7 +3006,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
     global_auxvar => constraint_coupler%global_auxvar
 
     iphase = 1
-    global_auxvar%temp = option%reference_temperature
+    global_auxvar%temp = option%flow%reference_temperature
     tempk = tk + global_auxvar%temp
     
     potential = 0.1d0 ! initial guess

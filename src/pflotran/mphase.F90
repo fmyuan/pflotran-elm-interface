@@ -251,7 +251,7 @@ subroutine MphaseSetupPatch(realization)
     ! temperatures (with initial dirichlet BC only) -- sk 06/26/12
       allocate(mphase_sec_heat_vars(local_id)%sec_temp(mphase_sec_heat_vars(local_id)%ncells))
       
-      if (option%set_secondary_init_temp) then
+      if (option%flow%set_secondary_init_temp) then
         mphase_sec_heat_vars(local_id)%sec_temp = &
           patch%material_property_array(1)%ptr%secondary_continuum_init_temp
       else

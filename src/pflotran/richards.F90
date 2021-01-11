@@ -223,10 +223,10 @@ subroutine RichardsSetupPatch(realization)
 
   ! if we are doing inline surface flow, build those auxillary
   ! variables for grid cells as well as boundary conditions
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
 
     ! point to the top cell region
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
                                    patch%region_list)
 
     ! create the auxvar structure
@@ -282,7 +282,7 @@ subroutine RichardsSetupPatch(realization)
 
       ! set Manning's coefficient
       patch%aux%InlineSurface%auxvars(region_id)%Mannings_coeff = &
-        option%inline_surface_Mannings_coeff
+        option%flow%inline_surface_Mannings_coeff
 
     enddo
 
@@ -325,7 +325,7 @@ subroutine RichardsSetupPatch(realization)
         call InlineSurfaceAuxVarInit(patch%aux%InlineSurface%&
                                        auxvars_bc(iconn),option)
         patch%aux%InlineSurface%auxvars_bc(iconn)%Mannings_coeff = &
-          option%inline_surface_Mannings_coeff
+          option%flow%inline_surface_Mannings_coeff
       enddo
     endif
 
@@ -433,9 +433,9 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
       material_auxvars(ghosted_id)%volume
   enddo
 
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
     inlinesurface_auxvars => patch%aux%InlineSurface%auxvars
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
                                    patch%region_list)
     do region_id = 1, patch%aux%InlineSurface%num_aux
       ghosted_id = region%cell_ids(region_id)
@@ -783,8 +783,8 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                PETSC_TRUE,option)   
   enddo
 
-  if (option%inline_surface_flow) then
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+  if (option%flow%inline_surface_flow) then
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
                                    patch%region_list)
      do region_id = 1, patch%aux%InlineSurface%num_aux
         ghosted_id = region%cell_ids(region_id)
@@ -839,7 +839,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   enddo
   
   ! inline surface boundary conditions
-  if (option%inline_surface_flow) then  
+  if (option%flow%inline_surface_flow) then  
     boundary_condition => patch%boundary_condition_list%first
     sum_connection = 0
     do 
@@ -861,7 +861,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                 patch%aux%InlineSurface%auxvars_bc(iconn)%half_cell_height)* &
                 patch%aux%InlineSurface%auxvars_bc(iconn)%density* &
                 FMWH2O*ABS(option%gravity(3)) &
-                + option%reference_pressure
+                + option%flow%reference_pressure
               global_auxvars_bc(sum_connection)%pres(1) = Pl
             endif
 
@@ -906,7 +906,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
   patch%aux%Richards%auxvars_up_to_date = PETSC_TRUE
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
      patch%aux%InlineSurface%auxvars_up_to_date = PETSC_TRUE
   endif
 
@@ -1007,7 +1007,7 @@ subroutine RichardsUpdateSolutionPatch(realization)
   richards_ts_cut_count = 0
   richards_ni_count = 0
 
-  if (realization%option%update_flow_perm) then
+  if (realization%option%flow%update_flow_perm) then
 !TODO(geh): this is in the wrong place  
     call RichardsUpdatePermPatch(realization)
   endif
@@ -1109,8 +1109,8 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   enddo
 
   
-  if (option%inline_surface_flow) then
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+  if (option%flow%inline_surface_flow) then
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
                                    patch%region_list)
     do region_id = 1, patch%aux%InlineSurface%num_aux
       local_id = region%cell_ids(region_id)
@@ -1463,7 +1463,7 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
   rich_auxvars => patch%aux%Richards%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
     insurf_auxvars => patch%aux%InlineSurface%auxvars
   endif
    
@@ -1524,10 +1524,10 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
   enddo
 
   ! Regional Interior Flux Terms -----------------------------------
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
     connection_set_list => grid%reg_internal_connection_set_list
     cur_connection_set => connection_set_list%first
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
                                    patch%region_list)
   else
     nullify(cur_connection_set)
@@ -1690,10 +1690,10 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
   enddo
 
   ! Inline surface BCs
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
     sum_connection = 0
     boundary_condition => patch%boundary_condition_list%first
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
                                    patch%region_list)    
     do
       if (.not.associated(boundary_condition)) exit
@@ -1993,8 +1993,8 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   
-  if (option%inline_surface_flow) then
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+  if (option%flow%inline_surface_flow) then
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
          patch%region_list)
     inlinesurface_auxvars => patch%aux%InlineSurface%auxvars
   endif
@@ -2021,7 +2021,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
       accum2_p(istart) = Res(1)
     enddo
 
-    if (option%inline_surface_flow) then
+    if (option%flow%inline_surface_flow) then
       ! Loop through cells in the defined region
       do region_id = 1, region%num_cells 
         local_id = region%cell_ids(region_id)
@@ -2211,7 +2211,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   rich_auxvars => patch%aux%Richards%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
     insurf_auxvars => patch%aux%InlineSurface%auxvars
   endif
    
@@ -2316,10 +2316,10 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   enddo
 
   ! Regional Interior Flux Terms -----------------------------------
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
     connection_set_list => grid%reg_internal_connection_set_list
     cur_connection_set => connection_set_list%first
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
          patch%region_list)
   else
     nullify(cur_connection_set)
@@ -2505,10 +2505,10 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
   enddo
   
   ! Inline surface BCs
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
     sum_connection = 0
     boundary_condition => patch%boundary_condition_list%first
-    region => RegionGetPtrFromList(option%inline_surface_region_name, &
+    region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
          patch%region_list)
     do
       if (.not.associated(boundary_condition)) exit
@@ -2615,9 +2615,10 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   
-  if (option%inline_surface_flow) then
+  if (option%flow%inline_surface_flow) then
     region => &
-      RegionGetPtrFromList(option%inline_surface_region_name,patch%region_list)
+      RegionGetPtrFromList(option%flow%inline_surface_region_name, &
+                           patch%region_list)
     inlinesurface_auxvars => patch%aux%InlineSurface%auxvars
   endif
 
@@ -2651,7 +2652,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
 #endif
     enddo
 
-    if (option%inline_surface_flow) then
+    if (option%flow%inline_surface_flow) then
       do region_id = 1, region%num_cells
         local_id = region%cell_ids(region_id)
         ghosted_id = grid%nL2G(local_id)         

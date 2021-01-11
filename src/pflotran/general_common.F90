@@ -2663,7 +2663,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               gen_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
+                option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               option%io_buffer = 'HYDROSTATIC_CONDUCTANCE_BC and &
@@ -3005,7 +3005,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               gen_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
+                option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               ddelta_pressure_dpdn = 0.d0

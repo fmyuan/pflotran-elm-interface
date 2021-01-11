@@ -652,26 +652,26 @@ subroutine EOSReferenceDensity(option)
     ! leave select case for OGS modes
     case default
       if (Initialized(option%liquid_phase)) then
-        if (option%reference_density(option%liquid_phase) < 1.d-40) then
-          call EOSWaterDensity(option%reference_temperature, &
-                               option%reference_pressure, &
-                               option%reference_density(option%liquid_phase), &
+        if (option%flow%reference_density(option%liquid_phase) < 1.d-40) then
+          call EOSWaterDensity(option%flow%reference_temperature, &
+                               option%flow%reference_pressure, &
+                           option%flow%reference_density(option%liquid_phase), &
                                dum1,ierr)
         endif
       endif
       if (Initialized(option%gas_phase)) then
-        if (option%reference_density(option%gas_phase) < 1.d-40) then
+        if (option%flow%reference_density(option%gas_phase) < 1.d-40) then
           ! assume saturated vapor pressure
-          call EOSWaterSaturationPressure(option%reference_temperature, &
+          call EOSWaterSaturationPressure(option%flow%reference_temperature, &
                                           vapor_saturation_pressure,dum1,ierr)
-          call EOSWaterSteamDensityEnthalpy(option%reference_temperature, &
+          call EOSWaterSteamDensityEnthalpy(option%flow%reference_temperature, &
                                             vapor_saturation_pressure, &
                                             vapor_density_kg,dum1,dum2,ierr)
           ! call no-derivative version of EOSGasDensity
-          call EOSGasDensity(option%reference_temperature, &
-                         option%reference_pressure-vapor_saturation_pressure, &
+          call EOSGasDensity(option%flow%reference_temperature, &
+                     option%flow%reference_pressure-vapor_saturation_pressure, &
                              air_density_kmol,ierr)
-          option%reference_density(option%gas_phase) = &
+          option%flow%reference_density(option%gas_phase) = &
             vapor_density_kg + air_density_kmol*FMWAIR
         endif
       endif

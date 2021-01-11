@@ -217,7 +217,7 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dT    = uninit_value
- if (option%th_freezing) then
+ if (option%flow%th_freezing) then
     allocate(auxvar%ice)
     auxvar%ice%Ke_fr     = uninit_value
     auxvar%ice%dKe_fr_dp = uninit_value
@@ -408,14 +408,13 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
   endif
 
-! auxvar%pc = option%reference_pressure - auxvar%pres
-  auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
+  auxvar%pc = min(option%flow%reference_pressure - global_auxvar%pres(1), &
                   characteristic_curves%saturation_function%pcmax)
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
 
-  pw = option%reference_pressure
+  pw = option%flow%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
 
@@ -662,20 +661,21 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   
   ! Check if the capillary pressure is less than -100MPa
   
-  if (global_auxvar%pres(1) - option%reference_pressure < -1.d8 + 1.d0) then
-    global_auxvar%pres(1) = -1.d8 + option%reference_pressure + 1.d0
+  if (global_auxvar%pres(1) - &
+      option%flow%reference_pressure < -1.d8 + 1.d0) then
+    global_auxvar%pres(1) = -1.d8 + option%flow%reference_pressure + 1.d0
   endif
 
   if (update_porosity) then
     call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
   endif
  
-  auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
+  auxvar%pc = option%flow%reference_pressure - global_auxvar%pres(1)
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
 
-  pw = option%reference_pressure
+  pw = option%flow%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
   if (auxvar%pc > 1.d0) then
@@ -829,7 +829,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! Calculate the values and derivatives for density and internal energy
   call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, ierr)
 
-  p_g            = option%reference_pressure
+  p_g            = option%flow%reference_pressure
   auxvar%ice%den_gas = p_g/(IDEAL_GAS_CONSTANT* &
                          (global_auxvar%temp + 273.15d0))*1.d-3 !in kmol/m3
   mol_g          = p_sat/p_g
@@ -967,9 +967,9 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   do ideriv = 1,option%nflowdof
     pert = x(ideriv)*perturbation_tolerance
     x_pert = x
-    if (option%th_freezing) then
+    if (option%flow%th_freezing) then
        if (ideriv == 1) then
-          if (x_pert(ideriv) < option%reference_pressure) then
+          if (x_pert(ideriv) < option%flow%reference_pressure) then
              pert = - pert
           endif
           x_pert(ideriv) = x_pert(ideriv) + pert
@@ -987,7 +987,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
        x_pert(ideriv) = x_pert(ideriv) + pert
     endif
 
-    if (option%th_freezing) then
+    if (option%flow%th_freezing) then
       option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
       call PrintErrMsg(option)
     else

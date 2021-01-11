@@ -93,7 +93,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
     ideriv = 1
     pert = max(dabs(x(ideriv)*perturbation_tolerance),0.1d0)
     x_pert = x
-    if (x_pert(ideriv) < option%reference_pressure) pert = -1.d0*pert
+    if (x_pert(ideriv) < option%flow%reference_pressure) pert = -1.d0*pert
     x_pert(ideriv) = x_pert(ideriv) + pert
     
     call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
@@ -297,10 +297,10 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
     ideriv = 1
 !    pert_up = x_up(ideriv)*perturbation_tolerance
     pert_up = max(dabs(x_up(ideriv)*perturbation_tolerance),0.1d0)
-    if (x_up(ideriv) < option%reference_pressure) pert_up = -1.d0*pert_up
+    if (x_up(ideriv) < option%flow%reference_pressure) pert_up = -1.d0*pert_up
 !    pert_dn = x_dn(ideriv)*perturbation_tolerance
     pert_dn = max(dabs(x_dn(ideriv)*perturbation_tolerance),0.1d0)
-    if (x_dn(ideriv) < option%reference_pressure) pert_dn = -1.d0*pert_dn
+    if (x_dn(ideriv) < option%flow%reference_pressure) pert_dn = -1.d0*pert_dn
     x_pert_up = x_up
     x_pert_dn = x_dn
     x_pert_up(ideriv) = x_pert_up(ideriv) + pert_up
@@ -563,7 +563,8 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                 ! flow in
             if (dphi > 0.d0 .and. &
                 ! boundary cell is <= pref
-                global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+                global_auxvar_up%pres(1)- &
+                  option%flow%reference_pressure < eps) then
               dphi = 0.d0
               dphi_dp_dn = 0.d0
             endif
@@ -654,7 +655,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
     ideriv = 1
 !    pert_dn = x_dn(ideriv)*perturbation_tolerance    
     pert_dn = max(dabs(x_dn(ideriv)*perturbation_tolerance),0.1d0)
-    if (x_dn(ideriv) < option%reference_pressure) pert_dn = -1.d0*pert_dn
+    if (x_dn(ideriv) < option%flow%reference_pressure) pert_dn = -1.d0*pert_dn
     x_pert_dn = x_dn
     x_pert_dn(ideriv) = x_pert_dn(ideriv) + pert_dn
     x_pert_up = x_up
@@ -792,7 +793,8 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
                 ! flow in
             if (dphi > 0.d0 .and. &
                 ! boundary cell is <= pref
-                global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+                global_auxvar_up%pres(1)- &
+                  option%flow%reference_pressure < eps) then
               dphi = 0.d0
             endif
         end select

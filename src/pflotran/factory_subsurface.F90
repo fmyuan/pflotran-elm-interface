@@ -2354,58 +2354,59 @@ subroutine SubsurfaceReadInput(simulation,input)
 
       case('REFERENCE_PRESSURE')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_pressure)
+        call InputReadDouble(input,option,option%flow%reference_pressure)
         call InputErrorMsg(input,option,'Reference Pressure','value')
-        call InputReadAndConvertUnits(input,option%reference_pressure, &
+        call InputReadAndConvertUnits(input,option%flow%reference_pressure, &
                                       'Pa','Reference Pressure',option)
 !....................
 
       case('REFERENCE_LIQUID_DENSITY')
         call InputReadStringErrorMsg(input,option,card)
         call InputReadDouble(input,option, &
-                             option%reference_density(option%liquid_phase))
+                             option%flow%reference_density(option%liquid_phase))
         call InputErrorMsg(input,option,'Reference Liquid Density','value')
         call InputReadAndConvertUnits(input, &
-                              option%reference_density(option%liquid_phase), &
+                           option%flow%reference_density(option%liquid_phase), &
                               'kg/m^3','Reference Density',option)
 !....................
 
       case('REFERENCE_GAS_DENSITY')
         call InputReadStringErrorMsg(input,option,card)
         call InputReadDouble(input,option, &
-                             option%reference_density(option%gas_phase))
+                             option%flow%reference_density(option%gas_phase))
         call InputErrorMsg(input,option,'Reference Gas Density','value')
         call InputReadAndConvertUnits(input, &
-                              option%reference_density(option%gas_phase), &
+                              option%flow%reference_density(option%gas_phase), &
                               'kg/m^3','Reference Density',option)
 !....................
 
       case('MINIMUM_HYDROSTATIC_PRESSURE')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%minimum_hydrostatic_pressure)
+        call InputReadDouble(input,option, &
+                             option%flow%minimum_hydrostatic_pressure)
         call InputErrorMsg(input,option,'Minimum Hydrostatic Pressure','value')
         call InputReadAndConvertUnits(input, &
-                                      option%minimum_hydrostatic_pressure, &
+                                    option%flow%minimum_hydrostatic_pressure, &
                                     'Pa','Minimum Hydrostatic Pressure',option)
 !......................
 
       case('REFERENCE_TEMPERATURE')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_temperature)
+        call InputReadDouble(input,option,option%flow%reference_temperature)
         call InputErrorMsg(input,option,'Reference Temperature','value')
 
 !......................
 
       case('REFERENCE_POROSITY')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_porosity)
+        call InputReadDouble(input,option,option%flow%reference_porosity)
         call InputErrorMsg(input,option,'Reference Porosity','value')
 
 !......................
 
       case('REFERENCE_SATURATION')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_saturation)
+        call InputReadDouble(input,option,option%flow%reference_saturation)
         call InputErrorMsg(input,option,'Reference Saturation','value')
 
 !......................
@@ -2421,7 +2422,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !......................
 
       case('UPDATE_FLOW_PERMEABILITY')
-        option%update_flow_perm = PETSC_TRUE
+        option%flow%update_flow_perm = PETSC_TRUE
 
 !......................
 
@@ -2599,7 +2600,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             option%iflowmode == G_MODE .or. &
             option%iflowmode == H_MODE .or. &
             (option%iflowmode == TH_MODE .and. &
-             .not. option%th_freezing) .or. &
+             .not. option%flow%th_freezing) .or. &
             option%iflowmode == TH_TS_MODE .or. &
             option%iflowmode == WF_MODE) then
           option%io_buffer = &
@@ -2628,7 +2629,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%iflowmode == H_MODE .or. &
                   option%iflowmode == TH_TS_MODE .or. &
                   (option%iflowmode == TH_MODE .and. &
-                    .not. option%th_freezing) .or. &
+                    .not. option%flow%th_freezing) .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
             &modes other than RICHARDS, RICHARDS_TS, WIPP_FLOW, TH, or GENERAL. &
@@ -3491,11 +3492,11 @@ subroutine SubsurfaceReadInput(simulation,input)
         call StringToUpper(word)
         select case (trim(word))
           case ('UPWIND')
-            option%rel_perm_aveg = UPWIND
+            option%flow%rel_perm_aveg = UPWIND
           case ('HARMONIC')
-            option%rel_perm_aveg = HARMONIC
+            option%flow%rel_perm_aveg = HARMONIC
           case ('DYNAMIC_HARMONIC')
-            option%rel_perm_aveg = DYNAMIC_HARMONIC
+            option%flow%rel_perm_aveg = DYNAMIC_HARMONIC
           case default
             option%io_buffer = 'Cannot identify the specificed &
               &RELATIVE_PERMEABILITY_AVERAGE.'

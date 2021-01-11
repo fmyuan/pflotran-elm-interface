@@ -1851,9 +1851,9 @@ subroutine WIPPCharacteristicCurves(saturation, &
   select type(sf => saturation_func)
     class is(sat_func_WIPP_type)
       sf%pct = sf%pct_a * permeability ** sf%pct_exp
-      option%pct_updated = PETSC_TRUE
+      option%flow%pct_updated = PETSC_TRUE
     class default
-      option%pct_updated = PETSC_FALSE
+      option%flow%pct_updated = PETSC_FALSE
   end select
   call saturation_func%CapillaryPressure(saturation(LIQUID_PHASE),&
                                              pc_check,tempreal,option)

@@ -157,7 +157,7 @@ subroutine PMTHReadSimOptionsBlock(this,input)
     
     select case(trim(keyword))
       case('FREEZING')
-        option%th_freezing = PETSC_TRUE
+        option%flow%th_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing
@@ -629,7 +629,7 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   if (Initialized(this%pressure_dampening_factor)) then
     ! P^p+1 = P^p - dP^p
-    P_R = option%reference_pressure
+    P_R = option%flow%reference_pressure
     scale = this%pressure_dampening_factor
 
     call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
