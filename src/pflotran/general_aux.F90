@@ -13,6 +13,7 @@ module General_Aux_module
   PetscBool, public :: general_print_state_transition = PETSC_TRUE
   PetscBool, public :: general_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: general_immiscible = PETSC_FALSE
+  PetscBool, public :: general_non_darcy_flow = PETSC_FALSE
   PetscReal, public :: general_phase_chng_epsilon = 1.d-6
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
@@ -21,6 +22,7 @@ module General_Aux_module
   PetscInt, public :: general_max_it_before_damping = UNINITIALIZED_INTEGER
   PetscReal, public :: general_damping_factor = 0.6d0
   PetscInt, public :: general_debug_cell_id = UNINITIALIZED_INTEGER
+  PetscReal, public :: non_darcy_B = -0.78d0
 #if defined(MATCH_TOUGH2)
   PetscBool, public :: general_temp_dep_gas_air_diff = PETSC_FALSE
   PetscBool, public :: general_diffuse_xmol = PETSC_FALSE

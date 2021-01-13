@@ -95,7 +95,8 @@ module Utility_module
             DigitsOfAccuracy, &
             CalcParallelSum, &
             MatCompare, &
-            ArrayIsSMonotonicInc
+            ArrayIsSMonotonicInc, &
+            expm1
             
 contains
 
@@ -2521,4 +2522,27 @@ end function ArrayIsSMonotonicInc
 
 ! ************************************************************************** !
 
+function expm1(x)
+  
+  !a fortran version of expm1 from Math stack exchange, called "William Kahan's trick"
+
+  implicit none
+
+  PetscReal :: expm1
+  PetscReal :: x, s, t
+
+  s = exp(x)
+  t = s - 1.0d0;
+  if (t == 0.0) then
+    t = x
+  else if (abs(x) < 1.0) then
+    s = log(s)
+    t = x * t
+    t = t / s
+  endif
+  expm1 = t
+
+end function expm1
+
+  
 end module Utility_module
