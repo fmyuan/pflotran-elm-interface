@@ -1,5 +1,5 @@
 #
-#Description - 2D BGC (CLM-CTC) reaction network for global run (COLOMN MODE)
+#Description - 1D BGC (CLM-CTC) reaction network for global run (COLOMN MODE)
 #
 
 SIMULATION
@@ -8,8 +8,6 @@ SIMULATION
 
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
-      OPTIONS
-      /
     /
 
   /
@@ -41,10 +39,10 @@ noskip
 GRID
   TYPE structured
   ORIGIN 0.d0 0.d0 0.d0
-  NXYZ 7 1 15
+  NXYZ 1 1 15
   DXYZ 
-     99.347d0 19.592d0 40.767d0 17.596d0 37.650d0 69.200d0 284.152d0     
-     17.596d0
+     1.0d0 
+     1.0d0 
      13.851152141963599d0 \ 
      11.126150294204420d0 \ 
      6.7483512780057175d0 \ 
@@ -68,46 +66,46 @@ PROC 1 1 1
 #======================= I-2.regions ===========================================
 REGION top
   COORDINATES
-    0.d0 0.d0 42.103197276099188d0
-    568.3109798d0 17.596d0 42.103197276099188d0
+    -1.d20 -1.d20 42.103197276099188d0
+    1.0d20 1.0d20 42.103197276099188d0
   /
   FACE TOP
 END
 
 REGION bottom
   COORDINATES
-    0.d0 0.d0 0.0d0
-    568.3109798d0 17.596d0 0.0d0
+    -1.d20 -1.d20 0.0d0
+    1.0d20 1.0d20 0.0d0
   /
   FACE BOTTOM
 END
 
 REGION all
   COORDINATES
-    0.d0 0.d0 0.0d0
-    568.3109798d0 17.596d0 42.103197276099188d0
+    -1.d20 -1.d20 0.0d0
+    1.0d20 1.0d20 42.103197276099188d0
   /
   FACE TOP
 END
 
 REGION horizon01
   COORDINATES
-    0.d0 0.d0 42.012635455680844d0         ! top 3 CLM-layers of ~0.09 m
-    568.3109798d0 17.596d0 42.103197276099188d0
+    -1.d20 -1.d20 42.012635455680844d0         ! top 3 CLM-layers of ~0.09 m
+    1.0d20 1.0d20 42.103197276099188d0
   /
 END
 
 REGION horizon02
   COORDINATES
-    0.d0 0.d0 41.103197276d0
-    568.3109798d0 17.596d0 42.012635455680844d0
+    -1.d20 -1.d20 41.103197276d0
+    1.0d20 1.0d20 42.012635455680844d0
   /
 END
 
 REGION horizon03
   COORDINATES
-    0.d0 0.d0 0.0d0
-    568.3109798d0 17.596d0 41.103197276d0
+    -1.d20 -1.d20 0.0d0
+    1.0d20 1.0d20 41.103197276d0
   /
 END
 
@@ -143,27 +141,25 @@ END
 #==================== III-1. solver options ===================================
 NUMERICAL_METHODS TRANSPORT
   LINEAR_SOLVER
-    SOLVER ITERATIVE   ! with default KSP_TYPE of BCGS and BJACOBI of PC_TYPE
+    SOLVER ITERATIVE   ! with default KSP_TYPE of BCGS and BJACOBI of PC_TYPE 
     PC_TYPE JACOBI     ! default (iterative): BJACOBI. JACOBI may be much faster
-    KSP_TYPE GMRES     ! default: BCGS. GMRES slightly better
+    KSP_TYPE GMRES     ! default: BCGS. GMRES slightly better 
   /
 
 
   NEWTON_SOLVER
-    
     !NUMERICAL_JACOBIAN            ! This is for testing analytical Jacobian in Sandboxes
- 
+
     ATOL 1.0D-20
     RTOL 1.0D-15
     STOL 1.0D-10        ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
-    ITOL 1.0D+32        ! ???
+    ITOL 1.0D-10
 
     MAXIMUM_NUMBER_OF_ITERATIONS 30
     MAXF 100
   /
 
 END
-
 
 #++++++++++++++++++++ IV. TIMERS ++++++++++++++++++++++++++++++++++++++++++++++++++++
 #
@@ -181,10 +177,10 @@ END
 #==================== V-1. output options ===================================
 OUTPUT
   !SCREEN OFF             ! totally shut off screen printing of running information
-  SCREEN PERIODIC 48
-  !PERIODIC TIME 1800 s   ! this is good for directly comparing two outputs
-  PERIODIC TIMESTEP 1     ! this is good for checking PF each time-step
-  FORMAT HDF5
+  SCREEN PERIODIC 4800
+  PERIODIC TIME 360 h   ! this is good for directly comparing two outputs
+  !PERIODIC TIMESTEP 1     ! this is good for checking PF each time-step
+  !FORMAT HDF5
   !NO_INITIAL
 END
 
@@ -418,11 +414,14 @@ noskip
 
     # CLM-CN SOM decomposition sandboxes
     SOMDECOMP
-      TEMPERATURE_RESPONSE_FUNCTION
-         Q10 1.5d0
+      Abiotic_Factors
+        TEMPERATURE_RESPONSE_FUNCTION
+          Q10 1.5d0
+        /
+
+        DECOMP_DEPTH_EFOLDING 0.50d0
       /
       
-      DECOMP_DEPTH_EFOLDING 0.50d0
       
       POOLS   ! CN ratio if constant
         SOIL1  12.d0 
