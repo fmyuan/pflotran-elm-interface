@@ -7,10 +7,7 @@ SIMULATION
   PROCESS_MODELS
 
     SUBSURFACE_TRANSPORT transport
-      MODE GIRT                       ! pflotran has been refactored 'RT' since 2020-04
-      OPTIONS
-        !NUMERICAL_JACOBIAN            ! This is for testing analytical Jacobian in Sandboxes
-      /
+      MODE GIRT
     /
 
   /
@@ -142,22 +139,29 @@ END
 #++++++++++++++++++++ III. SOLVERS ++++++++++++++++++++++++++++++++++++++++++++++++++
 #
 #==================== III-1. solver options ===================================
-LINEAR_SOLVER TRANSPORT
-  SOLVER ITERATIVE   ! with default KSP_TYPE of BCGS and BJACOBI of PC_TYPE 
-  PC_TYPE JACOBI     ! default (iterative): BJACOBI. JACOBI may be much faster
-  KSP_TYPE GMRES     ! default: BCGS. GMRES slightly better 
-  
+NUMERICAL_METHODS TRANSPORT
+  LINEAR_SOLVER
+    SOLVER ITERATIVE   ! with default KSP_TYPE of BCGS and BJACOBI of PC_TYPE
+    PC_TYPE JACOBI     ! default (iterative): BJACOBI. JACOBI may be much faster
+    KSP_TYPE GMRES     ! default: BCGS. GMRES slightly better
+  /
+
+
+  NEWTON_SOLVER
+    
+    !NUMERICAL_JACOBIAN            ! This is for testing analytical Jacobian in Sandboxes
+ 
+    ATOL 1.0D-20
+    RTOL 1.0D-15
+    STOL 1.0D-10        ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
+    ITOL 1.0D+32        ! ???
+
+    MAXIMUM_NUMBER_OF_ITERATIONS 30
+    MAXF 100
+  /
+
 END
 
-NEWTON_SOLVER TRANSPORT
-  ATOL 1.0D-20
-  RTOL 1.0D-15
-  STOL 1.0D-10        ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
-  ITOL 1.0D+32
-
-  MAXIT 30
-  MAXF 100
-END
 
 #++++++++++++++++++++ IV. TIMERS ++++++++++++++++++++++++++++++++++++++++++++++++++++
 #
@@ -175,10 +179,10 @@ END
 #==================== V-1. output options ===================================
 OUTPUT
   !SCREEN OFF             ! totally shut off screen printing of running information
-  SCREEN PERIODIC 48
-  !PERIODIC TIME 1800 s   ! this is good for directly comparing two outputs
-  PERIODIC TIMESTEP 1     ! this is good for checking PF each time-step
-  FORMAT HDF5
+  SCREEN PERIODIC 4800
+  PERIODIC TIME 360 h   ! this is good for directly comparing two outputs
+  !PERIODIC TIMESTEP 1     ! this is good for checking PF each time-step
+  !FORMAT HDF5
   !NO_INITIAL
 END
 
