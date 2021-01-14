@@ -34,6 +34,7 @@ module Characteristic_Curves_module
     class(characteristic_curves_type), pointer :: next
   contains
     procedure, public :: GetOWGCriticalAndConnateSats
+    procedure, private :: CharacteristicCurvesCheckSr
   end type characteristic_curves_type
   
   type, public :: characteristic_curves_ptr_type
@@ -118,7 +119,9 @@ subroutine CharacteristicCurvesRead(this,input,option)
   class(char_curves_table_type), pointer :: char_curves_table
 
   class(sat_func_base_type), pointer :: sf_swap
+  class(rel_perm_func_base_type), pointer :: rpf_swap
   nullify(sf_swap)
+  nullify(rpf_swap)
   nullify(rel_perm_function_ptr)
 
   input%ierr = 0
@@ -408,8 +411,15 @@ subroutine CharacteristicCurvesRead(this,input,option)
             call InputKeywordUnrecognized(input,word,'PERMEABILITY_FUNCTION', &
                                           option)
         end select
-        call PermeabilityFunctionRead(rel_perm_function_ptr,phase_keyword, &
-                                      input,option)
+
+        rpf_swap => PermeabilityFunctionRead(rel_perm_function_ptr, &
+                    phase_keyword, input,option)
+        ! If a new RPF object is returned, deallocate the old object and update
+        if (associated(rpf_swap)) then
+          deallocate(rel_perm_function_ptr)
+          rel_perm_function_ptr => rpf_swap
+        end if
+
         ! if PHASE is specified, have to align correct pointer
         select case(phase_keyword)
           case('GAS')
@@ -600,7 +610,50 @@ subroutine CharacteristicCurvesRead(this,input,option)
       call CharacteristicCurvesVerify(this,option)
    end select
 
+  call this%CharacteristicCurvesCheckSr(option)
+
 end subroutine CharacteristicCurvesRead
+
+! **************************************************************************** !
+
+subroutine CharacteristicCurvesCheckSr(this,option)
+  ! This subroutine checks if the designated residual liquid saturation of
+  ! relative permeability functions is less than the residual liquid saturation
+  ! of the associated saturation/capillary pressure function
+  use Option_module
+  implicit none
+  class(characteristic_curves_type) :: this
+  type(option_type) :: option
+  PetscReal :: Sr
+
+  ! Check if the saturation function was allocated
+  if (associated(this%saturation_function)) then ! Check if all RPFs
+    Sr = this%saturation_function%Sr
+    ! Must check each RPF separately for allocation and validation
+    if (associated(this%liq_rel_perm_function)) then
+      if (Sr >     this%liq_rel_perm_function%Sr) print *, "Error"
+    end if
+    if (associated(this%gas_rel_perm_function)) then
+      if (Sr >     this%gas_rel_perm_function%Sr) print *, "Error"
+    end if
+!    TODO determine how residuals are defined in the owg module 
+!    if (associated(this%wat_rel_perm_func_owg)) then
+!      if (Sr >     this%wat_rel_perm_func_owg%Sr) print *, "Error"
+!    end if
+!    if (associated(this%gas_rel_perm_func_owg)) then
+!      if (Sr >     this%gas_rel_perm_func_owg%Sr) print *, "Error"
+!    end if
+!    if (associated(this%ow_rel_perm_func_owg)) then
+!      if (Sr >     this%ow_rel_perm_func_owg%Sr) print *, "Error"
+!    end if
+!    if (associated(this%og_rel_perm_func_owg)) then
+!      if (Sr >     this%og_rel_perm_func_owg%Sr) print *, "Error"
+!    end if
+!    if (associated(this%oil_rel_perm_func_owg)) then
+!      if (Sr >     this%oil_rel_perm_func_owg%Sr) print *, "Error"
+!    end if
+  end if
+end subroutine
 
 ! ************************************************************************** !
 
@@ -1042,7 +1095,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   ! At end of Saturation_Function block, call constructors or assign compiled
   ! variables to public attributes.
-  select type (sf => saturation_function)
+  select type (saturation_function)
   class is (sat_func_VG_type)
     if (Sj == 0d0) Sj = Sr + 0.05d0*(1d0-Sr) ! Default junction if not specified
     select case (vg_unsat_ext)
@@ -1109,8 +1162,8 @@ end function SaturationFunctionRead
 
 ! ************************************************************************** !
 
-subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
-                                    input,option)
+function PermeabilityFunctionRead(permeability_function,phase_keyword, &
+                                    input,option) result (rpf_swap)
   !
   ! Reads in contents of a PERMEABILITY_FUNCTION block
   !
@@ -1125,6 +1178,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
   character(len=MAXWORDLENGTH) :: phase_keyword
   type(input_type), pointer :: input
   type(option_type) :: option
+  class(rel_perm_func_base_type), pointer :: rpf_swap
   
   character(len=MAXWORDLENGTH) :: keyword, new_phase_keyword
   character(len=MAXWORDLENGTH) :: internal_units
@@ -1133,14 +1187,24 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
   PetscBool :: found
   PetscBool :: smooth
 
+  ! Lexicon for compiled parameters
+  PetscReal :: m, Slr, Sgr
+
+  nullify(rpf_swap)
+
+  ! Provide default values for unspecified parameters
+  m = 0d0
+  Slr = 0d0
+  Sgr = 0d0
+
   input%ierr = 0
   smooth = PETSC_FALSE
   new_phase_keyword = 'NONE'
   error_string = 'CHARACTERISTIC_CURVES,PERMEABILITY_FUNCTION,'
   select type(rpf => permeability_function)
-    class is(rpf_Mualem_VG_liq_type)
+    class is(rpf_MVG_liq_type)
       error_string = trim(error_string) // 'MUALEM_VG_LIQ'
-    class is(rpf_Mualem_VG_gas_type)
+    class is(rpf_MVG_gas_type)
       error_string = trim(error_string) // 'MUALEM_VG_GAS'
     class is(rpf_Burdine_BC_liq_type)
       error_string = trim(error_string) // 'BURDINE_BC_LIQ'
@@ -1152,9 +1216,9 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'MUALEM_BC_LIQ'
     class is(rpf_Mualem_BC_gas_type)
       error_string = trim(error_string) // 'MUALEM_BC_GAS'
-    class is(rpf_Burdine_VG_liq_type)
+    class is(rpf_BVG_liq_type)
       error_string = trim(error_string) // 'BURDINE_VG_LIQ'
-    class is(rpf_Burdine_VG_gas_type)
+    class is(rpf_BVG_gas_type)
       error_string = trim(error_string) // 'BURDINE_VG_GAS'
     class is(rpf_Mualem_Linear_liq_type)
       error_string = trim(error_string) // 'MUALEM_Linear_LIQ'
@@ -1229,7 +1293,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
     found = PETSC_TRUE
     select case(keyword)
       case('LIQUID_RESIDUAL_SATURATION') 
-        call InputReadDouble(input,option,permeability_function%Sr)
+        call InputReadDouble(input,option,Slr)
         call InputErrorMsg(input,option,'residual_saturation',error_string)
       case('PHASE')
         call InputReadCard(input,option,new_phase_keyword,PETSC_FALSE)
@@ -1244,10 +1308,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
 
     select type(rpf => permeability_function)
     !------------------------------------------
-      class is(rpf_Mualem_VG_liq_type)
+      class is(rpf_MVG_liq_type)
         select case(keyword)
           case('M') 
-            call InputReadDouble(input,option,rpf%m)
+            call InputReadDouble(input,option,m)
             call InputErrorMsg(input,option,'m',error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
@@ -1255,14 +1319,14 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Mualem_VG_gas_type)
+      class is(rpf_MVG_gas_type)
         select case(keyword)
           case('M') 
-            call InputReadDouble(input,option,rpf%m)
+            call InputReadDouble(input,option,m)
             call InputErrorMsg(input,option,'m',error_string)
           case('GAS_RESIDUAL_SATURATION') 
-            call InputReadDouble(input,option,rpf%Srg)
-            call InputErrorMsg(input,option,'Srg',error_string)
+            call InputReadDouble(input,option,Sgr)
+            call InputErrorMsg(input,option,'Sgr',error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
               'Mualem van Genuchten gas relative permeability function', &
@@ -1332,10 +1396,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Burdine_VG_liq_type)
+      class is(rpf_BVG_liq_type)
         select case(keyword)
           case('M') 
-            call InputReadDouble(input,option,rpf%m)
+            call InputReadDouble(input,option,m)
             call InputErrorMsg(input,option,'m',error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
@@ -1343,14 +1407,14 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_Burdine_VG_gas_type)
+      class is(rpf_BVG_gas_type)
         select case(keyword)
           case('M') 
-            call InputReadDouble(input,option,rpf%m)
+            call InputReadDouble(input,option,m)
             call InputErrorMsg(input,option,'m',error_string)
-          case('GAS_RESIDUAL_SATURATION') 
-            call InputReadDouble(input,option,rpf%Srg)
-            call InputErrorMsg(input,option,'Srg',error_string)
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,Sgr)
+            call InputErrorMsg(input,option,'Sgr',error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
               'Burdine van Genuchten gas relative permeability function', &
@@ -1747,6 +1811,24 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
     end select
   enddo
   call InputPopBlock(input,option)
+
+  ! At the end of the block, call constructors or assign compiled
+  ! variables to public attributes
+  select type (permeability_function)
+  class is (RPF_MVG_liq_type)
+    rpf_swap => RPF_MVG_liq_ctor(m, Slr)
+  class is (RPF_MVG_gas_type)
+    PRINT *, "RPF_MVG_gas_ctor(m, Slr, Sgr)", m, Slr, Sgr
+    rpf_swap => RPF_MVG_gas_ctor(m, Slr, Sgr)
+  class is (RPF_BVG_liq_type)
+    rpf_swap => RPF_BVG_liq_ctor(m, Slr)
+  class is (RPF_BVG_gas_type)
+    PRINT *, "RPF_BVG_gas_ctor(m, Slr, Sgr)", m, Slr, Sgr
+    rpf_swap => RPF_BVG_gas_ctor(m, Slr, Sgr)
+  class default
+    ! Traditional assignment of public parameters
+    permeability_function%Sr = Slr
+  end select
   
   ! for functions that are not phase-specific, check if PHASE was given:
   if (StringCompare('NONE',phase_keyword)) then
@@ -1787,7 +1869,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
     call permeability_function%SetupPolynomials(option,error_string)
   endif
   
-end subroutine PermeabilityFunctionRead
+end function
 
 ! ************************************************************************** !
 
@@ -1928,9 +2010,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
       if (option%nphase > 1 .and. &
           associated(characteristic_curves%gas_rel_perm_function) ) then
         select type(rpf=>characteristic_curves%gas_rel_perm_function)
-          class is(rpf_Mualem_VG_liq_type)
+          class is(RPF_MVG_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_Mualem_VG_gas_type)
+          class is(RPF_MVG_gas_type)
             gas_res_sat = rpf%Srg
           class is(rpf_Burdine_BC_liq_type)
             gas_res_sat = rpf%Sr
@@ -1940,9 +2022,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
             gas_res_sat = rpf%Sr
           class is(rpf_Mualem_BC_gas_type)
             gas_res_sat = rpf%Srg
-          class is(rpf_Burdine_VG_liq_type)
+          class is(RPF_BVG_liq_type)
             gas_res_sat = rpf%Sr
-          class is(rpf_Burdine_VG_gas_type)
+          class is(RPF_BVG_gas_type)
             gas_res_sat = rpf%Srg
           class is(rpf_TOUGH2_IRP7_gas_type)
             gas_res_sat = rpf%Srg
@@ -2923,7 +3005,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rel_perm_func_default_type)
           write(id,'(a)') 'default'
       !------------------------------------
-        class is (rpf_Mualem_VG_liq_type)
+        class is (RPF_MVG_liq_type)
           write(id,'(a)') 'mualem_vg_liq/tough2_irp7_liq'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
@@ -2944,7 +3026,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%pcmax
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Burdine_VG_liq_type)
+        class is (RPF_BVG_liq_type)
           write(id,'(a)') 'burdine_vg_liq'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
@@ -3044,7 +3126,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rel_perm_func_default_type)
           write(id,'(a)') 'default'
       !------------------------------------
-        class is (rpf_Mualem_VG_gas_type)
+        class is (RPF_MVG_gas_type)
           write(id,'(a)') 'mualem_vg_gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m
@@ -3083,7 +3165,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
           write(word1,*) rpf%Srg
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
-        class is (rpf_Burdine_VG_gas_type)
+        class is (RPF_BVG_gas_type)
           write(id,'(a)') 'burdine_vg_gas'
           write(id,'(a29)',advance='no') 'm: '
           write(word1,*) rpf%m

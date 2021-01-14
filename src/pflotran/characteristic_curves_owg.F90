@@ -712,6 +712,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
   class(rel_perm_owg_base_type) :: permeability_function
   type(input_type), pointer :: input
   type(option_type) :: option
+  class(rel_perm_func_base_type), pointer :: rpf_swap
     
   character(len=MAXWORDLENGTH) :: keyword
   
@@ -982,27 +983,30 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
   select type(rpf => permeability_function)
     class is(RPF_wat_owg_func_sl_type)
       select type(rpf_sl => rpf%rel_perm_func_sl)
-        class is(RPF_Mualem_VG_liq_type)
-          rpf_sl%Sr = rpf%Swcr
-          rpf_sl%m = rpf%m
-        class is(RPF_Burdine_VG_liq_type)
-          rpf_sl%Sr = rpf%Swcr
-          rpf_sl%m = rpf%m
+        ! replace with constuctors
+        class is(RPF_MVG_liq_type)
+          rpf_swap => RPF_MVG_liq_ctor(rpf%m,rpf%Swcr)
+          deallocate(rpf_sl)
+          rpf%rel_perm_func_sl => rpf_swap
+        class is(RPF_BVG_liq_type)
+          rpf_swap => RPF_BVG_liq_ctor(rpf%m,rpf%Swcr)
+          deallocate(rpf_sl)
+          rpf%rel_perm_func_sl => rpf_swap
       end select  
     class is(RPF_gas_owg_func_sl_type)
       select type(rpf_sl => rpf%rel_perm_func_sl)
-        class is(RPF_Mualem_VG_gas_type)
-          rpf_sl%Sr = rpf%Slcr
-          rpf_sl%Srg = rpf%Sgcr
-          rpf_sl%m = rpf%m
-        class is(RPF_Burdine_VG_gas_type)
-          rpf_sl%Sr = rpf%Slcr
-          rpf_sl%Srg = rpf%Sgcr
-          rpf_sl%m = rpf%m
+        class is(RPF_MVG_gas_type)
+          rpf_swap => RPF_MVG_gas_ctor(rpf%m, rpf%Slcr, rpf%Sgcr)
+          deallocate(rpf%rel_perm_func_sl)
+          rpf%rel_perm_func_sl => rpf_swap
+        class is(RPF_BVG_gas_type)
+          rpf_swap => RPF_BVG_gas_ctor(rpf%m, rpf%Slcr, rpf%Sgcr)
+          deallocate(rpf%rel_perm_func_sl)
+          rpf%rel_perm_func_sl => rpf_swap
         class is(rpf_TOUGH2_IRP7_gas_type)
           rpf_sl%Sr = rpf%Slcr
           rpf_sl%Srg = rpf%Sgcr
-          rpf_sl%m = rpf%m          
+          rpf_sl%m = rpf%m
       end select
     class is(RPF_wat_owg_Burdine_BC_type)
       select type(rpf_sl => rpf%rel_perm_func_sl)

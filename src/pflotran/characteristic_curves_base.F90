@@ -58,12 +58,10 @@ module Characteristic_Curves_Base_module
             PolynomialDestroy, &
             SFBaseInit, &
             SFBaseVerify, &
-            SFBaseTest, &
             SFBaseCapillaryPressure, &
             SFBaseSaturation, &
             RPFBaseInit, &
             RPFBaseVerify, &
-            RPFBaseTest, &
             RPFBaseRelPerm, &
             SaturationFunctionDestroy, &
             PermeabilityFunctionDestroy
@@ -273,7 +271,6 @@ end subroutine SFBaseD2SatDP2
 
 subroutine SFBaseTest(this,cc_name,option)
   use Option_module
-  use Material_Aux_class
 
   implicit none
   
@@ -283,13 +280,14 @@ subroutine SFBaseTest(this,cc_name,option)
   
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt, parameter :: num_values = 1000
-  PetscReal, parameter :: perturbation = 1d-6  
-  PetscReal :: dummy_real
-  PetscReal :: Pc, Sl, dSl_dPc, dPc_dSl ! Analytical values
-  PetscReal :: nPc, nSl, nder ! Numerical derivative values
+  PetscReal, parameter :: dSl = 10d0*epsilon(dSl)
+  PetscReal, parameter :: dPc = 1d-6  
+  PetscInt :: i ! Loop iterator
+  PetscReal ::  Pc,  Sl, dSl_dPc, dPc_dSl ! Analytical values
+  PetscReal :: nPc, nSl, nSl_nPc, nPc_nSl ! Numerical derivative values
   PetscReal :: slogPc, sSl ! Spacing
 
-  ! Open file and write header
+  ! Open sat_from_pc file and write header
   write(string,*) cc_name
   string = trim(cc_name) // '_sat_from_pc.dat'
   open(unit=86,file=string)
@@ -297,58 +295,67 @@ subroutine SFBaseTest(this,cc_name,option)
               &"dsat/dpres_numerical"'
 
   ! Evaluate saturation function at zero capillary pressure
+  ! Evaluate first at 0
   Pc = 0d0
   call this%Saturation(Pc,Sl,dSl_dPc,option)
-  nPc = epsilon(Pc)
-  call this%Saturation(epsilon(Pc),nSl,dummy_real,option)
-  nder = (nSl - Sl) / epsilon(Pc)
-  write(86,'(4es14.6)') Pc, Sl, dSl_dPc, nder
+
+  ! Use dPc as minimum perturbation at saturation
+  nPc = dPc
+  call this%Saturation(nPc,nSl,nSl_nPc,option)
+  nSl_nPc = (nSl - Sl) / (nPc - Pc)
+
+  write(86,'(4es14.6)') Pc, Sl, dSl_dPc, nSl_nPc
 
   ! Continue at a minimum capillary pressure of 1 Pa
   Pc = 1d0
   slogPc = exp(log(this%Pcmax/Pc)/num_values) 
-  do while (Pc < this%Pcmax)
+  do i = 1, num_values
     call this%Saturation(Pc,Sl,dSl_dPc,option)
-    nPc = Pc + Pc*perturbation
-    call this%Saturation(nPc,nSl,dummy_real,option)
-    nder = (nSl - Sl) / (nPc - Pc)
-    write(86,'(4es14.6)') Pc, Sl, dSl_dPc, nder
-    ! Using logarithmic spacing
+
+    ! Always forward difference with fractional perturbation
+    nPc = Pc*dPc
+    call this%Saturation(nPc,nSl,nSl_nPc,option)
+    nSl_nPc = (nSl - Sl) / (nPc - Pc)
+
+    write(86,'(4es14.6)') Pc, Sl, dSl_dPc, nSl_nPc
+
+    ! Update using logarithmic spacing
     Pc = Pc * slogPc
   end do
   close(86)
 
+  ! Open pc_from_sat file and write header
   write(string,*) cc_name
   string = trim(cc_name) // '_pc_from_sat.dat'
   open(unit=86,file=string)
   write(86,*) '"saturation", "capillary pressure", "dpc/dsat", &
              &dpc_dsat_numerical"'
 
-  ! Calculate capillary pressure as a function of saturation
+  ! Evaluate capillary pressure function
   ! Using linear spacing over 0 to 1
   Sl = 0d0
   sSl = 1d0/num_values
-  do while (Sl <= 1d0)
+  do i = 0, num_values
     call this%CapillaryPressure(Sl,Pc,dPc_dSl,option)
-    ! calculate numerical derivative dpc_dsatl_numerical
+
+    ! Use backward difference below 1/2, forward above 1/2
     if (Sl > 0.5d0) then
-      nSl = Sl-1d6*epsilon(Sl)
+      nSl = Sl-dSl
     else
-      nSl = Sl+1d6*epsilon(Sl)
+      nSl = Sl+dSl
     end if
+    call this%CapillaryPressure(nSl,nPc,nPc_nSl,option)
+    nPc_nSl = (nPc - Pc) / (nSl - Sl)
 
-    call this%CapillaryPressure(nSl,nPc,dummy_real,option)
-    nder = (nPc - Pc) / (nSl - Sl)
+    write(86,'(4es14.6)') Sl, Pc, dPc_dSl, nPc_nSl
 
-    ! Write data to file 86
-    write(86,'(4es14.6)') Sl, Pc, dPc_dSl, nder
-
-    ! Using linear spacing
+    ! Update using linear spacing
     Sl = Sl + sSl
   end do
+
   close(86)
 
-end subroutine SFBaseTest
+end subroutine
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -373,7 +380,6 @@ end subroutine RPFBaseRelPerm
 ! ************************************************************************** !
 
 subroutine RPFBaseTest(this,cc_name,phase,option)
-
   use Option_module
 
   implicit none
@@ -384,47 +390,42 @@ subroutine RPFBaseTest(this,cc_name,phase,option)
   type(option_type), intent(inout) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i
-  PetscInt, parameter :: num_values = 101
-  PetscReal :: perturbation
-  PetscReal :: liquid_saturation(num_values)
-  PetscReal :: liquid_saturation_pert(num_values)
-  PetscReal :: kr(num_values)
-  PetscReal :: kr_pert(num_values)
-  PetscReal :: dkr_dsat(num_values)
-  PetscReal :: dkr_dsat_numerical(num_values)
-  PetscReal :: dummy_real(num_values)
+  PetscInt, parameter :: num_values = 1000
+  PetscReal, parameter :: dSl = 1d-6
+
+  PetscInt :: i ! Loop iterator
+  PetscReal ::  Sl,  Kr, dKr_dSl ! Analytical values
+  PetscReal :: nSl, nKr, nKr_nSl ! Numerical Values
+  PetscReal :: sSl ! Spacing
   
-  perturbation = 1.d-6
-
-  do i = 1, num_values
-    liquid_saturation(i) = dble(i-1)*0.01d0
-    call this%RelativePermeability(liquid_saturation(i),kr(i),dkr_dsat(i), &
-                                   option)
-    ! calculate numerical derivative dkr_dsat_numerical
-    liquid_saturation_pert(i) = liquid_saturation(i) &
-                                + liquid_saturation(i)*perturbation
-    call this%RelativePermeability(liquid_saturation_pert(i),kr_pert(i), &
-                                   dummy_real(i),option)
-    if (i > 1) then
-      dkr_dsat_numerical(i) = (kr_pert(i) - kr(i))/ &
-                              (liquid_saturation(i)*perturbation)
-    else
-! Trap case of i=0 as liquid_saturation is 0 and will otherwise divide by zero
-      dkr_dsat_numerical(i) = 0.0
-    endif
-  enddo
-
+  ! Open file and write header 
   write(string,*) cc_name
   string = trim(cc_name) // '_' // trim(phase) // '_rel_perm.dat'
   open(unit=86,file=string)
   write(86,*) '"saturation", "' // trim(phase) // ' relative permeability", "' &
               // trim(phase) // ' dkr/dsat", "' // trim(phase) // &
               ' dkr/dsat_numerical"'
-  do i = 1, size(liquid_saturation)
-    write(86,'(4es14.6)') liquid_saturation(i), kr(i), dkr_dsat(i), &
-                          dkr_dsat_numerical(i)
-  enddo
+
+  ! Evaluate relative permeability function
+  ! Using linear spacing over 0 to 1
+  sSl = 1d0/num_values
+  Sl = 0d0
+  nSl = dSl
+  do i = 0, num_values
+    call this%RelativePermeability(Sl,Kr,dKr_dSl,option)
+    call this%RelativePermeability(nSl,nKr,nKr_nSl,option)
+    nKr_nSl = (nKr-Kr)/(nSl-Sl)
+    write(86,'(4es14.6)') Sl, Kr, dKr_dSl, nKr_nSl
+
+    Sl = Sl + sSl
+    if (Sl < 0.5d0) then
+      nSl = Sl + dSl
+    else
+      nSl = Sl - dSl
+    end if
+  end do
+
+  ! Close file
   close(86)
 
 end subroutine RPFBaseTest
