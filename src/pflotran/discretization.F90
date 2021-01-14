@@ -247,7 +247,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
            'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME', &
            'UPWIND_FRACTION_METHOD','PERM_TENSOR_TO_SCALAR_MODEL', &
-           '2ND_ORDER_BOUNDARY_CONDITION')
+           '2ND_ORDER_BOUNDARY_CONDITION','IMPLICIT_GRID_AREA_CALCULATION')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
@@ -583,6 +583,23 @@ subroutine DiscretizationRead(discretization,input,option)
           call PrintErrMsg(option)
         endif
         discretization%grid%structured_grid%second_order_bc = PETSC_TRUE
+      case('IMPLICIT_GRID_AREA_CALCULATION')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'IMPLICIT_GRID_AREA_CALCULATION', &
+                           'GRID')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('TRUE_AREA')
+            discretization%grid%unstructured_grid% &
+                            project_face_area_along_normal = PETSC_FALSE
+          case('PROJECTED_AREA')
+            discretization%grid%unstructured_grid% &
+                            project_face_area_along_normal = PETSC_TRUE
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                                    'GRID, IMPLICIT_GRID_AREA_CALCULATION', &
+                                    option)
+        end select
       case default
         call InputKeywordUnrecognized(input,word,'GRID',option)
     end select 
