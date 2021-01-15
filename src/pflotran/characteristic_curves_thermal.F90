@@ -1426,7 +1426,7 @@ subroutine TCFFrozenVerify(this,name,option)
                                             //'CONDUCTIVITY)',string)
       call PrintErrMsg(option)
     else
-      option%th_freezing = PETSC_TRUE
+      option%flow%th_freezing = PETSC_TRUE
       ! Outside of TH mode, frozen parameters aren't actually used
       if (.not. option%iflowmode == TH_MODE .and. & 
           .not. option%iflowmode == TH_TS_MODE) then

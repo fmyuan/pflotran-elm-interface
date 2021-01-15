@@ -266,7 +266,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       if (rate > 0.0d0) then
         ! source
         pressure_lower = this%pressure_max - this%pressure_delta/2.0d0 &
-                                           - option%reference_pressure
+                                           - option%flow%reference_pressure
         pressure_upper = pressure_lower + this%pressure_delta
         if (pressure <= pressure_lower) then
           rate_regulator = 1.0d0
@@ -284,7 +284,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       else
         ! sink
         pressure_lower = this%pressure_min - this%pressure_delta/2.0d0 &
-                                           - option%reference_pressure
+                                           - option%flow%reference_pressure
         pressure_upper = pressure_lower + this%pressure_delta
         if (pressure <= pressure_lower) then
           rate_regulator = 0.0d0

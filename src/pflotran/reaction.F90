@@ -1751,8 +1751,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF .and. &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == FLASH2_MODE) then
+      if (option%iflowmode == MPH_MODE) then
         call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)  
       endif
     endif
@@ -2307,17 +2306,17 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   mineral_reaction => reaction%mineral
 
   select case(option%iflowmode)
-    case(FLASH2_MODE,MPH_MODE,IMS_MODE,MIS_MODE)
+    case(MPH_MODE)
     case(NULL_MODE)
       global_auxvar%den_kg(iphase) = &
-        option%reference_density(option%liquid_phase)
-      global_auxvar%temp = option%reference_temperature
-      global_auxvar%sat(iphase) = option%reference_saturation
+        option%flow%reference_density(option%liquid_phase)
+      global_auxvar%temp = option%flow%reference_temperature
+      global_auxvar%sat(iphase) = option%flow%reference_saturation
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      global_auxvar%temp = option%reference_temperature
+      global_auxvar%temp = option%flow%reference_temperature
   end select
         
-  bulk_vol_to_fluid_vol = option%reference_porosity* &
+  bulk_vol_to_fluid_vol = option%flow%reference_porosity* &
                           global_auxvar%sat(iphase)*1000.d0
 
 ! compute mole and mass fractions of H2O
@@ -2368,9 +2367,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     endif
   
     ! CO2-specific
-    if (.not.option%use_isothermal .and. &
-        (option%iflowmode == MPH_MODE .or. &
-         option%iflowmode == FLASH2_MODE)) then
+    if (.not.option%use_isothermal .and. option%iflowmode == MPH_MODE) then
       if (associated(reaction%gas%paseqlogKcoef)) then
         do i = 1, reaction%naqcomp
           if (aq_species_constraint%constraint_type(i) == &
@@ -2478,7 +2475,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       mass_fraction_h2o,' [---]'
 
     ! CO2-specific
-    if (option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE) then
+    if (option%iflowmode == MPH_MODE) then
       if (global_auxvar%den_kg(2) > 0.d0) then
         write(option%fid_out,'(a20,f8.2,a9)') '     density CO2: ', &
           global_auxvar%den_kg(2),' [kg/m^3]'
@@ -3009,7 +3006,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
     global_auxvar => constraint_coupler%global_auxvar
 
     iphase = 1
-    global_auxvar%temp = option%reference_temperature
+    global_auxvar%temp = option%flow%reference_temperature
     tempk = tk + global_auxvar%temp
     
     potential = 0.1d0 ! initial guess
@@ -4301,9 +4298,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
                     reaction,option)
   endif
-  if (option%iflowmode == MPH_MODE .or. &
-      option%iflowmode == IMS_MODE .or. &
-      option%iflowmode == FLASH2_MODE) then
+  if (option%iflowmode == MPH_MODE) then
     call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   else if (reaction%gas%nactive_gas > 0) then
     call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
@@ -5378,9 +5373,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
       dtotalsorb(:,jcomp) = (rt_auxvar_pert%total_sorb_eq(:) - &
                              rt_auxvar%total_sorb_eq(:))/pert
     endif
-    if (option%iflowmode == MPH_MODE .or. &
-        option%iflowmode == IMS_MODE .or. &
-        option%iflowmode == FLASH2_MODE .or. 
+    if (option%iflowmode == MPH_MODE) then
         reaction%gas%nactive_gas > 0) then
       dtotal(:,jcomp,2) = (rt_auxvar_pert%total(:,2) - &
                            rt_auxvar%total(:,2))/pert
@@ -5716,8 +5709,7 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
         rt_auxvar%mnrl_volfrac(imnrl) = 0.d0
 
       ! CO2-specific
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == FLASH2_MODE) then
+      if (option%iflowmode == MPH_MODE) then
         ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
         do iaqspec = 1, ncomp  
           icomp = reaction%mineral%kinmnrlspecid(iaqspec,imnrl)

@@ -1006,7 +1006,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               hyd_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
+                option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
           endif
         endif
@@ -1148,7 +1148,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               hyd_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
+                option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
           endif
         endif

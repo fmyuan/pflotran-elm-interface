@@ -328,7 +328,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   spid = option%saturation_pressure_id
 
   ! Two Phase State Variables
-  wippflo_auxvar%temp = option%reference_temperature
+  wippflo_auxvar%temp = option%flow%reference_temperature
   wippflo_auxvar%pres(lid) = x(WIPPFLO_LIQUID_PRESSURE_DOF)
   wippflo_auxvar%sat(gid) = x(WIPPFLO_GAS_SATURATION_DOF)
   ! calculate saturation pressure as reference.
@@ -413,9 +413,9 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
     select type(sf => characteristic_curves%saturation_function)
       class is(sat_func_WIPP_type)
         sf%pct = sf%pct_a * perm_for_cc ** sf%pct_exp
-        option%pct_updated = PETSC_TRUE
+        option%flow%pct_updated = PETSC_TRUE
       class default
-        option%pct_updated = PETSC_FALSE
+        option%flow%pct_updated = PETSC_FALSE
     end select
     call characteristic_curves%saturation_function% &
           CapillaryPressure(wippflo_auxvar%sat(lid),wippflo_auxvar%pres(cpid), &

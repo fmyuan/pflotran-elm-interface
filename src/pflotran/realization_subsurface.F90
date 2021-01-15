@@ -9,7 +9,6 @@ module Realization_Subsurface_class
   use Input_Aux_module
   use Region_module
   use Condition_module
-  use Well_Data_class
   use Transport_Constraint_Base_module
   use Transport_Constraint_module
   use Material_module
@@ -31,7 +30,6 @@ private
 
     type(region_list_type), pointer :: region_list
     type(condition_list_type), pointer :: flow_conditions
-    type(well_data_list_type), pointer :: well_data=>null()
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
     
@@ -145,9 +143,6 @@ function RealizationCreate2(option)
 
   allocate(realization%flow_conditions)
   call FlowConditionInitList(realization%flow_conditions)
-! Allocate well_data and create its list of wells
-  allocate(realization%well_data)
-  call WellDataInitList(realization%well_data,option%nphase)
   allocate(realization%transport_conditions)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
@@ -516,13 +511,13 @@ subroutine RealizationLocalizeRegions(realization)
   call RegionDestroyList(realization%region_list)
 
   ! compute regional connections for inline surface flow
-  if (option%inline_surface_flow) then
-     region => RegionGetPtrFromList(option%inline_surface_region_name, &
+  if (option%flow%inline_surface_flow) then
+     region => RegionGetPtrFromList(option%flow%inline_surface_region_name, &
           realization%patch%region_list)
      if (.not.associated(region)) then
         option%io_buffer = 'realization_subsurface.F90:RealizationLocalize&
              &Regions() --> Could not find a required region named "' // &
-             trim(option%inline_surface_region_name) // &
+             trim(option%flow%inline_surface_region_name) // &
              '" from the list of regions.'
         call PrintErrMsg(option)
      endif
@@ -915,11 +910,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           trim(cur_material_property%saturation_function_name) // &
           '" not found.'
         call PrintErrMsg(option)
-      else
-        if (associated(patch%characteristic_curves_array)) then
-          call CharCurvesProcessTables(patch%characteristic_curves_array(  &
-                        cur_material_property%saturation_function_id)%ptr,option)
-        endif
       endif
     endif
 
@@ -1120,8 +1110,6 @@ subroutine RealProcessFluidProperties(realization)
   ! Date: 01/21/09
   ! 
 
-  use Grid_Grdecl_module, only : GetSatnumSet
-
   implicit none
 
   class(realization_subsurface_type) :: realization
@@ -1155,29 +1143,6 @@ subroutine RealProcessFluidProperties(realization)
                        ' for solute transport'
   endif
 
-  ! If saturation table numbers set,
-  ! check that matches characteristic curves count
-
-  satnum_set = GetSatnumSet(maxsatn)
-  if (satnum_set) then
-    ccset = associated(realization%patch%characteristic_curves_array)
-    if (ccset) then
-      ncc = size(realization%patch%characteristic_curves_array(:))
-      if (maxsatn > ncc) then
-        option%io_buffer = &
-         'SATNUM data does not match CHARACTERISTIC CURVES count'
-        call PrintErrMsg(option)
-      endif
-      do icc = 1, ncc
-        call CharCurvesProcessTables( &
-          realization%patch%characteristic_curves_array(icc)%ptr,option)
-      end do
-    else
-      option%io_buffer = 'SATNUM data but no CHARACTERISTIC CURVES'
-      call PrintErrMsg(option)
-    endif
-  endif
-  
 end subroutine RealProcessFluidProperties
 
 ! ************************************************************************** !
@@ -2926,7 +2891,6 @@ subroutine RealizationStrip(this)
   ! 
 
   use Dataset_module
-  use Output_Eclipse_module, only : ReleaseEwriterBuffers
 
   implicit none
   
@@ -2936,12 +2900,6 @@ subroutine RealizationStrip(this)
   call RegionDestroyList(this%region_list)
   
   call FlowConditionDestroyList(this%flow_conditions)
-
-  !  Destroy the list of wells held by well_data
-  call WellDataDestroyList(this%well_data, this%option)
-  !  Release output buffers held by Output_Eclipse_module
-  call ReleaseEwriterBuffers()
-
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintListDestroy(this%transport_constraints)
 

@@ -5,7 +5,6 @@ module Strata_module
 
   use Region_module
   use Material_module
-  use Surface_Material_module
  
   use PFLOTRAN_Constants_module
 
@@ -24,9 +23,6 @@ module Strata_module
     PetscInt :: iregion                                  ! id of region in region array/list
     type(material_property_type), pointer :: material_property ! pointer to material in material array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
-    type(surface_material_property_type),pointer :: surf_material_property
-    PetscInt :: isurf_material_property ! id of material in material array/list
-    PetscInt :: surf_or_subsurf_flag
     PetscReal :: start_time
     PetscReal :: final_time
     type(strata_type), pointer :: next            ! pointer to next strata
@@ -84,15 +80,10 @@ function StrataCreate1()
   strata%region_name = ""
   strata%iregion = 0
   strata%imaterial_property = 0
-  strata%surf_or_subsurf_flag = SUBSURFACE
   strata%start_time = UNINITIALIZED_DOUBLE
   strata%final_time = UNINITIALIZED_DOUBLE
-
   nullify(strata%region)
   nullify(strata%material_property)
-
-  nullify(strata%surf_material_property)
-  strata%isurf_material_property = 0
   nullify(strata%next)
   
   StrataCreate1 => strata
@@ -130,9 +121,6 @@ function StrataCreateFromStrata(strata)
   ! keep these null
   nullify(new_strata%region)
   nullify(new_strata%material_property)
-
-  nullify(new_strata%surf_material_property)
-
   nullify(new_strata%next)
   
   StrataCreateFromStrata => new_strata

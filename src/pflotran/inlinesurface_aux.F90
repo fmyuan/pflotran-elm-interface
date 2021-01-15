@@ -98,7 +98,7 @@ contains
     ! We need to ensure that surface density stays consistent with the subsurface
     auxvar%density = global_auxvar%den(1)
 
-    Pref = option%reference_pressure
+    Pref = option%flow%reference_pressure
     Pl   = global_auxvar%pres(1)
     rho  = global_auxvar%den_kg(1)
     g    = ABS(option%gravity(3))

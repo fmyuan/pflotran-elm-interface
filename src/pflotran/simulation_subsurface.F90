@@ -144,24 +144,16 @@ subroutine SubsurfaceSimInputRecord(this)
       write(id,'(a)') 'richards'
     case(RICHARDS_TS_MODE)
       write(id,'(a)') 'richards_ts'
-    case(IMS_MODE)
-      write(id,'(a)') 'immiscible'
-    case(FLASH2_MODE)
-      write(id,'(a)') 'flash2'
     case(G_MODE)
       write(id,'(a)') 'general'
     case(H_MODE)
       write(id,'(a)') 'hydrate'
     case(WF_MODE)
       write(id,'(a)') 'wipp flow'
-    case(MIS_MODE)
-      write(id,'(a)') 'miscible'
     case(TH_MODE)
       write(id,'(a)') 'thermo-hydro'
     case(TH_TS_MODE)
       write(id,'(a)') 'thermo-hydro_ts'
-    case(TOIL_IMS_MODE)
-      write(id,'(a)') 'thermal-oil-immiscible'
   end select
   
   ! print time information

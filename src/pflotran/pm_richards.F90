@@ -152,12 +152,12 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
     
     select case(trim(keyword))
       case('INLINE_SURFACE_REGION')
-        option%inline_surface_flow = PETSC_TRUE
+        option%flow%inline_surface_flow = PETSC_TRUE
         call InputReadWord(input,option,keyword,PETSC_FALSE)
-        option%inline_surface_region_name = keyword
+        option%flow%inline_surface_region_name = keyword
       case('INLINE_SURFACE_MANNINGS_COEFF')
         call InputReadDouble(input,option,tempreal)
-        option%inline_surface_Mannings_coeff = tempreal
+        option%flow%inline_surface_Mannings_coeff = tempreal
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -466,7 +466,7 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
       call patch%characteristic_curves_array( &
         patch%cc_id(ghosted_id))%ptr%saturation_function% &
         CapillaryPressure(sat_pert,pc_pert,dpc_dsatl,option)
-      press_pert = option%reference_pressure - pc_pert
+      press_pert = option%flow%reference_pressure - pc_pert
       P0 = X_p(local_id)
       delP = dX_p(local_id)
       delP_pert = dabs(P0 - press_pert)
@@ -487,7 +487,7 @@ subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   if (Initialized(this%pressure_dampening_factor)) then
     changed = PETSC_TRUE
     ! P^p+1 = P^p - dP^p
-    P_R = option%reference_pressure
+    P_R = option%flow%reference_pressure
     scale = this%pressure_dampening_factor
 
     call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -829,8 +829,7 @@ subroutine PMRichardsUpdateSolution(this)
   ! Date: 03/14/13
   ! 
 
-  use Richards_module, only : RichardsUpdateSolution, &
-                              RichardsUpdateSurfacePress
+  use Richards_module, only : RichardsUpdateSolution
 
   implicit none
   
@@ -838,8 +837,6 @@ subroutine PMRichardsUpdateSolution(this)
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call RichardsUpdateSolution(this%realization)
-  if (this%option%surf_flow_on) &
-    call RichardsUpdateSurfacePress(this%realization)
 
 end subroutine PMRichardsUpdateSolution     
 
