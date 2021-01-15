@@ -294,15 +294,15 @@ program pflotran_rxn
   ! material_auxvars --> cell by cell material property data
   allocate(material_auxvars)
   call MaterialAuxVarInit(material_auxvars, option)
-  material_auxvars%porosity = option%reference_porosity
+  material_auxvars%porosity = option%flow%reference_porosity
 
   ! assign default state values
-  global_auxvars%pres = option%reference_pressure
-  global_auxvars%temp = option%reference_temperature
-  ! global_auxvars%den_kg = option%reference_water_density
+  global_auxvars%pres = option%flow%reference_pressure
+  global_auxvars%temp = option%flow%reference_temperature
+  ! global_auxvars%den_kg = option%flow%reference_water_density
   ! NOTE(bja): option%ref_density = 0.0, so we set it manually. This is a Bad Thing(TM)
   global_auxvars%den_kg = 998.2
-  global_auxvars%sat = option%reference_saturation  
+  global_auxvars%sat = option%flow%reference_saturation  
 
   ! create the constraint list
   allocate(transport_constraints)
