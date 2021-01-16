@@ -269,6 +269,8 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         select case(word)
           case('MORIDIS')
             hydrate_phase_boundary = 2
+          case('MORIDIS_SIMPLE')
+            hydrate_phase_boundary = 3
           case default
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_PHASE_BOUNDARY',option)
@@ -345,7 +347,13 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
           case('DAI_AND_SEOL')
             temp_int = 1
             hydrate_perm_scaling_function = temp_int
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'PERM_SCALING_FUNCTION',option)
         end select
+      case('SALINITY')
+        call InputReadDouble(input,option,hydrate_xmol_nacl)
+        call InputErrorMsg(input,option,'SALINITY',error_string)        
     end select
 
   enddo

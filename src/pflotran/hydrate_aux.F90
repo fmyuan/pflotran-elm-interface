@@ -30,6 +30,9 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_force_iteration = PETSC_FALSE
   PetscBool, public :: hydrate_state_changed = PETSC_FALSE
 
+  !Salinity
+  PetscReal, public :: hydrate_xmol_nacl = 0.d0
+
   PetscBool, public :: hyd_chk_max_dpl_liq_state_only = PETSC_FALSE
   PetscBool, public :: hydrate_high_temp_ts_cut = PETSC_FALSE
 
@@ -3466,9 +3469,12 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
   k_hyd = 0.58d0 !W/m-K
   k_ice = 2.2d0   !W/m-K
 
-  ! kdry = (1-phi)*k_rock + phi*k_air, k_air << k_rock
   keff = kdry + phi * (sat(lid)*k_h20 + sat(hid)*k_hyd + sat(iid)*k_ice &
-          + sat(gid)*k_ch4)
+         + sat(gid)*k_ch4)
+
+  ! kdry = (1-phi)*k_rock + phi*k_air, k_air << k_rock
+  !keff = kdry*(1.d0-phi) + phi * (sat(lid)*k_h20 + sat(hid)*k_hyd + sat(iid)*k_ice &
+  !       + sat(gid)*k_ch4)
 
   ! IGHCC2 function (seems odd if phi = 1 and sat(lid) = 1)
   !keff = kdry + phi * (sat(lid)*kwet + sat(hid)*k_hyd + sat(iid) * k_ice &
@@ -3503,7 +3509,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
-  PetscReal :: T_temp, dTf
+  PetscReal :: T_temp, dTf, dTfs, xmol
 
   if (hydrate_with_gibbs_thomson) then
     call GibbsThomsonFreezing(1.d0-sat-hydrate_phase_chng_epsilon, &
@@ -3512,6 +3518,9 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   else
     dTf = 0.d0
   endif
+
+  call HydrateSalinityOffset(hydrate_xmol_nacl,dTfs,option)
+  dTf = dTf - dTfs
 
   T_temp = T + 273.15d0 + dTf
   dP = 0.d0
@@ -3528,6 +3537,9 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
              - 7.27291427030502d-3 * T_temp**2 + 3.85413985900724d-5 * &
              T_temp**3 - 1.03669656828834d-7 * T_temp**4 + &
              1.09882180475307d-10 * T_temp**5)
+      case(3)
+        !Moridis, 2003 simple
+        PE = exp(0.0334940999*T_temp - 8.1938174346)
     end select
   else
     select case(hydrate_phase_boundary)
@@ -3544,12 +3556,19 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
              - 22.5540264493806* T_temp**2 + 0.0767559117787059 * T_temp**3 &
              - 1.30465829788791d-4 * T_temp**4 + 8.86065316687571d-8 * &
              T_temp**5)
-        if (hydrate_adjust_ghsz_solubility) then
+        if (hydrate_adjust_ghsz_solubility .and. hydrate_with_gibbs_thomson) then
           dP = PE - exp(-1.9413850446456d5 + 3.31018213397926d3 * &
                (T_temp-dTf) - 22.5540264493806*(T_temp-dTf)**2 + &
                0.0767559117787059 * (T_temp-dTf)**3 - &
                1.30465829788791d-4 * (T_temp-dTf)**4 + 8.86065316687571d-8 * &
                (T_temp-dTf)**5)
+          dP = dP * 1.d6
+        endif
+      case(3)
+        !Moridis, 2003 simple
+        PE = exp(0.1100383278*T_temp - 29.1133440975)
+        if (hydrate_adjust_ghsz_solubility) then
+          dP = PE - exp(0.1100383278*(T_temp-dTf) - 29.1133440975)
           dP = dP * 1.d6
         endif
     end select
@@ -3667,15 +3686,15 @@ subroutine HydrateGHSZSolubilityCorrection(T,P,dP,K_H)
         T3 = -8.533d3/(log((P-dP)/1.d6*1.d3)-3.898d1)
       case(2)
         !Moridis
-        !Lower-order
-        T3 = 9.0622d0 * log((P-dP)*1.d-6) + 264.66d0
-
         !Higher-order
-        !logP = log((P-dP)*1.d-6)
-        !T3 = -1.09874018d-2*logP**6 + 1.73301550d-1*logP**5 - &
-        !     9.67897401d-1*logP**4 + 2.34919362d0*logP**3  - &
-        !     2.77146625d0*logP**2 + 1.13889445d1*logP + 2.63495959d2
-
+        logP = log((P-dP)*1.d-6)
+        T3 = -0.0109874018d0*logP**6 + 0.17330155005d0*logP**5 &
+             - 0.9678974011d0*logP**4 + 2.3491936188d0*logP**3 &
+             - 2.7714662486d0*logP**2 + 11.3889445128d0*logP + 263.4959590135d0
+      case(3)
+        !Moridis, 2003 simple
+        logP = log((P-dP)*1.d-6)
+        T3 = (logP + 29.1133440975)/0.1100383278
     end select
   else
     T3 = T + 273.15d0
@@ -3798,5 +3817,32 @@ subroutine EOSHydrateEnthalpy(T,H)
 end subroutine EOSHydrateEnthalpy
 
 ! ************************************************************************** !
+
+subroutine HydrateSalinityOffset(xmol,dTd,option)
+  !
+  ! This ties salinity to the subcooling required to precipitate
+  ! hydrate in pores, similar to the GibbsThomsonFreezing subroutine
+  ! Based on the TOUGH method of PE-salinity behavior, using reference
+  ! parameters from Dickens and Quinby-Hunt, 1997
+  !
+  ! Author: David Fukuyama
+  ! Date: 5/1/2020
+  !
+
+  use Characteristic_Curves_module
+  use Option_module
+  use Material_Aux_class
+
+  implicit none
+
+  PetscReal, intent(in) :: xmol
+  type(option_type) :: option
+  PetscReal, intent(out) :: dTd
+
+  PetscReal :: dTr = -0.37d0
+  PetscReal :: xmol_ref = 0.03311d0
+
+  dTd = dTr * log(1-xmol)/log(1-xmol_ref)
+end subroutine HydrateSalinityOffset
 
 end module Hydrate_Aux_module
