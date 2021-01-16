@@ -18,10 +18,7 @@ program pflotran_interface_main
   
   use Simulation_Base_class         , only : simulation_base_type
   use Simulation_Subsurface_class   , only : simulation_subsurface_type
-  use Simulation_Surface_class      , only : simulation_surface_type
-  use Simulation_Surf_Subsurf_class , only : simulation_surfsubsurface_type
   use Realization_Base_class        , only : realization_base_type
-  use Realization_surface_class     , only : realization_surface_type
   use Timestepper_Base_class        , only : TS_STOP_END_SIMULATION
 
   use PFLOTRAN_Constants_module
@@ -31,7 +28,6 @@ program pflotran_interface_main
 
   type(pflotran_model_type)       , pointer :: pflotran_m
   class(realization_base_type)    , pointer :: realization
-  class(realization_surface_type) , pointer :: surf_realization
 
   
   PetscErrorCode                            :: ierr
@@ -84,16 +80,8 @@ program pflotran_interface_main
   select type (simulation => pflotran_m%simulation)
     class is (simulation_subsurface_type)
        realization => simulation%realization
-       nullify(surf_realization)
-    class is (simulation_surfsubsurface_type)
-       realization => simulation%realization
-       surf_realization => simulation%surf_realization
-    class is (simulation_surface_type)
-       nullify(realization)
-       surf_realization => simulation%surf_realization
     class default
        nullify(realization)
-       nullify(surf_realization)
        pflotran_m%option%io_buffer = "ERROR: pflotran model only works on combinations of subsurface and surface simulations."
        call PrintErrMsg(pflotran_m%option)
    end select
