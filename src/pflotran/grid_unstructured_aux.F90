@@ -66,6 +66,7 @@ module Grid_Unstructured_Aux_module
     type(point3d_type), pointer :: face_centroid(:)
     PetscReal, pointer :: face_area(:)
     PetscInt, pointer :: nat_ids_of_other_grid(:)
+    PetscBool :: project_face_area_along_normal
   end type grid_unstructured_type
   
   type, public :: unstructured_explicit_type
@@ -275,6 +276,7 @@ function UGridCreate()
   nullify(unstructured_grid%nat_ids_of_other_grid)
 
   unstructured_grid%upwind_fraction_method = UGRID_UPWIND_FRACTION_PT_PROJ
+  unstructured_grid%project_face_area_along_normal = PETSC_TRUE
 
   UGridCreate => unstructured_grid
   
