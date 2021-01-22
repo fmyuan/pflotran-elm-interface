@@ -12,6 +12,7 @@ module Auxiliary_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
   use Material_Aux_class
+  use ERT_Aux_module
   use Secondary_Continuum_Aux_module
   use InlineSurface_Aux_module
   
@@ -32,6 +33,7 @@ module Auxiliary_module
     type(hydrate_type), pointer :: Hydrate
     type(wippflo_type), pointer :: WIPPFlo
     type(material_type), pointer :: Material
+    type(ert_type), pointer :: ERT
     type(sc_heat_type), pointer :: SC_heat
     type(sc_rt_type), pointer :: SC_RT
     type(inlinesurface_type), pointer :: InlineSurface
@@ -61,6 +63,7 @@ subroutine AuxInit(aux)
   nullify(aux%NWT)
   nullify(aux%TH)
   nullify(aux%Richards)
+  nullify(aux%ERT)
   
   nullify(aux%Mphase)
   nullify(aux%General)
@@ -97,6 +100,7 @@ subroutine AuxDestroy(aux)
   call HydrateAuxDestroy(aux%Hydrate)
   call WIPPFloAuxDestroy(aux%WIPPFlo)
   call MaterialAuxDestroy(aux%Material)
+  call ERTAuxDestroy(aux%ERT)
   call SecondaryAuxHeatDestroy(aux%SC_heat)
   call SecondaryAuxRTDestroy(aux%SC_RT)
   call InlineSurfaceAuxDestroy(aux%InlineSurface)
