@@ -264,6 +264,11 @@ geomech_obj = \
 	${common_src}shape_function.o \
 	${common_src}timestepper_steady.o
 
+geophysics_obj = \
+	${common_src}pmc_geophysics.o \
+	${common_src}pm_ert.o \
+	${common_src}ert_aux.o
+
 solver_obj = \
 	${common_src}preconditioner_cpr.o \
 	${common_src}solver.o \
