@@ -582,7 +582,7 @@ contains
     !------------
 
     call VecGetArrayF90(clm_pf_idata%area_top_face_pfp, area_p, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     if(grid%itype == STRUCTURED_GRID) then
       ! Structured grid
       do ghosted_id=1,grid%ngmax
@@ -617,7 +617,7 @@ contains
       enddo
     endif
     call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfp, area_p, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
@@ -837,25 +837,25 @@ contains
     ! Step-1: Find face cells-ids of PFLOTRAN subsurface domain
     !
     call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DETERMINE, face_ids, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecSet(face_ids, -1.d0, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! Set 1.0 to all cells that make up a face of PFLOTRAN subsurface domain
     allocate(v_loc(grid_pf_npts_local))
     v_loc = 1.d0
     call VecSetValues(face_ids, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
                       v_loc, INSERT_VALUES, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     deallocate(v_loc)
 
     call VecAssemblyBegin(face_ids, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecAssemblyEnd(face_ids, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(face_ids, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     count = 0
     do local_id=1,grid%nlmax
       if(v_loc(local_id) == 1.d0) count = count + 1
@@ -864,7 +864,7 @@ contains
     istart = 0
     call MPI_Exscan(count, istart, ONE_INTEGER_MPI, MPIU_INTEGER, MPI_SUM, &
                     option%mycomm, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     count = 0
     do local_id=1,grid%nlmax
@@ -875,7 +875,7 @@ contains
 
     enddo
     call VecRestoreArrayF90(face_ids, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     allocate(int_array(grid_pf_npts_local))
@@ -884,35 +884,35 @@ contains
     enddo
     call ISCreateGeneral(option%mycomm, grid_pf_npts_local, int_array, &
                          PETSC_COPY_VALUES, is_to, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     deallocate(int_array)
 
     call ISCreateGeneral(option%mycomm, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
                          PETSC_COPY_VALUES, is_from, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! create scatter context
     call VecCreateSeq(PETSC_COMM_SELF, grid_pf_npts_local, face_ids_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call ISDestroy(is_from, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call ISDestroy(is_to, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecScatterDestroy(vec_scat, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(face_ids_loc, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     count = 0
     do iconn = 1, grid_pf_npts_local
       if (v_loc(iconn)>-1) then
@@ -922,22 +922,22 @@ contains
 
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecDestroy(face_ids_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     ! Step-2: Recompute 'map%s2d_i/jscr' for pf mesh
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, face_ids_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     allocate(int_array(map%s2d_nwts))
     do iconn = 1, map%s2d_nwts
       int_array(iconn) = iconn - 1
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                      PETSC_COPY_VALUES, is_to, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     do iconn = 1, map%s2d_nwts
       if (dest_mesh_id == PF_FACE_MESH) then
@@ -948,29 +948,29 @@ contains
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                  PETSC_COPY_VALUES, is_from, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     deallocate(int_array)
 
     ! create scatter context
     call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call ISDestroy(is_from, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call ISDestroy(is_to, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecScatterDestroy(vec_scat, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(face_ids_loc, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     count = 0
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
@@ -984,9 +984,9 @@ contains
 
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecDestroy(face_ids_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset (  ' // map%filename // &
@@ -994,7 +994,7 @@ contains
       call printErrMsg(option)
     endif
     call VecDestroy(face_ids, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     ! Step-3: Find face cells-ids of CLM soil/below-ground domain
@@ -1002,25 +1002,25 @@ contains
     allocate(v_loc(grid_clm_npts_local))
     v_loc = 1.d0
     call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, face_ids_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_sub, PETSC_DECIDE, face_ids, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecSet(face_ids, -1.d0, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! Set 1.0 to all cells that make up surface of CLM subsurface domain
     call VecSetValues(face_ids, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
                       v_loc, INSERT_VALUES, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     deallocate(v_loc)
     call VecAssemblyBegin(face_ids, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecAssemblyEnd(face_ids, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(face_ids, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     count = 0
     do local_id=1,clm_pf_idata%nlclm_sub
       if(v_loc(local_id) == 1.d0) count = count + 1
@@ -1029,7 +1029,7 @@ contains
     istart = 0
     call MPI_Exscan(count, istart, ONE_INTEGER_MPI, MPIU_INTEGER, MPI_SUM, &
                     option%mycomm, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     count = 0
     do local_id=1,clm_pf_idata%nlclm_sub
@@ -1039,7 +1039,7 @@ contains
       endif
     enddo
     call VecRestoreArrayF90(face_ids, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     allocate(int_array(grid_clm_npts_local))
@@ -1048,34 +1048,34 @@ contains
     enddo
     call ISCreateGeneral(option%mycomm, grid_clm_npts_local, int_array, &
                          PETSC_COPY_VALUES, is_to, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     deallocate(int_array)
 
     call ISCreateGeneral(option%mycomm, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
                          PETSC_COPY_VALUES, is_from, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
 
     ! create scatter context
     call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, &
                           ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call ISDestroy(is_from, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call ISDestroy(is_to, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecScatterDestroy(vec_scat, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(face_ids_loc, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     count = 0
     do iconn = 1, grid_clm_npts_local
       if (v_loc(iconn)>-1) then
@@ -1084,22 +1084,22 @@ contains
       endif
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecDestroy(face_ids_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     ! Step-4: Recompute 'map%s2d_i/jscr' for clm mesh
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, face_ids_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     allocate(int_array(map%s2d_nwts))
     do iconn = 1, map%s2d_nwts
       int_array(iconn) = iconn - 1
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_to, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
 
     do iconn = 1, map%s2d_nwts
@@ -1111,29 +1111,29 @@ contains
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     deallocate(int_array)
 
     ! create scatter context
     call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, &
                           ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call ISDestroy(is_from, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call ISDestroy(is_to, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecScatterDestroy(vec_scat, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecGetArrayF90(face_ids_loc, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     count = 0
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
@@ -1146,9 +1146,9 @@ contains
       endif
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecDestroy(face_ids_loc, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
@@ -1157,7 +1157,7 @@ contains
     endif
 
     call VecDestroy(face_ids, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
     select case(source_mesh_id)

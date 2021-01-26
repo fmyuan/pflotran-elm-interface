@@ -1435,7 +1435,7 @@ contains
 
     ! Create 'vscat'
     call VecScatterCreate(nindex, is_from, N2P, is_to, vscat,ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from,ierr)
@@ -1638,10 +1638,10 @@ contains
     if (map%s2d_s_ncells > 0) then
        ! Initialize local vector
        call VecSet(map%s_disloc_vec, 0.d0, ierr)
-       call where_checkerr(ierr, subname, __FILE__, __LINE__)
+       !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
        call VecSet(d_vec, 0.d0, ierr)
-       call where_checkerr(ierr, subname, __FILE__, __LINE__)
+       !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     end if
 
@@ -1651,31 +1651,31 @@ contains
     ! WHY bother? - it appears that PETSc 'VecScatterEnd' below involving call to 'MPI_Waitany', which takes a lot of computing time (making sense).
 
     call VecGetLocalVectorRead(s_vec, map%s_disloc_vec, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     if (map%s2d_s_ncells > 0) then
        ! Perform Matrix-Vector product
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
-       call where_checkerr(ierr, subname, __FILE__, __LINE__)
+       !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     end if
 
     call VecRestoreLocalVectorRead(s_vec, map%s_disloc_vec, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
 #else
     ! Scatter the source vector
     call VecScatterBegin(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecScatterEnd(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     if (map%s2d_s_ncells > 0) then
        ! Perform Matrix-Vector product
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
-       call where_checkerr(ierr, subname, __FILE__, __LINE__)
+       !!call where_checkerr(ierr, subname, __FILE__, __LINE__)
     end if
 
 #endif
