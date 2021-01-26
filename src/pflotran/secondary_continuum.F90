@@ -893,9 +893,9 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         ! Accumulation
         do i = 1, ngcells 
           coeff_diag(j,k,i) = coeff_diag(j,k,i) + pordt*vol(i)
-          if (reaction%neqsorb > 0) then
-            coeff_diag(j,k,i) = coeff_diag(j,k,i) + vol(i)/option%tran_dt*(dtotal_sorb_upd(j,k,i))
-          endif
+!          if (reaction%neqsorb > 0) then
+!            coeff_diag(j,k,i) = coeff_diag(j,k,i) + vol(i)/option%tran_dt*(dtotal_sorb_upd(j,k,i))
+!          endif
         enddo
   
         ! Flux terms
