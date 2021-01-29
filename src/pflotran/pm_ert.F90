@@ -194,12 +194,14 @@ recursive subroutine PMERTInitializeRun(this)
   class(pm_ert_type) :: this
   PetscErrorCode :: ierr
 
+  PetscReal, pointer :: vec_ptr(:)
+
   call DiscretizationDuplicateVector(this%realization%discretization, &
                                      this%realization%field%work,this%rhs)
 
   ! Initialize to zeros
   call VecZeroEntries(this%rhs,ierr); CHKERRQ(ierr)                             
-  
+
 end subroutine PMERTInitializeRun
 
 ! ************************************************************************** !

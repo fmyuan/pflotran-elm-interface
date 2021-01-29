@@ -78,16 +78,11 @@ subroutine ERTSetupPatch(realization)
   ! initialized i.e. electrical_conductivity is initialized
   material_auxvars => patch%aux%Material%auxvars
   error_found = PETSC_FALSE
-
+  flag = 0
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
-      flag(1) = 1
-      option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call PrintMsgByRank(option)
-    endif    
-    tempreal = minval(material_auxvars(ghosted_id)%electrical_conductivity)
+    if (patch%imat(ghosted_id) <= 0) cycle       
+    tempreal = minval(material_auxvars(ghosted_id)%electrical_conductivity)   
     if (Uninitialized(tempreal) .and. flag(2) == 0) then
       option%io_buffer = 'ERROR: Non-initialized electrical conductivity.'
       call PrintMsgByRank(option)
@@ -106,7 +101,7 @@ subroutine ERTSetupPatch(realization)
  ! allocate auxvars data structures for all grid cells  
   allocate(ert_auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    call ERTAuxVarInit(ert_auxvars(ghosted_id),option)
+    call ERTAuxVarInit(ert_auxvars(ghosted_id),option)   
   enddo
   patch%aux%ERT%auxvars => ert_auxvars
   patch%aux%ERT%num_aux = grid%ngmax

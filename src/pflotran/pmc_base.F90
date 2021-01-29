@@ -524,13 +524,14 @@ recursive subroutine InitializeRun(this)
   if (associated(this%timestepper)) then
     call this%timestepper%InitializeRun(this%option)
   endif
+!stop 
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
     call cur_pm%InitializeRun()
     cur_pm => cur_pm%next
   enddo
-  
+
   if (associated(this%child)) then
     call this%child%InitializeRun()
   endif

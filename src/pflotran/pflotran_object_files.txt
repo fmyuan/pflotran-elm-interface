@@ -267,6 +267,7 @@ geomech_obj = \
 geophysics_obj = \
 	${common_src}ert.o \
 	${common_src}ert_aux.o \
+	${common_srt}init_subsurface_geophysics.o \
 	${common_src}pm_ert.o \
 	${common_src}pmc_geophysics.o \
 	${common_src}survey.o 
