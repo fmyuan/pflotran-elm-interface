@@ -120,11 +120,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
  
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
-print*,simulation%realization%discretization%grid%internal_connection_set_list%first%num_connections
-do ii=1,simulation%realization%discretization%grid%internal_connection_set_list%first%num_connections
-print*,ii,simulation%realization%discretization%grid%internal_connection_set_list%first%id_up(ii), &
-simulation%realization%discretization%grid%internal_connection_set_list%first%id_dn(ii)
-enddo
+
 end subroutine SubsurfaceInitializePostPetsc
 
 ! ************************************************************************** !
@@ -1439,6 +1435,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   use Init_Subsurface_module
   use Init_Subsurface_Flow_module
   use Init_Subsurface_Tran_module
+  use Init_Subsurface_Geop_module
   use Init_Common_module
   use Waypoint_module
   use Strata_module
@@ -1493,6 +1490,10 @@ subroutine SubsurfaceInitSimulation(simulation)
   if (option%ntrandof > 0) then
     call InitSubsurfTranSetupRealization(realization)
   endif
+  if (option%ngeopdof > 0) then
+    call InitSubsurfGeopSetupRealization(realization)
+  endif
+  
   ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
   call InitSubsurfaceSetupZeroArrays(realization)
   call OutputVariableAppendDefaults(realization%output_option% &
