@@ -52,6 +52,8 @@ module Option_module
     PetscInt :: iflow_sub_mode
     character(len=MAXWORDLENGTH) :: tranmode
     PetscInt :: itranmode
+    character(len=MAXWORDLENGTH) :: geopmode
+    PetscInt :: igeopmode
 
     PetscInt :: nphase
     PetscInt :: liquid_phase
@@ -85,6 +87,8 @@ module Option_module
     PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: ntrandof
+    
+    PetscInt :: ngeopdof ! geophysics # of dof
 
     PetscInt :: iflag
     PetscInt :: status
@@ -413,6 +417,10 @@ subroutine OptionInitRealization(option)
   option%tranmode = ""
   option%itranmode = NULL_MODE
   option%ntrandof = 0
+
+  option%geopmode = ""
+  option%igeopmode = NULL_MODE
+  option%ngeopdof = 0
 
   option%phase_map = UNINITIALIZED_INTEGER
 

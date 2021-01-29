@@ -280,6 +280,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('GEOMECHANICS_SUBSURFACE')
               option%geomech_on = PETSC_TRUE
               new_pm => PMGeomechForceCreate()
+            case('SUBSURFACE_GEOPHYSICS')
+              call SubsurfaceReadGeophysicsPM(input,option,new_pm)  
             case('AUXILIARY')
               if (len_trim(pm_name) < 1) then
                 option%io_buffer = 'AUXILIARY process models must have a name.'

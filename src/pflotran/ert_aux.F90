@@ -4,26 +4,24 @@ module ERT_Aux_module
   use petscsys
 
   use PFLOTRAN_Constants_module
-  use Matrix_Zeroing_module
+  !use Matrix_Zeroing_module
   
   implicit none
   
   private 
 
   type, public :: ert_auxvar_type
-  
-    PetscReal :: bulk_conductivity
-
+    PetscReal, pointer :: potential(:)    ! ERT potential for all electrodes                                   
   end type ert_auxvar_type
   
   type, public :: ert_type
-    PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
-    PetscInt :: num_aux, num_aux_bc, num_aux_ss
+    PetscInt :: num_electrode           ! # of electrodes in ERT
+    PetscInt :: ipos_electrode          ! cell id of electrode position
+    PetscReal :: pos_electrode          ! electrode position
+    PetscInt :: num_aux
+    ! ert auxvars for local and ghosted cells
     type(ert_auxvar_type), pointer :: auxvars(:)
-    type(ert_auxvar_type), pointer :: auxvars_bc(:)
-    type(ert_auxvar_type), pointer :: auxvars_ss(:)
-    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type ert_type
 
   public :: ERTAuxCreate, ERTAuxDestroy, &
@@ -51,15 +49,11 @@ function ERTAuxCreate()
   type(ert_type), pointer :: aux
 
   allocate(aux) 
-  aux%auxvars_up_to_date = PETSC_FALSE
   aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
-  aux%num_aux_bc = 0
-  aux%num_aux_ss = 0
+  aux%num_electrode = 0
+
   nullify(aux%auxvars)
-  nullify(aux%auxvars_bc)
-  nullify(aux%auxvars_ss)
-  nullify(aux%matrix_zeroing)
 
   ERTAuxCreate => aux
   
@@ -76,13 +70,16 @@ subroutine ERTAuxVarInit(auxvar,option)
   ! 
 
   use Option_module
+  use PFLOTRAN_Constants_module, only : UNINITIALIZED_DOUBLE
 
   implicit none
   
   type(ert_auxvar_type) :: auxvar
   type(option_type) :: option
   
-  auxvar%bulk_conductivity = 0.d0
+  ! TODO: should allocate for all electrodes
+  allocate(auxvar%potential(1))
+  auxvar%potential = 0.d0
 
 end subroutine ERTAuxVarInit
 
@@ -103,7 +100,7 @@ subroutine ERTAuxVarCopy(auxvar,auxvar2,option)
   type(ert_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
-  auxvar2%bulk_conductivity = auxvar%bulk_conductivity
+  auxvar2%potential = auxvar%potential
 
 end subroutine ERTAuxVarCopy
 
@@ -113,7 +110,7 @@ subroutine ERTAuxVarCompute(x,ert_auxvar,global_auxvar,rt_auxvar, &
                             material_auxvar,natural_id,option)
   ! 
   ! Computes auxiliary variables for each grid cell
-  ! 
+  ! Could be Archie's law
   ! Author: Piyoosh Jaysaval
   ! Date: 01/11/21
   ! 
@@ -133,36 +130,38 @@ subroutine ERTAuxVarCompute(x,ert_auxvar,global_auxvar,rt_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   
-  ! calculate ert_auxvar%bulk_conductivity = f(global,rt,material-auxars)
+  ! calculate bulk_conductivity = f(global,rt,material-auxars)
   
 end subroutine ERTAuxVarCompute
 
 ! ************************************************************************** !
 
-subroutine AuxVarDestroy(auxvar)
+subroutine ERTAuxVarDestroy(auxvar)
   ! 
-  ! Deallocates a ert auxiliary object
+  ! Deallocates an ert auxiliary object
   ! 
   ! Author: Piyoosh Jaysaval
   ! Date: 01/11/21
   ! 
+  use Utility_module, only: DeallocateArray
 
   implicit none
 
   type(ert_auxvar_type) :: auxvar
+
+  call DeallocateArray(auxvar%potential)
   
-end subroutine AuxVarDestroy
+end subroutine ERTAuxVarDestroy
 
 ! ************************************************************************** !
 
 subroutine ERTAuxDestroy(aux)
   ! 
-  ! Deallocates a ert auxiliary object
+  ! Deallocates an ert auxiliary object
   ! 
   ! Author: Piyoosh Jaysaval
   ! Date: 01/11/21
   ! 
-  use Utility_module, only : DeallocateArray
   
   implicit none
 
@@ -173,27 +172,11 @@ subroutine ERTAuxDestroy(aux)
   
   if (associated(aux%auxvars)) then
     do iaux = 1, aux%num_aux
-      call AuxVarDestroy(aux%auxvars(iaux))
+      call ERTAuxVarDestroy(aux%auxvars(iaux))
     enddo  
     deallocate(aux%auxvars)
   endif
   nullify(aux%auxvars)
-  if (associated(aux%auxvars_bc)) then
-    do iaux = 1, aux%num_aux_bc
-      call AuxVarDestroy(aux%auxvars_bc(iaux))
-    enddo  
-    deallocate(aux%auxvars_bc)
-  endif
-  nullify(aux%auxvars_bc)
-  if (associated(aux%auxvars_ss)) then
-    do iaux = 1, aux%num_aux_ss
-      call AuxVarDestroy(aux%auxvars_ss(iaux))
-    enddo  
-    deallocate(aux%auxvars_ss)
-  endif
-  nullify(aux%auxvars_ss)
-  
-  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   deallocate(aux)
   nullify(aux)

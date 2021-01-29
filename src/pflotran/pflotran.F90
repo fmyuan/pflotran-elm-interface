@@ -36,7 +36,7 @@ program pflotran
     call PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
 
     call simulation%InitializeRun()
-
+stop
     if (option%status == PROCEED) then
       call simulation%ExecuteRun()
     endif

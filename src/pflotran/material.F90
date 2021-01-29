@@ -50,6 +50,9 @@ module Material_module
     PetscReal :: thermal_conductivity_wet
     PetscReal :: alpha    ! conductivity saturation relation exponent
 
+    ! Geophysics properties
+    PetscReal :: electrical_conductivity
+ 
     class(fracture_type), pointer :: fracture
     
     PetscInt :: creep_closure_id
@@ -188,6 +191,7 @@ function MaterialPropertyCreate()
   material_property%thermal_conductivity_dry = UNINITIALIZED_DOUBLE
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
+  material_property%electrical_conductivity = UNINITIALIZED_DOUBLE
 
   nullify(material_property%fracture)
   nullify(material_property%geomechanics_subsurface_properties)
@@ -575,7 +579,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                      permeability_dataset%name, &
                                    MAXWORDLENGTH,PETSC_TRUE)
               call InputErrorMsg(input,option,'DATASET,NAME', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')   
+                                 'MATERIAL_PROPERTY,PERMEABILITY')                                            
             case default
               call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERMEABILITY',option)
@@ -822,8 +826,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
                      'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
           end select
         enddo
-        call InputPopBlock(input,option)
-
+        call InputPopBlock(input,option)      
+      case('ELECTRICAL_CONDUCTIVITY')
+              call InputReadDouble(input,option, &
+                                   material_property%electrical_conductivity)
+              call InputErrorMsg(input,option,'electrical conductivity', &
+                                 'MATERIAL_PROPERTY') 
       case default
         call InputKeywordUnrecognized(input,keyword,'MATERIAL_PROPERTY',option)
     end select 
@@ -1658,6 +1666,10 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       do i=1, Material%num_aux
         Material%auxvars(i)%permeability(perm_xz_index) = value
       enddo
+    case(ELECTRICAL_CONDUCTIVITY)
+      do i=1, Material%num_aux
+        Material%auxvars(i)%electrical_conductivity(1) = value
+      enddo  
   end select
   
 end subroutine MaterialSetAuxVarScalar
@@ -1758,6 +1770,11 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         Material%auxvars(ghosted_id)%permeability(perm_xz_index) = &
           vec_loc_p(ghosted_id)
       enddo
+    case(ELECTRICAL_CONDUCTIVITY)
+      do ghosted_id=1, Material%num_aux
+        Material%auxvars(ghosted_id)%electrical_conductivity(1) = &
+          vec_loc_p(ghosted_id)
+      enddo  
   end select
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
@@ -1868,6 +1885,11 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         vec_loc_p(ghosted_id) = &
           Material%auxvars(ghosted_id)%permeability(perm_xz_index)
       enddo
+    case(ELECTRICAL_CONDUCTIVITY)
+      do ghosted_id=1, Material%num_aux
+        vec_loc_p(ghosted_id) = &
+          Material%auxvars(ghosted_id)%electrical_conductivity(1)
+      enddo  
   end select
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)

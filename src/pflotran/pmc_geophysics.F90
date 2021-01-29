@@ -31,10 +31,10 @@ contains
 function PMCGeophysicsCreate()
   ! 
   ! Allocates and initializes a new process_model_coupler
-  ! object.
+  ! object for geophysics.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 01/22/2021
   ! 
 
   implicit none
@@ -57,7 +57,7 @@ subroutine PMCGeophysicsInit(this)
   ! Initializes a new process model coupler object.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 06/10/13
+  ! Date: 01/22/2021
   ! 
   ! for some reason, Intel with VS want this explicitly specified.
   use PMC_Base_class, only : PMCBaseInit
@@ -79,7 +79,7 @@ recursive subroutine PMCGeophysicsFinalizeRun(this)
   ! Finalizes the time stepping
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/18/13
+  ! Date: 01/22/2021
   ! 
 
   use Option_module
@@ -103,7 +103,7 @@ subroutine PMCGeophysicsStrip(this)
   ! Deallocates members of PMC Geophysics.
   !
   ! Author: Glenn Hammond
-  ! Date: 01/13/14
+  ! Date: 01/22/2021
   
   implicit none
   
@@ -121,7 +121,7 @@ recursive subroutine PMCGeophysicsDestroy(this)
   ! ProcessModelCouplerDestroy: Deallocates a process_model_coupler object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 01/22/2021
   ! 
 
   use Option_module

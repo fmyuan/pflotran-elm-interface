@@ -26,9 +26,11 @@ module Coupler_module
     character(len=MAXWORDLENGTH) :: ctype               ! character string defining type
     character(len=MAXWORDLENGTH) :: flow_condition_name ! character string defining name of condition to be applied
     character(len=MAXWORDLENGTH) :: tran_condition_name ! character string defining name of condition to be applied
+    character(len=MAXWORDLENGTH) :: geop_condition_name ! character string defining name of condition to be applied
     character(len=MAXWORDLENGTH) :: region_name         ! character string defining name of region to be applied
     PetscInt :: iflow_condition                         ! id of condition in condition array/list
     PetscInt :: itran_condition                         ! id of condition in condition array/list
+    PetscInt :: igeop_condition                         ! id of condition in condition array/list
     PetscInt :: iregion                                 ! id of region in region array/list
     PetscInt :: iface                                   ! for structured grids only
     PetscInt, pointer :: flow_aux_mapping(:)            ! maps flow_aux_real_var to primarhy dof
@@ -37,6 +39,7 @@ module Coupler_module
     PetscReal, pointer :: flow_aux_real_var(:,:)        ! auxiliary array for real values
     type(flow_condition_type), pointer :: flow_condition     ! pointer to condition in condition array/list
     type(tran_condition_type), pointer :: tran_condition     ! pointer to condition in condition array/list
+    type(geop_condition_type), pointer :: geop_condition     ! pointer to condition in condition array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
     type(connection_set_type), pointer :: connection_set ! pointer to an array/list of connections
     PetscInt :: numfaces_set
@@ -95,9 +98,11 @@ function CouplerCreate1()
   coupler%ctype = "boundary"
   coupler%flow_condition_name = ""
   coupler%tran_condition_name = ""
+  coupler%geop_condition_name = ""
   coupler%region_name = ""
   coupler%iflow_condition = 0
   coupler%itran_condition = 0
+  coupler%igeop_condition = 0
   coupler%iregion = 0
   coupler%iface = 0
   nullify(coupler%flow_aux_mapping)
@@ -106,6 +111,7 @@ function CouplerCreate1()
   nullify(coupler%flow_aux_real_var)
   nullify(coupler%flow_condition)
   nullify(coupler%tran_condition)
+  nullify(coupler%geop_condition)
   nullify(coupler%region)
   nullify(coupler%connection_set)
   nullify(coupler%next)
@@ -172,15 +178,18 @@ function CouplerCreateFromCoupler(coupler)
   new_coupler%ctype = coupler%ctype
   new_coupler%flow_condition_name = coupler%flow_condition_name
   new_coupler%tran_condition_name = coupler%tran_condition_name
+  new_coupler%geop_condition_name = coupler%geop_condition_name
   new_coupler%region_name = coupler%region_name
   new_coupler%iflow_condition = coupler%iflow_condition
   new_coupler%itran_condition = coupler%itran_condition
+  new_coupler%igeop_condition = coupler%igeop_condition
   new_coupler%iregion = coupler%iregion
   new_coupler%iface = coupler%iface
 
   ! these must remain null  
   nullify(coupler%flow_condition)
   nullify(coupler%tran_condition)
+  nullify(coupler%geop_condition)
   nullify(coupler%region)
   nullify(coupler%flow_aux_mapping)
   nullify(coupler%flow_bc_type)
@@ -256,6 +265,8 @@ subroutine CouplerRead(coupler,input,option)
         call InputReadWord(input,option,coupler%flow_condition_name,PETSC_TRUE)
       case('TRANSPORT_CONDITION')
         call InputReadWord(input,option,coupler%tran_condition_name,PETSC_TRUE)
+      case('GEOPHYSICS_CONDITION') 
+        call InputReadWord(input,option,coupler%geop_condition_name,PETSC_TRUE)
       case default
         call InputKeywordUnrecognized(input,word,'coupler ',option)
     end select 
@@ -587,7 +598,8 @@ subroutine CouplerDestroy(coupler)
   
   nullify(coupler%flow_condition)     ! since these are simply pointers to 
   nullify(coupler%tran_condition)     ! since these are simply pointers to 
-  nullify(coupler%region)        ! conditoins in list, nullify
+  nullify(coupler%geop_condition)
+  nullify(coupler%region)             ! conditoins in list, nullify
 
   call DeallocateArray(coupler%flow_aux_mapping)
   call DeallocateArray(coupler%flow_bc_type)

@@ -59,6 +59,7 @@ module Material_Aux_class
     PetscReal, pointer :: permeability(:)
     PetscReal, pointer :: sat_func_prop(:)
     PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
+    PetscReal, pointer :: electrical_conductivity(:) ! Geophysics -> electrical conductivity for ERT/SIP/EM 
     type(fracture_auxvar_type), pointer :: fracture
     PetscReal, pointer :: geomechanics_subsurface_prop(:)
     PetscInt :: creep_closure_id
@@ -212,6 +213,16 @@ subroutine MaterialAuxVarInit(auxvar,option)
   endif
 
   nullify(auxvar%geomechanics_subsurface_prop)
+
+  ! PJ: for geophysics
+  if (option%igeopmode /= NULL_MODE) then
+    ! TODO: Tensor conductivity for anisotropy
+    ! using scalar for now
+    allocate(auxvar%electrical_conductivity(1))
+    auxvar%electrical_conductivity = UNINITIALIZED_DOUBLE
+  else
+    nullify(auxvar%electrical_conductivity)
+  endif
   
 end subroutine MaterialAuxVarInit
 
@@ -248,6 +259,9 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%soil_properties = auxvar%soil_properties
   endif
   auxvar2%creep_closure_id = auxvar%creep_closure_id
+  if (associated(auxvar%electrical_conductivity)) then
+    auxvar2%electrical_conductivity = auxvar%electrical_conductivity
+  endif
   
 end subroutine MaterialAuxVarCopy
 
@@ -648,6 +662,8 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
     case(SOIL_REFERENCE_PRESSURE)
       MaterialAuxVarGetValue = material_auxvar% &
                                  soil_properties(soil_reference_pressure_index)
+    case(ELECTRICAL_CONDUCTIVITY) 
+      MaterialAuxVarGetValue = material_auxvar%electrical_conductivity(1)                                 
   end select
   
 end function MaterialAuxVarGetValue
@@ -697,6 +713,8 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%soil_properties(soil_compressibility_index) = value
     case(SOIL_REFERENCE_PRESSURE)
       material_auxvar%soil_properties(soil_reference_pressure_index) = value
+    case(ELECTRICAL_CONDUCTIVITY)
+      material_auxvar%electrical_conductivity(1) = value  
   end select
   
 end subroutine MaterialAuxVarSetValue
@@ -962,6 +980,7 @@ subroutine MaterialAuxVarStrip(auxvar)
   if (associated(auxvar%geomechanics_subsurface_prop)) then
     call DeallocateArray(auxvar%geomechanics_subsurface_prop)
   endif
+  call DeallocateArray(auxvar%electrical_conductivity)
   
 end subroutine MaterialAuxVarStrip
 

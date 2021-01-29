@@ -265,9 +265,11 @@ geomech_obj = \
 	${common_src}timestepper_steady.o
 
 geophysics_obj = \
-	${common_src}pmc_geophysics.o \
+	${common_src}ert.o \
+	${common_src}ert_aux.o \
 	${common_src}pm_ert.o \
-	${common_src}ert_aux.o
+	${common_src}pmc_geophysics.o \
+	${common_src}survey.o 
 
 solver_obj = \
 	${common_src}preconditioner_cpr.o \

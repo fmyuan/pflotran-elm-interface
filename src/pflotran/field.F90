@@ -28,6 +28,8 @@ module Field_module
 
     Vec :: volume0
     Vec :: compressibility0
+
+    Vec :: electrical_conductivity
     
     !TODO(geh): move these Vecs into their respective pms
     ! residual vectors
@@ -115,6 +117,9 @@ function FieldCreate()
 
   field%volume0 = PETSC_NULL_VEC
   field%compressibility0 = PETSC_NULL_VEC
+
+  ! Geophysics 
+  field%electrical_conductivity = PETSC_NULL_VEC
   
   field%flow_r = PETSC_NULL_VEC
   field%flow_xx = PETSC_NULL_VEC
@@ -202,6 +207,10 @@ subroutine FieldDestroy(field)
   endif
   if (field%tortuosity0 /= PETSC_NULL_VEC) then
     call VecDestroy(field%tortuosity0,ierr);CHKERRQ(ierr)
+  endif
+
+  if (field%electrical_conductivity /= PETSC_NULL_VEC) then
+    call VecDestroy(field%electrical_conductivity,ierr);CHKERRQ(ierr)
   endif
 
   if (field%perm0_xx /= PETSC_NULL_VEC) then

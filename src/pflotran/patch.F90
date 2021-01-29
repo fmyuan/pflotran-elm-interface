@@ -339,7 +339,7 @@ end subroutine PatchLocalizeRegions
 ! ************************************************************************** !
 
 subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
-                                option)
+                                geophysics_conditions, option)
 
   !
   ! Assigns conditions and regions to couplers
@@ -359,6 +359,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   type(patch_type) :: patch
   type(condition_list_type) :: flow_conditions
   type(tran_condition_list_type) :: transport_conditions
+  type(geop_condition_list_type) :: geophysics_conditions
   type(option_type) :: option
 
   type(coupler_type), pointer :: coupler
@@ -431,6 +432,26 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
         endif
       else
         option%io_buffer = 'A TRANSPORT_CONDITION must be specified in &
+                           &BOUNDARY_CONDITION: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to geophysics condition
+    if (option%ngeopdof > 0) then
+      if (len_trim(coupler%geop_condition_name) > 0) then 
+        coupler%geop_condition => &
+          GeopConditionGetPtrFromList(coupler%geop_condition_name, &
+                                      geophysics_conditions)
+        if (.not.associated(coupler%geop_condition)) then
+           option%io_buffer = 'Geophysics condition "' // &
+                   trim(coupler%geop_condition_name) // &
+                   '" in boundary condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in geophysics condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A GEOPHYSICS_CONDITION must be specified in &
                            &BOUNDARY_CONDITION: ' // trim(coupler%name) // '.'
         call PrintErrMsg(option)
       endif

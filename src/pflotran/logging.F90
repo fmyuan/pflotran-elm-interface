@@ -33,6 +33,7 @@ module Logging_module
 
     PetscLogEvent :: event_flow_condition_read
     PetscLogEvent :: event_tran_condition_read
+    PetscLogEvent :: event_geop_condition_read
     PetscLogEvent :: event_tran_constraint_read
     PetscLogEvent :: event_flow_condition_read_values
 
@@ -175,6 +176,10 @@ subroutine LoggingCreate()
                              logging%class_pflotran, &
                              logging%event_tran_condition_read, &
                              ierr);CHKERRQ(ierr)
+  call PetscLogEventRegister('GeopCondRead', &
+                             logging%class_pflotran, &
+                             logging%event_geop_condition_read, &
+                             ierr);CHKERRQ(ierr)                           
   call PetscLogEventRegister('TranConstraintRd', &
                              logging%class_pflotran, &
                              logging%event_tran_constraint_read, &
