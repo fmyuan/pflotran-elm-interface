@@ -175,4 +175,6 @@ module Variables_module
 
   PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 141
 
+  PetscInt, parameter, public :: ELECTRICAL_CONDUCTIVITY = 142
+
 end module Variables_module

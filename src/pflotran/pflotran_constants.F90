@@ -134,6 +134,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: NULL_CLASS = 0
   PetscInt, parameter, public :: FLOW_CLASS = 1
   PetscInt, parameter, public :: TRANSPORT_CLASS = 2
+  PetscInt, parameter, public :: GEOPHYSICS_CLASS = 3
   
   ! Macros that are used as 'dm_index' values.  --RTM
   PetscInt, parameter, public :: ONEDOF = 1
@@ -163,6 +164,10 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: RT_MODE = 1
   PetscInt, parameter, public :: NWT_MODE = 2
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 10
+
+  ! geophysics modes
+  PetscInt, parameter, public :: ERT_MODE = 1
+  PetscInt, parameter, public :: SIP_MODE = 2
   
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0

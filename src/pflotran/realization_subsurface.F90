@@ -32,7 +32,8 @@ private
     type(condition_list_type), pointer :: flow_conditions
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
-    
+    type(geop_condition_list_type), pointer :: geophysics_conditions
+
     class(tran_constraint_base_type), pointer :: sec_transport_constraint
     type(material_property_type), pointer :: material_properties
     type(fluid_property_type), pointer :: fluid_properties
@@ -147,6 +148,8 @@ function RealizationCreate2(option)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
   call TranConstraintInitList(realization%transport_constraints)
+  allocate(realization%geophysics_conditions)
+  call GeopConditionInitList(realization%geophysics_conditions)
 
   nullify(realization%material_properties)
   nullify(realization%fluid_properties)
@@ -347,6 +350,13 @@ subroutine RealizationCreateDiscretization(realization)
     endif
     
   endif
+
+  ! geophysics 
+  if (option%ngeopdof > 0) then
+    ! 1 dof
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                     field%electrical_conductivity)
+  endif  
 
   grid => discretization%grid
   select case(discretization%itype)
@@ -635,7 +645,7 @@ subroutine RealizationProcessCouplers(realization)
   
   call PatchProcessCouplers(realization%patch,realization%flow_conditions, &
                             realization%transport_conditions, &
-                            realization%option)
+                            realization%geophysics_conditions,realization%option)
   
 end subroutine RealizationProcessCouplers
 
@@ -2902,6 +2912,7 @@ subroutine RealizationStrip(this)
   call FlowConditionDestroyList(this%flow_conditions)
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintListDestroy(this%transport_constraints)
+  call GeopConditionDestroyList(this%geophysics_conditions)
 
   if (associated(this%fluid_property_array)) &
     deallocate(this%fluid_property_array)

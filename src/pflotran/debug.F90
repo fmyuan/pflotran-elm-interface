@@ -19,6 +19,7 @@ module Debug_module
     PetscBool :: matview_Jacobian
     PetscBool :: matview_Jacobian_detailed
     PetscBool :: norm_Jacobian
+    PetscBool :: matview_Matrix
 
     PetscInt  :: output_format
     PetscBool :: verbose_filename
@@ -61,6 +62,7 @@ function DebugCreate()
   debug%matview_Jacobian = PETSC_FALSE
   debug%matview_Jacobian_detailed = PETSC_FALSE
   debug%norm_Jacobian = PETSC_FALSE
+  debug%matview_Matrix = PETSC_FALSE
 
   debug%output_format = DEBUG_ASCII_FORMAT
   debug%verbose_filename = PETSC_FALSE
@@ -118,6 +120,8 @@ subroutine DebugRead(debug,input,option)
         debug%matview_Jacobian = PETSC_TRUE
       case('PRINT_JACOBIAN_NORM','NORM_JACOBIAN')
         debug%norm_Jacobian = PETSC_TRUE
+      case('PRINT_MATRIX','MATVIEW_MATRIX','VIEW_MATRIX')
+        debug%matview_Matrix = PETSC_TRUE  
       case('PRINT_REGIONS')
         debug%print_regions = PETSC_TRUE
       case('PRINT_COUPLERS','PRINT_COUPLER')

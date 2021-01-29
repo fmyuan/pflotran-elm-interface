@@ -57,6 +57,9 @@ module Solver_module
     Mat :: Jpre ! Jacobian to be used in preconditioner
     MatType :: J_mat_type
     MatType :: Jpre_mat_type
+    
+    ! Geophysics
+    Mat :: M    ! system matrix
 
     MatFDColoring :: matfdcoloring
       ! Coloring used for computing the Jacobian via finite differences.
@@ -164,6 +167,9 @@ function SolverCreate()
   solver%Jpre = PETSC_NULL_MAT
   solver%J_mat_type = PETSC_NULL_CHARACTER
   solver%Jpre_mat_type = PETSC_NULL_CHARACTER
+
+  solver%M = PETSC_NULL_MAT
+
 !  solver%interpolation = 0
   nullify(solver%interpolation)
   solver%matfdcoloring = PETSC_NULL_MATFDCOLORING
@@ -1755,6 +1761,9 @@ subroutine SolverDestroy(solver)
   if (solver%J /= PETSC_NULL_MAT) then
     call MatDestroy(solver%J,ierr);CHKERRQ(ierr)
   endif
+  if (solver%M /= PETSC_NULL_MAT) then
+    call MatDestroy(solver%M,ierr);CHKERRQ(ierr)
+  endif  
   if (associated(solver%interpolation)) then
     do i=1,solver%galerkin_mg_levels-1
       call MatDestroy(solver%interpolation(i),ierr);CHKERRQ(ierr)
