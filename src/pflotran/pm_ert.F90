@@ -34,6 +34,8 @@ module PM_ERT_class
   public :: PMERTCreate, &
             PMERTInit, &
             PMERTInitializeRun, &
+            PMERTSetupSolver, &
+            PMERTSolve, &
             PMERTStrip
 
 contains
@@ -94,7 +96,6 @@ subroutine PMERTReadSimOptionsBlock(this,input)
   !
   use Input_Aux_module
   use String_module
-  use Option_module
  
   implicit none
   
@@ -206,12 +207,65 @@ end subroutine PMERTInitializeRun
 
 ! ************************************************************************** !
 
+subroutine PMERTSetupSolver(this)
+  !
+  ! Author: Glenn Hammond & Piyoosh Jaysaval
+  ! Date: 01/29/21
+  !
+
+  use Solver_module
+  use Discretization_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(option_type), pointer :: option
+  type(solver_type), pointer :: solver
+
+  PetscErrorCode :: ierr
+  character(len=MAXSTRINGLENGTH) :: string  
+
+  option => this%option
+  solver => this%solver
+
+  call SolverCreateKSP(solver,option%mycomm)  
+
+  call PrintMsg(option,"  Beginning setup of ERT KSP")
+  call KSPSetOptionsPrefix(solver%ksp, "ert_",ierr);CHKERRQ(ierr)
+  call SolverCheckCommandLine(solver)
+
+  solver%M_mat_type = MATAIJ
+  solver%Mpre_mat_type = MATAIJ    
+  !TODO(geh): XXXCreateJacobian -> XXXCreateMatrix
+  call DiscretizationCreateJacobian(this%realization%discretization, &
+                                    ONEDOF, &
+                                    solver%Mpre_mat_type, &
+                                    solver%Mpre,option)
+
+  call MatSetOptionsPrefix(solver%Mpre,"ert_",ierr);CHKERRQ(ierr)
+  solver%M = solver%Mpre
+
+  ! Have PETSc do a KSP_View() at the end of each solve if
+  ! verbosity > 0.
+  if (option%verbosity >= 2) then
+    string = '-ert_ksp_view'
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
+                                  string, ierr);CHKERRQ(ierr)
+  endif
+
+  call SolverSetKSPOptions(solver,option)
+
+end subroutine PMERTSetupSolver
+
+! ************************************************************************** !
+
 subroutine PMERTSolve(this)
 
-  ! Solves the linear systsem for ERT
-  ! for each electrodes
+  ! Solves the linear systsem for ERT for all electrodes
+  !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/27/2021
+  ! Date: 01/27/21
   !
   use Patch_module
   use Grid_module

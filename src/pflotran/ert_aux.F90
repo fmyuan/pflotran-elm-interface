@@ -4,7 +4,6 @@ module ERT_Aux_module
   use petscsys
 
   use PFLOTRAN_Constants_module
-  !use Matrix_Zeroing_module
   
   implicit none
   
@@ -16,9 +15,6 @@ module ERT_Aux_module
   
   type, public :: ert_type
     PetscBool :: inactive_cells_exist
-    PetscInt :: num_electrode           ! # of electrodes in ERT
-    PetscInt :: ipos_electrode          ! cell id of electrode position
-    PetscReal :: pos_electrode          ! electrode position
     PetscInt :: num_aux
     ! ert auxvars for local and ghosted cells
     type(ert_auxvar_type), pointer :: auxvars(:)
@@ -51,7 +47,6 @@ function ERTAuxCreate()
   allocate(aux) 
   aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
-  aux%num_electrode = 0
 
   nullify(aux%auxvars)
 

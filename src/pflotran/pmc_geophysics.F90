@@ -18,12 +18,12 @@ module PMC_Geophysics_class
     class(realization_subsurface_type), pointer :: realization
   contains
     procedure, public :: Init => PMCGeophysicsInit
+    procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers    
     procedure, public :: Destroy => PMCGeophysicsDestroy
   end type pmc_geophysics_type
 
   public :: PMCGeophysicsCreate, &
-            PMCGeophysicsInit, &
-            PMCGeophysicsStrip
+            PMCGeophysicsInit
 
 contains
 
@@ -77,13 +77,10 @@ end subroutine PMCGeophysicsInit
 
 subroutine PMCGeophysicsSetupSolvers(this)
   !
-  ! Author: Glenn Hammond
+  ! Author: Glenn Hammond & Piyoosh Jaysaval
   ! Date: 01/29/21
   !
   use Option_module
-  use Solver_module
-  use Discretization_module
-  use PM_ERT_class
   use Timestepper_KSP_class
 
   implicit none
@@ -91,13 +88,10 @@ subroutine PMCGeophysicsSetupSolvers(this)
   class(pmc_geophysics_type) :: this
 
   type(option_type), pointer :: option
-  type(solver_type), pointer :: solver
-  character(len=MAXSTRINGLENGTH) :: string
   class(pm_ert_type), pointer :: pm_ert
   PetscErrorCode :: ierr
 
   option => this%option
-  solver => this%timestepper%solver
 
   select type(ts=>this%timestepper)
     class is(timestepper_KSP_type)
@@ -109,33 +103,13 @@ subroutine PMCGeophysicsSetupSolvers(this)
   select type(pm=>this%pm_ptr%pm)
     class is(pm_ert_type)
       pm_ert => pm
+      ! Sets up solver for ERT
+      call PMERTSetupSolver(pm_ert)
+    class default
+      option%io_buffer = 'Solver setup implemented only for ERT &
+                          &geophysics process model.'
+      call PrintErrMsg(option)  
   end select
-
-  call SolverCreateKSP(solver,option%mycomm)
-
-  call PrintMsg(option,"  Beginning setup of TRAN KSP")
-  call KSPSetOptionsPrefix(solver%ksp, "tran_",ierr);CHKERRQ(ierr)
-  call SolverCheckCommandLine(solver)
-
-  solver%J_mat_type = MATAIJ
-  solver%Jpre_mat_type = MATAIJ
-  !TODO(geh): solver%J -> solver%M and XXXCreateJacobian -> XXXCreateMatrix
-  call DiscretizationCreateJacobian(pm_ert%realization%discretization, &
-                                    ONEDOF, &
-                                    solver%Jpre_mat_type, &
-                                    solver%Jpre,option)
-  call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
-  solver%J = solver%Jpre
-
-  ! Have PETSc do a KSP_View() at the end of each solve if
-  ! verbosity > 0.
-  if (option%verbosity >= 2) then
-    string = '-tran_ksp_view'
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                  string, ierr);CHKERRQ(ierr)
-  endif
-
-  call SolverSetKSPOptions(solver,option)
 
 end subroutine PMCGeophysicsSetupSolvers
 
@@ -143,9 +117,9 @@ end subroutine PMCGeophysicsSetupSolvers
 
 subroutine PMCGeophysicsStepDT(this,stop_flag)
   !
-  ! Solves a round of steady-state geophysics solutions for each electrode.
+  ! Solves a round of steady-state geophysics solutions.
   !
-  ! Author: Glenn Hammond
+  ! Author: Glenn Hammond & Piyoosh Jaysaval
   ! Date: 01/29/21
   !
   use Option_module
@@ -158,13 +132,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   class(pm_ert_type), pointer :: pm_ert
   type(option_type), pointer :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: tunit
-  
-  KSPConvergedReason :: ksp_reason
   PetscLogDouble :: log_outer_start_time
-  PetscLogDouble :: log_start_time
-  PetscLogDouble :: log_ksp_start_time
   PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
 
@@ -175,12 +143,16 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   select type(pm=>this%pm_ptr%pm)
     class is(pm_ert_type)
       pm_ert => pm
+      call PMERTSolve(pm_ert) 
+    class default
+      option%io_buffer = 'StepDT implemented only for ERT &
+                          &geophysics process model.'
+      call PrintErrMsg(option)   
   end select
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + &
     log_end_time - log_outer_start_time
-
   ! call this%timer%Start()
   ! do ielectrode = 1, this%num_electrodes
   ! enddo

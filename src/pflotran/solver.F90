@@ -60,6 +60,9 @@ module Solver_module
     
     ! Geophysics
     Mat :: M    ! system matrix
+    Mat :: Mpre ! Matrix Preconditioner
+    MatType :: M_mat_type
+    MatType :: Mpre_mat_type
 
     MatFDColoring :: matfdcoloring
       ! Coloring used for computing the Jacobian via finite differences.
