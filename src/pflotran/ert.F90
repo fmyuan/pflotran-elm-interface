@@ -22,7 +22,7 @@ contains
 subroutine ERTSetup(realization)
   ! 
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/29/2021
+  ! Date: 01/29/21
   ! 
 
   use Realization_Subsurface_class
@@ -43,7 +43,7 @@ subroutine ERTSetupPatch(realization)
   ! Creates arrays for ERT auxiliary variables
   ! 
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/29/2021
+  ! Date: 01/29/21
   ! 
 
   use Realization_Subsurface_class
@@ -115,7 +115,7 @@ subroutine ERTCalculateMatrix(realization,M)
   ! Calculate System matrix for ERT
   ! 
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   ! 
 
   use Realization_Subsurface_class
