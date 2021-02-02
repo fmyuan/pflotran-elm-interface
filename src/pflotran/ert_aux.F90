@@ -56,7 +56,7 @@ end function ERTAuxCreate
 
 ! ************************************************************************** !
 
-subroutine ERTAuxVarInit(auxvar,option)
+subroutine ERTAuxVarInit(auxvar,survey,option)
   ! 
   ! Initialize auxiliary object
   ! 
@@ -65,15 +65,17 @@ subroutine ERTAuxVarInit(auxvar,option)
   ! 
 
   use Option_module
+  use Survey_module
   use PFLOTRAN_Constants_module, only : UNINITIALIZED_DOUBLE
 
   implicit none
   
   type(ert_auxvar_type) :: auxvar
   type(option_type) :: option
+  type(survey_type) :: survey
   
   ! TODO: should allocate for all electrodes
-  allocate(auxvar%potential(1))
+  allocate(auxvar%potential(survey%num_electrode))
   auxvar%potential = 0.d0
 
 end subroutine ERTAuxVarInit

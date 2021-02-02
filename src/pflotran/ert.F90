@@ -49,7 +49,8 @@ subroutine ERTSetupPatch(realization)
   use Realization_Subsurface_class
   use Option_module 
   use Patch_module
-  use Grid_module   
+  use Grid_module
+  use Survey_module   
 
   implicit none
 
@@ -58,6 +59,7 @@ subroutine ERTSetupPatch(realization)
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
+  type(survey_type), pointer :: survey
 
   class(material_auxvar_type), pointer :: material_auxvars(:) 
   type(ert_auxvar_type), pointer :: ert_auxvars(:) 
@@ -98,10 +100,12 @@ subroutine ERTSetupPatch(realization)
     call PrintErrMsg(option)
   endif
 
+  survey => realization%survey
+
  ! allocate auxvars data structures for all grid cells  
   allocate(ert_auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    call ERTAuxVarInit(ert_auxvars(ghosted_id),option)   
+    call ERTAuxVarInit(ert_auxvars(ghosted_id),survey,option)   
   enddo
   patch%aux%ERT%auxvars => ert_auxvars
   patch%aux%ERT%num_aux = grid%ngmax

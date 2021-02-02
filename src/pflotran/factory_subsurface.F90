@@ -1775,6 +1775,10 @@ subroutine SubsurfaceSetupRealization(simulation)
                                        simulation%waypoint_list_subsurface)
     ! fill in holes in waypoint data
   endif
+  if (option%ngeopdof > 0) then
+    ! Read geophysics survey file
+    call RealizationReadGeopSurveyFile(realization)
+  endif
   call PetscLogEventEnd(logging%event_setup,ierr);CHKERRQ(ierr)
 
 #ifdef OS_STATISTICS
@@ -2163,6 +2167,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use PM_Base_class
   use Time_Storage_module
   use TH_Aux_module
+  use Survey_module
 
 #ifdef SOLID_SOLUTION
   use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
@@ -2232,6 +2237,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list
   type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input, input_parent
+  type(survey_type), pointer :: survey
 
   PetscReal :: dt_init
   PetscReal :: dt_min
@@ -3751,6 +3757,14 @@ subroutine SubsurfaceReadInput(simulation,input)
                                trim(option%flowmode) // ' flow process model.'
             call PrintErrMsg(option)
         end select
+
+!....................
+      case ('SURVEY')
+        survey => SurveyCreate()
+        call SurveyRead(survey,input,option)
+        realization%survey => survey
+        nullify(survey)
+
 !....................
       case ('END_SUBSURFACE')
         exit

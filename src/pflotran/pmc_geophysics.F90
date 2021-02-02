@@ -18,7 +18,8 @@ module PMC_Geophysics_class
     class(realization_subsurface_type), pointer :: realization
   contains
     procedure, public :: Init => PMCGeophysicsInit
-    procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers    
+    procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers 
+    procedure, public :: StepDT => PMCGeophysicsStepDT      
     procedure, public :: Destroy => PMCGeophysicsDestroy
   end type pmc_geophysics_type
 
@@ -94,7 +95,7 @@ subroutine PMCGeophysicsSetupSolvers(this)
   option => this%option
 
   select type(ts=>this%timestepper)
-    class is(timestepper_KSP_type)
+    class is(timestepper_KSP_type) 
     class default
       option%io_buffer = 'A KSP timestepper must be used for geophysics.'
       call PrintErrMsg(option)
@@ -132,11 +133,11 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   class(pm_ert_type), pointer :: pm_ert
   type(option_type), pointer :: option
 
-  PetscLogDouble :: log_outer_start_time
+  PetscLogDouble :: log_start_time
   PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
 
-  call PetscTime(log_outer_start_time,ierr);CHKERRQ(ierr)
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)  
 
   option => this%option
 
@@ -151,8 +152,8 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   end select
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
-  this%cumulative_time = this%cumulative_time + &
-    log_end_time - log_outer_start_time
+  this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
+  
   ! call this%timer%Start()
   ! do ielectrode = 1, this%num_electrodes
   ! enddo
