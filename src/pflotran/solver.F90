@@ -172,6 +172,9 @@ function SolverCreate()
   solver%Jpre_mat_type = PETSC_NULL_CHARACTER
 
   solver%M = PETSC_NULL_MAT
+  solver%Mpre = PETSC_NULL_MAT
+  solver%M_mat_type = PETSC_NULL_CHARACTER
+  solver%Mpre_mat_type = PETSC_NULL_CHARACTER  
 
 !  solver%interpolation = 0
   nullify(solver%interpolation)
@@ -1764,6 +1767,11 @@ subroutine SolverDestroy(solver)
   if (solver%J /= PETSC_NULL_MAT) then
     call MatDestroy(solver%J,ierr);CHKERRQ(ierr)
   endif
+  if (solver%Mpre == solver%M) then
+    solver%Mpre = PETSC_NULL_MAT
+  else if (solver%Mpre /= PETSC_NULL_MAT) then
+    call MatDestroy(solver%Mpre,ierr);CHKERRQ(ierr)
+  endif  
   if (solver%M /= PETSC_NULL_MAT) then
     call MatDestroy(solver%M,ierr);CHKERRQ(ierr)
   endif  

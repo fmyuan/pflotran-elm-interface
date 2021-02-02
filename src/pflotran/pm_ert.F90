@@ -8,6 +8,7 @@ module PM_ERT_class
   use Communicator_Base_module  
   use Option_module
   use ERT_Aux_module
+  use Survey_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -17,6 +18,7 @@ module PM_ERT_class
   type, public, extends(pm_base_type) :: pm_ert_type
     class(realization_subsurface_type), pointer :: realization
     class(communicator_type), pointer :: comm1
+    type(survey_type), pointer :: survey
     Vec :: rhs
   contains
     procedure, public :: Setup => PMERTSetup
@@ -80,6 +82,7 @@ subroutine PMERTInit(pm_ert)
   call PMBaseInit(pm_ert)
   nullify(pm_ert%realization)
   nullify(pm_ert%comm1)
+  nullify(pm_ert%survey)
 
   pm_ert%rhs = PETSC_NULL_VEC
 
@@ -156,6 +159,8 @@ subroutine PMERTSetup(this)
 
   ! set the communicator
   this%comm1 => this%realization%comm1
+  ! setup survey
+  this%survey => this%realization%survey
 
 end subroutine PMERTSetup
 
@@ -201,7 +206,7 @@ recursive subroutine PMERTInitializeRun(this)
                                      this%realization%field%work,this%rhs)
 
   ! Initialize to zeros
-  call VecZeroEntries(this%rhs,ierr); CHKERRQ(ierr)                             
+  call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)                             
 
 end subroutine PMERTInitializeRun
 
@@ -232,7 +237,8 @@ subroutine PMERTSetupSolver(this)
   call SolverCreateKSP(solver,option%mycomm)  
 
   call PrintMsg(option,"  Beginning setup of ERT KSP")
-  call KSPSetOptionsPrefix(solver%ksp, "ert_",ierr);CHKERRQ(ierr)
+  ! TODO(pj): set ert as prefix
+  call KSPSetOptionsPrefix(solver%ksp, "tran_",ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
 
   solver%M_mat_type = MATAIJ
@@ -243,16 +249,21 @@ subroutine PMERTSetupSolver(this)
                                     solver%Mpre_mat_type, &
                                     solver%Mpre,option)
 
-  call MatSetOptionsPrefix(solver%Mpre,"ert_",ierr);CHKERRQ(ierr)
+  call MatSetOptionsPrefix(solver%Mpre,"tran_",ierr);CHKERRQ(ierr)
   solver%M = solver%Mpre
-
+   
   ! Have PETSc do a KSP_View() at the end of each solve if
   ! verbosity > 0.
   if (option%verbosity >= 2) then
-    string = '-ert_ksp_view'
+    string = '-tran_ksp_view'
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
                                   string, ierr);CHKERRQ(ierr)
   endif
+  
+  call PrintMsg(option,"  Finished setting up ERT KSP")
+
+  ! TODO(pj): Whay do I need the follwing call as other pmc don't need?
+  call  KSPSetOperators(solver%ksp,solver%M,solver%Mpre, ierr)
 
   call SolverSetKSPOptions(solver,option)
 
@@ -300,7 +311,7 @@ subroutine PMERTSolve(this)
   KSPConvergedReason :: ksp_reason  
 
   ! Forward solve start
-  call PetscTime(log_ksp_start_time,ierr); CHKERRQ(ierr) 
+  call PetscTime(log_ksp_start_time,ierr);CHKERRQ(ierr) 
 
   solver => this%solver 
   realization => this%realization 
@@ -316,53 +327,134 @@ subroutine PMERTSolve(this)
   ! Build System matrix
   call ERTCalculateMatrix(realization,solver%M)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
-  
-  ! TODO: Get nelec from survey file
-  nelec = 1
+  !call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)  
+
+  nelec = this%survey%num_electrode
 
   do ielec=1,nelec
     
     ! NB. solution is stored in field%work -> this can be an initial guess
-    call VecZeroEntries(field%work,ierr); CHKERRQ(ierr)
+    call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
  
     ! RHS
-    call VecZeroEntries(this%rhs,ierr); CHKERRQ(ierr)
-    call VecGetArrayF90(this%rhs,vec_ptr,ierr); CHKERRQ(ierr)    
-    ! TODO: Find cell id where the electrode is located
-    ! set first cell for now
-    ! Only for a local processor
-    elec_id = 1
+    call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)    
+
+    ! Get the local-id of ielec
+    elec_id = this%survey%ipos_electrode(ielec)
 
     if (elec_id > 0) then
-      ! it should qualify on only proc
+      ! it should qualify on only one proc
       val = 1.0
       vec_ptr(elec_id) = val
     endif
-    call VecRestoreArrayF90(this%rhs,vec_ptr,ierr); CHKERRQ(ierr)
-
+    call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
+    !call VecView(this%rhs,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
+  
     ! Solve system
     call PetscTime(log_ksp_start_time,ierr); CHKERRQ(ierr) 
-    call KSPSolve(solver%ksp,this%rhs,field%work,ierr); CHKERRQ(ierr)
-    call PetscTime(log_end_time,ierr); CHKERRQ(ierr)
+    call KSPSolve(solver%ksp,this%rhs,field%work,ierr);CHKERRQ(ierr)
+    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     
-    call VecGetArrayF90(field%work,vec_ptr,ierr); CHKERRQ(ierr)
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    
     ! store potentials for each electrode 
     do local_id=1,grid%nlmax
        ghosted_id = grid%nL2G(local_id)
        if (patch%imat(ghosted_id) <= 0) cycle
-       ! TODO -> store in auxvars(i) for ERT?
-       !ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)
-       ert_auxvars(ghosted_id)%potential(1) = vec_ptr(local_id)
-    enddo 
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr); CHKERRQ(ierr)
+       ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)
+    enddo
+
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
     call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
     sum_linear_iterations = sum_linear_iterations + num_linear_iterations
+
   enddo
 
-  call PetscTime(log_end_time,ierr); CHKERRQ(ierr)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+
+  ! Assemble solutions
+  call PMERTAssembleSimulatedData(this)
 
 end subroutine PMERTSolve
+
+! ************************************************************************** !
+
+subroutine PMERTAssembleSimulatedData(this)
+
+  use Patch_module
+  use Grid_module
+  use Survey_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(survey_type), pointer :: survey
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
+
+
+  PetscInt :: idata
+  PetscInt :: ielec
+  PetscInt :: ia,ib,im,in 
+  PetscInt :: local_id_m,local_id_n
+  PetscInt :: ghosted_id_m,ghosted_id_n 
+  PetscErrorCode :: ierr
+
+  option => this%option
+  patch => this%realization%patch
+  grid => patch%grid
+  survey => this%survey
+
+  ert_auxvars => patch%aux%ERT%auxvars
+
+  survey%dsim = 0.
+
+  do idata=1,survey%num_measurement
+    ! for A and B electrodes
+    ia = survey%config(1,idata)
+    ib = survey%config(2,idata)
+    im = survey%config(3,idata)
+    in = survey%config(4,idata)
+
+    if (im /= 0) then
+      local_id_m = survey%ipos_electrode(im)
+      if (local_id_m > 0) then
+        ghosted_id_m = grid%nL2G(local_id_m)
+        ! Due to source A at +ve M
+        survey%dsim(idata) = survey%dsim(idata) + &
+                             ert_auxvars(ghosted_id_m)%potential(ia)
+        ! Due to sink B at +ve M                    
+        survey%dsim(idata) = survey%dsim(idata) - &
+                             ert_auxvars(ghosted_id_m)%potential(ib) 
+      endif
+    endif  
+
+    if (in /= 0) then
+      local_id_n = survey%ipos_electrode(in)
+      if (local_id_n > 0) then
+        ghosted_id_n = grid%nL2G(local_id_n)
+        ! Due to source at A at -ve N
+        survey%dsim(idata) = survey%dsim(idata) - &
+                             ert_auxvars(ghosted_id_n)%potential(ia)
+        ! Due to sink at B at -ve N                     
+        survey%dsim(idata) = survey%dsim(idata) + &
+                                    ert_auxvars(ghosted_id_n)%potential(ib)                                    
+      endif
+    endif
+        
+    ! Reduce/allreduce? 
+    call MPI_Allreduce(MPI_IN_PLACE,survey%dsim(idata),ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+  enddo
+
+end subroutine PMERTAssembleSimulatedData
+
 ! ************************************************************************** !
 
 function PMERTAcceptSolution(this)
@@ -478,6 +570,7 @@ subroutine PMERTStrip(this)
   ! destroyed in realization
   nullify(this%realization)
   nullify(this%comm1)
+  nullify(this%survey)
 
   if (this%rhs /= PETSC_NULL_VEC) then
     call VecDestroy(this%rhs,ierr);CHKERRQ(ierr)

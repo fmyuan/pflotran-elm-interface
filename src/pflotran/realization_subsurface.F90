@@ -20,6 +20,7 @@ module Realization_Subsurface_class
   use Patch_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
+  use Survey_module
   
 
   implicit none
@@ -48,6 +49,8 @@ private
 
     class(reaction_rt_type), pointer :: reaction
     class(reaction_nw_type), pointer :: reaction_nw
+
+    type(survey_type), pointer :: survey
     
   end type realization_subsurface_type
 
@@ -88,7 +91,8 @@ private
             RealizUpdateAllCouplerAuxVars, &
             RealizUnInitializedVarsFlow, &
             RealizUnInitializedVarsTran, &
-            RealizationLimitDTByCFL
+            RealizationLimitDTByCFL, &
+            RealizationReadGeopSurveyFile
 
   !TODO(intel)
   ! public from Realization_Base_class
@@ -162,6 +166,7 @@ function RealizationCreate2(option)
   nullify(realization%sec_transport_constraint)
   nullify(realization%reaction)
   nullify(realization%reaction_nw)
+  nullify(realization%survey)
   realization%nonuniform_velocity_filename = ''
 
   RealizationCreate2 => realization
@@ -2892,6 +2897,54 @@ end subroutine RealizationLimitDTByCFL
 
 ! ************************************************************************** !
 
+subroutine RealizationReadGeopSurveyFile(realization)
+  ! 
+  ! Read geophysics survey file
+  ! 
+  ! Author: Piyoosh Jaysaval
+  ! Date: 02/01/21
+  ! 
+
+  use Input_Aux_module  
+  use Option_module
+  use Grid_module
+  use Survey_module
+
+  implicit none
+
+  class(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(grid_type), pointer :: grid
+  type(survey_type), pointer :: survey
+
+  type(input_type), pointer :: input_tmp
+
+  option => realization%option
+  grid => realization%patch%grid  
+  survey => realization%survey
+
+  if (.not.associated(survey)) then
+    option%io_buffer = 'There should be a SURVEY card in input file for &
+                        &geophysics process models.'
+    call PrintErrMsg(option)
+  endif
+
+  input_tmp => InputCreate(IUNIT_TEMP,survey%filename,option)
+
+  if (option%igeopmode == ERT_MODE) then
+    call SurveyReadERT(survey,grid,input_tmp,option)
+  else
+    option%io_buffer = 'Only ERT mode is supported for &
+        &RealizationReadGeopSurveyFile.'
+    call PrintErrMsg(option)
+  endif  
+  call InputDestroy(input_tmp)
+
+end subroutine RealizationReadGeopSurveyFile 
+
+! ************************************************************************** !
+
 subroutine RealizationStrip(this)
   ! 
   ! Deallocates a realization
@@ -2938,6 +2991,10 @@ subroutine RealizationStrip(this)
   
   call TranConstraintDestroy(this%sec_transport_constraint)
   
+  if (associated(this%survey)) then
+    call SurveyDestroy(this%survey)
+  endif
+
 end subroutine RealizationStrip
 
 end module Realization_Subsurface_class
