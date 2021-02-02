@@ -69,7 +69,8 @@ module Reaction_module
             RUpdateKineticState, &
             RUpdateTempDependentCoefs, &
             RZeroSorb, &
-            RCO2MoleFraction
+            RCO2MoleFraction, &
+            RTotalSorbKD
 
 contains
 
@@ -4510,7 +4511,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   endif
   
   if (reaction%neqkdrxn > 0) then
-    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,reaction%kd_list,option)
   endif
   
 end subroutine RTotalSorb
@@ -4535,6 +4536,7 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
+  type(kd_type) :: kd_list
   type(option_type) :: option
   
   PetscInt :: irxn
@@ -4590,7 +4592,7 @@ end subroutine RTotalSorbDynamicKD
 ! ************************************************************************** !
 
 subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                        option)
+                        kd_list,option)
   ! 
   ! Computes the total sorbed component concentrations and
   ! derivative with respect to free-ion for the linear
@@ -4629,16 +4631,16 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
       ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
       ! nothing to do with the soil volume; that is calculated through as a 
       ! function of porosity.
-      kd_kgw_m3b = reaction%eqkddistcoef(irxn) * & !KD units [mL water/g soil]
+      kd_kgw_m3b = kd_list%eqkddistcoef(irxn) * & !KD units [mL water/g soil]
                    global_auxvar%den_kg(iphase) * &
                    (1.d0-material_auxvar%porosity) * &
                    material_auxvar%soil_particle_density * &
                    1.d-3 * & ! convert mL water/g soil to m^3 water/kg soil
                    (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
     else
-      kd_kgw_m3b = reaction%eqkddistcoef(irxn)
+      kd_kgw_m3b = reaction%kd_list%eqkddistcoef(irxn)
     endif
-    select case(reaction%eqkdtype(irxn))
+    select case(kd_list%eqkdtype(irxn))
       case(SORPTION_LINEAR)
         ! Csorb = Kd*Caq
         res = kd_kgw_m3b*molality
@@ -4646,12 +4648,12 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
       case(SORPTION_LANGMUIR)
         ! Csorb = K*Caq*b/(1+K*Caq)
         tempreal = kd_kgw_m3b*molality
-        res = tempreal*reaction%eqkdlangmuirb(irxn) / (1.d0 + tempreal)
+        res = tempreal*kd_list%eqkdlangmuirb(irxn) / (1.d0 + tempreal)
         dres_dc = res/molality - &
                   res / (1.d0 + tempreal) * tempreal / molality
       case(SORPTION_FREUNDLICH)
         ! Csorb = Kd*Caq**(1/n)
-        one_over_n = 1.d0/reaction%eqkdfreundlichn(irxn)
+        one_over_n = 1.d0/kd_list%eqkdfreundlichn(irxn)
         molality_one_over_n = molality**one_over_n
         res = kd_kgw_m3b*molality**one_over_n
         dres_dc = res/molality*one_over_n

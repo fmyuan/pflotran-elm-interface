@@ -2682,17 +2682,18 @@ subroutine BasisInit_hpt(reaction,option)
   
   if (reaction%neqkdrxn > 0) then
   
-    ! allocate arrays
+     ! allocate arrays
+    allocate(reaction%kd_list)
     allocate(reaction%eqkdspecid(reaction%neqkdrxn))
     reaction%eqkdspecid = 0
-    allocate(reaction%eqkdtype(reaction%neqkdrxn))
-    reaction%eqkdtype = 0
-    allocate(reaction%eqkddistcoef(reaction%neqkdrxn))
-    reaction%eqkddistcoef = 0.d0
-    allocate(reaction%eqkdlangmuirb(reaction%neqkdrxn))
-    reaction%eqkdlangmuirb = 0.d0
-    allocate(reaction%eqkdfreundlichn(reaction%neqkdrxn))
-    reaction%eqkdfreundlichn = 0.d0
+    allocate(reaction%kd_list%eqkdtype(reaction%neqkdrxn))
+    reaction%kd_list%eqkdtype = 0
+    allocate(reaction%kd_list%eqkddistcoef(reaction%neqkdrxn))
+    reaction%kd_list%eqkddistcoef = 0.d0
+    allocate(reaction%kd_list%eqkdlangmuirb(reaction%neqkdrxn))
+    reaction%kd_list%eqkdlangmuirb = 0.d0
+    allocate(reaction%kd_list%eqkdfreundlichn(reaction%neqkdrxn))
+    reaction%kd_list%eqkdfreundlichn = 0.d0
 
     cur_kd_rxn => reaction%kd_rxn_list
     irxn = 0
@@ -2717,10 +2718,10 @@ subroutine BasisInit_hpt(reaction,option)
                  ' not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%eqkdtype(irxn) = cur_kd_rxn%itype
-      reaction%eqkddistcoef(irxn) = cur_kd_rxn%Kd
-      reaction%eqkdlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
-      reaction%eqkdfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
+      reaction%kd_list%eqkdtype(irxn) = cur_kd_rxn%itype
+      reaction%kd_list%eqkddistcoef(irxn) = cur_kd_rxn%Kd
+      reaction%kd_list%eqkdlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
+      reaction%kd_list%eqkdfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
        
       cur_kd_rxn => cur_kd_rxn%next
     enddo

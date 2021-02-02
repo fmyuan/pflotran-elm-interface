@@ -102,7 +102,14 @@ module Reaction_Aux_module
     PetscReal :: Langmuir_B
     PetscReal :: Freundlich_n
     type(kd_rxn_type), pointer :: next
-  end type kd_rxn_type    
+  end type kd_rxn_type
+
+  type, public :: kd_type
+    PetscInt, pointer :: eqkdtype(:)
+    PetscReal, pointer :: eqkddistcoef(:)
+    PetscReal, pointer :: eqkdlangmuirb(:)
+    PetscReal, pointer :: eqkdfreundlichn(:)
+  end type kd_type
 
   type, public :: radioactive_decay_rxn_type
     PetscInt :: id
@@ -214,6 +221,8 @@ module Reaction_Aux_module
     
     ! secondary continuum reaction objects
     type(kd_rxn_type), pointer :: sec_cont_kd_rxn_list
+    type(kd_type), pointer :: kd_list
+    type(kd_type), pointer :: multicontinuum_kd_list
     
 #ifdef SOLID_SOLUTION    
     type(solid_solution_type), pointer :: solid_solution_list
@@ -331,18 +340,18 @@ module Reaction_Aux_module
     ! kd rxn
     PetscInt :: neqkdrxn
     PetscInt, pointer :: eqkdspecid(:)
-    PetscInt, pointer :: eqkdtype(:)
+!    PetscInt, pointer :: eqkdtype(:)
     PetscInt, pointer :: eqkdmineral(:)
-    PetscReal, pointer :: eqkddistcoef(:)
-    PetscReal, pointer :: eqkdlangmuirb(:)
-    PetscReal, pointer :: eqkdfreundlichn(:)
+!    PetscReal, pointer :: eqkddistcoef(:)
+!    PetscReal, pointer :: eqkdlangmuirb(:)
+!    PetscReal, pointer :: eqkdfreundlichn(:)
     
     ! secondary continuum kd rxn
     ! neqkdrxn and eqkdspecid will be the same
-    PetscInt, pointer :: sec_cont_eqkdtype(:)
-    PetscReal, pointer :: sec_cont_eqkddistcoef(:)
-    PetscReal, pointer :: sec_cont_eqkdlangmuirb(:)
-    PetscReal, pointer :: sec_cont_eqkdfreundlichn(:)
+!    PetscInt, pointer :: sec_cont_eqkdtype(:)
+!    PetscReal, pointer :: sec_cont_eqkddistcoef(:)
+!    PetscReal, pointer :: sec_cont_eqkdlangmuirb(:)
+!    PetscReal, pointer :: sec_cont_eqkdfreundlichn(:)
     
     PetscReal :: max_dlnC
     PetscReal :: max_relative_change_tolerance
@@ -361,7 +370,8 @@ module Reaction_Aux_module
     PetscBool :: use_sandbox
     PetscInt :: nauxiliary
     
-  end type reaction_rt_type
+ end type reaction_rt_type
+
 
   interface GetPrimarySpeciesIDFromName
     module procedure GetPrimarySpeciesIDFromName1
@@ -599,16 +609,18 @@ function ReactionCreate()
 
   reaction%neqkdrxn = 0
   nullify(reaction%eqkdspecid)
-  nullify(reaction%eqkdtype)
+!  nullify(reaction%eqkdtype)
   nullify(reaction%eqkdmineral)
-  nullify(reaction%eqkddistcoef)
-  nullify(reaction%eqkdlangmuirb)
-  nullify(reaction%eqkdfreundlichn)
-      
-  nullify(reaction%sec_cont_eqkdtype)
-  nullify(reaction%sec_cont_eqkddistcoef)
-  nullify(reaction%sec_cont_eqkdlangmuirb)
-  nullify(reaction%sec_cont_eqkdfreundlichn)
+!  nullify(reaction%eqkddistcoef)
+!  nullify(reaction%eqkdlangmuirb)
+!  nullify(reaction%eqkdfreundlichn)
+
+  nullify(reaction%kd_list)
+  nullify(reaction%multicontinuum_kd_list)
+!  nullify(reaction%sec_cont_eqkdtype)
+!  nullify(reaction%sec_cont_eqkddistcoef)
+!  nullify(reaction%sec_cont_eqkdlangmuirb)
+!  nullify(reaction%sec_cont_eqkdfreundlichn)
        
   reaction%max_dlnC = 5.d0
   reaction%max_relative_change_tolerance = 1.d-6
@@ -2366,16 +2378,16 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%eqdynamickdpower)
   
   call DeallocateArray(reaction%eqkdspecid)
-  call DeallocateArray(reaction%eqkdtype)
+!  call DeallocateArray(reaction%eqkdtype)
   call DeallocateArray(reaction%eqkdmineral)
-  call DeallocateArray(reaction%eqkddistcoef)
-  call DeallocateArray(reaction%eqkdlangmuirb)
-  call DeallocateArray(reaction%eqkdfreundlichn)
+!  call DeallocateArray(reaction%eqkddistcoef)
+!  call DeallocateArray(reaction%eqkdlangmuirb)
+!  call DeallocateArray(reaction%eqkdfreundlichn)
  
-  call DeallocateArray(reaction%sec_cont_eqkdtype)
-  call DeallocateArray(reaction%sec_cont_eqkddistcoef)
-  call DeallocateArray(reaction%sec_cont_eqkdlangmuirb)
-  call DeallocateArray(reaction%sec_cont_eqkdfreundlichn)     
+!  call DeallocateArray(reaction%sec_cont_eqkdtype)
+!  call DeallocateArray(reaction%sec_cont_eqkddistcoef)
+!  call DeallocateArray(reaction%sec_cont_eqkdlangmuirb)
+!  call DeallocateArray(reaction%sec_cont_eqkdfreundlichn)     
   
   deallocate(reaction)
   nullify(reaction)

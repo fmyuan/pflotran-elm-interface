@@ -3517,31 +3517,33 @@ subroutine BasisInit(reaction,option)
   
   if (reaction%neqkdrxn > 0) then
 
+    allocate(reaction%kd_list)
     ! allocate arrays
     allocate(reaction%eqkdspecid(reaction%neqkdrxn))
     reaction%eqkdspecid = 0
-    allocate(reaction%eqkdtype(reaction%neqkdrxn))
-    reaction%eqkdtype = 0
-    allocate(reaction%eqkddistcoef(reaction%neqkdrxn))
-    reaction%eqkddistcoef = 0.d0
-    allocate(reaction%eqkdlangmuirb(reaction%neqkdrxn))
-    reaction%eqkdlangmuirb = 0.d0
-    allocate(reaction%eqkdfreundlichn(reaction%neqkdrxn))
-    reaction%eqkdfreundlichn = 0.d0
+    allocate(reaction%kd_list%eqkdtype(reaction%neqkdrxn))
+    reaction%kd_list%eqkdtype = 0
+    allocate(reaction%kd_list%eqkddistcoef(reaction%neqkdrxn))
+    reaction%kd_list%eqkddistcoef = 0.d0
+    allocate(reaction%kd_list%eqkdlangmuirb(reaction%neqkdrxn))
+    reaction%kd_list%eqkdlangmuirb = 0.d0
+    allocate(reaction%kd_list%eqkdfreundlichn(reaction%neqkdrxn))
+    reaction%kd_list%eqkdfreundlichn = 0.d0
     allocate(reaction%eqkdmineral(reaction%neqkdrxn))
     reaction%eqkdmineral = 0
 
     cur_kd_rxn => reaction%kd_rxn_list
     
     if (option%use_mc) then
-      allocate(reaction%sec_cont_eqkdtype(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdtype = 0   
-      allocate(reaction%sec_cont_eqkddistcoef(reaction%neqkdrxn))
-      reaction%sec_cont_eqkddistcoef = 0.d0
-      allocate(reaction%sec_cont_eqkdlangmuirb(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdlangmuirb = 0.d0
-      allocate(reaction%sec_cont_eqkdfreundlichn(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdfreundlichn = 0.d0
+      allocate(reaction%multicontinuum_kd_list)
+      allocate(reaction%multicontinuum_kd_list%eqkdtype(reaction%neqkdrxn))
+      reaction%multicontinuum_kd_list%eqkdtype = 0   
+      allocate(reaction%multicontinuum_kd_list%eqkddistcoef(reaction%neqkdrxn))
+      reaction%multicontinuum_kd_list%eqkddistcoef = 0.d0
+      allocate(reaction%multicontinuum_kd_list%eqkdlangmuirb(reaction%neqkdrxn))
+      reaction%multicontinuum_kd_list%eqkdlangmuirb = 0.d0
+      allocate(reaction%multicontinuum_kd_list%eqkdfreundlichn(reaction%neqkdrxn))
+      reaction%multicontinuum_kd_list%eqkdfreundlichn = 0.d0
       sec_cont_cur_kd_rxn => reaction%sec_cont_kd_rxn_list
     endif
     
@@ -3567,7 +3569,7 @@ subroutine BasisInit(reaction,option)
                  & not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%eqkdtype(irxn) = cur_kd_rxn%itype
+      reaction%kd_list%eqkdtype(irxn) = cur_kd_rxn%itype
       ! associate mineral id
       if (len_trim(cur_kd_rxn%kd_mineral_name) > 1) then
         reaction%eqkdmineral(irxn) = &
@@ -3580,17 +3582,17 @@ subroutine BasisInit(reaction,option)
           call PrintErrMsg(option)
         endif
       endif      
-      reaction%eqkddistcoef(irxn) = cur_kd_rxn%Kd
-      reaction%eqkdlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
-      reaction%eqkdfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
+      reaction%kd_list%eqkddistcoef(irxn) = cur_kd_rxn%Kd
+      reaction%kd_list%eqkdlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
+      reaction%kd_list%eqkdfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
        
       cur_kd_rxn => cur_kd_rxn%next
       
       if (option%use_mc) then
-        reaction%sec_cont_eqkdtype(irxn) = sec_cont_cur_kd_rxn%itype
-        reaction%sec_cont_eqkddistcoef(irxn) = sec_cont_cur_kd_rxn%Kd
-        reaction%sec_cont_eqkdlangmuirb(irxn) = sec_cont_cur_kd_rxn%Langmuir_b
-        reaction%sec_cont_eqkdfreundlichn(irxn) = &
+        reaction%multicontinuum_kd_list%eqkdtype(irxn) = sec_cont_cur_kd_rxn%itype
+        reaction%multicontinuum_kd_list%eqkddistcoef(irxn) = sec_cont_cur_kd_rxn%Kd
+        reaction%multicontinuum_kd_list%eqkdlangmuirb(irxn) = sec_cont_cur_kd_rxn%Langmuir_b
+        reaction%multicontinuum_kd_list%eqkdfreundlichn(irxn) = &
           sec_cont_cur_kd_rxn%Freundlich_n
         sec_cont_cur_kd_rxn => sec_cont_cur_kd_rxn%next
       endif
@@ -3980,19 +3982,19 @@ subroutine BasisInit(reaction,option)
     do irxn = 1, reaction%neqkdrxn
        write(86,'(a," ; ")',advance='no') &
          trim(reaction%primary_species_names(reaction%eqkdspecid(irxn)))
-      select case (reaction%eqkdtype(irxn))
+      select case (reaction%kd_list%eqkdtype(irxn))
         case(SORPTION_LINEAR)
            write(86,'("linear ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
+             reaction%kd_list%eqkddistcoef(irxn)
            write(86,'()')
         case(SORPTION_LANGMUIR)
            write(86,'("langmuir ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
-           write(86,'(es13.5)') reaction%eqkdlangmuirb(irxn)
+             reaction%kd_list%eqkddistcoef(irxn)
+           write(86,'(es13.5)') reaction%kd_list%eqkdlangmuirb(irxn)
         case(SORPTION_FREUNDLICH)
            write(86,'("freundlich ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
-           write(86,'(es13.5)') reaction%eqkdfreundlichn(irxn)
+             reaction%kd_list%eqkddistcoef(irxn)
+           write(86,'(es13.5)') reaction%kd_list%eqkdfreundlichn(irxn)
       end select
     enddo
 
