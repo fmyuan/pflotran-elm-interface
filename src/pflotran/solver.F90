@@ -571,6 +571,8 @@ subroutine SolverReadLinear(solver,input,option)
       prefix = '-flow_'
     case(TRANSPORT_CLASS)
       prefix = '-tran_'
+    case(GEOPHYSICS_CLASS)
+      prefix = '-geop_'  
   end select
 
   input%ierr = 0
@@ -1700,6 +1702,8 @@ subroutine SolverLinearPrintFailedReason(solver,option)
                 string = 'Flow'
               case(TRANSPORT_CLASS)
                 string = 'Transport'
+              case(GEOPHYSICS_CLASS)
+                string = 'Geophysics'  
             end select
             call PCFactorGetZeroPivot(pc,zero_pivot_tol, &
                                       ierr);CHKERRQ(ierr)

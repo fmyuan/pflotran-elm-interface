@@ -82,7 +82,7 @@ subroutine PMCGeophysicsSetupSolvers(this)
   ! Date: 01/29/21
   !
   use Option_module
-  use Timestepper_KSP_class
+  use Timestepper_Steady_class
 
   implicit none
 
@@ -95,9 +95,9 @@ subroutine PMCGeophysicsSetupSolvers(this)
   option => this%option
 
   select type(ts=>this%timestepper)
-    class is(timestepper_KSP_type) 
+    class is(timestepper_Steady_type) 
     class default
-      option%io_buffer = 'A KSP timestepper must be used for geophysics.'
+      option%io_buffer = 'A Steady timestepper must be used for geophysics.'
       call PrintErrMsg(option)
   end select
 
@@ -124,6 +124,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   ! Date: 01/29/21
   !
   use Option_module
+  use Timestepper_Base_class  
   
   implicit none
 
@@ -154,6 +155,9 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
   
+  ! set stop flag to end the geophysics simulation
+  stop_flag = TS_STOP_END_SIMULATION
+
   ! call this%timer%Start()
   ! do ielectrode = 1, this%num_electrodes
   ! enddo

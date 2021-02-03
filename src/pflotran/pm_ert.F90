@@ -238,7 +238,7 @@ subroutine PMERTSetupSolver(this)
 
   call PrintMsg(option,"  Beginning setup of ERT KSP")
   ! TODO(pj): set ert as prefix
-  call KSPSetOptionsPrefix(solver%ksp, "tran_",ierr);CHKERRQ(ierr)
+  call KSPSetOptionsPrefix(solver%ksp, "geop_",ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
 
   solver%M_mat_type = MATAIJ
@@ -249,13 +249,13 @@ subroutine PMERTSetupSolver(this)
                                     solver%Mpre_mat_type, &
                                     solver%Mpre,option)
 
-  call MatSetOptionsPrefix(solver%Mpre,"tran_",ierr);CHKERRQ(ierr)
+  call MatSetOptionsPrefix(solver%Mpre,"geop_",ierr);CHKERRQ(ierr)
   solver%M = solver%Mpre
    
   ! Have PETSc do a KSP_View() at the end of each solve if
   ! verbosity > 0.
   if (option%verbosity >= 2) then
-    string = '-tran_ksp_view'
+    string = '-geop_ksp_view'
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
                                   string, ierr);CHKERRQ(ierr)
   endif
@@ -327,7 +327,7 @@ subroutine PMERTSolve(this)
   ! Build System matrix
   call ERTCalculateMatrix(realization,solver%M)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
-  !call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)  
+  call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)  
 
   nelec = this%survey%num_electrode
 
@@ -345,7 +345,7 @@ subroutine PMERTSolve(this)
 
     if (elec_id > 0) then
       ! it should qualify on only one proc
-      val = 1.0
+      val = -1.0
       vec_ptr(elec_id) = val
     endif
     call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
@@ -376,6 +376,7 @@ subroutine PMERTSolve(this)
 
   ! Assemble solutions
   call PMERTAssembleSimulatedData(this)
+  !print*,this%survey%dsim
 
 end subroutine PMERTSolve
 

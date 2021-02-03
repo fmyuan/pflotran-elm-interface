@@ -601,14 +601,14 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     observation_plot_at_this_timestep_flag = PETSC_FALSE
     massbal_plot_at_this_timestep_flag = PETSC_FALSE
     
-    !call this%timestepper%SetTargetTime(sync_time,this%option, &
-    !                                    local_stop_flag, &
-    !                                    snapshot_plot_at_this_time_flag, &
-    !                                    observation_plot_at_this_time_flag, &
-    !                                    massbal_plot_at_this_time_flag, &
-    !                                    checkpoint_at_this_time_flag)                                       
+    call this%timestepper%SetTargetTime(sync_time,this%option, &
+                                        local_stop_flag, &
+                                        snapshot_plot_at_this_time_flag, &
+                                        observation_plot_at_this_time_flag, &
+                                       massbal_plot_at_this_time_flag, &
+                                        checkpoint_at_this_time_flag)                                       
     call this%StepDT(local_stop_flag)
-stop
+
     if (this%timestepper%time_step_cut_flag) then
       ! if timestep has been cut, all the I/O flags set above in 
       ! %SetTargetTime, which are based on waypoints times, not time step,

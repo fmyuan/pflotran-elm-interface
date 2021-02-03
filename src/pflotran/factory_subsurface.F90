@@ -663,7 +663,7 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,op
   use PM_ERT_class
   use PMC_Base_class
   use PMC_Geophysics_class
-  use Timestepper_KSP_class
+  use Timestepper_Steady_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -693,11 +693,11 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,op
   ! add time integrator
   select type(pm_base)
     class is(pm_ert_type)
-      pmc_geophysics%timestepper => TimestepperKSPCreate()
+      pmc_geophysics%timestepper => TimestepperSteadyCreate()
     class default
-      pmc_geophysics%timestepper => TimestepperKSPCreate()
+      pmc_geophysics%timestepper => TimestepperSteadyCreate()
   end select
-  pmc_geophysics%timestepper%name = 'GEOPHYSICS'
+  pmc_geophysics%timestepper%name = 'GEOP'
 
   ! add solver
   call pmc_geophysics%pm_list%InitializeSolver()
@@ -1553,6 +1553,10 @@ subroutine SubsurfaceInitSimulation(simulation)
     call simulation%tran_process_model_coupler% &
            SetWaypointPtr(simulation%waypoint_list_subsurface)
   endif
+  if (associated(simulation%geop_process_model_coupler)) then
+    call simulation%geop_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif  
 
   if (realization%debug%print_couplers) then
     call InitCommonVerifyAllCouplers(realization)

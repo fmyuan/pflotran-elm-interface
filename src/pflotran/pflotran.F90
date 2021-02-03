@@ -40,7 +40,7 @@ program pflotran
     if (option%status == PROCEED) then
       call simulation%ExecuteRun()
     endif
-stop
+
     call simulation%FinalizeRun()
     call simulation%Strip()
     deallocate(simulation)
