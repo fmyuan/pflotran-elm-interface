@@ -17,13 +17,14 @@ module Survey_module
     PetscInt, pointer :: ipos_electrode(:)      ! cell id of electrode pos
     PetscInt, pointer :: flag_electrode(:)      ! 0-> below/1-> on surface 
     PetscReal, pointer :: pos_electrode(:,:)    ! electrode positions
-
     
     PetscInt :: num_measurement                 ! number of data
     PetscInt, pointer :: config(:,:)            ! survey configuration
     PetscReal, pointer :: dsim(:)               ! Simulated data
     PetscReal, pointer :: dobs(:)               ! Observed data
     PetscReal, pointer :: Wd(:)                 ! data weight
+
+    PetscReal :: apparent_conductivity          ! app. cond for an ERT survey
 
   end type survey_type
 
@@ -55,6 +56,7 @@ function SurveyCreate()
   survey%filename = ''  
   survey%num_electrode = 0
   survey%num_measurement = 0
+  survey%apparent_conductivity = UNINITIALIZED_DOUBLE
 
   nullify(survey%ipos_electrode)
   nullify(survey%pos_electrode)
@@ -260,6 +262,95 @@ subroutine SurveyGetElectrodeIndexFromPos(survey,grid,option)
   enddo
 
 end subroutine SurveyGetElectrodeIndexFromPos
+
+! ************************************************************************** !
+
+subroutine SurveyCalculateApparentCond(survey)
+  ! 
+  ! Computes apparent conductivity for an ERT survey data
+  ! 
+  ! Author: Piyoosh Jaysaval
+  ! Date: 02/04/21
+  ! 
+
+  implicit none
+
+  type(survey_type), pointer :: survey
+  
+  PetscReal :: cond,max_cond,min_cond
+  PetscInt :: idata,ia,ib,im,in
+  ! Geometric Factors
+  PetscReal :: GFam,GFan,GFbm,GFbn,GF
+  PetscReal :: A_pos(3),B_pos(3),M_pos(3),N_pos(3)
+  PetscReal :: sum_cond,sum_weight
+
+  max_cond = 0.d0
+  min_cond = 1.d30
+  sum_cond = 0.d0
+  sum_weight = 0.d0
+
+  do idata=1,survey%num_measurement
+    ! for A and B electrodes
+    ia = survey%config(1,idata)
+    ib = survey%config(2,idata)
+    im = survey%config(3,idata)
+    in = survey%config(4,idata)
+
+    if (ia/=0) A_pos = survey%pos_electrode(:,ia)
+    if (ib/=0) B_pos = survey%pos_electrode(:,ib)
+    if (im/=0) M_pos = survey%pos_electrode(:,im)
+    if (in/=0) N_pos = survey%pos_electrode(:,in)    
+
+    GFam = 0.d0; GFan = 0.d0; GFbm = 0.d0; GFbn = 0.d0
+
+    if (ia/=0 .and. im/=0) GFam = GeometricFactor(ia,im,A_pos,M_pos)
+    if (ia/=0 .and. in/=0) GFan = GeometricFactor(ia,in,A_pos,N_pos)
+    if (ib/=0 .and. im/=0) GFbm = GeometricFactor(ib,im,B_pos,M_pos)
+    if (ib/=0 .and. in/=0) GFbn = GeometricFactor(ib,in,B_pos,N_pos)    
+
+    ! Total Geometric Factor
+    GF = (GFam - GFan - GFbm + GFbn) / 2*PI
+
+    ! TODO: CHANGE dsim to dobs
+    if (survey%dsim(idata) /= 0) cond = GF/survey%dsim(idata)
+    if (cond > 0) then
+      ! finds max and min conductivity
+      if (cond > max_cond) max_cond = cond
+      if (cond < min_cond) min_cond = cond
+      if (survey%Wd(idata) /= 0) then
+        sum_cond = sum_cond + cond/survey%Wd(idata)
+        sum_weight = sum_weight + 1/survey%Wd(idata)
+      endif
+    endif
+
+  enddo
+
+  survey%apparent_conductivity = sum_cond / sum_weight
+
+  ! TODO (pj): write max and min apparent cond info
+  ! and 
+  
+  contains 
+  
+  function GeometricFactor(ip,iq,p_pos,q_pos)
+    implicit none
+
+    PetscInt :: ip,iq
+    PetscReal :: p_pos(3),q_pos(3)
+    PetscReal :: GeometricFactor
+    PetscReal :: dist
+
+    GeometricFactor = 0.d0
+    if (ip==0 .or. iq==0) return
+
+    ! add small number to avoid overshooting for dist=0
+    dist = NORM2(p_pos - q_pos) + 1.d-15
+
+    GeometricFactor = 1 / dist
+
+  end function GeometricFactor
+
+end subroutine SurveyCalculateApparentCond
 
 ! ************************************************************************** !
 

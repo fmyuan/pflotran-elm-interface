@@ -561,7 +561,8 @@ pmc_geomechanics.o : convergence.o geomechanics_discretization.o \
                      pm_base_pointer.o pmc_base.o realization_subsurface.o \
                      solver.o timestepper_base.o timestepper_steady.o
 pmc_geophysics.o : option.o pflotran_constants.o pm_ert.o pmc_base.o \
-                   realization_subsurface.o timestepper_KSP.o
+                   realization_subsurface.o timestepper_base.o \
+                   timestepper_steady.o
 pmc_subsurface.o : convergence.o discretization.o field.o general_aux.o grid.o \
                    material.o material_aux.o option.o pflotran_constants.o \
                    pm_base.o pm_base_pointer.o pm_general.o pm_nwt.o \

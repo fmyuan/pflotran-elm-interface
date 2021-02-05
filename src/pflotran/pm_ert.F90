@@ -258,6 +258,9 @@ subroutine PMERTSetupSolver(this)
     string = '-geop_ksp_view'
     call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
                                   string, ierr);CHKERRQ(ierr)
+    string = '-geop_ksp_monitor'
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
+                                  string, ierr);CHKERRQ(ierr)                                  
   endif
   
   call PrintMsg(option,"  Finished setting up ERT KSP")
@@ -327,7 +330,7 @@ subroutine PMERTSolve(this)
   ! Build System matrix
   call ERTCalculateMatrix(realization,solver%M)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
-  call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)  
+  !call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)  
 
   nelec = this%survey%num_electrode
 
@@ -344,6 +347,9 @@ subroutine PMERTSolve(this)
     elec_id = this%survey%ipos_electrode(ielec)
 
     if (elec_id > 0) then
+      ! DBG
+      !print*,'Source cell-id: ',elec_id,grid%x(grid%nL2G(elec_id)), &
+      !         grid%y(grid%nL2G(elec_id)),grid%z(grid%nL2G(elec_id))        
       ! it should qualify on only one proc
       val = -1.0
       vec_ptr(elec_id) = val
@@ -355,14 +361,15 @@ subroutine PMERTSolve(this)
     call PetscTime(log_ksp_start_time,ierr); CHKERRQ(ierr) 
     call KSPSolve(solver%ksp,this%rhs,field%work,ierr);CHKERRQ(ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
-    
+    !call VecView(field%work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
+
     call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     
     ! store potentials for each electrode 
     do local_id=1,grid%nlmax
-       ghosted_id = grid%nL2G(local_id)
+       ghosted_id = grid%nL2G(local_id)   
        if (patch%imat(ghosted_id) <= 0) cycle
-       ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)
+       ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)     
     enddo
 
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
@@ -427,10 +434,10 @@ subroutine PMERTAssembleSimulatedData(this)
       if (local_id_m > 0) then
         ghosted_id_m = grid%nL2G(local_id_m)
         ! Due to source A at +ve M
-        survey%dsim(idata) = survey%dsim(idata) + &
+        if (ia /= 0) survey%dsim(idata) = survey%dsim(idata) + &
                              ert_auxvars(ghosted_id_m)%potential(ia)
         ! Due to sink B at +ve M                    
-        survey%dsim(idata) = survey%dsim(idata) - &
+        if (ib /= 0) survey%dsim(idata) = survey%dsim(idata) - &
                              ert_auxvars(ghosted_id_m)%potential(ib) 
       endif
     endif  
@@ -440,10 +447,10 @@ subroutine PMERTAssembleSimulatedData(this)
       if (local_id_n > 0) then
         ghosted_id_n = grid%nL2G(local_id_n)
         ! Due to source at A at -ve N
-        survey%dsim(idata) = survey%dsim(idata) - &
+        if (ia /= 0) survey%dsim(idata) = survey%dsim(idata) - &
                              ert_auxvars(ghosted_id_n)%potential(ia)
         ! Due to sink at B at -ve N                     
-        survey%dsim(idata) = survey%dsim(idata) + &
+        if (ib /= 0) survey%dsim(idata) = survey%dsim(idata) + &
                                     ert_auxvars(ghosted_id_n)%potential(ib)                                    
       endif
     endif

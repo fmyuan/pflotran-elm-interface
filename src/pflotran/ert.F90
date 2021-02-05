@@ -214,9 +214,9 @@ subroutine ERTCalculateMatrix(realization,M)
       if (local_id_up > 0) then
         ! set matrix coefficients for the upwind cell
         call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                               coef_up,ADD_VALUES,ierr); CHKERRQ(ierr)
+                               coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                               coef_dn,ADD_VALUES,ierr); CHKERRQ(ierr)                       
+                               coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)                       
       endif
 
       if (local_id_dn > 0) then
@@ -224,7 +224,7 @@ subroutine ERTCalculateMatrix(realization,M)
         coef_up = - coef_up
         coef_dn = - coef_dn
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                               coef_dn,ADD_VALUES,ierr); CHKERRQ(ierr)
+                               coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)        
       endif
@@ -262,7 +262,8 @@ subroutine ERTCalculateMatrix(realization,M)
 
       area = cur_connection_set%area(iconn)
 
-      ! get matrix coefficients for up cell -> NO up cell since it's the boundary
+      ! get matrix coefficients for up cell -> NO up cell since it's 
+      ! the boundary
       ! down cell for it is the interior cell
       coef_dn =   cond_avg * area
 
@@ -276,8 +277,8 @@ subroutine ERTCalculateMatrix(realization,M)
     boundary_condition => boundary_condition%next
   enddo
 
-  call MatAssemblyBegin(M,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
-  call MatAssemblyEnd(M,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+  call MatAssemblyBegin(M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
   if (realization%debug%matview_Matrix) then
     string = 'Mmatrix'
@@ -287,5 +288,83 @@ subroutine ERTCalculateMatrix(realization,M)
   endif
 
 end subroutine ERTCalculateMatrix
+
+! ************************************************************************** !
+
+subroutine ERTCalculateAnalyticPotential(realization,average_conductivity)
+  ! 
+  ! Calculate Analytic potential for all electrodes 
+  ! for a given apparent/average conductivity model
+  ! 
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  ! 
+  use Realization_Subsurface_class  
+  use Option_module
+  use Grid_module
+  use Patch_module
+  use Survey_module       
+
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+  PetscReal, optional :: average_conductivity
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid 
+  type(survey_type), pointer :: survey
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
+
+  PetscReal :: cond 
+  PetscInt :: ielec,nelec
+  PetscReal :: r,epos(3),cell_center(3)
+
+  PetscInt :: local_id
+  PetscInt :: ghosted_id   
+
+  survey => realization%survey
+  patch => realization%patch
+  grid => patch%grid
+  ert_auxvars => patch%aux%ERT%auxvars
+
+  if (present(average_conductivity)) then
+    cond = average_conductivity
+  else
+    if (Initialized(survey%apparent_conductivity)) then 
+      cond = survey%apparent_conductivity
+    else
+      option%io_buffer = "ERT potential can't be computed analytically &
+        &without given average conductivity or survey's &
+        &apparent conductivity."
+      call PrintErrMsg(option) 
+    endif
+  endif
+
+  nelec = survey%num_electrode
+
+  ! TODO (pj): avoid this loop and call from ERTSolve
+  do ielec=1,nelec
+
+    epos = survey%pos_electrode(:,ielec)
+
+    ! get & store potentials for each electrode 
+    do local_id=1,grid%nlmax
+        ghosted_id = grid%nL2G(local_id)   
+        if (patch%imat(ghosted_id) <= 0) cycle
+
+        cell_center(1) = grid%x(ghosted_id)
+        cell_center(2) = grid%y(ghosted_id)
+        cell_center(3) = grid%z(ghosted_id)
+
+        r = NORM2(epos - cell_center)
+        ! Add small value to avoid overshooting at electrode position
+        r = r + 1.0d-15
+        ert_auxvars(ghosted_id)%potential(ielec) = 1 / (2*pi*r*cond)     
+     enddo    
+
+  enddo
+
+end subroutine ERTCalculateAnalyticPotential
 
 end module ERT_module
