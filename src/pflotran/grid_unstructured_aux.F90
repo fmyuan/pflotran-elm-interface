@@ -84,7 +84,7 @@ module Grid_Unstructured_Aux_module
     PetscInt :: output_mesh_type  ! Current options: VERTEX_CENTRED (default), CELL_CENTRED
     PetscInt, pointer :: cell_vertices(:,:)   
     type(point3d_type), pointer :: vertex_coordinates(:)
-    character(len=MAXWORDLENGTH) :: domain_filename
+    character(len=MAXSTRINGLENGTH) :: domain_filename
   end type unstructured_explicit_type
 
   type, public :: unstructured_polyhedra_type
