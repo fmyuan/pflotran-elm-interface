@@ -275,8 +275,13 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          call UGridExplicitRead(un_str_grid, &
-                                 discretization%filename,option)
+          if (index(discretization%filename,'.h5') > 0) then
+            call UGridExplicitReadHDF5(un_str_grid, &
+                                       discretization%filename,option)
+          else
+            call UGridExplicitRead(un_str_grid, &
+                                   discretization%filename,option)
+          endif
           grid%unstructured_grid => un_str_grid
         case(POLYHEDRA_UNSTRUCTURED_GRID)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()

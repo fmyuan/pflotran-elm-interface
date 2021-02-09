@@ -12,6 +12,7 @@ module Grid_Unstructured_Explicit_module
   private 
 
   public :: UGridExplicitRead, &
+            UGridExplicitReadHDF5, &
             UGridExplicitDecompose, &
             UGridExplicitSetInternConnect, &
             UGridExplicitSetCellCentroids, &
@@ -442,6 +443,453 @@ end subroutine UGridExplicitRead
 
 ! ************************************************************************** !
 
+subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
+  ! 
+  ! This routine reads an unstructured explicit grid from HDF5.
+  ! 
+  ! Author: Moise Rousseau
+  ! Date: 17/01/2021
+  ! 
+  use hdf5
+  use Option_module
+  use HDF5_Aux_module
+  
+! 64-bit stuff
+#ifdef PETSC_USE_64BIT_INDICES
+#define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
+#else
+#define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
+#endif
+
+  implicit none
+  
+  type(grid_unstructured_type) :: unstructured_grid 
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(option_type) :: option
+  
+  type(unstructured_explicit_type), pointer :: explicit_grid
+  character(len=MAXSTRINGLENGTH) :: group_name
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscMPIInt :: hdf5_err
+  PetscMPIInt :: rank_mpi
+  PetscInt :: istart, iend, local_id, iconn, icell
+  PetscInt :: num_cells, num_connections
+  PetscInt :: num_cells_local, num_cells_local_save
+  PetscInt :: num_connections_local, num_connections_local_save
+  PetscInt :: remainder
+  PetscReal, pointer :: double_buffer(:)
+  PetscReal, pointer :: double_buffer_2d(:,:)
+  PetscInt, pointer :: int_buffer_2d(:,:)
+  PetscErrorCode :: ierr
+  
+  integer(HID_T) :: file_id
+  integer(HID_T) :: grp_id, grp_id2
+  integer(HID_T) :: prop_id
+  integer(HID_T) :: data_set_id
+  integer(HID_T) :: file_space_id
+  integer(HID_T) :: data_space_id
+  integer(HID_T) :: memory_space_id
+  integer(HSIZE_T) :: num_data_in_file
+  integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
+  integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
+  integer :: ndims_h5
+  
+  explicit_grid => unstructured_grid%explicit_grid 
+  
+  !Structure of a HDF5 explicit grid
+  ! All of the below under a group "Domain"
+  ! - a group "Cells" with dataset "Centers" and "Volumes"
+  ! - a group "Faces" with dataset "id_up", "id_dn", "Centers" and "Areas"
+  
+  ! Setup file access property with parallel I/O access
+  call h5pcreate_f(H5P_FILE_ACCESS_F, prop_id, hdf5_err)
+
+#ifndef SERIAL_HDF5
+  call h5pset_fapl_mpio_f(prop_id,option%mycomm, MPI_INFO_NULL, hdf5_err)
+#endif
+
+  ! Open the file collectively
+  call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
+  call h5pclose_f(prop_id, hdf5_err)
+  
+  ! Open group
+  group_name = "Domain/Cells"
+  option%io_buffer = 'Opening group: ' // trim(group_name)
+  call PrintMsg(option)
+  
+  !
+  ! Domain/Cells/Volumes
+  !
+
+  ! Open dataset
+  call h5dopen_f(file_id, "Domain/Cells/Volumes", data_set_id, hdf5_err)
+  
+  ! Get dataset's dataspace
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  
+  ! Get number of dimensions! Get number of dimensions and check
+  ! Allocate memory 
+  ndims_h5 = 1 
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  ! Get dimensions of dataset
+  call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
+                                   hdf5_err)
+  
+  ! Determine the number of cells each that will be saved on each processor
+  num_cells = INT(dims_h5(1))
+  explicit_grid%num_cells_global = num_cells
+  num_cells_local = num_cells/option%mycommsize 
+  num_cells_local_save = num_cells_local
+  remainder = num_cells - &
+              num_cells_local*option%mycommsize
+  if (option%myrank < remainder) num_cells_local = &
+                                  num_cells_local + 1
+                                  
+  ! Find istart and iend
+  istart = 0
+  iend   = 0
+  call MPI_Exscan(num_cells_local, istart, ONE_INTEGER_MPI, &
+                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Scan(num_cells_local, iend, ONE_INTEGER_MPI, &
+                MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  ! Determine the length and offset of data to be read by each processor
+  length(1) = iend-istart
+  length(2) = 0
+  offset(1) = istart
+  offset(2) = 0
+  
+  ! Create data space for dataset
+  rank_mpi = 1
+  memory_space_id = -1
+  call h5screate_simple_f(rank_mpi, length, memory_space_id, hdf5_err)
+  
+  ! Select hyperslab
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  call h5sselect_hyperslab_f(data_space_id, H5S_SELECT_SET_F, offset, length, &
+                             hdf5_err)
+  
+  ! Initialize data buffer
+  allocate(double_buffer(length(1)))
+  double_buffer = UNINITIALIZED_DOUBLE
+  
+  ! Create property list
+  call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_dxpl_mpio_f(prop_id, H5FD_MPIO_COLLECTIVE_F, hdf5_err)
+#endif
+  
+  ! Read the dataset collectively
+  call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer, &
+                 dims_h5, hdf5_err, memory_space_id, data_space_id)
+  
+  allocate(explicit_grid%cell_volumes(num_cells_local))
+  allocate(explicit_grid%cell_ids(num_cells_local))
+  explicit_grid%cell_volumes = UNINITIALIZED_DOUBLE
+  explicit_grid%cell_ids = UNINITIALIZED_INTEGER
+  do icell = 1, num_cells_local
+    explicit_grid%cell_ids(icell) = icell + offset(1)
+    explicit_grid%cell_volumes(icell) = double_buffer(icell)
+  enddo
+  
+  call h5dclose_f(data_set_id, hdf5_err)
+  deallocate(double_buffer)
+  nullify(double_buffer)
+  deallocate(dims_h5)
+  deallocate(max_dims_h5)
+
+  !
+  ! Domain/Cells/Centers
+  !
+  
+  ! Open dataset
+  call h5dopen_f(file_id, "Domain/Cells/Centers", data_set_id, hdf5_err)
+  
+  ! Get dataset's dataspace
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  
+  ! Get number of dimensions and check
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
+    option%io_buffer='Dimension of Domain/Cells/Center dataset in ' // &
+                      trim(filename) // ' is not equal to 2.'
+    call PrintErrMsg(option)
+  endif
+  ! Allocate memory 
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  ! Get dimensions of dataset
+  call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
+                                   hdf5_err)
+  
+  ! Determine the length and offset of data to be read by each processor
+  length(1) = dims_h5(1)
+  length(2) = iend-istart
+  offset(1) = 0
+  offset(2) = istart
+  
+  ! Create data space for dataset
+  rank_mpi = 2
+  memory_space_id = -1
+  call h5screate_simple_f(rank_mpi, length, memory_space_id, hdf5_err)
+  
+  ! Select hyperslab
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  call h5sselect_hyperslab_f(data_space_id, H5S_SELECT_SET_F, offset, length, &
+                             hdf5_err)
+  
+  ! Initialize data buffer
+  allocate(double_buffer_2d(length(1),length(2)))
+  double_buffer_2d = UNINITIALIZED_DOUBLE
+  
+  ! Create property list
+  call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_dxpl_mpio_f(prop_id, H5FD_MPIO_COLLECTIVE_F, hdf5_err)
+#endif
+  
+  ! Read the dataset collectively
+  call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer_2d, &
+                 dims_h5, hdf5_err, memory_space_id, data_space_id)
+  
+  allocate(explicit_grid%cell_centroids(num_cells_local))
+  do icell = 1, num_cells_local
+    explicit_grid%cell_centroids(icell)%x = double_buffer_2d(1,icell)
+    explicit_grid%cell_centroids(icell)%y = double_buffer_2d(2,icell)
+    explicit_grid%cell_centroids(icell)%z = double_buffer_2d(3,icell)
+  enddo
+  
+  call h5dclose_f(data_set_id, hdf5_err)
+  deallocate(double_buffer_2d)
+  nullify(double_buffer_2d)
+  deallocate(dims_h5)
+  deallocate(max_dims_h5)
+  
+  
+  
+  !
+  ! Domain/Connections/Cell Ids
+  !
+  
+  ! Open group
+  group_name = "Domain/Connections"
+  option%io_buffer = 'Opening group: ' // trim(group_name)
+  call PrintMsg(option)
+  
+  ! Open dataset
+  call h5dopen_f(file_id,"Domain/Connections/Cell Ids",data_set_id,hdf5_err)
+  
+  ! Get dataset's dataspace
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  
+  ! Get number of dimensions and check
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
+    option%io_buffer='Dimension of Domain/Connections/Cell Ids dataset in ' &
+                      // trim(filename) // ' is not equal to 2.'
+    call PrintErrMsg(option)
+  endif
+  ! Allocate memory 
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  ! Get dimensions of dataset
+  call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
+                                   hdf5_err)
+                                   
+  ! Determine the number of cells each that will be saved on each processor
+  num_connections = INT(dims_h5(2))
+  num_connections_local = num_connections/option%mycommsize 
+  num_connections_local_save = num_connections_local
+  remainder = num_connections - &
+              num_connections_local*option%mycommsize
+  if (option%myrank < remainder) num_connections_local = &
+                                  num_connections_local + 1
+                                  
+  ! Find istart and iend
+  istart = 0
+  iend   = 0
+  call MPI_Exscan(num_connections_local, istart, ONE_INTEGER_MPI, &
+                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  call MPI_Scan(num_connections_local, iend, ONE_INTEGER_MPI, &
+                MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+  ! Determine the length and offset of data to be read by each processor
+  length(1) = dims_h5(1)
+  length(2) = iend-istart
+  offset(1) = 0
+  offset(2) = istart
+  
+  ! Create data space for dataset
+  rank_mpi = 2
+  memory_space_id = -1
+  call h5screate_simple_f(rank_mpi, length, memory_space_id, hdf5_err)
+  
+  ! Select hyperslab
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  call h5sselect_hyperslab_f(data_space_id, H5S_SELECT_SET_F, offset, length, &
+                             hdf5_err)
+  
+  ! Initialize data buffer
+  allocate(int_buffer_2d(length(1),length(2)))
+  int_buffer_2d = UNINITIALIZED_INTEGER
+  
+  ! Create property list
+  call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_dxpl_mpio_f(prop_id, H5FD_MPIO_COLLECTIVE_F, hdf5_err)
+#endif
+  
+  ! Read the dataset collectively
+  call h5dread_f(data_set_id, H5T_NATIVE_INTEGER, int_buffer_2d, &
+                 dims_h5, hdf5_err, memory_space_id, data_space_id)
+
+  allocate(explicit_grid%connections(2,num_connections_local))
+  do iconn = 1, num_connections_local
+    explicit_grid%connections(1,iconn) = int_buffer_2d(1,iconn)
+    explicit_grid%connections(2,iconn) = int_buffer_2d(2,iconn)
+  enddo
+  
+  call h5dclose_f(data_set_id, hdf5_err)
+  deallocate(int_buffer_2d)
+  nullify(int_buffer_2d)
+  deallocate(dims_h5)
+  deallocate(max_dims_h5)
+  
+  !
+  ! Domain/Connections/Centers
+  !
+  
+  ! Open dataset
+  call h5dopen_f(file_id,"Domain/Connections/Centers",data_set_id,hdf5_err)
+  
+  ! Get dataset's dataspace
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  
+  ! Get number of dimensions and check
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 2) then
+    option%io_buffer='Dimension of Domain/Connections/Center dataset in ' // &
+                      trim(filename) // ' is not equal to 2.'
+    call PrintErrMsg(option)
+  endif
+  ! Allocate memory 
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  ! Get dimensions of dataset
+  call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
+                                   hdf5_err)
+                                   
+  ! Determine the length and offset of data to be read by each processor
+  length(1) = dims_h5(1)
+  
+  ! Create data space for dataset
+  rank_mpi = 2
+  memory_space_id = -1
+  call h5screate_simple_f(rank_mpi, length, memory_space_id, hdf5_err)
+  
+  ! Select hyperslab
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  call h5sselect_hyperslab_f(data_space_id, H5S_SELECT_SET_F, offset, length, &
+                             hdf5_err)
+  
+  ! Initialize data buffer
+  allocate(double_buffer_2d(length(1),length(2)))
+  double_buffer_2d = UNINITIALIZED_DOUBLE
+  
+  ! Create property list
+  call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_dxpl_mpio_f(prop_id, H5FD_MPIO_COLLECTIVE_F, hdf5_err)
+#endif
+  
+  ! Read the dataset collectively
+  call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer_2d, &
+                 dims_h5, hdf5_err, memory_space_id, data_space_id)
+
+  allocate(explicit_grid%face_centroids(num_connections_local))
+  do iconn = 1, num_connections_local
+    explicit_grid%face_centroids(iconn)%x = double_buffer_2d(1,iconn)
+    explicit_grid%face_centroids(iconn)%y = double_buffer_2d(2,iconn)
+    explicit_grid%face_centroids(iconn)%z = double_buffer_2d(3,iconn)
+  enddo
+  
+  call h5dclose_f(data_set_id, hdf5_err)
+  deallocate(double_buffer_2d)
+  nullify(double_buffer_2d)
+  deallocate(dims_h5)
+  deallocate(max_dims_h5)
+
+  !
+  ! Domain/Connections/Areas
+  !
+  
+  ! Open dataset
+  call h5dopen_f(file_id,"Domain/Connections/Areas",data_set_id,hdf5_err)
+  
+  ! Get dataset's dataspace
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  
+  ! Get number of dimensions and check
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
+  if (ndims_h5 /= 1) then
+    option%io_buffer='Dimension of Domain/Connections/Areas dataset in ' // &
+                      trim(filename) // ' is not equal to 1.'
+    call PrintErrMsg(option)
+  endif
+  ! Allocate memory 
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  ! Get dimensions of dataset
+  call h5sget_simple_extent_dims_f(data_space_id, dims_h5, max_dims_h5, &
+                                   hdf5_err)
+                                   
+  ! Determine the length and offset of data to be read by each processor
+  length(1) = iend-istart
+  length(2) = 0
+  offset(1) = istart
+  offset(2) = 0
+  
+  ! Create data space for dataset
+  rank_mpi = 1
+  memory_space_id = -1
+  call h5screate_simple_f(rank_mpi, length, memory_space_id, hdf5_err)
+  
+  ! Select hyperslab
+  call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
+  call h5sselect_hyperslab_f(data_space_id, H5S_SELECT_SET_F, offset, length, &
+                             hdf5_err)
+  
+  ! Initialize data buffer
+  allocate(double_buffer(length(1)))
+  double_buffer = UNINITIALIZED_DOUBLE
+  
+  ! Create property list
+  call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_dxpl_mpio_f(prop_id, H5FD_MPIO_COLLECTIVE_F, hdf5_err)
+#endif
+  
+  ! Read the dataset collectively
+  call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer, &
+                 dims_h5, hdf5_err, memory_space_id, data_space_id)
+
+  allocate(explicit_grid%face_areas(num_connections_local))
+  do iconn = 1, num_connections_local
+    explicit_grid%face_areas(iconn) = double_buffer(iconn)
+  enddo
+  
+  call h5dclose_f(data_set_id, hdf5_err)
+  call h5fclose_f(file_id, hdf5_err)
+  deallocate(double_buffer)
+  nullify(double_buffer)
+  deallocate(dims_h5)
+  deallocate(max_dims_h5)
+
+
+end subroutine UGridExplicitReadHDF5
+
+! ************************************************************************** !
+
 subroutine UGridExplicitDecompose(ugrid,option)
   ! 
   ! Decomposes an explicit unstructured grid across
@@ -512,7 +960,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
 #if UGRID_DEBUG
   call PrintMsg(option,'Adjacency matrix')
 #endif
-
+  
   
   temp_int = minval(explicit_grid%cell_ids)
   call MPI_Allreduce(MPI_IN_PLACE,temp_int, &
