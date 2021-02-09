@@ -2199,7 +2199,7 @@ subroutine SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,
  !   call SecondaryRTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
      !                              reaction,option)
      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
-                                   reaction,reaction%multicontinuum_kd_list,option)
+                                   reaction,reaction%multicontinuum_isotherm_rxn,option)
   endif
   
 end subroutine SecondaryRTotalSorb
@@ -2247,22 +2247,22 @@ subroutine SecondaryRTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reactio
     icomp = reaction%eqkdspecid(irxn)
     molality = rt_auxvar%pri_molal(icomp)
     activity = molality*rt_auxvar%pri_act_coef(icomp) ! Activity coefficient needs?
-    select case(reaction%multicontinuum_kd_list%eqkdtype(irxn))
+    select case(reaction%eqisothermtype(irxn))
       case(SORPTION_LINEAR)
         ! Csorb = Kd*Caq
-        res = reaction%multicontinuum_kd_list%eqkddistcoef(irxn)*activity
+        res = reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient(irxn)*activity
         dres_dc = res/molality
       case(SORPTION_LANGMUIR)
         ! Csorb = K*Caq*b/(1+K*Caq)
-        tempreal = reaction%multicontinuum_kd_list%eqkddistcoef(irxn)*activity
-        res = tempreal*reaction%multicontinuum_kd_list%eqkdlangmuirb(irxn) / (1.d0 + tempreal)
+        tempreal = reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient(irxn)*activity
+        res = tempreal*reaction%multicontinuum_isotherm_rxn%eqisothermlangmuirb(irxn) / (1.d0 + tempreal)
         dres_dc = res/molality - &
                   res / (1.d0 + tempreal) * tempreal / molality
       case(SORPTION_FREUNDLICH)
         ! Csorb = Kd*Caq**(1/n)
-        one_over_n = 1.d0/reaction%multicontinuum_kd_list%eqkdfreundlichn(irxn)
+        one_over_n = 1.d0/reaction%multicontinuum_isotherm_rxn%eqisothermfreundlichn(irxn)
         activity_one_over_n = activity**one_over_n
-        res = reaction%multicontinuum_kd_list%eqkddistcoef(irxn)* &
+        res = reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient(irxn)* &
                 activity**one_over_n
         dres_dc = res/molality*one_over_n
       case default

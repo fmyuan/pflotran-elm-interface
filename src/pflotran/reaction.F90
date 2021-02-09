@@ -148,6 +148,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXWORDLENGTH) :: kd_units
+  character(len=MAXWORDLENGTH) :: multi_kd_units
   type(aq_species_type), pointer :: species, prev_species
   type(gas_species_type), pointer :: gas, prev_gas
   type(immobile_species_type), pointer :: immobile_species
@@ -159,8 +160,8 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
   type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn, prev_dynamic_kd_rxn
-  type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
-  type(kd_rxn_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
+  type(isotherm_linklist_type), pointer :: kd_rxn, prev_kd_rxn
+  type(isotherm_linklist_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
   type(generic_parameter_type), pointer :: generic_list
   PetscInt :: i, temp_int
   PetscReal :: temp_real
@@ -169,6 +170,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   PetscBool :: found
   PetscBool :: reaction_sandbox_read
   PetscBool :: reaction_clm_read
+  PetscInt :: ierr
 
   nullify(prev_species)
   nullify(prev_gas)
@@ -189,6 +191,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   reaction_clm_read = PETSC_FALSE
   
   kd_units = ''
+  multi_kd_units = ''
   srfcplx_count = 0
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -745,7 +748,9 @@ subroutine ReactionReadPass1(reaction,input,option)
                            call InputReadDouble(input,option,sec_cont_kd_rxn%Kd)
                            call InputErrorMsg(input,option, &
                              'SECONDARY_CONTINUUM_DISTRIBUTION_COEFFICIENT', &
-                             'CHEMISTRY,ISOTHERM_REACTIONS')                    
+                             'CHEMISTRY,ISOTHERM_REACTIONS')
+                           call InputReadWord(input,option,word,PETSC_TRUE)
+                           if (input%ierr == 0) multi_kd_units = trim(word)
                         endif
                     case('LANGMUIR_B')
                       call InputReadDouble(input,option,kd_rxn%Langmuir_B)
@@ -770,20 +775,46 @@ subroutine ReactionReadPass1(reaction,input,option)
                 call InputPopBlock(input,option)
 
                 if (len_trim(kd_units) > 0) then
-                  if (len_trim(kd_rxn%kd_mineral_name) > 0) then
-                    internal_units = 'L/kg'
-                    kd_rxn%Kd = kd_rxn%Kd * &
-                      UnitsConvertToInternal(kd_units,internal_units,option)
-                  else
+                   !                 if (len_trim(kd_rxn%kd_mineral_name) > 0) then
+                    ierr = 1
                     internal_units = 'kg/m^3'
                     kd_rxn%Kd = kd_rxn%Kd * &
-                      UnitsConvertToInternal(kd_units,internal_units,option)
-                  endif
+                         UnitsConvertToInternal(kd_units,internal_units,option,ierr)
+                    
+                    !                 else
+                    if (ierr < 0) then
+                    ierr = 2
+                    internal_units = 'L/kg'
+                    kd_rxn%Kd = kd_rxn%Kd * &
+                         UnitsConvertToInternal(kd_units,internal_units,option,ierr)
+                    reaction%kd_unit = 1
+                    endif
+                    if (ierr < 0) then
+                       call PrintErrMsg(option)
+                    endif
+                 endif
+
+                 if (len_trim(multi_kd_units) > 0) then
+                   !                 if (len_trim(kd_rxn%kd_mineral_name) > 0) then
+                    ierr = 1
+                    internal_units = 'L/kg'
+                    sec_cont_kd_rxn%Kd = sec_cont_kd_rxn%Kd * &
+                      UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
+                    !                 else
+                    if (ierr < 0) then
+                    ierr = 2
+                    internal_units = 'kg/m^3'
+                    sec_cont_kd_rxn%Kd = sec_cont_kd_rxn%Kd * &
+                         UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
+                    endif
+                    if (ierr < 0) then
+                       call PrintErrMsg(option)
+                    endif
                 endif
 
                 ! add to list
-                if (.not.associated(reaction%kd_rxn_list)) then
-                  reaction%kd_rxn_list => kd_rxn
+                if (.not.associated(reaction%isotherm_list)) then
+                  reaction%isotherm_list => kd_rxn
                   kd_rxn%id = 1
                 endif
                 if (associated(prev_kd_rxn)) then
@@ -795,8 +826,8 @@ subroutine ReactionReadPass1(reaction,input,option)
                 
                 if (option%use_mc) then
                 ! add to list
-                  if (.not.associated(reaction%sec_cont_kd_rxn_list)) then
-                    reaction%sec_cont_kd_rxn_list => sec_cont_kd_rxn
+                  if (.not.associated(reaction%multicontinuum_isotherm_list)) then
+                    reaction%multicontinuum_isotherm_list => sec_cont_kd_rxn
                     sec_cont_kd_rxn%id = 1
                   endif
                   if (associated(sec_cont_prev_kd_rxn)) then
@@ -4511,7 +4542,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   endif
   
   if (reaction%neqkdrxn > 0) then
-    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,reaction%kd_list,option)
+    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,reaction%isotherm_rxn,option)
   endif
   
 end subroutine RTotalSorb
@@ -4536,7 +4567,7 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
-  type(kd_type) :: kd_list
+  type(isotherm_rxn_type) :: isotherm_rxn
   type(option_type) :: option
   
   PetscInt :: irxn
@@ -4592,7 +4623,7 @@ end subroutine RTotalSorbDynamicKD
 ! ************************************************************************** !
 
 subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                        kd_list,option)
+                        isotherm_rxn,option)
   ! 
   ! Computes the total sorbed component concentrations and
   ! derivative with respect to free-ion for the linear
@@ -4627,20 +4658,34 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   do irxn = 1, reaction%neqkdrxn
     icomp = reaction%eqkdspecid(irxn)
     molality = rt_auxvar%pri_molal(icomp)
-    if (reaction%eqkdmineral(irxn) > 0) then
+!    if (reaction%eqkdmineral(irxn) > 0) then
+       if (reaction%kd_unit == 1) then
+          if (associated(rt_auxvar%mnrl_volfrac)) then
       ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
       ! nothing to do with the soil volume; that is calculated through as a 
       ! function of porosity.
-      kd_kgw_m3b = kd_list%eqkddistcoef(irxn) * & !KD units [mL water/g soil]
+      kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * & !KD units [mL water/g soil]
                    global_auxvar%den_kg(iphase) * &
                    (1.d0-material_auxvar%porosity) * &
                    material_auxvar%soil_particle_density * &
                    1.d-3 * & ! convert mL water/g soil to m^3 water/kg soil
                    (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
-    else
-      kd_kgw_m3b = reaction%kd_list%eqkddistcoef(irxn)
+           else
+             kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * & !KD units [mL water/g soil]
+                   global_auxvar%den_kg(iphase) * &
+                   (1.d0-material_auxvar%porosity) * &
+                   material_auxvar%soil_particle_density * &
+                   1.d-3 
+           endif
+      else
+           if (associated(rt_auxvar%mnrl_volfrac)) then
+              kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * &
+                   (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
+           else
+              kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn)
+           endif
     endif
-    select case(kd_list%eqkdtype(irxn))
+    select case(reaction%eqisothermtype(irxn))
       case(SORPTION_LINEAR)
         ! Csorb = Kd*Caq
         res = kd_kgw_m3b*molality
@@ -4648,12 +4693,12 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
       case(SORPTION_LANGMUIR)
         ! Csorb = K*Caq*b/(1+K*Caq)
         tempreal = kd_kgw_m3b*molality
-        res = tempreal*kd_list%eqkdlangmuirb(irxn) / (1.d0 + tempreal)
+        res = tempreal*isotherm_rxn%eqisothermlangmuirb(irxn) / (1.d0 + tempreal)
         dres_dc = res/molality - &
                   res / (1.d0 + tempreal) * tempreal / molality
       case(SORPTION_FREUNDLICH)
         ! Csorb = Kd*Caq**(1/n)
-        one_over_n = 1.d0/kd_list%eqkdfreundlichn(irxn)
+        one_over_n = 1.d0/isotherm_rxn%eqisothermfreundlichn(irxn)
         molality_one_over_n = molality**one_over_n
         res = kd_kgw_m3b*molality**one_over_n
         dres_dc = res/molality*one_over_n

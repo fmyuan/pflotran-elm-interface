@@ -688,7 +688,7 @@ subroutine BasisInit_hpt(reaction,option)
   type(ion_exchange_rxn_type), pointer :: cur_ionx_rxn
   type(ion_exchange_cation_type), pointer :: cur_cation
   type(general_rxn_type), pointer :: cur_general_rxn
-  type(kd_rxn_type), pointer :: cur_kd_rxn
+  type(isotherm_linklist_type), pointer :: cur_kd_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
   type(transition_state_rxn_type), pointer :: tstrxn
@@ -2683,19 +2683,19 @@ subroutine BasisInit_hpt(reaction,option)
   if (reaction%neqkdrxn > 0) then
   
      ! allocate arrays
-    allocate(reaction%kd_list)
+    allocate(reaction%isotherm_rxn)
     allocate(reaction%eqkdspecid(reaction%neqkdrxn))
     reaction%eqkdspecid = 0
-    allocate(reaction%kd_list%eqkdtype(reaction%neqkdrxn))
-    reaction%kd_list%eqkdtype = 0
-    allocate(reaction%kd_list%eqkddistcoef(reaction%neqkdrxn))
-    reaction%kd_list%eqkddistcoef = 0.d0
-    allocate(reaction%kd_list%eqkdlangmuirb(reaction%neqkdrxn))
-    reaction%kd_list%eqkdlangmuirb = 0.d0
-    allocate(reaction%kd_list%eqkdfreundlichn(reaction%neqkdrxn))
-    reaction%kd_list%eqkdfreundlichn = 0.d0
+    allocate(reaction%eqisothermtype(reaction%neqkdrxn))
+    reaction%eqisothermtype = 0
+    allocate(reaction%isotherm_rxn%eqisothermcoefficient(reaction%neqkdrxn))
+    reaction%isotherm_rxn%eqisothermcoefficient = 0.d0
+    allocate(reaction%isotherm_rxn%eqisothermlangmuirb(reaction%neqkdrxn))
+    reaction%isotherm_rxn%eqisothermlangmuirb = 0.d0
+    allocate(reaction%isotherm_rxn%eqisothermfreundlichn(reaction%neqkdrxn))
+    reaction%isotherm_rxn%eqisothermfreundlichn = 0.d0
 
-    cur_kd_rxn => reaction%kd_rxn_list
+    cur_kd_rxn => reaction%isotherm_list
     irxn = 0
     do  
       if (.not.associated(cur_kd_rxn)) exit
@@ -2718,10 +2718,10 @@ subroutine BasisInit_hpt(reaction,option)
                  ' not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%kd_list%eqkdtype(irxn) = cur_kd_rxn%itype
-      reaction%kd_list%eqkddistcoef(irxn) = cur_kd_rxn%Kd
-      reaction%kd_list%eqkdlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
-      reaction%kd_list%eqkdfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
+      reaction%isotherm_rxn%eqisothermtype(irxn) = cur_kd_rxn%itype
+      reaction%isotherm_rxn%eqisothermcoefficient(irxn) = cur_kd_rxn%Kd
+      reaction%isotherm_rxn%eqisothermlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
+      reaction%isotherm_rxn%eqisothermfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
        
       cur_kd_rxn => cur_kd_rxn%next
     enddo
