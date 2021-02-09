@@ -50,7 +50,7 @@ def convert_grid_explicit_ascii_to_h5(ascii_in, h5_out):
 if __name__ == "__main__":
   if len(sys.argv) != 3:
     print("Utilisation:")
-    print(f"{sys.argv[0]} [path to explicit ASCII grid] [output file]\n")
+    print("{} [path to explicit ASCII grid] [output file]\n".format(sys.argv[0]))
     exit(1)
   ascii_in = sys.argv[1]
   h5_out = sys.argv[2]
