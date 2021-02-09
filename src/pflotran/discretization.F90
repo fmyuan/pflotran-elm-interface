@@ -514,9 +514,9 @@ subroutine DiscretizationRead(discretization,input,option)
       case('DOMAIN_FILENAME')
         select case(discretization%grid%itype)
           case(EXPLICIT_UNSTRUCTURED_GRID)
-             call InputReadFilename(input,option, &
-                  discretization%grid%unstructured_grid% &
-                  explicit_grid%domain_filename)
+             call InputReadFilename(input,option,discretization%grid% &
+                                    unstructured_grid%explicit_grid% &
+                                    domain_filename)
             call InputErrorMsg(input,option,'DOMAIN_FILENAME','GRID')  
           case default
             option%io_buffer = 'DOMAIN_FILENAME only supported for explicit &
