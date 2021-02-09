@@ -280,6 +280,18 @@ subroutine ReactionReadPass1(reaction,input,option)
             reaction%gas_diffusion_coefficients => generic_list
         end select
       case('ACTIVE_GAS_SPECIES')
+        call InputReadPflotranString(input,option)
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword', &
+                           'CHEMISTRY,GAS_TRANSPORT_IS_UNVETTED')
+        call StringToUpper(word)
+        if (.not.StringCompare(word,'GAS_TRANSPORT_IS_UNVETTED')) then
+          option%io_buffer = 'Before using gas transport capability, &
+            &please acknowledge that gas transport is &
+            &unvetted by adding the card GAS_TRANSPORT_IS_UNVETTED to the &
+            &top of ACTIVE_GAS_SPECIES block.'
+          call PrintErrMsg(option)
+        endif
         string = 'CHEMISTRY,ACTIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,ACTIVE_GAS,string,input,option)
       !TODO(geh): remove GAS_SPECIES
@@ -1040,7 +1052,6 @@ subroutine ReactionReadPass1(reaction,input,option)
                    reaction%surface_complexation%nkinmrsrfcplxrxn + &
                    reaction%surface_complexation%nkinsrfcplxrxn
     
-
   if (reaction%print_free_conc_type == 0) then
     if (reaction%initialize_with_molality) then
       reaction%print_free_conc_type = PRIMARY_MOLALITY
