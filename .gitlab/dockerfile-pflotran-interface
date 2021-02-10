@@ -1,0 +1,8 @@
+ARG IMAGE
+FROM $IMAGE
+ENV PETSC_DIR=/scratch/petsc PETSC_ARCH=petsc-arch
+
+WORKDIR /scratch
+RUN ./.gitlab/info.sh
+RUN ./.gitlab/build-pflotran-interface.sh
+RUN ./.gitlab/test-pflotran-interface.sh
