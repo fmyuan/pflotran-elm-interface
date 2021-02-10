@@ -47,6 +47,14 @@ build-petsc:
       --tag $IMAGE
       .
     - docker push $IMAGE
+    # copy log files from image by launching container, copying
+    # and destorying the container
+    - id=$(docker create $IMAGE)
+    - docker cp $id:/scratch/petsc/*.log .
+    - docker rm -v $id
+  artifacts:
+    paths:
+      - *.log
 
 pflotran:
   stage: pflotran
