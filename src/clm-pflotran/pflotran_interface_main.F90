@@ -7,8 +7,7 @@ program pflotran_interface_main
   use petscvec
   use pflotran_model_module         , only : pflotran_model_type, pflotranModelCreate, &
        pflotranModelInitMapping, pflotranModelStepperRunInit, &
-       pflotranModelStepperRunTillPauseTime, pflotranModelDestroy, &
-       CLM_SRF_TO_PF_SRF, PF_SRF_TO_CLM_SRF
+       pflotranModelStepperRunTillPauseTime, pflotranModelDestroy
   use clm_pflotran_interface_data
   use Mapping_module
   use Input_Aux_module
