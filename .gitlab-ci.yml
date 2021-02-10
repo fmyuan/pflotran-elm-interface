@@ -1,8 +1,8 @@
 stages:
-  - build-petsc
+  - petsc
   - pflotran
 #  - pflotran-interface
-  - ci_status
+  - final_status
 
 image: docker:latest
 
@@ -23,10 +23,10 @@ before_script:
   - apk add --no-cache bash curl
   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
 
-build-petsc:
-  stage: build-petsc
+petsc:
+  stage: petsc
   script:
-#    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
+    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
     - docker --version
     - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
     - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
@@ -49,10 +49,22 @@ build-petsc:
     paths:
       - "*.log"
 
+notify-petsc-success:
+  stage: petsc
+  when: on_success
+  script:
+    - BUILD_STATUS=passed BUILD_KEY=push ./.gitlab/build_status
+
+notify-petsc-failure:
+  stage: petsc
+  when: on_failure
+  script:
+    - BUILD_STATUS=failed BUILD_KEY=push ./.gitlab/build_status
+
 pflotran:
   stage: pflotran
   script:
-#    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
+    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
     - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
     - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
     - export NEW_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
@@ -73,6 +85,18 @@ pflotran:
   artifacts:
     paths:
       - regression_tests
+
+notify-pflotran-success:
+  stage: pflotran
+  when: on_success
+  script:
+    - BUILD_STATUS=passed BUILD_KEY=push ./.gitlab/build_status
+
+notify-pflotran-failure:
+  stage: pflotran
+  when: on_failure
+  script:
+    - BUILD_STATUS=failed BUILD_KEY=push ./.gitlab/build_status
 
 .pflotran-interface:
   stage: pflotran-interface
@@ -100,7 +124,7 @@ pflotran:
       - regression_tests
 
 success:
-  stage: ci_status
+  stage: final_status
   before_script:
     - apk add --no-cache bash curl
   after_script:
@@ -111,7 +135,7 @@ success:
   when: on_success
 
 failure:
-  stage: ci_status
+  stage: final_status
   before_script:
     - apk add --no-cache bash curl  
   after_script:
