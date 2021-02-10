@@ -54,7 +54,7 @@ build-petsc:
     - docker rm -v $id
   artifacts:
     paths:
-      - *.log
+      - "*.log"
 
 pflotran:
   stage: pflotran
