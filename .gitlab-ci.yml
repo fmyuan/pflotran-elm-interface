@@ -42,7 +42,8 @@ build-petsc:
     # copy log files from image by launching container, copying
     # and destorying the container
     - id=$(docker create $IMAGE)
-    - docker cp $id:/scratch/petsc/*.log .
+    - docker cp $id:/scratch/petsc/configure.log .
+    - docker cp $id:/scratch/petsc/make.log .
     - docker rm -v $id
   artifacts:
     paths:
@@ -63,6 +64,7 @@ pflotran:
       --cache-from $IMAGE
       --tag $NEW_IMAGE
       .
+    # DO NOT PUSH THE NEW IMAGE
     # copy regression results from image by launching container, copying
     # and destorying the container
     - id=$(docker create $NEW_IMAGE)
@@ -87,6 +89,7 @@ pflotran:
       --cache-from $IMAGE
       --tag $NEW_IMAGE
       .
+    # DO NOT PUSH THE NEW IMAGE
     - id=$(docker create $NEW_IMAGE)
     - docker cp $id:/scratch/src/clm-pflotran/regression_test .
     - docker cp $id:/scratch/src/clm-pflotran/pflotran-tests-* .

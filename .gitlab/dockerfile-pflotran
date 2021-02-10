@@ -2,10 +2,8 @@ ARG IMAGE
 FROM $IMAGE
 ENV PETSC_DIR=/scratch/petsc PETSC_ARCH=petsc-arch
 
-WORKDIR ~
-RUN pwd
-RUN ls
 WORKDIR /scratch
+COPY . .
 RUN ./.gitlab/info.sh
 RUN ./.gitlab/build-pflotran.sh
 RUN ./.gitlab/build-pflotran-rxn.sh

@@ -9,4 +9,4 @@ RUN apt-get update -qq && \
 WORKDIR /scratch
 COPY ./.gitlab/build-petsc.sh .
 RUN /scratch/build-petsc.sh
-COPY . .
+
