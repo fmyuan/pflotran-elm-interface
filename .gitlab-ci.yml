@@ -1,8 +1,10 @@
 stages:
   - petsc
+  - petsc-status
   - pflotran
+  - pflotran-status
 #  - pflotran-interface
-  - final_status
+  - ci-status
 
 image: docker:latest
 
@@ -26,7 +28,9 @@ before_script:
 petsc:
   stage: petsc
   script:
-    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
+    - >
+      BUILD_STATUS=running BUILD_KEY=push CUSTOM_STAGE=petsc 
+      ./.gitlab/build_status
     - docker --version
     - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
     - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
@@ -50,16 +54,20 @@ petsc:
       - "*.log"
 
 notify-petsc-success:
-  stage: petsc
+  stage: petsc-status
   when: on_success
   script:
-    - BUILD_STATUS=passed BUILD_KEY=push ./.gitlab/build_status
+    - >
+      BUILD_STATUS=passed BUILD_KEY=push CUSTOM_STAGE=petsc 
+      ./.gitlab/build_status
 
 notify-petsc-failure:
-  stage: petsc
+  stage: petsc-status
   when: on_failure
   script:
-    - BUILD_STATUS=failed BUILD_KEY=push ./.gitlab/build_status
+    - >
+      BUILD_STATUS=failed BUILD_KEY=push CUSTOM_STAGE=petsc 
+      ./.gitlab/build_status
 
 pflotran:
   stage: pflotran
@@ -87,16 +95,21 @@ pflotran:
       - regression_tests
 
 notify-pflotran-success:
-  stage: pflotran
+  stage: pflotran-status
   when: on_success
   script:
-    - BUILD_STATUS=passed BUILD_KEY=push ./.gitlab/build_status
+    - >
+      BUILD_STATUS=passed BUILD_KEY=push CUSTOM_STAGE=pflotran 
+      ./.gitlab/build_status
 
 notify-pflotran-failure:
-  stage: pflotran
+  stage: pflotran-status
   when: on_failure
   script:
-    - BUILD_STATUS=failed BUILD_KEY=push ./.gitlab/build_status
+    - >
+      BUILD_STATUS=failed BUILD_KEY=push CUSTOM_STAGE=pflotran 
+      ./.gitlab/build_status
+
 
 .pflotran-interface:
   stage: pflotran-interface
@@ -124,7 +137,7 @@ notify-pflotran-failure:
       - regression_tests
 
 success:
-  stage: final_status
+  stage: ci-status
   before_script:
     - apk add --no-cache bash curl
   after_script:
@@ -135,7 +148,7 @@ success:
   when: on_success
 
 failure:
-  stage: final_status
+  stage: ci-status
   before_script:
     - apk add --no-cache bash curl  
   after_script:
