@@ -7,7 +7,7 @@ make test
 REGRESSION_EXIT_CODE=$?
 
 cp -R regression_tests /tmp
-cp pflotran-test-* /tmp/regression_tests
+cp pflotran-tests-* /tmp/regression_tests
 
 if [ $REGRESSION_EXIT_CODE -ne 0 ]; then
   echo "Regression tests failed" >&2
