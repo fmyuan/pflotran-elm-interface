@@ -90,12 +90,10 @@ pflotran-interface:
       .
     # DO NOT PUSH THE NEW IMAGE
     - id=$(docker create $NEW_IMAGE)
-    - docker cp $id:/scratch/src/clm-pflotran/regression_tests .
-    - docker cp $id:/scratch/src/clm-pflotran/pflotran-tests-* .
+    - docker cp $id:/tmp/regression_tests .
     - docker rm -v $id
   artifacts:
     paths:
-      - pflotran-tests-*
       - regression_tests
 
 success:
