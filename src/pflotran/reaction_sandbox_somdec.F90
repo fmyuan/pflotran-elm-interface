@@ -129,7 +129,7 @@ module Reaction_Sandbox_SomDec_class
     type(inhibition_type), pointer :: next
   end type inhibition_type
   
-  type :: somdec_reaction_type
+  type, public :: somdec_reaction_type
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     type(pool_type), pointer :: downstream_pools
     PetscReal :: rate_constant
