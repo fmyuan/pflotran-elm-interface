@@ -1,7 +1,7 @@
 stages:
   - petsc
   - pflotran
-#  - pflotran-interface
+  - pflotran-interface
   - final-status
 
 image: docker:latest
@@ -74,10 +74,9 @@ pflotran:
     paths:
       - regression_tests
 
-.pflotran-interface:
+pflotran-interface:
   stage: pflotran-interface
   script:
-#    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
     - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
     - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
     - export NEW_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
@@ -91,12 +90,10 @@ pflotran:
       .
     # DO NOT PUSH THE NEW IMAGE
     - id=$(docker create $NEW_IMAGE)
-    - docker cp $id:/scratch/src/clm-pflotran/regression_test .
-    - docker cp $id:/scratch/src/clm-pflotran/pflotran-tests-* .
+    - docker cp $id:/tmp/regression_tests .
     - docker rm -v $id
   artifacts:
     paths:
-      - pflotran-tests-*
       - regression_tests
 
 success:
