@@ -899,6 +899,12 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 0 ! double
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         call OutputVariableAddToList(output_variable_list,output_variable)
+      case('ELECTRICAL_CONDUCTIVITY')
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                               option)  
+        output_variable => OutputVariableCreate(name,category,units,id)
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
       case default
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)

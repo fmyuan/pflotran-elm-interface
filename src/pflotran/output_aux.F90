@@ -1186,6 +1186,16 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'K Orthogonality Error'
       category = OUTPUT_GENERIC
       id = K_ORTHOGONALITY_ERROR
+    case ('ELECTRICAL_CONDUCTIVITY')
+      if (option%ngeopdof <= 0) then
+        option%io_buffer = 'ELECTRICAL_CONDUCTIVITY output only supported &
+          &when the GEOPHYSICS process model is used.'
+        call PrintErrMsg(option)
+      endif
+      units = 'S/m'
+      name = 'Electrical Conductivity'
+      category = OUTPUT_GENERIC
+      id = ELECTRICAL_CONDUCTIVITY  
   end select
 
 end subroutine OutputVariableToID
