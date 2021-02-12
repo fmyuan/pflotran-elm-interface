@@ -24,7 +24,8 @@ module Survey_module
     PetscReal, pointer :: dobs(:)               ! Observed data
     PetscReal, pointer :: Wd(:)                 ! data weight
 
-    PetscReal :: apparent_conductivity          ! app. cond for an ERT survey
+    PetscReal :: apparent_conductivity          ! app cond for an ERT survey
+    PetscReal :: average_conductivity           ! avg cond of given cond model
 
   end type survey_type
 
@@ -32,6 +33,7 @@ module Survey_module
   public :: SurveyCreate, &
             SurveyRead, &
             SurveyReadERT, &
+            SurveyWriteERT, &
             SurveyDestroy
  
 contains
@@ -57,6 +59,7 @@ function SurveyCreate()
   survey%num_electrode = 0
   survey%num_measurement = 0
   survey%apparent_conductivity = UNINITIALIZED_DOUBLE
+  survey%average_conductivity = UNINITIALIZED_DOUBLE
 
   nullify(survey%ipos_electrode)
   nullify(survey%pos_electrode)
@@ -191,9 +194,11 @@ subroutine SurveyReadERT(survey,grid,input,option)
 
   allocate(survey%config(FOUR_INTEGER,survey%num_measurement))
   allocate(survey%dsim(survey%num_measurement))
+  allocate(survey%dobs(survey%num_measurement))
   allocate(survey%Wd(survey%num_measurement))
   survey%config = 0
   survey%dsim = 0.d0
+  survey%dobs = 0.d0
   survey%Wd = 0.d0
 
   do idata=1,survey%num_measurement
@@ -213,7 +218,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
     call InputReadInt(input,option,survey%config(FOUR_INTEGER,idata))
     call InputErrorMsg(input,option,'N electrode configuration for data ' &
                                     //string_idata,error_string)
-    call InputReadDouble(input,option,survey%dsim(idata))
+    call InputReadDouble(input,option,survey%dobs(idata))
     call InputErrorMsg(input,option,'data dobs for data ' &
                                     //string_idata,error_string)
     call InputReadDouble(input,option,survey%Wd(idata))
@@ -265,6 +270,51 @@ end subroutine SurveyGetElectrodeIndexFromPos
 
 ! ************************************************************************** !
 
+subroutine SurveyWriteERT(survey)
+  ! 
+  ! writes simulated ERT data in a .srv file with
+  ! filename = prefix(survey%filename)//-simulated.srv
+  ! 
+  ! Author: Piyoosh Jaysaval
+  ! Date: 02/08/21
+  !
+
+  implicit none
+
+  type(survey_type), pointer :: survey
+  
+  character(len=MAXWORDLENGTH) :: filename
+  character(len=MAXWORDLENGTH) :: string
+  PetscInt :: iprefix,i 
+  PetscInt :: fid
+
+  iprefix = index(survey%filename,".") - 1
+  filename = survey%filename(1:iprefix)//"-simulated.srv"
+  fid = IUNIT_TEMP
+  open(fid,file=filename,status='replace',action='write')
+  write(string,*) survey%num_electrode
+  write(fid,'(a)',advance='no') trim(adjustl(string))
+  write(fid,'(15x,a)',advance="yes") "number of electrodes"
+  do i=1,survey%num_electrode
+     write(fid,"(i10,3f15.5,i10)") i,survey%pos_electrode(1:3,i), &
+                                  survey%flag_electrode(i)
+  end do
+
+  write(fid,*)
+  write(string,*) survey%num_measurement
+  write(fid,'(a)',advance='no') trim(adjustl(string))
+  write(fid,'(15x,a)',advance="yes") "number of measurements"
+  do i=1,survey%num_measurement
+    write(fid,"(i10,4i10,2es15.5)") i,survey%config(1:4,i), &
+                  survey%dsim(i),0.05*abs(survey%dsim(i))+0.01
+  end do
+
+  close(fid)
+
+end subroutine SurveyWriteERT
+
+! ************************************************************************** !
+
 subroutine SurveyCalculateApparentCond(survey)
   ! 
   ! Computes apparent conductivity for an ERT survey data
@@ -312,7 +362,7 @@ subroutine SurveyCalculateApparentCond(survey)
     GF = (GFam - GFan - GFbm + GFbn) / 2*PI
 
     ! TODO: CHANGE dsim to dobs
-    if (survey%dsim(idata) /= 0) cond = GF/survey%dsim(idata)
+    if (survey%dobs(idata) /= 0) cond = GF/survey%dobs(idata)
     if (cond > 0) then
       ! finds max and min conductivity
       if (cond > max_cond) max_cond = cond

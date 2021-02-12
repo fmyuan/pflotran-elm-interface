@@ -13,7 +13,9 @@ module ERT_module
   private
 
   public :: ERTSetup, &
-            ERTCalculateMatrix
+            ERTCalculateMatrix, &
+            ERTCalculateAnalyticPotential, &
+            ERTCalculateAverageConductivity
 
 contains
 
@@ -293,11 +295,11 @@ end subroutine ERTCalculateMatrix
 
 subroutine ERTCalculateAnalyticPotential(realization,average_conductivity)
   ! 
-  ! Calculate Analytic potential for all electrodes 
+  ! Calculates Analytic potential for all electrodes 
   ! for a given apparent/average conductivity model
   ! 
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/21
+  ! Date: 02/05/21
   ! 
   use Realization_Subsurface_class  
   use Option_module
@@ -324,6 +326,7 @@ subroutine ERTCalculateAnalyticPotential(realization,average_conductivity)
   PetscInt :: ghosted_id   
 
   survey => realization%survey
+  option => realization%option
   patch => realization%patch
   grid => patch%grid
   ert_auxvars => patch%aux%ERT%auxvars
@@ -366,5 +369,60 @@ subroutine ERTCalculateAnalyticPotential(realization,average_conductivity)
   enddo
 
 end subroutine ERTCalculateAnalyticPotential
+
+! ************************************************************************** !
+
+subroutine ERTCalculateAverageConductivity(realization)
+  ! 
+  ! Calculates Average conductivity of a given conductivity 
+  ! model
+  ! 
+  ! Author: Piyoosh Jaysaval
+  ! Date: 02/05/21
+  ! 
+  use Realization_Subsurface_class  
+  use Option_module
+  use Grid_module
+  use Patch_module  
+  use Survey_module  
+
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid 
+  type(survey_type), pointer :: survey
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+
+  PetscInt :: local_id
+  PetscInt :: ghosted_id 
+  PetscReal :: local_average_cond  
+  PetscErrorCode :: ierr
+
+  survey => realization%survey
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  material_auxvars => patch%aux%Material%auxvars
+
+  local_average_cond = 0.d0
+  ! Get part of average conductivity locally 
+  do local_id=1,grid%nlmax  
+    ghosted_id = grid%nL2G(local_id)         
+    if (patch%imat(ghosted_id) <= 0) cycle
+    local_average_cond = local_average_cond + &
+                         material_auxvars(ghosted_id)%electrical_conductivity(1)     
+  enddo
+  local_average_cond = local_average_cond / grid%nmax
+
+  ! get the average conductivity
+  call MPI_Allreduce(MPI_IN_PLACE,local_average_cond,ONE_INTEGER_MPI,   &
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr) 
+
+  survey%average_conductivity = local_average_cond                   
+
+end subroutine ERTCalculateAverageConductivity
 
 end module ERT_module

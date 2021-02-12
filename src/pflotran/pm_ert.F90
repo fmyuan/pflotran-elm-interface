@@ -20,6 +20,7 @@ module PM_ERT_class
     class(communicator_type), pointer :: comm1
     type(survey_type), pointer :: survey
     Vec :: rhs
+    PetscLogDouble :: cumulative_ert_time
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -61,6 +62,7 @@ function PMERTCreate()
   call PMERTInit(pm_ert)
   pm_ert%name = 'Electrical Resistivity Tomography'
   pm_ert%header = 'ERT'
+  pm_ert%cumulative_ert_time = 0.d0  
   
   PMERTCreate => pm_ert
   
@@ -286,6 +288,7 @@ subroutine PMERTSolve(this)
   use Solver_module
   use Field_module  
   use ERT_module
+  use Survey_module  
 
   implicit none
 
@@ -296,6 +299,7 @@ subroutine PMERTSolve(this)
   type(grid_type), pointer :: grid
   type(solver_type), pointer :: solver
   type(field_type), pointer :: field
+  type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
   PetscInt :: ielec,nelec
@@ -309,14 +313,16 @@ subroutine PMERTSolve(this)
 
   !PetscLogDouble :: log_start_time
   PetscLogDouble :: log_ksp_start_time
+  PetscLogDouble :: log_start_time
   PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
   KSPConvergedReason :: ksp_reason  
 
   ! Forward solve start
-  call PetscTime(log_ksp_start_time,ierr);CHKERRQ(ierr) 
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr) 
 
   solver => this%solver 
+  survey => this%survey
   realization => this%realization 
   field => realization%field  
   patch => realization%patch
@@ -332,7 +338,10 @@ subroutine PMERTSolve(this)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
   !call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)  
 
-  nelec = this%survey%num_electrode
+  ! Get Analytical potential for a half-space
+  !call ERTCalculateAnalyticPotential(realization)
+
+  nelec = survey%num_electrode
 
   do ielec=1,nelec
     
@@ -344,7 +353,7 @@ subroutine PMERTSolve(this)
     call VecGetArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)    
 
     ! Get the local-id of ielec
-    elec_id = this%survey%ipos_electrode(ielec)
+    elec_id = survey%ipos_electrode(ielec)
 
     if (elec_id > 0) then
       ! DBG
@@ -366,8 +375,8 @@ subroutine PMERTSolve(this)
     call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     
     ! store potentials for each electrode 
-    do local_id=1,grid%nlmax
-       ghosted_id = grid%nL2G(local_id)   
+    do local_id=1,grid%nlmax  
+       ghosted_id = grid%nL2G(local_id)         
        if (patch%imat(ghosted_id) <= 0) cycle
        ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)     
     enddo
@@ -381,9 +390,12 @@ subroutine PMERTSolve(this)
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
+  this%cumulative_ert_time = this%cumulative_ert_time + log_end_time - &
+                                                        log_start_time
+
   ! Assemble solutions
   call PMERTAssembleSimulatedData(this)
-  !print*,this%survey%dsim
+  !print*,survey%dsim
 
 end subroutine PMERTSolve
 
@@ -461,6 +473,10 @@ subroutine PMERTAssembleSimulatedData(this)
 
   enddo
 
+  ! write simuated data in a .srv file
+  if (this%option%myrank == this%option%io_rank) &
+                                 call SurveyWriteERT(this%survey) 
+
 end subroutine PMERTAssembleSimulatedData
 
 ! ************************************************************************** !
@@ -498,8 +514,11 @@ recursive subroutine PMERTFinalizeRun(this)
   
   class(pm_ert_type) :: this
   
-  ! do something here
-  
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'(/," ERT Time: ", es12.4, " [sec]")') &
+            this%cumulative_ert_time 
+  endif  
+ 
   if (associated(this%next)) then
     call this%next%FinalizeRun()
   endif  
