@@ -176,6 +176,7 @@ module Reaction_Aux_module
     PetscBool :: initialize_with_molality
     PetscBool :: print_age
     PetscBool :: print_auxiliary
+    PetscBool :: print_verbose_constraints
     PetscBool :: use_geothermal_hpt
     PetscInt :: print_free_conc_type
     PetscInt :: print_tot_conc_type
@@ -469,6 +470,7 @@ function ReactionCreate()
   reaction%calculate_water_age = PETSC_FALSE
   reaction%print_age = PETSC_FALSE
   reaction%print_auxiliary = PETSC_FALSE
+  reaction%print_verbose_constraints = PETSC_FALSE
   reaction%print_total_component = PETSC_FALSE
   reaction%print_free_ion = PETSC_FALSE
   reaction%print_total_bulk = PETSC_FALSE
