@@ -473,9 +473,8 @@ subroutine PMERTAssembleSimulatedData(this)
 
   enddo
 
-  ! write simuated data in a .srv file
-  if (this%option%myrank == this%option%io_rank) &
-                                 call SurveyWriteERT(this%survey) 
+  ! write simuated data in a E4D .srv file
+  if (option%myrank == option%io_rank) call SurveyWriteERT(this%survey) 
 
 end subroutine PMERTAssembleSimulatedData
 

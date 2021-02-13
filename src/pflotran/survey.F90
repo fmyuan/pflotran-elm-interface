@@ -290,8 +290,10 @@ subroutine SurveyWriteERT(survey)
 
   iprefix = index(survey%filename,".") - 1
   filename = survey%filename(1:iprefix)//"-simulated.srv"
+  
   fid = IUNIT_TEMP
   open(fid,file=filename,status='replace',action='write')
+  
   write(string,*) survey%num_electrode
   write(fid,'(a)',advance='no') trim(adjustl(string))
   write(fid,'(15x,a)',advance="yes") "number of electrodes"
