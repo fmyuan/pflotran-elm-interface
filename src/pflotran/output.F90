@@ -618,6 +618,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable
   PetscInt :: temp_int, id, category, subvar, subsubvar
+  PetscInt :: icount
 
   call InputPushBlock(input,option)
   do
@@ -899,12 +900,28 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 0 ! double
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         call OutputVariableAddToList(output_variable_list,output_variable)
-      case('ELECTRICAL_CONDUCTIVITY')
-        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
-                               option)  
-        output_variable => OutputVariableCreate(name,category,units,id)
-        output_variable%iformat = 0 ! double
-        call OutputVariableAddToList(output_variable_list,output_variable)
+      case('ELECTRICAL_POTENTIAL')
+        icount = 0
+        do
+          call InputReadInt(input,option,temp_int)
+          ! if no electrode id is present, the single electrode id is set to 1
+          if (input%ierr == 0 .or. icount == 0) then
+            icount = icount + 1
+            if (input%ierr /= 0) temp_int = 1
+            call OutputVariableToID(word,name,units,category,id, &
+                                    subvar,subsubvar,option)
+            name = trim(name) // '_' // adjustl(StringWrite(temp_int))
+            subvar = temp_int
+            call OutputVariableAddToList(output_variable_list,name, &
+                                       category,units,id,subvar)
+          else
+            exit
+          endif
+        enddo
+! IMPORANT
+! Developers: Before you add a new case statement, does the new
+! have non-default values (see OutputVariableInit). If no, do
+! not add a new case statement as "case default" will work.
       case default
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)

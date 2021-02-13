@@ -56,8 +56,8 @@ function SurveyCreate()
 
   survey%name = ''
   survey%filename = ''  
-  survey%num_electrode = 0
-  survey%num_measurement = 0
+  survey%num_electrode = UNINITIALIZED_INTEGER
+  survey%num_measurement = UNINITIALIZED_INTEGER
   survey%apparent_conductivity = UNINITIALIZED_DOUBLE
   survey%average_conductivity = UNINITIALIZED_DOUBLE
 
@@ -142,6 +142,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
   !
 
   use Option_module
+  use Option_Geophysics_module
   use Input_Aux_module
   use Grid_module
   use String_module 
@@ -163,6 +164,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
   call InputReadPflotranString(input,option)
   call InputReadInt(input,option,survey%num_electrode)
   call InputErrorMsg(input,option,'num_electrode',error_string)
+  option%geophysics%num_electrodes = survey%num_electrode
 
   allocate(survey%pos_electrode(THREE_INTEGER,survey%num_electrode))
   survey%pos_electrode = 0.d0
