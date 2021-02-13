@@ -139,8 +139,8 @@ factory_subsurface.o : characteristic_curves.o characteristic_curves_thermal.o \
                        general.o general_aux.o global.o grid.o \
                        grid_structured.o grid_unstructured_aux.o hdf5_aux.o \
                        init_common.o init_subsurface.o init_subsurface_flow.o \
-                       init_subsurface_geophysics.o init_subsurface_transport.o \
-		       input_aux.o integral_flux.o \
+                       init_subsurface_geophysics.o \
+                       init_subsurface_transport.o input_aux.o integral_flux.o \
                        logging.o material.o nw_transport.o nw_transport_aux.o \
                        observation.o option.o output.o output_aux.o \
                        output_tecplot.o patch.o pflotran_constants.o \
@@ -311,7 +311,7 @@ init_subsurface_flow.o : co2_sw.o condition_control.o discretization.o field.o \
                          pm_richards_ts.o pm_th_ts.o realization_subsurface.o \
                          richards.o simulation_subsurface.o th.o wipp_flow.o
 init_subsurface_geophysics.o : ert.o option.o pflotran_constants.o \
-                               realization_subsurface.o			 
+                               realization_subsurface.o
 init_subsurface_transport.o : condition_control.o global.o nw_transport.o \
                               option.o pflotran_constants.o \
                               reactive_transport.o realization_subsurface.o \
