@@ -78,7 +78,6 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   type(option_type), pointer :: option
   
   character(len=MAXSTRINGLENGTH) :: filename
-  PetscBool :: flag
   PetscErrorCode :: ierr
 
   call MultiSimulationIncrement(multisimulation,option)
@@ -110,37 +109,6 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   ! new stages, which is necessary for multisimulation
   call LoggingSetupComplete()
 
-  ! adding error message if binary checkpoint/restart is used in
-  ! combination with unstructured gridding
-  flag = PETSC_FALSE
-  if (associated(simulation%checkpoint_option)) then
-    if (simulation%checkpoint_option%format == CHECKPOINT_BINARY) then
-      flag = PETSC_TRUE
-    endif
-  endif
-  if (index(option%restart_filename,'.chk') > 0) then
-    flag = PETSC_TRUE
-  endif
-  if (flag) then
-    flag = PETSC_FALSE
-    select type(s=>simulation)
-      class is(simulation_subsurface_type) 
-        ! also covers simulation_geomechanics_type
-        if (s%realization%patch%grid%itype /= STRUCTURED_GRID) then
-          flag = PETSC_TRUE
-        endif
-      class default
-        option%io_buffer = 'Unknown simulation class in &
-          &PFLOTRANInitializePostPetsc'
-        call PrintErrMsg(option)
-    end select
-    if (flag) then
-        option%io_buffer = 'Binary Checkpoint/Restart (.chk format) is not &
-          &supported for unstructured grids.  Please use HDF5 (.h5 format).'
-        call PrintErrMsg(option)
-    endif
-  endif
-
 end subroutine PFLOTRANInitializePostPetsc
 
 ! ************************************************************************** !
@@ -159,8 +127,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Simulation_Subsurface_class
   use Simulation_Geomechanics_class
   use PM_Base_class
-  use PM_Geomechanics_Force_class
-  use PM_Auxiliary_class
   use PMC_Base_class
   use Checkpoint_module
   use Output_Aux_module
@@ -179,25 +145,20 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: pm_name
   character(len=MAXWORDLENGTH) :: simulation_type
   character(len=MAXWORDLENGTH) :: internal_units  
   
   class(pm_base_type), pointer :: pm_master
   class(pm_base_type), pointer :: cur_pm
-  class(pm_base_type), pointer :: new_pm
   type(checkpoint_option_type), pointer :: checkpoint_option
   type(waypoint_list_type), pointer :: checkpoint_waypoint_list
 
   class(pmc_base_type), pointer :: pmc_master
   
   PetscBool :: print_ekg
-  PetscBool :: realization_dependent_restart
-  PetscInt :: i
   
   nullify(pm_master)
   nullify(cur_pm)
-  nullify(new_pm)
   
   nullify(pmc_master)
   nullify(checkpoint_option)
@@ -225,89 +186,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           call InputErrorMsg(input,option,'simulation_type', &
                              'SIMULATION')
       case('PROCESS_MODELS')
-        call InputPushBlock(input,option)
-        do
-          call InputReadPflotranString(input,option)
-          if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'process_model', &
-                             'SIMULATION,PROCESS_MODELS')
-          call InputReadWord(input,option,pm_name,PETSC_TRUE)
-          if (InputError(input)) then
-            input%err_buf = 'Process Model Name'
-            call InputDefaultMsg(input,option)
-            pm_name = ''
-          endif
-          call StringToUpper(word)
-          select case(trim(word))
-            case('SUBSURFACE_FLOW')
-              call SubsurfaceReadFlowPM(input,option,new_pm)
-            case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadTransportPM(input,option,new_pm)
-            case('NUCLEAR_WASTE_TRANSPORT')
-              if (OptionPrintToScreen(option)) then
-                print *
-                print *, 'SIMULATION'
-                print *, '  SIMULATION_TYPE SUBSURFACE'
-                print *, '  PROCESS_MODELS'
-                print *, '    SUBSURFACE_TRANSPORT'
-                print *, '      MODE NWT'
-                print *, '      OPTIONS'
-                print *, '      /'
-                print *, '    /'
-                print *, '  /'
-                print *, 'END'
-                print *
-              endif
-              option%io_buffer = "PFLOTRAN's NUCLEAR_WASTE_TRANSPORT &
-                &process model has been refactored to use the &
-                &combination of the SUBSURFACE_TRANSPORT and 'MODE &
-                &NWT' keywords and an (optional) OPTIONS block. &
-                &Please use the keywords above in reformatting the &
-                &SIMULATION block."
-              call PrintErrMsg(option)
-            case('WASTE_FORM')
-              call SubsurfaceReadWasteFormPM(input,option,new_pm)
-            case('UFD_DECAY')
-              call SubsurfaceReadUFDDecayPM(input,option,new_pm)
-            case('UFD_BIOSPHERE')
-              call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
-            case('WIPP_SOURCE_SINK')
-              option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
-                &unless you are running in WIPP_FLOW mode and intend to &
-                &include gas generation.'
-              call PrintErrMsg(option)
-            case('GEOMECHANICS_SUBSURFACE')
-              option%geomech_on = PETSC_TRUE
-              new_pm => PMGeomechForceCreate()
-            case('AUXILIARY')
-              if (len_trim(pm_name) < 1) then
-                option%io_buffer = 'AUXILIARY process models must have a name.'
-                call PrintErrMsg(option)
-              endif
-              new_pm => PMAuxiliaryCreate()
-              input%buf = pm_name
-              call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
-            case default
-              call InputKeywordUnrecognized(input,word, &
-                     'SIMULATION,PROCESS_MODELS',option)            
-          end select
-          if (.not.associated(new_pm%option)) new_pm%option => option
-          if (len_trim(pm_name) > 0) then
-            new_pm%name = pm_name
-          endif
-          if (associated(cur_pm)) then
-            cur_pm%next => new_pm
-          else
-            cur_pm => new_pm
-          endif
-          if (.not.associated(pm_master)) then
-            pm_master => new_pm
-          endif
-          cur_pm => new_pm
-          nullify(new_pm)
-        enddo
-        call InputPopBlock(input,option)
+        call PFLOTRANReadSimProcessModels(input,pm_master,option)
       case('MASTER')
         call PFLOTRANSetupPMCHierarchy(input,option,pmc_master)
       case('PRINT_EKG')
@@ -318,56 +197,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         call CheckpointRead(input,option,checkpoint_option, &
                             checkpoint_waypoint_list)
       case ('RESTART')
-        option%restart_flag = PETSC_TRUE
-        realization_dependent_restart = PETSC_FALSE
-        ! this section preserves the legacy implementation
-        call InputReadFilename(input,option,option%restart_filename)
-        if (input%ierr == 0) then
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          if (input%ierr == 0) then
-            option%restart_time = 0.d0
-          endif 
-          cycle
-          ! end legacy implementation
-        endif 
-        input%ierr = 0
-        call InputPushBlock(input,option)
-        do
-          call InputReadPflotranString(input,option)
-          if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word)
-          call StringToUpper(word)
-          select case(word)
-            case('FILENAME')
-              call InputReadFilename(input,option,option%restart_filename)
-              call InputErrorMsg(input,option,'RESTART','filename') 
-            case('RESET_TO_TIME_ZERO')
-              ! any value but UNINITIALIZED_DOUBLE will set back to zero.
-              option%restart_time = 0.d0 
-            case('REALIZATION_DEPENDENT')
-              realization_dependent_restart = PETSC_TRUE
-            case default
-              call InputKeywordUnrecognized(input,word, &
-                                            'SIMULATION,RESTART',option)
-          end select
-        enddo
-        call InputPopBlock(input,option)
-        if (realization_dependent_restart) then
-          ! insert realization id
-          i = index(option%restart_filename,'-restart')
-          if (i > 0) then
-            string = option%restart_filename(1:i-1) // &
-                     trim(option%group_prefix) // &
-                   option%restart_filename(i:len_trim(option%restart_filename))
-          else
-            option%io_buffer = 'Realization-dependent restart requires that &
-              &"-restart" be present in the restart file name so that the &
-              &realization id can be inserted prior to -restart.  E.g. &
-              &pflotran-restart.h5 -> pflotranR1-restart.h5'
-            call PrintErrMsg(option)
-          endif
-          option%restart_filename = trim(string)
-        endif
+        call PFLOTRANReadRestart(input,option)
       case('INPUT_RECORD_FILE')
         option%input_record = PETSC_TRUE
         call OpenAndWriteInputRecord(option)
@@ -395,7 +225,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   ! create the simulation objects
   select case(simulation_type)
     case('SUBSURFACE')
-      simulation => SubsurfaceSimulationCreate(option)
+      simulation => SimSubsurfCreate(option)
     case('GEOMECHANICS_SUBSURFACE')
       simulation => GeomechanicsSimulationCreate(option)
     case default
@@ -419,6 +249,202 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   end select
   
 end subroutine PFLOTRANReadSimulation
+
+! ************************************************************************** !
+
+subroutine PFLOTRANReadSimProcessModels(input,pm_master,option)
+!
+! Reads in the process models listed in simulation block
+!
+! Author: Glenn Hammond
+! Date: 02/05/21
+!
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  
+  use PM_Base_class
+  use PM_Geomechanics_Force_class
+  use PM_Auxiliary_class
+
+  use Factory_Subsurface_module
+  use Factory_Geomechanics_module
+  
+  implicit none
+
+  class(pm_base_type), pointer :: pm_master  
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: pm_name
+  class(pm_base_type), pointer :: cur_pm
+  class(pm_base_type), pointer :: new_pm
+  
+  nullify(cur_pm)
+  nullify(new_pm)
+  
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'process_model', &
+                       'SIMULATION,PROCESS_MODELS')
+    call InputReadWord(input,option,pm_name,PETSC_TRUE)
+    if (InputError(input)) then
+      input%err_buf = 'Process Model Name'
+      call InputDefaultMsg(input,option)
+      pm_name = ''
+    endif
+    call StringToUpper(word)
+    select case(trim(word))
+      case('SUBSURFACE_FLOW')
+        call SubsurfaceReadFlowPM(input,option,new_pm)
+      case('SUBSURFACE_TRANSPORT')
+        call SubsurfaceReadTransportPM(input,option,new_pm)
+      case('NUCLEAR_WASTE_TRANSPORT')
+        if (OptionPrintToScreen(option)) then
+          print *
+          print *, 'SIMULATION'
+          print *, '  SIMULATION_TYPE SUBSURFACE'
+          print *, '  PROCESS_MODELS'
+          print *, '    SUBSURFACE_TRANSPORT'
+          print *, '      MODE NWT'
+          print *, '      OPTIONS'
+          print *, '      /'
+          print *, '    /'
+          print *, '  /'
+          print *, 'END'
+          print *
+        endif
+        option%io_buffer = "PFLOTRAN's NUCLEAR_WASTE_TRANSPORT &
+          &process model has been refactored to use the &
+          &combination of the SUBSURFACE_TRANSPORT and 'MODE &
+          &NWT' keywords and an (optional) OPTIONS block. &
+          &Please use the keywords above in reformatting the &
+          &SIMULATION block."
+        call PrintErrMsg(option)
+      case('WASTE_FORM')
+        call SubsurfaceReadWasteFormPM(input,option,new_pm)
+      case('UFD_DECAY')
+        call SubsurfaceReadUFDDecayPM(input,option,new_pm)
+      case('UFD_BIOSPHERE')
+        call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
+      case('WIPP_SOURCE_SINK')
+        option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
+          &unless you are running in WIPP_FLOW mode and intend to &
+          &include gas generation.'
+        call PrintErrMsg(option)
+      case('GEOMECHANICS_SUBSURFACE')
+        option%geomech_on = PETSC_TRUE
+        new_pm => PMGeomechForceCreate()
+      case('AUXILIARY')
+        if (len_trim(pm_name) < 1) then
+          option%io_buffer = 'AUXILIARY process models must have a name.'
+          call PrintErrMsg(option)
+        endif
+        new_pm => PMAuxiliaryCreate()
+        input%buf = pm_name
+        call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
+      case default
+        call InputKeywordUnrecognized(input,word, &
+               'SIMULATION,PROCESS_MODELS',option)            
+    end select
+    if (.not.associated(new_pm%option)) new_pm%option => option
+    if (len_trim(pm_name) > 0) then
+      new_pm%name = pm_name
+    endif
+    if (associated(cur_pm)) then
+      cur_pm%next => new_pm
+    else
+      cur_pm => new_pm
+    endif
+    if (.not.associated(pm_master)) then
+      pm_master => new_pm
+    endif
+    cur_pm => new_pm
+    nullify(new_pm)
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine PFLOTRANReadSimProcessModels
+
+! ************************************************************************** !
+
+subroutine PFLOTRANReadRestart(input,option)
+!
+! Read the restart block within the simulation block
+! Author: Glenn Hammond
+! Date: 02/05/21
+!
+  use Option_module
+  use Input_Aux_module
+  use PMC_Base_class
+  use String_module
+  
+  implicit none
+  
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word
+  PetscBool :: realization_dependent_restart
+  PetscInt :: i
+  
+  option%restart_flag = PETSC_TRUE
+  realization_dependent_restart = PETSC_FALSE
+  ! this section preserves the legacy implementation
+  call InputReadFilename(input,option,option%restart_filename)
+  if (input%ierr == 0) then
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    if (input%ierr == 0) then
+      option%restart_time = 0.d0
+    endif 
+    return
+    ! end legacy implementation
+  endif 
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word)
+    call StringToUpper(word)
+    select case(word)
+      case('FILENAME')
+        call InputReadFilename(input,option,option%restart_filename)
+        call InputErrorMsg(input,option,'RESTART','filename') 
+      case('RESET_TO_TIME_ZERO')
+        ! any value but UNINITIALIZED_DOUBLE will set back to zero.
+        option%restart_time = 0.d0 
+      case('REALIZATION_DEPENDENT')
+        realization_dependent_restart = PETSC_TRUE
+      case default
+        call InputKeywordUnrecognized(input,word, &
+                                      'SIMULATION,RESTART',option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+  if (realization_dependent_restart) then
+    ! insert realization id
+    i = index(option%restart_filename,'-restart')
+    if (i > 0) then
+      string = option%restart_filename(1:i-1) // &
+               trim(option%group_prefix) // &
+             option%restart_filename(i:len_trim(option%restart_filename))
+    else
+      option%io_buffer = 'Realization-dependent restart requires that &
+        &"-restart" be present in the restart file name so that the &
+        &realization id can be inserted prior to -restart.  E.g. &
+        &pflotran-restart.h5 -> pflotranR1-restart.h5'
+      call PrintErrMsg(option)
+    endif
+    option%restart_filename = trim(string)
+  endif
+
+end subroutine PFLOTRANReadRestart
 
 ! ************************************************************************** !
 

@@ -84,7 +84,7 @@ subroutine GeomechanicsSimulationInit(this, option)
   class(simulation_geomechanics_type) :: this
   type(option_type), pointer :: option
 
-  call SubsurfaceSimulationInit(this, option)
+  call SimSubsurfInit(this, option)
   nullify(this%geomech_realization)
   nullify(this%geomech_regression)
   this%waypoint_list_geomechanics => WaypointListCreate()
@@ -223,7 +223,7 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
 
   call PrintMsg(this%option,'GeomechanicsSimulationFinalizeRun')
 
-  call SubsurfaceFinalizeRun(this)
+  call SimSubsurfFinalizeRun(this)
   !call GeomechanicsFinalizeRun(this)
   nullify(geomech_timestepper)
   if (associated(this%geomech_process_model_coupler)) then
@@ -259,7 +259,7 @@ subroutine GeomechanicsSimulationStrip(this)
   
   call PrintMsg(this%option,'GeomechanicsSimulationStrip()')
   
-  call SubsurfaceSimulationStrip(this)
+  call SimSubsurfStrip(this)
   call GeomechanicsRegressionDestroy(this%geomech_regression)
   call WaypointListDestroy(this%waypoint_list_subsurface)
   call WaypointListDestroy(this%waypoint_list_geomechanics)

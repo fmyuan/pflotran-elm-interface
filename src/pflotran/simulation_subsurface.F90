@@ -27,26 +27,27 @@ module Simulation_Subsurface_class
     type(regression_type), pointer :: regression
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
   contains
-    procedure, public :: Init => SubsurfaceSimulationInit
-    procedure, public :: JumpStart => SubsurfaceSimulationJumpStart
-    procedure, public :: InputRecord => SubsurfaceSimInputRecord
+    procedure, public :: Init => SimSubsurfInit
+    procedure, public :: JumpStart => SimSubsurfJumpStart
+    procedure, public :: InitializeRun => SimSubsurfInitializeRun
+    procedure, public :: InputRecord => SimSubsurfInputRecord
 !    procedure, public :: ExecuteRun
 !    procedure, public :: RunToTime
-    procedure, public :: FinalizeRun => SubsurfaceFinalizeRun
-    procedure, public :: Strip => SubsurfaceSimulationStrip
+    procedure, public :: FinalizeRun => SimSubsurfFinalizeRun
+    procedure, public :: Strip => SimSubsurfStrip
   end type simulation_subsurface_type
   
-  public :: SubsurfaceSimulationCreate, &
-            SubsurfaceSimulationInit, &
-            SubsurfaceFinalizeRun, &
-            SubsurfaceSimulationStrip, &
-            SubsurfaceSimulationDestroy
+  public :: SimSubsurfCreate, &
+            SimSubsurfInit, &
+            SimSubsurfFinalizeRun, &
+            SimSubsurfStrip, &
+            SimSubsurfDestroy
   
 contains
 
 ! ************************************************************************** !
 
-function SubsurfaceSimulationCreate(option)
+function SimSubsurfCreate(option)
   ! 
   ! Allocates and initializes a new simulation object
   ! 
@@ -60,20 +61,20 @@ function SubsurfaceSimulationCreate(option)
   
   type(option_type), pointer :: option
 
-  class(simulation_subsurface_type), pointer :: SubsurfaceSimulationCreate
+  class(simulation_subsurface_type), pointer :: SimSubsurfCreate
   
 #ifdef DEBUG
-  print *, 'SimulationCreate'
+  print *, 'SimSubsurfCreate'
 #endif
   
-  allocate(SubsurfaceSimulationCreate)
-  call SubsurfaceSimulationCreate%Init(option)
+  allocate(SimSubsurfCreate)
+  call SimSubsurfCreate%Init(option)
   
-end function SubsurfaceSimulationCreate
+end function SimSubsurfCreate
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceSimulationInit(this,option)
+subroutine SimSubsurfInit(this,option)
   ! 
   ! Initializes simulation values
   ! 
@@ -95,11 +96,74 @@ subroutine SubsurfaceSimulationInit(this,option)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()
   
-end subroutine SubsurfaceSimulationInit
+end subroutine SimSubsurfInit
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceSimInputRecord(this)
+subroutine SimSubsurfInitializeRun(this)
+  ! 
+  ! Initializes simulation
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/15/21
+  ! 
+
+  use Logging_module
+  use Option_module
+  use Output_Aux_module
+  use hdf5
+
+  implicit none
+  
+
+  class(simulation_subsurface_type) :: this
+
+  PetscBool :: flag
+  PetscErrorCode :: ierr
+  
+#ifdef DEBUG
+  call PrintMsg(this%option,'SimSubsurfInitializeRun()')
+#endif
+  
+  ! print error message if binary checkpoint/restart is used in
+  ! combination with unstructured gridding
+  flag = PETSC_FALSE
+  if (associated(this%checkpoint_option)) then
+    if (this%checkpoint_option%format == CHECKPOINT_BINARY) then
+      flag = PETSC_TRUE
+    endif
+  endif
+  if (index(this%option%restart_filename,'.chk') > 0) then
+    flag = PETSC_TRUE
+  endif
+  if (flag) then
+    flag = PETSC_FALSE
+    select type(s=>this)
+      class is(simulation_subsurface_type) 
+        ! also covers simulation_geomechanics_type
+        if (s%realization%patch%grid%itype /= STRUCTURED_GRID) then
+          flag = PETSC_TRUE
+        endif
+      class default
+        this%option%io_buffer = 'Unknown simulation class in &
+          &SimSubsurfInitializeRun'
+        call PrintErrMsg(this%option)
+    end select
+    if (flag) then
+        this%option%io_buffer = 'Binary Checkpoint/Restart (.chk format) &
+          &is not supported for unstructured grids.  Please use HDF5 &
+          &(.h5 format).'
+        call PrintErrMsg(this%option)
+    endif
+  endif
+
+  call SimulationBaseInitializeRun(this)
+  
+end subroutine SimSubsurfInitializeRun
+
+! ************************************************************************** !
+
+subroutine SimSubsurfInputRecord(this)
   ! 
   ! Writes ingested information to the input record file.
   ! 
@@ -196,11 +260,11 @@ subroutine SubsurfaceSimInputRecord(this)
   ! print equation of state (eos) information
   call EOSInputRecord()
 
-end subroutine SubsurfaceSimInputRecord
+end subroutine SimSubsurfInputRecord
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceSimulationJumpStart(this)
+subroutine SimSubsurfJumpStart(this)
   ! 
   ! Initializes simulation
   ! 
@@ -225,7 +289,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   
 #ifdef DEBUG
-  call PrintMsg(this%option,'SubsurfaceSimulationJumpStart()')
+  call PrintMsg(this%option,'SimSubsurfJumpStart()')
 #endif
 
   nullify(master_timestepper)
@@ -338,11 +402,11 @@ subroutine SubsurfaceSimulationJumpStart(this)
     endif
   endif  
 
-end subroutine SubsurfaceSimulationJumpStart
+end subroutine SimSubsurfJumpStart
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceFinalizeRun(this)
+subroutine SimSubsurfFinalizeRun(this)
   ! 
   ! Finalizes simulation
   ! 
@@ -367,7 +431,7 @@ subroutine SubsurfaceFinalizeRun(this)
   class(timestepper_base_type), pointer :: tran_timestepper
 
 #ifdef DEBUG
-  call PrintMsg(this%option,'SubsurfaceFinalizeRun()')
+  call PrintMsg(this%option,'SimSubsurfFinalizeRun()')
 #endif
   
   call SimulationBaseFinalizeRun(this)
@@ -394,11 +458,11 @@ subroutine SubsurfaceFinalizeRun(this)
                             flow_timestepper,tran_timestepper)
   end select
   
-end subroutine SubsurfaceFinalizeRun
+end subroutine SimSubsurfFinalizeRun
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceSimulationStrip(this)
+subroutine SimSubsurfStrip(this)
   ! 
   ! Deallocates members of subsurface simulation
   ! 
@@ -411,7 +475,7 @@ subroutine SubsurfaceSimulationStrip(this)
   class(simulation_subsurface_type) :: this
   
 #ifdef DEBUG
-  call PrintMsg(this%option,'SubsurfaceSimulationStrip()')
+  call PrintMsg(this%option,'SimSubsurfStrip()')
 #endif
   
   call SimulationBaseStrip(this)
@@ -421,11 +485,11 @@ subroutine SubsurfaceSimulationStrip(this)
   call RegressionDestroy(this%regression)
   call WaypointListDestroy(this%waypoint_list_subsurface)
   
-end subroutine SubsurfaceSimulationStrip
+end subroutine SimSubsurfStrip
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceSimulationDestroy(simulation)
+subroutine SimSubsurfDestroy(simulation)
   ! 
   ! Deallocates a simulation
   ! 
@@ -447,6 +511,6 @@ subroutine SubsurfaceSimulationDestroy(simulation)
   deallocate(simulation)
   nullify(simulation)
   
-end subroutine SubsurfaceSimulationDestroy
+end subroutine SimSubsurfDestroy
   
 end module Simulation_Subsurface_class
