@@ -68,11 +68,11 @@ pflotran:
     # copy regression results from image by launching container, copying
     # and destorying the container
     - id=$(docker create $NEW_IMAGE)
-    - docker cp $id:/scratch/regression_tests .
+    - docker cp $id:/tmp/test-pflotran .
     - docker rm -v $id
   artifacts:
     paths:
-      - regression_tests
+      - test-pflotran
 
 pflotran-interface:
   stage: pflotran-interface
@@ -90,11 +90,11 @@ pflotran-interface:
       .
     # DO NOT PUSH THE NEW IMAGE
     - id=$(docker create $NEW_IMAGE)
-    - docker cp $id:/tmp/regression_tests .
+    - docker cp $id:/tmp/test-pflotran-interface .
     - docker rm -v $id
   artifacts:
     paths:
-      - regression_tests
+      - test-pflotran-interface
 
 success:
   stage: final-status
