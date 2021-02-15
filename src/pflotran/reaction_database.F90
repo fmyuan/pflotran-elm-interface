@@ -3589,7 +3589,6 @@ subroutine BasisInit(reaction,option)
       cur_kd_rxn => cur_kd_rxn%next
       
       if (option%use_mc) then
-!        reaction%eqisothermtype(irxn) = sec_cont_cur_kd_rxn%itype
         reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient(irxn) = sec_cont_cur_kd_rxn%Kd
         reaction%multicontinuum_isotherm_rxn%eqisothermlangmuirb(irxn) = sec_cont_cur_kd_rxn%Langmuir_b
         reaction%multicontinuum_isotherm_rxn%eqisothermfreundlichn(irxn) = &

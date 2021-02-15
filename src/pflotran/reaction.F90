@@ -775,40 +775,60 @@ subroutine ReactionReadPass1(reaction,input,option)
                 call InputPopBlock(input,option)
 
                 if (len_trim(kd_units) > 0) then
-                   !                 if (len_trim(kd_rxn%kd_mineral_name) > 0) then
                     ierr = 1
                     internal_units = 'kg/m^3'
                     kd_rxn%Kd = kd_rxn%Kd * &
                          UnitsConvertToInternal(kd_units,internal_units,option,ierr)
-                    
-                    !                 else
                     if (ierr < 0) then
-                    ierr = 2
-                    internal_units = 'L/kg'
-                    kd_rxn%Kd = kd_rxn%Kd * &
-                         UnitsConvertToInternal(kd_units,internal_units,option,ierr)
-                    reaction%kd_unit = 1
+                      ierr = 1
+                      internal_units = 'L/kg'
+                      kd_rxn%Kd = kd_rxn%Kd * &
+                         UnitsConvertToInternal(kd_units,internal_units,option,ierr)                     
+                    else
+                      if (len_trim(multi_kd_units) < 0) then
+                        option%io_buffer = 'KD UNITS MUST MATCH BETWEEN PRIMARY ' // &
+                                           'AND SECONDARY CONTINUUM'
+                        call PrintErrMsg(option)
+                      else                    
+                        reaction%kd_unit = KD_UNIT_MLW_GSOIL
+                      endif
                     endif
                     if (ierr < 0) then
+                       option%io_buffer = 'Unrecognized kd_units: ' // trim(multi_kd_units)
                        call PrintErrMsg(option)
+                    else
+                       reaction%kd_unit = KD_UNIT_KG_M3_BULK
                     endif
                  endif
 
                  if (len_trim(multi_kd_units) > 0) then
-                   !                 if (len_trim(kd_rxn%kd_mineral_name) > 0) then
                     ierr = 1
                     internal_units = 'L/kg'
                     sec_cont_kd_rxn%Kd = sec_cont_kd_rxn%Kd * &
                       UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
-                    !                 else
                     if (ierr < 0) then
-                    ierr = 2
-                    internal_units = 'kg/m^3'
-                    sec_cont_kd_rxn%Kd = sec_cont_kd_rxn%Kd * &
-                         UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
+                      ierr = 1
+                      internal_units = 'kg/m^3'
+                      sec_cont_kd_rxn%Kd = sec_cont_kd_rxn%Kd * &
+                           UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
+                    else
+                      if (reaction%kd_unit < 1) then
+                        option%io_buffer = 'KD UNITS MUST MATCH BETWEEN PRIMARY ' // &
+                                           'AND SECONDARY CONTINUUM'
+                        call PrintErrMsg(option)
+                      endif
                     endif
                     if (ierr < 0) then
+                       option%io_buffer = 'Unrecognized KD Units: ' // trim(multi_kd_units)
                        call PrintErrMsg(option)
+                    else
+                       if (reaction%kd_unit > 0) then
+                         option%io_buffer = 'KD UNITS MUST MATCH BETWEEN PRIMARY ' // &
+                                            'AND SECONDARY CONTINUUM'
+                         call PrintErrMsg(option)
+                       else
+                         reaction%kd_unit = KD_UNIT_KG_M3_BULK
+                       endif
                     endif
                 endif
 
@@ -4658,32 +4678,22 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   do irxn = 1, reaction%neqkdrxn
     icomp = reaction%eqkdspecid(irxn)
     molality = rt_auxvar%pri_molal(icomp)
-!    if (reaction%eqkdmineral(irxn) > 0) then
-       if (reaction%kd_unit == 1) then
-          if (associated(rt_auxvar%mnrl_volfrac)) then
-      ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
-      ! nothing to do with the soil volume; that is calculated through as a 
-      ! function of porosity.
+    if (reaction%kd_unit == KD_UNIT_MLW_GSOIL) then
       kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * & !KD units [mL water/g soil]
                    global_auxvar%den_kg(iphase) * &
                    (1.d0-material_auxvar%porosity) * &
                    material_auxvar%soil_particle_density * &
-                   1.d-3 * & ! convert mL water/g soil to m^3 water/kg soil
+                   1.d-3 ! convert mL water/g soil to m^3 water/kg soil
+
+    else
+      kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn)              
+    endif
+    if (reaction%eqkdmineral(irxn) > 0) then
+      ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
+      ! nothing to do with the soil volume; that is calculated through as a 
+      ! function of porosity.
+      kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * &
                    (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
-           else
-             kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * & !KD units [mL water/g soil]
-                   global_auxvar%den_kg(iphase) * &
-                   (1.d0-material_auxvar%porosity) * &
-                   material_auxvar%soil_particle_density * &
-                   1.d-3 
-           endif
-      else
-           if (associated(rt_auxvar%mnrl_volfrac)) then
-              kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * &
-                   (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
-           else
-              kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn)
-           endif
     endif
     select case(reaction%eqisothermtype(irxn))
       case(SORPTION_LINEAR)

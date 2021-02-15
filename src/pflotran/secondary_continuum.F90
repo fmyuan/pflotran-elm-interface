@@ -897,9 +897,6 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         ! Accumulation
         do i = 1, ngcells 
           coeff_diag(j,k,i) = coeff_diag(j,k,i) + pordt*vol(i)
-!          if (reaction%neqsorb > 0) then
-!            coeff_diag(j,k,i) = coeff_diag(j,k,i) + vol(i)/option%tran_dt*(dtotal_sorb_upd(j,k,i))
-!          endif
         enddo
   
         ! Flux terms
@@ -982,8 +979,6 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 !====================== Add reaction contributions =============================        
   
   ! Reaction 
-!  allocate(material_auxvar)
-!  call MaterialAuxVarInit(material_auxvar,option)
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
@@ -991,7 +986,6 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
-!    material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_TRUE, &
                    rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
@@ -1742,8 +1736,6 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
 !====================== Add reaction contributions =============================        
   
   ! Reaction 
-!  allocate(material_auxvar)
-!  call MaterialAuxVarInit(material_auxvar,option)
   do i = 1, ngcells
     res_react = 0.d0
     jac_react = 0.d0
@@ -1751,7 +1743,6 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
                       option)
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
-!    material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
                    rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
@@ -2196,85 +2187,11 @@ subroutine SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,
   call RZeroSorb(rt_auxvar)
   
   if (reaction%neqkdrxn > 0) then
- !   call SecondaryRTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
-     !                              reaction,option)
      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
                                    reaction,reaction%multicontinuum_isotherm_rxn,option)
   endif
   
 end subroutine SecondaryRTotalSorb
-
-! ************************************************************************** !
-
-subroutine SecondaryRTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                        option)
-  ! 
-  ! Computes the total sorbed component concentrations and
-  ! derivative with respect to free-ion for the linear
-  ! K_D model
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 02/20/2014
-  ! 
-
-  use Option_module
-  use Reaction_Aux_module
-  use Reaction_module
-  use Reactive_Transport_Aux_module
-  use Material_Aux_class
-  use Global_Aux_module
-
-  implicit none
-
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  class(reaction_rt_type) :: reaction
-  type(option_type) :: option
-  
-  PetscInt :: irxn
-  PetscInt :: icomp
-  PetscReal :: res
-  PetscReal :: dres_dc
-  PetscReal :: activity
-  PetscReal :: molality
-  PetscReal :: tempreal
-  PetscReal :: one_over_n
-  PetscReal :: activity_one_over_n
-
-  ! Surface Complexation
-  do irxn = 1, reaction%neqkdrxn
-    icomp = reaction%eqkdspecid(irxn)
-    molality = rt_auxvar%pri_molal(icomp)
-    activity = molality*rt_auxvar%pri_act_coef(icomp) ! Activity coefficient needs?
-    select case(reaction%eqisothermtype(irxn))
-      case(SORPTION_LINEAR)
-        ! Csorb = Kd*Caq
-        res = reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient(irxn)*activity
-        dres_dc = res/molality
-      case(SORPTION_LANGMUIR)
-        ! Csorb = K*Caq*b/(1+K*Caq)
-        tempreal = reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient(irxn)*activity
-        res = tempreal*reaction%multicontinuum_isotherm_rxn%eqisothermlangmuirb(irxn) / (1.d0 + tempreal)
-        dres_dc = res/molality - &
-                  res / (1.d0 + tempreal) * tempreal / molality
-      case(SORPTION_FREUNDLICH)
-        ! Csorb = Kd*Caq**(1/n)
-        one_over_n = 1.d0/reaction%multicontinuum_isotherm_rxn%eqisothermfreundlichn(irxn)
-        activity_one_over_n = activity**one_over_n
-        res = reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient(irxn)* &
-                activity**one_over_n
-        dres_dc = res/molality*one_over_n
-      case default
-        res = 0.d0
-        dres_dc = 0.d0
-    end select
-    rt_auxvar%total_sorb_eq(icomp) = rt_auxvar%total_sorb_eq(icomp) + res
-    rt_auxvar%dtotal_sorb_eq(icomp,icomp) = &
-      rt_auxvar%dtotal_sorb_eq(icomp,icomp) + dres_dc 
-  enddo
-
-end subroutine SecondaryRTotalSorbKD
 
 ! ************************************************************************** !
 

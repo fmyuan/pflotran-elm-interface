@@ -30,6 +30,10 @@ module Reaction_Aux_module
   PetscInt, parameter, public :: ACT_COEF_ALGORITHM_NEWTON = 4
   PetscInt, parameter, public :: NO_BDOT = 5
 
+  ! kd units
+  PetscInt, parameter, public :: KD_UNIT_KG_M3_BULK = 0
+  PetscInt, parameter, public :: KD_UNIT_MLW_GSOIL = 1
+
   type, public :: species_idx_type
     PetscInt :: h2o_aq_id
     PetscInt :: h_ion_id
@@ -273,7 +277,7 @@ module Reaction_Aux_module
     PetscInt :: neqsorb
     PetscBool, pointer :: kd_print(:)
     PetscBool, pointer :: total_sorb_print(:)
-    PetscInt :: kd_unit ! 0 kg/m^3 1 L/Kg
+    PetscInt :: kd_unit 
 
     ! ionx exchange reactions
     PetscInt :: neqionxrxn
@@ -340,19 +344,8 @@ module Reaction_Aux_module
     ! kd rxn
     PetscInt :: neqkdrxn
     PetscInt, pointer :: eqkdspecid(:)
-!    PetscInt, pointer :: eqkdtype(:)
     PetscInt, pointer :: eqkdmineral(:)
     PetscInt, pointer :: eqisothermtype(:)
-!    PetscReal, pointer :: eqkddistcoef(:)
-!    PetscReal, pointer :: eqkdlangmuirb(:)
-!    PetscReal, pointer :: eqkdfreundlichn(:)
-    
-    ! secondary continuum kd rxn
-    ! neqkdrxn and eqkdspecid will be the same
-!    PetscInt, pointer :: sec_cont_eqkdtype(:)
-!    PetscReal, pointer :: sec_cont_eqkddistcoef(:)
-!    PetscReal, pointer :: sec_cont_eqkdlangmuirb(:)
-!    PetscReal, pointer :: sec_cont_eqkdfreundlichn(:)
     
     PetscReal :: max_dlnC
     PetscReal :: max_relative_change_tolerance
@@ -562,7 +555,7 @@ function ReactionCreate()
 
   reaction%nsorb = 0
   reaction%neqsorb = 0
-  reaction%kd_unit = 0
+  reaction%kd_unit = -999
 
   reaction%neqionxrxn = 0
   reaction%neqionxcation = 0
@@ -611,18 +604,11 @@ function ReactionCreate()
 
   reaction%neqkdrxn = 0
   nullify(reaction%eqkdspecid)
-!  nullify(reaction%eqkdtype)
+  nullify(reaction%eqisothermtype)
   nullify(reaction%eqkdmineral)
-!  nullify(reaction%eqkddistcoef)
-!  nullify(reaction%eqkdlangmuirb)
-!  nullify(reaction%eqkdfreundlichn)
 
   nullify(reaction%isotherm_rxn)
   nullify(reaction%multicontinuum_isotherm_rxn)
-!  nullify(reaction%sec_cont_eqkdtype)
-!  nullify(reaction%sec_cont_eqkddistcoef)
-!  nullify(reaction%sec_cont_eqkdlangmuirb)
-!  nullify(reaction%sec_cont_eqkdfreundlichn)
        
   reaction%max_dlnC = 5.d0
   reaction%max_relative_change_tolerance = 1.d-6
@@ -2290,6 +2276,20 @@ subroutine ReactionDestroy(reaction,option)
     nullify(reaction%multicontinuum_isotherm_list)
   endif
 
+  if (associated(reaction%isotherm_rxn)) then
+    call DeallocateArray(reaction%isotherm_rxn%eqisothermcoefficient)
+    call DeallocateArray(reaction%isotherm_rxn%eqisothermlangmuirb)
+    call DeallocateArray(reaction%isotherm_rxn%eqisothermfreundlichn)
+  endif
+  nullify(reaction%isotherm_rxn)
+
+  if (associated(reaction%multicontinuum_isotherm_rxn)) then
+    call DeallocateArray(reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient)
+    call DeallocateArray(reaction%multicontinuum_isotherm_rxn%eqisothermlangmuirb)
+    call DeallocateArray(reaction%multicontinuum_isotherm_rxn%eqisothermfreundlichn)
+  endif
+  nullify(reaction%multicontinuum_isotherm_rxn)
+  
   call SurfaceComplexationDestroy(reaction%surface_complexation)
   call MineralDestroy(reaction%mineral)
   call MicrobialDestroy(reaction%microbial)
@@ -2380,16 +2380,8 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%eqdynamickdpower)
   
   call DeallocateArray(reaction%eqkdspecid)
-!  call DeallocateArray(reaction%eqkdtype)
+  call DeallocateArray(reaction%eqisothermtype)
   call DeallocateArray(reaction%eqkdmineral)
-!  call DeallocateArray(reaction%eqkddistcoef)
-!  call DeallocateArray(reaction%eqkdlangmuirb)
-!  call DeallocateArray(reaction%eqkdfreundlichn)
- 
-!  call DeallocateArray(reaction%sec_cont_eqkdtype)
-!  call DeallocateArray(reaction%sec_cont_eqkddistcoef)
-!  call DeallocateArray(reaction%sec_cont_eqkdlangmuirb)
-!  call DeallocateArray(reaction%sec_cont_eqkdfreundlichn)     
   
   deallocate(reaction)
   nullify(reaction)
