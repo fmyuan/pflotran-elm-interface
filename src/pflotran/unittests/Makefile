@@ -94,5 +94,5 @@ clean-pfunit :
 	./build-pfunit.sh -c $(FC) -d $(PFUNIT_DIR) -n
 
 # uncomment the PRECIOUS rule to keep the intermediate F90 files
-#.PRECIOUS : %.F90
+.PRECIOUS : %.F90
 
