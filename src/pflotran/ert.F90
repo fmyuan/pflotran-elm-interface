@@ -293,7 +293,7 @@ end subroutine ERTCalculateMatrix
 
 ! ************************************************************************** !
 
-subroutine ERTCalculateAnalyticPotential(realization,average_conductivity)
+subroutine ERTCalculateAnalyticPotential(realization,ielec,average_conductivity)
   ! 
   ! Calculates Analytic potential for all electrodes 
   ! for a given apparent/average conductivity model
@@ -310,6 +310,7 @@ subroutine ERTCalculateAnalyticPotential(realization,average_conductivity)
   implicit none
   
   type(realization_subsurface_type) :: realization
+  PetscInt :: ielec
   PetscReal, optional :: average_conductivity
 
   type(option_type), pointer :: option
@@ -319,7 +320,6 @@ subroutine ERTCalculateAnalyticPotential(realization,average_conductivity)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
   PetscReal :: cond 
-  PetscInt :: ielec,nelec
   PetscReal :: r,epos(3),cell_center(3)
 
   PetscInt :: local_id
@@ -344,28 +344,21 @@ subroutine ERTCalculateAnalyticPotential(realization,average_conductivity)
     endif
   endif
 
-  nelec = survey%num_electrode
+  epos = survey%pos_electrode(:,ielec)
 
-  ! TODO (pj): avoid this loop and call from ERTSolve
-  do ielec=1,nelec
+  ! get & store potentials for each electrode 
+  do local_id=1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)   
+    if (patch%imat(ghosted_id) <= 0) cycle
 
-    epos = survey%pos_electrode(:,ielec)
+    cell_center(1) = grid%x(ghosted_id)
+    cell_center(2) = grid%y(ghosted_id)
+    cell_center(3) = grid%z(ghosted_id)
 
-    ! get & store potentials for each electrode 
-    do local_id=1,grid%nlmax
-        ghosted_id = grid%nL2G(local_id)   
-        if (patch%imat(ghosted_id) <= 0) cycle
-
-        cell_center(1) = grid%x(ghosted_id)
-        cell_center(2) = grid%y(ghosted_id)
-        cell_center(3) = grid%z(ghosted_id)
-
-        r = NORM2(epos - cell_center)
-        ! Add small value to avoid overshooting at electrode position
-        r = r + 1.0d-15
-        ert_auxvars(ghosted_id)%potential(ielec) = 1 / (2*pi*r*cond)     
-     enddo    
-
+    r = NORM2(epos - cell_center)
+    ! Add small value to avoid overshooting at electrode position
+    r = r + 1.0d-15
+    ert_auxvars(ghosted_id)%potential(ielec) = 1 / (2*pi*r*cond)     
   enddo
 
 end subroutine ERTCalculateAnalyticPotential

@@ -309,6 +309,7 @@ subroutine PMERTSolve(this)
   PetscInt :: num_linear_iterations
   PetscInt :: sum_linear_iterations  
   PetscReal :: val 
+  PetscReal :: average_cond
   PetscReal, pointer :: vec_ptr(:)
 
   !PetscLogDouble :: log_start_time
@@ -338,15 +339,30 @@ subroutine PMERTSolve(this)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
   !call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)  
 
-  ! Get Analytical potential for a half-space
-  !call ERTCalculateAnalyticPotential(realization)
+  ! Get Average Conductivity for a 3D model
+  call ERTCalculateAverageConductivity(realization)
+  average_cond = survey%average_conductivity
 
   nelec = survey%num_electrode
 
   do ielec=1,nelec
     
+    ! Initial Solution -> analytic sol for a half-space
+    ! Get Analytical potential for a half-space
+    call ERTCalculateAnalyticPotential(realization,ielec,average_cond)    
+    ! assign analytic potential as initial solution 
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)    
+    do local_id=1,grid%nlmax  
+      ghosted_id = grid%nL2G(local_id)         
+      if (patch%imat(ghosted_id) <= 0) cycle
+      vec_ptr(local_id) = ert_auxvars(ghosted_id)%potential(ielec)     
+    enddo
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+
+    !call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
+
     ! NB. solution is stored in field%work -> this can be an initial guess
-    call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
+    !call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
  
     ! RHS
     call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
@@ -385,6 +401,10 @@ subroutine PMERTSolve(this)
     call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
     call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
     sum_linear_iterations = sum_linear_iterations + num_linear_iterations
+
+    if (OptionPrintToScreen(this%option)) then
+      write(*,'(/," Solved for electrode: ", i10,/)') ielec 
+    endif  
 
   enddo
 

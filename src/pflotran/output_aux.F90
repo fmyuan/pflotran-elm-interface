@@ -1198,7 +1198,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       id = ELECTRICAL_CONDUCTIVITY  
     case ('ELECTRICAL_POTENTIAL')
       if (option%ngeopdof <= 0) then
-        option%io_buffer = 'ELECTRICAL_CONDUCTIVITY output only supported &
+        option%io_buffer = 'ELECTRICAL_POTENTIAL output only supported &
           &when the GEOPHYSICS process model is used.'
         call PrintErrMsg(option)
       endif
