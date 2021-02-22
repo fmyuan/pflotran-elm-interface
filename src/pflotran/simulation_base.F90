@@ -2,71 +2,63 @@ module Simulation_Base_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  use PMC_Base_class
-  use PM_Base_class
   use Option_module
   use Output_Aux_module
   use Output_module
   use Simulation_Aux_module
+  use Timer_class
   use Waypoint_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
-  
   private
 
   type, public :: simulation_base_type
     type(option_type), pointer :: option
     type(waypoint_list_type), pointer :: waypoint_list_outer ! for outer sync loop
-    type(checkpoint_option_type), pointer :: checkpoint_option
-    type(output_option_type), pointer :: output_option
-    PetscInt :: stop_flag
-    class(pmc_base_type), pointer :: process_model_coupler_list
-    class(pm_base_type), pointer :: process_model_list
-    type(simulation_aux_type), pointer :: sim_aux
+    class(timer_type), pointer :: timer
   contains
     procedure, public :: Init => SimulationBaseInit
     procedure, public :: InitializeRun => SimulationBaseInitializeRun
-    procedure, public :: InputRecord => SimulationInputRecord
-    procedure, public :: JumpStart => SimulationBaseJumpStart
-    procedure, public :: ExecuteRun
-    procedure, public :: RunToTime
+    procedure, public :: InputRecord => SimulationBaseInputRecord
+    procedure, public :: ExecuteRun => SimulationBaseExecuteRun
+    procedure, public :: RunToTime => SimulationBaseRunToTime
     procedure, public :: FinalizeRun => SimulationBaseFinalizeRun
     procedure, public :: Strip => SimulationBaseStrip
   end type simulation_base_type
-  
+
   public :: SimulationBaseCreate, &
             SimulationBaseInit, &
             SimulationBaseInitializeRun, &
-            SimulationInputRecordPrint, &
-            SimulationInputRecord, &
-            SimulationGetFinalWaypointTime, &
+            SimulationBaseInputRecord, &
             SimulationBaseFinalizeRun, &
             SimulationBaseStrip, &
             SimulationBaseDestroy
-  
+
+  public :: SimulationBaseInputRecordPrint
+
 contains
 
 ! ************************************************************************** !
 
 function SimulationBaseCreate(option)
-  ! 
+  !
   ! Allocates and initializes a new simulation object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(simulation_base_type), pointer :: SimulationBaseCreate
 
   type(option_type), pointer :: option
-  
+
   allocate(SimulationBaseCreate)
   call SimulationBaseCreate%Init(option)
 
@@ -75,107 +67,60 @@ end function SimulationBaseCreate
 ! ************************************************************************** !
 
 subroutine SimulationBaseInit(this,option)
-  ! 
+  !
   ! Initializes a new simulation object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
-  ! 
-  use Timestepper_Base_class, only : TS_CONTINUE
+  !
   use Option_module
-  use Output_Aux_module
   use Waypoint_module
 
   implicit none
-  
+
   class(simulation_base_type) :: this
   type(option_type), pointer :: option
 
   this%option => option
   this%waypoint_list_outer => WaypointListCreate()
-  this%output_option => OutputOptionCreate()
-  nullify(this%checkpoint_option)
-  nullify(this%process_model_coupler_list)
-  nullify(this%process_model_list)
-  this%sim_aux => SimAuxCreate()
-  this%stop_flag = TS_CONTINUE
+  this%timer => TimerCreate()
 
 end subroutine SimulationBaseInit
 
 ! ************************************************************************** !
 
 subroutine SimulationBaseInitializeRun(this)
-  ! 
+  !
   ! Initializes simulation
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
-  ! 
-
-  use Logging_module
+  !
   use Option_module
-  use hdf5
 
   implicit none
-  
 
   class(simulation_base_type) :: this
 
-  integer(HID_T) :: h5_chk_grp_id
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
-  
 #ifdef DEBUG
   call PrintMsg(this%option,'SimulationBaseInitializeRun()')
 #endif
-  
-  ! the user may request output of variable that do not exist for the 
-  ! the requested process models; this routine should catch such issues.
-  call OutputEnsureVariablesExist(this%output_option,this%option)
 
-  if (associated(this%process_model_coupler_list)) then
-    if (this%option%restart_flag) then
-      if (index(this%option%restart_filename,'.chk') > 0) then
-        call this%process_model_coupler_list%RestartBinary(viewer)
-      elseif (index(this%option%restart_filename,'.h5') > 0) then
-        call this%process_model_coupler_list%RestartHDF5(h5_chk_grp_id)
-      else
-        this%option%io_buffer = 'Unknown restart filename format. ' // &
-        'Only *.chk and *.h5 supported.'
-        call PrintErrMsg(this%option)
-      endif
-    endif
-  
-    ! initialize performs overwrite of restart, if applicable
-    call this%process_model_coupler_list%InitializeRun()  
-    call this%JumpStart()
-  endif
-  
-  call SimulationInputRecordPrint(this)
-  call PrintMsg(this%option," ")
-  call PrintMsg(this%option,"  Finished Initialization")
-  call PetscLogEventEnd(logging%event_init,ierr);CHKERRQ(ierr)
-  ! pushed in PFLOTRANInitializePostPetsc()
-  call PetscLogStagePop(ierr);CHKERRQ(ierr)
+  call this%timer%Start()
 
-  ! popped in FinalizeRun()
-  call PetscLogStagePush(logging%stage(TS_STAGE),ierr);CHKERRQ(ierr)
-  
 end subroutine SimulationBaseInitializeRun
 
 ! ************************************************************************** !
 
-subroutine SimulationInputRecordPrint(this)
-  ! 
+subroutine SimulationBaseInputRecordPrint(this)
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
-  ! 
-  use Checkpoint_module
-
+  !
   implicit none
-  
+
   class(simulation_base_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -185,299 +130,179 @@ subroutine SimulationInputRecordPrint(this)
   inquire(id, OPENED=is_open)
   if (is_open .and. OptionPrintToFile(this%option)) then
   !----------------------------------------------------------------------------
-    ! print checkpoint information
-    call CheckpointInputRecord(this%checkpoint_option,this%waypoint_list_outer)
-  
-    write(id,'(a)') ' '
-    ! print process model coupler and process model information
-    call this%process_model_coupler_list%InputRecord()
-    
+    if (OptionPrintToScreen(this%option)) then
+      write (*,*) 'Printing input record file.'
+    endif
+
     ! print simulation-specific information
     call this%InputRecord()
   !----------------------------------------------------------------------------
   endif
 
-end subroutine SimulationInputRecordPrint
+end subroutine SimulationBaseInputRecordPrint
 
 ! ************************************************************************** !
 
-subroutine SimulationInputRecord(this)
-  ! 
+subroutine SimulationBaseInputRecord(this)
+  !
   ! Writes ingested information to the input record file.
   ! This subroutine must be extended in the extended simulation objects.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
-  ! 
-
+  !
   implicit none
-  
+
   class(simulation_base_type) :: this
 
 #ifdef DEBUG
-  call PrintMsg(this%option,'SimulationInputRecord()')
+  call PrintMsg(this%option,'SimulationBaseInputRecord()')
 #endif
 
-  this%option%io_buffer = 'SimulationInputRecord must be extended for ' // &
-    'each simulation mode.'
+  this%option%io_buffer = 'SimulationBaseInputRecord must be extended for &
+    &each simulation mode.'
   call PrintErrMsg(this%option)
 
-end subroutine SimulationInputRecord
+end subroutine SimulationBaseInputRecord
 
 ! ************************************************************************** !
 
-subroutine SimulationBaseJumpStart(this)
-  ! 
-  ! Gets the time stepping, etc. up and running
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 08/11/14
-  ! 
-  use Option_module
-  
-  implicit none
-  
-  class(simulation_base_type) :: this
-  
-#ifdef DEBUG
-  call PrintMsg(this%option,'SimulationBaseJumpStart()')
-#endif
-
-  this%option%io_buffer = 'SimulationBaseJumpStart must be extended for ' // &
-    'each simulation mode.'
-  call PrintErrMsg(this%option)
-  
-end subroutine SimulationBaseJumpStart
-
-! ************************************************************************** !
-
-subroutine ExecuteRun(this)
-  ! 
+subroutine SimulationBaseExecuteRun(this)
+  !
   ! Initializes simulation
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
-  ! 
-
-  use Waypoint_module
-  use Timestepper_Base_class, only : TS_CONTINUE
-  use Checkpoint_module
-
+  !
   implicit none
-  
+
   class(simulation_base_type) :: this
-  
-  PetscReal :: final_time
-  PetscReal :: sync_time
-  type(waypoint_type), pointer :: cur_waypoint
-  character(len=MAXSTRINGLENGTH) :: append_name
 
 #ifdef DEBUG
   call PrintMsg(this%option,'SimulationBaseExecuteRun()')
 #endif
 
-  if (.not.associated(this%process_model_coupler_list)) then
-    return
-  endif
+  this%option%io_buffer = 'SimulationExecuteRun must be extended for &
+    &each simulation mode.'
+  call PrintErrMsg(this%option)
 
-  append_name = '-restart'
-
-  final_time = SimulationGetFinalWaypointTime(this)
-  cur_waypoint => this%waypoint_list_outer%first
-  call WaypointSkipToTime(cur_waypoint,this%option%time)
-  do
-    if (this%stop_flag /= TS_CONTINUE) exit ! end simulation
-    if (.not.associated(cur_waypoint)) exit
-    call this%RunToTime(min(final_time,cur_waypoint%time))
-    cur_waypoint => cur_waypoint%next
-  enddo
-  if (associated(this%process_model_coupler_list%checkpoint_option)) then
-    call this%process_model_coupler_list%Checkpoint(append_name)
-  endif
-
-end subroutine ExecuteRun
+end subroutine SimulationBaseExecuteRun
 
 ! ************************************************************************** !
 
-subroutine RunToTime(this,target_time)
-  ! 
+subroutine SimulationBaseRunToTime(this,target_time)
+  !
   ! Executes simulation
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
-  ! 
-
+  !
   use Option_module
-  use Simulation_Aux_module
 
   implicit none
 
   class(simulation_base_type) :: this
   PetscReal :: target_time
-  
-  class(pmc_base_type), pointer :: cur_process_model_coupler
-  
+
 #ifdef DEBUG
   call PrintMsg(this%option,'SimulationBaseRunToTime()')
 #endif
-  
-  call this%process_model_coupler_list%RunToTime(target_time,this%stop_flag)
 
-end subroutine RunToTime
+  this%option%io_buffer = 'SimulationExecuteRun must be extended for &
+    &each simulation mode.'
+  call PrintErrMsg(this%option)
+
+end subroutine SimulationBaseRunToTime
 
 ! ************************************************************************** !
 
 subroutine SimulationBaseFinalizeRun(this)
-  ! 
+  !
   ! Finalizes simulation
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
-  ! 
+  !
 
-  use Logging_module
-  use Timestepper_Base_class
-  use String_module, only : StringWrite
-  
+
   implicit none
-  
+
   class(simulation_base_type) :: this
-  
-  PetscErrorCode :: ierr
-  
-  class(pmc_base_type), pointer :: cur_process_model_coupler
-  character(MAXSTRINGLENGTH) :: string
+
+  PetscLogDouble :: total_time
 
 #ifdef DEBUG
   call PrintMsg(this%option,'SimulationBaseFinalizeRun()')
 #endif
-  
-  if (this%stop_flag /= TS_STOP_END_SIMULATION) then
-    select case(this%stop_flag)
-      case(TS_STOP_WALLCLOCK_EXCEEDED)
-        string = 'Wallclock stop time exceeded.  Exiting!'
-      case(TS_STOP_MAX_TIME_STEP)
-        string = 'Maximum timestep exceeded.  Exiting!'
-      case(TS_STOP_FAILURE)
-        string = 'Simulation failed.  Exiting!'
-        this%option%exit_code = EXIT_FAILURE
-      case default
-        string = 'Simulation stopped for unknown reason (' // &
-                 trim(StringWrite(this%stop_flag)) // ').'
-    end select
-    if (OptionPrintToScreen(this%option)) write(*,'(/,a,/)') trim(string)
+
+  call this%timer%Stop()
+  total_time = this%timer%GetCumulativeTime()
+
+  if (this%option%myrank == this%option%io_rank) then
+
+    if (this%option%print_to_screen) then
+      write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+        & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
+        total_time, &
+        total_time/60.d0, &
+        total_time/3600.d0
+    endif
+    if (this%option%print_to_file) then
+      write(this%option%fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+        & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
+        total_time, &
+        total_time/60.d0, &
+        total_time/3600.d0
+    endif
   endif
-  
-  if (associated(this%process_model_coupler_list)) then
-    call this%process_model_coupler_list%FinalizeRun()
-  endif
-  
-  ! pushed in InitializeRun()
-  call PetscLogStagePop(ierr);CHKERRQ(ierr)
-  ! popped in OptionFinalize()
-  call PetscLogStagePush(logging%stage(FINAL_STAGE),ierr);CHKERRQ(ierr)
-  
+
 end subroutine SimulationBaseFinalizeRun
 
 ! ************************************************************************** !
 
-function SimulationGetFinalWaypointTime(this)
-  ! 
-  ! Returns the earliest final waypoint time
-  ! from the top layer of process model
-  ! couplers.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 06/12/13
-  ! 
-
-  use Waypoint_module
-
-  implicit none
-  
-  class(simulation_base_type) :: this
-  
-  PetscReal :: SimulationGetFinalWaypointTime
-
-  class(pmc_base_type), pointer :: cur_process_model_coupler
-  PetscReal :: final_time
-  
-  SimulationGetFinalWaypointTime = 0.d0
-  
-  cur_process_model_coupler => this%process_model_coupler_list
-  do
-    if (.not.associated(cur_process_model_coupler)) exit
-    final_time = WaypointListGetFinalTime(cur_process_model_coupler% &
-                                            waypoint_list)
-    if (SimulationGetFinalWaypointTime < 1.d-40 .or. &
-        final_time < SimulationGetFinalWaypointTime) then
-      SimulationGetFinalWaypointTime = final_time
-    endif
-    cur_process_model_coupler => cur_process_model_coupler%peer
-  enddo
-
-end function SimulationGetFinalWaypointTime
-
-! ************************************************************************** !
-
 subroutine SimulationBaseStrip(this)
-  ! 
+  !
   ! Deallocates members of simulation base
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
-  ! 
-  use Input_Aux_module
-  use Waypoint_module
-  use EOS_module
-  
+  !
   implicit none
-  
+
   class(simulation_base_type) :: this
-  
+
 #ifdef DEBUG
   call PrintMsg(this%option,'SimulationBaseStrip()')
 #endif
+  nullify(this%option)
   call WaypointListDestroy(this%waypoint_list_outer)
-  call SimAuxDestroy(this%sim_aux)
-  call CheckpointOptionDestroy(this%checkpoint_option)
-  call OutputOptionDestroy(this%output_option)
-  if (associated(this%process_model_coupler_list)) then
-    call this%process_model_coupler_list%Destroy()
-    ! destroy does not currently destroy; it strips
-    deallocate(this%process_model_coupler_list)
-    nullify(this%process_model_coupler_list)
-  endif
-  call InputDbaseDestroy()
+  call TimerDestroy(this%timer)
 
-  call AllEOSDBaseDestroy()
-  
 end subroutine SimulationBaseStrip
 
 ! ************************************************************************** !
 
 subroutine SimulationBaseDestroy(simulation)
-  ! 
+  !
   ! Deallocates a simulation
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
-  ! 
-
+  !
   implicit none
-  
+
   class(simulation_base_type), pointer :: simulation
-  
+
 #ifdef DEBUG
   call PrintMsg(simulation%option,'SimulationDestroy()')
 #endif
-  
+
   if (.not.associated(simulation)) return
-  
+
   call simulation%Strip()
   deallocate(simulation)
   nullify(simulation)
-  
+
 end subroutine SimulationBaseDestroy
-  
+
 end module Simulation_Base_class

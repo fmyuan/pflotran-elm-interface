@@ -8,17 +8,17 @@ module Factory_PFLOTRAN_module
 
   private
 
-  public :: PFLOTRANInitializePrePetsc, &
-            PFLOTRANInitializePostPetsc, &
-            PFLOTRANFinalize
+  public :: FactoryPFLOTRANInitPrePetsc, &
+            FactoryPFLOTRANInitPostPetsc, &
+            FactoryPFLOTRANFinalize
 
 contains
 
 ! ************************************************************************** !
 
-subroutine PFLOTRANInitializePrePetsc(multisimulation,option)
+subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
 !
-! Sets up PFLOTRAN subsurface simulation framework prior to PETSc 
+! Sets up PFLOTRAN subsurface simulation framework prior to PETSc
 !   initialization
 ! Author: Glenn Hammond
 ! Date: 06/07/13
@@ -26,20 +26,23 @@ subroutine PFLOTRANInitializePrePetsc(multisimulation,option)
   use Option_module
   use Input_Aux_module
   use Multi_Simulation_module
-  
+  use HDF5_Aux_module
+
   implicit none
-  
+
   type(multi_simulation_type), pointer :: multisimulation
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: bool_flag
   PetscBool :: option_found
-  
-  ! NOTE: Cannot add anything that requires PETSc in this routine as PETSc 
+
+  ! NOTE: Cannot add anything that requires PETSc in this routine as PETSc
   !       has not yet been initialized.
-  
-  call PFLOTRANInitCommandLineSettings(option)
+
+  call FactoryPFLOTRANReadCommandLine(option)
+  call HDF5Init(option)
+
   ! initialize stochastic realizations here
   string = '-stochastic'
   call InputGetCommandLineTruth(string,bool_flag,option_found,option)
@@ -47,12 +50,12 @@ subroutine PFLOTRANInitializePrePetsc(multisimulation,option)
     multisimulation => MultiSimulationCreate()
     call MultiSimulationInitialize(multisimulation,option)
   endif
-  
-end subroutine PFLOTRANInitializePrePetsc
+
+end subroutine FactoryPFLOTRANInitPrePetsc
 
 ! ************************************************************************** !
 
-subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
+subroutine FactoryPFLOTRANInitPostPetsc(simulation,multisimulation,option)
 !
 ! Sets up PFLOTRAN subsurface simulation framework after PETSc initialization
 ! Author: Glenn Hammond
@@ -61,59 +64,46 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Option_module
   use Multi_Simulation_module
   use Simulation_Base_class
-  use Simulation_Subsurface_class
-  use Simulation_Geomechanics_class
   use Output_Aux_module
   use Logging_module
   use EOS_module
-  use HDF5_Aux_module
-  use PM_Geomechanics_Force_class
-  use PM_Subsurface_Flow_class
-  use PM_RT_class
-  
+  use Input_Aux_module
+
   implicit none
-  
+
   class(simulation_base_type), pointer :: simulation
   type(multi_simulation_type), pointer :: multisimulation
   type(option_type), pointer :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: filename
   PetscErrorCode :: ierr
 
   call MultiSimulationIncrement(multisimulation,option)
-  call OptionBeginTiming(option)
 
   ! popped in SimulationBaseInitializeRun()
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr);CHKERRQ(ierr)
   call PetscLogEventBegin(logging%event_init,ierr);CHKERRQ(ierr)
 
   call EOSInit()
-  call HDF5Init(option)
   filename = trim(option%global_prefix) // trim(option%group_prefix) // &
              '.out'
   if (option%myrank == option%io_rank .and. option%print_to_file) then
     open(option%fid_out, file=filename, action="write", status="unknown")
   endif
-  
+
   call OptionPrintPFLOTRANHeader(option)
-  call PFLOTRANReadSimulation(simulation,option)
-  if (option%keyword_block_count /= 0) then
-    write(option%io_buffer,*) option%keyword_block_count
-    option%io_buffer = 'Non-zero input block count (' // &
-      trim(adjustl(option%io_buffer)) // '). Please email this message &
-      &and your input deck to pflotran-dev@googlegroups.com'
-    call PrintErrMsg(option)
-  endif
+  call FactoryPFLOTRANReadSimulationBlk(simulation,option)
+  call InputCheckKeywordBlockCount(option)
   ! Must come after simulation is initialized so that proper stages are setup
   ! for process models.  This call sets flag that disables the creation of
   ! new stages, which is necessary for multisimulation
   call LoggingSetupComplete()
 
-end subroutine PFLOTRANInitializePostPetsc
+end subroutine FactoryPFLOTRANInitPostPetsc
 
 ! ************************************************************************** !
 
-subroutine PFLOTRANReadSimulation(simulation,option)
+subroutine FactoryPFLOTRANReadSimulationBlk(simulation,option)
 !
 ! Sets up PFLOTRAN subsurface simulation framework after PETSc initialization
 ! Author: Glenn Hammond
@@ -122,7 +112,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  
+
   use Simulation_Base_class
   use Simulation_Subsurface_class
   use Simulation_Geomechanics_class
@@ -132,39 +122,38 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Output_Aux_module
   use Waypoint_module
   use Units_module
-  
+
   use Factory_Subsurface_module
   use Factory_Geomechanics_module
-  
+
   implicit none
-  
+
   class(simulation_base_type), pointer :: simulation
   type(option_type), pointer :: option
-  
+
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: simulation_type
-  character(len=MAXWORDLENGTH) :: internal_units  
-  
+
   class(pm_base_type), pointer :: pm_master
   class(pm_base_type), pointer :: cur_pm
   type(checkpoint_option_type), pointer :: checkpoint_option
   type(waypoint_list_type), pointer :: checkpoint_waypoint_list
 
   class(pmc_base_type), pointer :: pmc_master
-  
+
   PetscBool :: print_ekg
-  
+
   nullify(pm_master)
   nullify(cur_pm)
-  
+
   nullify(pmc_master)
   nullify(checkpoint_option)
   nullify(checkpoint_waypoint_list)
   print_ekg = PETSC_FALSE
-  
+
   input => InputCreate(IN_UNIT,option%input_filename,option)
 
   simulation_type = ''
@@ -178,7 +167,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
     if (InputCheckExit(input,option)) exit
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'PROCESS_MODEL','SIMULATION')
-    
+
     call StringToUpper(word)
     select case(trim(word))
       case('SIMULATION_TYPE')
@@ -186,9 +175,9 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           call InputErrorMsg(input,option,'simulation_type', &
                              'SIMULATION')
       case('PROCESS_MODELS')
-        call PFLOTRANReadSimProcessModels(input,pm_master,option)
+        call FactoryPFLOTRANReadSimProcessModels(input,pm_master,option)
       case('MASTER')
-        call PFLOTRANSetupPMCHierarchy(input,option,pmc_master)
+        call FactoryPFLOTRANSetupPMCHierarchy(input,option,pmc_master)
       case('PRINT_EKG')
         option%print_ekg = PETSC_TRUE
       case('CHECKPOINT')
@@ -197,12 +186,12 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         call CheckpointRead(input,option,checkpoint_option, &
                             checkpoint_waypoint_list)
       case ('RESTART')
-        call PFLOTRANReadRestart(input,option)
+        call FactoryPFLOTRANReadRestart(input,option)
       case('INPUT_RECORD_FILE')
         option%input_record = PETSC_TRUE
         call OpenAndWriteInputRecord(option)
       case default
-        call InputKeywordUnrecognized(input,word,'SIMULATION',option)            
+        call InputKeywordUnrecognized(input,word,'SIMULATION',option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -212,7 +201,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
     option%io_buffer = 'No process models defined in SIMULATION block.'
     call PrintErrMsg(option)
   endif
-  
+
   if (option%print_ekg) then
     cur_pm => pm_master
     do
@@ -235,24 +224,30 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         call PrintErrMsg(option)
       endif
       call InputKeywordUnrecognized(input,simulation_type, &
-                     'SIMULATION,SIMULATION_TYPE',option)            
+                     'SIMULATION,SIMULATION_TYPE',option)
   end select
-  simulation%process_model_list => pm_master
-  simulation%checkpoint_option => checkpoint_option
+
   call WaypointListMerge(simulation%waypoint_list_outer, &
                          checkpoint_waypoint_list,option)
+
   select type(simulation)
     class is(simulation_subsurface_type)
-      call SubsurfaceInitialize(simulation)  
-    class is(simulation_geomechanics_type)
-      call GeomechanicsInitialize(simulation)
+      simulation%process_model_list => pm_master
+      simulation%checkpoint_option => checkpoint_option
   end select
-  
-end subroutine PFLOTRANReadSimulation
+
+  select type(simulation)
+    class is(simulation_subsurface_type)
+      call FactorySubsurfaceInitialize(simulation)
+    class is(simulation_geomechanics_type)
+      call FactoryGeomechanicsInitialize(simulation)
+  end select
+
+end subroutine FactoryPFLOTRANReadSimulationBlk
 
 ! ************************************************************************** !
 
-subroutine PFLOTRANReadSimProcessModels(input,pm_master,option)
+subroutine FactoryPFLOTRANReadSimProcessModels(input,pm_master,option)
 !
 ! Reads in the process models listed in simulation block
 !
@@ -262,17 +257,17 @@ subroutine PFLOTRANReadSimProcessModels(input,pm_master,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  
+
   use PM_Base_class
   use PM_Geomechanics_Force_class
   use PM_Auxiliary_class
 
   use Factory_Subsurface_module
   use Factory_Geomechanics_module
-  
+
   implicit none
 
-  class(pm_base_type), pointer :: pm_master  
+  class(pm_base_type), pointer :: pm_master
   type(input_type), pointer :: input
   type(option_type), pointer :: option
 
@@ -280,10 +275,10 @@ subroutine PFLOTRANReadSimProcessModels(input,pm_master,option)
   character(len=MAXWORDLENGTH) :: pm_name
   class(pm_base_type), pointer :: cur_pm
   class(pm_base_type), pointer :: new_pm
-  
+
   nullify(cur_pm)
   nullify(new_pm)
-  
+
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -300,9 +295,9 @@ subroutine PFLOTRANReadSimProcessModels(input,pm_master,option)
     call StringToUpper(word)
     select case(trim(word))
       case('SUBSURFACE_FLOW')
-        call SubsurfaceReadFlowPM(input,option,new_pm)
+        call FactorySubsurfaceReadFlowPM(input,option,new_pm)
       case('SUBSURFACE_TRANSPORT')
-        call SubsurfaceReadTransportPM(input,option,new_pm)
+        call FactorySubsurfaceReadTransportPM(input,option,new_pm)
       case('NUCLEAR_WASTE_TRANSPORT')
         if (OptionPrintToScreen(option)) then
           print *
@@ -326,11 +321,11 @@ subroutine PFLOTRANReadSimProcessModels(input,pm_master,option)
           &SIMULATION block."
         call PrintErrMsg(option)
       case('WASTE_FORM')
-        call SubsurfaceReadWasteFormPM(input,option,new_pm)
+        call FactorySubsurfaceReadWasteFormPM(input,option,new_pm)
       case('UFD_DECAY')
-        call SubsurfaceReadUFDDecayPM(input,option,new_pm)
+        call FactorySubsurfaceReadUFDDecayPM(input,option,new_pm)
       case('UFD_BIOSPHERE')
-        call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
+        call FactorySubsurfReadUFDBiospherePM(input,option,new_pm)
       case('WIPP_SOURCE_SINK')
         option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
           &unless you are running in WIPP_FLOW mode and intend to &
@@ -349,7 +344,7 @@ subroutine PFLOTRANReadSimProcessModels(input,pm_master,option)
         call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
       case default
         call InputKeywordUnrecognized(input,word, &
-               'SIMULATION,PROCESS_MODELS',option)            
+               'SIMULATION,PROCESS_MODELS',option)
     end select
     if (.not.associated(new_pm%option)) new_pm%option => option
     if (len_trim(pm_name) > 0) then
@@ -368,11 +363,11 @@ subroutine PFLOTRANReadSimProcessModels(input,pm_master,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine PFLOTRANReadSimProcessModels
+end subroutine FactoryPFLOTRANReadSimProcessModels
 
 ! ************************************************************************** !
 
-subroutine PFLOTRANReadRestart(input,option)
+subroutine FactoryPFLOTRANReadRestart(input,option)
 !
 ! Read the restart block within the simulation block
 ! Author: Glenn Hammond
@@ -382,9 +377,9 @@ subroutine PFLOTRANReadRestart(input,option)
   use Input_Aux_module
   use PMC_Base_class
   use String_module
-  
+
   implicit none
-  
+
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -392,7 +387,7 @@ subroutine PFLOTRANReadRestart(input,option)
   character(len=MAXWORDLENGTH) :: word
   PetscBool :: realization_dependent_restart
   PetscInt :: i
-  
+
   option%restart_flag = PETSC_TRUE
   realization_dependent_restart = PETSC_FALSE
   ! this section preserves the legacy implementation
@@ -401,10 +396,10 @@ subroutine PFLOTRANReadRestart(input,option)
     call InputReadWord(input,option,word,PETSC_TRUE)
     if (input%ierr == 0) then
       option%restart_time = 0.d0
-    endif 
+    endif
     return
     ! end legacy implementation
-  endif 
+  endif
   input%ierr = 0
   call InputPushBlock(input,option)
   do
@@ -415,10 +410,10 @@ subroutine PFLOTRANReadRestart(input,option)
     select case(word)
       case('FILENAME')
         call InputReadFilename(input,option,option%restart_filename)
-        call InputErrorMsg(input,option,'RESTART','filename') 
+        call InputErrorMsg(input,option,'RESTART','filename')
       case('RESET_TO_TIME_ZERO')
         ! any value but UNINITIALIZED_DOUBLE will set back to zero.
-        option%restart_time = 0.d0 
+        option%restart_time = 0.d0
       case('REALIZATION_DEPENDENT')
         realization_dependent_restart = PETSC_TRUE
       case default
@@ -444,11 +439,11 @@ subroutine PFLOTRANReadRestart(input,option)
     option%restart_filename = trim(string)
   endif
 
-end subroutine PFLOTRANReadRestart
+end subroutine FactoryPFLOTRANReadRestart
 
 ! ************************************************************************** !
 
-recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
+recursive subroutine FactoryPFLOTRANSetupPMCHierarchy(input,option,pmc)
 !
 ! Forms a linked list of named dummy pmcs as placeholders
 ! Author: Glenn Hammond
@@ -458,18 +453,18 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
   use Input_Aux_module
   use PMC_Base_class
   use String_module
-  
+
   implicit none
-  
+
   type(input_type), pointer :: input
   type(option_type) :: option
   class(pmc_base_type), pointer :: pmc
-  
+
   character(len=MAXWORDLENGTH) :: word
-  
+
   call InputReadWord(input,option,word,PETSC_TRUE)
   call InputErrorMsg(input,option,'PMC name','SIMULATION')
-    ! at this point, we are creating a 
+    ! at this point, we are creating a
   pmc => PMCBaseCreate()
   pmc%name = word
 
@@ -482,21 +477,21 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
     call StringToUpper(word)
     select case(trim(word))
       case('PEER')
-        call PFLOTRANSetupPMCHierarchy(input,option,pmc%peer)
+        call FactoryPFLOTRANSetupPMCHierarchy(input,option,pmc%peer)
       case('CHILD')
-        call PFLOTRANSetupPMCHierarchy(input,option,pmc%child)
+        call FactoryPFLOTRANSetupPMCHierarchy(input,option,pmc%child)
       case default
         call InputKeywordUnrecognized(input,word, &
-                                      'PFLOTRANSetupPMCHierarchy',option)
-    end select    
+                                      'FactoryPFLOTRANSetupPMCHierarchy',option)
+    end select
   enddo
   call InputPopBlock(input,option)
-  
-end subroutine PFLOTRANSetupPMCHierarchy
+
+end subroutine FactoryPFLOTRANSetupPMCHierarchy
 
 ! ************************************************************************** !
 
-recursive subroutine PFLOTRANLinkPMToPMC(input,option,pmc,pm)
+recursive subroutine FactoryPFLOTRANLinkPMToPMC(input,option,pmc,pm)
 !
 ! Forms a linked list of named dummy pmcs as placeholders
 ! Author: Glenn Hammond
@@ -507,74 +502,65 @@ recursive subroutine PFLOTRANLinkPMToPMC(input,option,pmc,pm)
   use String_module
   use PM_Base_class
   use PMC_Base_class
-  
+
   implicit none
-  
+
   type(input_type), pointer :: input
   type(option_type) :: option
   class(pmc_base_type), pointer :: pmc
   class(pm_base_type), pointer :: pm
 
   if (.not.associated(pmc)) return
-  
+
   print *, pmc%name, pm%name
   if (StringCompareIgnoreCase(pmc%name,pm%name)) then
     pmc%pm_list => pm
     return
   endif
-  
-  call PFLOTRANLinkPMToPMC(input,option,pmc%peer,pm)
-  call PFLOTRANLinkPMToPMC(input,option,pmc%child,pm)
-  
-end subroutine PFLOTRANLinkPMToPMC
+
+  call FactoryPFLOTRANLinkPMToPMC(input,option,pmc%peer,pm)
+  call FactoryPFLOTRANLinkPMToPMC(input,option,pmc%child,pm)
+
+end subroutine FactoryPFLOTRANLinkPMToPMC
 
 ! ************************************************************************** !
 
-subroutine PFLOTRANFinalize(option)
+subroutine FactoryPFLOTRANFinalize(option)
 !
 ! Destroys PFLOTRAN subsurface simulation framework
 ! Author: Glenn Hammond
 ! Date: 06/07/13
 !
   use Option_module
-  use Logging_module
-  use Output_EKG_module
   use HDF5_Aux_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   PetscErrorCode :: ierr
-  
-  ! pushed in FinalizeRun()
-  call PetscLogStagePop(ierr);CHKERRQ(ierr)
-  call HDF5Finalize(option)
-  call OptionEndTiming(option)
-  if (OptionPrintToFile(option)) then
-    close(option%fid_out)
-    call OutputEKGFinalize()
-  endif
 
-end subroutine PFLOTRANFinalize
+  call HDF5Finalize(option)
+
+end subroutine FactoryPFLOTRANFinalize
 
 ! ************************************************************************** !
 
-subroutine PFLOTRANInitCommandLineSettings(option)
-  ! 
+subroutine FactoryPFLOTRANReadCommandLine(option)
+  !
   ! Initializes PFLOTRAN output filenames, etc.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/06/13
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
   use String_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscBool :: option_found
   PetscBool :: bool_flag
@@ -585,7 +571,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
   PetscErrorCode :: ierr
-  
+
   ! check for non-default input filename
   option%input_filename = 'pflotran.in'
   string = '-pflotranin'
@@ -594,7 +580,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   string = '-input_prefix'
   call InputGetCommandLineString(string,option%input_prefix, &
                                  input_prefix_option_found,option)
-  
+
   if (pflotranin_option_found .and. input_prefix_option_found) then
     option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
       '"-input_prefix" on the command lines.'
@@ -623,7 +609,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
                                     option%output_file_name_prefix, &
                                     option%output_dir)
   end if
-  
+
   string = '-screen_output'
   call InputGetCommandLineTruth(string,option%print_to_screen,option_found,option)
 
@@ -633,15 +619,15 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   string = '-v'
   call InputGetCommandLineInt(string,i,option_found,option)
   if (option_found) option%verbosity = i
- 
+
   string = '-successful_exit_code'
   call InputGetCommandLineInt(string,i,option_found,option)
   if (option_found) option%exit_code = i
- 
+
   string = '-keyword_screen_output'
   call InputGetCommandLineTruth(string,option%keyword_logging_screen_output, &
                                 option_found,option)
- 
+
   ! this will get overwritten later if stochastic
   string = '-realization_id'
   call InputGetCommandLineInt(string,i,option_found,option)
@@ -652,7 +638,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
     endif
     option%id = i
   endif
- 
-end subroutine PFLOTRANInitCommandLineSettings
+
+end subroutine FactoryPFLOTRANReadCommandLine
 
 end module Factory_PFLOTRAN_module

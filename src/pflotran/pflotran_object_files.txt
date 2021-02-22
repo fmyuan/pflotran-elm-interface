@@ -2,7 +2,7 @@
 
 # DO NOT place any object files that depend on the discretization within 
 # util_obj
-util_obj  = \
+util_obj = \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -15,6 +15,7 @@ util_obj  = \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
+	${common_src}timer.o \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}variables.o
@@ -37,7 +38,7 @@ mode_aux_obj = \
 	${common_src}hydrate_aux.o \
 	${common_src}wipp_flow_aux.o \
 	${common_src}mphase_aux.o \
-        ${common_src}nw_transport_aux.o \
+	${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
@@ -46,7 +47,7 @@ mode_aux_obj = \
 	${common_src}pm_hydrate.o \
 	${common_src}pm_wipp_flow.o \
 	${common_src}pm_mphase.o \
-        ${common_src}pm_nwt.o \
+	${common_src}pm_nwt.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \
 	${common_src}pm_osrt.o \
@@ -71,7 +72,7 @@ mode_obj = \
 	${common_src}wipp_flow_common.o \
 	${common_src}global.o \
 	${common_src}mphase.o \
-        ${common_src}nw_transport.o \
+	${common_src}nw_transport.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
 	${common_src}richards_common.o \
@@ -116,7 +117,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
-        ${common_src}reaction_sandbox_simple.o \
+	${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
