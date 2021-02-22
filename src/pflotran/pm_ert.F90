@@ -359,7 +359,7 @@ subroutine PMERTSolve(this)
     enddo
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
-    !call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
+    call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
 
     ! NB. solution is stored in field%work -> this can be an initial guess
     !call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
@@ -392,9 +392,9 @@ subroutine PMERTSolve(this)
     
     ! store potentials for each electrode 
     do local_id=1,grid%nlmax  
-       ghosted_id = grid%nL2G(local_id)         
-       if (patch%imat(ghosted_id) <= 0) cycle
-       ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)     
+      ghosted_id = grid%nL2G(local_id)         
+      if (patch%imat(ghosted_id) <= 0) cycle
+      ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)     
     enddo
 
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
