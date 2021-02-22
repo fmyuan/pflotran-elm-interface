@@ -279,7 +279,7 @@ subroutine SFBaseTest(this,cc_name,option)
   type(option_type), intent(inout) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, parameter :: num_values = 1000
+  PetscInt, parameter :: num_values = 10000
   PetscReal, parameter :: dSl = 10d0*epsilon(dSl)
   PetscReal, parameter :: dPc = 1d-6  
   PetscInt :: i ! Loop iterator

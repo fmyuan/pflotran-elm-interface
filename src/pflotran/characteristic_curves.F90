@@ -1106,8 +1106,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
     case (2) ! Flat without cap
       sf_swap => SF_VG_FNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
     case (3) ! Exponential with cap
+      print *, "SF_VG_ECPC_ctor(", alpha, m, Sr, vg_rpf_opt,Pcmax, ")"
       sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
     case (4) ! Exponential without cap
+      print *, "SF_VG_ENOC_ctor(", alpha, m, Sr, vg_rpf_opt,Sj, ")"
       sf_swap => SF_VG_ENOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
     case (5) ! Linear with cap
       sf_swap => SF_VG_LCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
@@ -1818,12 +1820,10 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   class is (RPF_MVG_liq_type)
     rpf_swap => RPF_MVG_liq_ctor(m, Slr)
   class is (RPF_MVG_gas_type)
-    PRINT *, "RPF_MVG_gas_ctor(m, Slr, Sgr)", m, Slr, Sgr
     rpf_swap => RPF_MVG_gas_ctor(m, Slr, Sgr)
   class is (RPF_BVG_liq_type)
     rpf_swap => RPF_BVG_liq_ctor(m, Slr)
   class is (RPF_BVG_gas_type)
-    PRINT *, "RPF_BVG_gas_ctor(m, Slr, Sgr)", m, Slr, Sgr
     rpf_swap => RPF_BVG_gas_ctor(m, Slr, Sgr)
   class default
     ! Traditional assignment of public parameters

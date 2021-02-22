@@ -230,7 +230,6 @@ function SF_VG_Create() result (new)
   ! The CharacteristicCurvesRead function is passed an object with a generic type
   ! Once the block is parsed, a new object is created that replaces this object.
   ! If object creation by the parser is delayed, this method will not be needed
-  implicit none
   class(sat_func_VG_type), pointer :: new
   allocate(new)
 end function
@@ -238,7 +237,6 @@ end function
 ! **************************************************************************** !
 
 subroutine SF_VG_Verify(this,name,option)
-  implicit none
   class(sat_func_VG_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
@@ -359,7 +357,6 @@ end subroutine
 ! **************************************************************************** !
 
 pure function SF_VG_get_m(this) result (m)
-  implicit none
   class(sat_func_VG_type), intent(in) :: this
   PetscReal :: m
   m = this%m
@@ -393,7 +390,6 @@ end function
 
 subroutine SF_VG_Pc(this, liquid_saturation, &
                          capillary_pressure, dPc_dSatl, option)
-  implicit none
   class(sat_func_VG_type) :: this
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
@@ -417,7 +413,6 @@ end subroutine
 
 subroutine SF_VG_Sl(this, capillary_pressure, &
                          liquid_saturation, dsat_dpres, option)
-  implicit none
   class(sat_func_VG_type) :: this
   PetscReal, intent(in)  :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
@@ -437,7 +432,6 @@ end subroutine
 ! **************************************************************************** !
 
 subroutine SF_VG_d2Sl_dPc2(this,Pc,d2s_dp2,option)
-  implicit none
   class(sat_func_VG_type) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2s_dp2
@@ -507,7 +501,6 @@ end function
 
 subroutine SF_VG_cons_Pc(this, liquid_saturation, &
                          capillary_pressure, dPc_dSatl, option)
-  implicit none
   class(SF_VG_cons_type) :: this
   PetscReal, intent(in)  :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure, dPc_dSatl
@@ -532,7 +525,6 @@ end subroutine
 
 subroutine SF_VG_cons_Sl(this, capillary_pressure, &
                          liquid_saturation, dsat_dpres, option)
-  implicit none
   class(SF_VG_cons_type) :: this
   PetscReal, intent(in)  :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
@@ -556,7 +548,6 @@ end subroutine
 ! **************************************************************************** !
 
 subroutine SF_VG_cons_d2Sl_dPc2(this,Pc,d2s_dp2,option)
-  implicit none
   class(SF_VG_cons_type) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2s_dp2
@@ -658,7 +649,6 @@ end function
 
 subroutine SF_VG_expn_Pc(this, liquid_saturation, &
                          capillary_pressure, dPc_dSatl, option)
-  implicit none
   class(SF_VG_expn_type) :: this
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
@@ -690,7 +680,6 @@ end subroutine
 
 subroutine SF_VG_expn_Sl(this, capillary_pressure, &
                          liquid_saturation, dsat_dpres, option)
-  implicit none
   class(SF_VG_expn_type) :: this
   PetscReal, intent(in)  :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
@@ -721,7 +710,6 @@ end subroutine
 ! **************************************************************************** !
 
 subroutine SF_VG_expn_d2Sl_dPc2(this,Pc,d2s_dp2,option)
-  implicit none
   class(SF_VG_expn_type) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2s_dp2
@@ -820,7 +808,6 @@ end function
 
 subroutine SF_VG_line_Pc(this, liquid_saturation, &
                          capillary_pressure, dPc_dSatl, option)
-  implicit none
   class(SF_VG_line_type) :: this
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
@@ -851,7 +838,6 @@ end subroutine
 
 subroutine SF_VG_line_Sl(this, capillary_pressure, &
                          liquid_saturation, dsat_dpres, option)
-  implicit none
   class(SF_VG_line_type) :: this
   PetscReal, intent(in)  :: capillary_pressure
   PetscReal, intent(out) :: liquid_saturation, dsat_dpres
@@ -881,7 +867,6 @@ end subroutine
 ! **************************************************************************** !
 
 subroutine SF_VG_line_d2Sl_dPc2(this,Pc,d2s_dp2,option)
-  implicit none
   class(SF_VG_line_type) :: this
   PetscReal, intent(in) :: Pc
   PetscReal, intent(out) :: d2s_dp2
@@ -904,7 +889,6 @@ end subroutine
 ! **************************************************************************** !
 
 pure function RPF_VG_get_m(this) result (m)
-  implicit none
   class(rpf_vg_type), intent(in) :: this
   PetscReal :: m
   m = this%m
@@ -919,7 +903,6 @@ function RPFMualemVGLiqCreate() result (new)
   ! The CharacteristicCurvesRead function is passed an object with a generic type
   ! Once the block is parsed, a new object is created that replaces this object.
   ! If object creation by the parser is delayed, this method will not be needed
-  implicit none
   class(rpf_MVG_liq_type), pointer :: new
   allocate(new)
 end function
@@ -927,7 +910,6 @@ end function
 ! **************************************************************************** !
 
 subroutine RPF_MVG_liq_verify(this,name,option)
-  implicit none
   class(rpf_MVG_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
@@ -977,7 +959,6 @@ end function
 ! **************************************************************************** !
 
 pure subroutine RPF_MVG_liq_inline(this, Sl, Kr, dKr_dSl)
-  implicit none
   class(rpf_MVG_liq_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
@@ -998,7 +979,6 @@ end subroutine
 
 subroutine RPF_MVG_liq_relperm(this, liquid_saturation, relative_permeability, &
                                dkr_sat, option)
-  implicit none
   class(rpf_MVG_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability, dkr_sat
@@ -1024,7 +1004,6 @@ function RPFMualemVGGasCreate() result (new)
   ! The CharacteristicCurvesRead function is passed an object with a generic type
   ! Once the block is parsed, a new object is created that replaces this object.
   ! If object creation by the parser is delayed, this method will not be needed
-  implicit none
   class(rpf_MVG_gas_type), pointer :: new
   allocate(new)
 end function
@@ -1032,7 +1011,6 @@ end function
 ! **************************************************************************** !
 
 subroutine RPF_MVG_gas_verify(this,name,option)
-  implicit none
   class(rpf_MVG_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
@@ -1089,7 +1067,6 @@ end function
 ! **************************************************************************** !
 
 pure subroutine RPF_MVG_gas_inline(this, Sl, Kr, dKr_dSl)
-  implicit none
   class(rpf_MVG_gas_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
@@ -1108,7 +1085,6 @@ end subroutine
 
 subroutine RPF_MVG_gas_relperm(this,liquid_saturation, relative_permeability, &
                                dkr_sat, option)
-  implicit none
   class(rpf_MVG_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability, dkr_sat
@@ -1133,7 +1109,6 @@ end subroutine
 
 function RPFBurdineVGLiqCreate() result (new)
   ! Creates the van Genutchten Mualem relative permeability function object
-  implicit none
   class(RPF_BVG_liq_type), pointer :: new
   allocate(new)
 end function
@@ -1170,7 +1145,6 @@ end function
 ! **************************************************************************** !
 
 subroutine RPF_BVG_liq_verify(this,name,option)
-  implicit none
   class(RPF_BVG_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
@@ -1191,7 +1165,6 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPF_BVG_liq_inline(this, Sl, Kr, dKr_dSl)
-  implicit none
   class(RPF_BVG_liq_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
@@ -1211,7 +1184,6 @@ end subroutine
 
 subroutine RPF_BVG_liq_relperm(this,liquid_saturation, &
                               relative_permeability,dkr_sat,option)
-  implicit none
   class(RPF_BVG_liq_type) :: this
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: relative_permeability, dkr_sat
@@ -1234,7 +1206,6 @@ end subroutine
 ! **************************************************************************** !
 
 function RPFBurdineVGGasCreate() result (new)
-  implicit none
   class(RPF_BVG_gas_type), pointer :: new
   allocate(new)
 end function
@@ -1277,7 +1248,6 @@ end function
 ! **************************************************************************** !
 
 subroutine RPF_BVG_gas_verify(this,name,option)
-  implicit none
   class(RPF_BVG_gas_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
@@ -1299,7 +1269,6 @@ end subroutine
 ! **************************************************************************** !
 
 pure subroutine RPF_BVG_gas_inline(this, Sl, Kr, dKr_dSl)
-  implicit none
   class(RPF_BVG_gas_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
@@ -1319,7 +1288,6 @@ end subroutine
 
 subroutine RPF_BVG_gas_relperm(this,liquid_saturation, relative_permeability, &
                                dkr_sat,option)
-  implicit none
   class(RPF_BVG_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability, dkr_sat
