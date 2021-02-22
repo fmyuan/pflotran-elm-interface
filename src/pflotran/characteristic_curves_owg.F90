@@ -986,11 +986,11 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
         ! replace with constuctors
         class is(RPF_MVG_liq_type)
           rpf_swap => RPF_MVG_liq_ctor(rpf%m,rpf%Swcr)
-          deallocate(rpf_sl)
+          deallocate(rpf%rel_perm_func_sl)
           rpf%rel_perm_func_sl => rpf_swap
         class is(RPF_BVG_liq_type)
           rpf_swap => RPF_BVG_liq_ctor(rpf%m,rpf%Swcr)
-          deallocate(rpf_sl)
+          deallocate(rpf%rel_perm_func_sl)
           rpf%rel_perm_func_sl => rpf_swap
       end select  
     class is(RPF_gas_owg_func_sl_type)
