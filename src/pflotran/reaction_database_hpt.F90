@@ -10,6 +10,7 @@ module Reaction_Database_hpt_module
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Mineral_Aux_module
   use Reaction_Gas_Aux_module
+  use Reaction_Isotherm_Aux_module
 
   use PFLOTRAN_Constants_module
 
@@ -2680,22 +2681,22 @@ subroutine BasisInit_hpt(reaction,option)
   
   ! Kd reactions
   
-  if (reaction%neqkdrxn > 0) then
+  if (reaction%isotherm%neqkdrxn > 0) then
   
      ! allocate arrays
-    allocate(reaction%isotherm_rxn)
-    allocate(reaction%eqkdspecid(reaction%neqkdrxn))
-    reaction%eqkdspecid = 0
-    allocate(reaction%eqisothermtype(reaction%neqkdrxn))
-    reaction%eqisothermtype = 0
-    allocate(reaction%isotherm_rxn%eqisothermcoefficient(reaction%neqkdrxn))
-    reaction%isotherm_rxn%eqisothermcoefficient = 0.d0
-    allocate(reaction%isotherm_rxn%eqisothermlangmuirb(reaction%neqkdrxn))
-    reaction%isotherm_rxn%eqisothermlangmuirb = 0.d0
-    allocate(reaction%isotherm_rxn%eqisothermfreundlichn(reaction%neqkdrxn))
-    reaction%isotherm_rxn%eqisothermfreundlichn = 0.d0
+    allocate(reaction%isotherm%isotherm_rxn)
+    allocate(reaction%isotherm%eqkdspecid(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqkdspecid = 0
+    allocate(reaction%isotherm%eqisothermtype(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqisothermtype = 0
+    allocate(reaction%isotherm%isotherm_rxn%eqisothermcoefficient(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%isotherm_rxn%eqisothermcoefficient = 0.d0
+    allocate(reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%isotherm_rxn%eqisothermlangmuirb = 0.d0
+    allocate(reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%isotherm_rxn%eqisothermfreundlichn = 0.d0
 
-    cur_kd_rxn => reaction%isotherm_list
+    cur_kd_rxn => reaction%isotherm%isotherm_list
     irxn = 0
     do  
       if (.not.associated(cur_kd_rxn)) exit
@@ -2707,7 +2708,7 @@ subroutine BasisInit_hpt(reaction,option)
         if (StringCompare(cur_kd_rxn%species_name, &
                           reaction%primary_species_names(i), &
                           MAXWORDLENGTH)) then
-          reaction%eqkdspecid(irxn) = i
+          reaction%isotherm%eqkdspecid(irxn) = i
           found = PETSC_TRUE
           exit      
         endif
@@ -2718,10 +2719,10 @@ subroutine BasisInit_hpt(reaction,option)
                  ' not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%isotherm_rxn%eqisothermtype(irxn) = cur_kd_rxn%itype
-      reaction%isotherm_rxn%eqisothermcoefficient(irxn) = cur_kd_rxn%Kd
-      reaction%isotherm_rxn%eqisothermlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
-      reaction%isotherm_rxn%eqisothermfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
+      reaction%isotherm%isotherm_rxn%eqisothermtype(irxn) = cur_kd_rxn%itype
+      reaction%isotherm%isotherm_rxn%eqisothermcoefficient(irxn) = cur_kd_rxn%Kd
+      reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
+      reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
        
       cur_kd_rxn => cur_kd_rxn%next
     enddo

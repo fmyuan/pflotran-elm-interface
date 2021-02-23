@@ -217,7 +217,7 @@ subroutine RTSetup(realization)
       option%io_buffer = 'Non-initialized tortuosity.'
       call PrintMsg(option)
     endif
-    if (reaction%neqkdrxn > 0) then
+    if (reaction%isotherm%neqkdrxn > 0) then
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1

@@ -2175,6 +2175,7 @@ subroutine SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,
   use Reaction_module
   use Reactive_Transport_Aux_module
   use Material_Aux_class
+  use Reaction_Isotherm_module
   
   implicit none
   
@@ -2186,9 +2187,9 @@ subroutine SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,
   
   call RZeroSorb(rt_auxvar)
   
-  if (reaction%neqkdrxn > 0) then
+  if (reaction%isotherm%neqkdrxn > 0) then
      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
-                                   reaction,reaction%multicontinuum_isotherm_rxn,option)
+                                   reaction%isotherm,reaction%isotherm%multicontinuum_isotherm_rxn,option)
   endif
   
 end subroutine SecondaryRTotalSorb

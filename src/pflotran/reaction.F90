@@ -13,12 +13,14 @@ module Reaction_module
   use Reaction_Microbial_module
   use Reaction_Immobile_module
   use Reaction_Gas_module
+  use Reaction_Isotherm_module
 
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Mineral_Aux_module
   use Reaction_Microbial_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Gas_Aux_module
+  use Reaction_Isotherm_Aux_module
 
 #ifdef SOLID_SOLUTION  
   use Reaction_Solid_Solution_module
@@ -69,8 +71,7 @@ module Reaction_module
             RUpdateKineticState, &
             RUpdateTempDependentCoefs, &
             RZeroSorb, &
-            RCO2MoleFraction, &
-            RTotalSorbKD
+            RCO2MoleFraction
 
 contains
 
@@ -147,8 +148,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: internal_units
-  character(len=MAXWORDLENGTH) :: kd_units
-  character(len=MAXWORDLENGTH) :: multi_kd_units
   type(aq_species_type), pointer :: species, prev_species
   type(gas_species_type), pointer :: gas, prev_gas
   type(immobile_species_type), pointer :: immobile_species
@@ -160,8 +159,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
   type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn, prev_dynamic_kd_rxn
-  type(isotherm_linklist_type), pointer :: kd_rxn, prev_kd_rxn
-  type(isotherm_linklist_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
   type(generic_parameter_type), pointer :: generic_list
   PetscInt :: i, temp_int
   PetscReal :: temp_real
@@ -170,7 +167,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   PetscBool :: found
   PetscBool :: reaction_sandbox_read
   PetscBool :: reaction_clm_read
-  PetscInt :: ierr
 
   nullify(prev_species)
   nullify(prev_gas)
@@ -180,18 +176,11 @@ subroutine ReactionReadPass1(reaction,input,option)
   nullify(prev_general_rxn)
   nullify(prev_radioactive_decay_rxn)
   nullify(prev_dynamic_kd_rxn)
-  nullify(prev_kd_rxn)
   nullify(prev_ionx_rxn)
-  
-  if (option%use_mc) then
-    nullify(sec_cont_prev_kd_rxn)
-  endif
   
   reaction_sandbox_read = PETSC_FALSE
   reaction_clm_read = PETSC_FALSE
   
-  kd_units = ''
-  multi_kd_units = ''
   srfcplx_count = 0
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -672,194 +661,8 @@ subroutine ReactionReadPass1(reaction,input,option)
                 nullify(dynamic_kd_rxn)
               enddo
               call InputPopBlock(input,option)
-
             case('ISOTHERM_REACTIONS')
-              call InputPushBlock(input,option)
-              do
-                call InputReadPflotranString(input,option)
-                if (InputError(input)) exit
-                if (InputCheckExit(input,option)) exit
-
-                reaction%neqkdrxn = reaction%neqkdrxn + 1
-
-                kd_rxn => KDRxnCreate()
-                if (option%use_mc) then
-                  sec_cont_kd_rxn => KDRxnCreate()
-                endif
-                ! first string is species name
-                call InputReadCard(input,option,word)
-                call InputErrorMsg(input,option,'species name', &
-                                   'CHEMISTRY,ISOTHERM_REACTIONS')
-                kd_rxn%species_name = trim(word)
-                if (option%use_mc) then
-                  sec_cont_kd_rxn%species_name = kd_rxn%species_name
-                endif
-                call InputPushBlock(input,option)
-                do 
-                  call InputReadPflotranString(input,option)
-                  if (InputError(input)) exit
-                  if (InputCheckExit(input,option)) exit
-
-                  call InputReadCard(input,option,word)
-                  call InputErrorMsg(input,option,'keyword', &
-                                     'CHEMISTRY,ISOTHERM_REACTIONS')
-                  call StringToUpper(word)
-                  
-                  ! default type is linear
-                  kd_rxn%itype = SORPTION_LINEAR
-                  select case(trim(word))
-                    case('TYPE')
-                      call InputReadCard(input,option,word)
-                      call InputErrorMsg(input,option,'type', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
-                      select case(word)
-                        case('LINEAR')
-                          kd_rxn%itype = SORPTION_LINEAR
-                        case('LANGMUIR')
-                          kd_rxn%itype = SORPTION_LANGMUIR
-                        case('FREUNDLICH')
-                          kd_rxn%itype = SORPTION_FREUNDLICH
-                        case default
-                          call InputKeywordUnrecognized(input,word, &
-                                'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE', &
-                                option)
-                      end select
-                      if (option%use_mc) then
-                        sec_cont_kd_rxn%itype = kd_rxn%itype
-                      endif
-                    case('KD')
-                      call InputKeywordDeprecated('KD', &
-                                           'DISTRIBUTION_COEFFICIENT',option)
-                    case('DISTRIBUTION_COEFFICIENT')
-                      call InputReadDouble(input,option,kd_rxn%Kd)
-                      call InputErrorMsg(input,option, &
-                                         'DISTRIBUTION_COEFFICIENT', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
-                      call InputReadWord(input,option,word,PETSC_TRUE)
-                      if (input%ierr == 0) kd_units = trim(word)
-                    ! S.Karra, 02/20/2014
-                    case('SEC_CONT_DISTRIBUTION_COEFFICIENT', &
-                         'SEC_CONT_KD')
-                         if (.not.option%use_mc) then
-                           option%io_buffer = 'Make sure MULTIPLE_CONTINUUM ' &
-                                   // 'keyword is set, SECONDARY_CONTINUUM_KD.'
-                           call PrintErrMsg(option)
-                         else
-                           call InputReadDouble(input,option,sec_cont_kd_rxn%Kd)
-                           call InputErrorMsg(input,option, &
-                             'SECONDARY_CONTINUUM_DISTRIBUTION_COEFFICIENT', &
-                             'CHEMISTRY,ISOTHERM_REACTIONS')
-                           call InputReadWord(input,option,word,PETSC_TRUE)
-                           if (input%ierr == 0) multi_kd_units = trim(word)
-                        endif
-                    case('LANGMUIR_B')
-                      call InputReadDouble(input,option,kd_rxn%Langmuir_B)
-                      call InputErrorMsg(input,option,'Langmuir_B', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
-                      kd_rxn%itype = SORPTION_LANGMUIR
-                    case('FREUNDLICH_N')
-                      call InputReadDouble(input,option,kd_rxn%Freundlich_N)
-                      call InputErrorMsg(input,option,'Freundlich_N', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
-                      kd_rxn%itype = SORPTION_FREUNDLICH
-                    case('KD_MINERAL_NAME')
-                      call InputReadWord(input,option,word,PETSC_TRUE)
-                      call InputErrorMsg(input,option,'KD_MINERAL_NAME', &
-                                         'ISOTHERM_REACTIONS,KD_MINERAL_NAME')
-                      kd_rxn%kd_mineral_name = word                      
-                    case default
-                      call InputKeywordUnrecognized(input,word, &
-                              'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS',option)
-                  end select
-                enddo
-                call InputPopBlock(input,option)
-
-                if (len_trim(kd_units) > 0) then
-                    ierr = 1
-                    internal_units = 'kg/m^3'
-                    kd_rxn%Kd = kd_rxn%Kd * &
-                         UnitsConvertToInternal(kd_units,internal_units,option,ierr)
-                    if (ierr < 0) then
-                      ierr = 1
-                      internal_units = 'L/kg'
-                      kd_rxn%Kd = kd_rxn%Kd * &
-                         UnitsConvertToInternal(kd_units,internal_units,option,ierr)                     
-                    else
-                      if (len_trim(multi_kd_units) < 0) then
-                        option%io_buffer = 'KD UNITS MUST MATCH BETWEEN PRIMARY ' // &
-                                           'AND SECONDARY CONTINUUM'
-                        call PrintErrMsg(option)
-                      else                    
-                        reaction%kd_unit = KD_UNIT_MLW_GSOIL
-                      endif
-                    endif
-                    if (ierr < 0) then
-                       option%io_buffer = 'Unrecognized kd_units: ' // trim(multi_kd_units)
-                       call PrintErrMsg(option)
-                    else
-                       reaction%kd_unit = KD_UNIT_KG_M3_BULK
-                    endif
-                 endif
-
-                 if (len_trim(multi_kd_units) > 0) then
-                    ierr = 1
-                    internal_units = 'L/kg'
-                    sec_cont_kd_rxn%Kd = sec_cont_kd_rxn%Kd * &
-                      UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
-                    if (ierr < 0) then
-                      ierr = 1
-                      internal_units = 'kg/m^3'
-                      sec_cont_kd_rxn%Kd = sec_cont_kd_rxn%Kd * &
-                           UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
-                    else
-                      if (reaction%kd_unit < 1) then
-                        option%io_buffer = 'KD UNITS MUST MATCH BETWEEN PRIMARY ' // &
-                                           'AND SECONDARY CONTINUUM'
-                        call PrintErrMsg(option)
-                      endif
-                    endif
-                    if (ierr < 0) then
-                       option%io_buffer = 'Unrecognized KD Units: ' // trim(multi_kd_units)
-                       call PrintErrMsg(option)
-                    else
-                       if (reaction%kd_unit > 0) then
-                         option%io_buffer = 'KD UNITS MUST MATCH BETWEEN PRIMARY ' // &
-                                            'AND SECONDARY CONTINUUM'
-                         call PrintErrMsg(option)
-                       else
-                         reaction%kd_unit = KD_UNIT_KG_M3_BULK
-                       endif
-                    endif
-                endif
-
-                ! add to list
-                if (.not.associated(reaction%isotherm_list)) then
-                  reaction%isotherm_list => kd_rxn
-                  kd_rxn%id = 1
-                endif
-                if (associated(prev_kd_rxn)) then
-                  prev_kd_rxn%next => kd_rxn
-                  kd_rxn%id = prev_kd_rxn%id + 1
-                endif
-                prev_kd_rxn => kd_rxn
-                nullify(kd_rxn)
-                
-                if (option%use_mc) then
-                ! add to list
-                  if (.not.associated(reaction%multicontinuum_isotherm_list)) then
-                    reaction%multicontinuum_isotherm_list => sec_cont_kd_rxn
-                    sec_cont_kd_rxn%id = 1
-                  endif
-                  if (associated(sec_cont_prev_kd_rxn)) then
-                    sec_cont_prev_kd_rxn%next => sec_cont_kd_rxn
-                    sec_cont_kd_rxn%id = sec_cont_prev_kd_rxn%id + 1
-                  endif
-                  sec_cont_prev_kd_rxn => sec_cont_kd_rxn
-                  nullify(sec_cont_kd_rxn)
-                endif
-              enddo
-              call InputPopBlock(input,option)
-            
+              call IsothermRead(reaction%isotherm,input,option)         
             case('SURFACE_COMPLEXATION_RXN')
               call SurfaceComplexationRead(reaction,input,option)
             case('ION_EXCHANGE_RXN')
@@ -1098,7 +901,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   
   reaction%neqsorb = reaction%neqionxrxn + &
                      reaction%neqdynamickdrxn + &
-                     reaction%neqkdrxn + &
+                     reaction%isotherm%neqkdrxn + &
                      reaction%surface_complexation%neqsrfcplxrxn
   reaction%nsorb = reaction%neqsorb + &
                    reaction%surface_complexation%nkinmrsrfcplxrxn + &
@@ -4561,8 +4364,8 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
                              reaction,option)
   endif
   
-  if (reaction%neqkdrxn > 0) then
-    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,reaction%isotherm_rxn,option)
+  if (reaction%isotherm%neqkdrxn > 0) then
+    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction%isotherm,reaction%isotherm%isotherm_rxn,option)
   endif
   
 end subroutine RTotalSorb
@@ -4639,89 +4442,6 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
   enddo
 
 end subroutine RTotalSorbDynamicKD
-
-! ************************************************************************** !
-
-subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                        isotherm_rxn,option)
-  ! 
-  ! Computes the total sorbed component concentrations and
-  ! derivative with respect to free-ion for the linear
-  ! K_D model
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 09/30/2010
-  ! 
-
-  use Option_module
-
-  implicit none
-
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  class(reaction_rt_type) :: reaction
-  type(option_type) :: option
-  
-  PetscInt :: irxn
-  PetscInt :: icomp
-  PetscReal :: res
-  PetscReal :: dres_dc
-  PetscReal :: molality
-  PetscReal :: tempreal
-  PetscReal :: one_over_n
-  PetscReal :: molality_one_over_n
-  PetscReal :: kd_kgw_m3b  
-
-  PetscInt, parameter :: iphase = 1
-
-  do irxn = 1, reaction%neqkdrxn
-    icomp = reaction%eqkdspecid(irxn)
-    molality = rt_auxvar%pri_molal(icomp)
-    if (reaction%kd_unit == KD_UNIT_MLW_GSOIL) then
-      kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * & !KD units [mL water/g soil]
-                   global_auxvar%den_kg(iphase) * &
-                   (1.d0-material_auxvar%porosity) * &
-                   material_auxvar%soil_particle_density * &
-                   1.d-3 ! convert mL water/g soil to m^3 water/kg soil
-
-    else
-      kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn)              
-    endif
-    if (reaction%eqkdmineral(irxn) > 0) then
-      ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
-      ! nothing to do with the soil volume; that is calculated through as a 
-      ! function of porosity.
-      kd_kgw_m3b = isotherm_rxn%eqisothermcoefficient(irxn) * &
-                   (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
-    endif
-    select case(reaction%eqisothermtype(irxn))
-      case(SORPTION_LINEAR)
-        ! Csorb = Kd*Caq
-        res = kd_kgw_m3b*molality
-        dres_dc = kd_kgw_m3b
-      case(SORPTION_LANGMUIR)
-        ! Csorb = K*Caq*b/(1+K*Caq)
-        tempreal = kd_kgw_m3b*molality
-        res = tempreal*isotherm_rxn%eqisothermlangmuirb(irxn) / (1.d0 + tempreal)
-        dres_dc = res/molality - &
-                  res / (1.d0 + tempreal) * tempreal / molality
-      case(SORPTION_FREUNDLICH)
-        ! Csorb = Kd*Caq**(1/n)
-        one_over_n = 1.d0/isotherm_rxn%eqisothermfreundlichn(irxn)
-        molality_one_over_n = molality**one_over_n
-        res = kd_kgw_m3b*molality**one_over_n
-        dres_dc = res/molality*one_over_n
-      case default
-        res = 0.d0
-        dres_dc = 0.d0
-    end select
-    rt_auxvar%total_sorb_eq(icomp) = rt_auxvar%total_sorb_eq(icomp) + res
-    rt_auxvar%dtotal_sorb_eq(icomp,icomp) = &
-      rt_auxvar%dtotal_sorb_eq(icomp,icomp) + dres_dc 
-  enddo
-
-end subroutine RTotalSorbKD
 
 ! ************************************************************************** !
 

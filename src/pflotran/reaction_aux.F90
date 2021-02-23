@@ -10,6 +10,7 @@ module Reaction_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Gas_Aux_module
+  use Reaction_Isotherm_Aux_module
   
 #ifdef SOLID_SOLUTION  
   use Reaction_Solid_Soln_Aux_module
@@ -29,10 +30,6 @@ module Reaction_Aux_module
   PetscInt, parameter, public :: ACT_COEF_ALGORITHM_LAG = 3
   PetscInt, parameter, public :: ACT_COEF_ALGORITHM_NEWTON = 4
   PetscInt, parameter, public :: NO_BDOT = 5
-
-  ! kd units
-  PetscInt, parameter, public :: KD_UNIT_KG_M3_BULK = 0
-  PetscInt, parameter, public :: KD_UNIT_MLW_GSOIL = 1
 
   type, public :: species_idx_type
     PetscInt :: h2o_aq_id
@@ -96,23 +93,6 @@ module Reaction_Aux_module
     PetscReal :: KD_power
     type(dynamic_kd_rxn_type), pointer :: next
   end type dynamic_kd_rxn_type    
-
-  type, public :: isotherm_linklist_type
-    PetscInt :: id
-    PetscInt :: itype
-    character(len=MAXWORDLENGTH) :: species_name
-    character(len=MAXWORDLENGTH) :: kd_mineral_name
-    PetscReal :: Kd
-    PetscReal :: Langmuir_B
-    PetscReal :: Freundlich_n
-    type(isotherm_linklist_type), pointer :: next
-  end type isotherm_linklist_type
-
-  type, public :: isotherm_rxn_type
-    PetscReal, pointer :: eqisothermcoefficient(:)
-    PetscReal, pointer :: eqisothermlangmuirb(:)
-    PetscReal, pointer :: eqisothermfreundlichn(:)
-  end type isotherm_rxn_type
 
   type, public :: radioactive_decay_rxn_type
     PetscInt :: id
@@ -203,7 +183,6 @@ module Reaction_Aux_module
     type(general_rxn_type), pointer :: general_rxn_list
     type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn_list
     type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn_list
-    type(isotherm_linklist_type), pointer :: isotherm_list
     type(aq_species_type), pointer :: redox_species_list
     type(generic_parameter_type), pointer :: aq_diffusion_coefficients
     type(generic_parameter_type), pointer :: gas_diffusion_coefficients
@@ -221,11 +200,7 @@ module Reaction_Aux_module
     type(microbial_type), pointer :: microbial
     type(immobile_type), pointer :: immobile
     type(gas_type), pointer :: gas
-    
-    ! secondary continuum reaction objects
-    type(isotherm_linklist_type), pointer :: multicontinuum_isotherm_list
-    type(isotherm_rxn_type), pointer :: isotherm_rxn
-    type(isotherm_rxn_type), pointer :: multicontinuum_isotherm_rxn
+    type(isotherm_type), pointer :: isotherm
     
 #ifdef SOLID_SOLUTION    
     type(solid_solution_type), pointer :: solid_solution_list
@@ -277,7 +252,6 @@ module Reaction_Aux_module
     PetscInt :: neqsorb
     PetscBool, pointer :: kd_print(:)
     PetscBool, pointer :: total_sorb_print(:)
-    PetscInt :: kd_unit 
 
     ! ionx exchange reactions
     PetscInt :: neqionxrxn
@@ -340,12 +314,6 @@ module Reaction_Aux_module
     PetscReal, pointer :: eqdynamickdlow(:)
     PetscReal, pointer :: eqdynamickdhigh(:)
     PetscReal, pointer :: eqdynamickdpower(:)
-    
-    ! kd rxn
-    PetscInt :: neqkdrxn
-    PetscInt, pointer :: eqkdspecid(:)
-    PetscInt, pointer :: eqkdmineral(:)
-    PetscInt, pointer :: eqisothermtype(:)
     
     PetscReal :: max_dlnC
     PetscReal :: max_relative_change_tolerance
@@ -414,8 +382,6 @@ module Reaction_Aux_module
             GeneralRxnDestroy, &
             DynamicKDRxnCreate, &
             DynamicKDRxnDestroy, &
-            KDRxnCreate, &
-            KDRxnDestroy, &
             ColloidCreate, &
             ColloidDestroy, &
             ColloidConstraintCreate, &
@@ -494,12 +460,9 @@ function ReactionCreate()
   nullify(reaction%radioactive_decay_rxn_list)
   nullify(reaction%general_rxn_list)
   nullify(reaction%dynamic_kd_rxn_list)
-  nullify(reaction%isotherm_list)
   nullify(reaction%redox_species_list)
   nullify(reaction%aq_diffusion_coefficients)
   nullify(reaction%gas_diffusion_coefficients)
-  
-  nullify(reaction%multicontinuum_isotherm_list)
   
   ! new reaction objects
   reaction%surface_complexation => SurfaceComplexationCreate()
@@ -507,6 +470,7 @@ function ReactionCreate()
   reaction%microbial => MicrobialCreate()
   reaction%immobile => ImmobileCreate()
   reaction%gas => GasCreate()
+  reaction%isotherm => IsothermCreate()
 #ifdef SOLID_SOLUTION  
   nullify(reaction%solid_solution_list)
 #endif
@@ -555,7 +519,6 @@ function ReactionCreate()
 
   reaction%nsorb = 0
   reaction%neqsorb = 0
-  reaction%kd_unit = -999
 
   reaction%neqionxrxn = 0
   reaction%neqionxcation = 0
@@ -601,14 +564,6 @@ function ReactionCreate()
   nullify(reaction%eqdynamickdlow)
   nullify(reaction%eqdynamickdhigh)
   nullify(reaction%eqdynamickdpower)
-
-  reaction%neqkdrxn = 0
-  nullify(reaction%eqkdspecid)
-  nullify(reaction%eqisothermtype)
-  nullify(reaction%eqkdmineral)
-
-  nullify(reaction%isotherm_rxn)
-  nullify(reaction%multicontinuum_isotherm_rxn)
        
   reaction%max_dlnC = 5.d0
   reaction%max_relative_change_tolerance = 1.d-6
@@ -890,36 +845,6 @@ function DynamicKDRxnCreate()
   DynamicKDRxnCreate => rxn
   
 end function DynamicKDRxnCreate
-
-! ************************************************************************** !
-
-function KDRxnCreate()
-  ! 
-  ! Allocate and initialize a KD sorption reaction
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 09/32/10
-  ! 
-
-  implicit none
-    
-  type(isotherm_linklist_type), pointer :: KDRxnCreate
-
-  type(isotherm_linklist_type), pointer :: rxn
-  
-  allocate(rxn)
-  rxn%id = 0
-  rxn%itype = 0
-  rxn%species_name = ''
-  rxn%kd_mineral_name = ''
-  rxn%Kd = 0.d0
-  rxn%Langmuir_B = 0.d0
-  rxn%Freundlich_n = 0.d0
-  nullify(rxn%next)
-  
-  KDRxnCreate => rxn
-  
-end function KDRxnCreate
 
 ! ************************************************************************** !
 
@@ -1816,8 +1741,8 @@ subroutine ReactionInputRecord(rxn)
   endif
   
 ! --------- sorption isotherm reaction list ----------------------------------
-  if (associated(rxn%isotherm_list)) then
-    cur_kd_rxn => rxn%isotherm_list
+  if (associated(rxn%isotherm%isotherm_list)) then
+    cur_kd_rxn => rxn%isotherm%isotherm_list
     do
       if (.not.associated(cur_kd_rxn)) exit
       write(id,'(a29)',advance='no') 'sorption, isotherm reaction: '
@@ -1837,7 +1762,7 @@ subroutine ReactionInputRecord(rxn)
           write(word1,*) cur_kd_rxn%Freundlich_N
           write(id,'(a)') adjustl(trim(word1))
       end select
-      if (len_trim(cur_kd_rxn%kd_mineral_name) > 0) then
+      if (len_trim(cur_kd_rxn%kd_mineral_name) > 0) then  !UPDATE
         write(id,'(a29)',advance='no') 'Kd mineral name: '
         write(id,'(a)') adjustl(trim(cur_kd_rxn%kd_mineral_name))
         word2 = ' L/kg'
@@ -2050,27 +1975,6 @@ end subroutine DynamicKDRxnDestroy
 
 ! ************************************************************************** !
 
-subroutine KDRxnDestroy(rxn)
-  ! 
-  ! Deallocates a KD reaction
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 09/30/10
-  ! 
-
-  implicit none
-    
-  type(isotherm_linklist_type), pointer :: rxn
-
-  if (.not.associated(rxn)) return
-  
-  deallocate(rxn)  
-  nullify(rxn)
-
-end subroutine KDRxnDestroy
-
-! ************************************************************************** !
-
 subroutine AqueousSpeciesConstraintDestroy(constraint)
   ! 
   ! Destroys an aqueous species constraint
@@ -2184,7 +2088,6 @@ subroutine ReactionDestroy(reaction,option)
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn, &
                                                prev_radioactive_decay_rxn
   type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn, prev_dynamic_kd_rxn
-  type(isotherm_linklist_type), pointer :: kd_rxn, prev_kd_rxn
   type(option_type) :: option
 
   if (.not.associated(reaction)) return
@@ -2253,48 +2156,13 @@ subroutine ReactionDestroy(reaction,option)
     call DynamicKDRxnDestroy(prev_dynamic_kd_rxn)
   enddo    
   nullify(reaction%dynamic_kd_rxn_list)
-
-  ! kd reactions
-  kd_rxn => reaction%isotherm_list
-  do
-    if (.not.associated(kd_rxn)) exit
-    prev_kd_rxn => kd_rxn
-    kd_rxn => kd_rxn%next
-    call KDRxnDestroy(prev_kd_rxn)
-  enddo    
-  nullify(reaction%isotherm_list)
-
-  ! kd reactions secondary continuum
-  if (option%use_mc) then
-    kd_rxn => reaction%multicontinuum_isotherm_list
-    do
-      if (.not.associated(kd_rxn)) exit
-      prev_kd_rxn => kd_rxn
-      kd_rxn => kd_rxn%next
-      call KDRxnDestroy(prev_kd_rxn)
-    enddo
-    nullify(reaction%multicontinuum_isotherm_list)
-  endif
-
-  if (associated(reaction%isotherm_rxn)) then
-    call DeallocateArray(reaction%isotherm_rxn%eqisothermcoefficient)
-    call DeallocateArray(reaction%isotherm_rxn%eqisothermlangmuirb)
-    call DeallocateArray(reaction%isotherm_rxn%eqisothermfreundlichn)
-  endif
-  nullify(reaction%isotherm_rxn)
-
-  if (associated(reaction%multicontinuum_isotherm_rxn)) then
-    call DeallocateArray(reaction%multicontinuum_isotherm_rxn%eqisothermcoefficient)
-    call DeallocateArray(reaction%multicontinuum_isotherm_rxn%eqisothermlangmuirb)
-    call DeallocateArray(reaction%multicontinuum_isotherm_rxn%eqisothermfreundlichn)
-  endif
-  nullify(reaction%multicontinuum_isotherm_rxn)
   
   call SurfaceComplexationDestroy(reaction%surface_complexation)
   call MineralDestroy(reaction%mineral)
   call MicrobialDestroy(reaction%microbial)
   call ImmobileDestroy(reaction%immobile)
   call GasDestroy(reaction%gas)
+  call IsothermDestroy(reaction%isotherm,option)
 #ifdef SOLID_SOLUTION  
   call SolidSolutionDestroy(reaction%solid_solution_list)
 #endif  
@@ -2378,10 +2246,6 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%eqdynamickdlow)
   call DeallocateArray(reaction%eqdynamickdhigh)
   call DeallocateArray(reaction%eqdynamickdpower)
-  
-  call DeallocateArray(reaction%eqkdspecid)
-  call DeallocateArray(reaction%eqisothermtype)
-  call DeallocateArray(reaction%eqkdmineral)
   
   deallocate(reaction)
   nullify(reaction)
