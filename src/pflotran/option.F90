@@ -1296,6 +1296,7 @@ subroutine OptionInitPetsc(option)
                                   string, ierr);CHKERRQ(ierr)
   endif
 
+  call OptionBeginTiming(option)
   call LoggingCreate()
 
 end subroutine OptionInitPetsc

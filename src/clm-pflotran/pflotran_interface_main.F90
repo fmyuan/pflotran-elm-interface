@@ -16,7 +16,8 @@ program pflotran_interface_main
   use String_module
   
   use Simulation_Base_class         , only : simulation_base_type
-  use Simulation_Subsurface_class   , only : simulation_subsurface_type
+  use Simulation_Subsurface_class   , only : simulation_subsurface_type, &
+                                             SimSubsurfCast
   use Realization_Base_class        , only : realization_base_type
   use Timestepper_Base_class        , only : TS_STOP_END_SIMULATION
 
@@ -27,7 +28,7 @@ program pflotran_interface_main
 
   type(pflotran_model_type)       , pointer :: pflotran_m
   class(realization_base_type)    , pointer :: realization
-
+  class(simulation_subsurface_type), pointer :: simulation
   
   PetscErrorCode                            :: ierr
   PetscInt                                  :: time
@@ -69,14 +70,15 @@ program pflotran_interface_main
     nullify(strings)
   else if (input_prefix_option_found) then
     filename = trim(option%input_prefix)
- endif
+  endif
 
- call OptionDestroy(option)
+  call OptionDestroy(option)
 
   ! Create the model
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
+  simulation => SimSubsurfCast(pflotran_m%simulation)
 
-  select type (simulation => pflotran_m%simulation)
+  select type (simulation)
     class is (simulation_subsurface_type)
        realization => simulation%realization
     class default
@@ -163,7 +165,7 @@ program pflotran_interface_main
   enddo
 
   ! flag ensures shutdown due to successful run.
-  pflotran_m%simulation%stop_flag = TS_STOP_END_SIMULATION
+  simulation%stop_flag = TS_STOP_END_SIMULATION
   
   ! Finalize PFLOTRAN Stepper
   !call pflotranModelStepperRunFinalize(pflotran_m)

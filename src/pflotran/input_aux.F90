@@ -148,7 +148,8 @@ module Input_Aux_module
             InputPushCard, &
             InputPushBlock, &
             InputPopBlock, &
-            InputKeywordDeprecated
+            InputKeywordDeprecated, &
+            InputCheckKeywordBlockCount
 
 contains
 
@@ -2934,6 +2935,32 @@ subroutine InputRewind(input)
   rewind(input%fid)
 
 end subroutine InputRewind
+
+! ************************************************************************** !
+
+subroutine InputCheckKeywordBlockCount(option)
+  ! 
+  ! Checks to ensure that the number of entered blocks due to nesting of 
+  ! keyword blocks in the input file is zero at the end of reading.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/17/21
+  ! 
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+
+  if (option%keyword_block_count /= 0) then
+    write(option%io_buffer,*) option%keyword_block_count
+    option%io_buffer = 'Non-zero input block count (' // &
+      trim(adjustl(option%io_buffer)) // '). Please email this message &
+      &and your input deck to pflotran-dev@googlegroups.com'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine InputCheckKeywordBlockCount
 
 ! ************************************************************************** !
 

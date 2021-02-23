@@ -126,7 +126,7 @@ contains
     use Simulation_Base_class
     use Multi_Simulation_module
     use Factory_PFLOTRAN_module
-    use Factory_Subsurface_module, only : SubsurfaceInitialize
+    use Factory_Subsurface_module, only : FactorySubsurfaceInitialize
     use Factory_Geomechanics_module
 
     implicit none
@@ -148,7 +148,7 @@ contains
 
     model%option => OptionCreate()
     call OptionInitMPI(model%option, mpicomm)
-    call PFLOTRANInitializePrePetsc(model%multisimulation, model%option)
+    call FactoryPFLOTRANInitPrePetsc(model%multisimulation, model%option)
 
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
     ! prefix string. If the driver wants to use pflotran.in, then it
@@ -170,7 +170,8 @@ contains
     PETSC_COMM_SELF = MPI_COMM_SELF
     PETSC_COMM_WORLD = MPI_COMM_WORLD
 
-    call PFLOTRANInitializePostPetsc(model%simulation, model%multisimulation, model%option)
+    call FactoryPFLOTRANInitPostPetsc(model%simulation, model%multisimulation, &
+                                      model%option)
 
     ! TODO(bja, 2013-07-15) this needs to be left alone for pflotran
     ! to deal with, or we need a valid unit number from the driver as
@@ -374,6 +375,7 @@ contains
   ! 
 
     use Option_module
+    use Simulation_Subsurface_class
 
     implicit none
 
@@ -381,7 +383,10 @@ contains
     character(len=MAXSTRINGLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
-    call model%simulation%process_model_coupler_list%CheckpointBinary(viewer,id_stamp)
+    select type(sim => model%simulation)
+      class is(simulation_subsurface_type)
+        call sim%process_model_coupler_list%CheckpointBinary(viewer,id_stamp)
+    end select
 
   end subroutine pflotranModelStepperCheckpoint
 
@@ -2388,7 +2393,7 @@ end subroutine pflotranModelSetICs
   ! Date: 9/10/2010
   ! 
 
-    use Factory_PFLOTRAN_module, only : PFLOTRANFinalize
+    use Factory_PFLOTRAN_module, only : FactoryPFLOTRANFinalize
     use Option_module, only : OptionFinalize
     use Mapping_module, only : MappingDestroy
 
@@ -2430,7 +2435,7 @@ end subroutine pflotranModelSetICs
       nullify(model%map_pf_srf_to_clm_srf)
     endif
 
-    call PFLOTRANFinalize(model%option)
+    call FactoryPFLOTRANFinalize(model%option)
     call OptionFinalize(model%option)
 
     deallocate(model)
