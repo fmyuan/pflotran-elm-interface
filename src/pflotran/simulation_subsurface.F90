@@ -47,6 +47,7 @@ module Simulation_Subsurface_class
 
   public :: SimSubsurfCreate, &
             SimSubsurfInit, &
+            SimSubsurfCast, &
             SimSubsurfInitializeRun, &
             SimSubsurfFinalizeRun, &
             SimSubsurfStrip, &
@@ -122,6 +123,29 @@ subroutine SimSubsurfInit(this,option)
   this%waypoint_list_subsurface => WaypointListCreate()
 
 end subroutine SimSubsurfInit
+
+! ************************************************************************** !
+
+function SimSubsurfCast(simulation)
+  !
+  ! Casts any simulation_type to simulation_subsurface_type if of that type
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/23/21
+  !
+  implicit none
+
+  class(simulation_base_type), pointer :: simulation
+
+  class(simulation_subsurface_type), pointer :: SimSubsurfCast
+
+  nullify(SimSubsurfCast)
+  select type(simulation)
+    class is(simulation_subsurface_type)
+      SimSubsurfCast => simulation
+  end select
+
+end function SimSubsurfCast
 
 ! ************************************************************************** !
 
