@@ -155,7 +155,6 @@ subroutine GeomechanicsSimulationExecuteRun(this)
   ! 
 
   use Waypoint_module
-  use Simulation_Subsurface_class
   use Timestepper_Base_class, only : TS_CONTINUE
 
   implicit none
