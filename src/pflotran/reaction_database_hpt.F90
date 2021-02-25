@@ -689,7 +689,7 @@ subroutine BasisInit_hpt(reaction,option)
   type(ion_exchange_rxn_type), pointer :: cur_ionx_rxn
   type(ion_exchange_cation_type), pointer :: cur_cation
   type(general_rxn_type), pointer :: cur_general_rxn
-  type(isotherm_linklist_type), pointer :: cur_kd_rxn
+  type(isotherm_linklist_type), pointer :: cur_isotherm_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
   type(transition_state_rxn_type), pointer :: tstrxn
@@ -2684,28 +2684,23 @@ subroutine BasisInit_hpt(reaction,option)
   if (reaction%isotherm%neqkdrxn > 0) then
   
      ! allocate arrays
-    allocate(reaction%isotherm%isotherm_rxn)
+    call IsothermRxnCreate(reaction%isotherm_rxn,reaction%isotherm)
     allocate(reaction%isotherm%eqkdspecid(reaction%isotherm%neqkdrxn))
     reaction%isotherm%eqkdspecid = 0
     allocate(reaction%isotherm%eqisothermtype(reaction%isotherm%neqkdrxn))
     reaction%isotherm%eqisothermtype = 0
-    allocate(reaction%isotherm%isotherm_rxn%eqisothermcoefficient(reaction%isotherm%neqkdrxn))
-    reaction%isotherm%isotherm_rxn%eqisothermcoefficient = 0.d0
-    allocate(reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(reaction%isotherm%neqkdrxn))
-    reaction%isotherm%isotherm_rxn%eqisothermlangmuirb = 0.d0
-    allocate(reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(reaction%isotherm%neqkdrxn))
-    reaction%isotherm%isotherm_rxn%eqisothermfreundlichn = 0.d0
 
-    cur_kd_rxn => reaction%isotherm%isotherm_list
+
+    cur_isotherm_rxn => reaction%isotherm%isotherm_list
     irxn = 0
     do  
-      if (.not.associated(cur_kd_rxn)) exit
+      if (.not.associated(cur_isotherm_rxn)) exit
 
       irxn = irxn + 1
 
       found = PETSC_FALSE
       do i = 1, reaction%naqcomp
-        if (StringCompare(cur_kd_rxn%species_name, &
+        if (StringCompare(cur_isotherm_rxn%species_name, &
                           reaction%primary_species_names(i), &
                           MAXWORDLENGTH)) then
           reaction%isotherm%eqkdspecid(irxn) = i
@@ -2719,12 +2714,16 @@ subroutine BasisInit_hpt(reaction,option)
                  ' not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%isotherm%isotherm_rxn%eqisothermtype(irxn) = cur_kd_rxn%itype
-      reaction%isotherm%isotherm_rxn%eqisothermcoefficient(irxn) = cur_kd_rxn%Kd
-      reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
-      reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
+      reaction%isotherm%isotherm_rxn%eqisothermtype(irxn) = &
+        cur_isotherm_rxn%itype
+      reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn) = &
+        cur_isotherm_rxn%Kd
+      reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(irxn) = &
+        cur_isotherm_rxn%Langmuir_b
+      reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(irxn) = &
+        cur_isotherm_rxn%Freundlich_n
        
-      cur_kd_rxn => cur_kd_rxn%next
+      cur_isotherm_rxn => cur_isotherm_rxn%next
     enddo
   endif
 

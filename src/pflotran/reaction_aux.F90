@@ -1634,7 +1634,7 @@ subroutine ReactionInputRecord(rxn)
   type(gas_species_type), pointer :: cur_gas_species
   type(immobile_species_type), pointer :: cur_imm_species
   type(radioactive_decay_rxn_type), pointer :: cur_rad_decay_rxn
-  type(isotherm_linklist_type), pointer :: cur_kd_rxn
+  type(isotherm_linklist_type), pointer :: cur_isotherm_rxn
   character(len=MAXWORDLENGTH) :: word1, word2
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: id = INPUT_RECORD_UNIT
@@ -1742,39 +1742,39 @@ subroutine ReactionInputRecord(rxn)
   
 ! --------- sorption isotherm reaction list ----------------------------------
   if (associated(rxn%isotherm%isotherm_list)) then
-    cur_kd_rxn => rxn%isotherm%isotherm_list
+    cur_isotherm_rxn => rxn%isotherm%isotherm_list
     do
-      if (.not.associated(cur_kd_rxn)) exit
+      if (.not.associated(cur_isotherm_rxn)) exit
       write(id,'(a29)',advance='no') 'sorption, isotherm reaction: '
-      write(id,'(a)') adjustl(trim(cur_kd_rxn%species_name))  
+      write(id,'(a)') adjustl(trim(cur_isotherm_rxn%species_name))  
       write(id,'(a29)',advance='no') 'type: '
-      select case (cur_kd_rxn%itype)
+      select case (cur_isotherm_rxn%itype)
         case (SORPTION_LINEAR)
           write(id,'(a)') 'linear sorption'
         case (SORPTION_LANGMUIR)
           write(id,'(a)') 'langmuir sorption'
           write(id,'(a29)',advance='no') 'langmuir b: '
-          write(word1,*) cur_kd_rxn%Langmuir_B
+          write(word1,*) cur_isotherm_rxn%Langmuir_B
           write(id,'(a)') adjustl(trim(word1)) 
         case (SORPTION_FREUNDLICH)
           write(id,'(a)') 'freundlich sorption'
           write(id,'(a29)',advance='no') 'freundlich n: '
-          write(word1,*) cur_kd_rxn%Freundlich_N
+          write(word1,*) cur_isotherm_rxn%Freundlich_N
           write(id,'(a)') adjustl(trim(word1))
       end select
-      if (len_trim(cur_kd_rxn%kd_mineral_name) > 0) then  !UPDATE
+      if (len_trim(cur_isotherm_rxn%kd_mineral_name) > 0) then  !UPDATE
         write(id,'(a29)',advance='no') 'Kd mineral name: '
-        write(id,'(a)') adjustl(trim(cur_kd_rxn%kd_mineral_name))
+        write(id,'(a)') adjustl(trim(cur_isotherm_rxn%kd_mineral_name))
         word2 = ' L/kg'
       else
         word2 = ' kg/m^3'
       endif
       write(id,'(a29)',advance='no') 'distribution coeff. / Kd: '
-      write(word1,*) cur_kd_rxn%Kd
+      write(word1,*) cur_isotherm_rxn%Kd
       write(id,'(a)') adjustl(trim(word1)) // adjustl(trim(word2))
       
       write(id,'(a29)') '---------------------------: '
-      cur_kd_rxn => cur_kd_rxn%next
+      cur_isotherm_rxn => cur_isotherm_rxn%next
     enddo
   endif
   

@@ -24,7 +24,7 @@ module Reaction_Isotherm_Aux_module
   end type isotherm_linklist_type
 
   type, public :: isotherm_rxn_type
-    PetscReal, pointer :: eqisothermcoefficient(:)
+    PetscReal, pointer :: eqisothermcoeff(:)
     PetscReal, pointer :: eqisothermlangmuirb(:)
     PetscReal, pointer :: eqisothermfreundlichn(:)
   end type isotherm_rxn_type
@@ -42,6 +42,7 @@ module Reaction_Isotherm_Aux_module
   end type isotherm_type
 
   public :: IsothermCreate, &
+            IsothermLinkedListCreate, &
             IsothermRxnCreate, &
             IsothermDestroy
 
@@ -79,14 +80,14 @@ end function IsothermCreate
 
 ! ************************************************************************** !
 
-function IsothermRxnCreate()
+function IsothermLinkedListCreate()
 
   ! Allocate and initialize an isotherm sorption reaction
   ! 
   ! 
   implicit none
   
-  type(isotherm_linklist_type), pointer :: IsothermRxnCreate
+  type(isotherm_linklist_type), pointer :: IsothermLinkedListCreate
   
   type(isotherm_linklist_type), pointer :: rxn
 
@@ -100,9 +101,30 @@ function IsothermRxnCreate()
   rxn%Freundlich_n = 0.d0
   nullify(rxn%next)
 
-  IsothermRxnCreate => rxn
+  IsothermLinkedListCreate => rxn
 
-end function IsothermRxnCreate
+end function IsothermLinkedListCreate
+
+! ************************************************************************** !
+
+subroutine IsothermRxnCreate(isotherm_rxn, isotherm)
+
+  implicit none
+
+  type(isotherm_type), pointer :: isotherm
+  
+  type(isotherm_rxn_type), pointer :: isotherm_rxn
+
+  allocate(isotherm_rxn)
+  ! allocate arrays
+  allocate(isotherm_rxn%eqisothermcoeff(isotherm%neqkdrxn))
+  isotherm_rxn%eqisothermcoeff = 0.d0
+  allocate(isotherm_rxn%eqisothermlangmuirb(isotherm%neqkdrxn))
+  isotherm_rxn%eqisothermlangmuirb = 0.d0
+  allocate(isotherm_rxn%eqisothermfreundlichn(isotherm%neqkdrxn))
+  isotherm_rxn%eqisothermfreundlichn = 0.d0 
+
+end subroutine IsothermRxnCreate
 
 ! ************************************************************************** !
 
@@ -139,32 +161,32 @@ subroutine IsothermDestroy(isotherm,option)
 
   type(isotherm_type) :: isotherm
   type(option_type) :: option
-  type(isotherm_linklist_type), pointer :: kd_rxn, prev_kd_rxn
+  type(isotherm_linklist_type), pointer :: isotherm_rxn, prev_isotherm_rxn
 
-  kd_rxn => isotherm%isotherm_list
+  isotherm_rxn => isotherm%isotherm_list
 
   do
-    if (.not.associated(kd_rxn)) exit
-    prev_kd_rxn => kd_rxn
-    kd_rxn => kd_rxn%next
-    call IsothermRxnDestroy(prev_kd_rxn)
+    if (.not.associated(isotherm_rxn)) exit
+    prev_isotherm_rxn => isotherm_rxn
+    isotherm_rxn => isotherm_rxn%next
+    call IsothermRxnDestroy(prev_isotherm_rxn)
   enddo
   nullify(isotherm%isotherm_list)
 
   ! secondary continuum
   if (option%use_mc) then
-    kd_rxn => isotherm%multicontinuum_isotherm_list
+    isotherm_rxn => isotherm%multicontinuum_isotherm_list
     do
-      if (.not.associated(kd_rxn)) exit
-      prev_kd_rxn => kd_rxn
-      kd_rxn => kd_rxn%next
-      call IsothermRxnDestroy(prev_kd_rxn)
+      if (.not.associated(isotherm_rxn)) exit
+      prev_isotherm_rxn => isotherm_rxn
+      isotherm_rxn => isotherm_rxn%next
+      call IsothermRxnDestroy(prev_isotherm_rxn)
     enddo
     nullify(isotherm%multicontinuum_isotherm_list)
   endif
  
   if (associated(isotherm%isotherm_rxn)) then
-    call DeallocateArray(isotherm%isotherm_rxn%eqisothermcoefficient)
+    call DeallocateArray(isotherm%isotherm_rxn%eqisothermcoeff)
     call DeallocateArray(isotherm%isotherm_rxn%eqisothermlangmuirb)
     call DeallocateArray(isotherm%isotherm_rxn%eqisothermfreundlichn)
   endif
@@ -172,7 +194,7 @@ subroutine IsothermDestroy(isotherm,option)
   nullify(isotherm%isotherm_rxn)
 
   if (associated(isotherm%multicontinuum_isotherm_rxn)) then
-    call DeallocateArray(isotherm%multicontinuum_isotherm_rxn%eqisothermcoefficient)
+    call DeallocateArray(isotherm%multicontinuum_isotherm_rxn%eqisothermcoeff)
     call DeallocateArray(isotherm%multicontinuum_isotherm_rxn%eqisothermlangmuirb)
     call DeallocateArray(isotherm%multicontinuum_isotherm_rxn%eqisothermfreundlichn)
   endif
