@@ -2,7 +2,7 @@
 
 # DO NOT place any object files that depend on the discretization within
 # util_obj
-util_obj  = \
+util_obj = \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -16,6 +16,7 @@ util_obj  = \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
+	${common_src}timer.o \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}variables.o
@@ -117,7 +118,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
-	${comymon_src}reaction_sandbox_simple.o \
+	${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \

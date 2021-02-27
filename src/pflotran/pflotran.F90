@@ -2,7 +2,7 @@
 ! Please see LICENSE and COPYRIGHT files at top of repository.
 !=======================================================================
 program pflotran
-  
+
   use Option_module
   use Simulation_Base_class
   use Multi_Simulation_module
@@ -10,30 +10,30 @@ program pflotran
   use Factory_Subsurface_module
   use PFLOTRAN_Constants_module
   use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
-  
+
   implicit none
 
 #include "petsc/finclude/petscsys.h"
 
   class(simulation_base_type), pointer :: simulation
   ! multisimulation enables multiple simulations to be run concurrently
-  ! and/or one after another until a specified set of simulations has 
+  ! and/or one after another until a specified set of simulations has
   ! completed.
   type(multi_simulation_type), pointer :: multisimulation
   type(option_type), pointer :: option
-  
+
   nullify(simulation)
   nullify(multisimulation)
   option => OptionCreate()
   call OptionInitMPI(option)
-  call PFLOTRANInitializePrePetsc(multisimulation,option)
+  call FactoryPFLOTRANInitPrePetsc(multisimulation,option)
   call OptionInitPetsc(option)
   if (option%myrank == option%io_rank .and. option%print_to_screen) then
     !call PrintProvenanceToScreen()
   endif
 
   do ! multi-simulation loop
-    call PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
+    call FactoryPFLOTRANInitPostPetsc(simulation,multisimulation,option)
 
     call simulation%InitializeRun()
 
@@ -45,9 +45,9 @@ program pflotran
     call simulation%Strip()
     deallocate(simulation)
     nullify(simulation)
-    call PFLOTRANFinalize(option)
     if (MultiSimulationDone(multisimulation)) exit
   enddo ! multi-simulation loop
+  call FactoryPFLOTRANFinalize(option)
   call OptionFinalize(option)
 
 end program pflotran

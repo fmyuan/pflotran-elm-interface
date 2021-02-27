@@ -6,27 +6,27 @@ module Factory_Subsurface_module
 
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
-  
+
   implicit none
 
   private
 
-  public :: SubsurfaceInitialize, &
-            SubsurfaceInitializePostPETSc, &
-            SubsurfaceJumpStart, &
+  public :: FactorySubsurfaceInitialize, &
+            FactorySubsurfaceInitPostPetsc, &
+            FactorySubsurfaceJumpStart, &
             ! move to init_subsurface
-            SubsurfaceReadFlowPM, &
-            SubsurfaceReadTransportPM, &
-            SubsurfaceReadWasteFormPM, &
-            SubsurfaceReadUFDDecayPM, &
-            SubsurfaceReadUFDBiospherePM, &
-            SubsurfaceReadGeophysicsPM
+            FactorySubsurfaceReadFlowPM, &
+            FactorySubsurfaceReadTransportPM, &
+            FactorySubsurfaceReadWasteFormPM, &
+            FactorySubsurfaceReadUFDDecayPM, &
+            FactorySubsurfReadUFDBiospherePM, &
+            FactorySubsurfReadGeophysicsPM
 
 contains
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceInitialize(simulation)
+subroutine FactorySubsurfaceInitialize(simulation)
   !
   ! Sets up PFLOTRAN subsurface simulation
   !
@@ -46,13 +46,13 @@ subroutine SubsurfaceInitialize(simulation)
   call KlinkenbergInit()
 
   ! NOTE: PETSc must already have been initialized here!
-  call SubsurfaceInitializePostPetsc(simulation)
+  call FactorySubsurfaceInitPostPetsc(simulation)
 
-end subroutine SubsurfaceInitialize
+end subroutine FactorySubsurfaceInitialize
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceInitializePostPetsc(simulation)
+subroutine FactorySubsurfaceInitPostPetsc(simulation)
   !
   ! Sets up PFLOTRAN subsurface simulation
   ! framework after to PETSc initialization
@@ -113,7 +113,8 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
 
   ! Setup linkages between PMCs
   call SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
-    pm_ufd_decay,pm_ufd_biosphere,pm_geop,pm_auxiliary,realization)
+                        pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
+                        pm_auxiliary,realization)
 
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
   call SubsurfaceInitSimulation(simulation)
@@ -121,7 +122,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
-end subroutine SubsurfaceInitializePostPetsc
+end subroutine FactorySubsurfaceInitPostPetsc
 
 ! ************************************************************************** !
 
@@ -191,7 +192,7 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form,&
         pm_auxiliary => cur_pm
       class default
         option%io_buffer = &
-         'PM Class unrecognized in SubsurfaceInitializePostPetsc.'
+         'PM Class unrecognized in FactorySubsurfaceInitPostPetsc.'
         call PrintErrMsg(option)
     end select
 
@@ -253,6 +254,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
     call AddPMCSubsurfaceTransport(simulation,pm_tran, &
                                    'PMCSubsurfaceTransport', &
                                    realization,option)
+
   if (associated(pm_geop)) &
     call AddPMCSubsurfaceGeophysics(simulation,pm_geop, &
                                     'PMCSubsurfaceGeophysics', &
@@ -969,7 +971,7 @@ end subroutine SubsurfaceSetGeopMode
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadFlowPM(input,option,pm)
+subroutine FactorySubsurfaceReadFlowPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1068,11 +1070,11 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
     call PrintErrMsg(option)
   endif
 
-end subroutine SubsurfaceReadFlowPM
+end subroutine FactorySubsurfaceReadFlowPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadTransportPM(input,option,pm)
+subroutine FactorySubsurfaceReadTransportPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 12/04/19
@@ -1175,11 +1177,11 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
     call PrintErrMsg(option)
   endif
 
-end subroutine SubsurfaceReadTransportPM
+end subroutine FactorySubsurfaceReadTransportPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadWasteFormPM(input,option,pm)
+subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1245,11 +1247,11 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
 
   pm%option => option
 
-end subroutine SubsurfaceReadWasteFormPM
+end subroutine FactorySubsurfaceReadWasteFormPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
+subroutine FactorySubsurfaceReadUFDDecayPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1298,11 +1300,11 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine SubsurfaceReadUFDDecayPM
+end subroutine FactorySubsurfaceReadUFDDecayPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
+subroutine FactorySubsurfReadUFDBiospherePM(input,option,pm)
   !
   ! Author: Jenn Frederick
   ! Date: 03/13/2017
@@ -1344,11 +1346,11 @@ subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine SubsurfaceReadUFDBiospherePM
+end subroutine FactorySubsurfReadUFDBiospherePM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadGeophysicsPM(input,option,pm)
+subroutine FactorySubsurfReadGeophysicsPM(input,option,pm)
   !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/25/2021
@@ -1414,7 +1416,7 @@ subroutine SubsurfaceReadGeophysicsPM(input,option,pm)
     call PrintErrMsg(option)
   endif
 
-end subroutine SubsurfaceReadGeophysicsPM
+end subroutine FactorySubsurfReadGeophysicsPM
 
 ! ************************************************************************** !
 
@@ -1562,7 +1564,7 @@ subroutine SubsurfaceInitSimulation(simulation)
     call InitCommonVerifyAllCouplers(realization)
   endif
 
-  call SubsurfaceJumpStart(simulation)
+  call FactorySubsurfaceJumpStart(simulation)
 
 end subroutine SubsurfaceInitSimulation
 
@@ -1628,7 +1630,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
           call PrintErrMsg(option)
         endif
         call cur_pm%SetRealization(realization)
-        
+
       class is(pm_nwt_type)
         if (.not.associated(realization%reaction_nw)) then
           option%io_buffer = 'SUBSURFACE_TRANSPORT MODE NWT is specified &
@@ -1717,7 +1719,7 @@ subroutine SubsurfaceSetupRealization(simulation)
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
 
-  select case(option%itranmode) 
+  select case(option%itranmode)
     case(RT_MODE)
       ! read reaction database
       if (realization%reaction%use_full_geochemistry) then
@@ -1800,12 +1802,12 @@ end subroutine SubsurfaceSetupRealization
 ! ************************************************************************** !
 
 subroutine SetupWaypointList(simulation)
-  ! 
+  !
   ! Sets up waypoint list
   !
   ! Author: Gautam Bisht
   ! Date: 06/05/18
-  ! 
+  !
 
   use Checkpoint_module
   use Realization_Subsurface_class
@@ -1860,7 +1862,7 @@ end subroutine SetupWaypointList
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceJumpStart(simulation)
+subroutine FactorySubsurfaceJumpStart(simulation)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1901,7 +1903,7 @@ subroutine SubsurfaceJumpStart(simulation)
     call RTJumpStartKineticSorption(realization)
   endif
 
-end subroutine SubsurfaceJumpStart
+end subroutine FactorySubsurfaceJumpStart
 
 ! ************************************************************************** !
 
@@ -2057,7 +2059,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             call PrintErrMsg(option)
           endif
         endif
-        
+
 !....................
       case('CHEMISTRY')
         call InputPushCard(input,card,option)
@@ -2070,9 +2072,9 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         !geh: for some reason, we need this with CHEMISTRY read for
         !     multicontinuum
  !       option%use_mc = PETSC_TRUE
-        call ReactionInit(realization%reaction,input,option)  
+        call ReactionInit(realization%reaction,input,option)
         realization%reaction_base => realization%reaction
-        
+
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
         call InputPushCard(input,card,option)
@@ -2081,11 +2083,11 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             &SUBSURFACE_TRANSPORT MODE NWT was not specified in the &
             &SIMULATION block.'
           call PrintErrMsg(option)
-        endif     
+        endif
         realization%reaction_nw => NWTReactionCreate()
         realization%reaction_base => realization%reaction_nw
         call NWTRead(realization%reaction_nw,input,option)
-        
+
     end select
   enddo
   call InputPopBlock(input,option) ! REQUIRED_CARDS
@@ -2285,7 +2287,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
-                          
+
   call InputRewind(input)
   string = 'SUBSURFACE'
   call InputFindStringInFile(input,option,string)
@@ -2312,7 +2314,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('CHEMISTRY')
         call ReactionReadPass2(reaction,input,option)
-        
+
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
         call NWTReadPass2(realization%reaction_nw,input,option)
@@ -2889,7 +2891,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
 
-      case ('THERMAL_CHARACTERISTIC_CURVES')       
+      case ('THERMAL_CHARACTERISTIC_CURVES')
         characteristic_curves_thermal => CharCurvesThermalCreate()
         call InputReadWord(input,option, &
              characteristic_curves_thermal%name,PETSC_TRUE)
@@ -3613,7 +3615,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         enddo
         call InputPopBlock(input,option)
 
-        ! we store dt_init and dt_min in local variables so that they 
+        ! we store dt_init and dt_min in local variables so that they
         ! cannot overwrite what has previously been set in the respective
         ! timestepper object member variable
         if (Initialized(dt_init)) then

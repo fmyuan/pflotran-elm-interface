@@ -126,11 +126,11 @@ factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          timestepper_steady.o units.o utility.o waypoint.o
 factory_pflotran.o : checkpoint.o eos.o factory_geomechanics.o \
                      factory_subsurface.o hdf5_aux.o input_aux.o logging.o \
-                     multisimulation.o option.o output_aux.o output_ekg.o \
+                     multisimulation.o option.o output_aux.o \
                      pflotran_constants.o pm_auxiliary.o pm_base.o \
-                     pm_geomechanics_force.o pm_rt.o pm_subsurface_flow.o \
-                     pmc_base.o simulation_base.o simulation_geomechanics.o \
-                     simulation_subsurface.o string.o units.o waypoint.o
+                     pm_geomechanics_force.o pmc_base.o simulation_base.o \
+                     simulation_geomechanics.o simulation_subsurface.o \
+                     string.o units.o waypoint.o
 factory_subsurface.o : characteristic_curves.o characteristic_curves_thermal.o \
                        checkpoint.o condition.o coupler.o \
                        data_mediator_dataset.o dataset.o dataset_ascii.o \
@@ -272,7 +272,7 @@ grid_unstructured_polyhedra.o : connection.o geometry.o grid_unstructured.o \
                                 pflotran_constants.o string.o utility.o
 hdf5.o : discretization.o field.o grid.o grid_unstructured_cell.o hdf5_aux.o \
          logging.o option.o patch.o pflotran_constants.o realization_base.o \
-         realization_subsurface.o region.o utility.o
+         realization_subsurface.o region.o string.o utility.o
 hdf5_aux.o : input_aux.o logging.o option.o pflotran_constants.o string.o
 hydrate.o : connection.o coupler.o debug.o discretization.o eos_water.o \
             field.o fluid.o global_aux.o grid.o hydrate_aux.o hydrate_common.o \
@@ -773,26 +773,26 @@ secondary_continuum_aux.o : option.o pflotran_constants.o \
                             reactive_transport_aux.o utility.o
 shape_function.o : gauss.o grid_unstructured_cell.o pflotran_constants.o
 simulation_aux.o : option.o pflotran_constants.o
-simulation_base.o : checkpoint.o eos.o input_aux.o logging.o option.o output.o \
-                    output_aux.o pflotran_constants.o pm_base.o pmc_base.o \
-                    simulation_aux.o string.o timestepper_base.o waypoint.o
+simulation_base.o : option.o output.o output_aux.o pflotran_constants.o \
+                    simulation_aux.o timer.o waypoint.o
 simulation_geomechanics.o : geomechanics_realization.o \
                             geomechanics_regression.o option.o output.o \
                             output_aux.o pflotran_constants.o pmc_base.o \
                             pmc_geomechanics.o pmc_subsurface.o \
                             realization_subsurface.o simulation_aux.o \
-                            simulation_base.o simulation_subsurface.o \
-                            timestepper_base.o timestepper_steady.o utility.o \
-                            waypoint.o
+                            simulation_subsurface.o timestepper_base.o \
+                            timestepper_steady.o utility.o waypoint.o
 simulation_subsurface.o : characteristic_curves.o \
-                          characteristic_curves_thermal.o condition.o \
-                          discretization.o eos.o logging.o material.o option.o \
-                          output.o output_aux.o patch.o pflotran_constants.o \
+                          characteristic_curves_thermal.o checkpoint.o \
+                          condition.o discretization.o eos.o input_aux.o \
+                          logging.o material.o option.o output.o output_aux.o \
+                          output_ekg.o patch.o pflotran_constants.o pm_base.o \
                           pmc_base.o pmc_geophysics.o pmc_subsurface.o \
-                          pmc_third_party.o reaction_aux.o reaction_clm.o \
-                          reaction_sandbox.o realization_subsurface.o region.o \
-                          regression.o simulation_base.o srcsink_sandbox.o \
-                          strata.o timestepper_base.o waypoint.o wipp.o
+                          reaction_aux.o reaction_clm.o reaction_sandbox.o \
+                          realization_subsurface.o region.o regression.o \
+                          simulation_aux.o simulation_base.o srcsink_sandbox.o \
+                          strata.o string.o timestepper_base.o waypoint.o \
+                          wipp.o
 solver.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
            solver_cpr.o string.o
 solver_cpr.o : input_aux.o option.o pflotran_constants.o preconditioner_cpr.o \
@@ -837,6 +837,7 @@ th_aux.o : characteristic_curves.o characteristic_curves_common.o \
            material_aux.o matrix_zeroing.o option.o pflotran_constants.o \
            saturation_function.o
 time_storage.o : option.o pflotran_constants.o
+timer.o :
 timestepper_BE.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
                    output.o output_ekg.o pflotran_constants.o pm_base.o \
                    solver.o string.o timestepper_base.o utility.o
