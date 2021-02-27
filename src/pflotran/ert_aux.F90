@@ -74,7 +74,6 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
   type(option_type) :: option
   type(survey_type) :: survey
   
-  ! TODO: should allocate for all electrodes
   allocate(auxvar%potential(survey%num_electrode))
   auxvar%potential = 0.d0
 
