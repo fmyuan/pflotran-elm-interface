@@ -85,7 +85,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(realization_subsurface_type), pointer :: realization
-  PetscInt :: ii
+
   option => simulation%option
 
   nullify(pm_flow)
@@ -658,7 +658,7 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,op
   ! Adds a Geophysics PMC
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/25/2021
+  ! Date: 01/25/21
   !
 
   use PM_Base_class
@@ -940,7 +940,7 @@ subroutine SubsurfaceSetGeopMode(pm_geop,option)
   ! Sets the geophysics mode (ert, sip, etc.)
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   !
 
   use Option_module
@@ -1353,7 +1353,7 @@ end subroutine FactorySubsurfReadUFDBiospherePM
 subroutine FactorySubsurfReadGeophysicsPM(input,option,pm)
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/25/2021
+  ! Date: 01/25/21
   !
   use Input_Aux_module
   use Option_module

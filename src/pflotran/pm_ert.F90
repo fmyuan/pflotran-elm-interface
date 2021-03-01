@@ -216,7 +216,7 @@ end subroutine PMERTInitializeRun
 
 subroutine PMERTSetupSolver(this)
   !
-  ! Author: Glenn Hammond & Piyoosh Jaysaval
+  ! Author: Piyoosh Jaysaval
   ! Date: 01/29/21
   !
 

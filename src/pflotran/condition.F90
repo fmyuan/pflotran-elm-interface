@@ -255,7 +255,7 @@ function GeopConditionCreate(option)
   ! Creates a geophysics condition
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   !
 
   use Option_module
@@ -2897,7 +2897,7 @@ subroutine GeopConditionRead(condition,input,option)
   ! Reads a geophysics condition from the input file
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   !
 
   use Option_module
@@ -3587,7 +3587,7 @@ subroutine GeopConditionInitList(list)
   ! Initializes a geophysics condition list
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   !
 
   implicit none
@@ -3608,7 +3608,7 @@ subroutine GeopConditionAddToList(new_condition,list)
   ! Adds a new condition to a geophysics condition list
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   !
 
   implicit none
@@ -3632,7 +3632,7 @@ function GeopConditionGetPtrFromList(condition_name,condition_list)
   ! condition_name
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   !
 
   use String_module
@@ -4295,7 +4295,7 @@ subroutine GeopConditionDestroyList(condition_list)
   ! Deallocates a list of geophysics conditions
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   !
 
   implicit none
@@ -4332,7 +4332,7 @@ subroutine GeopConditionDestroy(condition)
   ! Deallocates a geophysics condition
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/26/2021
+  ! Date: 01/26/21
   !
 
   implicit none

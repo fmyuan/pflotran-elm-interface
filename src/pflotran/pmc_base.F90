@@ -605,7 +605,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
                                         local_stop_flag, &
                                         snapshot_plot_at_this_time_flag, &
                                         observation_plot_at_this_time_flag, &
-                                       massbal_plot_at_this_time_flag, &
+                                        massbal_plot_at_this_time_flag, &
                                         checkpoint_at_this_time_flag)                                       
     call this%StepDT(local_stop_flag)
 

@@ -66,7 +66,7 @@ subroutine ERTSetupPatch(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:) 
   type(ert_auxvar_type), pointer :: ert_auxvars(:) 
 
-  PetscInt :: flag(2)
+  PetscInt :: flag(1)
   PetscInt :: local_id, ghosted_id
   PetscBool :: error_found
   PetscReal :: tempreal
@@ -87,10 +87,10 @@ subroutine ERTSetupPatch(realization)
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle       
     tempreal = minval(material_auxvars(ghosted_id)%electrical_conductivity)   
-    if (Uninitialized(tempreal) .and. flag(2) == 0) then
+    if (Uninitialized(tempreal) .and. flag(1) == 0) then
       option%io_buffer = 'ERROR: Non-initialized electrical conductivity.'
       call PrintMsgByRank(option)
-      flag(2) = 1
+      flag(1) = 1
     endif      
   enddo  
 
@@ -355,7 +355,7 @@ subroutine ERTCalculateAnalyticPotential(realization,ielec,average_conductivity)
     cell_center(2) = grid%y(ghosted_id)
     cell_center(3) = grid%z(ghosted_id)
 
-    r = NORM2(epos - cell_center)
+    r = norm2(epos - cell_center)
     ! Add small value to avoid overshooting at electrode position
     r = r + 1.0d-15
     ert_auxvars(ghosted_id)%potential(ielec) = 1 / (2*pi*r*cond)     

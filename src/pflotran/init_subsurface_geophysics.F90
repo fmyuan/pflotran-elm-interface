@@ -19,7 +19,7 @@ subroutine InitSubsurfGeopSetupRealization(realization)
   ! Initializes geophsyics data structres and assign them to the domain.
   ! 
   ! Author: Piyoosh Jaysaval
-  ! Date: 01/29/2021
+  ! Date: 01/29/21
 
   use Realization_Subsurface_class
   use Option_module
