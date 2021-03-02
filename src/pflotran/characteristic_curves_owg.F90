@@ -720,6 +720,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
   PetscBool :: smooth
+  PetscInt :: error
   
   
   input%ierr = 0
@@ -1006,7 +1007,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
         class is(rpf_TOUGH2_IRP7_gas_type)
           rpf_sl%Sr = rpf%Slcr
           rpf_sl%Srg = rpf%Sgcr
-          rpf_sl%m = rpf%m
+          error = rpf_sl%set_m(rpf%m)
       end select
     class is(RPF_wat_owg_Burdine_BC_type)
       select type(rpf_sl => rpf%rel_perm_func_sl)
@@ -1409,7 +1410,7 @@ function SF_XW_VG_Create()
 
   call SFXWBaseInit(SF_XW_VG_Create)
 
-  SF_XW_VG_Create%sat_func_sl => SF_VG_Create()
+  SF_XW_VG_Create%sat_func_sl => SFVGCreate()
 
   call SF_XW_VG_Create%Init()
 
@@ -2167,7 +2168,7 @@ function SF_OG_VG_SL_Create()
 
   call SFOGBaseInit(SF_OG_VG_SL_Create)
 
-  SF_OG_VG_SL_Create%sat_func_sl => SF_VG_Create()
+  SF_OG_VG_SL_Create%sat_func_sl => SFVGCreate()
 
   call SF_OG_VG_SL_Create%Init()
 

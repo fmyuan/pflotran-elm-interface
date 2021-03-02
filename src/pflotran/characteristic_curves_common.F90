@@ -241,7 +241,6 @@ module Characteristic_Curves_Common_module
             RPFBurdineLinearGasCreate, &
             RPFmKLiqCreate, &
             RPFmKGasCreate, &
-!            RPFMualemVGLiqRelPerm, &
             RPFIGHCC2CompLiqCreate, &
             RPFIGHCC2CompGasCreate, &
             RPFTableLiqCreate, &
@@ -463,8 +462,7 @@ subroutine SFConstantVerify(this,name,option)
           trim(string) // '.'
         call PrintErrMsg(option)
       endif
-    case(WF_MODE,G_MODE,TOIL_IMS_MODE,IMS_MODE,MIS_MODE,MPH_MODE,FLASH2_MODE, &
-         H_MODE)
+    case(WF_MODE,G_MODE,MPH_MODE,H_MODE)
       if (Initialized(this%constant_saturation)) then
         option%io_buffer = 'CONSTANT_SATURATION is not supported for &
           &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &
@@ -602,8 +600,6 @@ end subroutine RPFConstantRelPerm
 
 ! ************************************************************************** !
 
-! ************************************************************************** !
-
 function SFIGHCC2CompCreate()
 
   ! Creates the IGHCC2 Comparison capillary pressure function object
@@ -638,8 +634,6 @@ end subroutine SFIGHCC2CompInit
 
 
 ! ************************************************************************** !
-
-
 
 subroutine SFIGHCC2CompVerify(this,name,option)
 
@@ -1658,7 +1652,6 @@ subroutine SFmKSaturation(this,capillary_pressure, &
 end subroutine SFmKSaturation
 
 ! ************************************************************************** !
-! ************************************************************************** !
 
 function RPFBurdineBCLiqCreate()
 
@@ -2593,7 +2586,6 @@ subroutine RPFMualemBCGasRelPerm(this,liquid_saturation, &
 end subroutine RPFMualemBCGasRelPerm
 
 ! ************************************************************************** !
-
 ! ************************************************************************** !
 
 function RPFMualemLinearLiqCreate()
