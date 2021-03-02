@@ -201,24 +201,24 @@ subroutine MphaseSetupPatch(realization)
     ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
-        patch%material_property_array(1)%ptr%secondary_continuum_name, &
-        patch%material_property_array(1)%ptr%secondary_continuum_length, &
-        patch%material_property_array(1)%ptr%secondary_continuum_matrix_block_size, &
-        patch%material_property_array(1)%ptr%secondary_continuum_fracture_spacing, &
-        patch%material_property_array(1)%ptr%secondary_continuum_radius, &
-        patch%material_property_array(1)%ptr%secondary_continuum_area, &
+        patch%material_property_array(1)%ptr%multicontinuum%name, &
+        patch%material_property_array(1)%ptr%multicontinuum%length, &
+        patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
+        patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
+        patch%material_property_array(1)%ptr%multicontinuum%radius, &
+        patch%material_property_array(1)%ptr%multicontinuum%area, &
         option)
         
       mphase_sec_heat_vars(local_id)%ncells = &
-        patch%material_property_array(1)%ptr%secondary_continuum_ncells
+        patch%material_property_array(1)%ptr%multicontinuum%ncells
       mphase_sec_heat_vars(local_id)%aperture = &
-        patch%material_property_array(1)%ptr%secondary_continuum_aperture
+        patch%material_property_array(1)%ptr%multicontinuum%aperture
       mphase_sec_heat_vars(local_id)%epsilon = &
-        patch%material_property_array(1)%ptr%secondary_continuum_epsilon
+        patch%material_property_array(1)%ptr%multicontinuum%epsilon
       mphase_sec_heat_vars(local_id)%log_spacing = &
-        patch%material_property_array(1)%ptr%secondary_continuum_log_spacing
+        patch%material_property_array(1)%ptr%multicontinuum%log_spacing
       mphase_sec_heat_vars(local_id)%outer_spacing = &
-        patch%material_property_array(1)%ptr%secondary_continuum_outer_spacing
+        patch%material_property_array(1)%ptr%multicontinuum%outer_spacing
         
 
       allocate(mphase_sec_heat_vars(local_id)%area(mphase_sec_heat_vars(local_id)%ncells))
@@ -244,7 +244,7 @@ subroutine MphaseSetupPatch(realization)
       mphase_sec_heat_vars(local_id)%interfacial_area = area_per_vol* &
           (1.d0 - mphase_sec_heat_vars(local_id)%epsilon)* &
           patch%material_property_array(1)%ptr% &
-          secondary_continuum_area_scaling
+          multicontinuum%area_scaling
 
 
     ! Setting the initial values of all secondary node temperatures same as primary node 
@@ -253,7 +253,7 @@ subroutine MphaseSetupPatch(realization)
       
       if (option%flow%set_secondary_init_temp) then
         mphase_sec_heat_vars(local_id)%sec_temp = &
-          patch%material_property_array(1)%ptr%secondary_continuum_init_temp
+          patch%material_property_array(1)%ptr%multicontinuum%init_temp
       else
         mphase_sec_heat_vars(local_id)%sec_temp = &
         initial_condition%flow_condition%temperature%dataset%rarray(1)

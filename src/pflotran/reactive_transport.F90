@@ -258,7 +258,8 @@ subroutine RTSetup(realization)
     allocate(rt_sec_transport_vars(grid%ngmax))  
     do ghosted_id = 1, grid%ngmax
     ! Assuming the same secondary continuum type for all regions
-      call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr, &
+      call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr% &
+                                 multicontinuum, &
                                  rt_sec_transport_vars(ghosted_id), &
                                  reaction,initial_condition, &
                                  sec_tran_constraint,option)
@@ -854,7 +855,7 @@ subroutine RTUpdateKineticState(realization)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
         sec_porosity = patch%material_property_array(1)%ptr% &
-                        secondary_continuum_porosity
+                        multicontinuum%porosity
 
         call SecondaryRTUpdateKineticState(rt_sec_transport_vars(ghosted_id), &
                                            global_auxvars(ghosted_id), &
@@ -2795,9 +2796,9 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
          
       sec_diffusion_coefficient = patch% &
                                   material_property_array(1)%ptr% &
-                                  secondary_continuum_diff_coeff
+                                  multicontinuum%diff_coeff
       sec_porosity = patch%material_property_array(1)%ptr% &
-                     secondary_continuum_porosity
+                     multicontinuum%porosity
 
       call SecondaryRTResJacMulti(rt_sec_transport_vars(ghosted_id), &
                                   rt_auxvars(ghosted_id), &
@@ -3556,9 +3557,9 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         Jup = Jup*rt_sec_transport_vars(ghosted_id)%epsilon
 
         sec_diffusion_coefficient = patch%material_property_array(1)% &
-                                    ptr%secondary_continuum_diff_coeff
+                                    ptr%multicontinuum%diff_coeff
         sec_porosity = patch%material_property_array(1)%ptr% &
-                       secondary_continuum_porosity
+                       multicontinuum%porosity
                         
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
           option%io_buffer = 'Current multicomponent implementation is for '// &
