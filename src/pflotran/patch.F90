@@ -25,7 +25,7 @@ module Patch_module
   use General_Aux_module
   use Hydrate_Aux_module
   use TH_Aux_module
-  
+
   implicit none
 
   private
@@ -75,7 +75,7 @@ module Patch_module
     type(characteristic_curves_ptr_type), pointer :: characteristic_curves_array(:)
     class(cc_thermal_type), pointer :: characteristic_curves_thermal
     type(cc_thermal_ptr_type), pointer :: char_curves_thermal_array(:)
-    
+
     type(strata_list_type), pointer :: strata_list
     type(observation_list_type), pointer :: observation_list
     type(integral_flux_list_type), pointer :: integral_flux_list
@@ -339,7 +339,7 @@ end subroutine PatchLocalizeRegions
 ! ************************************************************************** !
 
 subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
-                                option)
+                                geophysics_conditions, option)
 
   !
   ! Assigns conditions and regions to couplers
@@ -359,6 +359,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   type(patch_type) :: patch
   type(condition_list_type) :: flow_conditions
   type(tran_condition_list_type) :: transport_conditions
+  type(geop_condition_list_type) :: geophysics_conditions
   type(option_type) :: option
 
   type(coupler_type), pointer :: coupler
@@ -431,6 +432,26 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
         endif
       else
         option%io_buffer = 'A TRANSPORT_CONDITION must be specified in &
+                           &BOUNDARY_CONDITION: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to geophysics condition
+    if (option%ngeopdof > 0) then
+      if (len_trim(coupler%geop_condition_name) > 0) then
+        coupler%geop_condition => &
+          GeopConditionGetPtrFromList(coupler%geop_condition_name, &
+                                      geophysics_conditions)
+        if (.not.associated(coupler%geop_condition)) then
+           option%io_buffer = 'Geophysics condition "' // &
+                   trim(coupler%geop_condition_name) // &
+                   '" in boundary condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in geophysics condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A GEOPHYSICS_CONDITION must be specified in &
                            &BOUNDARY_CONDITION: ' // trim(coupler%name) // '.'
         call PrintErrMsg(option)
       endif
@@ -982,7 +1003,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                   coupler%flow_aux_real_var = 0.d0
               end select
             endif
-          endif 
+          endif
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)
@@ -1402,7 +1423,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscInt :: dof_count_local(3)
   PetscInt :: dof_count_global(3)
   PetscReal, parameter :: min_two_phase_gas_pressure = 3.d3
-  
+
   num_connections = coupler%connection_set%num_connections
 
   flow_condition => coupler%flow_condition
@@ -1412,7 +1433,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   dof2 = PETSC_FALSE
   dof3 = PETSC_FALSE
   real_count = 0
-  
+
   ! mapping of flow_aux_mapping to the flow_aux_real_var array:
   if (associated(coupler%flow_aux_mapping)) then
     ! liquid and gas pressure are set to 1st dof index
@@ -1446,15 +1467,15 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           else if (gas_sat < 0.5d0) then
             coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
               LIQUID_STATE
-          else 
+          else
             coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
               GAS_STATE
           endif
         class is(dataset_gridded_hdf5_type)
           ! If the gas pressure dataset is defined, we must ensure that its
-          ! minimum pressure is greater than min_two_phase_gas_pressure. 
-          ! Otherwise, a zero gas pressure may be incorrectly used within 
-          ! an interpolation of gas pressure for a two phase cell mixed 
+          ! minimum pressure is greater than min_two_phase_gas_pressure.
+          ! Otherwise, a zero gas pressure may be incorrectly used within
+          ! an interpolation of gas pressure for a two phase cell mixed
           ! with a single phase liquid cell
           if (associated(general%gas_pressure)) then
             dummy_real = &
@@ -1476,7 +1497,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
             else
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = GAS_STATE
-            endif                                       
+            endif
           enddo
         class default
           call PrintMsg(option,'general%gas_saturation%dataset,MULTI_STATE')
@@ -1486,7 +1507,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     case(TWO_PHASE_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         TWO_PHASE_STATE
-        ! no need to loop in the next do loop if its all the same state, which 
+        ! no need to loop in the next do loop if its all the same state, which
         ! you know from flow_condition%iphase
     case(LIQUID_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
@@ -1534,7 +1555,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           ANY_STATE
       endif
   end select
-  
+
   ! loop over each connection in the coupler and check its state
   ! set the flow_aux_mapping, flow_aux_real_var, etc on a connection
   ! basis rather than in coupler chunks
@@ -1560,7 +1581,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   'GENERAL_MODE two phase state gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(general%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -1620,7 +1641,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             ! ---> see code that just prints error
             coupler%flow_bc_type(1) = HYDROSTATIC_BC
             coupler%flow_bc_type(2:3) = DIRICHLET_BC
-          else 
+          else
           ! liquid pressure; 1st dof --------------------- !
             select case(general%liquid_pressure%itype)
               case(DIRICHLET_BC)
@@ -1814,7 +1835,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
       end select
     enddo
   endif
-  
+
   select case(flow_condition%iphase)
     case(MULTI_STATE)
     case(TWO_PHASE_STATE)
@@ -1951,14 +1972,14 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
   if (dof_count_global(3) > 0) dof3 = PETSC_TRUE
-  ! need to check if these dofs are true on any process, because the 
-  ! boundary condition might be split up on 2 or more processes  
+  ! need to check if these dofs are true on any process, because the
+  ! boundary condition might be split up on 2 or more processes
   if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
     if (coupler%itype .ne. SRC_SINK_COUPLER_TYPE) then
       option%io_buffer = 'Error with GENERAL_MODE phase boundary condition: &
                           &Missing dof.'
       call PrintErrMsg(option)
-    endif 
+    endif
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsG
@@ -2045,7 +2066,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
     coupler%flow_aux_mapping(HYDRATE_AIR_PRESSURE_INDEX) = 3
     coupler%flow_aux_mapping(HYDRATE_GAS_FLUX_INDEX) = 3
     coupler%flow_aux_mapping(HYDRATE_HYD_SATURATION_INDEX) = 3
-    
+
   endif
 
   select case(flow_condition%iphase)
@@ -2067,9 +2088,9 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           endif
         class is(dataset_gridded_hdf5_type)
           ! If the gas pressure dataset is defined, we must ensure that its
-          ! minimum pressure is greater than min_two_phase_gas_pressure. 
-          ! Otherwise, a zero gas pressure may be incorrectly used within 
-          ! an interpolation of gas pressure for a two phase cell mixed 
+          ! minimum pressure is greater than min_two_phase_gas_pressure.
+          ! Otherwise, a zero gas pressure may be incorrectly used within
+          ! an interpolation of gas pressure for a two phase cell mixed
           ! with a single phase liquid cell
           if (associated(hydrate%gas_pressure)) then
             dummy_real = &
@@ -2147,7 +2168,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
     case(GA_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
         GA_STATE
-        ! no need to loop in the next do loop if its all the same state, which 
+        ! no need to loop in the next do loop if its all the same state, which
         ! you know from flow_condition%iphase
     case(HG_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
@@ -2496,7 +2517,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE GA-State gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2545,7 +2566,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                     'HYDRATE MODE HA-state gas pressure ',string)
                 call PrintErrMsg(option)
             end select
-            ! temperature; 2nd dof ------------------------- !  
+            ! temperature; 2nd dof ------------------------- !
             select case(hydrate%temperature%itype)
               case(DIRICHLET_BC)
                 call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2641,7 +2662,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE GI-State gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2688,7 +2709,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE AI-State gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2736,7 +2757,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE HGA-State gas saturation ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2784,7 +2805,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE HAI-State gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! ice saturation; 2nd dof ------------------------- !  
+          ! ice saturation; 2nd dof ------------------------- !
           select case(hydrate%ice_saturation%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2832,7 +2853,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE HGI-State ice saturation ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2880,7 +2901,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE QUAD-State liquid saturation ',string)
               call PrintErrMsg(option)
           end select
-          ! ice satuation; 2nd dof ------------------------- !  
+          ! ice satuation; 2nd dof ------------------------- !
           select case(hydrate%ice_saturation%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -3008,8 +3029,8 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
   if (dof_count_global(3) > 0) dof3 = PETSC_TRUE
-  ! need to check if these dofs are true on any process, because the 
-  ! boundary condition might be split up on 2 or more processes  
+  ! need to check if these dofs are true on any process, because the
+  ! boundary condition might be split up on 2 or more processes
   if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
     if (coupler%itype .ne. SRC_SINK_COUPLER_TYPE) then
       option%io_buffer = 'Error with HYDRATE_MODE phase boundary condition: &
@@ -3609,7 +3630,7 @@ subroutine PatchGetCouplerValueFromDataset(coupler,option,grid,dataset,iconn, &
   PetscReal :: y
   PetscReal :: z
   PetscReal :: dist(-1:3)
-  
+
   select type(dataset)
     class is(dataset_ascii_type)
       value = dataset%rarray(1)
@@ -3686,21 +3707,21 @@ end subroutine PatchUpdateCouplerGridDataset
 ! ************************************************************************** !
 
 subroutine PatchUpdateCouplerSaturation(coupler,option,grid,cc_array,cc_id)
-  ! 
+  !
   ! Computes the pressures for a saturation
   ! initial/boundary condition
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/07/11
   !
-  ! Author: Heeho Park 
+  ! Author: Heeho Park
   ! Modified Date: 10/05/20
-  ! 
+  !
 
   use Option_module
   use Condition_module
   use Connection_module
-  
+
   implicit none
 
   type(coupler_type) :: coupler
@@ -3715,18 +3736,18 @@ subroutine PatchUpdateCouplerSaturation(coupler,option,grid,cc_array,cc_id)
   PetscReal :: capillary_pressure
   PetscReal :: dpc_dsat
   PetscReal :: liquid_pressure
-  
+
   type(flow_condition_type), pointer :: condition
-  
+
   type(connection_set_type), pointer :: cur_connection_set
-  
+
   condition => coupler%flow_condition
 
   if (option%iflowmode /= RICHARDS_MODE) then
     option%io_buffer = 'PatchUpdateCouplerSaturation is not set up for this flow mode.'
     call PrintErrMsg(option)
   endif
-  
+
   ! in this case, the saturation is stored within concentration dataset
   saturation = condition%saturation%dataset%rarray(1)
 
@@ -4280,7 +4301,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
               class is(dataset_ascii_type)
                 global_auxvar%temp = dataset%rarray(1)
               class default
-                ! otherwise, we don't know which temperature to use at this 
+                ! otherwise, we don't know which temperature to use at this
                 ! point, but we need to re-equilibrate at each cell
                 cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
                 global_auxvar%temp = option%flow%reference_temperature
@@ -5374,8 +5395,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             endif
           enddo
       end select
-    
-    
+
+
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY,TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_RATE,MINERAL_VOLUME_FRACTION,MINERAL_SATURATION_INDEX, &
@@ -5799,7 +5820,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         SOIL_REFERENCE_PRESSURE)
+         SOIL_REFERENCE_PRESSURE,ELECTRICAL_CONDUCTIVITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)),ivar)
@@ -5907,6 +5928,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           endif
         endif
       enddo
+    case(ELECTRICAL_POTENTIAL)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
+      enddo
     case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
@@ -5918,7 +5944,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
     case(SALINITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
-          patch%Aux%Global%auxvars(grid%nL2G(local_id))%m_nacl(ONE_INTEGER)
+          patch%aux%Global%auxvars(grid%nL2G(local_id))%m_nacl(ONE_INTEGER)
       enddo
     case(RESIDUAL)
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -6543,7 +6569,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
            ((value < 1.d-99) .and. (value > 0.d0)) ) then
         value = 1.d-99
       endif
-          
+
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY, TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_VOLUME_FRACTION,MINERAL_RATE,MINERAL_SATURATION_INDEX, &
@@ -6798,7 +6824,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
     case(STATE,PHASE)
       value = patch%aux%Global%auxvars(ghosted_id)%istate
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
-         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
+         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE, &
+         ELECTRICAL_CONDUCTIVITY)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
@@ -6866,6 +6893,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = 1.d0
         endif
       endif
+    case(ELECTRICAL_POTENTIAL)
+      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)
     case(NATURAL_ID)
@@ -6893,7 +6922,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                       patch%aux%Global%auxvars(ghosted_id),&
                                       reaction,option)
     case(SALINITY)
-      value = patch%Aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
+      value = patch%aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
     case(RESIDUAL)
       local_id = grid%nG2L(ghosted_id)
       call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -7494,7 +7523,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             enddo
         end select
       endif
-      
+
     ! NUCLEAR_WASTE_TRANSPORT:
     case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC, &
          MNRL_VOLUME_FRACTION)
@@ -7515,7 +7544,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           call PrintErrMsg(option,'Setting of MNRL_VOLUME_FRACTION at grid &
                            &cell not yet supported.')
       end select
-      
+
     case(PRIMARY_MOLALITY,TOTAL_MOLARITY,MINERAL_VOLUME_FRACTION, &
          PRIMARY_ACTIVITY_COEF,SECONDARY_ACTIVITY_COEF,IMMOBILE_SPECIES, &
          GAS_CONCENTRATION,REACTION_AUXILIARY,MINERAL_SURFACE_AREA)
@@ -7637,7 +7666,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         case(COLLOID_IMMOBILE)
           call PrintErrMsg(option,'Setting of immobile colloid concentration at grid cell not supported.')
       end select
-    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY,ELECTRICAL_CONDUCTIVITY)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &
@@ -7677,6 +7706,11 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       else if (vec_format == LOCAL) then
         patch%imat(1:grid%ngmax) = int(vec_ptr(1:grid%ngmax))
       endif
+    case(ELECTRICAL_POTENTIAL)
+      do local_id=1,grid%nlmax
+        patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) = &
+          vec_ptr(local_id)
+      enddo
     case(PROCESS_ID)
       call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
@@ -8114,19 +8148,19 @@ subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
   use Connection_module
   use Geometry_module
   use Material_Aux_class
-  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, & 
+  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_XZ, PERMEABILITY_YZ
   use Utility_module, only : DotProduct, CrossProduct
   !use Grid_Unstructured_Aux_module
-  
+
   implicit none
-  
+
   type(grid_type), pointer :: grid
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal, pointer :: error(:)
   class (connection_set_type), pointer :: cur_connection_set
-  
+
   PetscInt :: cell_id, face_id, i, iconn
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscReal :: v1(3),v2(3),normal(3), num(3), den(3)
@@ -8135,12 +8169,12 @@ subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
   PetscReal, allocatable :: array_normal(:), array_error(:)
   PetscErrorCode :: ierr
   PetscReal :: kx, kxy, kxz, ky, kyz, kz
-  
+
   type(option_type) :: option
-  
+
   !unstructured_grid => patch%grid%unstructured_grid
   cur_connection_set => grid%internal_connection_set_list%first
-  
+
   allocate(array_normal(grid%nlmax))
   allocate(array_error(grid%nlmax))
   array_normal(:) = 0.0
@@ -8163,17 +8197,17 @@ subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
     v1(3) = point1%z-point2%z
     v2(1) = point1%x-point3%x
     v2(2) = point1%y-point3%y
-    v2(3) = point1%z-point3%z  
+    v2(3) = point1%z-point3%z
     normal = CrossProduct(v1,v2)
     normal_magnitude = sqrt(DotProduct(normal,normal))
     normal = normal / normal_magnitude * grid%unstructured_grid%face_area(face_id)
-    
+
     !Cell ids from both side of the face
     ghosted_id_up = cur_connection_set%id_up(iconn)
     ghosted_id_dn = cur_connection_set%id_dn(iconn)
     local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
     local_id_dn = grid%nG2L(ghosted_id_dn) ! = zero for ghost nodes
-    
+
     ! Error for upwind cell
     if (local_id_up > 0) then
       ! get permeability
@@ -8197,7 +8231,7 @@ subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
       array_normal(local_id_up) = array_normal(local_id_up) + &
                                       sqrt(DotProduct(den,den))
     endif
-    
+
     if (local_id_dn > 0) then
       ! get permeability
       kx = MaterialAuxVarGetValue(material_auxvars(local_id_dn),PERMEABILITY_X)
@@ -8225,7 +8259,7 @@ subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
   do i = 1, grid%nlmax
     error(i) = array_error(i) / array_normal(i)
   enddo
-  
+
   deallocate(array_normal)
   deallocate(array_error)
 
@@ -8250,7 +8284,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   use Connection_module
   use Coupler_module
   use Grid_Unstructured_Cell_module, only : MAX_VERT_PER_FACE
-  
+
 
   implicit none
 
@@ -8287,7 +8321,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscReal :: v1(3), v2(3), cp(3)
   PetscReal :: x, y, z
   PetscReal :: coord(3)
-  PetscReal :: unit_direction(3) 
+  PetscReal :: unit_direction(3)
   PetscReal, parameter :: absolute_tolerance = 1.d-10
   PetscReal, parameter :: relative_tolerance = 1.d-6
   PetscBool :: found
@@ -8360,7 +8394,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         if (OptionPrintToScreen(option)) write(*,*) 'pt2: ', &
           polygon(2)%x, polygon(2)%y, polygon(2)%z
         option%io_buffer = 'An integral flux polygon defined by 2 points must &
-          & be a plane.' 
+          & be a plane.'
         call PrintErrMsg(option)
       endif
     endif
@@ -8407,7 +8441,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
     allocate(yet_to_be_found(num_to_be_found))
     yet_to_be_found = PETSC_TRUE
   endif
-  
+
   if (associated(by_cell_ids)) then
     error_string = 'cell ids match the an actual face between these cells'
     num_to_be_found = size(by_cell_ids,2)
@@ -8421,7 +8455,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   ipass = 1
   nullify(boundary_condition)
   nullify(cur_connection_set)
-  do 
+  do
     select case(ipass)
       case(1) ! internal connections
         cur_connection_set => grid%internal_connection_set_list%first
@@ -8446,7 +8480,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         sum_connection = sum_connection + 1
         magnitude = cur_connection_set%dist(0,iconn)
         unit_direction(:) = &
-          cur_connection_set%dist(X_DIRECTION:Z_DIRECTION,iconn) 
+          cur_connection_set%dist(X_DIRECTION:Z_DIRECTION,iconn)
         select case(ipass)
           case(1) ! internal connections
             ghosted_id_up = cur_connection_set%id_up(iconn)
@@ -8488,7 +8522,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
                                      unit_direction(Y_DIRECTION)
             z = grid%z(ghosted_id) - fraction_upwind * magnitude * &
                                      unit_direction(Z_DIRECTION)
-        end select 
+        end select
         found = PETSC_FALSE
         same_direction = PETSC_TRUE
         if (associated(plane)) then
@@ -9158,7 +9192,7 @@ subroutine PatchUnsupportedVariable1(process_name,variable_name,ivar,option)
   ! Prints an error message when an unsupported output variable is requested.
   !
   ! Author: Glenn Hammond
-  ! Date: 04/22/19 
+  ! Date: 04/22/19
 
   implicit none
 
@@ -9203,7 +9237,7 @@ end subroutine PatchUnsupportedVariable1
 subroutine PatchUnsupportedVariable2(process_name,ivar,option)
   !
   ! Author: Glenn Hammond
-  ! Date: 04/22/19 
+  ! Date: 04/22/19
 
   implicit none
 
@@ -9220,7 +9254,7 @@ end subroutine PatchUnsupportedVariable2
 subroutine PatchUnsupportedVariable3(process_name,variable_name,option)
   !
   ! Author: Glenn Hammond
-  ! Date: 04/22/19 
+  ! Date: 04/22/19
 
   implicit none
 
@@ -9238,7 +9272,7 @@ end subroutine PatchUnsupportedVariable3
 subroutine PatchUnsupportedVariable4(ivar,option)
   !
   ! Author: Glenn Hammond
-  ! Date: 04/22/19 
+  ! Date: 04/22/19
 
   implicit none
 
@@ -9343,7 +9377,7 @@ subroutine PatchDestroy(patch)
        deallocate(patch%char_curves_thermal_array)
   nullify(patch%char_curves_thermal_array)
   nullify(patch%characteristic_curves_thermal)
-  
+
   ! solely nullify grid since destroyed in discretization
   nullify(patch%grid)
   call RegionDestroyList(patch%region_list)

@@ -8,6 +8,7 @@ module Option_module
   use PFLOTRAN_Constants_module
   use Option_Flow_module
   use Option_Transport_module
+  use Option_Geophysics_module
 
   implicit none
 
@@ -17,6 +18,7 @@ module Option_module
 
     type(flow_option_type), pointer :: flow
     type(transport_option_type), pointer :: transport
+    type(geophysics_option_type), pointer :: geophysics
 
     PetscInt :: id                         ! id of realization
     PetscInt :: exit_code                  ! code passed out of PFLOTRAN
@@ -52,6 +54,8 @@ module Option_module
     PetscInt :: iflow_sub_mode
     character(len=MAXWORDLENGTH) :: tranmode
     PetscInt :: itranmode
+    character(len=MAXWORDLENGTH) :: geopmode
+    PetscInt :: igeopmode
 
     PetscInt :: nphase
     PetscInt :: liquid_phase
@@ -85,6 +89,8 @@ module Option_module
     PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: ntrandof
+
+    PetscInt :: ngeopdof ! geophysics # of dof
 
     PetscInt :: iflag
     PetscInt :: status
@@ -279,6 +285,7 @@ function OptionCreate()
   allocate(option)
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
+  option%geophysics => OptionGeophysicsCreate()
 
   ! DO NOT initialize members of the option type here.  One must decide
   ! whether the member needs initialization once for all stochastic
@@ -413,6 +420,10 @@ subroutine OptionInitRealization(option)
   option%tranmode = ""
   option%itranmode = NULL_MODE
   option%ntrandof = 0
+
+  option%geopmode = ""
+  option%igeopmode = NULL_MODE
+  option%ngeopdof = 0
 
   option%phase_map = UNINITIALIZED_INTEGER
 
@@ -1564,6 +1575,7 @@ subroutine OptionDestroy(option)
 
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
+  call OptionGeophysicsDestroy(option%geophysics)
 
   ! all the below should be placed somewhere other than option.F90
 
