@@ -22,18 +22,18 @@ contains
 ! ************************************************************************** !
 
 subroutine ERTSetup(realization)
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/29/21
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Patch_module
 
   type(realization_subsurface_type) :: realization
-  
+
   call ERTSetupPatch(realization)
- 
+
   ! Setup other ERT requirements e.g. plot, output, etc.
 
 end subroutine ERTSetup
@@ -41,18 +41,18 @@ end subroutine ERTSetup
 ! ************************************************************************** !
 
 subroutine ERTSetupPatch(realization)
-  ! 
+  !
   ! Creates arrays for ERT auxiliary variables
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/29/21
-  ! 
+  !
 
   use Realization_Subsurface_class
-  use Option_module 
+  use Option_module
   use Patch_module
   use Grid_module
-  use Survey_module   
+  use Survey_module
 
   implicit none
 
@@ -63,8 +63,8 @@ subroutine ERTSetupPatch(realization)
   type(grid_type), pointer :: grid
   type(survey_type), pointer :: survey
 
-  class(material_auxvar_type), pointer :: material_auxvars(:) 
-  type(ert_auxvar_type), pointer :: ert_auxvars(:) 
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
   PetscInt :: flag(1)
   PetscInt :: local_id, ghosted_id
@@ -85,14 +85,14 @@ subroutine ERTSetupPatch(realization)
   flag = 0
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle       
-    tempreal = minval(material_auxvars(ghosted_id)%electrical_conductivity)   
+    if (patch%imat(ghosted_id) <= 0) cycle
+    tempreal = minval(material_auxvars(ghosted_id)%electrical_conductivity)
     if (Uninitialized(tempreal) .and. flag(1) == 0) then
       option%io_buffer = 'ERROR: Non-initialized electrical conductivity.'
       call PrintMsgByRank(option)
       flag(1) = 1
-    endif      
-  enddo  
+    endif
+  enddo
 
   error_found = error_found .or. (maxval(flag) > 0)
   call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
@@ -104,10 +104,10 @@ subroutine ERTSetupPatch(realization)
 
   survey => realization%survey
 
- ! allocate auxvars data structures for all grid cells  
+ ! allocate auxvars data structures for all grid cells
   allocate(ert_auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    call ERTAuxVarInit(ert_auxvars(ghosted_id),survey,option)   
+    call ERTAuxVarInit(ert_auxvars(ghosted_id),survey,option)
   enddo
   patch%aux%ERT%auxvars => ert_auxvars
   patch%aux%ERT%num_aux = grid%ngmax
@@ -117,12 +117,12 @@ end subroutine ERTSetupPatch
 ! ************************************************************************** !
 
 subroutine ERTCalculateMatrix(realization,M)
-  ! 
+  !
   ! Calculate System matrix for ERT
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/26/21
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Option_module
@@ -141,8 +141,8 @@ subroutine ERTCalculateMatrix(realization,M)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid 
-  type(field_type), pointer :: field 
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, ghosted_id_up
   PetscInt :: local_id_dn, ghosted_id_dn
@@ -157,9 +157,9 @@ subroutine ERTCalculateMatrix(realization,M)
   ! Electrical conductivity
   PetscReal :: cond_up, cond_dn, cond_avg
   PetscReal :: dist_up, dist_dn, dist_0
-  PetscReal :: up_frac 
+  PetscReal :: up_frac
   PetscViewer :: viewer
-  PetscErrorCode :: ierr 
+  PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: string
 
   option => realization%option
@@ -183,28 +183,28 @@ subroutine ERTCalculateMatrix(realization,M)
       ! get ghosted ids of up and down
       ghosted_id_up = cur_connection_set%id_up(iconn)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
-       
+
       ! Ghosted to local id mapping. Local id is zero/-1 for
       ! ghosted cells
       local_id_up = grid%nG2L(ghosted_id_up)
       local_id_dn = grid%nG2L(ghosted_id_dn)
-      
+
       ! cycle if material is negative for any cell -> inactive cell
-      if (patch%imat(ghosted_id_up) <= 0 .or.   & 
+      if (patch%imat(ghosted_id_up) <= 0 .or.   &
           patch%imat(ghosted_id_dn) <=0 ) cycle
 
       cond_up = material_auxvars(ghosted_id_up)%electrical_conductivity(1)
       cond_dn = material_auxvars(ghosted_id_dn)%electrical_conductivity(1)
-      
+
       !dist(-1) -> scalar fractional distance up
       !dist(-1) = d_up/d_0
       up_frac = cur_connection_set%dist(-1,iconn)
       dist_0  = cur_connection_set%dist( 0,iconn)
       dist_up = up_frac * dist_0
       dist_dn = dist_0 - dist_up
-      
+
       ! get harmonic averaged conductivity at the face
-      ! NB: cond_avg is actually cond_avg/dist_0 
+      ! NB: cond_avg is actually cond_avg/dist_0
       cond_avg = (cond_up * cond_dn) / (dist_up*cond_dn + dist_dn*cond_up)
 
       area = cur_connection_set%area(iconn)
@@ -218,7 +218,7 @@ subroutine ERTCalculateMatrix(realization,M)
         call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                               coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)                       
+                               coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
 
       if (local_id_dn > 0) then
@@ -228,17 +228,17 @@ subroutine ERTCalculateMatrix(realization,M)
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-                               coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)        
+                               coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
       endif
 
     enddo
-    cur_connection_set => cur_connection_set%next      
+    cur_connection_set => cur_connection_set%next
   enddo
-  
+
   ! Add Dirichley Boundary condition -> potential at boundaries = 0
   boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(boundary_condition)) exit
 
     cur_connection_set => boundary_condition%connection_set
@@ -246,7 +246,7 @@ subroutine ERTCalculateMatrix(realization,M)
     do iconn = 1, cur_connection_set%num_connections
 
       sum_connection = sum_connection + 1
-  
+
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
@@ -257,14 +257,14 @@ subroutine ERTCalculateMatrix(realization,M)
       dist_0  = cur_connection_set%dist( 0,iconn)
 
       ! get harmonic averaged conductivity at the face
-      ! NB: cond_avg is actually cond_avg/dist_0 
+      ! NB: cond_avg is actually cond_avg/dist_0
       ! Use just the same value of down cell
       ! also note dist(0) = distance from center to boundary/face
       cond_avg = cond_dn / dist_0
 
       area = cur_connection_set%area(iconn)
 
-      ! get matrix coefficients for up cell -> NO up cell since it's 
+      ! get matrix coefficients for up cell -> NO up cell since it's
       ! the boundary
       ! down cell for it is the interior cell
       coef_dn =   cond_avg * area
@@ -294,36 +294,36 @@ end subroutine ERTCalculateMatrix
 ! ************************************************************************** !
 
 subroutine ERTCalculateAnalyticPotential(realization,ielec,average_conductivity)
-  ! 
-  ! Calculates Analytic potential for all electrodes 
+  !
+  ! Calculates Analytic potential for all electrodes
   ! for a given apparent/average conductivity model
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 02/05/21
-  ! 
-  use Realization_Subsurface_class  
+  !
+  use Realization_Subsurface_class
   use Option_module
   use Grid_module
   use Patch_module
-  use Survey_module       
+  use Survey_module
 
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
   PetscInt :: ielec
   PetscReal, optional :: average_conductivity
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid 
+  type(grid_type), pointer :: grid
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
-  PetscReal :: cond 
+  PetscReal :: cond
   PetscReal :: r,epos(3),cell_center(3)
 
   PetscInt :: local_id
-  PetscInt :: ghosted_id   
+  PetscInt :: ghosted_id
 
   survey => realization%survey
   option => realization%option
@@ -334,21 +334,21 @@ subroutine ERTCalculateAnalyticPotential(realization,ielec,average_conductivity)
   if (present(average_conductivity)) then
     cond = average_conductivity
   else
-    if (Initialized(survey%apparent_conductivity)) then 
+    if (Initialized(survey%apparent_conductivity)) then
       cond = survey%apparent_conductivity
     else
       option%io_buffer = "ERT potential can't be computed analytically &
         &without given average conductivity or survey's &
         &apparent conductivity."
-      call PrintErrMsg(option) 
+      call PrintErrMsg(option)
     endif
   endif
 
   epos = survey%pos_electrode(:,ielec)
 
-  ! get & store potentials for each electrode 
+  ! get & store potentials for each electrode
   do local_id=1,grid%nlmax
-    ghosted_id = grid%nL2G(local_id)   
+    ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
 
     cell_center(1) = grid%x(ghosted_id)
@@ -358,7 +358,7 @@ subroutine ERTCalculateAnalyticPotential(realization,ielec,average_conductivity)
     r = norm2(epos - cell_center)
     ! Add small value to avoid overshooting at electrode position
     r = r + 1.0d-15
-    ert_auxvars(ghosted_id)%potential(ielec) = 1 / (2*pi*r*cond)     
+    ert_auxvars(ghosted_id)%potential(ielec) = 1 / (2*pi*r*cond)
   enddo
 
 end subroutine ERTCalculateAnalyticPotential
@@ -366,32 +366,32 @@ end subroutine ERTCalculateAnalyticPotential
 ! ************************************************************************** !
 
 subroutine ERTCalculateAverageConductivity(realization)
-  ! 
-  ! Calculates Average conductivity of a given conductivity 
+  !
+  ! Calculates Average conductivity of a given conductivity
   ! model
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 02/05/21
-  ! 
-  use Realization_Subsurface_class  
+  !
+  use Realization_Subsurface_class
   use Option_module
   use Grid_module
-  use Patch_module  
-  use Survey_module  
+  use Patch_module
+  use Survey_module
 
   implicit none
-  
+
   type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid 
+  type(grid_type), pointer :: grid
   type(survey_type), pointer :: survey
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id
-  PetscInt :: ghosted_id 
-  PetscReal :: local_average_cond  
+  PetscInt :: ghosted_id
+  PetscReal :: local_average_cond
   PetscErrorCode :: ierr
 
   survey => realization%survey
@@ -401,20 +401,20 @@ subroutine ERTCalculateAverageConductivity(realization)
   material_auxvars => patch%aux%Material%auxvars
 
   local_average_cond = 0.d0
-  ! Get part of average conductivity locally 
-  do local_id=1,grid%nlmax  
-    ghosted_id = grid%nL2G(local_id)         
+  ! Get part of average conductivity locally
+  do local_id=1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     local_average_cond = local_average_cond + &
-                         material_auxvars(ghosted_id)%electrical_conductivity(1)     
+                         material_auxvars(ghosted_id)%electrical_conductivity(1)
   enddo
   local_average_cond = local_average_cond / grid%nmax
 
   ! get the average conductivity
   call MPI_Allreduce(MPI_IN_PLACE,local_average_cond,ONE_INTEGER_MPI,   &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr) 
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
 
-  survey%average_conductivity = local_average_cond                   
+  survey%average_conductivity = local_average_cond
 
 end subroutine ERTCalculateAverageConductivity
 

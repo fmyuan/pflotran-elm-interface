@@ -15,9 +15,9 @@ module Survey_module
 
     PetscInt :: num_electrode                   ! Number of electrodes
     PetscInt, pointer :: ipos_electrode(:)      ! cell id of electrode pos
-    PetscInt, pointer :: flag_electrode(:)      ! 0-> below/1-> on surface 
+    PetscInt, pointer :: flag_electrode(:)      ! 0-> below/1-> on surface
     PetscReal, pointer :: pos_electrode(:,:)    ! electrode positions
-    
+
     PetscInt :: num_measurement                 ! number of data
     PetscInt, pointer :: config(:,:)            ! survey configuration
     PetscReal, pointer :: dsim(:)               ! Simulated data
@@ -35,27 +35,27 @@ module Survey_module
             SurveyReadERT, &
             SurveyWriteERT, &
             SurveyDestroy
- 
+
 contains
 
 ! ************************************************************************** !
 
 function SurveyCreate()
-  ! 
+  !
   ! Creates survey type
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/27/21
-  ! 
+  !
   implicit none
-  
+
   type(survey_type), pointer :: SurveyCreate
   type(survey_type), pointer :: survey
-  
+
   allocate(survey)
 
   survey%name = ''
-  survey%filename = ''  
+  survey%filename = ''
   survey%num_electrode = UNINITIALIZED_INTEGER
   survey%num_measurement = UNINITIALIZED_INTEGER
   survey%apparent_conductivity = UNINITIALIZED_DOUBLE
@@ -68,23 +68,23 @@ function SurveyCreate()
   nullify(survey%dsim)
   nullify(survey%dobs)
   nullify(survey%Wd)
-   
-  SurveyCreate => survey 
-  
+
+  SurveyCreate => survey
+
 end function SurveyCreate
 
 ! ************************************************************************** !
 
 subroutine SurveyRead(survey,input,option)
-  ! 
-  ! Read a geophysics survey 
-  ! 
+  !
+  ! Read a geophysics survey
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/29/21
 
   use Input_Aux_module
   use Option_module
-  use String_module  
+  use String_module
 
   implicit none
 
@@ -110,14 +110,14 @@ subroutine SurveyRead(survey,input,option)
     case('FILE_NAME')
       call InputReadWord(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,'FILENAME','SURVEY')
-      survey%filename = word 
+      survey%filename = word
     case('FORMAT')
       call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword','GRID')
       call StringToUpper(word)
       select case (trim(word))
       case ('E4D_SRV')
-        !survey%format = E4D_SRV  
+        !survey%format = E4D_SRV
       case default
         option%io_buffer = 'Only E4D_SRV FORMAT can be ' // &
                        'provided under SURVEY.'
@@ -127,16 +127,16 @@ subroutine SurveyRead(survey,input,option)
       call InputKeywordUnrecognized(input,word,'SURVEY',option)
     end select
   enddo
-  call InputPopBlock(input,option)  
-  
+  call InputPopBlock(input,option)
+
 end subroutine SurveyRead
 
 ! ************************************************************************** !
 
 subroutine SurveyReadERT(survey,grid,input,option)
-  ! 
-  ! Read an ERT survey 
-  ! 
+  !
+  ! Read an ERT survey
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/29/21
   !
@@ -145,12 +145,12 @@ subroutine SurveyReadERT(survey,grid,input,option)
   use Option_Geophysics_module
   use Input_Aux_module
   use Grid_module
-  use String_module 
+  use String_module
 
   implicit none
 
   type(survey_type), pointer :: survey
-  type(grid_type), pointer :: grid  
+  type(grid_type), pointer :: grid
   type(input_type), pointer :: input
   type(option_type), pointer :: option
 
@@ -173,7 +173,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
 
   do ielec=1,survey%num_electrode
     write(string_ielec,*) ielec
-    string_ielec = trim(adjustl(string_ielec)) 
+    string_ielec = trim(adjustl(string_ielec))
     call InputReadPflotranString(input,option)
     call InputReadInt(input,option,itemp)
     call InputReadDouble(input,option,survey%pos_electrode(X_DIRECTION,ielec))
@@ -204,8 +204,8 @@ subroutine SurveyReadERT(survey,grid,input,option)
   survey%Wd = 0.d0
 
   do idata=1,survey%num_measurement
-    write(string_idata,*) idata 
-    string_idata = trim(adjustl(string_idata)) 
+    write(string_idata,*) idata
+    string_idata = trim(adjustl(string_idata))
     call InputReadPflotranString(input,option)
     call InputReadInt(input,option,itemp)
     call InputReadInt(input,option,survey%config(ONE_INTEGER,idata))
@@ -239,15 +239,15 @@ end subroutine SurveyReadERT
 ! ************************************************************************** !
 
 subroutine SurveyGetElectrodeIndexFromPos(survey,grid,option)
-  ! 
+  !
   ! Get the local-ids corrspodning to each elctrode location
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 02/01/21
   !
 
   use Grid_module
-  use Geometry_module  
+  use Geometry_module
   use Option_module
 
   implicit none
@@ -256,7 +256,7 @@ subroutine SurveyGetElectrodeIndexFromPos(survey,grid,option)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
 
-  type(point3d_type) :: coordinate  
+  type(point3d_type) :: coordinate
   PetscInt :: ielec, local_id
 
   do ielec=1,survey%num_electrode
@@ -273,10 +273,10 @@ end subroutine SurveyGetElectrodeIndexFromPos
 ! ************************************************************************** !
 
 subroutine SurveyWriteERT(survey)
-  ! 
+  !
   ! writes simulated ERT data in a .srv file with
   ! filename = prefix(survey%filename)//-simulated.srv
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 02/08/21
   !
@@ -284,10 +284,10 @@ subroutine SurveyWriteERT(survey)
   implicit none
 
   type(survey_type), pointer :: survey
-  
+
   character(len=MAXWORDLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: string
-  PetscInt :: iprefix,i 
+  PetscInt :: iprefix,i
   PetscInt :: fid
 
   iprefix = index(survey%filename,".") - 1
@@ -318,17 +318,17 @@ end subroutine SurveyWriteERT
 ! ************************************************************************** !
 
 subroutine SurveyCalculateApparentCond(survey)
-  ! 
+  !
   ! Computes apparent conductivity for an ERT survey data
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 02/04/21
-  ! 
+  !
 
   implicit none
 
   type(survey_type), pointer :: survey
-  
+
   PetscReal :: cond,max_cond,min_cond
   PetscInt :: idata,ia,ib,im,in
   ! Geometric Factors
@@ -351,14 +351,14 @@ subroutine SurveyCalculateApparentCond(survey)
     if (ia/=0) A_pos = survey%pos_electrode(:,ia)
     if (ib/=0) B_pos = survey%pos_electrode(:,ib)
     if (im/=0) M_pos = survey%pos_electrode(:,im)
-    if (in/=0) N_pos = survey%pos_electrode(:,in)    
+    if (in/=0) N_pos = survey%pos_electrode(:,in)
 
     GFam = 0.d0; GFan = 0.d0; GFbm = 0.d0; GFbn = 0.d0
 
     if (ia/=0 .and. im/=0) GFam = GeometricFactor(ia,im,A_pos,M_pos)
     if (ia/=0 .and. in/=0) GFan = GeometricFactor(ia,in,A_pos,N_pos)
     if (ib/=0 .and. im/=0) GFbm = GeometricFactor(ib,im,B_pos,M_pos)
-    if (ib/=0 .and. in/=0) GFbn = GeometricFactor(ib,in,B_pos,N_pos)    
+    if (ib/=0 .and. in/=0) GFbn = GeometricFactor(ib,in,B_pos,N_pos)
 
     ! Total Geometric Factor
     GF = (GFam - GFan - GFbm + GFbn) / 2*PI
@@ -380,10 +380,10 @@ subroutine SurveyCalculateApparentCond(survey)
   survey%apparent_conductivity = sum_cond / sum_weight
 
   ! TODO (pj): write max and min apparent cond info
-  ! and 
-  
-  contains 
-  
+  ! and
+
+  contains
+
   function GeometricFactor(ip,iq,p_pos,q_pos)
     implicit none
 
@@ -407,29 +407,29 @@ end subroutine SurveyCalculateApparentCond
 ! ************************************************************************** !
 
 subroutine SurveyDestroy(survey)
-  ! 
+  !
   ! Deallocates survey
-  ! 
+  !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/28/21
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
-  
+
   type(survey_type), pointer :: survey
-    
+
   if (.not.associated(survey)) return
-  
+
   call DeallocateArray(survey%ipos_electrode)
   call DeallocateArray(survey%pos_electrode)
   call DeallocateArray(survey%flag_electrode)
   call DeallocateArray(survey%config)
-  
+
   call DeallocateArray(survey%dsim)
   call DeallocateArray(survey%dobs)
   call DeallocateArray(survey%Wd)
-  
+
   deallocate(survey)
   nullify(survey)
 

@@ -18,8 +18,8 @@ module PMC_Geophysics_class
     class(realization_subsurface_type), pointer :: realization
   contains
     procedure, public :: Init => PMCGeophysicsInit
-    procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers 
-    procedure, public :: StepDT => PMCGeophysicsStepDT      
+    procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers
+    procedure, public :: StepDT => PMCGeophysicsStepDT
     procedure, public :: Destroy => PMCGeophysicsDestroy
   end type pmc_geophysics_type
 
@@ -95,7 +95,7 @@ subroutine PMCGeophysicsSetupSolvers(this)
   option => this%option
 
   select type(ts=>this%timestepper)
-    class is(timestepper_Steady_type) 
+    class is(timestepper_Steady_type)
     class default
       option%io_buffer = 'A Steady timestepper must be used for geophysics.'
       call PrintErrMsg(option)
@@ -109,7 +109,7 @@ subroutine PMCGeophysicsSetupSolvers(this)
     class default
       option%io_buffer = 'Solver setup implemented only for ERT &
                           &geophysics process model.'
-      call PrintErrMsg(option)  
+      call PrintErrMsg(option)
   end select
 
 end subroutine PMCGeophysicsSetupSolvers
@@ -124,8 +124,8 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   ! Date: 01/29/21
   !
   use Option_module
-  use Timestepper_Base_class  
-  
+  use Timestepper_Base_class
+
   implicit none
 
   class(pmc_geophysics_type) :: this
@@ -138,23 +138,23 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
 
-  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)  
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
   option => this%option
 
   select type(pm=>this%pm_ptr%pm)
     class is(pm_ert_type)
       pm_ert => pm
-      call PMERTSolve(pm_ert) 
+      call PMERTSolve(pm_ert)
     class default
       option%io_buffer = 'StepDT implemented only for ERT &
                           &geophysics process model.'
-      call PrintErrMsg(option)   
+      call PrintErrMsg(option)
   end select
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
-  
+
   ! set stop flag to end the geophysics simulation
   stop_flag = TS_STOP_END_SIMULATION
 

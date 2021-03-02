@@ -118,7 +118,7 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
 
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
   call SubsurfaceInitSimulation(simulation)
- 
+
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
@@ -187,7 +187,7 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form,&
       class is(pm_ufd_biosphere_type)
         pm_ufd_biosphere => cur_pm
       class is(pm_ert_type)
-        pm_geop => cur_pm  
+        pm_geop => cur_pm
       class is(pm_auxiliary_type)
         pm_auxiliary => cur_pm
       class default
@@ -1394,7 +1394,7 @@ subroutine FactorySubsurfReadGeophysicsPM(input,option,pm)
             option%io_buffer = 'MODE ' // trim(word) // &
               ' not recognized. Only MODE ERT currently supported for &
               & SUBSURFACE_GEOPHYSICS process models.'
-            call PrintErrMsg(option)          
+            call PrintErrMsg(option)
         end select
         pm%option => option
       case('OPTIONS')
@@ -1406,10 +1406,10 @@ subroutine FactorySubsurfReadGeophysicsPM(input,option,pm)
         call pm%ReadSimulationOptionsBlock(input)
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
-    end select        
+    end select
   enddo
   call InputPopBlock(input,option)
-  
+
   if (.not.associated(pm)) then
     option%io_buffer = 'A geophysics MODE (card) must be included in the &
       &SUBSURFACE_GEOPHYSICS block in ' // trim(error_string) // '.'
@@ -1478,7 +1478,7 @@ subroutine SubsurfaceInitSimulation(simulation)
 
 ! begin from old Init()
   call SubsurfaceSetupRealization(simulation)
- 
+
   call InitCommonAddOutputWaypoints(option,simulation%output_option, &
                                     simulation%waypoint_list_subsurface)
 
@@ -1495,7 +1495,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   if (option%ngeopdof > 0) then
     call InitSubsurfGeopSetupRealization(realization)
   endif
-  
+
   ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
   call InitSubsurfaceSetupZeroArrays(realization)
   call OutputVariableAppendDefaults(realization%output_option% &
@@ -1558,7 +1558,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   if (associated(simulation%geop_process_model_coupler)) then
     call simulation%geop_process_model_coupler% &
            SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif  
+  endif
 
   if (realization%debug%print_couplers) then
     call InitCommonVerifyAllCouplers(realization)
@@ -1760,11 +1760,11 @@ subroutine SubsurfaceSetupRealization(simulation)
   ! link conditions with regions through couplers and generate connectivity
   call RealProcessMatPropAndSatFunc(realization)
   ! must process conditions before couplers in order to determine dataset types
-  call RealizationProcessConditions(realization)  
-  call RealizationProcessCouplers(realization)  
+  call RealizationProcessConditions(realization)
+  call RealizationProcessCouplers(realization)
   call SubsurfSandboxesSetup(realization)
-  call RealProcessFluidProperties(realization) 
-  call SubsurfInitMaterialProperties(realization)  
+  call RealProcessFluidProperties(realization)
+  call SubsurfInitMaterialProperties(realization)
   ! assignVolumesToMaterialAuxVars() must be called after
   ! RealizInitMaterialProperties() where the Material object is created
   call SubsurfAssignVolsToMatAuxVars(realization)
@@ -2283,7 +2283,7 @@ subroutine SubsurfaceReadInput(simulation,input)
     if (.not.associated(master_pmc)) then
       master_pmc => simulation%geop_process_model_coupler
     endif
-  endif  
+  endif
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
@@ -2812,7 +2812,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               option%io_buffer = 'A SUBSURFACE_GEOPHYSICS process model must &
                 &be defined to read NUMERICAL_METHODS for GEOPHYSICS.'
               call PrintErrMsg(option)
-            endif  
+            endif
           case default
             option%io_buffer = 'NUMERICAL_METHODS must specify FLOW or &
                                &TRANSPORT.'
@@ -3833,7 +3833,7 @@ subroutine SubsurfaceReadInput(simulation,input)
       &the TIME or TIMESTEPPER ' // trim(master_pmc%timestepper%name) // &
       ' card, but not both.'
     call PrintErrMsg(option)
-  endif 
+  endif
   if (associated(waypoint_list_time_card)) then
     call WaypointListMerge(simulation%waypoint_list_subsurface, &
                            waypoint_list_time_card,option)

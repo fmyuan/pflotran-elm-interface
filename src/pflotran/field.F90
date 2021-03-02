@@ -1,7 +1,7 @@
 module Field_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
- 
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use PFLOTRAN_Constants_module
@@ -10,8 +10,8 @@ module Field_module
 
   private
 
-  type, public :: field_type 
-    
+  type, public :: field_type
+
     !get material id
     ! 1 degree of freedom
     Vec :: porosity0
@@ -23,19 +23,19 @@ module Field_module
 
     Vec :: perm0_xx, perm0_yy, perm0_zz
     Vec :: perm0_xz, perm0_xy, perm0_yz
-    
+
     Vec :: work, work_loc
 
     Vec :: volume0
     Vec :: compressibility0
 
     Vec :: electrical_conductivity
-    
+
     !TODO(geh): move these Vecs into their respective pms
     ! residual vectors
-    Vec :: flow_r          
+    Vec :: flow_r
     Vec :: tran_r
-    
+
     ! Solution vectors (yy = previous solution, xx = current iterate)
     Vec :: flow_xx, flow_xx_loc, flow_dxx, flow_yy, flow_accum, flow_accum2
     Vec :: tran_xx, tran_xx_loc, tran_dxx, tran_yy, tran_accum
@@ -44,13 +44,13 @@ module Field_module
     ! vectors for operator splitting
     Vec :: tran_rhs
     Vec :: tran_rhs_coef
-    
+
     Vec :: tran_log_xx, tran_work_loc
-    
+
     ! mass transfer
     Vec :: flow_mass_transfer
     Vec :: tran_mass_transfer
-    
+
     Vec :: flow_ts_mass_balance, flow_total_mass_balance
     Vec :: tran_ts_mass_balance, tran_total_mass_balance
 
@@ -82,21 +82,21 @@ contains
 ! ************************************************************************** !
 
 function FieldCreate()
-  ! 
+  !
   ! Allocates and initializes a new Field object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
-  ! 
+  !
 
   implicit none
-  
+
   type(field_type), pointer :: FieldCreate
-  
+
   type(field_type), pointer :: field
-  
+
   allocate(field)
-  
+
   ! nullify PetscVecs
   field%porosity0 = PETSC_NULL_VEC
   field%porosity_base_store = PETSC_NULL_VEC
@@ -111,16 +111,16 @@ function FieldCreate()
   field%perm0_xy = PETSC_NULL_VEC
   field%perm0_xz = PETSC_NULL_VEC
   field%perm0_yz = PETSC_NULL_VEC
-  
+
   field%work = PETSC_NULL_VEC
   field%work_loc = PETSC_NULL_VEC
 
   field%volume0 = PETSC_NULL_VEC
   field%compressibility0 = PETSC_NULL_VEC
 
-  ! Geophysics 
+  ! Geophysics
   field%electrical_conductivity = PETSC_NULL_VEC
-  
+
   field%flow_r = PETSC_NULL_VEC
   field%flow_xx = PETSC_NULL_VEC
   field%flow_xx_loc = PETSC_NULL_VEC
@@ -144,10 +144,10 @@ function FieldCreate()
 
   field%tran_rhs = PETSC_NULL_VEC
   field%tran_rhs_coef = PETSC_NULL_VEC
-  
+
   field%flow_mass_transfer = PETSC_NULL_VEC
   field%tran_mass_transfer = PETSC_NULL_VEC
-  
+
   field%flow_ts_mass_balance = PETSC_NULL_VEC
   field%flow_total_mass_balance = PETSC_NULL_VEC
   field%tran_ts_mass_balance = PETSC_NULL_VEC
@@ -166,23 +166,23 @@ function FieldCreate()
   nullify(field%max_change_vecs)
 
   FieldCreate => field
-  
+
 end function FieldCreate
 
 ! ************************************************************************** !
 
 subroutine FieldDestroy(field)
-  ! 
+  !
   ! Deallocates a field object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/15/07
-  ! 
+  !
 
   implicit none
-  
+
   type(field_type), pointer :: field
-  
+
   PetscErrorCode :: ierr
   PetscInt :: ivar
   PetscInt :: num_vecs
@@ -231,7 +231,7 @@ subroutine FieldDestroy(field)
   if (field%perm0_yz /= PETSC_NULL_VEC) then
     call VecDestroy(field%perm0_yz,ierr);CHKERRQ(ierr)
   endif
-  
+
   if (field%work /= PETSC_NULL_VEC) then
     call VecDestroy(field%work,ierr);CHKERRQ(ierr)
   endif
@@ -246,7 +246,7 @@ subroutine FieldDestroy(field)
   if (field%compressibility0 /= PETSC_NULL_VEC) then
     call VecDestroy(field%compressibility0,ierr);CHKERRQ(ierr)
   endif
- 
+
   if (field%flow_r /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_r,ierr);CHKERRQ(ierr)
   endif
@@ -274,7 +274,7 @@ subroutine FieldDestroy(field)
   if (field%flow_xxdot_loc /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_xxdot_loc,ierr);CHKERRQ(ierr)
   endif
-  
+
   if (field%tran_r /= PETSC_NULL_VEC) then
     call VecDestroy(field%tran_r,ierr);CHKERRQ(ierr)
   endif
@@ -299,7 +299,7 @@ subroutine FieldDestroy(field)
   if (field%tran_work_loc /= PETSC_NULL_VEC) then
     call VecDestroy(field%tran_work_loc,ierr);CHKERRQ(ierr)
   endif
-  
+
   if (field%tran_rhs /= PETSC_NULL_VEC) then
     call VecDestroy(field%tran_rhs,ierr);CHKERRQ(ierr)
   endif
@@ -326,7 +326,7 @@ subroutine FieldDestroy(field)
   if (field%tran_total_mass_balance /= PETSC_NULL_VEC) then
     call VecDestroy(field%tran_total_mass_balance,ierr);CHKERRQ(ierr)
   endif
-    
+
   if (field%tvd_ghosts /= PETSC_NULL_VEC) then
     call VecDestroy(field%tvd_ghosts,ierr);CHKERRQ(ierr)
   endif
@@ -360,7 +360,7 @@ subroutine FieldDestroy(field)
 
   deallocate(field)
   nullify(field)
-  
+
 end subroutine FieldDestroy
 
 end module Field_module

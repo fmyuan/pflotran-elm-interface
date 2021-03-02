@@ -89,7 +89,7 @@ module Option_module
     PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: ntrandof
-    
+
     PetscInt :: ngeopdof ! geophysics # of dof
 
     PetscInt :: iflag

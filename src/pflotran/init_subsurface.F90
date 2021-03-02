@@ -32,8 +32,6 @@ subroutine SubsurfInitMaterialProperties(realization)
   
   implicit none
   
-  PetscInt :: ii
-
   class(realization_subsurface_type) :: realization
   
   call SubsurfAllocMatPropDataStructs(realization)  

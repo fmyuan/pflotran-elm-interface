@@ -130,7 +130,7 @@ module Condition_module
     PetscInt :: itype                  ! integer describing type of condition
     character(len=MAXWORDLENGTH) :: name  ! name of condition (e.g. boundary_potential)
     type(geop_condition_type), pointer :: next
-  end type geop_condition_type  
+  end type geop_condition_type
 
   type, public :: geop_condition_ptr_type
     type(geop_condition_type), pointer :: ptr
@@ -141,7 +141,7 @@ module Condition_module
     type(geop_condition_type), pointer :: first
     type(geop_condition_type), pointer :: last
     type(geop_condition_ptr_type), pointer :: array(:)
-  end type geop_condition_list_type  
+  end type geop_condition_list_type
 
   public :: FlowConditionCreate, FlowConditionDestroy, FlowConditionRead, &
             FlowConditionGeneralRead, &
@@ -809,7 +809,7 @@ subroutine FlowConditionRead(condition,input,option)
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     internal_units = 'not_assigned'
 
     call InputReadPflotranString(input,option)
@@ -1162,7 +1162,7 @@ subroutine FlowConditionRead(condition,input,option)
     condition%iphase = default_iphase
   endif
 
-  !geh: simple check to ensure that DIRICHLET_SEEPAGE and 
+  !geh: simple check to ensure that DIRICHLET_SEEPAGE and
   !     DIRICHLET_CONDUCTANCE_BC are only used in TH and RICHARDS
   select case(option%iflowmode)
     case(RICHARDS_MODE,TH_MODE)
@@ -1542,7 +1542,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     internal_units = 'not_assigned'
 
     call InputReadPflotranString(input,option)
@@ -2430,7 +2430,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               associated(hydrate%ice_saturation)) then
         condition%iphase = QUAD_STATE
       endif
-      
+
     endif
     if (condition%iphase == NULL_STATE) then
       option%io_buffer = 'General Phase non-rate/flux condition contains &
@@ -2438,7 +2438,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
       call printErrMsg(option)
     endif
   endif
-  
+
    ! verify the datasets
   word = 'liquid pressure'
   call FlowSubConditionVerify(option,condition,word,hydrate%liquid_pressure, &
@@ -2628,11 +2628,11 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
       card_found = PETSC_TRUE
       ! by default, is_cyclic is set to PETSC_FALSE
       default_time_storage%is_cyclic = PETSC_TRUE
-      
+
     case('SYNC_TIMESTEP_WITH_UPDATE')
       card_found = PETSC_TRUE
       condition%sync_time_with_update = PETSC_TRUE
-      
+
     case('INTERPOLATION')
       card_found = PETSC_TRUE
       call InputReadCard(input,option,word)
@@ -2646,7 +2646,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
           default_time_storage%time_interpolation_method = &
             INTERPOLATION_LINEAR
       end select
-      
+
     case('DATUM')
       card_found = PETSC_TRUE
       dataset_ascii => DatasetAsciiCreate()
@@ -2702,7 +2702,7 @@ subroutine TranConditionRead(condition,constraint_list, &
   type(option_type) :: option
 
   class(tran_constraint_base_type), pointer :: constraint
-  class(tran_constraint_coupler_base_type), pointer :: constraint_coupler 
+  class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
@@ -2824,7 +2824,7 @@ subroutine TranConditionRead(condition,constraint_list, &
           endif
         enddo
         call InputPopBlock(input,option)
-        
+
       case('CONSTRAINT')
         select case(option%itranmode)
           case(RT_MODE)
@@ -2871,7 +2871,7 @@ subroutine TranConditionRead(condition,constraint_list, &
                        &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
     call PrintErrMsg(option)
   endif
-  
+
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     conversion = UnitsConvertToInternal(default_time_units,internal_units, &
@@ -2906,7 +2906,7 @@ subroutine GeopConditionRead(condition,input,option)
   use Logging_module
   !use Units_module
 
-  
+
   implicit none
 
   type(geop_condition_type) :: condition
@@ -2963,7 +2963,7 @@ end subroutine GeopConditionRead
 
 subroutine ConditionReadValues(input,option,keyword,dataset_base, &
                                data_external_units,data_internal_units)
-  ! 
+  !
   ! Read the value(s) of a condition variable
   !
   ! Author: Glenn Hammond
@@ -3036,7 +3036,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   if (StringStartsWithAlpha(word)) then
     call InputPushCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
-        StringCompare(word,'FILE',FOUR_INTEGER)) then 
+        StringCompare(word,'FILE',FOUR_INTEGER)) then
       input%err_buf2 = trim(keyword) // ', FILE'
       input%err_buf = 'keyword'
       call InputReadFilename(input,option,string2)
@@ -3089,7 +3089,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
           allocate(flow_dataset%time_series%times(dims(2)))
           flow_dataset%time_series%times = UNINITIALIZED_DOUBLE
           allocate(flow_dataset%time_series%values(flow_dataset% &
-                                                     time_series%rank,dims(2))) 
+                                                     time_series%rank,dims(2)))
           flow_dataset%time_series%values = UNINITIALIZED_DOUBLE
           icount = 1
           do i = 1, dims(2)
@@ -3131,7 +3131,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
       call DatasetDestroy(dataset_base)
       dataset_base => DatasetBaseCreate()
       dataset_base%name = word
-    else if (length==FOUR_INTEGER .and. StringCompare(word,'LIST',length)) then 
+    else if (length==FOUR_INTEGER .and. StringCompare(word,'LIST',length)) then
       error_string = 'CONDITION,' // trim(keyword) // ',LIST'
       call DatasetAsciiReadList(dataset_ascii,input,data_external_units, &
                                 data_internal_units,error_string,option)
@@ -3334,7 +3334,7 @@ end function GetSubConditionName
 ! ************************************************************************** !
 
 subroutine FlowConditionUpdate(condition_list,option)
-  ! 
+  !
   ! Updates a transient condition
   !
   ! Author: Glenn Hammond
@@ -3377,7 +3377,7 @@ end subroutine FlowConditionUpdate
 ! ************************************************************************** !
 
 subroutine TranConditionUpdate(condition_list,option)
-  ! 
+  !
   ! Updates a transient transport condition
   !
   ! Author: Glenn Hammond
@@ -4340,7 +4340,7 @@ subroutine GeopConditionDestroy(condition)
   type(geop_condition_type), pointer :: condition
 
   if (.not.associated(condition)) return
-  
+
   deallocate(condition)
   nullify(condition)
 
