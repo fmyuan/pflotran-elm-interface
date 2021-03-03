@@ -252,11 +252,13 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   type(option_type), pointer :: option
   
   class(sat_func_VG_type), pointer :: sf
-  class(RPF_MVG_liq_type), pointer :: rpf_liq
-  class(RPF_MVG_gas_type), pointer :: rpf_gas  
+  class(rpf_Mualem_VG_liq_type), pointer :: rpf_liq
+  class(rpf_Mualem_VG_gas_type), pointer :: rpf_gas  
 
   class(kT_power_type), pointer :: tcf
-  
+
+  PetscInt :: error ! Return code
+
   if (.not.associated(general_parameter)) then
     allocate(general_parameter)
     allocate(general_parameter%diffusion_coefficient(2))
@@ -265,12 +267,20 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   endif
   if (.not.associated(characteristic_curves)) then
     characteristic_curves => CharacteristicCurvesCreate()
-    ! Create default VG saturation and relative permeability functions
-    sf => SF_VG_FCPC_ctor(1d-4, 0.5d0, 0d0, 1, 1d6)
-    rpf_liq => RPF_MVG_liq_ctor(0.5d0, 0d0)
-    rpf_gas => RPF_MVG_gas_ctor(0.5d0, 0d0, 1d-40)
+    sf => SFVGCreate()
+    rpf_liq => RPFMualemVGLiqCreate()
+    rpf_gas => RPFMualemVGGasCreate()
+    error = sf%set_m(0.5d0)
+    error = sf%set_alpha(1.d-4)
+    sf%Sr = 0.d0
+    sf%pcmax = 1.d6
     characteristic_curves%saturation_function => sf
+    error = rpf_liq%set_m(0.5d0)
+    rpf_liq%Sr = 0.d0
     characteristic_curves%liq_rel_perm_function => rpf_liq
+    error = rpf_gas%set_m(0.5d0)
+    rpf_gas%Sr = 0.d0
+    rpf_gas%Srg = 1.d-40
     characteristic_curves%gas_rel_perm_function => rpf_gas
   endif
   if (.not.associated(material_parameter)) then

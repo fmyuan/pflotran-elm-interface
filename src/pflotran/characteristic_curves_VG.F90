@@ -9,7 +9,7 @@ implicit none
 private
 
 ! **************************************************************************** !
-! 
+!
 ! References:
 !
 ! Chen, J, JW Hopmans, and ME Grismer (1999) "Parameter estimation of two-fluid
@@ -21,15 +21,15 @@ private
 ! Transp Porous Med 83:501-523. doi: 10.1007/s11242-009-9459-1
 !
 ! Van Genuchten, MT (1980) "A Closed-form Equation for Predicting the
-! Hydraulic ! Conductivity of Unsaturated Soils", Soil Sci Soc Am J 
-! 44(5):892-898. doi: 10.2136/sssaj1980.03615995004400050002x 
+! Hydraulic ! Conductivity of Unsaturated Soils", Soil Sci Soc Am J
+! 44(5):892-898. doi: 10.2136/sssaj1980.03615995004400050002x
 !
 ! Child classes are used to override parent functions to avoid additional
 ! virtual function calls or branching statements in the inner loop.
 ! Loop invariant parameters are calculated upon construction for memoization.
 !
 ! VG SF and RPF prior to loop invariant optimization are included for binary
-! backwards compatibility. 
+! backwards compatibility.
 !
 ! As the VG capillary pressure function has an infinite derivative approaching
 ! saturation, derivatives above Slmax are approximated using a backwards finite
@@ -67,7 +67,7 @@ PetscReal, private, parameter :: Slmax = 1d0 - epsilon(Slmax) ! Saturated limit
 !
 ! Objects of SF_VG_type are and must be created and initialized with the
 ! corresponding constructor:
-! 
+!
 ! SF_VG_type      => SF_VG_NEVG_ctor(alpha,m,Sr,rpf)
 ! SF_VG_cons_type => SF_VG_FCPC_ctor(alpha,m,Sr,rpf,Pcmax)
 ! SF_VG_cons_type => SF_VG_FNOC_ctor(alpha,m,Sr,rpf,Sj)
@@ -90,7 +90,7 @@ PetscReal, private, parameter :: Slmax = 1d0 - epsilon(Slmax) ! Saturated limit
 !    |   |-->rpf_Mualem_VG_liq_type  Mualem  - van Genuchten liquid
 !    |   |-->RPF_MVG_liq_type        with loop-invariant parameters
 !    |   |
-!    |   |-->rpf_Burdine_VG_liq_type Burdine - van Genuchten liquid 
+!    |   |-->rpf_Burdine_VG_liq_type Burdine - van Genuchten liquid
 !    |   |-->RPF_BVG_liq_type        with loop-invariant parameters
 !    |
 !    |-->RPF_VG_gas_type             Common gas base type
@@ -199,7 +199,7 @@ end type
         procedure, public :: Saturation         => SF_VG_cons_Sl
         procedure, public :: D2SatDP2           => SF_VG_cons_d2Sl_dPc2
       end type
- 
+
 ! VG Exponential Unsaturated Extension
       type, public, extends(SF_VG_extn_type) :: SF_VG_expn_type
         private
@@ -216,7 +216,7 @@ end type
         procedure, public :: Saturation         => SF_VG_expn_Sl
         procedure, public :: D2SatDP2           => SF_VG_expn_d2Sl_dPc2
       end type
- 
+
 ! VG Linear Unsaturated Extension
       type, public, extends(SF_VG_extn_type) :: SF_VG_line_type
         private
@@ -261,7 +261,7 @@ contains
 end type
 
   type, public, extends(RPF_VG_type) :: RPF_VG_liq_type
-    private 
+    private
       PetscReal :: dKr_dSlmax  ! Finite difference derivative at saturation
   contains
     procedure, public :: configure              => RPF_VG_liq_configure
@@ -386,10 +386,9 @@ function SF_VG_configure(this,alpha,m,Slr,rpf) result (error)
 
   ! Can eliminate the pointers if legacy smoothing implementation is removed
   nullify(this%sat_poly)
-  nullify(this%pres_poly) 
-  this%analytical_derivative_available = .TRUE.
-  this%calc_int_tension = .FALSE.
- 
+  nullify(this%pres_poly)
+  this%analytical_derivative_available = PETSC_TRUE
+
   error = 0                  ! Using bitwise errorcodes
   if (alpha <= 0d0)            error = error + 1
   if (m <= 0d0 .OR. m >= 1d0)  error = error + 2
@@ -421,7 +420,7 @@ function SF_VG_configure(this,alpha,m,Slr,rpf) result (error)
     this%dSe_mndSl = this%n_rec / (this%m*this%Sl_span)
 
     ! Estimate saturated limits using backwards finite difference on Sl
-    ! Pc0 = 0 = Pc(1); Pc1 = Pc(1-eps); Pc2 = Pc(1-2*eps); 
+    ! Pc0 = 0 = Pc(1); Pc1 = Pc(1-eps); Pc2 = Pc(1-2*eps);
     call this%Pc_inline(Slmax,Pc1,dPc_dSl)
     call this%Pc_inline(Slmax-epsilon(Slmax),Pc2,dPc_dSl)
     this%dPc_dSlmax = -Pc1 / epsilon(Slmax)
@@ -454,7 +453,7 @@ pure subroutine SF_VG_Sl_inline(this,Pc,Sl,dSl_dPc)
   PetscReal, intent(out) :: Sl, dSl_dPc
   PetscReal :: aPc_n, Se_mrtrec, Se
 
-  aPc_n = (this%alpha*Pc)**this%n 
+  aPc_n = (this%alpha*Pc)**this%n
   Se_mrtrec = aPc_n + 1d0
   Se = Se_mrtrec**(-this%m)
 
@@ -532,7 +531,7 @@ subroutine SF_VG_Pc(this, liquid_saturation, &
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
-  
+
   if (liquid_saturation <= this%Slr) then
     ! Unsaturated limit
     capillary_pressure = huge(capillary_pressure)
@@ -629,13 +628,13 @@ function SF_VG_cons_set_Pcmax(this,Pcmax) result (error)
 
   if (Pcmax > 0d0) then
     error = 0
-    this%Pcmax_designated = .TRUE.
+    this%Pcmax_designated = PETSC_TRUE
     this%Pcmax = Pcmax
     call this%Sl_inline(Pcmax,this%Sj,this%dSj_dPj)
     call this%d2Sl_dPc2_inline(Pcmax,this%d2Sj_dPj2)
   else
     error = 1
-  end if  
+  end if
 end function
 
 ! **************************************************************************** !
@@ -665,14 +664,14 @@ function SF_VG_cons_set_Sj(this,Sj) result (error)
 
   if (Sj > this%Slr) then
     error = 0
-    this%Pcmax_designated = .FALSE.
+    this%Pcmax_designated = PETSC_FALSE
     this%Sj = Sj
     call this%Pc_inline(Sj,this%Pcmax,dPj_dSj)
     this%dSj_dPj = 1d0 / dPj_dSj
     call this%d2Sl_dPc2_inline(this%Pcmax,this%d2Sj_dPj2)
   else
     error = 1
-  end if  
+  end if
 end function
 
 ! **************************************************************************** !
@@ -683,7 +682,7 @@ subroutine SF_VG_cons_Pc(this, liquid_saturation, &
   PetscReal, intent(in)  :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
-  
+
   if (liquid_saturation < this%Sj) then
     ! Unsaturated limit
     capillary_pressure = this%Pcmax
@@ -749,7 +748,7 @@ function SF_VG_extn_set_alpha(this,alpha) result (error)
   PetscInt :: error
   PetscReal :: alpha_old
 
-  alpha_old = this%alpha 
+  alpha_old = this%alpha
   error = this%configure(alpha,this%m,this%Slr,this%rpf)
   if (error == 0) then ! Update unsaturated extension
     if (this%Pcmax_designated) then
@@ -830,7 +829,7 @@ function SF_VG_expn_set_Pcmax(this,Pcmax) result (error)
   if (Pcmax >= Pe*exp(-dPj_dSj/Pe)) then
     ! Set Pcmax and begin iteration loop
     error = 0
-    this%Pcmax_designated = .TRUE.
+    this%Pcmax_designated = PETSC_TRUE
     this%Pcmax = Pcmax
 
     do while (Sb-Sa > epsilon(this%Sj))
@@ -899,7 +898,7 @@ function SF_VG_expn_set_Sj(this,Sj) result (error)
 
   if (Sj > this%Slr) then
     error = 0
-    this%Pcmax_designated = .FALSE.
+    this%Pcmax_designated = PETSC_FALSE
     this%Sj = Sj
 
     ! Find the slope at the piecewise junction point and extrapolate
@@ -923,7 +922,7 @@ subroutine SF_VG_expn_Pc(this, liquid_saturation, &
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
-  
+
   if (liquid_saturation < this%Sj) then
     ! Exponential domain
     if (liquid_saturation <= 0d0) then
@@ -1030,7 +1029,7 @@ function SF_VG_line_set_Sj(this,Sj) result (error)
 
   if (Sj > this%Slr .AND. Sj < 1d0) then
     error = 0
-    this%Pcmax_designated = .FALSE.
+    this%Pcmax_designated = PETSC_FALSE
     this%Sj = Sj
 
     ! Find the value and slope at the piecewise junction point and extrapolate
@@ -1080,7 +1079,7 @@ function SF_VG_line_set_Pcmax(this,Pcmax) result (error)
 
   if (Pcmax > Pe - dPj_dSj*Sb) then
     error = 0
-    this%Pcmax_designated = .TRUE.
+    this%Pcmax_designated = PETSC_TRUE
     this%Pcmax = Pcmax
 
     do while (Sb-Sa > epsilon(this%Sj))
@@ -1109,7 +1108,7 @@ subroutine SF_VG_line_Pc(this, liquid_saturation, &
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
-  
+
   if (liquid_saturation < this%Sj) then
     ! Linear domain
     dPc_dSatl = this%dPj_dSj
@@ -1223,7 +1222,7 @@ function RPF_VG_liq_configure(this, m, Slr) result (error)
   PetscReal, intent(in) :: m, Slr
   PetscInt :: error
   PetscReal :: Kr
-  
+
   error = 0
   if (m <= 0d0 .OR. m >= 1d0) error = error + 1
   if (Slr < 0d0 .OR. Slr >= 1d0) error = error + 2
@@ -1231,14 +1230,14 @@ function RPF_VG_liq_configure(this, m, Slr) result (error)
   if (error == 0) then
     this%m = m
     this%m_rec = 1d0 / m
-    
+
     this%Slr = Slr
     this%dSe_dSl = 1d0 / (1d0 - Slr)
 
     call this%Kr_inline(Slmax,Kr,this%dKr_dSlmax)
     this%dKr_dSlmax = (1d0 - Kr) / epsilon(Slmax)
 
-    this%analytical_derivative_available = .TRUE.
+    this%analytical_derivative_available = PETSC_TRUE
   end if
 end function
 
@@ -1275,7 +1274,7 @@ function RPF_VG_gas_configure(this, m, Slr, Sgr) result (error)
 
     this%Slmax = 1d0 - Sgr - epsilon(Sgr)
 
-    this%analytical_derivative_available = .TRUE.
+    this%analytical_derivative_available = PETSC_TRUE
   end if
 end function
 
@@ -1429,7 +1428,7 @@ pure subroutine RPF_BVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
   Se_mrt_comp_m = Se_mrt_comp**this%m
   Kr_Se = Se*(1d0 - Se_mrt_comp_m)
 
-  Kr = Kr_Se*Se 
+  Kr = Kr_Se*Se
   dKr_dSl = this%dSe_dSl * (2d0*Kr_Se + Se*Se_mrt*Se_mrt_comp_m/Se_mrt_comp)
 end subroutine
 
@@ -1441,7 +1440,7 @@ subroutine RPF_BVG_liq_Kr(this,liquid_saturation, &
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: relative_permeability, dkr_sat
   type(option_type), intent(inout) :: option
-  
+
   if (liquid_saturation > Slmax) then
     relative_permeability = 1d0
     dkr_sat = this%dKr_dSlmax
@@ -1498,7 +1497,7 @@ subroutine RPF_BVG_gas_Kr(this,liquid_saturation, relative_permeability, &
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability, dkr_sat
   type(option_type), intent(inout) :: option
-  
+
   if (liquid_saturation > this%Slmax) then
     relative_permeability = 0d0
     dkr_sat = 0d0 ! this%dKr_dSlmax
@@ -1573,17 +1572,17 @@ subroutine SFVGVerify(this,name,option)
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
     call PrintErrMsg(option)
-  endif   
+  endif
 
 end subroutine SFVGVerify
-    
+
 ! **************************************************************************** !
 
 subroutine SFVGCapillaryPressure(this,liquid_saturation, &
                                  capillary_pressure,dpc_dsatl,option)
-  !                              
+  !
   ! Computes the capillary_pressure as a function of saturation
-  ! 
+  !
   ! (1) Chen, J., J.W. Hopmans, M.E. Grismer (1999) "Parameter estimation of
   !     of two-fluid capillary pressure-saturation and permeability functions",
   !     Advances in Water Resources, Vol. 22, No. 5, pp 479-493,
@@ -1593,24 +1592,24 @@ subroutine SFVGCapillaryPressure(this,liquid_saturation, &
   ! Date: 12/11/07, 09/23/14
   !
   use Option_module
-  
+
   implicit none
-  
+
   class(sat_func_VG_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: capillary_pressure
   PetscReal, intent(out) :: dpc_dsatl
   type(option_type), intent(inout) :: option
-  
+
   PetscReal :: n
   PetscReal :: Se
-  
+
   PetscReal :: neg_one_over_m
   PetscReal :: one_over_n
   PetscReal :: dSe_dsatl
   PetscReal :: Se_sup_neg_one_over_m
   PetscReal :: Se_sup_neg_one_over_m_minus_one
-  
+
   dpc_dsatl = 0.d0
 
   if (liquid_saturation <= this%Sr) then
@@ -1647,20 +1646,20 @@ subroutine SFVGCapillaryPressure(this,liquid_saturation, &
   endif
 
 end subroutine SFVGCapillaryPressure
-                          
+
 ! **************************************************************************** !
 
 subroutine SFVGSaturation(this,capillary_pressure, &
                           liquid_saturation,dsat_dpres,option)
-  ! 
-  ! Computes the saturation (and associated derivatives) as a function of 
+  !
+  ! Computes the saturation (and associated derivatives) as a function of
   ! capillary pressure
-  ! 
+  !
   ! (1) Chen, J., J.W. Hopmans, M.E. Grismer (1999) "Parameter estimation of
   !     of two-fluid capillary pressure-saturation and permeability functions",
   !     Advances in Water Resources, Vol. 22, No. 5, pp 479-493,
   !     http://dx.doi.org/10.1016/S0309-1708(98)00025-6.
-  !   
+  !
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
   !
@@ -1698,7 +1697,7 @@ subroutine SFVGSaturation(this,capillary_pressure, &
       return
     endif
   endif
-  
+
   if (capillary_pressure <= 0.d0) then
     liquid_saturation = 1.d0
     return
@@ -1706,15 +1705,15 @@ subroutine SFVGSaturation(this,capillary_pressure, &
     n = 1.d0/(1.d0-this%m)
     pc_alpha = capillary_pressure*this%alpha
     pc_alpha_n = pc_alpha**n
-    !geh:  This conditional does not catch potential cancelation in 
+    !geh:  This conditional does not catch potential cancelation in
     !      the dkr_sat deriviative calculation.  Therefore, I am setting
     !      an epsilon here
     !   if (1.d0 + pc_alpha_n == 1.d0) then ! check for zero perturbation
-    if (pc_alpha_n < pc_alpha_n_epsilon) then 
+    if (pc_alpha_n < pc_alpha_n_epsilon) then
       liquid_saturation = 1.d0
       !switch_to_saturated = PETSC_TRUE
       return
-    endif   
+    endif
     one_plus_pc_alpha_n = 1.d0+pc_alpha_n
     Se = one_plus_pc_alpha_n**(-this%m)
     dSe_dpc = -this%m*n*this%alpha*pc_alpha_n/ &
@@ -1722,7 +1721,7 @@ subroutine SFVGSaturation(this,capillary_pressure, &
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
     dsat_dpres = (1.d0-this%Sr)*dSe_dpc*dpc_dpres
   endif
-  
+
 end subroutine SFVGSaturation
 
 ! **************************************************************************** !
@@ -1730,7 +1729,7 @@ end subroutine SFVGSaturation
 subroutine SFVGD2SatDP2(this,pc,d2s_dp2,option)
 
   use Option_module
-  
+
   implicit none
 
   class(sat_func_VG_type) :: this
@@ -1822,7 +1821,7 @@ end function RPFMualemVGLiqCreate
 
 subroutine RPFMualemVGLiqInit(this)
 
-  ! Initializes the van Genutchten Mualem relative permeability function 
+  ! Initializes the van Genutchten Mualem relative permeability function
   ! object
 
   implicit none
@@ -1841,44 +1840,44 @@ end subroutine RPFMualemVGLiqInit
 subroutine RPFMualemVGLiqVerify(this,name,option)
 
   use Option_module
-  
+
   implicit none
-  
+
   class(rpf_Mualem_VG_liq_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
 
   if (index(name,'PERMEABILITY_FUNCTION') > 0) then
     string = name
   else
     string = trim(name) // 'PERMEABILITY_FUNCTION,MUALEM_VG_LIQ'
-  endif  
+  endif
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
     call PrintErrMsg(option)
-  endif   
-  
+  endif
+
 end subroutine RPFMualemVGLiqVerify
 
 ! **************************************************************************** !
 
 subroutine RPFMualemVGSetupPolynomials(this,option,error_string)
 
-  ! Sets up polynomials for smoothing Mualem - van Genuchten relative 
+  ! Sets up polynomials for smoothing Mualem - van Genuchten relative
   ! permeability function
-  
+
   use Option_module
   use Utility_module
-  
+
   implicit none
-  
+
   class(rpf_Mualem_VG_liq_type) :: this
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
-  
+
   PetscReal :: b(4)
   PetscReal :: one_over_m, Se_one_over_m, m
 
@@ -1908,18 +1907,18 @@ end subroutine RPFMualemVGSetupPolynomials
 
 subroutine RPFMualemVGLiqRelPerm(this,liquid_saturation, &
                                      relative_permeability,dkr_sat,option)
-  ! 
-  ! Computes the relative permeability (and associated derivatives) as a 
+  !
+  ! Computes the relative permeability (and associated derivatives) as a
   ! function of saturation
-  ! 
+  !
   ! (1) Chen, J., J.W. Hopmans, M.E. Grismer (1999) "Parameter estimation of
   !     of two-fluid capillary pressure-saturation and permeability functions",
   !     Advances in Water Resources, Vol. 22, No. 5, pp 479-493,
   !     http://dx.doi.org/10.1016/S0309-1708(98)00025-6.
-  !   
+  !
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
-  ! 
+  !
   use Option_module
   use Utility_module
 
@@ -1989,7 +1988,7 @@ end function RPFMualemVGGasCreate
 
 subroutine RPFMualemVGGasInit(this)
 
-  ! Initializes the van Genutchten Mualem gas relative permeability function 
+  ! Initializes the van Genutchten Mualem gas relative permeability function
   ! object
 
   implicit none
@@ -2033,18 +2032,18 @@ end subroutine RPFMualemVGGasVerify
 
 subroutine RPFMualemVGGasRelPerm(this,liquid_saturation, &
                                      relative_permeability,dkr_sat,option)
-  ! 
-  ! Computes the relative permeability (and associated derivatives) as a 
+  !
+  ! Computes the relative permeability (and associated derivatives) as a
   ! function of saturation
-  ! 
+  !
   ! (1) Chen, J., J.W. Hopmans, M.E. Grismer (1999) "Parameter estimation of
   !     of two-fluid capillary pressure-saturation and permeability functions",
   !     Advances in Water Resources, Vol. 22, No. 5, pp 479-493,
   !     http://dx.doi.org/10.1016/S0309-1708(98)00025-6.
-  !   
+  !
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
-  ! 
+  !
   use Option_module
 
   implicit none
@@ -2147,7 +2146,7 @@ end subroutine RPFBurdineVGLiqVerify
 
 subroutine RPFBurdineVGSetupPolynomials(this,option,error_string)
 
-  ! Sets up polynomials for smoothing Burdine - van Genuchten relative 
+  ! Sets up polynomials for smoothing Burdine - van Genuchten relative
   ! permeability function
 
   use Option_module
@@ -2186,18 +2185,18 @@ end subroutine RPFBurdineVGSetupPolynomials
 
 subroutine RPFBurdineVGLiqRelPerm(this,liquid_saturation, &
                               relative_permeability,dkr_sat,option)
-  ! 
-  ! Computes the relative permeability (and associated derivatives) as a 
+  !
+  ! Computes the relative permeability (and associated derivatives) as a
   ! function of saturation
-  ! 
+  !
   ! (1) Chen, J., J.W. Hopmans, M.E. Grismer (1999) "Parameter estimation of
   !     of two-fluid capillary pressure-saturation and permeability functions",
   !     Advances in Water Resources, Vol. 22, No. 5, pp 479-493,
   !     http://dx.doi.org/10.1016/S0309-1708(98)00025-6.
-  !   
+  !
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
-  ! 
+  !
   use Option_module
   use Utility_module
 
@@ -2264,7 +2263,7 @@ end function RPFBurdineVGGasCreate
 
 subroutine RPFBurdineVGGasInit(this)
 
-  ! Initializes the Brooks-Corey Burdine gas relative permeability function 
+  ! Initializes the Brooks-Corey Burdine gas relative permeability function
   ! object
 
   implicit none
@@ -2308,15 +2307,15 @@ end subroutine RPFBurdineVGGasVerify
 
 subroutine RPFBurdineVGGasRelPerm(this,liquid_saturation, &
                                      relative_permeability,dkr_sat,option)
-  ! 
-  ! Computes the relative permeability (and associated derivatives) as a 
+  !
+  ! Computes the relative permeability (and associated derivatives) as a
   ! function of saturation
-  ! 
+  !
   ! (1) Chen, J., J.W. Hopmans, M.E. Grismer (1999) "Parameter estimation of
   !     of two-fluid capillary pressure-saturation and permeability functions",
   !     Advances in Water Resources, Vol. 22, No. 5, pp 479-493,
   !     http://dx.doi.org/10.1016/S0309-1708(98)00025-6.
-  !   
+  !
   ! Author: Glenn Hammond
   ! Date: 12/11/07, 09/23/14
 
