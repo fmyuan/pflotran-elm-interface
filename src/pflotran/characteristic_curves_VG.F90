@@ -65,17 +65,8 @@ PetscReal, private, parameter :: Slmax = 1d0 - epsilon(Slmax) ! Saturated limit
 ! TODO modify sat_func_base_type to use accessors and declare Sr in child
 ! modules (e.g. common and VG)
 !
-! Objects of SF_VG_type are and must be created and initialized with the
-! corresponding constructor:
-!
-! SF_VG_type      => SF_VG_NEVG_ctor(alpha,m,Sr,rpf)
-! SF_VG_cons_type => SF_VG_FCPC_ctor(alpha,m,Sr,rpf,Pcmax)
-! SF_VG_cons_type => SF_VG_FNOC_ctor(alpha,m,Sr,rpf,Sj)
-! SF_VG_expn_type => SF_VG_ECPC_ctop(alpha,m,Sr,rpf,Pcmax)
-! SF_VG_expn_type => SF_VG_ENOC_ctop(alpha,m,Sr,rpf,Sj)
-! SF_VG_line_type => SF_VG_LCPC_ctor(alpha,m,Sr,rpf,Pcmax)
-! SF_VG_line_type => SF_VG_LNOC_ctor(alpha,m,Sr,rpf,Sj)
-! SF_VG_quad_type => SF_VG_QCPC_ctor(alpha,m,Sr,rpf,Pcmax,Sj) TODO
+! Objects of SF_VG_type must be created and with the constructor:
+! SF_VG_type      => SF_VG_ctor(unsat_ext,alpha,m,Sr,rpf,Pcmax,Sj)
 !
 ! **************************************************************************** !
 !
@@ -263,6 +254,7 @@ end type
   type, public, extends(RPF_VG_type) :: RPF_VG_liq_type
     private
       PetscReal :: dKr_dSlmax  ! Finite difference derivative at saturation
+      PetscReal :: Slmin       ! Unsaturated limit to avoid 0/0
   contains
     procedure, public :: configure              => RPF_VG_liq_configure
     procedure, public :: set_m                  => RPF_VG_liq_set_m
@@ -341,13 +333,14 @@ end type
   public :: SFVGCreate
 
 ! Saturation Function constructors
-  public :: SF_VG_NEVG_ctor, & ! No capped capillary pressure
-            SF_VG_FCPC_ctor, & ! Flat, specified maximum
-            SF_VG_FNOC_ctor, & ! Flat, specified junction
-            SF_VG_ECPC_ctor, & ! Exponential, specified maximum
-            SF_VG_ENOC_ctor, & ! Exponential, specified junction
-            SF_VG_LCPC_ctor, & ! Linear, specified maximum
-            SF_VG_LNOC_ctor    ! Linear, specified junction
+  public  :: SF_VG_ctor         ! General constructor
+  private :: SF_VG_NEVG_ctor, & ! No capped capillary pressure
+             SF_VG_FCPC_ctor, & ! Flat, specified maximum
+             SF_VG_FNOC_ctor, & ! Flat, specified junction
+             SF_VG_ECPC_ctor, & ! Exponential, specified maximum
+             SF_VG_ENOC_ctor, & ! Exponential, specified junction
+             SF_VG_LCPC_ctor, & ! Linear, specified maximum
+             SF_VG_LNOC_ctor    ! Linear, specified junction
 
 ! Legacy RPF creation method
   public :: RPFMualemVGLiqCreate, &
@@ -367,6 +360,40 @@ end type
 contains
 ! **************************************************************************** !
 ! Common VG Saturation Function Methods
+! **************************************************************************** !
+
+function SF_VG_ctor(unsat_ext, alpha, m, Slr, vg_rpf_opt, Pcmax, Slj) 
+ use String_module
+ class(SF_VG_type), pointer :: SF_VG_ctor
+ character(len=MAXWORDLENGTH), intent(inout) :: unsat_ext
+ PetscReal, intent(in) :: alpha, m, Slr, Pcmax, Slj
+ PetscInt, intent(in) :: vg_rpf_opt
+
+! This function returns a the van Genuchten saturation function object using
+! the correct constructor method
+  
+  call StringtoUpper(unsat_ext)
+  
+  select case (unsat_ext)
+  case ('NONE') ! No extension
+    SF_VG_ctor => SF_VG_NEVG_ctor(alpha,m,Slr,vg_rpf_opt)
+  case ('FCPC') ! Flat specified cap
+    SF_VG_ctor => SF_VG_FCPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
+  case ('FNOC') ! Flat specificed junction
+    SF_VG_ctor => SF_VG_FNOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
+  case ('ECPC') ! Exponential specified cap
+    SF_VG_ctor => SF_VG_ECPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
+  case ('ENOC') ! Exponential specified junction
+    SF_VG_ctor => SF_VG_ENOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
+  case ('LCPC') ! Linear specified cap
+    SF_VG_ctor => SF_VG_LCPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
+  case ('LNOC') ! Linear specified junction
+    SF_VG_ctor => SF_VG_LNOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
+  case default
+    nullify(SF_VG_ctor)
+  end select
+end function
+
 ! **************************************************************************** !
 
 subroutine SF_VG_init(this)
@@ -1237,6 +1264,8 @@ function RPF_VG_liq_configure(this, m, Slr) result (error)
     call this%Kr_inline(Slmax,Kr,this%dKr_dSlmax)
     this%dKr_dSlmax = (1d0 - Kr) / epsilon(Slmax)
 
+    this%Slmin = Slr + epsilon(Slr)
+
     this%analytical_derivative_available = PETSC_TRUE
   end if
 end function
@@ -1328,7 +1357,7 @@ subroutine RPF_MVG_liq_Kr(this, liquid_saturation, relative_permeability, &
   if (liquid_saturation > Slmax) then         ! Saturated limit
     relative_permeability = 1d0
     dkr_sat = this%dKr_dSlmax
-  else if (liquid_saturation <= this%Slr) then ! Unsaturated limit
+  else if (liquid_saturation < this%Slmin) then ! Unsaturated limit
     relative_permeability = 0d0
     dkr_sat = 0d0
   else                                        ! Ordinary MVG

@@ -368,16 +368,18 @@ function SaturationFunctionRead(saturation_function,input,option) &
   PetscBool :: smooth
   PetscInt :: error ! Mutator return code
 
-  ! Declaration of compiled parameters
-  PetscBool :: tension
-  PetscInt :: unsat_ext, vg_rpf_opt
+  ! Lexicon of compiled parameters
+  character(len=MAXWORDLENGTH) :: unsat_ext
+  PetscBool :: loop_invariant, tension
+  PetscInt :: vg_rpf_opt
   PetscReal :: alpha, m, Pcmax, Slj, Slr
 
   nullify(sf_swap)
   ! Default values for unspecified parameters
+  loop_invariant = PETSC_FALSE
   tension = PETSC_FALSE
-  unsat_ext = -1 ! Use legacy implementation
-  vg_rpf_opt = 1 ! Mualem
+  unsat_ext = ''
+  vg_rpf_opt = 1 ! Mualem. Burdine option in progress
   alpha = 0d0
   m = 0d0
   Pcmax = 1d9
@@ -482,13 +484,15 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,alpha)
             error = sf%set_alpha(alpha)
             call InputErrorMsg(input,option,'alpha',error_string)
+          case('LOOP_INVARIANT')
+            loop_invariant = PETSC_TRUE
+          case('UNSATURATED_EXTENSION')
+            call InputReadCard(input,option,unsat_ext)
+            call InputErrorMsg(input,option,'unsaturated extension',error_string)
           case('LIQUID_JUNCTION_SATURATION')
             call InputReadDouble(input,option,Slj)
-            call InputErrorMsg(input,option,'LIQUID_JUNCTION_SATURATION', &
+            call InputErrorMsg(input,option,'liquid junction saturation', &
                                error_string)
-          case('UNSATURATED_EXTENSION')
-            call InputReadInt(input,option,unsat_ext)
-            call InputErrorMsg(input,option,'unsaturated extension',error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'van Genuchten saturation function',option)
@@ -782,30 +786,35 @@ function SaturationFunctionRead(saturation_function,input,option) &
   enddo
   call InputPopBlock(input,option)
 
-  ! At end of input block, call constructors
-  select type (saturation_function)
-  class is (sat_func_VG_type)
-    if (Slj == 0d0) Slj = Slr + 0.05d0*(1d0-Slr) ! Default junction if unspecified
-    select case (unsat_ext)
-    case (0) ! No extension
-      sf_swap => SF_VG_NEVG_ctor(alpha,m,Slr,vg_rpf_opt)
-    case (1) ! Flat specified cap
-      sf_swap => SF_VG_FCPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
-    case (2) ! Flat specificed junction
-      sf_swap => SF_VG_FNOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
-    case (3) ! Exponential specified cap
-      sf_swap => SF_VG_ECPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
-    case (4) ! Exponential specified junction
-      sf_swap => SF_VG_ENOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
-    case (5) ! Linear specified cap
-      sf_swap => SF_VG_LCPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
-    case (6) ! Linear specified junction
-      sf_swap => SF_VG_LNOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
+  ! At end of input block, call constructors if implemented
+  ! Throw errors for invalid combinations of options or parameters
+  if (loop_invariant) then 
+    ! Call constructor
+    select type (saturation_function)
+    class is (sat_func_VG_type)
+      sf_swap => SF_VG_ctor(unsat_ext, alpha, m, Slr, vg_rpf_opt, Pcmax, Slj)
+    class default
+      option%io_buffer = 'Loop-invariant optimizations are not yet &
+       implemented for the designated saturation function type.'
+      call PrintErrMsg(option)
     end select
-    if (associated(sf_swap)) sf_swap%calc_int_tension = tension
-  class default
-    ! Call mutators if assignment is postponed
-  end select
+
+    ! If successful, write tension option to the new object
+    if (associated(sf_swap)) then
+      sf_swap%calc_int_tension = tension
+    else
+    ! Throw an error the contructor failed. Most likley an invalid parameter
+      option%io_buffer = 'Construction of the saturation function object &
+      & failed.'
+      call PrintErrMsg(option)
+    end if 
+  else if (unsat_ext /= '') then
+    ! Throw an error if unsaturated extensions are with loop_invariant
+    option%io_buffer = 'Unsaturated extensions are unavailable without the &
+    & loop-invariant optimization'
+    call PrintErrMsg(option)
+  end if
+
 
   if (smooth) then
     call saturation_function%SetupPolynomials(option,error_string)
