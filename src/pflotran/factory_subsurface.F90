@@ -6,26 +6,27 @@ module Factory_Subsurface_module
 
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
-  
+
   implicit none
 
   private
 
-  public :: SubsurfaceInitialize, &
-            SubsurfaceInitializePostPETSc, &
-            SubsurfaceJumpStart, &
+  public :: FactorySubsurfaceInitialize, &
+            FactorySubsurfaceInitPostPetsc, &
+            FactorySubsurfaceJumpStart, &
             ! move to init_subsurface
-            SubsurfaceReadFlowPM, &
-            SubsurfaceReadTransportPM, &
-            SubsurfaceReadWasteFormPM, &
-            SubsurfaceReadUFDDecayPM, &
-            SubsurfaceReadUFDBiospherePM
+            FactorySubsurfaceReadFlowPM, &
+            FactorySubsurfaceReadTransportPM, &
+            FactorySubsurfaceReadWasteFormPM, &
+            FactorySubsurfaceReadUFDDecayPM, &
+            FactorySubsurfReadUFDBiospherePM, &
+            FactorySubsurfReadGeophysicsPM
 
 contains
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceInitialize(simulation)
+subroutine FactorySubsurfaceInitialize(simulation)
   !
   ! Sets up PFLOTRAN subsurface simulation
   !
@@ -45,13 +46,13 @@ subroutine SubsurfaceInitialize(simulation)
   call KlinkenbergInit()
 
   ! NOTE: PETSc must already have been initialized here!
-  call SubsurfaceInitializePostPetsc(simulation)
+  call FactorySubsurfaceInitPostPetsc(simulation)
 
-end subroutine SubsurfaceInitialize
+end subroutine FactorySubsurfaceInitialize
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceInitializePostPetsc(simulation)
+subroutine FactorySubsurfaceInitPostPetsc(simulation)
   !
   ! Sets up PFLOTRAN subsurface simulation
   ! framework after to PETSc initialization
@@ -81,6 +82,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   class(pm_waste_form_type), pointer :: pm_waste_form
   class(pm_ufd_decay_type), pointer :: pm_ufd_decay
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
+  class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(realization_subsurface_type), pointer :: realization
 
@@ -91,15 +93,17 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   nullify(pm_waste_form)
   nullify(pm_ufd_decay)
   nullify(pm_ufd_biosphere)
+  nullify(pm_geop)
   nullify(pm_auxiliary)
 
   ! process command line arguments specific to subsurface
   call SubsurfInitCommandLineSettings(option)
 
   call ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form,&
-                            pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary)
+                            pm_ufd_decay,pm_ufd_biosphere,pm_geop,pm_auxiliary)
 
   call SubsurfaceSetFlowMode(pm_flow,option)
+  call SubsurfaceSetGeopMode(pm_geop,option)
 
   realization => RealizationCreate(option)
   simulation%realization => realization
@@ -109,20 +113,21 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
 
   ! Setup linkages between PMCs
   call SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
-    pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary,realization)
-  
+                        pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
+                        pm_auxiliary,realization)
+
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
   call SubsurfaceInitSimulation(simulation)
 
   ! set first process model coupler as the master
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
 
-end subroutine SubsurfaceInitializePostPetsc
+end subroutine FactorySubsurfaceInitPostPetsc
 
 ! ************************************************************************** !
 
 subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form,&
-                                pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary)
+                                pm_ufd_decay,pm_ufd_biosphere,pm_geop,pm_auxiliary)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -137,6 +142,7 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form,&
   use PM_Waste_Form_class
   use PM_UFD_Decay_class
   use PM_UFD_Biosphere_class
+  use PM_ERT_class
   use PM_Auxiliary_class
   use Option_module
   use Simulation_Subsurface_class
@@ -151,6 +157,7 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form,&
   class(pm_waste_form_type), pointer :: pm_waste_form
   class(pm_ufd_decay_type), pointer :: pm_ufd_decay
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
+  class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(pm_base_type), pointer :: cur_pm, prev_pm
 
@@ -179,11 +186,13 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_tran,pm_waste_form,&
         pm_ufd_decay => cur_pm
       class is(pm_ufd_biosphere_type)
         pm_ufd_biosphere => cur_pm
+      class is(pm_ert_type)
+        pm_geop => cur_pm
       class is(pm_auxiliary_type)
         pm_auxiliary => cur_pm
       class default
         option%io_buffer = &
-         'PM Class unrecognized in SubsurfaceInitializePostPetsc.'
+         'PM Class unrecognized in FactorySubsurfaceInitPostPetsc.'
         call PrintErrMsg(option)
     end select
 
@@ -201,8 +210,8 @@ end subroutine ExtractPMsFromPMList
 ! ************************************************************************** !
 
 subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
-                            pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary, &
-                            realization)
+                            pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
+                            pm_auxiliary,realization)
   !
   ! Sets up all PMC linkages
   !
@@ -228,6 +237,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
   class(pm_waste_form_type), pointer :: pm_waste_form
   class(pm_ufd_decay_type), pointer :: pm_ufd_decay
   class(pm_ufd_biosphere_type), pointer :: pm_ufd_biosphere
+  class(pm_base_type), pointer :: pm_geop
   class(pm_auxiliary_type), pointer :: pm_auxiliary
   class(realization_subsurface_type), pointer :: realization
 
@@ -244,7 +254,12 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
     call AddPMCSubsurfaceTransport(simulation,pm_tran, &
                                    'PMCSubsurfaceTransport', &
                                    realization,option)
-                            
+
+  if (associated(pm_geop)) &
+    call AddPMCSubsurfaceGeophysics(simulation,pm_geop, &
+                                    'PMCSubsurfaceGeophysics', &
+                                    realization,option)
+
   input => InputCreate(IN_UNIT,option%input_filename,option)
   call SubsurfaceReadRequiredCards(simulation,input)
   call SubsurfaceReadInput(simulation,input)
@@ -637,6 +652,70 @@ end subroutine AddPMCUDFBiosphere
 
 ! ************************************************************************** !
 
+subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,option)
+
+  !
+  ! Adds a Geophysics PMC
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/25/21
+  !
+
+  use PM_Base_class
+  use PM_ERT_class
+  use PMC_Base_class
+  use PMC_Geophysics_class
+  use Timestepper_Steady_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Logging_module
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+  class(pm_base_type), pointer :: pm_base
+  character(len=*) :: pmc_name
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  class(pmc_geophysics_type), pointer :: pmc_geophysics
+  character(len=MAXSTRINGLENGTH) :: string
+
+  pmc_geophysics => PMCGeophysicsCreate()
+
+  call pmc_geophysics%SetName(pmc_name)
+  call pmc_geophysics%SetOption(option)
+  call pmc_geophysics%SetCheckpointOption(simulation%checkpoint_option)
+  call pmc_geophysics%SetWaypointList(simulation%waypoint_list_subsurface)
+
+  pmc_geophysics%pm_list => pm_base
+  pmc_geophysics%pm_ptr%pm => pm_base
+  pmc_geophysics%realization => realization
+
+  ! add time integrator
+  select type(pm_base)
+    class is(pm_ert_type)
+      pmc_geophysics%timestepper => TimestepperSteadyCreate()
+    class default
+      pmc_geophysics%timestepper => TimestepperSteadyCreate()
+  end select
+  pmc_geophysics%timestepper%name = 'GEOP'
+
+  ! add solver
+  call pmc_geophysics%pm_list%InitializeSolver()
+  pmc_geophysics%timestepper%solver => pmc_geophysics%pm_list%solver
+  pmc_geophysics%timestepper%solver%itype = GEOPHYSICS_CLASS
+
+  ! set up logging stage
+  string = trim(pm_base%name)
+  call LoggingCreateStage(string,pmc_geophysics%stage)
+  simulation%geop_process_model_coupler => pmc_geophysics
+  simulation%process_model_coupler_list => simulation%geop_process_model_coupler
+
+end subroutine AddPMCSubsurfaceGeophysics
+
+! ************************************************************************** !
+
 subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
                            realization,option)
 
@@ -743,18 +822,12 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use Option_module
   use PM_Subsurface_Flow_class
   use PM_Base_class
-  use PM_Flash2_class
   use PM_General_class
   use PM_Hydrate_class
   use PM_WIPP_Flow_class
-  use PM_Immis_class
-  use PM_Miscible_class
   use PM_Mphase_class
   use PM_Richards_class
   use PM_TH_class
-  use PM_TOilIms_class
-  use PM_TOWG_class
-  use PM_TOWG_Aux_module
   use PM_Richards_TS_class
   use PM_TH_TS_class
   use General_Aux_module
@@ -774,17 +847,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   endif
 
   select type(pm_flow)
-    class is (pm_flash2_type)
-      option%iflowmode = FLASH2_MODE
-      option%nphase = 2
-      option%liquid_phase = 1
-      option%gas_phase = 2
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%itable = 2
-      option%use_isothermal = PETSC_FALSE
-      option%water_id = 1
-      option%air_id = 2
     class is (pm_wippflo_type)
       option%iflowmode = WF_MODE
       option%nphase = 2
@@ -819,104 +881,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%use_isothermal = PETSC_FALSE
     class is (pm_hydrate_type)
       call PMHydrateSetFlowMode(option)
-    class is (pm_toil_ims_type)
-      option%iflowmode = TOIL_IMS_MODE
-      option%nphase = 2
-      option%liquid_phase = 1           ! liquid_pressure
-      option%oil_phase = 2              ! oil_pressure
-
-      option%phase_map(1) = LIQUID_PHASE
-      option%phase_map(2) = OIL_PHASE
-
-! Check that MAX_PHASE is sufficiently large
-
-      if (option%nphase > MAX_PHASE) then
-        option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
-        call PrintMsg(option)
-      endif
-
-      !option%capillary_pressure_id = 3  ! capillary pressure
-
-      option%nflowdof = 3
-      !two species (H2O,OIL): each present only in its own rich phase
-      option%nflowspec = 2
-
-      option%water_id = 1
-      option%oil_id = 2
-      option%energy_id = 3
-
-      option%use_isothermal = PETSC_FALSE
-    class is (pm_towg_type)
-      option%iflowmode = TOWG_MODE
-
-! Basic oil and gas
-
-      option%nphase = 3
-      option%liquid_phase = 1           ! liquid_pressure
-      option%oil_phase = 2              ! oil_pressure
-      option%gas_phase = 3              ! gas_pressure
-
-!  Add solvent phase
-
-      if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-        option%nphase = 4
-        option%solvent_phase = 4         ! solvent saturation
-      endif
-
-!  Phase maps
-
-      option%phase_map(1) = LIQUID_PHASE
-      option%phase_map(2) = OIL_PHASE
-      option%phase_map(3) = GAS_PHASE
-
-! Add solvent phase
-
-      if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-        option%phase_map(4) = SOLVENT_PHASE
-      endif
-
-! Check that MAX_PHASE is sufficiently large
-
-      if (option%nphase > MAX_PHASE) then
-        option%io_buffer = 'ERROR: number of phases has exceeded MAX_PHASE'
-        call PrintMsg(option)
-      endif
-
-      option%energy_id = towg_energy_eq_idx
-      select case (towg_miscibility_model)
-        case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL)
-          option%nflowdof = 4
-          option%nflowspec = 3 !H20, Oil, Gas
-        case(TOWG_SOLVENT_TL)
-          option%nphase = 4
-          option%nflowdof = 5
-          option%nflowspec = 4 !H20, Oil, Gas, Solvent
-        case default
-          !option%io_buffer = 'SubsurfaceSetFlowMode: ' //
-          !  'towg_miscibility_model must be intiialized'
-          option%io_buffer = 'only immiscible TOWG currently implemented'
-          call PrintErrMsg(option)
-      end select
-      option%use_isothermal = PETSC_FALSE
-    class is (pm_immis_type)
-      option%iflowmode = IMS_MODE
-      option%nphase = 2
-      option%liquid_phase = 1
-      option%gas_phase = 2
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%itable = 2
-      option%io_buffer = 'Material AuxVars must be refactored for IMMIS.'
-      call PrintErrMsg(option)
-    class is (pm_miscible_type)
-      option%iflowmode = MIS_MODE
-      option%nphase = 1
-      option%liquid_phase = 1
-      option%gas_phase = 2
-      option%nflowdof = 2
-      option%nflowspec = 2
-      option%io_buffer = 'Material AuxVars must be refactored for MISCIBLE.'
-      call PrintErrMsg(option)
     class is (pm_mphase_type)
       option%iflowmode = MPH_MODE
       option%nphase = 2
@@ -971,7 +935,43 @@ end subroutine SubsurfaceSetFlowMode
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadFlowPM(input,option,pm)
+subroutine SubsurfaceSetGeopMode(pm_geop,option)
+  !
+  ! Sets the geophysics mode (ert, sip, etc.)
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  !
+
+  use Option_module
+  use PM_Base_class
+  use PM_ERT_class
+  !use General_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(pm_base_type), pointer :: pm_geop
+
+  if (.not.associated(pm_geop)) then
+    return
+  endif
+
+  select type(pm_geop)
+    class is (pm_ert_type)
+      option%igeopmode = ERT_MODE
+      option%geopmode = "ERT"
+      option%ngeopdof = 1
+    class default
+      option%io_buffer = ''
+      call PrintErrMsg(option)
+  end select
+
+end subroutine SubsurfaceSetGeopMode
+
+! ************************************************************************** !
+
+subroutine FactorySubsurfaceReadFlowPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -981,17 +981,12 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use String_module
 
   use PM_Base_class
-  use PM_Flash2_class
   use PM_General_class
   use PM_Hydrate_class
   use PM_WIPP_Flow_class
-  use PM_Immis_class
-  use PM_Miscible_class
   use PM_Mphase_class
   use PM_Richards_class
   use PM_TH_class
-  use PM_TOilIms_class
-  use PM_TOWG_class
   use PM_Richards_TS_class
   use PM_TH_TS_class
   use Init_Common_module
@@ -1022,9 +1017,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('GENERAL','HYDRATE','TOIL_IMS','TOWG_IMMISCIBLE', &
-               'TODD_LONGSTAFF','TOWG_MISCIBLE','BLACK_OIL', &
-               'SOLVENT_TL','WIPP_FLOW')
+          case('GENERAL','HYDRATE','WIPP_FLOW')
           ! In OptionFlowInitRealization(), numerical_derivatives is set to
           ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
           ! This is will eventually affect all flow modes with numerical
@@ -1045,22 +1038,10 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
             call PrintErrMsg(option)
           case('MPHASE')
             pm => PMMphaseCreate()
-          case('FLASH2')
-            pm => PMFlash2Create()
-          case('IMS','IMMIS','THS')
-            pm => PMImmisCreate()
-          case('MIS','MISCIBLE')
-            pm => PMMiscibleCreate()
           case('RICHARDS')
             pm => PMRichardsCreate()
           case('TH')
             pm => PMTHCreate()
-          case('TOIL_IMS')
-            pm => PMTOilImsCreate()
-          !case('TOWG')
-          case('TOWG_IMMISCIBLE','TODD_LONGSTAFF','TOWG_MISCIBLE', &
-               'BLACK_OIL','SOLVENT_TL')
-            pm => PMTOWGCreate(input,word,option)
           case ('RICHARDS_TS')
             pm => PMRichardsTSCreate()
           case ('TH_TS')
@@ -1089,11 +1070,11 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
     call PrintErrMsg(option)
   endif
 
-end subroutine SubsurfaceReadFlowPM
+end subroutine FactorySubsurfaceReadFlowPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadTransportPM(input,option,pm)
+subroutine FactorySubsurfaceReadTransportPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 12/04/19
@@ -1196,11 +1177,11 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
     call PrintErrMsg(option)
   endif
 
-end subroutine SubsurfaceReadTransportPM
+end subroutine FactorySubsurfaceReadTransportPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadWasteFormPM(input,option,pm)
+subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1266,11 +1247,11 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
 
   pm%option => option
 
-end subroutine SubsurfaceReadWasteFormPM
+end subroutine FactorySubsurfaceReadWasteFormPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
+subroutine FactorySubsurfaceReadUFDDecayPM(input,option,pm)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1319,11 +1300,11 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine SubsurfaceReadUFDDecayPM
+end subroutine FactorySubsurfaceReadUFDDecayPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
+subroutine FactorySubsurfReadUFDBiospherePM(input,option,pm)
   !
   ! Author: Jenn Frederick
   ! Date: 03/13/2017
@@ -1365,7 +1346,77 @@ subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine SubsurfaceReadUFDBiospherePM
+end subroutine FactorySubsurfReadUFDBiospherePM
+
+! ************************************************************************** !
+
+subroutine FactorySubsurfReadGeophysicsPM(input,option,pm)
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/25/21
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  use PM_Base_class
+  use PM_ERT_class
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+  class(pm_base_type), pointer :: pm
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_GEOPHYSICS'
+
+  nullify(pm)
+  word = ''
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word,PETSC_FALSE)
+    call StringToUpper(word)
+    select case(word)
+      case('MODE')
+        call InputReadCard(input,option,word,PETSC_FALSE)
+        call InputErrorMsg(input,option,'mode',error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('ERT')
+            pm => PMERTCreate()
+            option%igeopmode = ERT_MODE
+          case default
+            option%io_buffer = 'MODE ' // trim(word) // &
+              ' not recognized. Only MODE ERT currently supported for &
+              & SUBSURFACE_GEOPHYSICS process models.'
+            call PrintErrMsg(option)
+        end select
+        pm%option => option
+      case('OPTIONS')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'MODE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        call pm%ReadSimulationOptionsBlock(input)
+      case default
+        call InputKeywordUnrecognized(input,word,error_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+  if (.not.associated(pm)) then
+    option%io_buffer = 'A geophysics MODE (card) must be included in the &
+      &SUBSURFACE_GEOPHYSICS block in ' // trim(error_string) // '.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine FactorySubsurfReadGeophysicsPM
 
 ! ************************************************************************** !
 
@@ -1386,6 +1437,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   use Init_Subsurface_module
   use Init_Subsurface_Flow_module
   use Init_Subsurface_Tran_module
+  use Init_Subsurface_Geop_module
   use Init_Common_module
   use Waypoint_module
   use Strata_module
@@ -1426,6 +1478,7 @@ subroutine SubsurfaceInitSimulation(simulation)
 
 ! begin from old Init()
   call SubsurfaceSetupRealization(simulation)
+
   call InitCommonAddOutputWaypoints(option,simulation%output_option, &
                                     simulation%waypoint_list_subsurface)
 
@@ -1439,6 +1492,10 @@ subroutine SubsurfaceInitSimulation(simulation)
   if (option%ntrandof > 0) then
     call InitSubsurfTranSetupRealization(realization)
   endif
+  if (option%ngeopdof > 0) then
+    call InitSubsurfGeopSetupRealization(realization)
+  endif
+
   ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
   call InitSubsurfaceSetupZeroArrays(realization)
   call OutputVariableAppendDefaults(realization%output_option% &
@@ -1498,12 +1555,16 @@ subroutine SubsurfaceInitSimulation(simulation)
     call simulation%tran_process_model_coupler% &
            SetWaypointPtr(simulation%waypoint_list_subsurface)
   endif
+  if (associated(simulation%geop_process_model_coupler)) then
+    call simulation%geop_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
 
   if (realization%debug%print_couplers) then
     call InitCommonVerifyAllCouplers(realization)
   endif
 
-  call SubsurfaceJumpStart(simulation)
+  call FactorySubsurfaceJumpStart(simulation)
 
 end subroutine SubsurfaceInitSimulation
 
@@ -1521,6 +1582,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use petscsnes
   use PMC_Base_class
   use PMC_Subsurface_class
+  use PMC_Geophysics_class
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
@@ -1530,6 +1592,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use PM_WIPP_SrcSink_class
   use PM_UFD_Decay_class
   use PM_UFD_Biosphere_class
+  use PM_ERT_class
   use Option_module
   use Simulation_Subsurface_class
   use Realization_Subsurface_class
@@ -1567,7 +1630,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
           call PrintErrMsg(option)
         endif
         call cur_pm%SetRealization(realization)
-        
+
       class is(pm_nwt_type)
         if (.not.associated(realization%reaction_nw)) then
           option%io_buffer = 'SUBSURFACE_TRANSPORT MODE NWT is specified &
@@ -1587,6 +1650,9 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
         call cur_pm%SetRealization(realization)
 
       class is(pm_ufd_biosphere_type)
+        call cur_pm%SetRealization(realization)
+
+      class is(pm_ert_type)
         call cur_pm%SetRealization(realization)
 
     end select
@@ -1653,7 +1719,7 @@ subroutine SubsurfaceSetupRealization(simulation)
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
 
-  select case(option%itranmode) 
+  select case(option%itranmode)
     case(RT_MODE)
       ! read reaction database
       if (realization%reaction%use_full_geochemistry) then
@@ -1715,6 +1781,10 @@ subroutine SubsurfaceSetupRealization(simulation)
                                        simulation%waypoint_list_subsurface)
     ! fill in holes in waypoint data
   endif
+  if (option%ngeopdof > 0) then
+    ! Read geophysics survey file
+    call RealizationReadGeopSurveyFile(realization)
+  endif
   call PetscLogEventEnd(logging%event_setup,ierr);CHKERRQ(ierr)
 
 #ifdef OS_STATISTICS
@@ -1732,12 +1802,12 @@ end subroutine SubsurfaceSetupRealization
 ! ************************************************************************** !
 
 subroutine SetupWaypointList(simulation)
-  ! 
+  !
   ! Sets up waypoint list
   !
   ! Author: Gautam Bisht
   ! Date: 06/05/18
-  ! 
+  !
 
   use Checkpoint_module
   use Realization_Subsurface_class
@@ -1792,7 +1862,7 @@ end subroutine SetupWaypointList
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceJumpStart(simulation)
+subroutine FactorySubsurfaceJumpStart(simulation)
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
@@ -1833,7 +1903,7 @@ subroutine SubsurfaceJumpStart(simulation)
     call RTJumpStartKineticSorption(realization)
   endif
 
-end subroutine SubsurfaceJumpStart
+end subroutine FactorySubsurfaceJumpStart
 
 ! ************************************************************************** !
 
@@ -1860,8 +1930,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use Reaction_Aux_module
   use NW_Transport_Aux_module
   use Init_Common_module
-
-  use Grid_Grdecl_module, only : SetUGrdEclCmplLocation
 
   implicit none
 
@@ -1894,84 +1962,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   found = PETSC_FALSE
 
   call InputPushBlock(input,'SUBSURFACE',option)
-
-! Read in select required cards
-!.........................................................................
-
-!  Search for 'WELL_DATA' section and read well locations if found
-
-  string = "WELL_DATA"
-  call InputFindStringInFile(input,option,string,PETSC_FALSE,found)
-  if (found) then
-    call InputPushBlock(input,'WELL_DATA',option)
-
-! Read the WELL_DATA information
-
-    call InputReadWord(input,option,wname,PETSC_TRUE)
-
-! Search for completion locations
-
-    call InputPushBlock(input,option)
-    do
-      call InputReadPflotranString(input,option)
-      if (InputError(input)) exit
-
-      call InputReadCard(input,option,word,PETSC_FALSE)
-      call StringToUpper(word)
-      card = trim(word)
-
-      select case(trim(card))
-        case('CIJK','CIJK_Z')
-          ci  = 1
-          cj  = 1
-          ckl = 1
-          cku = 1
-          call InputReadInt(input,option,ci)
-          call InputErrorMsg(input,option,'cijk I','WELL_DATA')
-          call InputReadInt(input,option,cj)
-          call InputErrorMsg(input,option,'cijk I','WELL_DATA')
-          call InputReadInt(input,option,ckl)
-          call InputErrorMsg(input,option,'cijk KL','WELL_DATA')
-          call InputReadInt(input,option,cku)
-          call InputErrorMsg(input,option,'cijk KU','WELL_DATA')
-          ckll=min(ckl,cku)
-          ckuu=max(ckl,cku)
-          do ck=ckll,ckuu
-            call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_false,qerr)
-          enddo
-          if (qerr) then
-            input%ierr = 1
-            call InputErrorMsg(input,option,'cijk','same well more than once')
-          endif
-        case('CIJK_D')
-          ci  = 1
-          cj  = 1
-          ckl = 1
-          cku = 1
-          call InputReadInt(input,option,ci)
-          call InputErrorMsg(input,option,'cijk_d I','WELL_DATA')
-          call InputReadInt(input,option,cj)
-          call InputErrorMsg(input,option,'cijk_d I','WELL_DATA')
-          call InputReadInt(input,option,ckl)
-          call InputErrorMsg(input,option,'cijk_d KL','WELL_DATA')
-          call InputReadInt(input,option,cku)
-          call InputErrorMsg(input,option,'cijk_d KU','WELL_DATA')
-          ckll=min(ckl,cku)
-          ckuu=max(ckl,cku)
-          do ck=ckll,ckuu
-            call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_true,qerr)
-          enddo
-          if (qerr) then
-            input%ierr = 1
-            call InputErrorMsg(input,option,'cijk_d','same well more than once')
-          endif
-        case('WELL_DATA') ! May be more than one
-          call InputReadWord(input,option,wname,PETSC_TRUE)
-      end select
-    enddo
-    call InputPopBlock(input,option)
-    call InputPopBlock(input,option) ! for WELL_DATA
-  endif
 
   ! GRID information - GRID is a required card for every simulation
   string = "GRID"
@@ -2069,7 +2059,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             call PrintErrMsg(option)
           endif
         endif
-        
+
 !....................
       case('CHEMISTRY')
         call InputPushCard(input,card,option)
@@ -2082,9 +2072,9 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         !geh: for some reason, we need this with CHEMISTRY read for
         !     multicontinuum
  !       option%use_mc = PETSC_TRUE
-        call ReactionInit(realization%reaction,input,option)  
+        call ReactionInit(realization%reaction,input,option)
         realization%reaction_base => realization%reaction
-        
+
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
         call InputPushCard(input,card,option)
@@ -2093,11 +2083,11 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             &SUBSURFACE_TRANSPORT MODE NWT was not specified in the &
             &SIMULATION block.'
           call PrintErrMsg(option)
-        endif     
+        endif
         realization%reaction_nw => NWTReactionCreate()
         realization%reaction_base => realization%reaction_nw
         call NWTRead(realization%reaction_nw,input,option)
-        
+
     end select
   enddo
   call InputPopBlock(input,option) ! REQUIRED_CARDS
@@ -2168,7 +2158,9 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Utility_module
   use Checkpoint_module
   use Simulation_Subsurface_class
+  use PMC_Base_class
   use PMC_Subsurface_class
+  use PMC_Geophysics_class
   use PMC_Subsurface_OSRT_class
   use PM_Base_class
   use PM_RT_class
@@ -2177,11 +2169,11 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_BE_class
   use Timestepper_Steady_class
   use Timestepper_TS_class
-  use Well_Data_class
   use PM_Hydrate_class
   use PM_Base_class
   use Time_Storage_module
   use TH_Aux_module
+  use Survey_module
 
 #ifdef SOLID_SOLUTION
   use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
@@ -2217,15 +2209,15 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
-  class(well_data_type), pointer :: well_data
   type(tran_condition_type), pointer :: tran_condition
+  type(geop_condition_type), pointer :: geop_condition
   class(tran_constraint_base_type), pointer :: tran_constraint
   class(tran_constraint_rt_type), pointer :: sec_tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
   type(integral_flux_type), pointer :: integral_flux
-  class(pmc_subsurface_type), pointer :: master_pmc
+  class(pmc_base_type), pointer :: master_pmc
 
   type(waypoint_type), pointer :: waypoint
 
@@ -2251,6 +2243,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list
   type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input, input_parent
+  type(survey_type), pointer :: survey
 
   PetscReal :: dt_init
   PetscReal :: dt_min
@@ -2286,9 +2279,15 @@ subroutine SubsurfaceReadInput(simulation,input)
     endif
   endif
 
+  if (associated(simulation%geop_process_model_coupler)) then
+    if (.not.associated(master_pmc)) then
+      master_pmc => simulation%geop_process_model_coupler
+    endif
+  endif
+
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
-                          
+
   call InputRewind(input)
   string = 'SUBSURFACE'
   call InputFindStringInFile(input,option,string)
@@ -2315,7 +2314,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('CHEMISTRY')
         call ReactionReadPass2(reaction,input,option)
-        
+
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
         call NWTReadPass2(realization%reaction_nw,input,option)
@@ -2453,36 +2452,11 @@ subroutine SubsurfaceReadInput(simulation,input)
             call FlowConditionGeneralRead(flow_condition,input,option)
           case(H_MODE)
             call FlowConditionHydrateRead(flow_condition,input,option)
-          case(TOIL_IMS_MODE)
-            call FlowConditionTOilImsRead(flow_condition,input,option)
-          case(TOWG_MODE)
-            call FlowConditionTOWGRead(flow_condition,input,option)
           case default
             call FlowConditionRead(flow_condition,input,option)
         end select
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
         nullify(flow_condition)
-
-      case ('WELL_DATA')
-        call WellDataSetFlag()
-        well_data => WellDataCreate()
-        call InputReadWord(input,option,well_data%w_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'WELL_DATA','name')
-        call PrintMsg(option,well_data%w_name)
-        nwaytime = 0
-        mwaytime = 1
-        allocate(waytime(mwaytime))
-        call well_data%Read(input,option,waytime,nwaytime,mwaytime)
-        do iwaytime=1,nwaytime
-           wtime=waytime(iwaytime)
-           waypoint => WaypointCreate()
-           waypoint%time = wtime
-           waypoint%update_conditions = PETSC_TRUE
-           call WaypointInsertInList(waypoint,waypoint_list)
-        enddo
-        deallocate(waytime)
-        call WellDataAddToList(well_data,realization%well_data)
-        nullify(well_data)
 
 !....................
       case ('TRANSPORT_CONDITION')
@@ -2501,6 +2475,22 @@ subroutine SubsurfaceReadInput(simulation,input)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
         nullify(tran_condition)
+
+!....................
+      case ('GEOPHYSICS_CONDITION')
+        if (option%igeopmode == NULL_MODE) then
+          option%io_buffer = 'GEOPHYSICS_CONDITIONs are not supported without &
+                             &a SUBSURFACE_GEOPHYSICS PROCESS_MODEL.'
+          call PrintErrMsg(option)
+        endif
+        geop_condition => GeopConditionCreate(option)
+        call InputReadWord(input,option,geop_condition%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'GEOPHYSICS_CONDITION','name')
+        call PrintMsg(option,geop_condition%name)
+        call GeopConditionRead(geop_condition,input,option)
+        call GeopConditionAddToList(geop_condition, &
+                                    realization%geophysics_conditions)
+        nullify(geop_condition)
 
 !....................
       case('CONSTRAINT')
@@ -2595,58 +2585,59 @@ subroutine SubsurfaceReadInput(simulation,input)
 
       case('REFERENCE_PRESSURE')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_pressure)
+        call InputReadDouble(input,option,option%flow%reference_pressure)
         call InputErrorMsg(input,option,'Reference Pressure','value')
-        call InputReadAndConvertUnits(input,option%reference_pressure, &
+        call InputReadAndConvertUnits(input,option%flow%reference_pressure, &
                                       'Pa','Reference Pressure',option)
 !....................
 
       case('REFERENCE_LIQUID_DENSITY')
         call InputReadStringErrorMsg(input,option,card)
         call InputReadDouble(input,option, &
-                             option%reference_density(option%liquid_phase))
+                             option%flow%reference_density(option%liquid_phase))
         call InputErrorMsg(input,option,'Reference Liquid Density','value')
         call InputReadAndConvertUnits(input, &
-                              option%reference_density(option%liquid_phase), &
+                           option%flow%reference_density(option%liquid_phase), &
                               'kg/m^3','Reference Density',option)
 !....................
 
       case('REFERENCE_GAS_DENSITY')
         call InputReadStringErrorMsg(input,option,card)
         call InputReadDouble(input,option, &
-                             option%reference_density(option%gas_phase))
+                             option%flow%reference_density(option%gas_phase))
         call InputErrorMsg(input,option,'Reference Gas Density','value')
         call InputReadAndConvertUnits(input, &
-                              option%reference_density(option%gas_phase), &
+                              option%flow%reference_density(option%gas_phase), &
                               'kg/m^3','Reference Density',option)
 !....................
 
       case('MINIMUM_HYDROSTATIC_PRESSURE')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%minimum_hydrostatic_pressure)
+        call InputReadDouble(input,option, &
+                             option%flow%minimum_hydrostatic_pressure)
         call InputErrorMsg(input,option,'Minimum Hydrostatic Pressure','value')
         call InputReadAndConvertUnits(input, &
-                                      option%minimum_hydrostatic_pressure, &
+                                    option%flow%minimum_hydrostatic_pressure, &
                                     'Pa','Minimum Hydrostatic Pressure',option)
 !......................
 
       case('REFERENCE_TEMPERATURE')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_temperature)
+        call InputReadDouble(input,option,option%flow%reference_temperature)
         call InputErrorMsg(input,option,'Reference Temperature','value')
 
 !......................
 
       case('REFERENCE_POROSITY')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_porosity)
+        call InputReadDouble(input,option,option%flow%reference_porosity)
         call InputErrorMsg(input,option,'Reference Porosity','value')
 
 !......................
 
       case('REFERENCE_SATURATION')
         call InputReadStringErrorMsg(input,option,card)
-        call InputReadDouble(input,option,option%reference_saturation)
+        call InputReadDouble(input,option,option%flow%reference_saturation)
         call InputErrorMsg(input,option,'Reference Saturation','value')
 
 !......................
@@ -2662,7 +2653,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !......................
 
       case('UPDATE_FLOW_PERMEABILITY')
-        option%update_flow_perm = PETSC_TRUE
+        option%flow%update_flow_perm = PETSC_TRUE
 
 !......................
 
@@ -2813,6 +2804,15 @@ subroutine SubsurfaceReadInput(simulation,input)
                 &be defined to read NUMERICAL_METHODS for TRANSPORT.'
               call PrintErrMsg(option)
             endif
+          case('GEOPHYSICS','GEOP')
+            if (associated(simulation%geop_process_model_coupler)) then
+              call simulation%geop_process_model_coupler% &
+                     ReadNumericalMethods(input)
+            else
+              option%io_buffer = 'A SUBSURFACE_GEOPHYSICS process model must &
+                &be defined to read NUMERICAL_METHODS for GEOPHYSICS.'
+              call PrintErrMsg(option)
+            endif
           case default
             option%io_buffer = 'NUMERICAL_METHODS must specify FLOW or &
                                &TRANSPORT.'
@@ -2837,12 +2837,10 @@ subroutine SubsurfaceReadInput(simulation,input)
 
       case ('SATURATION_FUNCTION')
         if (option%iflowmode == RICHARDS_MODE .or. &
-            option%iflowmode == TOIL_IMS_MODE .or. &
-            option%iflowmode == TOWG_MODE .or. &
             option%iflowmode == G_MODE .or. &
             option%iflowmode == H_MODE .or. &
             (option%iflowmode == TH_MODE .and. &
-             .not. option%th_freezing) .or. &
+             .not. option%flow%th_freezing) .or. &
             option%iflowmode == TH_TS_MODE .or. &
             option%iflowmode == WF_MODE) then
           option%io_buffer = &
@@ -2867,16 +2865,14 @@ subroutine SubsurfaceReadInput(simulation,input)
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
                   option%iflowmode == RICHARDS_TS_MODE .or. &
-                  option%iflowmode == TOIL_IMS_MODE .or. &
-                  option%iflowmode == TOWG_MODE .or. &
                   option%iflowmode == G_MODE .or. &
                   option%iflowmode == H_MODE .or. &
                   option%iflowmode == TH_TS_MODE .or. &
                   (option%iflowmode == TH_MODE .and. &
-                    .not. option%th_freezing) .or. &
+                    .not. option%flow%th_freezing) .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
-            &modes other than RICHARDS, RICHARDS_TS, TOIL_IMS, WIPP_FLOW, TH, or GENERAL. &
+            &modes other than RICHARDS, RICHARDS_TS, WIPP_FLOW, TH, or GENERAL. &
             &Use SATURATION_FUNCTION.'
           call PrintErrMsg(option)
         endif
@@ -2895,7 +2891,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
 
-      case ('THERMAL_CHARACTERISTIC_CURVES')       
+      case ('THERMAL_CHARACTERISTIC_CURVES')
         characteristic_curves_thermal => CharCurvesThermalCreate()
         call InputReadWord(input,option, &
              characteristic_curves_thermal%name,PETSC_TRUE)
@@ -3043,12 +3039,6 @@ subroutine SubsurfaceReadInput(simulation,input)
             case('MASS_BALANCE_FILE')
               call OutputFileRead(input,realization,output_option, &
                                   waypoint_list,trim(word))
-            case('ECLIPSE_FILE')
-              call CreateOutputOptionEclipse(output_option)
-              call OutputFileRead(input,realization,output_option, &
-                                  waypoint_list,trim(word))
-            case('LINEREPT')
-               option%linerept = PETSC_TRUE
             case('TIME_UNITS')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'Output Time Units','OUTPUT')
@@ -3512,14 +3502,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         endif
         if (associated(grid%unstructured_grid)) then
           if (associated(grid%unstructured_grid%explicit_grid)) then
-            if (output_option%write_ecl .or. option%linerept) then
-              unsupported_output = output_option%print_tecplot &
-                                    .or. output_option%print_vtk
-            else
-              unsupported_output = .not.output_option%print_hdf5
-            endif
-
-            if (unsupported_output .and.  &
+            if (.not.output_option%print_hdf5.and.  &
                 (grid%unstructured_grid%explicit_grid%output_mesh_type == &
                  CELL_CENTERED_OUTPUT_MESH)) then
                 option%io_buffer = 'unstructured explicit grid &
@@ -3632,7 +3615,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         enddo
         call InputPopBlock(input,option)
 
-        ! we store dt_init and dt_min in local variables so that they 
+        ! we store dt_init and dt_min in local variables so that they
         ! cannot overwrite what has previously been set in the respective
         ! timestepper object member variable
         if (Initialized(dt_init)) then
@@ -3749,11 +3732,11 @@ subroutine SubsurfaceReadInput(simulation,input)
         call StringToUpper(word)
         select case (trim(word))
           case ('UPWIND')
-            option%rel_perm_aveg = UPWIND
+            option%flow%rel_perm_aveg = UPWIND
           case ('HARMONIC')
-            option%rel_perm_aveg = HARMONIC
+            option%flow%rel_perm_aveg = HARMONIC
           case ('DYNAMIC_HARMONIC')
-            option%rel_perm_aveg = DYNAMIC_HARMONIC
+            option%flow%rel_perm_aveg = DYNAMIC_HARMONIC
           case default
             option%io_buffer = 'Cannot identify the specificed &
               &RELATIVE_PERMEABILITY_AVERAGE.'
@@ -3780,6 +3763,14 @@ subroutine SubsurfaceReadInput(simulation,input)
                                trim(option%flowmode) // ' flow process model.'
             call PrintErrMsg(option)
         end select
+
+!....................
+      case ('SURVEY')
+        survey => SurveyCreate()
+        call SurveyRead(survey,input,option)
+        realization%survey => survey
+        nullify(survey)
+
 !....................
       case ('END_SUBSURFACE')
         exit
@@ -3794,8 +3785,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
-      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,MIS_MODE,TH_MODE,WF_MODE, &
-           TOIL_IMS_MODE,TOWG_MODE,RICHARDS_TS_MODE,TH_TS_MODE,H_MODE)
+      case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE,H_MODE)
         if (option%steady_state) then
           option%io_buffer = 'Steady state solution is not supported with &
             &the current flow mode.'

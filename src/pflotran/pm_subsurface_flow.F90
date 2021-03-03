@@ -66,7 +66,6 @@ module PM_Subsurface_Flow_class
     procedure, public :: CheckpointHDF5 => PMSubsurfaceFlowCheckpointHDF5
     procedure, public :: RestartHDF5 => PMSubsurfaceFlowRestartHDF5
     procedure, public :: InputRecord => PMSubsurfaceFlowInputRecord
-    procedure, public :: InitialiseAllWells
 !    procedure, public :: Destroy => PMSubsurfaceFlowDestroy
   end type pm_subsurface_flow_type
   
@@ -145,7 +144,6 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
   use Input_Aux_module
   use String_module
   use Option_module
-  use AuxVars_Flow_module
   use Upwind_Direction_module
  
   implicit none
@@ -201,7 +199,6 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
   use Input_Aux_module
   use String_module
   use Option_module
-  use AuxVars_Flow_module
   use Upwind_Direction_module
  
   implicit none
@@ -259,7 +256,6 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
   use Input_Aux_module
   use String_module
   use Option_module
-  use AuxVars_Flow_module
   use Upwind_Direction_module
  
   implicit none
@@ -306,26 +302,6 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
-
-! begin specific to OpenGoSim PMs
-    case('ANALYTICAL_JACOBIAN_COMPARE')
-      option%flow%numerical_derivatives_compare = PETSC_TRUE
-
-    ! artifact from testing, currently does nothing; will be used again
-    ! in future testing/implementation phases.
-    case('NUMERICAL_AS_ALYT')
-      option%flow%num_as_alyt_derivs = PETSC_TRUE
-
-    case('DEBUG_TOL')
-      call InputReadDouble(input,option,flow_aux_debug_tol)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('DEBUG_RELTOL')
-      call InputReadDouble(input,option,flow_aux_debug_reltol)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-    case('GEOMETRIC_PENALTY')
-      flow_aux_use_GP= PETSC_TRUE
-! end specific to OpenGoSim PMs
 
     case default
       found = PETSC_FALSE
@@ -444,7 +420,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
                                  POROSITY_CURRENT
   use String_module, only : StringWrite
   use Utility_module, only : Equal
-  use Well_Data_class
 
   implicit none
   
@@ -502,12 +477,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   call this%PreSolve()
   call this%UpdateAuxVars()
   call this%UpdateSolution() 
-
-! Initialise the well data held in well_data
-
-  if (WellDataGetFlag()) then
-    call this%InitialiseAllWells()
-  endif
 
   ! ensure that time step size was set to zero
   if (.not.Equal(this%option%flow_dt,0.d0)) then
@@ -653,89 +622,6 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   endif
 
 end subroutine PMSubsurfaceFlowSetSoilRefPres
-
-! ************************************************************************** !
-
-subroutine InitialiseAllWells(this)
- !
- ! Initialise all the wells with data held in well_data
- !
- ! Author: Dave Ponting
- ! Date  : 08/15/18
-
-
-  use Well_Data_class
-  use Well_Solver_module
-  use Grid_module
-  use Material_Aux_class
-  use Grid_Grdecl_module, only : UGrdEclWellCmplCleanup, GetIsGrdecl
-
-  implicit none
-
-  class(pm_subsurface_flow_type) :: this
-  class(well_data_type), pointer :: well_data
-  type(well_data_list_type), pointer :: well_data_list
-  type(grid_type), pointer :: grid
-  type(material_auxvar_type), pointer :: type_material_auxvars(:)
-  class(material_auxvar_type), pointer :: class_material_auxvars(:)
-  type(option_type), pointer :: option
-
-  PetscInt  :: num_well
-  PetscBool :: cast_ok,is_grdecl
-
-  ! Loop over wells
-
-  well_data_list => this%realization%well_data
-  num_well=getnwell(well_data_list)
-  if (num_well > 0) then
-
-    well_data => well_data_list%first
-    option => this%realization%option
-
-    grid => this%realization%patch%grid
-
-  !  Specialise polymorphic class pointer to type pointer
-
-    cast_ok = PETSC_FALSE
-    type_material_auxvars => null()
-    select type(class_material_auxvars=>this%realization%patch%aux%Material%auxvars)
-      type is (material_auxvar_type)
-        type_material_auxvars => class_material_auxvars
-        cast_ok = PETSC_TRUE
-      class default
-    end select
-
-  !  Checks
-
-    is_grdecl = GetIsGrdecl()
-    if (grid%itype /= STRUCTURED_GRID .and. (.not. is_grdecl)) then
-      option%io_buffer='WELL_DATA well specification can only be used with structured grids'
-      call PrintErrMsg(option)
-    endif
-
-    if (.not.cast_ok) then
-      option%io_buffer='WELL_DATA call cannot cast CLASS to TYPE'
-      call PrintErrMsg(option)
-    else
-
-      do
-        if (.not.associated(well_data)) exit
-        call InitialiseWell(well_data,grid,type_material_auxvars,option)
-        well_data => well_data%next
-      enddo
-
-      call doWellMPISetup(option,num_well,well_data_list)
-
-    endif
-
-  endif ! If num_well>0
-
-  ! All the well data from grdecl should be safely in well_data,
-  ! so cleanup grdecl
-
-  call UGrdEclWellCmplCleanup()
-
-end subroutine InitialiseAllWells
 
 ! ************************************************************************** !
 

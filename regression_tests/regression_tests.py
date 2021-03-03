@@ -58,7 +58,8 @@ _CONFIG_ERROR = 5
 _MISSING_INFO_ERROR = 6
 _PRE_PROCESS_ERROR = 7
 _POST_PROCESS_ERROR = 8
-_TIMEOUT_ERROR = 9
+_PYTHON_POST_PROCESS_ERROR = 9
+_TIMEOUT_ERROR = 10
 
 class TestStatus(object):
     """
@@ -124,6 +125,7 @@ class RegressionTest(object):
         self._np = None
         self._pflotran_args = None
         self._python_setup_script = None
+        self._python_post_process_script = None
         self._stochastic_realizations = None
         # restart_file is a tuple ['filename',format=(Binary,HDF5)]
         self._restart_tuple = None
@@ -165,6 +167,7 @@ class RegressionTest(object):
         message += "        input : {0}\n".format(self._input_arg)
         message += "        optional : {0}\n".format(self._pflotran_args)
         message += "    setup script : {0}\n".format(self._python_setup_script)
+        message += "    post-process script : {0}\n".format(self._python_post_process_script)
         message += "    test criteria :\n"
         for k in self._tolerance:
             message += "        {0} : {1} [{2}] : {3} <= abs(value) <= {4}\n".format(
@@ -411,6 +414,61 @@ class RegressionTest(object):
                     print("   Error opening file: {0}.out\n    {1}".format(
                           test_name, e))
                 print("~~~~~~~~~~", file=testlog)
+            return None
+        
+        if self._python_post_process_script is not None:
+            print("\n  Post-processing script... ", file=testlog)
+            command = []
+            command.append(sys.executable)
+            command.append(self._python_post_process_script)
+            print("    cd {0}".format(os.getcwd()), file=testlog)
+            print("    {0}".format(" ".join(command)), file=testlog)
+            post_process_name = test_name + '-post-process'
+            post_process_script_stdout_filename = post_process_name + ".stdout"
+            post_process_script_stdout = open(post_process_script_stdout_filename, 'w')
+            start = time.time()
+            proc = subprocess.Popen(command,
+                                    shell=False,
+                                    stdout=post_process_script_stdout,
+                                    stderr=subprocess.STDOUT)
+            while proc.poll() is None:
+                time.sleep(0.01)
+                if time.time() - start > self._timeout:
+                    timeout_error = True
+                    proc.kill()
+                    time.sleep(0.01)
+                    message = self._txtwrap.fill(
+                        "ERROR: job '{0}' has exceeded timeout limit of "
+                        "{1} seconds.".format(post_process_name, self._timeout))
+                    print(''.join(['\n', message, '\n']), file=testlog)
+            post_process_script_stdout.close()
+            finish = time.time()
+            print("    # {0} : run time : {1:.2f} seconds\n".
+                           format(post_process_name, finish - start), file=testlog)
+            if proc.returncode != 0:
+                if timeout_error:
+                    status.error = _TIMEOUT_ERROR
+                else:
+                    status.error = _PYTHON_POST_PROCESS_ERROR
+                    message = self._txtwrap.fill(
+                    "ERROR : {name} : The python_post_process_script returned an "
+                    "error code ({status}) indicating the script may have "
+                    "failed. Please check '{name}' for error messages "
+                    "(included below).".format(
+                        name=post_process_script_stdout_filename, 
+                        status=proc.returncode))
+                    print("".join(['\n', message, '\n']), file=testlog)
+                    print("~~~~~ {0} ~~~~~".format(
+                          post_process_script_stdout_filename),file=testlog)
+                    try:
+                        with open(post_process_script_stdout_filename, 'r') as \
+                              tempfile:
+                            shutil.copyfileobj(tempfile, testlog)
+                    except Exception as e:
+                        print("   Error opening file: {0}\n    {1}".
+                              format(post_process_script_stdout_filename, e))
+                return None
+        
 
     def _cleanup_generated_files(self):
         """Cleanup old generated files that may be hanging around from a
@@ -1425,6 +1483,7 @@ class RegressionTest(object):
         self._np = test_data.pop('np', None)
 
         self._python_setup_script = test_data.pop('python_setup_script', None)
+        self._python_post_process_script = test_data.pop('python_post_process_script', None)
         self._pflotran_args = test_data.pop('input_arguments', None)
         if self._pflotran_args is not None:
             # save the arg list so we can append it to the run command

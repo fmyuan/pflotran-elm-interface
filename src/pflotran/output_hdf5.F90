@@ -922,8 +922,10 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   type(output_variable_type), pointer :: cur_variable
 
   Vec :: global_vec
+  Vec :: global_vec_vx, global_vec_vy, global_vec_vz
   Vec :: natural_vec
   PetscReal, pointer :: v_ptr
+  PetscBool :: include_gas_phase
 
   character(len=MAXSTRINGLENGTH) :: filename_path, filename_header
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
@@ -1211,11 +1213,109 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   end select
 
+  ! output cell-centered velocity
+  include_gas_phase = PETSC_FALSE
+  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+     include_gas_phase = PETSC_TRUE
+  endif
+  if (output_option%print_hdf5_vel_cent .and. &
+       (var_list_type==INSTANTANEOUS_VARS)) then
+     call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vx)
+     call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vy)
+     call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vz)
+
+     call OutputGetCellCenteredVelocities(realization_base, global_vec_vx, &
+                                          global_vec_vy,global_vec_vz, &
+                                          LIQUID_PHASE)
+
+     string = "Liquid X-Velocity [m_per_" // trim(output_option%tunit) // "]"
+     call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+                                        natural_vec,ONEDOF)
+     call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                  H5T_NATIVE_DOUBLE)
+     att_datasetname = trim(filename_header) // ":/" // &
+                       trim(group_name) // "/" // trim(string)
+     if (write_xdmf) then
+        call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                att_datasetname,mesh_type)
+     endif
+
+     string = "Liquid Y-Velocity [m_per_" // trim(output_option%tunit) // "]"
+     call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
+                                        natural_vec,ONEDOF)
+     call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                  H5T_NATIVE_DOUBLE)
+     att_datasetname = trim(filename_header) // ":/" // &
+                       trim(group_name) // "/" // trim(string)
+     if (write_xdmf) then
+        call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                att_datasetname,mesh_type)
+     endif
+
+     string = "Liquid Z-Velocity [m_per_" // trim(output_option%tunit) // "]"
+     call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
+                                        natural_vec,ONEDOF)
+     call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                  H5T_NATIVE_DOUBLE)
+
+     att_datasetname = trim(filename_header) // ":/" // &
+                       trim(group_name) // "/" // trim(string)
+     if (write_xdmf) then
+        call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                att_datasetname,mesh_type)
+     endif
+
+     if (include_gas_phase) then
+        call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
+                                             global_vec_vy,global_vec_vz, &
+                                             GAS_PHASE)
+
+        string = "Gas X-Velocity"
+        call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+                                           natural_vec,ONEDOF)
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                    H5T_NATIVE_DOUBLE)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
+        if (write_xdmf) then
+           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                   att_datasetname,mesh_type)
+        endif
+
+        string = "Gas Y-Velocity"
+        call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
+                                           natural_vec,ONEDOF)
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                     H5T_NATIVE_DOUBLE)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
+        if (write_xdmf) then
+           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                   att_datasetname,mesh_type)
+        endif
+
+        string = "Gas Z-Velocity"
+        call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
+                                           natural_vec,ONEDOF)
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                     H5T_NATIVE_DOUBLE)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
+        if (write_xdmf) then
+           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                   att_datasetname,mesh_type)
+        endif
+     endif
+     call VecDestroy(global_vec_vx,ierr);CHKERRQ(ierr)
+     call VecDestroy(global_vec_vy,ierr);CHKERRQ(ierr)
+     call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
+  endif
+
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+
   call h5gclose_f(grp_id,hdf5_err)
-   
-  call h5fclose_f(file_id,hdf5_err)    
+  call h5fclose_f(file_id,hdf5_err)
 
   if (write_xdmf) then
     call OutputXMFFooter(OUTPUT_UNIT)

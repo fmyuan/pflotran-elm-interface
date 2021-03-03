@@ -1,0 +1,118 @@
+stages:
+  - petsc
+  - pflotran
+  - pflotran-interface
+  - final-status
+
+image: docker:latest
+
+services:
+  - docker:dind
+
+variables:
+  GIT_DEPTH: 10
+  GIT_STRATEGY: fetch
+  DOCKER_DRIVER: "overlay2"
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: tcp://docker:2375
+  # Use TLS https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#tls-enabled
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+
+before_script:
+  - apk add --no-cache bash curl
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+petsc:
+  stage: petsc
+  script:
+    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
+    - docker --version
+    - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
+    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
+    - docker pull $IMAGE || true
+    - >
+      docker build 
+      -f ./.gitlab/dockerfile-petsc 
+      --build-arg PETSC_VERSION=$PETSC_VERSION
+      --cache-from $IMAGE
+      --tag $IMAGE
+      .
+    - docker push $IMAGE
+    # copy log files from image by launching container, copying
+    # and destorying the container
+    - id=$(docker create $IMAGE)
+    - docker cp $id:/scratch/petsc/petsc-arch/lib/petsc/conf/configure.log .
+    - docker cp $id:/scratch/petsc/petsc-arch/lib/petsc/conf/make.log .
+    - docker rm -v $id
+  artifacts:
+    paths:
+      - "*.log"
+
+pflotran:
+  stage: pflotran
+  script:
+    - BUILD_STATUS=running BUILD_KEY=push ./.gitlab/build_status
+    - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
+    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
+    - export NEW_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    - docker pull $IMAGE || true
+    - >
+      docker build 
+      -f ./.gitlab/dockerfile-pflotran
+      --build-arg IMAGE=$IMAGE
+      --cache-from $IMAGE
+      --tag $NEW_IMAGE
+      .
+    # DO NOT PUSH THE NEW IMAGE
+    # copy regression results from image by launching container, copying
+    # and destorying the container
+    - id=$(docker create $NEW_IMAGE)
+    - docker cp $id:/tmp/test-pflotran .
+    - docker rm -v $id
+  artifacts:
+    paths:
+      - test-pflotran
+
+pflotran-interface:
+  stage: pflotran-interface
+  script:
+    - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
+    - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
+    - export NEW_IMAGE=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    - docker pull $IMAGE || true
+    - >
+      docker build 
+      -f ./.gitlab/dockerfile-pflotran-interface
+      --build-arg IMAGE=$IMAGE
+      --cache-from $IMAGE
+      --tag $NEW_IMAGE
+      .
+    # DO NOT PUSH THE NEW IMAGE
+    - id=$(docker create $NEW_IMAGE)
+    - docker cp $id:/tmp/test-pflotran-interface .
+    - docker rm -v $id
+  artifacts:
+    paths:
+      - test-pflotran-interface
+
+success:
+  stage: final-status
+  before_script:
+    - apk add --no-cache bash curl
+  after_script:
+    - ""
+  script:
+    - env
+    - BUILD_STATUS=passed BUILD_KEY=push ./.gitlab/build_status
+  when: on_success
+
+failure:
+  stage: final-status
+  before_script:
+    - apk add --no-cache bash curl  
+  after_script:
+    - ""
+  script:
+    - BUILD_STATUS=failed BUILD_KEY=push ./.gitlab/build_status
+  when: on_failure

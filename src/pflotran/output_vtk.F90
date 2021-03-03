@@ -128,7 +128,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           X_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+        case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               X_DIRECTION)
       end select
@@ -137,7 +137,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           Y_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+        case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               Y_DIRECTION)
       end select
@@ -146,7 +146,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           Z_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+        case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               Z_DIRECTION)
       end select

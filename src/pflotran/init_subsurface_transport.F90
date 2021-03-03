@@ -73,20 +73,21 @@ subroutine InitFlowGlobalAuxVar(realization,option)
   
   ! initialize densities and saturations
   if (option%nflowdof == 0) then
-    call GlobalSetAuxVarScalar(realization,option%reference_pressure, &
+    call GlobalSetAuxVarScalar(realization,option%flow%reference_pressure, &
                                LIQUID_PRESSURE)
-    call GlobalSetAuxVarScalar(realization,option%reference_temperature, &
+    call GlobalSetAuxVarScalar(realization,option%flow%reference_temperature, &
                                TEMPERATURE)
-    call GlobalSetAuxVarScalar(realization,option%reference_saturation, &
+    call GlobalSetAuxVarScalar(realization,option%flow%reference_saturation, &
                                LIQUID_SATURATION)
     call GlobalSetAuxVarScalar(realization, &
-                               option%reference_density(option%liquid_phase), &
+                           option%flow%reference_density(option%liquid_phase), &
                                LIQUID_DENSITY)
     if (option%transport%nphase > 1) then
-      call GlobalSetAuxVarScalar(realization,1.d0-option%reference_saturation, &
+      call GlobalSetAuxVarScalar(realization, &
+                                 1.d0-option%flow%reference_saturation, &
                                  GAS_SATURATION)
       call GlobalSetAuxVarScalar(realization, &
-                                 option%reference_density(option%gas_phase), &
+                              option%flow%reference_density(option%gas_phase), &
                                  GAS_DENSITY)
     endif
   else

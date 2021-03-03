@@ -4,9 +4,9 @@ module PFLOTRAN_Constants_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  
+
   use, intrinsic :: iso_fortran_env, only : stdout=>Output_Unit
- 
+
   implicit none
 
   private
@@ -26,10 +26,10 @@ module PFLOTRAN_Constants_module
         (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
 #error "Please use PETSc version 3.13: 'git checkout v3.13' in $PETSC_DIR"
 #endif
-  ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS 
+  ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS
   ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
   PetscInt, parameter, public :: CHECKPOINT_REVISION_NUMBER = 1
-  
+
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
   PetscInt, parameter, public :: MAXWORDLENGTH = 32
   PetscInt, parameter, public :: STDOUT_UNIT = stdout
@@ -52,7 +52,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: EXIT_SUCCESS = 0
   PetscInt, parameter, public :: EXIT_USER_ERROR = 87
   PetscInt, parameter, public :: EXIT_FAILURE = 88
-  
+
   ! formula weights
   PetscReal, parameter, public :: FMWNACL = 58.44277d0
   PetscReal, parameter, public :: FMWH2O = 18.01534d0  ! kg/kmol h2o
@@ -74,8 +74,8 @@ module PFLOTRAN_Constants_module
 
   ! conversion factors
   PetscReal, parameter, public :: LOG_TO_LN = 2.30258509299d0
-  PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0  
-  
+  PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0
+
   ! constants
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
@@ -84,7 +84,7 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
   PetscReal, parameter, public :: EARTH_GRAVITY = 9.8068d0 ! m/s^2
-  
+
   PetscInt, parameter, public :: ZERO_INTEGER = 0
   PetscInt, parameter, public :: ONE_INTEGER = 1
   PetscInt, parameter, public :: TWO_INTEGER = 2
@@ -99,7 +99,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: ELEVEN_INTEGER = 11
   PetscInt, parameter, public :: TWELVE_INTEGER = 12
   PetscInt, parameter, public :: NEG_ONE_INTEGER = -1
-  
+
   PetscMPIInt, parameter, public :: ZERO_INTEGER_MPI = ZERO_INTEGER
   PetscMPIInt, parameter, public :: ONE_INTEGER_MPI = ONE_INTEGER
   PetscMPIInt, parameter, public :: TWO_INTEGER_MPI = TWO_INTEGER
@@ -112,7 +112,7 @@ module PFLOTRAN_Constants_module
   PetscMPIInt, parameter, public :: ELEVEN_INTEGER_MPI = ELEVEN_INTEGER
   PetscMPIInt, parameter, public :: TWELVE_INTEGER_MPI = TWELVE_INTEGER
   PetscMPIInt, parameter, public :: MAXSTRINGLENGTH_MPI = MAXSTRINGLENGTH
-  
+
   PetscInt, parameter, public :: X_DIRECTION = 1
   PetscInt, parameter, public :: Y_DIRECTION = 2
   PetscInt, parameter, public :: Z_DIRECTION = 3
@@ -121,61 +121,54 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: YZ_DIRECTION = 6
   PetscInt, parameter, public :: LOWER = 1
   PetscInt, parameter, public :: UPPER = 2
-  
+
   PetscInt, parameter, public :: TIME_NULL = 0
   PetscInt, parameter, public :: TIME_T = 1
   PetscInt, parameter, public :: TIME_TpDT = 2
-  
+
   PetscInt, parameter, public :: SORPTION_LINEAR = 1
   PetscInt, parameter, public :: SORPTION_LANGMUIR = 2
   PetscInt, parameter, public :: SORPTION_FREUNDLICH  = 3
-  
+
   ! Classes
   PetscInt, parameter, public :: NULL_CLASS = 0
   PetscInt, parameter, public :: FLOW_CLASS = 1
   PetscInt, parameter, public :: TRANSPORT_CLASS = 2
-  
+  PetscInt, parameter, public :: GEOPHYSICS_CLASS = 3
+
   ! Macros that are used as 'dm_index' values.  --RTM
   PetscInt, parameter, public :: ONEDOF = 1
   PetscInt, parameter, public :: NPHASEDOF = 2
   PetscInt, parameter, public :: THREENPDOF = 3
   PetscInt, parameter, public :: NFLOWDOF = 4
   PetscInt, parameter, public :: NTRANDOF = 5
-  PetscInt, parameter, public :: SURF_ONEDOF = 6
   PetscInt, parameter, public :: NGEODOF = 7
-  
+
   PetscInt, parameter, public :: GLOBAL = 1
   PetscInt, parameter, public :: LOCAL = 2
   PetscInt, parameter, public :: NATURAL = 3
-  
+
   PetscInt, parameter, public :: NULL_MODE = 0
-  
+
   ! flow modes
   PetscInt, parameter, public :: MPH_MODE = 1
   PetscInt, parameter, public :: RICHARDS_MODE = 2
-  PetscInt, parameter, public :: IMS_MODE = 3
-  PetscInt, parameter, public :: FLASH2_MODE = 4
-  PetscInt, parameter, public :: G_MODE = 5
-  PetscInt, parameter, public :: MIS_MODE = 6
-  PetscInt, parameter, public :: TH_MODE = 7
-  PetscInt, parameter, public :: TOIL_IMS_MODE = 8
-  PetscInt, parameter, public :: TOWG_MODE = 9
-  PetscInt, parameter, public :: WF_MODE = 10
-  PetscInt, parameter, public :: RICHARDS_TS_MODE = 11
-  PetscInt, parameter, public :: TH_TS_MODE = 12
-  PetscInt, parameter, public :: H_MODE = 13
-
-  ! flow sub-modes
-  PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
-  PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
-  PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
-  PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
+  PetscInt, parameter, public :: G_MODE = 3
+  PetscInt, parameter, public :: TH_MODE = 4
+  PetscInt, parameter, public :: WF_MODE = 5
+  PetscInt, parameter, public :: RICHARDS_TS_MODE = 6
+  PetscInt, parameter, public :: TH_TS_MODE = 7
+  PetscInt, parameter, public :: H_MODE = 8
 
   ! transport modes
   PetscInt, parameter, public :: RT_MODE = 1
   PetscInt, parameter, public :: NWT_MODE = 2
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 10
-  
+
+  ! geophysics modes
+  PetscInt, parameter, public :: ERT_MODE = 1
+  PetscInt, parameter, public :: SIP_MODE = 2
+
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0
   PetscInt, parameter, public :: DIRICHLET_BC = 1
@@ -201,44 +194,35 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
   PetscInt, parameter, public :: HET_SURF_HYDROSTATIC_SEEPAGE_BC = 22
   PetscInt, parameter, public :: SPILLOVER_BC = 23
-  PetscInt, parameter, public :: WELL_MASS_RATE_TARGET = 24
-  PetscInt, parameter, public :: WELL_MASS_RATE_MAX = 25
-  PetscInt, parameter, public :: WELL_MASS_RATE_MIN = 26
-  PetscInt, parameter, public :: WELL_VOL_RATE_TARGET = 27
-  PetscInt, parameter, public :: WELL_VOL_RATE_MAX = 28
-  PetscInt, parameter, public :: WELL_VOL_RATE_MIN = 29
-  PetscInt, parameter, public :: WELL_BHP = 30
-  PetscInt, parameter, public :: WELL_BHP_MIN = 31
-  PetscInt, parameter, public :: WELL_BHP_MAX = 32
-  PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
-  PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
-  PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
-  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC = 36
-  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 37
-  PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 38
-  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 38
-  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 39
-  
+  PetscInt, parameter, public :: SURFACE_DIRICHLET = 24
+  PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 25
+  PetscInt, parameter, public :: SURFACE_SPILLOVER = 26
+  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC = 27
+  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 28
+  PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 29
+  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 30
+  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 31
+
   PetscInt, parameter, public :: WELL_SS = 100
-  
+
   ! source/sink scaling options
   PetscInt, parameter, public :: SCALE_BY_PERM = 1
   PetscInt, parameter, public :: SCALE_BY_NEIGHBOR_PERM = 2
   PetscInt, parameter, public :: SCALE_BY_VOLUME = 3
-  
+
   ! connection types
   PetscInt, parameter, public :: INTERNAL_CONNECTION_TYPE = 1
   PetscInt, parameter, public :: BOUNDARY_CONNECTION_TYPE = 2
   PetscInt, parameter, public :: INITIAL_CONNECTION_TYPE = 3
   PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
-  
+
   ! dofs for each mode
   PetscInt, parameter, public :: THC_PRESSURE_DOF = 1
   PetscInt, parameter, public :: THC_TEMPERATURE_DOF = 2
   PetscInt, parameter, public :: THC_CONCENTRATION_DOF = 3
   PetscInt, parameter, public :: THC_MASS_RATE_DOF = 4
   PetscInt, parameter, public :: THC_ENTHALPY_DOF = 5
-  
+
   PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
   PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
@@ -246,51 +230,36 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
   PetscInt, parameter, public :: MPH_CONCENTRATION_DOF = 3
-  
+
   PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
   PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
-  
+
   PetscInt, parameter, public :: MIS_PRESSURE_DOF = 1
   PetscInt, parameter, public :: MIS_CONCENTRATION_DOF = 2
-  
+
   ! mphase equation of state
   PetscInt, parameter, public :: EOS_SPAN_WAGNER = 1
   PetscInt, parameter, public :: EOS_MRK = 2
-  
+
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
-  PetscInt, parameter, public :: OIL_PHASE = 3
-  PetscInt, parameter, public :: SOLVENT_PHASE = 4
 
-  PetscInt, parameter, public :: MAX_PHASE = 4
-  
+  PetscInt, parameter, public :: MAX_PHASE = 2
+
   ! approaches to coupling reactive transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0
   PetscInt, parameter, public :: OPERATOR_SPLIT = 1
-  
+
   ! ids of non-petsc arrays
   PetscInt, parameter, public :: MATERIAL_ID_ARRAY = 1
   PetscInt, parameter, public :: CC_ID_ARRAY = 2  ! characteristic curves
   PetscInt, parameter, public :: CCT_ID_ARRAY = 3 ! charact. curves thermal
-  
+
   ! interpolation methods
   PetscInt, parameter, public :: INTERPOLATION_NULL = 0
   PetscInt, parameter, public :: INTERPOLATION_STEP = 1
   PetscInt, parameter, public :: INTERPOLATION_LINEAR = 2
-  
-  ! surface/subsurface flags
-  PetscInt, parameter, public :: SUBSURFACE = 0
-  PetscInt, parameter, public :: SURFACE    = 1
-  
-  PetscInt, parameter, public :: DECOUPLED     = 0
-  PetscInt, parameter, public :: SEQ_COUPLED = 1
-  PetscInt, parameter, public :: FULLY_COUPLED = 2
-  
-  PetscInt, parameter, public :: KINEMATIC_WAVE = 1
-  PetscInt, parameter, public :: DIFFUSION_WAVE = 2
-  
-  PetscReal, parameter, public :: MIN_SURFACE_WATER_HEIGHT = 1.0d-14
 
   ! print secondary continuum variable ids
   PetscInt, parameter, public :: PRINT_SEC_TEMP =           0
@@ -298,7 +267,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: PRINT_SEC_MIN_VOLFRAC =    2
   PetscInt, parameter, public :: PRINT_SEC_MIN_RATE =       3
   PetscInt, parameter, public :: PRINT_SEC_MIN_SI =         4
-  
+
   PetscInt, parameter, public :: PROCEED = 0
   PetscInt, parameter, public :: DONE = 1
   PetscInt, parameter, public :: FAIL = 2
@@ -324,11 +293,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: GEOMECH_TWO_WAY_COUPLED = 5
 
   ! Macros that are used as 'vscatter_index' values
-  PetscInt, parameter, public :: SURF_TO_SUBSURF = 1
-  PetscInt, parameter, public :: SUBSURF_TO_SURF = 2
   PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3
   PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 4
-  
+
   ! Ice/water/vapor partitioning model
   PetscInt, parameter, public :: PAINTER_EXPLICIT = 1
   PetscInt, parameter, public :: PAINTER_KARRA_IMPLICIT = 2
@@ -351,162 +318,162 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: CONVERGENCE_KEEP_ITERATING = 0
   PetscInt, parameter, public :: CONVERGENCE_FORCE_ITERATION = 1
   PetscInt, parameter, public :: CONVERGENCE_CONVERGED = 2
-  
+
   ! Dummy value
   PetscReal, parameter, public :: DUMMY_VALUE = UNINITIALIZED_DOUBLE
-  
+
   interface Uninitialized
     module procedure UninitializedInteger
     module procedure UninitializedDouble
     module procedure UninitializedMatType
   end interface
-  
+
   interface Initialized
     module procedure InitializedInteger
     module procedure InitializedDouble
     module procedure InitializedMatType
   end interface
-  
+
   public :: Initialized, &
             Uninitialized, &
             UninitializedMessage, &
             GetVersion
-  
+
 contains
 
 ! ************************************************************************** !
 
 function InitializedInteger(value)
-  ! 
+  !
   ! Tests whether a variable is initialized based orginally being set to
   ! the value UNINITIALIZED_INTEGER
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/29/14
   !
   implicit none
-  
+
   PetscInt :: value
   PetscBool :: InitializedInteger
-  
+
   InitializedInteger = .not.Uninitialized(value)
-  
+
 end function InitializedInteger
 
 
 ! ************************************************************************** !
 
 function UninitializedInteger(value)
-  ! 
+  !
   ! Tests whether a variable is uninitialized based orginally being set to
   ! the value UNINITIALIZED_INTEGER
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/29/14
   !
   implicit none
-  
+
   PetscInt :: value
   PetscBool :: UninitializedInteger
-  
+
   UninitializedInteger = (value == UNINITIALIZED_INTEGER)
-  
+
 end function UninitializedInteger
 
 ! ************************************************************************** !
 
 function InitializedDouble(value)
-  ! 
+  !
   ! Tests whether a variable is initialized based orginally being set to
   ! the value UNINITIALIZED_INTEGER
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/29/14
   !
   implicit none
-  
+
   PetscReal :: value
   PetscBool :: InitializedDouble
 
   InitializedDouble = .not.Uninitialized(value)
-  
+
 end function InitializedDouble
 
 ! ************************************************************************** !
 
 function UninitializedDouble(value)
-  ! 
+  !
   ! Tests whether a variable is uninitialized based orginally being set to
   ! the value UNINITIALIZED_INTEGER
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/29/14
   !
   implicit none
-  
+
   PetscReal :: value
   PetscBool :: UninitializedDouble
 
   UninitializedDouble = (dabs(value-UNINITIALIZED_DOUBLE) < 1.d-20)
-  
+
 end function UninitializedDouble
 
 ! ************************************************************************** !
 
 function InitializedMatType(value)
-  ! 
+  !
   ! Tests whether a variable is initialized based orginally being set to
   ! the value PETSC_NULL_CHARACTER.
-  ! 
+  !
 #include "petsc/finclude/petscmat.h"
   use petscmat
 
   implicit none
-  
+
   MatType :: value
   PetscBool :: InitializedMatType
 
   InitializedMatType = .not.Uninitialized(value)
-  
+
 end function InitializedMatType
 
 ! ************************************************************************** !
 
 function UninitializedMatType(value)
-  ! 
+  !
   ! Tests whether a variable is uninitialized based orginally being set to
   ! the value PETSC_NULL_CHARACTER.
-  ! 
+  !
 #include "petsc/finclude/petscmat.h"
   use petscmat
 
   implicit none
-  
+
   MatType :: value
   PetscBool :: UninitializedMatType
 
   UninitializedMatType = (value == PETSC_NULL_CHARACTER)
-  
+
 end function UninitializedMatType
 
 
 ! ************************************************************************** !
 
 function UninitializedMessage(variable_name,routine_name)
-  ! 
+  !
   ! Tests whether a variable is uninitialized based orginally being set to
   ! the value UNINITIALIZED_INTEGER
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/29/14
   !
   implicit none
-  
+
   character(len=*) :: variable_name
   character(len=*) :: routine_name
-  
+
   character(len=MAXSTRINGLENGTH) :: UninitializedMessage
-  
+
   if (len_trim(routine_name) > 1) then
     UninitializedMessage = trim(variable_name) // &
                            ' uninitialized in ' // &
@@ -515,24 +482,24 @@ function UninitializedMessage(variable_name,routine_name)
     UninitializedMessage = trim(variable_name) // &
                            ' uninitialized.'
   endif
-  
+
 end function UninitializedMessage
 
 ! ************************************************************************** !
 
 function GetVersion()
-  ! 
+  !
   ! Returns the PFLOTRAN version in string format using semantic versioning
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/23/20
   !
   implicit none
-  
+
   character(len=MAXWORDLENGTH) :: GetVersion
-  
+
   character(len=MAXWORDLENGTH) :: word
-  
+
   if (PFLOTRAN_RELEASE) then
     write(word,*) PFLOTRAN_VERSION_MAJOR
     GetVersion = 'PFLOTRAN v' // trim(adjustl(word))
@@ -549,7 +516,7 @@ function GetVersion()
   else
     GetVersion = 'PFLOTRAN Development Version'
   endif
-  
+
 end function GetVersion
 
 end module PFLOTRAN_Constants_module

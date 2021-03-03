@@ -541,7 +541,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
 
   allocate(material_auxvar)
   call MaterialAuxVarInit(material_auxvar,option)
-  material_auxvar%porosity = option%reference_porosity
+  material_auxvar%porosity = option%flow%reference_porosity
 
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &
@@ -613,20 +613,20 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
           global_auxvar%pres = &
             initial_flow_condition%pressure%dataset%rarray(1)
         else
-          global_auxvar%pres = option%reference_pressure
+          global_auxvar%pres = option%flow%reference_pressure
         endif
       else 
-        global_auxvar%pres = option%reference_pressure
+        global_auxvar%pres = option%flow%reference_pressure
       endif
       if (associated(initial_flow_condition%temperature)) then
         if (associated(initial_flow_condition%temperature%dataset)) then
           global_auxvar%temp  = &
             initial_flow_condition%temperature%dataset%rarray(1)
         else
-          global_auxvar%temp = option%reference_temperature
+          global_auxvar%temp = option%flow%reference_temperature
         endif
       else
-        global_auxvar%temp = option%reference_temperature
+        global_auxvar%temp = option%flow%reference_temperature
       endif
         
       call EOSWaterDensity(global_auxvar%temp, &
@@ -634,18 +634,18 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
                            global_auxvar%den_kg(1), &
                            dum1,ierr)
     else
-      global_auxvar%pres = option%reference_pressure
-      global_auxvar%temp = option%reference_temperature
+      global_auxvar%pres = option%flow%reference_pressure
+      global_auxvar%temp = option%flow%reference_temperature
       global_auxvar%den_kg(option%liquid_phase) = &
-        option%reference_density(option%liquid_phase)
+        option%flow%reference_density(option%liquid_phase)
 
     endif
-    global_auxvar%sat = option%reference_saturation
+    global_auxvar%sat = option%flow%reference_saturation
 
     if (option%transport%nphase > option%nphase) then
       ! gas phase not considered explicitly on flow side
       global_auxvar%den_kg(option%gas_phase) = &
-        option%reference_density(option%gas_phase)
+        option%flow%reference_density(option%gas_phase)
       global_auxvar%sat(option%gas_phase) = &
         1.d0 - global_auxvar%sat(option%liquid_phase)
     endif

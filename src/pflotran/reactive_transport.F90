@@ -1503,7 +1503,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
 
   ! CO2-specific
   select case(option%iflowmode)
-    case(MPH_MODE,IMS_MODE,FLASH2_MODE)
+    case(MPH_MODE)
       source_sink => patch%source_sink_list%first 
       do 
         if (.not.associated(source_sink)) exit
@@ -2324,7 +2324,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
 
 !#if 0
   select case(realization%option%iflowmode)
-    case(MPH_MODE,FLASH2_MODE,IMS_MODE)
+    case(MPH_MODE)
       call RTResidualEquilibrateCO2(r,realization)
   end select
 !#endif
@@ -2881,7 +2881,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   select case(option%iflowmode)
-    case(MPH_MODE,IMS_MODE,FLASH2_MODE)
+    case(MPH_MODE)
       source_sink => patch%source_sink_list%first 
       do 
         if (.not.associated(source_sink)) exit
@@ -3158,7 +3158,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
 
 !#if 0
   select case(realization%option%iflowmode)
-    case(MPH_MODE,FLASH2_MODE,IMS_MODE)
+    case(MPH_MODE)
     call RTJacobianEquilibrateCO2(J,realization)
   end select
 !#endif
@@ -3847,8 +3847,7 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
       call RActivityCoefficients(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == FLASH2_MODE) then
+      if (option%iflowmode == MPH_MODE) then
         call CO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
                                  patch%aux%Global%auxvars(ghosted_id), &
                                  reaction,option)
@@ -3873,8 +3872,7 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
                                    patch%aux%Global% &
                                      auxvars_bc(sum_connection), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE .or. &
-            option%iflowmode == FLASH2_MODE) then
+        if (option%iflowmode == MPH_MODE) then
           call CO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
                              patch%aux%Global%auxvars_bc(sum_connection), &
                              reaction,option) 
@@ -4024,8 +4022,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         call RActivityCoefficients(rt_auxvars(ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
-        if (option%iflowmode == MPH_MODE .or. &
-            option%iflowmode == FLASH2_MODE) then
+        if (option%iflowmode == MPH_MODE) then
           call CO2AqActCoeff(rt_auxvars(ghosted_id), &
                                    global_auxvars(ghosted_id), &
                                    reaction,option)
@@ -4117,8 +4114,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
 #endif        
 
         equilibrate_constraint = constraint_coupler%equilibrate_at_each_cell
-        if (option%iflowmode /= MPH_MODE .and. &
-            option%iflowmode /= FLASH2_MODE) then
+        if (option%iflowmode /= MPH_MODE) then
           select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
               ! since basis_molarity is in molarity, must convert to molality
@@ -4290,6 +4286,7 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   PetscReal, pointer :: dxx_ptr(:), xx_ptr(:), yy_ptr(:)
   PetscInt :: local_id, ghosted_id, imnrl
   PetscReal :: delta_volfrac
+  PetscMPIInt :: mpi_int
   PetscErrorCode :: ierr
   
   option => realization%option
@@ -4307,7 +4304,6 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   
   call VecStrideNormAll(field%tran_dxx,NORM_INFINITY,dcmax,ierr);CHKERRQ(ierr)
                      
-#if 1
   ! update mineral volume fractions
   if (reaction%mineral%nkinmnrl > 0) then
     do local_id = 1, grid%nlmax
@@ -4321,9 +4317,11 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
         dvfmax(imnrl) = max(dabs(delta_volfrac),dvfmax(imnrl))
       enddo
     enddo
+    mpi_int = reaction%mineral%nkinmnrl
+    call MPI_Allreduce(MPI_IN_PLACE,dvfmax,mpi_int,MPI_DOUBLE_PRECISION, &
+                       MPI_MAX,option%mycomm,ierr)
   endif 
-#endif
-      
+
 end subroutine RTMaxChange
 
 ! ************************************************************************** !

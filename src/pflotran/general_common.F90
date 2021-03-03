@@ -5,7 +5,7 @@ module General_Common_module
 
   use PFLOTRAN_Constants_module
   use petscsys
-
+  
   implicit none
   
   private 
@@ -28,9 +28,8 @@ module General_Common_module
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24
-
-
+  PetscReal, parameter :: floweps   = 1.d-24  
+  
   public :: GeneralAccumulation, &
             GeneralFlux, &
             GeneralBCFlux, &
@@ -46,7 +45,7 @@ module General_Common_module
 contains
 
 ! ************************************************************************** !
-
+    
 subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,Res,Jac, &
                                analytical_derivatives,debug_cell)
@@ -428,6 +427,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Klinkenberg_module
   use Upwind_Direction_module
   use Characteristic_Curves_Thermal_module
+  use Utility_module
   
   implicit none
   
@@ -466,7 +466,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: delta_X_whatever
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
-  PetscReal :: mobility, q
+  PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux
   PetscReal :: stpd_up, stpd_dn
   PetscReal :: sat_up, sat_dn, den_up, den_dn
@@ -512,6 +512,9 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
   PetscReal :: dheat_flux_ddelta_temp_up, dheat_flux_ddelta_temp_dn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
+
+  !Non darcy
+  PetscReal :: K, I, grad
   
   ! DELETE
   
@@ -609,17 +612,20 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
       uH = gen_auxvar_up%H(iphase)
+      kr= gen_auxvar_up%kr(iphase)
     else
       dn_scale = 1.d0
       mobility = gen_auxvar_dn%mobility(iphase)
       xmol(:) = gen_auxvar_dn%xmol(:,iphase)
       uH = gen_auxvar_dn%H(iphase)
+      kr=gen_auxvar_dn%kr(iphase)
     endif      
 
     if (mobility > floweps ) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
                                           global_auxvar_dn%istate, &
@@ -634,6 +640,14 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       tot_mole_flux = q*density_ave
       tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
                                        mobility * area * density_ave
+
+      !Taken from (Liu, 2014)
+      if (general_non_darcy_flow) then
+        call GeneralNonDarcyCorrection(delta_pressure,density_kg_ave, &
+          dist_up,dist_dn,perm_ave_over_dist(iphase),kr,mobility,density_ave, &
+          area,v_darcy(iphase),tot_mole_flux_ddel_pressure,q,tot_mole_flux)
+      endif
+      
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
@@ -1058,17 +1072,20 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
       uH = gen_auxvar_up%H(iphase)
+      kr=gen_auxvar_up%kr(iphase)
     else
       dn_scale = 1.d0
       mobility = gen_auxvar_dn%mobility(iphase)
       xmol(:) = gen_auxvar_dn%xmol(:,iphase)
       uH = gen_auxvar_dn%H(iphase)
+      kr=gen_auxvar_dn%kr(iphase)
     endif      
 
     if (mobility > floweps) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+      
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
                                           global_auxvar_dn%istate, &
@@ -1082,7 +1099,15 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       !                             density_ave[kmol phase/m^3 phase]        
       tot_mole_flux = q*density_ave
       tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
-                                       mobility * area * density_ave      
+                                      mobility * area * density_ave
+
+      !Taken from (Liu, 2014)
+      if (general_non_darcy_flow) then
+        call GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,dist_up, &
+             dist_dn,perm_ave_over_dist(iphase),kr,mobility, &
+             density_ave,area,v_darcy(iphase),tot_mole_flux_ddel_pressure, &
+             q,tot_mole_flux)
+      endif
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
@@ -2475,6 +2500,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   use Klinkenberg_module
   use Upwind_Direction_module
   use Characteristic_Curves_Thermal_module
+  use Utility_module
   
   implicit none
   
@@ -2509,7 +2535,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dist_gravity
   PetscReal :: delta_pressure, delta_xmol, delta_temp
   PetscReal :: gravity_term
-  PetscReal :: mobility, q 
+  PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux
   PetscReal :: sat_dn, perm_dn, den_dn
   PetscReal :: temp_ave, stpd_ave_over_dist, pres_ave
@@ -2566,6 +2592,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Jl(3,3)
   PetscReal :: Jg(3,3)
   PetscReal :: Jc(3,3)
+
+  !Non darcy
+  PetscReal :: K, I, grad
   
   PetscInt :: idof
   
@@ -2663,7 +2692,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               gen_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
+                option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               option%io_buffer = 'HYDROSTATIC_CONDUCTANCE_BC and &
@@ -2684,16 +2713,19 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
+          kr=gen_auxvar_up%kr(iphase)
         else
           dn_scale = 1.d0        
           mobility = gen_auxvar_dn%mobility(iphase)
           xmol(:) = gen_auxvar_dn%xmol(:,iphase)
           uH = gen_auxvar_dn%H(iphase)
+          kr=gen_auxvar_dn%kr(iphase)
         endif      
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
         v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+      
         ! only need average density if velocity > 0.
         density_ave = GeneralAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
@@ -2704,6 +2736,13 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                             ddensity_ave_dden_dn)    
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+
+        !Taken from (Liu, 2014)
+        if (general_non_darcy_flow) then
+          call GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
+               dist(0),perm_ave_over_dist,kr,mobility,v_darcy(iphase), &
+               dv_darcy_ddelta_pressure,dv_darcy_dmobility)
+        endif
       endif
     case(NEUMANN_BC)
       xmol_bool = 0.d0
@@ -3005,7 +3044,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               gen_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
+                option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               ddelta_pressure_dpdn = 0.d0
@@ -3026,16 +3065,19 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
+          kr=gen_auxvar_up%kr(iphase)
         else
           dn_scale = 1.d0        
           mobility = gen_auxvar_dn%mobility(iphase)
           xmol(:) = gen_auxvar_dn%xmol(:,iphase)
           uH = gen_auxvar_dn%H(iphase)
+          kr=gen_auxvar_dn%kr(iphase)
         endif  
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
         v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+
         ! only need average density if velocity > 0.
         density_ave = GeneralAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
@@ -3046,6 +3088,13 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                             ddensity_ave_dden_dn)    
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+
+        !Taken from (Liu, 2014)
+        if (general_non_darcy_flow) then
+          call GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
+               dist(0),perm_ave_over_dist,kr,mobility,v_darcy(iphase), &
+               dv_darcy_ddelta_pressure,dv_darcy_dmobility)
+        endif
       endif
     case(NEUMANN_BC)
       xmol_bool = 0.d0
@@ -5332,5 +5381,84 @@ subroutine GeneralDiffJacobian(string,numerical_jacobian,analytical_jacobian, &
 #endif  
   
 end subroutine GeneralDiffJacobian
+
+! ************************************************************************** !
+
+subroutine GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,dist_up, &
+                                     dist_dn,perm_ave_over_dist,kr,mobility, &
+                                     density_ave,area,v_darcy, &
+                                     tot_mole_flux_ddel_pressure,q,tot_mole_flux)
+
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: delta_pressure, density_kg_ave, density_ave
+  PetscReal :: mobility, kr, perm_ave_over_dist, area
+  PetscReal :: dist_up, dist_dn
+  
+  PetscReal :: v_darcy,tot_mole_flux_ddel_pressure,q,tot_mole_flux
+
+  PetscReal :: K, I, grad
+
+  grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist_up+dist_dn))
+  I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
+  K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
+  ! expm1() to avoid cancelation
+  ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
+  v_darcy = K*(grad + I*expm1(-grad/I))
+  if (delta_pressure<0) then
+    v_darcy = -1.d0*v_darcy
+  endif
+
+  ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+  q = v_darcy * area  
+  ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
+  !                             density_ave[kmol phase/m^3 phase]        
+  tot_mole_flux = q*density_ave
+        
+  tot_mole_flux_ddel_pressure = area*density_ave* &
+    (K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn)))* &
+    (-expm1(-grad/I))
+
+end subroutine GeneralNonDarcyCorrection
+
+! ************************************************************************** !
+
+subroutine GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave,dist, &
+                                       perm_ave_over_dist,kr,mobility,v_darcy, &
+                                       dv_darcy_ddelta_pressure,dv_darcy_dmobility)
+
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: delta_pressure, density_kg_ave
+  PetscReal :: mobility, kr, perm_ave_over_dist
+  PetscReal :: dist
+  
+  PetscReal :: v_darcy,dv_darcy_ddelta_pressure,dv_darcy_dmobility
+
+  PetscReal :: K, I, grad
+  
+  grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist))
+  I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
+  K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
+  ! expm1() to avoid cancelation
+  ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-(grad)/I)))
+  v_darcy = K*(grad + I*expm1(-grad/I))
+  if (delta_pressure<0) then
+    v_darcy =-1.d0*v_darcy
+  endif
+
+  dv_darcy_ddelta_pressure = K/(density_kg_ave*EARTH_GRAVITY* &
+    dist)*(-expm1(-grad/I))
+  ! expm1() to avoid cancelation
+  ! dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
+  !  EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
+  dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
+    EARTH_GRAVITY*(grad + I*expm1(-grad/I))
+
+end subroutine GeneralNonDarcyCorrectionBC
 
 end module General_Common_module

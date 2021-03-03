@@ -1230,7 +1230,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   saturation = global_auxvar%sat(1)
   theta = saturation * porosity 
   ! if positive, saturated soil's psi is nearly zero
-  psi = min(global_auxvar%pres(1) - option%reference_pressure, -1.d-20)   
+  psi = min(global_auxvar%pres(1) - option%flow%reference_pressure, -1.d-20)   
 
   ! moisture response function 
   f_w = 1.0d0

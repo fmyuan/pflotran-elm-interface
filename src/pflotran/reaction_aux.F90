@@ -176,6 +176,7 @@ module Reaction_Aux_module
     PetscBool :: initialize_with_molality
     PetscBool :: print_age
     PetscBool :: print_auxiliary
+    PetscBool :: print_verbose_constraints
     PetscBool :: use_geothermal_hpt
     PetscInt :: print_free_conc_type
     PetscInt :: print_tot_conc_type
@@ -469,6 +470,7 @@ function ReactionCreate()
   reaction%calculate_water_age = PETSC_FALSE
   reaction%print_age = PETSC_FALSE
   reaction%print_auxiliary = PETSC_FALSE
+  reaction%print_verbose_constraints = PETSC_FALSE
   reaction%print_total_component = PETSC_FALSE
   reaction%print_free_ion = PETSC_FALSE
   reaction%print_total_bulk = PETSC_FALSE
@@ -645,10 +647,13 @@ function ReactionCast(reaction_base)
   class(reaction_rt_type), pointer :: ReactionCast
 
   nullify(ReactionCast)
-  select type(r=>reaction_base)
-    class is(reaction_rt_type)
-      ReactionCast => r
-  end select
+  ! workaround for Intel
+  if (associated(reaction_base)) then
+    select type(r=>reaction_base)
+      class is(reaction_rt_type)
+        ReactionCast => r
+    end select
+  endif
 
 end function ReactionCast
 
@@ -1522,12 +1527,12 @@ subroutine ReactionInitializeLogK(logKcoef,logKs,logK,option,reaction)
   PetscInt :: i
   
   ! we always initialize on reference temperature
-  temperature = option%reference_temperature
+  temperature = option%flow%reference_temperature
   
   itemperature = 0
   if (option%use_isothermal) then ! find database temperature if relevant
     do i = 1, reaction%num_dbase_temperatures
-      if (dabs(option%reference_temperature - &
+      if (dabs(option%flow%reference_temperature - &
                reaction%dbase_temperatures(i)) < 1.d-10) then
         itemperature = i
         exit
@@ -1601,8 +1606,8 @@ subroutine ReactionInitializeLogK_hpt(logKcoef,logK,option,reaction)
   PetscInt :: i
   
   ! we always initialize on reference temperature
-  temperature = option%reference_temperature
-  pressure = option%reference_pressure 
+  temperature = option%flow%reference_temperature
+  pressure = option%flow%reference_pressure 
   
   
   coefs(:,ONE_INTEGER) = logKcoef(:)

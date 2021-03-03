@@ -280,6 +280,18 @@ subroutine ReactionReadPass1(reaction,input,option)
             reaction%gas_diffusion_coefficients => generic_list
         end select
       case('ACTIVE_GAS_SPECIES')
+        call InputReadPflotranString(input,option)
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword', &
+                           'CHEMISTRY,GAS_TRANSPORT_IS_UNVETTED')
+        call StringToUpper(word)
+        if (.not.StringCompare(word,'GAS_TRANSPORT_IS_UNVETTED')) then
+          option%io_buffer = 'Before using gas transport capability, &
+            &please acknowledge that gas transport is &
+            &unvetted by adding the card GAS_TRANSPORT_IS_UNVETTED to the &
+            &top of ACTIVE_GAS_SPECIES block.'
+          call PrintErrMsg(option)
+        endif
         string = 'CHEMISTRY,ACTIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,ACTIVE_GAS,string,input,option)
       !TODO(geh): remove GAS_SPECIES
@@ -1040,7 +1052,6 @@ subroutine ReactionReadPass1(reaction,input,option)
                    reaction%surface_complexation%nkinmrsrfcplxrxn + &
                    reaction%surface_complexation%nkinsrfcplxrxn
     
-
   if (reaction%print_free_conc_type == 0) then
     if (reaction%initialize_with_molality) then
       reaction%print_free_conc_type = PRIMARY_MOLALITY
@@ -1751,8 +1762,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF .and. &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == FLASH2_MODE) then
+      if (option%iflowmode == MPH_MODE) then
         call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)  
       endif
     endif
@@ -2269,7 +2279,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   PetscInt :: imnrl,igas
   PetscInt :: eqcplxsort(reaction%neqcplx+1)
   PetscInt :: eqcplxid(reaction%neqcplx+1)
-  PetscInt :: eqminsort(reaction%mineral%nmnrl)
+  PetscInt :: eqmnrlsort(reaction%mineral%nmnrl)
   PetscInt, allocatable :: eqsrfcplxsort(:)
   PetscBool :: finished, found
   PetscReal :: conc, conc2
@@ -2307,17 +2317,17 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   mineral_reaction => reaction%mineral
 
   select case(option%iflowmode)
-    case(FLASH2_MODE,MPH_MODE,IMS_MODE,MIS_MODE)
+    case(MPH_MODE)
     case(NULL_MODE)
       global_auxvar%den_kg(iphase) = &
-        option%reference_density(option%liquid_phase)
-      global_auxvar%temp = option%reference_temperature
-      global_auxvar%sat(iphase) = option%reference_saturation
+        option%flow%reference_density(option%liquid_phase)
+      global_auxvar%temp = option%flow%reference_temperature
+      global_auxvar%sat(iphase) = option%flow%reference_saturation
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      global_auxvar%temp = option%reference_temperature
+      global_auxvar%temp = option%flow%reference_temperature
   end select
         
-  bulk_vol_to_fluid_vol = option%reference_porosity* &
+  bulk_vol_to_fluid_vol = option%flow%reference_porosity* &
                           global_auxvar%sat(iphase)*1000.d0
 
 ! compute mole and mass fractions of H2O
@@ -2368,9 +2378,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     endif
   
     ! CO2-specific
-    if (.not.option%use_isothermal .and. &
-        (option%iflowmode == MPH_MODE .or. &
-         option%iflowmode == FLASH2_MODE)) then
+    if (.not.option%use_isothermal .and. option%iflowmode == MPH_MODE) then
       if (associated(reaction%gas%paseqlogKcoef)) then
         do i = 1, reaction%naqcomp
           if (aq_species_constraint%constraint_type(i) == &
@@ -2478,7 +2486,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       mass_fraction_h2o,' [---]'
 
     ! CO2-specific
-    if (option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE) then
+    if (option%iflowmode == MPH_MODE) then
       if (global_auxvar%den_kg(2) > 0.d0) then
         write(option%fid_out,'(a20,f8.2,a9)') '     density CO2: ', &
           global_auxvar%den_kg(2),' [kg/m^3]'
@@ -2569,82 +2577,85 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
                                 reaction%eqcplx_logK(icplx)
     enddo 
 
-    !print speciation precentages
-    write(option%fid_out,92)
-    92 format(/)
-    134 format(2x,'complex species           percent   molality')
-    135 format(2x,'primary species: ',a24,2x,' total conc: ',1pe12.4)
-    136 format(2x,a24,2x,f6.2,2x,1pe12.4,1p2e12.4)
-    do icomp = 1, reaction%naqcomp
-    
-      eqcplxsort = 0
-      eqcplxid = 0
-      percent = 0.d0
-      totj = 0.d0
+    if (reaction%print_verbose_constraints) then
+      !print speciation precentages
+      write(option%fid_out,92)
+      92 format(/)
+      134 format(2x,'complex species           percent   molality')
+      135 format(2x,'primary species: ',a24,2x,' total conc: ',1pe12.4)
+      136 format(2x,a24,2x,f6.2,2x,1pe12.4,1p2e12.4)
+      do icomp = 1, reaction%naqcomp
       
-      icount = 0
-      do icplx = 1, reaction%neqcplx
-        found = PETSC_FALSE
-        do i = 1, reaction%eqcplxspecid(0,icplx)
-          if (reaction%eqcplxspecid(i,icplx) == icomp) then
-            icount = icount + 1
-            found = PETSC_TRUE
-            exit
+        eqcplxsort = 0
+        eqcplxid = 0
+        percent = 0.d0
+        totj = 0.d0
+        
+        ! find and sort equilibrium aq complexes
+        icount = 0
+        do icplx = 1, reaction%neqcplx
+          found = PETSC_FALSE
+          do i = 1, reaction%eqcplxspecid(0,icplx)
+            if (reaction%eqcplxspecid(i,icplx) == icomp) then
+              icount = icount + 1
+              found = PETSC_TRUE
+              exit
+            endif
+          enddo
+          if (found) then
+            eqcplxid(icount) = icplx
+            percent(icount) = dabs(rt_auxvar%sec_molal(icplx)* &
+                                   reaction%eqcplxstoich(i,icplx))
+            totj = totj + percent(icount)
           endif
         enddo
-        if (found) then
-          eqcplxid(icount) = icplx
-          percent(icount) = dabs(rt_auxvar%sec_molal(icplx)* &
-                                 reaction%eqcplxstoich(i,icplx))
-          totj = totj + percent(icount)
-        endif
-      enddo
-      icount = icount + 1
-      eqcplxid(icount) = -icomp
-      percent(icount) = rt_auxvar%pri_molal(icomp)
-      totj = totj + percent(icount)
-      percent = percent / totj
-      
-      eqcplxsort = 0
-      do i = 1, icount
-        eqcplxsort(i) = i
-      enddo
-      
-      do
-        finished = PETSC_TRUE
-        do i = 1, icount-1
-          icplx = eqcplxsort(i)
-          icplx2 = eqcplxsort(i+1)
-          if (percent(abs(icplx)) < percent(abs(icplx2))) then
-            eqcplxsort(i) = icplx2
-            eqcplxsort(i+1) = icplx
-            finished = PETSC_FALSE
+        icount = icount + 1
+        eqcplxid(icount) = -icomp
+        percent(icount) = rt_auxvar%pri_molal(icomp)
+        totj = totj + percent(icount)
+        percent = percent / totj
+        
+        eqcplxsort = 0
+        do i = 1, icount
+          eqcplxsort(i) = i
+        enddo
+        
+        do
+          finished = PETSC_TRUE
+          do i = 1, icount-1
+            icplx = eqcplxsort(i)
+            icplx2 = eqcplxsort(i+1)
+            if (percent(abs(icplx)) < percent(abs(icplx2))) then
+              eqcplxsort(i) = icplx2
+              eqcplxsort(i+1) = icplx
+              finished = PETSC_FALSE
+            endif
+          enddo
+          if (finished) exit
+        enddo
+  
+        write(option%fid_out,90)
+        write(option%fid_out,135) reaction%primary_species_names(icomp), &
+                                  rt_auxvar%total(icomp,iphase)
+        write(option%fid_out,134)
+        write(option%fid_out,90)
+        do i = 1, icount
+          j = eqcplxsort(i)
+          if (percent(j) < 0.0001d0) cycle
+          icplx = eqcplxid(j)
+          if (icplx < 0) then
+            icplx = abs(icplx)
+            write(option%fid_out,136) reaction%primary_species_names(icplx), &
+                                      percent(j)*100.d0, &
+                                      rt_auxvar%pri_molal(icplx)
+          else
+            write(option%fid_out,136) reaction%secondary_species_names(icplx), &
+                                      percent(j)*100.d0, &
+                                      rt_auxvar%sec_molal(icplx)
           endif
         enddo
-        if (finished) exit
       enddo
-
-      write(option%fid_out,90)
-      write(option%fid_out,135) reaction%primary_species_names(icomp), &
-                                rt_auxvar%total(icomp,iphase)
-      write(option%fid_out,134)
-      write(option%fid_out,90)
-      do i = 1, icount
-        j = eqcplxsort(i)
-        if (percent(j) < 0.0001d0) cycle
-        icplx = eqcplxid(j)
-        if (icplx < 0) then
-          icplx = abs(icplx)
-          write(option%fid_out,136) reaction%primary_species_names(icplx), &
-                                    percent(j)*100.d0, &
-                                    rt_auxvar%pri_molal(icplx)
-        else
-          write(option%fid_out,136) reaction%secondary_species_names(icplx), &
-                                    percent(j)*100.d0, &
-                                    rt_auxvar%sec_molal(icplx)
-        endif
-      enddo
-    enddo
+    endif
 
   endif 
           
@@ -2834,16 +2845,16 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
 
     ! sort mineral saturation indices from largest to smallest
     do i = 1, mineral_reaction%nmnrl
-      eqminsort(i) = i
+      eqmnrlsort(i) = i
     enddo
     do
       finished = PETSC_TRUE
       do i = 1, mineral_reaction%nmnrl-1
-        icplx = eqminsort(i)
-        icplx2 = eqminsort(i+1)
+        icplx = eqmnrlsort(i)
+        icplx2 = eqmnrlsort(i+1)
         if (QK(icplx) < QK(icplx2)) then
-          eqminsort(i) = icplx2
-          eqminsort(i+1) = icplx
+          eqmnrlsort(i) = icplx2
+          eqmnrlsort(i+1) = icplx
           finished = PETSC_FALSE
         endif
       enddo
@@ -2854,12 +2865,41 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     write(option%fid_out,90)
   
     do imnrl = 1, mineral_reaction%nmnrl
-      i = eqminsort(imnrl)
+      i = eqmnrlsort(imnrl)
       affinity = -1.d0*IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*lnQK(i)
       write(option%fid_out,131) mineral_reaction%mineral_names(i), &
                                 lnQK(i)*LN_TO_LOG, affinity, &
                                 mineral_reaction%mnrl_logK(i)
     enddo
+
+    if (reaction%print_verbose_constraints) then
+      write(option%fid_out,92)
+      137 format(2x,'minerals                              log SI')
+      138 format(2x,a30,2x,f12.4)
+      139 format(2x,'None')
+      do icomp = 1, reaction%naqcomp
+        write(option%fid_out,90)
+        write(option%fid_out,135) reaction%primary_species_names(icomp), &
+                                  rt_auxvar%total(icomp,iphase)
+        write(option%fid_out,137)
+        write(option%fid_out,90)
+        ! print the sorted mineral saturation indices by aqueous species
+        icount = 0
+        do j = 1, mineral_reaction%nmnrl
+          imnrl = eqmnrlsort(j)
+          do i = 1, mineral_reaction%mnrlspecid(0,imnrl)
+            if (mineral_reaction%mnrlspecid(i,imnrl) == icomp) then
+              write(option%fid_out,138) mineral_reaction%mineral_names(imnrl), &
+                                        lnQK(imnrl)*LN_TO_LOG
+              icount = icount + 1
+              exit
+            endif
+          enddo
+        enddo
+        if (icount == 0) write(option%fid_out,139)
+      enddo
+    endif
+
   endif
     
   if (reaction%gas%npassive_gas > 0) then
@@ -3009,7 +3049,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
     global_auxvar => constraint_coupler%global_auxvar
 
     iphase = 1
-    global_auxvar%temp = option%reference_temperature
+    global_auxvar%temp = option%flow%reference_temperature
     tempk = tk + global_auxvar%temp
     
     potential = 0.1d0 ! initial guess
@@ -3329,6 +3369,8 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%use_full_geochemistry = PETSC_TRUE
       case('AUXILIARY')
         reaction%print_auxiliary = PETSC_TRUE
+      case('PRINT_VERBOSE_CONSTRAINTS')
+        reaction%print_verbose_constraints = PETSC_TRUE
       case ('SITE_DENSITY')
         call InputReadWord(input,option,name,PETSC_TRUE)  
         call InputErrorMsg(input,option,'Site Name', &
@@ -4301,9 +4343,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
                     reaction,option)
   endif
-  if (option%iflowmode == MPH_MODE .or. &
-      option%iflowmode == IMS_MODE .or. &
-      option%iflowmode == FLASH2_MODE) then
+  if (option%iflowmode == MPH_MODE) then
     call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   else if (reaction%gas%nactive_gas > 0) then
     call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
@@ -5378,9 +5418,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
       dtotalsorb(:,jcomp) = (rt_auxvar_pert%total_sorb_eq(:) - &
                              rt_auxvar%total_sorb_eq(:))/pert
     endif
-    if (option%iflowmode == MPH_MODE .or. &
-        option%iflowmode == IMS_MODE .or. &
-        option%iflowmode == FLASH2_MODE .or. 
+    if (option%iflowmode == MPH_MODE) then
         reaction%gas%nactive_gas > 0) then
       dtotal(:,jcomp,2) = (rt_auxvar_pert%total(:,2) - &
                            rt_auxvar%total(:,2))/pert
@@ -5716,8 +5754,7 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
         rt_auxvar%mnrl_volfrac(imnrl) = 0.d0
 
       ! CO2-specific
-      if (option%iflowmode == MPH_MODE .or. &
-          option%iflowmode == FLASH2_MODE) then
+      if (option%iflowmode == MPH_MODE) then
         ncomp = reaction%mineral%kinmnrlspecid(0,imnrl)
         do iaqspec = 1, ncomp  
           icomp = reaction%mineral%kinmnrlspecid(iaqspec,imnrl)

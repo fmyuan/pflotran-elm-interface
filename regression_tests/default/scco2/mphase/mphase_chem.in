@@ -139,6 +139,7 @@ CHEMISTRY
 !   FeSO4+
   /
   ACTIVE_GAS_SPECIES
+    GAS_TRANSPORT_IS_UNVETTED
     CO2(g)
     O2(g)
   /

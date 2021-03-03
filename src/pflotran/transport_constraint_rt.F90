@@ -135,6 +135,7 @@ function TranConstraintRTCast(this)
   class(tran_constraint_rt_type), pointer :: TranConstraintRTCast
 
   nullify(TranConstraintRTCast)
+  if (.not.associated(this)) return
   select type (this)
     class is (tran_constraint_rt_type)
       TranConstraintRTCast => this
@@ -161,6 +162,7 @@ function TranConstraintCouplerRTCast(this)
                      TranConstraintCouplerRTCast
 
   nullify(TranConstraintCouplerRTCast)
+  if (.not.associated(this)) return
   select type (this)
     class is (tran_constraint_coupler_rt_type)
       TranConstraintCouplerRTCast => this
@@ -185,6 +187,7 @@ function TranConstraintRTGetAuxVar(this)
   type(reactive_transport_auxvar_type), pointer :: TranConstraintRTGetAuxVar
 
   nullify(TranConstraintRTGetAuxVar)
+  if (.not.associated(this)) return
   select type (coupler=>this)
     class is (tran_constraint_coupler_rt_type)
       TranConstraintRTGetAuxVar => coupler%rt_auxvar

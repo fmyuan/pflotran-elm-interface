@@ -135,7 +135,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Input_Aux_module
   use String_module
   use Material_Aux_class
-  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
 
   implicit none
 
@@ -181,10 +180,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputReadCard(input,option,discretization%ctype)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToUpper(discretization%ctype)
-        if (discretization%ctype == 'GRDECL') then
-          call SetIsGrdecl()
-          discretization%ctype = 'UNSTRUCTURED_EXPLICIT'
-        endif
         select case(trim(discretization%ctype))
           case('STRUCTURED')
             discretization%itype = STRUCTURED_GRID
@@ -247,7 +242,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
            'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME', &
            'UPWIND_FRACTION_METHOD','PERM_TENSOR_TO_SCALAR_MODEL', &
-           '2ND_ORDER_BOUNDARY_CONDITION')
+           '2ND_ORDER_BOUNDARY_CONDITION','IMPLICIT_GRID_AREA_CALCULATION')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
@@ -280,9 +275,9 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          if (GetIsGrdecl()) then
-            call UGrdEclExplicitRead(un_str_grid, &
-                                     discretization%filename,option)
+          if (index(discretization%filename,'.h5') > 0) then
+            call UGridExplicitReadHDF5(un_str_grid, &
+                                       discretization%filename,option)
           else
             call UGridExplicitRead(un_str_grid, &
                                    discretization%filename,option)
@@ -519,10 +514,10 @@ subroutine DiscretizationRead(discretization,input,option)
       case('DOMAIN_FILENAME')
         select case(discretization%grid%itype)
           case(EXPLICIT_UNSTRUCTURED_GRID)
-            call InputReadWord(input,option,word,PETSC_TRUE)
+             call InputReadFilename(input,option,discretization%grid% &
+                                    unstructured_grid%explicit_grid% &
+                                    domain_filename)
             call InputErrorMsg(input,option,'DOMAIN_FILENAME','GRID')  
-            discretization%grid%unstructured_grid% &
-              explicit_grid%domain_filename = word
           case default
             option%io_buffer = 'DOMAIN_FILENAME only supported for explicit &
                                &unstructured grids.'
@@ -583,6 +578,23 @@ subroutine DiscretizationRead(discretization,input,option)
           call PrintErrMsg(option)
         endif
         discretization%grid%structured_grid%second_order_bc = PETSC_TRUE
+      case('IMPLICIT_GRID_AREA_CALCULATION')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'IMPLICIT_GRID_AREA_CALCULATION', &
+                           'GRID')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('TRUE_AREA')
+            discretization%grid%unstructured_grid% &
+                            project_face_area_along_normal = PETSC_FALSE
+          case('PROJECTED_AREA')
+            discretization%grid%unstructured_grid% &
+                            project_face_area_along_normal = PETSC_TRUE
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                                    'GRID, IMPLICIT_GRID_AREA_CALCULATION', &
+                                    option)
+        end select
       case default
         call InputKeywordUnrecognized(input,word,'GRID',option)
     end select 

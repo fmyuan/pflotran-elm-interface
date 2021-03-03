@@ -11,13 +11,13 @@ module Factory_Geomechanics_module
 
   private
 
-  public :: GeomechanicsInitialize
+  public :: FactoryGeomechanicsInitialize
 
 contains
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsInitialize(simulation)
+subroutine FactoryGeomechanicsInitialize(simulation)
   ! 
   ! This routine
   ! 
@@ -32,7 +32,7 @@ subroutine GeomechanicsInitialize(simulation)
   ! NOTE: PETSc must already have been initialized here!
   call GeomechanicsInitializePostPETSc(simulation)
   
-end subroutine GeomechanicsInitialize
+end subroutine FactoryGeomechanicsInitialize
 
 ! ************************************************************************** !
 
@@ -105,7 +105,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     cur_pm => cur_pm%next
   enddo
   
-  call SubsurfaceInitializePostPetsc(simulation)  
+  call FactorySubsurfaceInitPostPetsc(simulation)  
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
     
   if (option%geomech_on) then
