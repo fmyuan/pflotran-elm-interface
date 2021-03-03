@@ -422,6 +422,12 @@ end subroutine PMERTSolve
 ! ************************************************************************** !
 
 subroutine PMERTAssembleSimulatedData(this)
+  !
+  ! Assembles ERT simulated data for each measurement
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 02/10/21
+  !
 
   use Patch_module
   use Grid_module
@@ -497,6 +503,87 @@ subroutine PMERTAssembleSimulatedData(this)
   if (option%myrank == option%io_rank) call SurveyWriteERT(this%survey)
 
 end subroutine PMERTAssembleSimulatedData
+
+! ************************************************************************** !
+
+subroutine PMERTBuildJacobian(this)
+  !
+  ! Builds ERT Jacobian Matrix distributed across processors
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 03/05/21
+  !
+
+  use Patch_module
+  use Grid_module
+  use Survey_module
+  use Material_Aux_class
+
+  implicit none 
+
+  class(pm_ert_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(survey_type), pointer :: survey
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+
+  PetscReal :: phi_sor,phi_rec 
+  PetscInt :: idata
+  PetscInt :: ielec
+  PetscInt :: ia,ib,im,in 
+  PetscInt :: local_id,ghosted_id
+  PetscInt :: local_id_a,local_id_b
+  PetscInt :: ghosted_id_a,ghosted_id_b 
+  PetscInt :: local_id_m,local_id_n
+  PetscInt :: ghosted_id_m,ghosted_id_n 
+  PetscErrorCode :: ierr
+
+  option => this%option
+  patch => this%realization%patch
+  grid => patch%grid
+  survey => this%survey
+
+  ert_auxvars => patch%aux%ERT%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  
+  do idata=1,survey%num_measurement
+    
+    ! for A and B electrodes
+    ia = survey%config(1,idata)
+    ib = survey%config(2,idata)
+    im = survey%config(3,idata)
+    in = survey%config(4,idata) 
+
+    do local_id=1,grid%nlmax
+      
+      ghosted_id = grid%nL2G(local_id)         
+      if (patch%imat(ghosted_id) <= 0) cycle
+    
+      phi_sor = 0.
+      phi_rec = 0.
+
+      ! Source electrode +A
+      if (ia/=0) phi_sor = phi_sor + ert_auxvars(ghosted_id)%potential(ia)
+  
+      ! Source electrode -B
+      if (ib/=0) phi_sor = phi_sor - ert_auxvars(ghosted_id)%potential(ib)
+
+      ! Receiver electrode +M
+      if (im/=0) phi_rec = phi_rec + ert_auxvars(ghosted_id)%potential(im)
+
+      ! Receiver electrode -N
+      if (in/=0) phi_rec = phi_rec - ert_auxvars(ghosted_id)%potential(im)
+
+      ert_auxvars(ghosted_id)%jacobian(idata) = &
+                      phi_sor * phi_rec * material_auxvars(ghosted_id)%volume
+
+    enddo
+  enddo  
+
+end subroutine PMERTBuildJacobian
 
 ! ************************************************************************** !
 
