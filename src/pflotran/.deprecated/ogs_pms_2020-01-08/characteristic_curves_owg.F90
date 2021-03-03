@@ -7,7 +7,6 @@ module Characteristic_Curves_OWG_module
   use Characteristic_Curves_Common_module
   use Characteristic_Curves_WIPP_module
   use Characteristic_Curves_Table_module
-  use Characteristic_Curves_VG_module
 
   implicit none
 
@@ -463,28 +462,10 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  class(sat_func_base_type), pointer :: sf_swap
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
   PetscBool :: smooth
-
-  ! Lexicon for compiled parameters
-  PetscBool :: tension
-  PetscReal :: alpha, m, Pcmax, Sj, Sr
-  PetscInt  ::  vg_rpf_opt, vg_unsat_ext
-
-  nullify(sf_swap)
-
-  ! Default values for VG saturation function paramenters
-  tension = .FALSE.
-  vg_unsat_ext  = 1 ! Maximum capillary pressure at Pcmax
-  vg_rpf_opt = 1 ! Default to Mualem-van Genuchten relation m=1-1/n
-  alpha = 0d0
-  m = 0d0
-  Pcmax = 1d9 ! Default value in MPa
-  Sj = 0d0
-  Sr = 0d0
 
 
   input%ierr = 0
@@ -520,12 +501,6 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
         end if
       case('SMOOTH')
         smooth = PETSC_TRUE
-      case('UNSATURATED_EXTENSION')
-        call InputReadInt(input,option,vg_unsat_ext)
-        call InputErrorMsg(input,option,'unsaturated extension', error_string)
-      case('RPF_OPTION')
-        call InputReadInt(input,option,vg_rpf_opt)
-        call InputErrorMsg(input,option,'relative permeability function option',error_string)
       case('TABLE_NAME')
         !read table name
       case default
@@ -565,18 +540,18 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
           class is(sat_func_VG_type)
             select case(keyword)              
               case('M')
-                call InputReadDouble(input,option,m)
-                sf_owg%m = m
+                call InputReadDouble(input,option,sf_owg%m)
                 call InputErrorMsg(input,option,'M',error_string)
+                sf_sl%m = sf_owg%m
               case('ALPHA')
-                call InputReadDouble(input,option,alpha)
-                sf_owg%alpha = alpha
+                call InputReadDouble(input,option,sf_owg%alpha)
                 call InputErrorMsg(input,option,'ALPHA',error_string)
+                sf_sl%alpha = sf_owg%alpha
               case('WATER_RESIDUAL_SATURATION')
-                call InputReadDouble(input,option,Sr)
-                sf_owg%Swcr = Sr
+                call InputReadDouble(input,option,sf_owg%Swcr)
                 call InputErrorMsg(input,option,'WATER_RESIDUAL_SATURATION', &
                                    error_string)
+                sf_sl%Sr = sf_owg%Swcr
               case default
                 call InputKeywordUnrecognized(input,keyword, &
                      'Van Genuchten Oil-Water saturation function',option)
@@ -618,18 +593,18 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
           class is(sat_func_VG_type)
             select case(keyword)
               case('M')
-                call InputReadDouble(input,option,m)
-                sf_owg%m = m
+                call InputReadDouble(input,option,sf_owg%m)
                 call InputErrorMsg(input,option,'M',error_string)
+                sf_sl%m = sf_owg%m
               case('ALPHA')
-                call InputReadDouble(input,option,alpha)
-                sf_owg%alpha = alpha
+                call InputReadDouble(input,option,sf_owg%alpha)
                 call InputErrorMsg(input,option,'ALPHA',error_string)
+                sf_sl%alpha = sf_owg%alpha
               case('LIQUID_RESIDUAL_SATURATION')
-                call InputReadDouble(input,option,Sr)
-                sf_owg%Slcr = Sr
+                call InputReadDouble(input,option,sf_owg%Slcr)
                 call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
                                    error_string)
+                sf_sl%Sr = sf_owg%Slcr
               case default
                 call InputKeywordUnrecognized(input,keyword, &
                        'Van Genuchten Oil-Gas-SL saturation function',option)
@@ -648,47 +623,6 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
   !add reading instructions for other OWG saturation functions (tables etc)
   end do
   call InputPopBlock(input,option)
-
-  ! Call constructors for SF_VG type
-  select type(sf_sl => sat_func_owg%sat_func_sl)
-  class is (sat_func_VG_type)
-    if (Sj == 0d0) Sj = Sr + 0.05d0*(1d0-Sr) ! Default junction if not specified
-    select case (vg_unsat_ext)
-    case (0) ! No extension van Genuchten
-      sf_swap => SF_VG_NEVG_ctor(alpha,m,Sr,vg_rpf_opt)
-    case (1) ! Flat with cap
-      sf_swap => SF_VG_FCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
-    case (2) ! Flat without cap
-      sf_swap => SF_VG_FNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
-    case (3) ! Exponential with cap
-      sf_swap => SF_VG_ECPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
-    case (4) ! Exponential without cap
-      sf_swap => SF_VG_ENOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
-    case (5) ! Linear with cap
-      sf_swap => SF_VG_LCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
-    case (6) ! Linear without cap
-      sf_swap => SF_VG_LNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
-    case default
-    end select
-    if (associated(sf_swap)) then ! Check that the contructor succeeded
-      sf_swap%calc_int_tension = tension
-    end if
-    ! TODO throw an error message if it did not
-  class default
-    ! Traditional assignment of public parameters
-    sf_sl%Sr = Sr
-    sf_sl%pcmax = Pcmax
-    sf_sl%calc_int_tension = tension
-  end select
-
-  ! Check for null pointers as the constructor failed 
-  if (associated(sf_swap)) then  
-    ! Replace the original sf_sl object if a new object was constructed
-    if (.NOT. associated(sat_func_owg%sat_func_sl,sf_swap)) then
-      deallocate(sat_func_owg%sat_func_sl)
-      sat_func_owg%sat_func_sl => sf_swap
-    end if
-  end if
 
   if ( smooth .and. associated(sat_func_owg%sat_func_sl) ) then
     call sat_func_owg%sat_func_sl%SetupPolynomials(option,error_string)
@@ -712,7 +646,6 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
   class(rel_perm_owg_base_type) :: permeability_function
   type(input_type), pointer :: input
   type(option_type) :: option
-  class(rel_perm_func_base_type), pointer :: rpf_swap
     
   character(len=MAXWORDLENGTH) :: keyword
   
@@ -720,7 +653,6 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
   PetscBool :: smooth
-  PetscInt :: error
   
   
   input%ierr = 0
@@ -984,30 +916,27 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
   select type(rpf => permeability_function)
     class is(RPF_wat_owg_func_sl_type)
       select type(rpf_sl => rpf%rel_perm_func_sl)
-        ! replace with constuctors
-        class is(RPF_MVG_liq_type)
-          rpf_swap => RPF_MVG_liq_ctor(rpf%m,rpf%Swcr)
-          deallocate(rpf%rel_perm_func_sl)
-          rpf%rel_perm_func_sl => rpf_swap
-        class is(RPF_BVG_liq_type)
-          rpf_swap => RPF_BVG_liq_ctor(rpf%m,rpf%Swcr)
-          deallocate(rpf%rel_perm_func_sl)
-          rpf%rel_perm_func_sl => rpf_swap
+        class is(RPF_Mualem_VG_liq_type)
+          rpf_sl%Sr = rpf%Swcr
+          rpf_sl%m = rpf%m
+        class is(RPF_Burdine_VG_liq_type)
+          rpf_sl%Sr = rpf%Swcr
+          rpf_sl%m = rpf%m
       end select  
     class is(RPF_gas_owg_func_sl_type)
       select type(rpf_sl => rpf%rel_perm_func_sl)
-        class is(RPF_MVG_gas_type)
-          rpf_swap => RPF_MVG_gas_ctor(rpf%m, rpf%Slcr, rpf%Sgcr)
-          deallocate(rpf%rel_perm_func_sl)
-          rpf%rel_perm_func_sl => rpf_swap
-        class is(RPF_BVG_gas_type)
-          rpf_swap => RPF_BVG_gas_ctor(rpf%m, rpf%Slcr, rpf%Sgcr)
-          deallocate(rpf%rel_perm_func_sl)
-          rpf%rel_perm_func_sl => rpf_swap
+        class is(RPF_Mualem_VG_gas_type)
+          rpf_sl%Sr = rpf%Slcr
+          rpf_sl%Srg = rpf%Sgcr
+          rpf_sl%m = rpf%m
+        class is(RPF_Burdine_VG_gas_type)
+          rpf_sl%Sr = rpf%Slcr
+          rpf_sl%Srg = rpf%Sgcr
+          rpf_sl%m = rpf%m
         class is(rpf_TOUGH2_IRP7_gas_type)
           rpf_sl%Sr = rpf%Slcr
           rpf_sl%Srg = rpf%Sgcr
-          error = rpf_sl%set_m(rpf%m)
+          rpf_sl%m = rpf%m          
       end select
     class is(RPF_wat_owg_Burdine_BC_type)
       select type(rpf_sl => rpf%rel_perm_func_sl)
