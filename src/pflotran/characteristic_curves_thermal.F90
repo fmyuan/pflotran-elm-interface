@@ -113,7 +113,7 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateTCond => TCFASMRadialConductivity
   end type kT_ASM_radial_type
   !---------------------------------------------------------------------------
-    type, public, extends(kT_default_type) :: kT_ASM_axial_type
+  type, public, extends(kT_default_type) :: kT_ASM_axial_type
     PetscReal :: kT_water     ! thermal conductivity of water
     PetscReal :: kT_solid     ! thermal conductivity of solid components
     PetscReal :: porosity_asm ! porosity of the assembly
@@ -591,7 +591,8 @@ end subroutine TCFLinearVerify
 ! ************************************************************************** !
 
 subroutine TCFLinearConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+                                 thermal_conductivity,dkT_dsatl,dkT_dtemp, &
+                                 option)
 
   use Option_module
 
