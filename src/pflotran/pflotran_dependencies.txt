@@ -18,7 +18,9 @@ characteristic_curves_common.o : characteristic_curves_base.o dataset_ascii.o \
 characteristic_curves_thermal.o : input_aux.o option.o pflotran_constants.o \
                                   string.o
 characteristic_curves_VG.o : characteristic_curves_base.o \
-                             option.o pflotran_constants.o
+                             option.o \
+                             string.o \
+                             pflotran_constants.o
 characteristic_curves_wipp.o : characteristic_curves_base.o \
                                characteristic_curves_common.o \
                                characteristic_curves_VG.o \

@@ -247,7 +247,7 @@ type, public, extends(rel_perm_func_base_type) :: RPF_VG_type
 contains
   procedure, public :: init                     => RPF_VG_init
   procedure, public :: get_m                    => RPF_VG_get_m
-!  procedure, public :: set_m                    => RPF_VG_set_m
+  procedure, public :: set_m                    => RPF_VG_set_m
   procedure, private :: Kr_inline               => RPF_VG_Kr_inline
 end type
 
@@ -1223,6 +1223,15 @@ pure function RPF_VG_get_m(this) result (m)
   m = this%m
 end function
 
+! **************************************************************************** !
+
+function RPF_VG_set_m(this,m) result (error)
+  class(RPF_VG_type), intent(inout) :: this
+  PetscReal, intent(in) :: m
+  PetscInt :: error
+  error = 0
+  this%m = m
+end function
 ! **************************************************************************** !
 
 pure subroutine RPF_VG_Kr_inline(this, Sl, Kr, dKr_dSl)
