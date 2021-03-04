@@ -4,6 +4,7 @@ module Characteristic_Curves_VG_module
 use petscsys ! Necessary for PETSC_TRUE / PETSC_FALSE
 use Characteristic_Curves_Base_module
 use Option_module ! Needed for Verify and unused arguments in Pc and Sl
+use String_module
 use PFLOTRAN_Constants_module ! Needed for overridden keyword "name" in verify
 implicit none
 private
@@ -60,8 +61,7 @@ PetscReal, private, parameter :: Slmax = 1d0 - epsilon(Slmax) ! Saturated limit
 !         |-->SF_VG_quad_type      Quadratic   extension TODO
 !
 ! Caution, Pcmax and Sr are unprotected as Fortran will not extend private
-! scope to child classed in separate modules. Slr replaces Sr here to be more
-! specific.
+! scope to child classed in separate modules. 
 ! TODO modify sat_func_base_type to use accessors and declare Sr in child
 ! modules (e.g. common and VG)
 !
@@ -101,16 +101,15 @@ PetscReal, private, parameter :: Slmax = 1d0 - epsilon(Slmax) ! Saturated limit
 !
 ! RPF_MVG_liq_type => RPF_MVG_liq_ctor(m, Sr)
 ! RPF_BVG_liq_type => RPF_BVG_liq_ctor(m, Sr)
-! RPF_MVG_gas_type => RPF_MVG_gas_ctor(m, Slr, Sgr)
-! RPF_BVG_gas_type => RPF_BVG_gas_ctor(m, Slr, Sgr)
+! RPF_MVG_gas_type => RPF_MVG_gas_ctor(m, Sr, Sgr)
+! RPF_BVG_gas_type => RPF_BVG_gas_ctor(m, Sr, Sgr)
 !
 ! **************************************************************************** !
 
 type, public, extends(sat_func_base_type) :: sat_func_VG_type
   private
-    PetscReal :: alpha               ! van Genuchten coefficient / Pa
+    PetscReal :: alpha               ! van Genuchten coefficient * Pa
     PetscReal :: m                   ! van Genuchten exponent
-    PetscReal :: Slr                 ! Liquid residual saturation
 contains
   procedure, public :: Init                     => SFVGInit
   procedure, public :: Verify                   => SFVGVerify
@@ -242,13 +241,11 @@ end type
 type, public, extends(rel_perm_func_base_type) :: RPF_VG_type
   private
     PetscReal :: m, m_rec   ! Van Genuchten m exponent and reciprocal
-    PetscReal :: Slr        ! Liquid residual saturation
     PetscReal :: dSe_dSl    ! Effective saturation span reciprocal
 contains
+  procedure, private :: Kr_inline               => RPF_VG_Kr_inline
   procedure, public :: init                     => RPF_VG_init
   procedure, public :: get_m                    => RPF_VG_get_m
-  procedure, public :: set_m                    => RPF_VG_set_m
-  procedure, private :: Kr_inline               => RPF_VG_Kr_inline
 end type
 
   type, public, extends(RPF_VG_type) :: RPF_VG_liq_type
@@ -256,7 +253,7 @@ end type
       PetscReal :: dKr_dSlmax  ! Finite difference derivative at saturation
       PetscReal :: Slmin       ! Unsaturated limit to avoid 0/0
   contains
-    procedure, public :: configure              => RPF_VG_liq_configure
+    procedure, private :: configure             => RPF_VG_liq_configure
     procedure, public :: set_m                  => RPF_VG_liq_set_m
   end type
 
@@ -266,6 +263,7 @@ end type
       procedure, public :: Verify               => RPFMualemVGLiqVerify
       procedure, public :: SetupPolynomials     => RPFMualemVGSetupPolynomials
       procedure, public :: RelativePermeability => RPFMualemVGLiqRelPerm
+      procedure, public :: set_m                => RPFMualemVGLiqSetM
     end type
 
     type, public, extends(RPF_VG_liq_type) :: RPF_MVG_liq_type
@@ -280,6 +278,7 @@ end type
       procedure, public :: Verify               => RPFBurdineVGLiqVerify
       procedure, public :: SetupPolynomials     => RPFBurdineVGSetupPolynomials
       procedure, public :: RelativePermeability => RPFBurdineVGLiqRelPerm
+      procedure, public :: set_m                => RPFBurdineVGLiqSetM
     end type
 
     type, public, extends(RPF_VG_liq_type) :: RPF_BVG_liq_type
@@ -294,7 +293,7 @@ end type
     PetscReal :: Sgr        ! Gas residual saturation
     PetscReal :: Slmax      ! Saturated limit reduced by Sgr
   contains
-    procedure, public :: configure              => RPF_VG_gas_configure
+    procedure, private:: configure              => RPF_VG_gas_configure
     procedure, public :: set_m                  => RPF_VG_gas_set_m
   end type
 
@@ -303,6 +302,7 @@ end type
       procedure, public :: Init                 => RPFMualemVGGasInit
       procedure, public :: Verify               => RPFMualemVGGasVerify
       procedure, public :: RelativePermeability => RPFMualemVGGasRelPerm
+      procedure, public :: set_m                => RPFMualemVGGasSetM
     end type
 
     type, public, extends(RPF_VG_gas_type) :: RPF_MVG_gas_type
@@ -316,6 +316,7 @@ end type
       procedure, public :: Init                 => RPFBurdineVGGasInit
       procedure, public :: Verify               => RPFBurdineVGGasVerify
       procedure, public :: RelativePermeability => RPFBurdineVGGasRelPerm
+      procedure, public :: set_m                => RPFBurdineVGGasSetM
     end type
 
     type, public, extends(RPF_VG_gas_type) :: RPF_BVG_gas_type
@@ -362,33 +363,32 @@ contains
 ! Common VG Saturation Function Methods
 ! **************************************************************************** !
 
-function SF_VG_ctor(unsat_ext, alpha, m, Slr, vg_rpf_opt, Pcmax, Slj) 
- use String_module
+function SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Slj) 
  class(SF_VG_type), pointer :: SF_VG_ctor
  character(len=MAXWORDLENGTH), intent(inout) :: unsat_ext
- PetscReal, intent(in) :: alpha, m, Slr, Pcmax, Slj
+ PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Slj
  PetscInt, intent(in) :: vg_rpf_opt
 
 ! This function returns a the van Genuchten saturation function object using
 ! the correct constructor method
-  
+ 
   call StringtoUpper(unsat_ext)
-  
+ 
   select case (unsat_ext)
   case ('NONE') ! No extension
-    SF_VG_ctor => SF_VG_NEVG_ctor(alpha,m,Slr,vg_rpf_opt)
+    SF_VG_ctor => SF_VG_NEVG_ctor(alpha,m,Sr,vg_rpf_opt)
   case ('FCPC') ! Flat specified cap
-    SF_VG_ctor => SF_VG_FCPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
+    SF_VG_ctor => SF_VG_FCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
   case ('FNOC') ! Flat specificed junction
-    SF_VG_ctor => SF_VG_FNOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
+    SF_VG_ctor => SF_VG_FNOC_ctor(alpha,m,Sr,vg_rpf_opt,Slj)
   case ('ECPC') ! Exponential specified cap
-    SF_VG_ctor => SF_VG_ECPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
+    SF_VG_ctor => SF_VG_ECPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
   case ('ENOC') ! Exponential specified junction
-    SF_VG_ctor => SF_VG_ENOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
+    SF_VG_ctor => SF_VG_ENOC_ctor(alpha,m,Sr,vg_rpf_opt,Slj)
   case ('LCPC') ! Linear specified cap
-    SF_VG_ctor => SF_VG_LCPC_ctor(alpha,m,Slr,vg_rpf_opt,Pcmax)
+    SF_VG_ctor => SF_VG_LCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
   case ('LNOC') ! Linear specified junction
-    SF_VG_ctor => SF_VG_LNOC_ctor(alpha,m,Slr,vg_rpf_opt,Slj)
+    SF_VG_ctor => SF_VG_LNOC_ctor(alpha,m,Sr,vg_rpf_opt,Slj)
   case default
     nullify(SF_VG_ctor)
   end select
@@ -403,10 +403,10 @@ end subroutine
 
 ! **************************************************************************** !
 
-function SF_VG_configure(this,alpha,m,Slr,rpf) result (error)
+function SF_VG_configure(this,alpha,m,Sr,rpf) result (error)
   ! Configure loop-invariant parameters common to all loop-invariant types
   class(SF_VG_type) :: this
-  PetscReal, intent(in) :: alpha,m,Slr
+  PetscReal, intent(in) :: alpha,m,Sr
   PetscInt, intent(in) :: rpf
   PetscInt :: error
   PetscReal :: Pc1, Pc2, dPc_dSl
@@ -419,7 +419,7 @@ function SF_VG_configure(this,alpha,m,Slr,rpf) result (error)
   error = 0                  ! Using bitwise errorcodes
   if (alpha <= 0d0)            error = error + 1
   if (m <= 0d0 .OR. m >= 1d0)  error = error + 2
-  if (Slr < 0d0 .OR. Slr >= 1d0) error = error + 4
+  if (Sr < 0d0 .OR. Sr >= 1d0) error = error + 4
   if (rpf < 1 .OR. rpf > 2)    error = error + 8
 
   if (error == 0) then
@@ -440,9 +440,9 @@ function SF_VG_configure(this,alpha,m,Slr,rpf) result (error)
     end select
     this%n_m1 = this%n - 1d0
     this%mn_a1 = m*this%n + 1d0
-    this%Slr = Slr
-    this%Sr = Slr ! Provide value to public variable TODO provide accessor
-    this%Sl_span = 1d0 - Slr
+    this%Sr = Sr
+    this%Sr = Sr ! Provide value to public variable TODO provide accessor
+    this%Sl_span = 1d0 - Sr
     this%dSe_dSl = 1d0 / this%Sl_span
     this%dSe_mndSl = this%n_rec / (this%m*this%Sl_span)
 
@@ -464,7 +464,7 @@ pure subroutine SF_VG_Pc_inline(this,Sl,Pc,dPc_dSl)
   PetscReal, intent(out) :: Pc, dPc_dSl
   PetscReal :: Se, Se_mrtrec, aPc_n
 
-  Se = (Sl - this%Slr) * this%dSe_dSl
+  Se = (Sl - this%Sr) * this%dSe_dSl
   Se_mrtrec = Se**this%m_nrec
   aPc_n = Se_mrtrec - 1d0
 
@@ -484,7 +484,7 @@ pure subroutine SF_VG_Sl_inline(this,Pc,Sl,dSl_dPc)
   Se_mrtrec = aPc_n + 1d0
   Se = Se_mrtrec**(-this%m)
 
-  Sl = this%Slr + Se * this%Sl_span
+  Sl = this%Sr + Se * this%Sl_span
   dSl_dPc = (Se/Se_mrtrec-Se) / (this%dSe_mndSl*Pc)
 end subroutine
 
@@ -515,7 +515,7 @@ pure function SF_VG_Sl_inflection(this) result (Sl)
 
   Se_mrtrec = (1d0+this%m)/(this%n_rec+this%m)
   Se = Se_mrtrec**(-this%m)
-  Sl = this%Slr + Se*this%Sl_span
+  Sl = this%Sr + Se*this%Sl_span
 end function
 
 ! **************************************************************************** !
@@ -537,14 +537,14 @@ end function
 ! **************************************************************************** !
 ! No-extension VG Saturation Function Methods
 ! **************************************************************************** !
-function SF_VG_NEVG_ctor(alpha,m,Slr,rpf) result (new)
+function SF_VG_NEVG_ctor(alpha,m,Sr,rpf) result (new)
   class(SF_VG_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Slr
+  PetscReal, intent(in) :: alpha, m, Sr
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
 
-  if (new%configure(alpha,m,Slr,rpf) /= 0) then
+  if (new%configure(alpha,m,Sr,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   end if
@@ -559,7 +559,7 @@ subroutine SF_VG_Pc(this, liquid_saturation, &
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
 
-  if (liquid_saturation <= this%Slr) then
+  if (liquid_saturation <= this%Sr) then
     ! Unsaturated limit
     capillary_pressure = huge(capillary_pressure)
     dPc_dSatl = -huge(capillary_pressure)
@@ -616,7 +616,7 @@ function SF_VG_set_alpha(this,alpha) result (error)
   class(SF_VG_type), intent(inout) :: this
   PetscReal, intent(in) :: alpha
   PetscInt :: error
-  error = this%configure(alpha,this%m,this%Slr,this%rpf)
+  error = this%configure(alpha,this%m,this%Sr,this%rpf)
 end function
 
 ! **************************************************************************** !
@@ -625,19 +625,19 @@ function SF_VG_set_m(this,m) result (error)
   class(SF_VG_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
-  error = this%configure(this%alpha,m,this%Slr,this%rpf)
+  error = this%configure(this%alpha,m,this%Sr,this%rpf)
 end function
 
 ! **************************************************************************** !
 ! Child Constant Extension Type
 ! **************************************************************************** !
-function SF_VG_FCPC_ctor(alpha,m,Slr,rpf,Pcmax) result (new)
+function SF_VG_FCPC_ctor(alpha,m,Sr,rpf,Pcmax) result (new)
   class(SF_VG_cons_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Slr, Pcmax
+  PetscReal, intent(in) :: alpha, m, Sr, Pcmax
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%configure(alpha,m,Slr,rpf) /= 0) then
+  if (new%configure(alpha,m,Sr,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%set_Pcmax(Pcmax) /= 0) then
@@ -666,13 +666,13 @@ end function
 
 ! **************************************************************************** !
 
-function SF_VG_FNOC_ctor(alpha,m,Slr,rpf,Sj) result (new)
+function SF_VG_FNOC_ctor(alpha,m,Sr,rpf,Sj) result (new)
   class(SF_VG_cons_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Slr, Sj
+  PetscReal, intent(in) :: alpha, m, Sr, Sj
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%configure(alpha,m,Slr,rpf) /= 0) then
+  if (new%configure(alpha,m,Sr,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%set_Sj(Sj) /= 0) then
@@ -689,7 +689,7 @@ function SF_VG_cons_set_Sj(this,Sj) result (error)
   PetscInt :: error
   PetscReal :: dPj_dSj
 
-  if (Sj > this%Slr) then
+  if (Sj > this%Sr) then
     error = 0
     this%Pcmax_designated = PETSC_FALSE
     this%Sj = Sj
@@ -776,7 +776,7 @@ function SF_VG_extn_set_alpha(this,alpha) result (error)
   PetscReal :: alpha_old
 
   alpha_old = this%alpha
-  error = this%configure(alpha,this%m,this%Slr,this%rpf)
+  error = this%configure(alpha,this%m,this%Sr,this%rpf)
   if (error == 0) then ! Update unsaturated extension
     if (this%Pcmax_designated) then
       error = this%set_Pcmax(this%Pcmax)
@@ -785,7 +785,7 @@ function SF_VG_extn_set_alpha(this,alpha) result (error)
     end if
     ! Restore upon error
     if (error /= 0) then
-      error = error + this%configure(alpha_old,this%m,this%Slr,this%rpf)
+      error = error + this%configure(alpha_old,this%m,this%Sr,this%rpf)
     end if
   end if
 end function
@@ -799,7 +799,7 @@ function SF_VG_extn_set_m(this,m) result (error)
   PetscReal :: m_old
 
   m_old = this%m
-  error = this%configure(this%alpha,m,this%Slr,this%rpf)
+  error = this%configure(this%alpha,m,this%Sr,this%rpf)
   if (error == 0) then ! Update unsaturated extension
     if (this%Pcmax_designated) then
       error = this%set_Pcmax(this%Pcmax)
@@ -808,7 +808,7 @@ function SF_VG_extn_set_m(this,m) result (error)
     end if
     ! Restore upon error
     if (error /= 0) then
-      error = error + this%configure(this%alpha,m_old,this%Slr,this%rpf)
+      error = error + this%configure(this%alpha,m_old,this%Sr,this%rpf)
     end if
   end if
 end function
@@ -883,13 +883,13 @@ end function
 
 ! **************************************************************************** !
 
-function SF_VG_ECPC_ctor(alpha,m,Slr,rpf,Pcmax) result (new)
+function SF_VG_ECPC_ctor(alpha,m,Sr,rpf,Pcmax) result (new)
   class(SF_VG_expn_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Slr, Pcmax
+  PetscReal, intent(in) :: alpha, m, Sr, Pcmax
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%configure(alpha,m,Slr,rpf) /= 0) then
+  if (new%configure(alpha,m,Sr,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%set_Pcmax(Pcmax) /= 0) then
@@ -900,13 +900,13 @@ end function
 
 ! **************************************************************************** !
 
-function SF_VG_ENOC_ctor(alpha,m,Slr,rpf,Sj) result (new)
+function SF_VG_ENOC_ctor(alpha,m,Sr,rpf,Sj) result (new)
   class(SF_VG_expn_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Slr, Sj
+  PetscReal, intent(in) :: alpha, m, Sr, Sj
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%configure(alpha,m,Slr,rpf) /= 0) then
+  if (new%configure(alpha,m,Sr,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%set_Sj(Sj) /= 0) then
@@ -923,7 +923,7 @@ function SF_VG_expn_set_Sj(this,Sj) result (error)
   PetscInt :: error
   PetscReal :: dPj_dSj
 
-  if (Sj > this%Slr) then
+  if (Sj > this%Sr) then
     error = 0
     this%Pcmax_designated = PETSC_FALSE
     this%Sj = Sj
@@ -1032,13 +1032,13 @@ end subroutine
 ! **************************************************************************** !
 ! Child Linear Capillary Pressure Extension
 ! **************************************************************************** !
-function SF_VG_LNOC_ctor(alpha,m,Slr,rpf,Sj) result (new)
+function SF_VG_LNOC_ctor(alpha,m,Sr,rpf,Sj) result (new)
   class(SF_VG_line_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Slr, Sj
+  PetscReal, intent(in) :: alpha, m, Sr, Sj
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%configure(alpha,m,Slr,rpf) /= 0) then
+  if (new%configure(alpha,m,Sr,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%set_Sj(Sj) /= 0) then
@@ -1054,7 +1054,7 @@ function SF_VG_line_set_Sj(this,Sj) result (error)
   PetscReal, intent(in) :: Sj
   PetscInt :: error
 
-  if (Sj > this%Slr .AND. Sj < 1d0) then
+  if (Sj > this%Sr .AND. Sj < 1d0) then
     error = 0
     this%Pcmax_designated = PETSC_FALSE
     this%Sj = Sj
@@ -1070,13 +1070,13 @@ end function
 
 ! **************************************************************************** !
 
-function SF_VG_LCPC_ctor(alpha,m,Slr,rpf,Pcmax) result (new)
+function SF_VG_LCPC_ctor(alpha,m,Sr,rpf,Pcmax) result (new)
   class(SF_VG_line_type), pointer :: new
-  PetscReal, intent(in) :: alpha, m, Slr, Pcmax
+  PetscReal, intent(in) :: alpha, m, Sr, Pcmax
   PetscInt,  intent(in) :: rpf
 
   allocate(new)
-  if (new%configure(alpha,m,Slr,rpf) /= 0) then
+  if (new%configure(alpha,m,Sr,rpf) /= 0) then
     deallocate(new)
     nullify(new)
   else if (new%set_Pcmax(Pcmax) /= 0) then
@@ -1214,7 +1214,6 @@ subroutine RPF_VG_init(this)
   class(RPF_VG_type) :: this
 end subroutine
 
-
 ! **************************************************************************** !
 
 pure function RPF_VG_get_m(this) result (m)
@@ -1223,15 +1222,6 @@ pure function RPF_VG_get_m(this) result (m)
   m = this%m
 end function
 
-! **************************************************************************** !
-
-function RPF_VG_set_m(this,m) result (error)
-  class(RPF_VG_type), intent(inout) :: this
-  PetscReal, intent(in) :: m
-  PetscInt :: error
-  error = 0
-  this%m = m
-end function
 ! **************************************************************************** !
 
 pure subroutine RPF_VG_Kr_inline(this, Sl, Kr, dKr_dSl)
@@ -1248,32 +1238,32 @@ function RPF_VG_liq_set_m(this, m) result (error)
   class(RPF_VG_liq_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
-  error = this%configure(m, this%Slr)
+  error = this%configure(m, this%Sr)
 end function
 
 ! **************************************************************************** !
 
-function RPF_VG_liq_configure(this, m, Slr) result (error)
+function RPF_VG_liq_configure(this, m, Sr) result (error)
   class(RPF_VG_liq_type), intent(inout) :: this
-  PetscReal, intent(in) :: m, Slr
+  PetscReal, intent(in) :: m, Sr
   PetscInt :: error
   PetscReal :: Kr
 
   error = 0
   if (m <= 0d0 .OR. m >= 1d0) error = error + 1
-  if (Slr < 0d0 .OR. Slr >= 1d0) error = error + 2
+  if (Sr < 0d0 .OR. Sr >= 1d0) error = error + 2
 
   if (error == 0) then
     this%m = m
     this%m_rec = 1d0 / m
 
-    this%Slr = Slr
-    this%dSe_dSl = 1d0 / (1d0 - Slr)
+    this%Sr = Sr
+    this%dSe_dSl = 1d0 / (1d0 - Sr)
 
     call this%Kr_inline(Slmax,Kr,this%dKr_dSlmax)
     this%dKr_dSlmax = (1d0 - Kr) / epsilon(Slmax)
 
-    this%Slmin = Slr + epsilon(Slr)
+    this%Slmin = Sr + epsilon(Sr)
 
     this%analytical_derivative_available = PETSC_TRUE
   end if
@@ -1287,28 +1277,28 @@ function RPF_VG_gas_set_m(this, m) result (error)
   class(RPF_VG_gas_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
-  error = this%configure(m, this%Slr, this%Sgr)
+  error = this%configure(m, this%Sr, this%Sgr)
 end function
 
 ! **************************************************************************** !
 
-function RPF_VG_gas_configure(this, m, Slr, Sgr) result (error)
+function RPF_VG_gas_configure(this, m, Sr, Sgr) result (error)
   class(RPF_VG_gas_type), intent(inout) :: this
-  PetscReal, intent(in) :: m, Slr, Sgr
+  PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
 
   error = 0
   if (m <= 0d0 .OR. m >= 1d0) error = error + 1
-  if (Slr < 0d0 .OR. Sgr < 0d0 .OR. Slr + Sgr >= 1d0) error = error + 2
+  if (Sr < 0d0 .OR. Sgr < 0d0 .OR. Sr + Sgr >= 1d0) error = error + 2
 
   if (error == 0) then
     this%m = m
     this%m_rec = 1d0 / m
     this%mx2 = 2d0 * m
 
-    this%Slr = Slr
+    this%Sr = Sr
     this%Sgr = Sgr
-    this%dSe_dSl = 1d0 / (1d0 - Slr - Sgr)
+    this%dSe_dSl = 1d0 / (1d0 - Sr - Sgr)
 
     this%Slmax = 1d0 - Sgr - epsilon(Sgr)
 
@@ -1320,13 +1310,13 @@ end function
 ! Mualem - van Genuchten Liquid Relative Permeability Function Methods
 ! **************************************************************************** !
 
-function  RPF_MVG_liq_ctor(m, Slr) result (new)
+function  RPF_MVG_liq_ctor(m, Sr) result (new)
   class(RPF_MVG_liq_type), pointer :: new
-  PetscReal, intent(in) :: m, Slr
+  PetscReal, intent(in) :: m, Sr
   PetscInt :: error
 
   allocate(new)
-  error = new%configure(m,Slr)
+  error = new%configure(m,Sr)
   if (error == 0) then
     nullify(new%poly)
   else
@@ -1343,7 +1333,7 @@ pure subroutine RPF_MVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_mrt, Se_mrt_comp, Se_mrt_comp_m, f
 
-  Se = (Sl- this%Slr) * this%dSe_dSl
+  Se = (Sl- this%Sr) * this%dSe_dSl
   Se_mrt  = Se**this%m_rec
   Se_mrt_comp = 1d0 - Se_mrt
   Se_mrt_comp_m = Se_mrt_comp**this%m
@@ -1378,13 +1368,13 @@ end subroutine
 ! Mualem - van Genuchten Gas Relative Permeability Function Methods
 ! **************************************************************************** !
 
-function  RPF_MVG_gas_ctor(m, Slr, Sgr) result (new)
+function  RPF_MVG_gas_ctor(m, Sr, Sgr) result (new)
   class(rpf_MVG_gas_type), pointer :: new
-  PetscReal, intent(in) :: m, Slr, Sgr
+  PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
 
   allocate(new)
-  error = new%configure(m, Slr, Sgr)
+  error = new%configure(m, Sr, Sgr)
 
   if (error == 0) then
     nullify(new%poly)
@@ -1402,7 +1392,7 @@ pure subroutine RPF_MVG_gas_Kr_inline(this, Sl, Kr, dKr_dSl)
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_comp, Se_mrt, Se_mrt_comp
 
-  Se = (Sl - this%Slr) * this%dSe_dSl
+  Se = (Sl - this%Sr) * this%dSe_dSl
   Se_comp = 1.d0 - Se
   Se_mrt = Se**this%m_rec
   Se_mrt_comp = 1d0 - Se_mrt
@@ -1423,7 +1413,7 @@ subroutine RPF_MVG_gas_Kr(this,liquid_saturation, relative_permeability, &
   if (liquid_saturation > this%Slmax) then
     relative_permeability = 0d0
     dkr_sat = 0d0 ! this%dKr_dSlmax
-  else if (liquid_saturation < this%Slr) then
+  else if (liquid_saturation < this%Sr) then
     relative_permeability = 1d0
     dkr_sat = 0d0 ! Approaches limit of -0.5d0 * this%dSe_dSl
   else
@@ -1436,13 +1426,13 @@ end subroutine
 ! Burdine - van Genuchten Liquid Relative Permeability Function Methods
 ! **************************************************************************** !
 
-function RPF_BVG_liq_ctor(m, Slr) result (new)
+function RPF_BVG_liq_ctor(m, Sr) result (new)
   class(RPF_BVG_liq_type), pointer :: new
-  PetscReal, intent(in) :: m, Slr
+  PetscReal, intent(in) :: m, Sr
   PetscInt :: error
 
   allocate(new)
-  error = new%configure(m, Slr)
+  error = new%configure(m, Sr)
 
   if (error == 0) then
     nullify(new%poly)
@@ -1460,7 +1450,7 @@ pure subroutine RPF_BVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_mrt, Se_mrt_comp, Se_mrt_comp_m, Kr_Se
 
-  Se = (Sl - this%Slr) * this%dSe_dSl
+  Se = (Sl - this%Sr) * this%dSe_dSl
   Se_mrt = Se**this%m_rec
   Se_mrt_comp = 1d0 - Se_mrt
   Se_mrt_comp_m = Se_mrt_comp**this%m
@@ -1482,7 +1472,7 @@ subroutine RPF_BVG_liq_Kr(this,liquid_saturation, &
   if (liquid_saturation > Slmax) then
     relative_permeability = 1d0
     dkr_sat = this%dKr_dSlmax
-  else if (liquid_saturation < this%Slr) then
+  else if (liquid_saturation < this%Sr) then
     relative_permeability = 0d0
     dkr_sat = 0d0
   else
@@ -1494,13 +1484,13 @@ end subroutine
 ! Burdine - van Genuchten Gas Relative Permeability Function Methods
 ! **************************************************************************** !
 
-function RPF_BVG_gas_ctor(m, Slr, Sgr) result (new)
+function RPF_BVG_gas_ctor(m, Sr, Sgr) result (new)
   class(RPF_BVG_gas_type), pointer :: new
-  PetscReal, intent(in) :: m, Slr, Sgr
+  PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
 
   allocate(new)
-  error = new%configure(m, Slr, Sgr)
+  error = new%configure(m, Sr, Sgr)
 
   if (error == 0) then
     nullify(new%poly)
@@ -1517,7 +1507,7 @@ pure subroutine RPF_BVG_gas_Kr_inline(this, Sl, Kr, dKr_dSl)
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_comp, Se_mrt, Se_mrt_comp, Kr_Se_comp
 
-  Se = (Sl - this%Slr) * this%dSe_dSl
+  Se = (Sl - this%Sr) * this%dSe_dSl
   Se_comp = 1d0 - Se
   Se_mrt = Se**this%m_rec
   Se_mrt_comp = 1d0 - Se_mrt
@@ -1539,7 +1529,7 @@ subroutine RPF_BVG_gas_Kr(this,liquid_saturation, relative_permeability, &
   if (liquid_saturation > this%Slmax) then
     relative_permeability = 0d0
     dkr_sat = 0d0 ! this%dKr_dSlmax
-  else if (liquid_saturation < this%Slr) then
+  else if (liquid_saturation < this%Sr) then
     relative_permeability = 1d0
     dKr_sat = 0d0 ! Approaches limit of 2d0 * this%dSe_dSl
   else
@@ -2009,6 +1999,16 @@ end subroutine RPFMualemVGLiqRelPerm
 
 ! **************************************************************************** !
 
+function RPFMualemVGLiqSetM(this, m) result (error)
+  class(rpf_Mualem_VG_liq_type), intent(inout) :: this
+  PetscReal, intent(in) :: m
+  PetscInt :: error
+  this%m = m
+  error = 0
+end function
+
+! **************************************************************************** !
+
 function RPFMualemVGGasCreate()
 
   ! Creates the van Genutchten Mualem gas relative permeability function object
@@ -2120,6 +2120,16 @@ subroutine RPFMualemVGGasRelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
 
 end subroutine RPFMualemVGGasRelPerm
+
+! ****************************************************************************** !
+
+function RPFMualemVGGasSetM(this, m) result (error)
+  class(rpf_Mualem_VG_gas_type), intent(inout) :: this
+  PetscReal, intent(in) :: m
+  PetscInt :: error
+  this%m = m
+  error = 0
+end function
 
 ! ****************************************************************************** !
 
@@ -2284,6 +2294,16 @@ end subroutine RPFBurdineVGLiqRelPerm
 
 ! **************************************************************************** !
 
+function RPFBurdineVGLiqSetM(this, m) result (error)
+  class(rpf_Burdine_VG_liq_type), intent(inout) :: this
+  PetscReal, intent(in) :: m
+  PetscInt :: error
+  this%m = m
+  error = 0
+end function
+
+! ****************************************************************************** !
+
 function RPFBurdineVGGasCreate()
 
   ! Creates the Brooks-Corey Burdine gas relative permeability function object
@@ -2394,5 +2414,17 @@ subroutine RPFBurdineVGGasRelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
 
 end subroutine RPFBurdineVGGasRelPerm
+
+! ****************************************************************************** !
+
+function RPFBurdineVGGasSetM(this, m) result (error)
+  class(rpf_Burdine_VG_gas_type), intent(inout) :: this
+  PetscReal, intent(in) :: m
+  PetscInt :: error
+  this%m = m
+  error = 0
+end function
+
+! ****************************************************************************** !
 
 end module

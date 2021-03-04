@@ -372,7 +372,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   character(len=MAXWORDLENGTH) :: unsat_ext
   PetscBool :: loop_invariant, tension
   PetscInt :: vg_rpf_opt
-  PetscReal :: alpha, m, Pcmax, Slj, Slr
+  PetscReal :: alpha, m, Pcmax, Slj, Sr
 
   nullify(sf_swap)
   ! Default values for unspecified parameters
@@ -384,7 +384,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   m = 0d0
   Pcmax = 1d9
   Slj = 0d0
-  Slr = 0d0
+  Sr = 0d0
 
   input%ierr = 0
   smooth = PETSC_FALSE
@@ -437,8 +437,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
     found = PETSC_TRUE
     select case(keyword)
       case('LIQUID_RESIDUAL_SATURATION')
-        call InputReadDouble(input,option,Slr)
-        saturation_function%Sr = Slr
+        call InputReadDouble(input,option,Sr)
+        saturation_function%Sr = Sr
         call InputErrorMsg(input,option,'LIQUID_RESIDUAL_SATURATION', &
                            error_string)
       case('MAX_CAPILLARY_PRESSURE')
@@ -792,10 +792,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
     ! Call constructor
     select type (saturation_function)
     class is (sat_func_VG_type)
-      sf_swap => SF_VG_ctor(unsat_ext, alpha, m, Slr, vg_rpf_opt, Pcmax, Slj)
+      sf_swap => SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Slj)
     class default
       option%io_buffer = 'Loop-invariant optimizations are not yet &
-       implemented for the designated saturation function type.'
+     & implemented for the designated saturation function type.'
       call PrintErrMsg(option)
     end select
 
@@ -880,15 +880,15 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
 
   ! Lexicon for compiled variables
   PetscBool :: loop_invariant
-  PetscReal :: m, Sgr, Slr
+  PetscReal :: m, Srg, Sr
 
   nullify(rpf_swap)
 
   ! Default values for unspecified parameters
   loop_invariant = PETSC_FALSE
   m = 0d0
-  Sgr = 0d0
-  Slr = 0d0
+  Srg = 0d0
+  Sr = 0d0
 
   input%ierr = 0
   smooth = PETSC_FALSE
@@ -986,8 +986,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
     found = PETSC_TRUE
     select case(keyword)
       case('LIQUID_RESIDUAL_SATURATION')
-        call InputReadDouble(input,option,Slr)
-        permeability_function%Sr = Slr
+        call InputReadDouble(input,option,Sr)
+        permeability_function%Sr = Sr
         call InputErrorMsg(input,option,'residual_saturation',error_string)
       case('PHASE')
         call InputReadCard(input,option,new_phase_keyword,PETSC_FALSE)
@@ -1023,8 +1023,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
             error = rpf%set_m(m)
             call InputErrorMsg(input,option,'m',error_string)
           case('GAS_RESIDUAL_SATURATION')
-            call InputReadDouble(input,option,Sgr)
-            rpf%Srg = Sgr
+            call InputReadDouble(input,option,Srg)
+            rpf%Srg = Srg
             call InputErrorMsg(input,option,'Srg',error_string)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1119,8 +1119,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
             error = rpf%set_m(m)
             call InputErrorMsg(input,option,'m',error_string)
           case('GAS_RESIDUAL_SATURATION')
-            call InputReadDouble(input,option,Sgr)
-            rpf%Srg = Sgr
+            call InputReadDouble(input,option,Srg)
+            rpf%Srg = Srg
             call InputErrorMsg(input,option,'Srg',error_string)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1525,13 +1525,13 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   if (loop_invariant) then
     select type (permeability_function)
     class is (RPF_mualem_VG_liq_type)
-      rpf_swap => RPF_MVG_liq_ctor(m, Slr)
+      rpf_swap => RPF_MVG_liq_ctor(m, Sr)
     class is (RPF_burdine_VG_liq_type)
-      rpf_swap => RPF_BVG_liq_ctor(m, Slr)
+      rpf_swap => RPF_BVG_liq_ctor(m, Sr)
     class is (RPF_mualem_VG_gas_type)
-      rpf_swap => RPF_MVG_gas_ctor(m, Slr, Sgr)
+      rpf_swap => RPF_MVG_gas_ctor(m, Sr, Srg)
     class is (RPF_burdine_VG_gas_type)
-      rpf_swap => RPF_BVG_gas_ctor(m, Slr, Sgr)
+      rpf_swap => RPF_BVG_gas_ctor(m, Sr, Srg)
     end select
   end if
 
