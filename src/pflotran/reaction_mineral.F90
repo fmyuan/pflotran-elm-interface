@@ -225,6 +225,12 @@ subroutine MineralReadKinetics(mineral,input,option)
             case('ARMOR_CRIT_VOL_FRAC')
               call InputReadDouble(input,option,tstrxn%armor_crit_vol_frac)
               call InputErrorMsg(input,option,'armor_crit_vol_frac',error_string)
+            case('SPECIFIC_SURFACE_AREA_EPSILON')
+              call InputReadDouble(input,option,tstrxn%surf_area_epsilon)
+              call InputErrorMsg(input,option,word,error_string)
+            case('VOLUME_FRACTION_EPSILON')
+              call InputReadDouble(input,option,tstrxn%vol_frac_epsilon)
+              call InputErrorMsg(input,option,word,error_string)
             case('PREFACTOR')
               error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR'
               prefactor => TransitionStatePrefactorCreate()
@@ -1381,12 +1387,12 @@ subroutine MineralUpdateSpecSurfaceArea(reaction,rt_auxvar,material_auxvar, &
          mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
     endif
 
-    porosity_scale = 1.d0
-    if (reaction%update_mnrl_surf_with_porosity) then
-      porosity_scale = &
-        ((1.d0-material_auxvar%porosity_base) / &
-         (1.d0-porosity0))** &
-         mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
+    volfrac_scale = 1.d0
+    mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
+                        mineral%kinmnrl_vol_frac_epsilon(imnrl))
+    if (mnrl_volfrac0 > 0.d0) then
+      volfrac_scale = (rt_auxvar%mnrl_volfrac(imnrl)/mnrl_volfrac0)** &
+                      mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
     endif
 
     rt_auxvar%mnrl_area(imnrl) = &
@@ -1425,6 +1431,8 @@ subroutine MineralUpdateSpecSurfaceArea(reaction,rt_auxvar,material_auxvar, &
         reaction%update_armor_mineral_surface_flag = 1 ! surface armored
       endif
     endif
+    rt_auxvar%mnrl_area(imnrl) = max(rt_auxvar%mnrl_area(imnrl), &
+                                     mineral%kinmnrl_surf_area_epsilon(imnrl))
 
   enddo
   
