@@ -1955,6 +1955,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   use Material_Aux_class
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
+  use Reaction_Mineral_module
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z, &
                                PERMEABILITY_XY, PERMEABILITY_XZ, &
@@ -2018,7 +2019,11 @@ subroutine RealizationUpdatePropertiesTS(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       do imnrl = 1, reaction%mineral%nkinmnrl
-
+#if 1
+        call MineralUpdateSpecSurfaceArea(reaction,rt_auxvars(ghosted_id), &
+                                          material_auxvars(ghosted_id), &
+                                          porosity0_p(local_id),option)
+#else
         porosity_scale = 1.d0
         if (reaction%update_mnrl_surf_with_porosity) then
           porosity_scale = &
@@ -2091,6 +2096,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
 !       reaction%mineral%kinmnrl_armor_crit_vol_frac(imnrl), &
 !       rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl_armor), &
 !       rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl)
+#endif
       enddo
     enddo
 
