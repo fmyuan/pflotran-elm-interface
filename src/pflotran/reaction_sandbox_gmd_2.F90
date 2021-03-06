@@ -109,7 +109,7 @@ subroutine GMD2ReadInput(this,input,option)
         call InputReadAndConvertUnits(input,this%k_max,'1/sec', &
                                       trim(error_string)//','//word,option)
       case('AAQ_HALF_SATURATION_CONSTANT') 
-        call InputReadDouble(input,option,this%K_Aaq_n)
+        call InputReadDouble(input,option,K_Aaq)
         call InputErrorMsg(input,option,word,error_string)
       case('BAQ_HALF_SATURATION_CONSTANT') 
         call InputReadDouble(input,option,this%K_Baq)
