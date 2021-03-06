@@ -24,7 +24,7 @@ module Reaction_Sandbox_Simple_class
     PetscInt :: species_Yim_id
   contains
     procedure, public :: Setup => SimpleSetup
-    procedure, public :: Evaluate => SimpleReact
+    procedure, public :: Evaluate => SimpleEvaluate
   end type reaction_sandbox_simple_type
 
   public :: SimpleCreate
@@ -103,16 +103,15 @@ end subroutine SimpleSetup
 
 ! ************************************************************************** !
 
-subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
-                       rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                       option)
+subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
+                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                          option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/03/15
   ! 
-
   use Option_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
@@ -197,93 +196,93 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
 
   !----------------------------------------------------------------------------
   ! zero-order (A -> C)
-  ! WARNING: Too high a rate can result in negative concentrations
-  !          which are non-physical and the code will not converge.
-  ! uncomment from the next line down
-  !k = 0.d0  ! [mol/L water-sec]
-  !stoichA = -1.d0
-  !stoichC = 1.d0
-  !Rate = k * L_water  ! mol/sec
-  !RateA = stoichA * Rate
-  !RateC = stoichC * Rate
+  ! This rate constant is calculated to deplete all mass in 1 m^3 of water at 
+  ! 1.d-3 mol/liter in 25 years. Increasing the rate will cause simulation 
+  ! failure unless the run time is reduced.
+  !uncomment: k = 1.26839d-12  ! [mol/L water-sec]
+  !uncomment: stoichA = -1.d0
+  !uncomment: stoichC = 1.d0
+  !uncomment: Rate = k * L_water  ! mol/sec
+  !uncomment: RateA = stoichA * Rate
+  !uncomment: RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
   ! first-order (A -> C)
-  ! uncomment from the next line down
-  !k = 1.d-10  ! [1/sec]
-  !stoichA = -1.d0
-  !stoichC = 1.d0
-  !Rate = k * Aaq * L_water  ! [mol/sec]
-  !RateA = stoichA * Rate
-  !RateC = stoichC * Rate
+  ! At time zero, the effective rate matches ZERO_ORDER.
+  !uncomment: k = 1.26839d-9  ! [1/sec]
+  !uncomment: stoichA = -1.d0
+  !uncomment: stoichC = 1.d0
+  !uncomment: Rate = k * Aaq * L_water  ! [mol/sec]
+  !uncomment: RateA = stoichA * Rate
+  !uncomment: RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
   ! second-order (A + B -> C)
-  ! uncomment from the next line down
-  !k = 1.d-10  ! [L water/mol-sec]
-  !stoichA = -1.d0
-  !stoichB = -1.d0
-  !stoichC = 1.d0
-  !Rate = k * Aaq * Baq * L_water  ! [mol/sec]
-  !RateA = stoichA * Rate
-  !RateB = stoichB * Rate
-  !RateC = stoichC * Rate
+  ! At time zero, the effective rate matches ZERO_ORDER.
+  !uncomment: k = 2.53678d-6  ! [L water/mol-sec]
+  !uncomment: stoichA = -1.d0
+  !uncomment: stoichB = -1.d0
+  !uncomment: stoichC = 1.d0
+  !uncomment: Rate = k * Aaq * Baq * L_water  ! [mol/sec]
+  !uncomment: RateA = stoichA * Rate
+  !uncomment: RateB = stoichB * Rate
+  !uncomment: RateC = stoichC * Rate
   
-  !----------------------------------------------------------------------------
-  ! A -> B -> C
-  ! first-order kinetic rate constants
-  ! uncomment from the next line down (choose one set of k1, k2))
-  !! non-stationary state
-  !k1 = 1.d-1  ! [1/sec]
-  !k2 = 5.d-2  ! [1/sec]
-  
-  !!stationary state
-  !k1 = 1.d-1  ! [1/sec]
-  !k2 = 1.d-0  ! [1/sec]
-  
-  !Rate1 = k1 * Aaq * L_water  ! [mol/sec]
-  !Rate2 = k2 * Baq * L_water  ! [mol/sec]
-  
-  !RateA = -Rate1
-  !RateB =  Rate1 - Rate2
-  !RateC =  Rate2
-
   !----------------------------------------------------------------------------
   ! Monod (A -> C)
-  ! uncomment from the next line down
-  !k = 1.d-12  ! [mol/L water-sec]
-  !K_Aaq = 5.d-4  ! [mol/L water]
-  !stoichA = -1.d0
-  !stoichC = 1.d0
-  !Rate = k * Aaq / (K_Aaq + Aaq) * L_water  ! [mol/sec]
-  !RateA = stoichA * Rate
-  !RateC = stoichC * Rate
+  ! At time zero, the effective rate matches ZERO_ORDER.
+  !uncomment: k = 1.39523d-12  ! [mol/L water-sec] K_Aaq = 1.d-4
+  !uncomment: K_Aaq = 1.d-4  ! [mol/L water]
+  !uncomment: stoichA = -1.d0
+  !uncomment: stoichC = 1.d0
+  !uncomment: Rate = k * Aaq / (K_Aaq + Aaq) * L_water  ! [mol/sec]
+  !uncomment: RateA = stoichA * Rate
+  !uncomment: RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
   ! multiplicative Monod w/biomass
   ! A + 2B -> C
-  ! uncomment from the next line down
-  !k = 1.d-7  ! [mol solute-m^3 bulk volume/mol biomass-L water-sec]
-  !K_Aaq = 5.d-4  ! [mol/L water]
-  !K_Baq = 5.d-4  ! [mol/L water]
-  !stoichA = -1.d0
-  !stoichB = -2.d0
-  !stoichC = 1.d0
-  !Rate = k * Xim * Aaq / (K_Aaq + Aaq) * Baq / (K_Baq + Baq) * L_water  ! [mol/sec]
-  !RateA = stoichA * Rate
-  !RateB = stoichB * Rate
-  !RateC = stoichC * Rate
+  ! At time zero, the effective rate matches ZERO_ORDER.
+  !uncomment: k = 1.53475d-8  ! [mol /mol biomass-sec]
+  !uncomment: K_Aaq = 1.d-4  ! [mol/L water]
+  !uncomment: K_Baq = 5.d-5  ! [mol/L water]
+  !uncomment: stoichA = -1.d0
+  !uncomment: stoichB = -2.d0
+  !uncomment: stoichC = 1.d0
+  !uncomment: Rate = k * Xim * Aaq / (K_Aaq + Aaq) * &
+  !uncomment:                  Baq / (K_Baq + Baq) * volume ! [mol/sec]
+  !uncomment: RateA = stoichA * Rate
+  !uncomment: RateB = stoichB * Rate
+  !uncomment: RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
+  ! decay and ingrowth
+  ! A -> B -> C
+  ! first-order rate constants
+  !uncomment: k = 1.26839d-9  ! [1/sec]
+  !uncomment: k1 = 2.d-9   ! [1/sec]
+  !uncomment: k2 = 1.26839d-9  ! [1/sec]
+  ! stoichiometries are moles of products generated from a mole of reactant
+  !uncomment: stoichB = 3.d0
+  !uncomment: stoichC = 1.d0
+  !uncomment: stoichD = 2.d0
+  !uncomment: Rate  = k *  Aaq * L_water  ! [mol/sec]
+  !uncomment: Rate1 = k1 * Baq * L_water  ! [mol/sec]
+  !uncomment: Rate2 = k2 * Caq * L_water  ! [mol/sec]
+  !uncomment: RateA =                   - stoichB * Rate
+  !uncomment: RateB =   stoichB * Rate  - stoichC * Rate1
+  !uncomment: RateC =   stoichC * Rate1 - stoichD * Rate2
+  !uncomment: RateD =   stoichD * Rate2
+
+  !----------------------------------------------------------------------------
   ! first-order forward - reverse (A <-> C)
-  ! uncomment from the next line down
-  !k = 1.d-6   ! [1/sec]
-  !kr = 1.d-7  ! [1/sec]
-  !stoichA = -1.d0
-  !stoichC = 1.d0
-  !Rate = (k * Aaq - kr * Caq) * L_water  ! [mol/sec]
-  !RateA = stoichA * Rate
-  !RateC = stoichC * Rate
+  !uncomment: k = 5.d-9   ! [1/sec]
+  !uncomment: kr = 2.5d-9  ! [1/sec]
+  !uncomment: stoichA = -1.d0
+  !uncomment: stoichC = 1.d0
+  !uncomment: Rate = (k * Aaq - kr * Caq) * L_water  ! [mol/sec]
+  !uncomment: RateA = stoichA * Rate
+  !uncomment: RateC = stoichC * Rate
 
   !----------------------------------------------------------------------------
   ! mass transfer between aqueous and immobile phases
@@ -294,14 +293,13 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   ! volume [m^3 bulk volume]
   ! L_water [L water]
   ! Rate [mole/sec]
-  ! uncomment from the next line down
-  !k = 1.d-8
-  !kr = 1.d-10
-  !stoichB = -1.d0
-  !stoichY = 1.d0
-  !Rate = k * Baq * L_water - kr * Yim * volume  ! [mol/sec]
-  !RateB = stoichB * Rate
-  !RateY = stoichY * Rate
+  !uncomment: k = 5.d-10
+  !uncomment: kr = 5.d-9
+  !uncomment: stoichB = -5.d0
+  !uncomment: stoichY = 1.d0
+  !uncomment: Rate = k * Baq * L_water - kr * Yim * volume  ! [mol/sec]
+  !uncomment: RateB = stoichB * Rate
+  !uncomment: RateY = stoichY * Rate
   
   ! NOTES
   ! 1. Always subtract contribution from residual
@@ -316,7 +314,13 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
     Residual(this%species_Xim_id + reaction%offset_immobile) - RateX
   Residual(this%species_Yim_id + reaction%offset_immobile) = &
     Residual(this%species_Yim_id + reaction%offset_immobile) - RateY
+
+  if (compute_derivative) then
+    option%io_buffer = 'Reaction Sandbox Simple does not support analytical &
+                       &derivatives.'
+    call PrintErrMsg(option)
+  endif
   
-end subroutine SimpleReact
+end subroutine SimpleEvaluate
 
 end module Reaction_Sandbox_Simple_class

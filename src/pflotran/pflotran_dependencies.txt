@@ -570,9 +570,8 @@ pmc_subsurface.o : convergence.o discretization.o field.o general_aux.o grid.o \
                    pm_base.o pm_base_pointer.o pm_general.o pm_nwt.o \
                    pm_richards.o pm_rt.o pm_subsurface_flow.o pm_th.o \
                    pm_ufd_decay.o pm_waste_form.o pm_wipp_flow.o pmc_base.o \
-                   realization_subsurface.o secondary_continuum.o solver.o \
-                   timestepper_BE.o timestepper_TS.o timestepper_base.o \
-                   variables.o
+                   realization_subsurface.o solver.o timestepper_BE.o \
+                   timestepper_TS.o timestepper_base.o variables.o
 pmc_subsurface_osrt.o : debug.o discretization.o field.o global_aux.o grid.o \
                         material_aux.o option.o output.o patch.o \
                         pflotran_constants.o pm_osrt.o pm_rt.o \
@@ -658,6 +657,7 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      output_aux.o pflotran_constants.o reaction_aux.o \
                      reaction_sandbox_base.o reaction_sandbox_clm_cn.o \
                      reaction_sandbox_example.o reaction_sandbox_gas.o \
+                     reaction_sandbox_gmd_1.o reaction_sandbox_gmd_2.o \
                      reaction_sandbox_pnnl_cyber.o reaction_sandbox_simple.o \
                      reaction_sandbox_ufd_wp.o reactive_transport_aux.o \
                      string.o utility.o
@@ -678,6 +678,14 @@ reaction_sandbox_gas.o : global_aux.o input_aux.o material_aux.o option.o \
                          reaction_gas_aux.o reaction_immobile_aux.o \
                          reaction_sandbox_base.o reactive_transport_aux.o \
                          string.o units.o
+reaction_sandbox_gmd_1.o : global_aux.o material_aux.o option.o \
+                           pflotran_constants.o reaction_aux.o \
+                           reaction_immobile_aux.o reaction_sandbox_base.o \
+                           reactive_transport_aux.o
+reaction_sandbox_gmd_2.o : global_aux.o input_aux.o material_aux.o option.o \
+                           pflotran_constants.o reaction_aux.o \
+                           reaction_immobile_aux.o reaction_sandbox_gmd_1.o \
+                           reactive_transport_aux.o string.o utility.o
 reaction_sandbox_pnnl_cyber.o : global_aux.o input_aux.o material_aux.o \
                                 option.o output_aux.o pflotran_constants.o \
                                 reaction_aux.o reaction_immobile_aux.o \
