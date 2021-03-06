@@ -78,6 +78,9 @@ subroutine ERTSetupPatch(realization)
 
   patch%aux%ERT => ERTAuxCreate()
 
+  ! ensure mapping of local cell ids to neighboring ghosted ids exits
+  call GridSetupCellNeighbors(grid,option)
+
   ! ensure that material properties specific to this module are properly
   ! initialized i.e. electrical_conductivity is initialized
   material_auxvars => patch%aux%Material%auxvars
