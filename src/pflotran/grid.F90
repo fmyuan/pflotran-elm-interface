@@ -1576,7 +1576,11 @@ subroutine GridCheckCellNeighbors(grid,option)
           if (abs(grid%cell_neighbors_local_ghosted(i,local_id_up)) == &
               ghosted_id_dn) then
             check(0,local_id_up) = check(0,local_id_up)+1
-            check(i,local_id_up) = ghosted_id_dn
+            if (local_id_dn > 0) then
+              check(i,local_id_up) = ghosted_id_dn
+            else ! negative id for ghosted
+              check(i,local_id_up) = -ghosted_id_dn
+            endif
             exit
           endif
         enddo
@@ -1586,7 +1590,11 @@ subroutine GridCheckCellNeighbors(grid,option)
           if (abs(grid%cell_neighbors_local_ghosted(i,local_id_dn)) == &
               ghosted_id_up) then
             check(0,local_id_dn) = check(0,local_id_dn)+1
-            check(i,local_id_dn) = ghosted_id_up
+            if (local_id_up > 0) then
+              check(i,local_id_dn) = ghosted_id_up
+            else ! negative id for ghosted
+              check(i,local_id_dn) = -ghosted_id_up
+            endif
             exit
           endif
         enddo
@@ -1595,12 +1603,13 @@ subroutine GridCheckCellNeighbors(grid,option)
     cur_connection_set => cur_connection_set%next
   enddo
 
-  if (maxval(grid%cell_neighbors_local_ghosted-check) > 0) then
+  if (maxval(abs(grid%cell_neighbors_local_ghosted-check)) > 0) then
     ! do i = 1, grid%nlmax
     !   print *, grid%cell_neighbors_local_ghosted(:,i)
     !   print *, check(:,i)
     !   print *, '--'
     ! enddo
+    option%exit_code = EXIT_FAILURE
     option%io_buffer = 'Error mapping neighboring cells.  Please send &
      &your input files to pflotran-dev@googlegroups.com'
     call PrintErrMsgByRank(option)

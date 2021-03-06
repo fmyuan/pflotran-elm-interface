@@ -67,6 +67,7 @@ module Grid_Structured_module
     PetscInt, pointer :: cell_neighbors_local_ghosted(:,:)
                             ! (0,local_id) = number of neighbors for local_id
                             ! (iface=1:6,local_id) = ghosted_ids of neighbors
+                            ! ghosted neighbors have negative ghost_ids
     PetscBool :: second_order_bc
     
   end type grid_structured_type
@@ -1661,6 +1662,7 @@ subroutine StructGridPopulateCellNeighbors(structured_grid,option)
   PetscInt :: icount
   PetscInt :: local_id
   PetscInt :: ghosted_id
+  PetscInt :: id
   PetscBool :: xs_ghosted, xe_ghosted
   PetscBool :: ys_ghosted, ye_ghosted
   PetscBool :: zs_ghosted, ze_ghosted
@@ -1683,29 +1685,41 @@ subroutine StructGridPopulateCellNeighbors(structured_grid,option)
         local_id = local_id + 1
         ghosted_id = i+j*structured_grid%ngx+k*structured_grid%ngxy+1
         icount = 0
-        if  (i > 0 .or. xs_ghosted) then
+        if (i > 0 .or. xs_ghosted) then
+          id = ghosted_id-1
+          if (i == structured_grid%istart .and. i == 1) id = -id
           icount = icount + 1
-          cell_neighbors(icount,local_id) = ghosted_id-1
+          cell_neighbors(icount,local_id) = id
         endif
-        if  (i < structured_grid%iend .or. xe_ghosted) then
+        if (i < structured_grid%iend .or. xe_ghosted) then
+          id = ghosted_id+1
+          if (i == structured_grid%iend) id = -id
           icount = icount + 1
-          cell_neighbors(icount,local_id) = ghosted_id+1
+          cell_neighbors(icount,local_id) = id
         endif
-        if  (j > 0 .or. ys_ghosted) then
+        if (j > 0 .or. ys_ghosted) then
+          id = ghosted_id-structured_grid%ngx
+          if (j == structured_grid%jstart .and. j == 1) id = -id
           icount = icount + 1
-          cell_neighbors(icount,local_id) = ghosted_id-structured_grid%ngx
+          cell_neighbors(icount,local_id) = id
         endif
-        if  (j < structured_grid%jend .or. ye_ghosted) then
+        if (j < structured_grid%jend .or. ye_ghosted) then
+          id = ghosted_id+structured_grid%ngx
+          if (j == structured_grid%jend) id = -id
           icount = icount + 1
-          cell_neighbors(icount,local_id) = ghosted_id+structured_grid%ngx
+          cell_neighbors(icount,local_id) = id
         endif
-        if  (k > 0 .or. zs_ghosted) then
+        if (k > 0 .or. zs_ghosted) then
+          id = ghosted_id-structured_grid%ngxy
+          if (k == structured_grid%kstart .and. k == 1) id = -id
           icount = icount + 1
-          cell_neighbors(icount,local_id) = ghosted_id-structured_grid%ngxy
+          cell_neighbors(icount,local_id) = id
         endif
-        if  (k < structured_grid%kend .or. ze_ghosted) then
+        if (k < structured_grid%kend .or. ze_ghosted) then
+          id = ghosted_id+structured_grid%ngxy
+          if (k == structured_grid%kend) id = -id
           icount = icount + 1
-          cell_neighbors(icount,local_id) = ghosted_id+structured_grid%ngxy
+          cell_neighbors(icount,local_id) = id
         endif
         cell_neighbors(0,local_id) = icount
       enddo

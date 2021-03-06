@@ -720,7 +720,12 @@ subroutine PrintErrMsgByRank2(option,string)
     print *
     print *, 'Stopping!'
   endif
-  call exit(EXIT_USER_ERROR)
+  select case(option%exit_code)
+    case(EXIT_FAILURE)
+      call exit(option%exit_code)
+    case default
+      call exit(EXIT_USER_ERROR)
+  end select
 
 end subroutine PrintErrMsgByRank2
 
