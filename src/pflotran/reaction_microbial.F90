@@ -271,7 +271,6 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   
   PetscInt, parameter :: iphase = 1
-  PetscReal :: por_sat_vol
   PetscInt :: irxn, i, ii, icomp, jcomp, ncomp
   PetscInt :: imonod, iinhibition, ibiomass
   PetscReal :: Im
@@ -284,12 +283,15 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   PetscInt :: immobile_id
   PetscReal :: denominator, dR_dX, dX_dc, dR_dc, dR_dbiomass
   PetscReal :: tempreal
+  PetscReal :: L_water
   type(microbial_type), pointer :: microbial
   type(immobile_type), pointer :: immobile
   
   microbial => reaction%microbial
   immobile => reaction%immobile
-  
+
+  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
+            material_auxvar%volume*1.d3
   ! units:
   ! Residual: mol/sec
   ! Jacobian: (mol/sec)*(kg water/mol) = kg water/sec
@@ -351,15 +353,12 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       immobile_id = reaction%offset_immobile + ibiomass
       biomass_conc = rt_auxvar%immobile(ibiomass)
       yield = microbial%biomass_yield(irxn)
-      Im = Im*biomass_conc
+      ! Im units (before): mol/mol biomass-sec
+      Im = Im*biomass_conc*material_auxvar%volume
+    else
+      ! Im units (before): mol/L-sec
+      Im = Im * L_water
     endif
-    
-    ! por_sat_vol units: m^3 water
-    por_sat_vol = material_auxvar%porosity*global_auxvar%sat(iphase)* &
-                  material_auxvar%volume
-
-    ! Im units (before): mol/L-sec
-    Im = Im * 1.d3*por_sat_vol
     ! Im units (after): mol/sec
     
     do i = 1, ncomp
