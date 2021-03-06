@@ -71,7 +71,7 @@ module Grid_module
     ! this is just a pointer to structured or unstructured version
     PetscInt, pointer :: cell_neighbors_local_ghosted(:,:)
                             ! (0,local_id) = number of neighbors for local_id
-                            ! (iface=1:6,local_id) = ghosted_ids of neighbors
+                            ! (iface=1:N,local_id) = ghosted_ids of neighbors
                             ! ghosted neighbors have negative ghost_ids
 
     type(grid_structured_type), pointer :: structured_grid
