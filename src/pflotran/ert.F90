@@ -156,7 +156,7 @@ subroutine ERTCalculateMatrix(realization,M)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
   PetscInt :: num_neighbors_up, num_neighbors_dn
-  PetscInt :: ineighbor(1)
+  PetscInt :: ineighbor
   ! Matrix coefficients
   PetscReal :: coef_up, coef_dn
   PetscReal :: dcoef_up, dcoef_dn
@@ -244,8 +244,12 @@ subroutine ERTCalculateMatrix(realization,M)
 
         ! For dM/dcond_up matrix
         num_neighbors_up = grid%cell_neighbors_local_ghosted(0,local_id_up)
-        ineighbor = findloc(grid%cell_neighbors_local_ghosted(1:,local_id_up),&
-                            ghosted_id_dn)
+        !ineighbor = findloc(grid%cell_neighbors_local_ghosted(1:,local_id_up),&
+        !                    ghosted_id_dn)
+        ineighbor = FindLocNeighbor(                                         &
+                          grid%cell_neighbors_local_ghosted(1:,local_id_up), &
+                          num_neighbors_up,ghosted_id_dn)
+
         if (.not.associated(ert_auxvars(ghosted_id_up)%delM)) then
            allocate(ert_auxvars(ghosted_id_up)%delM(num_neighbors_up + 1))
            ert_auxvars(ghosted_id_up)%delM = 0.d0
@@ -253,7 +257,7 @@ subroutine ERTCalculateMatrix(realization,M)
         
         ! Fill values to dM/dcond_up matrix for up cell
         call FillValuesToDelM(dcoef_up,dcoef_dn,num_neighbors_up, &
-                              ineighbor(1),ert_auxvars(ghosted_id_up)%delM)
+                              ineighbor,ert_auxvars(ghosted_id_up)%delM)
 
       endif
 
@@ -273,8 +277,12 @@ subroutine ERTCalculateMatrix(realization,M)
 
         ! For dM/dcond_dn matrix
         num_neighbors_dn = grid%cell_neighbors_local_ghosted(0,local_id_dn)
-        ineighbor = findloc(grid%cell_neighbors_local_ghosted(1:,local_id_dn),&
-                            ghosted_id_up)
+        !ineighbor = findloc(grid%cell_neighbors_local_ghosted(1:,local_id_dn),&
+        !                    ghosted_id_up)
+        ineighbor = FindLocNeighbor(                                         &
+                          grid%cell_neighbors_local_ghosted(1:,local_id_dn), &
+                          num_neighbors_dn,ghosted_id_up)
+
         if (.not.associated(ert_auxvars(ghosted_id_dn)%delM)) then
           allocate(ert_auxvars(ghosted_id_dn)%delM(num_neighbors_dn + 1))
           ert_auxvars(ghosted_id_dn)%delM = 0.d0
@@ -282,7 +290,7 @@ subroutine ERTCalculateMatrix(realization,M)
 
         ! Fill values to dM/dcond_dn matrix for up cell
         call FillValuesToDelM(dcoef_dn,dcoef_up,num_neighbors_dn, &
-                              ineighbor(1),ert_auxvars(ghosted_id_dn)%delM)
+                              ineighbor,ert_auxvars(ghosted_id_dn)%delM)
 
       endif
 
@@ -345,7 +353,8 @@ subroutine ERTCalculateMatrix(realization,M)
   endif
 
 contains
-  subroutine FillValuesToDelM(dcoef_self,dcoef_nbr,num_nbr,i_nbr,delM)
+  subroutine FillValuesToDelM(dcoef_self,dcoef_neighbor,num_neighbors, &
+                              ineighbor,delM)
     ! 
     ! Fills out upper traingle part of the dM/dcond matrix for each cell
     !   Storing only first rows as other rows can easily be retrieved
@@ -356,18 +365,39 @@ contains
 
     implicit none
 
-    PetscReal :: dcoef_self, dcoef_nbr
-    PetscInt :: num_nbr
-    PetscInt :: i_nbr
-    PetscReal :: delM(num_nbr + 1)
+    PetscReal :: dcoef_self, dcoef_neighbor
+    PetscInt :: num_neighbors
+    PetscInt :: ineighbor
+    PetscReal :: delM(num_neighbors + 1)
 
     ! Add values for self
     delM(1) = delM(1) + dcoef_self
     ! insert values for neighbor
-    delM(i_nbr) = dcoef_nbr
-    !delM(1 + num_nbr + i_nbr) = - dcoef_nbr
+    delM(ineighbor) = dcoef_neighbor
+    !delM(1 + num_neighbor + i_neighbor) = - dcoef_neighbor
 
   end subroutine FillValuesToDelM
+
+  function FindLocNeighbor(neighbors,num_neighbors,id_neighbor) &
+                                                            result(ineighbor)
+    implicit none
+
+    PetscInt :: num_neighbors
+    PetscInt :: neighbors(num_neighbors)
+    PetscInt :: id_neighbor
+    PetscInt :: ineighbor
+
+    do ineighbor = 1,num_neighbors
+      if(neighbors(ineighbor) == id_neighbor) exit
+    enddo
+
+    if (ineighbor > num_neighbors) then
+      option%io_buffer = 'ERTCalculateMatrix: There is something wrong ' // &
+        'in finding neighbor location. '
+      call PrintErrMsg(option)
+    endif    
+
+  end function FindLocNeighbor
   
 end subroutine ERTCalculateMatrix
 
