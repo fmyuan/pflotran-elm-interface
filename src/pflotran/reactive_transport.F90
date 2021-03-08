@@ -3561,7 +3561,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
                        secondary_continuum_porosity
                         
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
-          option%io_buffer = 'Current multicomponent implementation is for '// &
+          option%io_buffer = 'Current multicontinuum implementation is for '// &
                              'aqueous reactions only'
           call PrintErrMsg(option)
         endif
