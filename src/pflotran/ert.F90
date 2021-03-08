@@ -142,6 +142,7 @@ subroutine ERTCalculateMatrix(realization,M)
   Mat :: M
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -154,11 +155,16 @@ subroutine ERTCalculateMatrix(realization,M)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
+  PetscInt :: num_neighbors_up, num_neighbors_dn
+  PetscInt :: ineighbor(1)
   ! Matrix coefficients
   PetscReal :: coef_up, coef_dn
+  PetscReal :: dcoef_up, dcoef_dn
   PetscReal :: area
+  PetscReal :: factor,factor2
   ! Electrical conductivity
   PetscReal :: cond_up, cond_dn, cond_avg
+  PetscReal :: dcond_avg_up, dcond_avg_dn
   PetscReal :: dist_up, dist_dn, dist_0
   PetscReal :: up_frac
   PetscViewer :: viewer
@@ -169,6 +175,7 @@ subroutine ERTCalculateMatrix(realization,M)
   field => realization%field
   patch => realization%patch
   material_auxvars => patch%aux%Material%auxvars
+  ert_auxvars => patch%aux%ERT%auxvars
   grid => patch%grid
 
   ! Pre-set Matrix to zeros
@@ -208,7 +215,15 @@ subroutine ERTCalculateMatrix(realization,M)
 
       ! get harmonic averaged conductivity at the face
       ! NB: cond_avg is actually cond_avg/dist_0
-      cond_avg = (cond_up * cond_dn) / (dist_up*cond_dn + dist_dn*cond_up)
+      factor = dist_up*cond_dn + dist_dn*cond_up
+      cond_avg = (cond_up * cond_dn) / factor
+
+      ! For dM/dcond matrix
+      ! dcond_avg_* = dcond_avg/dcond_*
+      ! NB: dcond_avg_* is acutally dcond_avg_*/dist_0 
+      factor2 = factor * factor
+      dcond_avg_up = dist_up*cond_dn*cond_dn / factor2
+      dcond_avg_dn = dist_dn*cond_up*cond_up / factor2
 
       area = cur_connection_set%area(iconn)
 
@@ -216,22 +231,59 @@ subroutine ERTCalculateMatrix(realization,M)
       coef_up = - cond_avg * area
       coef_dn =   cond_avg * area
 
+      ! For dM/dcond matrix
+      dcoef_up = - dcond_avg_up * area
+      dcoef_dn =   dcond_avg_up * area
+
       if (local_id_up > 0) then
         ! set matrix coefficients for the upwind cell
         call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
+
+        ! For dM/dcond_up matrix
+        num_neighbors_up = grid%cell_neighbors_local_ghosted(0,local_id_up)
+        ineighbor = findloc(grid%cell_neighbors_local_ghosted(1:,local_id_up),&
+                            ghosted_id_dn)
+        if (.not.associated(ert_auxvars(ghosted_id_up)%delM)) then
+           allocate(ert_auxvars(ghosted_id_up)%delM(num_neighbors_up + 1))
+           ert_auxvars(ghosted_id_up)%delM = 0.d0
+        endif
+        
+        ! Fill values to dM/dcond_up matrix for up cell
+        call FillValuesToDelM(dcoef_up,dcoef_dn,num_neighbors_up, &
+                              ineighbor(1),ert_auxvars(ghosted_id_up)%delM)
+
       endif
 
       if (local_id_dn > 0) then
         ! set matrix coefficients for the downwind cell
         coef_up = - coef_up
         coef_dn = - coef_dn
+
+        ! For dM/dcond matrix
+        dcoef_up =   dcond_avg_dn * area
+        dcoef_dn = - dcond_avg_dn * area
+
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
+
+        ! For dM/dcond_dn matrix
+        num_neighbors_dn = grid%cell_neighbors_local_ghosted(0,local_id_dn)
+        ineighbor = findloc(grid%cell_neighbors_local_ghosted(1:,local_id_dn),&
+                            ghosted_id_up)
+        if (.not.associated(ert_auxvars(ghosted_id_dn)%delM)) then
+          allocate(ert_auxvars(ghosted_id_dn)%delM(num_neighbors_dn + 1))
+          ert_auxvars(ghosted_id_dn)%delM = 0.d0
+        endif
+
+        ! Fill values to dM/dcond_dn matrix for up cell
+        call FillValuesToDelM(dcoef_dn,dcoef_up,num_neighbors_dn, &
+                              ineighbor(1),ert_auxvars(ghosted_id_dn)%delM)
+
       endif
 
     enddo
@@ -292,6 +344,31 @@ subroutine ERTCalculateMatrix(realization,M)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
+contains
+  subroutine FillValuesToDelM(dcoef_self,dcoef_nbr,num_nbr,i_nbr,delM)
+    ! 
+    ! Fills out upper traingle part of the dM/dcond matrix for each cell
+    !   Storing only first rows as other rows can easily be retrieved
+    !   from off-diagonal elements of the first row.
+    !
+    ! Author: Piyoosh Jaysaval
+    ! Date: 03/08/21
+
+    implicit none
+
+    PetscReal :: dcoef_self, dcoef_nbr
+    PetscInt :: num_nbr
+    PetscInt :: i_nbr
+    PetscReal :: delM(num_nbr + 1)
+
+    ! Add values for self
+    delM(1) = delM(1) + dcoef_self
+    ! insert values for neighbor
+    delM(i_nbr) = dcoef_nbr
+    !delM(1 + num_nbr + i_nbr) = - dcoef_nbr
+
+  end subroutine FillValuesToDelM
+  
 end subroutine ERTCalculateMatrix
 
 ! ************************************************************************** !

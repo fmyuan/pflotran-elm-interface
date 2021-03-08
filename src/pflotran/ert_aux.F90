@@ -12,6 +12,7 @@ module ERT_Aux_module
   type, public :: ert_auxvar_type
     PetscReal, pointer :: potential(:)    ! ERT potential for all electrodes
     PetscReal, pointer :: jacobian(:)     ! ERT jacobian for all measurements
+    PetscReal, pointer :: delM(:)         ! system matrix derivative dM/dcond
   end type ert_auxvar_type
 
   type, public :: ert_type
@@ -150,6 +151,7 @@ subroutine ERTAuxVarDestroy(auxvar)
 
   call DeallocateArray(auxvar%potential)
   call DeallocateArray(auxvar%jacobian)
+  call DeallocateArray(auxvar%delM)
 
 end subroutine ERTAuxVarDestroy
 
