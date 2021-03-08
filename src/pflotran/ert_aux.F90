@@ -81,6 +81,8 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
   auxvar%potential = 0.d0
   auxvar%jacobian = 0.d0
 
+  nullify(auxvar%delM)
+
 end subroutine ERTAuxVarInit
 
 ! ************************************************************************** !

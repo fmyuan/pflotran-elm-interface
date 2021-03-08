@@ -388,7 +388,7 @@ contains
     PetscInt :: ineighbor
 
     do ineighbor = 1,num_neighbors
-      if(neighbors(ineighbor) == id_neighbor) exit
+      if(abs(neighbors(ineighbor)) == id_neighbor) exit
     enddo
 
     if (ineighbor > num_neighbors) then
