@@ -3532,7 +3532,9 @@ subroutine BasisInit(reaction,option)
     
     if (option%use_mc) then
       call IsothermRxnCreate(reaction%isotherm%multicontinuum_isotherm_rxn, &
-        reaction%isotherm) 
+                             reaction%isotherm)
+      sec_cont_cur_isotherm_rxn => &
+        reaction%isotherm%multicontinuum_isotherm_list
     endif
     
     irxn = 0
