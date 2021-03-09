@@ -415,7 +415,9 @@ subroutine PMERTSolve(this)
 
   ! Assemble solutions
   call PMERTAssembleSimulatedData(this)
-  !print*,survey%dsim
+
+  ! Build Jacobian
+  call PMERTBuildJacobian(this)
 
 end subroutine PMERTSolve
 
@@ -511,13 +513,12 @@ subroutine PMERTBuildJacobian(this)
   ! Builds ERT Jacobian Matrix distributed across processors
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 03/05/21
+  ! Date: 03/09/21
   !
 
   use Patch_module
   use Grid_module
   use Survey_module
-  use Material_Aux_class
 
   implicit none 
 
@@ -528,17 +529,19 @@ subroutine PMERTBuildJacobian(this)
   type(option_type), pointer :: option
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscReal :: phi_sor,phi_rec 
+  PetscInt, pointer :: cell_neighbors(:,:)
+  PetscReal, allocatable :: phi_sor(:), phi_rec(:)
+  PetscReal :: jacob
   PetscInt :: idata
   PetscInt :: ielec
-  PetscInt :: ia,ib,im,in 
+  PetscInt :: ia,ib,im,in
   PetscInt :: local_id,ghosted_id
   PetscInt :: local_id_a,local_id_b
   PetscInt :: ghosted_id_a,ghosted_id_b 
   PetscInt :: local_id_m,local_id_n
-  PetscInt :: ghosted_id_m,ghosted_id_n 
+  PetscInt :: ghosted_id_m,ghosted_id_n
+  PetscInt :: inbr,num_neighbors
   PetscErrorCode :: ierr
 
   option => this%option
@@ -546,9 +549,9 @@ subroutine PMERTBuildJacobian(this)
   grid => patch%grid
   survey => this%survey
 
-  ert_auxvars => patch%aux%ERT%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-  
+  ert_auxvars => patch%aux%ERT%auxvars  
+  cell_neighbors => grid%cell_neighbors_local_ghosted
+
   do idata=1,survey%num_measurement
     
     ! for A and B electrodes
@@ -562,26 +565,63 @@ subroutine PMERTBuildJacobian(this)
       ghosted_id = grid%nL2G(local_id)         
       if (patch%imat(ghosted_id) <= 0) cycle
     
-      phi_sor = 0.
-      phi_rec = 0.
+      num_neighbors = cell_neighbors(0,local_id)
+      allocate(phi_sor(num_neighbors+1), phi_rec(num_neighbors+1))
+      phi_sor = 0.d0
+      phi_rec = 0.d0
 
       ! Source electrode +A
-      if (ia/=0) phi_sor = phi_sor + ert_auxvars(ghosted_id)%potential(ia)
-  
+      if(ia/=0) phi_sor(1) = phi_sor(1) + ert_auxvars(ghosted_id)%potential(ia)
       ! Source electrode -B
-      if (ib/=0) phi_sor = phi_sor - ert_auxvars(ghosted_id)%potential(ib)
-
+      if(ib/=0) phi_sor(1) = phi_sor(1) - ert_auxvars(ghosted_id)%potential(ib)
       ! Receiver electrode +M
-      if (im/=0) phi_rec = phi_rec + ert_auxvars(ghosted_id)%potential(im)
-
+      if(im/=0) phi_rec(1) = phi_rec(1) + ert_auxvars(ghosted_id)%potential(im)
       ! Receiver electrode -N
-      if (in/=0) phi_rec = phi_rec - ert_auxvars(ghosted_id)%potential(im)
+      if(in/=0) phi_rec(1) = phi_rec(1) - ert_auxvars(ghosted_id)%potential(in)
 
-      ert_auxvars(ghosted_id)%jacobian(idata) = &
-                      phi_sor * phi_rec * material_auxvars(ghosted_id)%volume
+      jacob = phi_sor(1) * ert_auxvars(ghosted_id)%delM(1) * phi_rec(1)
 
-    enddo
+      do inbr = 1,num_neighbors
+        ! Source electrode +A
+        if (ia/=0) then        
+          phi_sor(inbr+1) = phi_sor(inbr+1) +                               &
+               ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(ia)
+        endif
+
+        ! Source electrode -B
+        if (ib/=0) then
+          phi_sor(inbr+1) = phi_sor(inbr+1) -                               &
+               ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(ib)
+        endif
+
+        ! Receiver electrode +M
+        if (im/=0) then
+          phi_rec(inbr+1) = phi_rec(inbr+1) +                               &
+               ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(im)
+        endif
+
+        ! Receiver electrode -N
+        if (in/=0) then
+          phi_rec(inbr+1) = phi_rec(inbr+1) -                               &
+               ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(in)
+        endif
+
+        jacob = jacob +                                                     &
+          phi_sor(1)*ert_auxvars(ghosted_id)%delM(1+inbr)*phi_rec(inbr+1) + &
+          phi_sor(1+inbr) * (                                               &
+                      ert_auxvars(ghosted_id)%delM(1+inbr)*phi_rec(1) -     &
+                      ert_auxvars(ghosted_id)%delM(1+inbr)*phi_rec(1+inbr) )
+
+      enddo
+
+      ert_auxvars(ghosted_id)%jacobian(idata) = - jacob
+
+      deallocate(phi_sor, phi_rec)
+
+    enddo    
   enddo  
+
+  ! I can now deallocate potential and delM (and M just after solving)
 
 end subroutine PMERTBuildJacobian
 

@@ -222,18 +222,18 @@ subroutine ERTCalculateMatrix(realization,M)
       ! dcond_avg_* = dcond_avg/dcond_*
       ! NB: dcond_avg_* is acutally dcond_avg_*/dist_0 
       factor2 = factor * factor
-      dcond_avg_up = dist_up*cond_dn*cond_dn / factor2
-      dcond_avg_dn = dist_dn*cond_up*cond_up / factor2
+      dcond_avg_up = (dist_up*cond_dn*cond_dn) / factor2
+      dcond_avg_dn = (dist_dn*cond_up*cond_up) / factor2
 
       area = cur_connection_set%area(iconn)
 
       ! get matrix coefficients for up cell
       coef_up = - cond_avg * area
-      coef_dn =   cond_avg * area
+      coef_dn = - coef_up                   ! cond_avg * area
 
-      ! For dM/dcond matrix
+      ! For dM/dcond matrix wrt cond_up
       dcoef_up = - dcond_avg_up * area
-      dcoef_dn =   dcond_avg_up * area
+      dcoef_dn = - dcoef_up                 ! dcond_avg_up * area
 
       if (local_id_up > 0) then
         ! set matrix coefficients for the upwind cell
@@ -244,19 +244,18 @@ subroutine ERTCalculateMatrix(realization,M)
 
         ! For dM/dcond_up matrix
         num_neighbors_up = grid%cell_neighbors_local_ghosted(0,local_id_up)
-        !ineighbor = findloc(grid%cell_neighbors_local_ghosted(1:,local_id_up),&
-        !                    ghosted_id_dn)
-        ineighbor = FindLocNeighbor(                                         &
-                          grid%cell_neighbors_local_ghosted(1:,local_id_up), &
-                          num_neighbors_up,ghosted_id_dn)
+        ineighbor = FindLocNeighbor(                                        &
+                                    grid%cell_neighbors_local_ghosted       &
+                                    (1:num_neighbors_up,local_id_up),       &
+                                    num_neighbors_up,ghosted_id_dn)
 
         if (.not.associated(ert_auxvars(ghosted_id_up)%delM)) then
-           allocate(ert_auxvars(ghosted_id_up)%delM(num_neighbors_up + 1))
-           ert_auxvars(ghosted_id_up)%delM = 0.d0
+          allocate(ert_auxvars(ghosted_id_up)%delM(num_neighbors_up + 1))
+          ert_auxvars(ghosted_id_up)%delM = 0.d0
         endif
         
         ! Fill values to dM/dcond_up matrix for up cell
-        call FillValuesToDelM(dcoef_up,dcoef_dn,num_neighbors_up, &
+        call FillValuesToDelM(dcoef_up,dcoef_dn,num_neighbors_up,           &
                               ineighbor,ert_auxvars(ghosted_id_up)%delM)
 
       endif
@@ -268,7 +267,7 @@ subroutine ERTCalculateMatrix(realization,M)
 
         ! For dM/dcond matrix
         dcoef_up =   dcond_avg_dn * area
-        dcoef_dn = - dcond_avg_dn * area
+        dcoef_dn = - dcoef_up               ! - dcond_avg_dn * area
 
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -277,11 +276,10 @@ subroutine ERTCalculateMatrix(realization,M)
 
         ! For dM/dcond_dn matrix
         num_neighbors_dn = grid%cell_neighbors_local_ghosted(0,local_id_dn)
-        !ineighbor = findloc(grid%cell_neighbors_local_ghosted(1:,local_id_dn),&
-        !                    ghosted_id_up)
-        ineighbor = FindLocNeighbor(                                         &
-                          grid%cell_neighbors_local_ghosted(1:,local_id_dn), &
-                          num_neighbors_dn,ghosted_id_up)
+        ineighbor = FindLocNeighbor(                                        &
+                                    grid%cell_neighbors_local_ghosted       &
+                                    (1:num_neighbors_dn,local_id_dn),       &
+                                    num_neighbors_dn,ghosted_id_up)
 
         if (.not.associated(ert_auxvars(ghosted_id_dn)%delM)) then
           allocate(ert_auxvars(ghosted_id_dn)%delM(num_neighbors_dn + 1))
@@ -289,7 +287,7 @@ subroutine ERTCalculateMatrix(realization,M)
         endif
 
         ! Fill values to dM/dcond_dn matrix for up cell
-        call FillValuesToDelM(dcoef_dn,dcoef_up,num_neighbors_dn, &
+        call FillValuesToDelM(dcoef_dn,dcoef_up,num_neighbors_dn,           &
                               ineighbor,ert_auxvars(ghosted_id_dn)%delM)
 
       endif
@@ -374,7 +372,10 @@ contains
     delM(1) = delM(1) + dcoef_self
     ! insert values for neighbor
     delM(ineighbor) = dcoef_neighbor
-    !delM(1 + num_neighbor + i_neighbor) = - dcoef_neighbor
+
+    ! Not storing following as these can be retrieved from ineighbor's value
+    !delM(1 + num_neighbor + 2*ineighbor -1) = dcoef_neighbor
+    !delM(1 + num_neighbor + 2*ineighbor) = - dcoef_neighbor
 
   end subroutine FillValuesToDelM
 
