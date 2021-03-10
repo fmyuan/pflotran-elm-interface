@@ -616,13 +616,6 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
     constraint%constraint_area_units(imnrl) = internal_units
     if (Initialized(constraint%constraint_vol_frac(imnrl))) then
       if (per_unit_mass) then
-        if (constraint%constraint_vol_frac(imnrl) < 1.d-40) then
-          option%io_buffer = 'Zero volume fraction for mineral "' // &
-            trim(mineral_rxn%name) // '" prevents specifying mineral specific &
-            &surface area per mass mineral in constraint "' // &
-            trim(constraint_name) // '".'
-          call PrintErrMsg(option)
-        endif
         tempreal = tempreal * constraint%constraint_vol_frac(imnrl)
       endif
     endif  
