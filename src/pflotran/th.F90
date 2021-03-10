@@ -242,6 +242,13 @@ subroutine THSetupPatch(realization)
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
       !------------------------------------------
+      type is(kT_linear_type)
+        patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
+        tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
+        tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
+        patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
+      !------------------------------------------
       type is(kT_linear_resistivity_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
