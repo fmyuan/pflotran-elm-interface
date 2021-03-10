@@ -361,7 +361,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 
   type(option_type) :: option
   class(characteristic_curves_type) :: characteristic_curves
-  type(cc_thermal_type) :: thermal_cc
+  class(cc_thermal_type) :: thermal_cc
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -601,7 +601,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   type(option_type) :: option
   type(saturation_function_type) :: saturation_function
-  type(cc_thermal_type) :: thermal_cc
+  class(cc_thermal_type) :: thermal_cc
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
