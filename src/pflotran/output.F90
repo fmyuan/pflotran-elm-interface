@@ -176,7 +176,20 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
-
+!...............................
+      case('NO_PRINT_SOURCE_SINK')
+        select case(trim(block_name))
+          case('OBSERVATION_FILE')
+            option%io_buffer = 'NO_PRINT_SOURCE_SINK cannot be specified for &
+                               &OUTPUT,OBSERVATION_FILE block.'
+            call PrintErrMsg(option)
+          case('SNAPSHOT_FILE')
+            option%io_buffer = 'NO_PRINT_SOURCE_SINK cannot be specified for &
+                               &OUTPUT,SNAPSHOT_FILE block.'
+            call PrintErrMsg(option)
+          case('MASS_BALANCE_FILE')
+            output_option%print_ss_massbal = PETSC_FALSE
+        end select
 !...............................
       case('TOTAL_MASS_REGIONS')
         select case(trim(block_name))

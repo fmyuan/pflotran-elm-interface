@@ -2448,6 +2448,7 @@ subroutine OutputMassBalance(realization_base)
             if (associated(patch%source_sink_list)) then
               coupler => patch%source_sink_list%first
               if (.not.associated(coupler)) exit
+              if (.not.output_option%print_ss_massbal) exit
             else
               exit
             endif
@@ -2712,6 +2713,7 @@ subroutine OutputMassBalance(realization_base)
         if (associated(patch%source_sink_list)) then
           coupler => patch%source_sink_list%first
           if (.not.associated(coupler)) exit
+          if (.not.output_option%print_ss_massbal) exit
           global_auxvars_bc_or_ss => patch%aux%Global%auxvars_ss
           if (option%ntrandof > 0) then
             select case(option%itranmode)
