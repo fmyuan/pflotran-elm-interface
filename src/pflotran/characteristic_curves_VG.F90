@@ -703,7 +703,6 @@ function SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Sj) result (new)
   case ('LNOC') ! Linear specified junction
     new => SF_VG_LNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
   case ('QUAD') ! Quadratic specified cap and junction
-    print *, "Creating quadratic extension", alpha, m, Sr, Pcmax, Sj
     new => SF_VG_quad_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax,Sj)
   case default
     nullify(new)
