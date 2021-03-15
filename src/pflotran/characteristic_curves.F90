@@ -789,6 +789,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
   ! At end of input block, call constructors if implemented
   ! Throw errors for invalid combinations of options or parameters
   if (loop_invariant) then 
+    ! Use default junction saturation if not specified
+    if (Slj == 0d0) Slj = Sr + 5d-2*(1d0-Sr)
     ! Call constructor
     select type (saturation_function)
     class is (sat_func_VG_type)

@@ -121,7 +121,7 @@ end type
     ! No-extension mutator methods
     procedure, public :: set_alpha              => SF_VG_set_alpha
     procedure, public :: set_m                  => SF_VG_set_m
-    ! No-extension pure methods
+    ! Internal no-extension pure methods
     procedure, private :: Pc                    => SF_VG_Pc
     procedure, private :: Sl                    => SF_VG_Sl
     procedure, private :: d2Sl_dPc2             => SF_VG_d2Sl_dPc2
@@ -165,7 +165,7 @@ end type
         ! Public mutator methods
         procedure, public  :: set_Pcmax         => SF_VG_cons_set_Pcmax
         procedure, public  :: set_Sj            => SF_VG_cons_set_Sj
-        ! Public methods for constant extension van Genuchten functions
+        ! Internal methods for constant extensions
         procedure, private :: Pc                => SF_VG_cons_Pc
         procedure, private :: Sl                => SF_VG_cons_Sl
         procedure, private :: d2Sl_dPc2         => SF_VG_cons_d2Sl_dPc2
@@ -182,7 +182,7 @@ end type
         ! Public mutator methods
         procedure, public  :: set_Pcmax         => SF_VG_expn_set_Pcmax
         procedure, public  :: set_Sj            => SF_VG_expn_set_Sj
-        ! Public methods for exponential extension van Genuchten functions
+        ! Internal methods for exponential extensions
         procedure, private :: Pc                => SF_VG_expn_Pc
         procedure, private :: Sl                => SF_VG_expn_Sl
         procedure, private :: d2Sl_dPc2         => SF_VG_expn_d2Sl_dPc2
@@ -196,10 +196,29 @@ end type
         ! Public mutator methods
         procedure, public  :: set_Pcmax         => SF_VG_line_set_Pcmax
         procedure, public  :: set_Sj            => SF_VG_line_set_Sj
-        ! Public methods for linear extension van Genuchten functions
+        ! Internal methods for linear extensions
         procedure, private :: Pc                => SF_VG_line_Pc
         procedure, private :: Sl                => SF_VG_line_Sl
         procedure, private :: d2Sl_dPc2         => SF_VG_line_d2Sl_dPc2
+      end type
+
+! VG Quadratic Unsaturated Extension
+      type, public, extends(SF_VG_extn_type) :: SF_VG_quad_type
+        private
+          PetscReal :: A, B            ! Quadratic coefficients
+          PetscReal :: dSl_dPcmax
+          PetscReal :: d2Sl_dPc2max
+          PetscBool :: qa_branch       ! Select inverse solution
+      contains
+        ! Public mutator methods
+        procedure, public  :: set_Pcmax         => SF_VG_quad_set_Pcmax
+        procedure, public  :: set_Sj            => SF_VG_quad_set_Sj
+        procedure, public  :: set_quad          => SF_VG_quad_set_quad
+        ! Internal methods for quadratic extensions
+        procedure, private :: Pc                => SF_VG_quad_Pc
+        procedure, private :: Sl                => SF_VG_quad_Sl
+        procedure, private :: d2Sl_dPc2         => SF_VG_quad_d2Sl_dPc2
+        procedure, private :: Sl_root           => SF_VG_quad_Sl_root
       end type
 
 ! **************************************************************************** !
@@ -356,7 +375,8 @@ end interface
              SF_VG_ECPC_ctor, & ! Exponential, specified maximum
              SF_VG_ENOC_ctor, & ! Exponential, specified junction
              SF_VG_LCPC_ctor, & ! Linear, specified maximum
-             SF_VG_LNOC_ctor    ! Linear, specified junction
+             SF_VG_LNOC_ctor, & ! Linear, specified junction
+             SF_VG_quad_ctor    ! Quadratic, specified maximum and junction
 
 ! Legacy RPF creation method
   public :: RPFMualemVGLiqCreate, &
@@ -655,35 +675,38 @@ end subroutine
 ! Common Loop-invariant VG Saturation Function Methods
 ! **************************************************************************** !
 
-function SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Slj)
+function SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Sj) result (new)
  use String_module
- class(SF_VG_type), pointer :: SF_VG_ctor
+ class(SF_VG_type), pointer :: new
  character(len=MAXWORDLENGTH), intent(inout) :: unsat_ext
- PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Slj
+ PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Sj
  PetscInt, intent(in) :: vg_rpf_opt
 
 ! This function returns a the van Genuchten saturation function object using
 ! the correct constructor method
- 
+
   call StringtoUpper(unsat_ext)
  
   select case (unsat_ext)
   case ('NONE') ! No extension
-    SF_VG_ctor => SF_VG_NEVG_ctor(alpha,m,Sr,vg_rpf_opt)
+    new => SF_VG_NEVG_ctor(alpha,m,Sr,vg_rpf_opt)
   case ('FCPC') ! Flat specified cap
-    SF_VG_ctor => SF_VG_FCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    new => SF_VG_FCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
   case ('FNOC') ! Flat specificed junction
-    SF_VG_ctor => SF_VG_FNOC_ctor(alpha,m,Sr,vg_rpf_opt,Slj)
+    new => SF_VG_FNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
   case ('ECPC') ! Exponential specified cap
-    SF_VG_ctor => SF_VG_ECPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    new => SF_VG_ECPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
   case ('ENOC') ! Exponential specified junction
-    SF_VG_ctor => SF_VG_ENOC_ctor(alpha,m,Sr,vg_rpf_opt,Slj)
+    new => SF_VG_ENOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
   case ('LCPC') ! Linear specified cap
-    SF_VG_ctor => SF_VG_LCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
+    new => SF_VG_LCPC_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax)
   case ('LNOC') ! Linear specified junction
-    SF_VG_ctor => SF_VG_LNOC_ctor(alpha,m,Sr,vg_rpf_opt,Slj)
+    new => SF_VG_LNOC_ctor(alpha,m,Sr,vg_rpf_opt,Sj)
+  case ('QUAD') ! Quadratic specified cap and junction
+    print *, "Creating quadratic extension", alpha, m, Sr, Pcmax, Sj
+    new => SF_VG_quad_ctor(alpha,m,Sr,vg_rpf_opt,Pcmax,Sj)
   case default
-    nullify(SF_VG_ctor)
+    nullify(new)
   end select
 end function
 
@@ -1432,6 +1455,182 @@ pure subroutine SF_VG_line_d2Sl_dPc2(this, Pc, d2Sl_dPc2)
     call this%d2Sl_dPc2_inline(Pc, d2Sl_dPc2)
   end if
 end subroutine
+
+! **************************************************************************** !
+! Quadratic Capillary Pressure Extension
+! **************************************************************************** !
+
+function SF_VG_quad_ctor(alpha, m, Sr, rpf, Pcmax, Sj) result (new)
+  class(SF_VG_quad_type), pointer :: new
+  PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Sj
+  PetscInt,  intent(in) :: rpf
+
+  allocate(new)
+  if (new%configure(alpha,m,Sr,rpf) /= 0) then
+    deallocate(new)
+    nullify(new)
+  else if (new%set_quad(Pcmax, Sj) /= 0) then
+    deallocate(new)
+    nullify(new)
+  end if
+end function
+
+! **************************************************************************** !
+
+function SF_VG_quad_set_Pcmax(this, Pcmax) result (error)
+  class(SF_VG_quad_type), intent(inout) :: this
+  PetscReal, intent(in) :: Pcmax
+  PetscInt :: error
+
+  error = this%set_quad(Pcmax, this%Sj)
+end function
+
+! **************************************************************************** !
+
+function SF_VG_quad_set_Sj(this, Sj) result (error)
+  class(SF_VG_quad_type), intent(inout) :: this
+  PetscReal, intent(in) :: Sj
+  PetscInt :: error
+
+  error = this%set_quad(this%Pcmax, this%Sj)
+end function
+  
+! **************************************************************************** !
+
+function SF_VG_quad_set_quad(this, Pcmax, Sj) result (error)
+  class(SF_VG_quad_type), intent(inout) :: this
+  PetscReal, intent(in) :: Pcmax, Sj
+  PetscInt :: error
+  PetscReal :: Pj, dPj_dSj, dPc_dSj, A, B, Sl_extremum, Sl_qa, Sl_cq
+
+  ! Must satisfy Pc(0) = Pcmax and C1 continuity at Sj
+
+  !                  C = Pc(0) = Pcmax
+  ! A*Sj**2 + B*Sj + C = Pc(Sj)
+  ! A*Sj*2  + B        = dPc_dSl(Sj)
+
+  ! Let dPc_dSj = (Pj - Pcmax) / Sj
+
+  ! A = (dPj_dSj - dPc_dSj) / Sj
+  ! B = 2*dPc_dSj - dPj_dSj
+
+  if (Sj <= this%Sr) then ! Sj is below residual saturation
+    error = 2
+  else
+    call this%Pc_inline(Sj, Pj, dPj_dSj)
+    dPc_dSj = (Pj - Pcmax)/Sj
+    A = (dPj_dSj - dPc_dSj) / Sj
+    B = 2d0*dPc_dSj - dPj_dSj
+    Sl_extremum = -B/(2d0*A)
+
+    if (Sl_extremum > 0d0 .and. Sl_extremum < Sj) then
+      error = 1 ! Parabola is not monotonic over extension. Return error
+    else
+      error = 0
+      this%Pcmax_designated = PETSC_TRUE
+      this%Pcmax = Pcmax ! Pcmax = C
+      this%Pj = Pj
+      this%Sj = Sj
+
+      this%A = A
+      this%B = B
+      this%dSl_dPcmax = 1d0 / B
+
+      ! Select the correct branch for inverse solutions
+      this%qa_branch = PETSC_TRUE
+      Sl_qa = this%Sl_root(Pj)
+      this%qa_branch = PETSC_FALSE
+      Sl_cq = this%Sl_root(Pj)
+
+      this%qa_branch = (abs(Sl_qa - Sj) < abs(Sl_cq - Sj))
+    end if
+  end if
+end function
+
+! **************************************************************************** !
+
+pure subroutine SF_VG_quad_Pc(this, Sl, Pc, dPc_dSl)
+  class(SF_VG_quad_type), intent(in) :: this
+  PetscReal, intent(in)   :: Sl
+  PetscReal, intent(out)  :: Pc, dPc_dSl
+
+  if (Sl < this%Sj) then                ! Unsaturated domain
+    if (Sl <= 0d0) then                 ! Unsaturated limit
+      Pc = this%Pcmax
+      dPc_dSl = this%B
+    else                                ! Quadratic extension
+      Pc = (this%A*Sl + this%B)*Sl + this%Pcmax
+      dPc_dSl = 2d0*this%A*Sl + this%B
+    end if
+  else if (Sl > Sl_max) then            ! Saturated limit
+    Pc = 0d0
+    dPc_dSl = this%dPc_dSl_max
+  else                                  ! Ordinary VG domain
+    call this%Pc_inline(Sl, Pc, dPc_dSl)
+  end if
+end subroutine
+
+! **************************************************************************** !
+
+pure subroutine SF_VG_quad_Sl(this, Pc, Sl, dSl_dPc)
+  class(SF_VG_quad_type), intent(in) :: this
+  PetscReal, intent(in)  :: Pc
+  PetscReal, intent(out) :: Sl, dSl_dPc
+
+  if (Pc <= 0d0) then                   ! Saturated limit
+    Sl = 1d0
+    dSl_dPc = this%dSl_dPcmin
+  else if (Pc >= this%Pj) then          ! Unsaturated domain
+    if (Pc >= this%Pcmax) then          ! Unsaturated limit
+      Sl = 0d0
+      dSl_dPc = this%dSl_dPcmax
+    else                                ! Quadratic extension
+      Sl = this%Sl_root(Pc)
+      dSl_dPc = 1d0 / (2d0*this%A*Sl + this%B)
+    end if
+  else                                  ! Ordinary VG domain
+    call this%Sl_inline(Pc, Sl, dSl_dPc)
+  end if
+end subroutine
+
+! **************************************************************************** !
+
+pure subroutine SF_VG_quad_d2Sl_dPc2(this, Pc, d2Sl_dPc2)
+  class(SF_VG_quad_type), intent(in) :: this
+  PetscReal, intent(in) :: Pc
+  PetscReal, intent(out) :: d2Sl_dPc2
+  PetscReal :: Sl
+
+  if (pc <= 0d0) then                   ! Saturated limit
+    d2Sl_dPc2 = this%d2Sl_dPc2min
+  else if (Pc >= this%Pj) then          ! Unsaturated domain
+    if (Pc >= this%Pcmax) then          ! Unsaturated limit
+      d2Sl_dPc2 = -1d0 / this%B**3
+    else                                ! Quadratic extension
+      Sl = this%Sl_root(Pc)
+      d2Sl_dPc2 = -2d0*this%A / (2d0*this%A*Sl + this%B)**3
+    end if
+  else                                  ! Ordinary VG domain
+    call this%d2Sl_dPc2_inline(Pc, d2Sl_dPc2)
+  end if
+end subroutine
+
+! **************************************************************************** !
+
+pure function SF_VG_quad_Sl_root(this,Pc) result (Sl)
+  class(SF_VG_quad_type), intent(in) :: this
+  PetscReal, intent(in) :: Pc
+  PetscReal :: Sl
+  PetscReal :: C, Q
+
+  C = this%Pcmax - Pc
+  Q = -0.5d0*(this%B+sign(sqrt(this%B**2-4d0*this%A*C), this%B))
+  if (this%qa_branch) then
+    Sl = Q/this%A
+  else
+    Sl = C/Q
+  end if
+end function
 
 ! **************************************************************************** !
 ! Common van Genuchten Relative Permeability Methods
