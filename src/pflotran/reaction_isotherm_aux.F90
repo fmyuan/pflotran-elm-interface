@@ -12,7 +12,7 @@ module Reaction_Isotherm_Aux_module
   PetscInt, parameter, public :: KD_UNIT_KG_M3_BULK = 0
   PetscInt, parameter, public :: KD_UNIT_MLW_GSOIL = 1
 
-  type, public :: isotherm_linklist_type
+  type, public :: isotherm_link_type
     PetscInt :: id
     PetscInt :: itype
     character(len=MAXWORDLENGTH) :: species_name
@@ -20,8 +20,8 @@ module Reaction_Isotherm_Aux_module
     PetscReal :: Kd
     PetscReal :: Langmuir_B
     PetscReal :: Freundlich_n
-    type(isotherm_linklist_type), pointer :: next
-  end type isotherm_linklist_type
+    type(isotherm_link_type), pointer :: next
+  end type isotherm_link_type
 
   type, public :: isotherm_rxn_type
     PetscReal, pointer :: eqisothermcoeff(:)
@@ -30,11 +30,11 @@ module Reaction_Isotherm_Aux_module
   end type isotherm_rxn_type
 
   type, public :: isotherm_type
-    type(isotherm_linklist_type), pointer :: isotherm_list
-    type(isotherm_linklist_type), pointer :: multicontinuum_isotherm_list
+    type(isotherm_link_type), pointer :: isotherm_list
+    type(isotherm_link_type), pointer :: multicontinuum_isotherm_list
     type(isotherm_rxn_type), pointer :: isotherm_rxn
     type(isotherm_rxn_type), pointer :: multicontinuum_isotherm_rxn
-    PetscInt :: kd_unit
+    PetscInt :: ikd_units
     PetscInt, pointer :: eqisothermtype(:)
     PetscInt, pointer :: eqkdspecid(:)
     PetscInt, pointer :: eqkdmineral(:)
@@ -42,7 +42,7 @@ module Reaction_Isotherm_Aux_module
   end type isotherm_type
 
   public :: IsothermCreate, &
-            IsothermLinkedListCreate, &
+            IsothermLinkCreate, &
             IsothermRxnCreate, &
             IsothermDestroy
 
@@ -71,7 +71,7 @@ function IsothermCreate()
   nullify(isotherm%isotherm_rxn)
   nullify(isotherm%multicontinuum_isotherm_rxn)
 
-  isotherm%kd_unit = -999
+  isotherm%ikd_units = UNINITIALIZED_INTEGER
   isotherm%neqkdrxn = 0
 
   IsothermCreate => isotherm
@@ -80,16 +80,16 @@ end function IsothermCreate
 
 ! ************************************************************************** !
 
-function IsothermLinkedListCreate()
+function IsothermLinkCreate()
 
   ! Allocate and initialize an isotherm sorption reaction
   ! 
   ! 
   implicit none
   
-  type(isotherm_linklist_type), pointer :: IsothermLinkedListCreate
+  type(isotherm_link_type), pointer :: IsothermLinkCreate
   
-  type(isotherm_linklist_type), pointer :: rxn
+  type(isotherm_link_type), pointer :: rxn
 
   allocate(rxn)
   rxn%id = 0
@@ -101,9 +101,9 @@ function IsothermLinkedListCreate()
   rxn%Freundlich_n = 0.d0
   nullify(rxn%next)
 
-  IsothermLinkedListCreate => rxn
+  IsothermLinkCreate => rxn
 
-end function IsothermLinkedListCreate
+end function IsothermLinkCreate
 
 ! ************************************************************************** !
 
@@ -137,7 +137,7 @@ subroutine IsothermRxnDestroy(rxn)
 
   implicit none
 
-  type(isotherm_linklist_type), pointer :: rxn
+  type(isotherm_link_type), pointer :: rxn
 
   if (.not.associated(rxn)) return
 
@@ -161,7 +161,7 @@ subroutine IsothermDestroy(isotherm,option)
 
   type(isotherm_type) :: isotherm
   type(option_type) :: option
-  type(isotherm_linklist_type), pointer :: isotherm_rxn, prev_isotherm_rxn
+  type(isotherm_link_type), pointer :: isotherm_rxn, prev_isotherm_rxn
 
   isotherm_rxn => isotherm%isotherm_list
 

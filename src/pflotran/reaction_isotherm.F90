@@ -27,7 +27,6 @@ subroutine IsothermRead(isotherm,input,option)
   use String_module
   use Input_Aux_module
   use Utility_module
-  use Units_module
   
   implicit none
 
@@ -35,23 +34,30 @@ subroutine IsothermRead(isotherm,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, word2
   character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXWORDLENGTH) :: kd_units
   character(len=MAXWORDLENGTH) :: multi_kd_units
+  PetscInt :: ikd_units, imulti_kd_units
   
-  type(isotherm_linklist_type), pointer :: isotherm_rxn, prev_isotherm_rxn
-  type(isotherm_linklist_type), pointer :: sec_cont_isotherm_rxn, sec_cont_prev_isotherm_rxn
+  type(isotherm_link_type), pointer :: isotherm_rxn, prev_isotherm_rxn
+  type(isotherm_link_type), pointer :: sec_cont_isotherm_rxn, &
+                                       sec_cont_prev_isotherm_rxn
 
-  PetscInt :: ierr
+  PetscErrorCode :: ierr
+
+  if (associated(isotherm%isotherm_list)) then
+    option%io_buffer = 'SORPTION ISOTHERM_REACTIONS must be entered in a &
+      &single block.'
+    call PrintErrMsg(option)
+  endif
 
   nullify(prev_isotherm_rxn)
-  if (option%use_mc) then
-    nullify(sec_cont_prev_isotherm_rxn)
-  endif
+  nullify(sec_cont_isotherm_rxn)
+  nullify(sec_cont_prev_isotherm_rxn)
  
-  kd_units = ''
-  multi_kd_units = ''
+  ! set default units
+  isotherm%ikd_units = UNINITIALIZED_INTEGER
 
   call InputPushBlock(input,option)
   do
@@ -59,20 +65,21 @@ subroutine IsothermRead(isotherm,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    isotherm%neqkdrxn = isotherm%neqkdrxn + 1
-
-    isotherm_rxn => IsothermLinkedListCreate()
-    if (option%use_mc) then
-      sec_cont_isotherm_rxn => IsothermLinkedListCreate()
-    endif
     ! first string is species name
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'species name', &
                        'CHEMISTRY,ISOTHERM_REACTIONS')
+    kd_units = ''
+    multi_kd_units = ''
+    isotherm%neqkdrxn = isotherm%neqkdrxn + 1
+    isotherm_rxn => IsothermLinkCreate()
     isotherm_rxn%species_name = trim(word)
     if (option%use_mc) then
+      sec_cont_isotherm_rxn => IsothermLinkCreate()
       sec_cont_isotherm_rxn%species_name = isotherm_rxn%species_name
+      sec_cont_isotherm_rxn%Kd = UNINITIALIZED_DOUBLE
     endif
+
     call InputPushBlock(input,option)
     do 
       call InputReadPflotranString(input,option)
@@ -119,18 +126,17 @@ subroutine IsothermRead(isotherm,input,option)
         ! S.Karra, 02/20/2014
         case('SEC_CONT_DISTRIBUTION_COEFFICIENT', &
               'SEC_CONT_KD')
-          if (.not.option%use_mc) then
-            option%io_buffer = 'Make sure MULTIPLE_CONTINUUM ' &
-                    // 'keyword is set, SECONDARY_CONTINUUM_KD.'
+          if (.not.associated(sec_cont_isotherm_rxn)) then
+            option%io_buffer = 'Make sure MULTIPLE_CONTINUUM &
+              &keyword is set, SECONDARY_CONTINUUM_KD.'
             call PrintErrMsg(option)
-          else
-            call InputReadDouble(input,option,sec_cont_isotherm_rxn%Kd)
-            call InputErrorMsg(input,option, &
-              'SECONDARY_CONTINUUM_DISTRIBUTION_COEFFICIENT', &
-              'CHEMISTRY,ISOTHERM_REACTIONS')
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            if (input%ierr == 0) multi_kd_units = trim(word)
           endif
+          call InputReadDouble(input,option,sec_cont_isotherm_rxn%Kd)
+          call InputErrorMsg(input,option, &
+            'SECONDARY_CONTINUUM_DISTRIBUTION_COEFFICIENT', &
+            'CHEMISTRY,ISOTHERM_REACTIONS')
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          if (input%ierr == 0) multi_kd_units = trim(word)
         case('LANGMUIR_B')
           call InputReadDouble(input,option,isotherm_rxn%Langmuir_B)
           call InputErrorMsg(input,option,'Langmuir_B', &
@@ -153,64 +159,44 @@ subroutine IsothermRead(isotherm,input,option)
     enddo
     call InputPopBlock(input,option)
 
-    if (len_trim(kd_units) > 0) then
-      ierr = 1
-      internal_units = 'kg/m^3'
-      isotherm_rxn%Kd = isotherm_rxn%Kd * &
-        UnitsConvertToInternal(kd_units,internal_units,option,ierr)
-      if (ierr < 0) then
-        ierr = 1
-        internal_units = 'L/kg'
-        isotherm_rxn%Kd = isotherm_rxn%Kd * &
-          UnitsConvertToInternal(kd_units,internal_units,option,ierr)      
-      else
-        if (len_trim(multi_kd_units) < 0) then
-          option%io_buffer = 'kd nit must match between primary &
-                              &and secondary continuum'
-          call PrintErrMsg(option)
-        else                    
-          isotherm%kd_unit = KD_UNIT_MLW_GSOIL
-        endif
-      endif
-      if (ierr < 0) then
-        option%io_buffer = 'Unrecognized kd_units: ' // trim(multi_kd_units)
+    if (associated(sec_cont_isotherm_rxn)) then
+      if (UnInitialized(sec_cont_isotherm_rxn%Kd)) then
+        option%io_buffer = 'SEC_CONT_DISTRIBUTION_COEFFICIENT must be &
+          &specified for all ISOTHERM_REACTIONs when using &
+          &MULTIPLE_CONTINUUM.'
         call PrintErrMsg(option)
-      else
-        isotherm%kd_unit = KD_UNIT_KG_M3_BULK
       endif
     endif
 
-    if (len_trim(multi_kd_units) > 0) then
-      ierr = 1
-      internal_units = 'L/kg'
-      sec_cont_isotherm_rxn%Kd = sec_cont_isotherm_rxn%Kd * &
-        UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
-      if (ierr < 0) then
-        ierr = 1
-        internal_units = 'kg/m^3'
-        sec_cont_isotherm_rxn%Kd = sec_cont_isotherm_rxn%Kd * &
-          UnitsConvertToInternal(multi_kd_units,internal_units,option,ierr)
-      else
-        if (isotherm%kd_unit < 1) then
-          option%io_buffer = 'kd nit must match between primary &
-                              &and secondary continuum'
-          call PrintErrMsg(option)
-        endif
-      endif
-      if (ierr < 0) then
-        option%io_buffer = 'Unrecognized KD Units: ' // trim(multi_kd_units)
+    call IsothermConvertKDUnits(isotherm_rxn%Kd,kd_units,ikd_units,option)
+    if (associated(sec_cont_isotherm_rxn)) then
+      call IsothermConvertKDUnits(sec_cont_isotherm_rxn%Kd,multi_kd_units, &
+                                  imulti_kd_units,option)
+      if (ikd_units /= imulti_kd_units) then
+        if (len_trim(kd_units) == 0) kd_units = 'default'
+        if (len_trim(multi_kd_units) == 0) multi_kd_units = 'default'
+        option%io_buffer = 'kd unit must match between primary &
+                            &and secondary continuum: ' // &
+                            trim(kd_units) // ' vs ' // trim(multi_kd_units)
         call PrintErrMsg(option)
-      else
-        if (isotherm%kd_unit > 0) then
-          option%io_buffer = 'kd nit must match between primary &
-                              &and secondary continuum'
-          call PrintErrMsg(option)
-        else
-          isotherm%kd_unit = KD_UNIT_KG_M3_BULK
-        endif
       endif
     endif
-
+    if (Initialized(isotherm%ikd_units) .and. &
+        isotherm%ikd_units /= ikd_units) then
+      if (ikd_units == KD_UNIT_KG_M3_BULK) then
+        word = 'kg/m^3'
+      else
+        word = 'L/kg'
+      endif
+      if (isotherm%ikd_units == KD_UNIT_KG_M3_BULK) then
+        word2 = 'kg/m^3'
+      else
+        word2 = 'L/kg'
+      endif
+      option%io_buffer = 'Isotherm KD units must be consistent throughout &
+        &input file: ' // trim(word) // ' vs ' // trim(word2)
+    endif
+      
     ! add to list
     if (.not.associated(isotherm%isotherm_list)) then
       isotherm%isotherm_list => isotherm_rxn
@@ -223,8 +209,8 @@ subroutine IsothermRead(isotherm,input,option)
     prev_isotherm_rxn => isotherm_rxn
     nullify(isotherm_rxn)               
 
-    if (option%use_mc) then
-    ! add to list
+    if (associated(sec_cont_isotherm_rxn)) then
+      ! add to list
       if (.not.associated(isotherm%multicontinuum_isotherm_list)) then
         isotherm%multicontinuum_isotherm_list => sec_cont_isotherm_rxn
         sec_cont_isotherm_rxn%id = 1
@@ -240,6 +226,49 @@ subroutine IsothermRead(isotherm,input,option)
   call InputPopBlock(input,option)
 
 end subroutine IsothermRead
+
+! ************************************************************************** !
+subroutine IsothermConvertKDUnits(kd,kd_units,ikd_units,option)
+
+  ! Converts units of isotherm reaction
+
+  ! Author: Glenn Hammond
+  ! Date: 03/16/21
+
+  use Option_module
+  use Units_module
+   
+  implicit none
+
+  PetscReal :: kd
+  character(MAXWORDLENGTH) :: kd_units
+  PetscInt, intent(out) :: ikd_units
+  type(option_type) :: option
+
+  character(MAXWORDLENGTH) :: internal_units
+  PetscErrorCode :: ierr
+
+  ikd_units = UNINITIALIZED_INTEGER
+  if (len_trim(kd_units) > 0) then
+    ierr = 1
+    internal_units = 'kg/m^3'
+    Kd = Kd * UnitsConvertToInternal(kd_units,internal_units,option,ierr)
+    if (ierr < 0) then
+      ierr = 1
+      internal_units = 'L/kg'
+      Kd = Kd * UnitsConvertToInternal(kd_units,internal_units,option,ierr)
+      if (ierr < 0) then
+        option%io_buffer = 'Unrecognized kd_units: ' // trim(kd_units)
+        call PrintErrMsg(option)
+      else
+        ikd_units = KD_UNIT_KG_M3_BULK
+      endif
+    else
+      ikd_units = KD_UNIT_MLW_GSOIL
+    endif
+  endif
+
+end subroutine IsothermConvertKDUnits
 
 ! ************************************************************************** !
 subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
@@ -282,8 +311,9 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
   do irxn = 1, isotherm%neqkdrxn
     icomp = isotherm%eqkdspecid(irxn)
     molality = rt_auxvar%pri_molal(icomp)
-    if (isotherm%kd_unit == KD_UNIT_MLW_GSOIL) then
-      kd_kgw_m3b = isotherm_rxn%eqisothermcoeff(irxn) * & !KD units [mL water/g soil]
+    if (isotherm%ikd_units == KD_UNIT_MLW_GSOIL) then
+                   !KD units [mL water/g soil]
+      kd_kgw_m3b = isotherm_rxn%eqisothermcoeff(irxn) * & 
                    global_auxvar%den_kg(iphase) * &
                    (1.d0-material_auxvar%porosity) * &
                    material_auxvar%soil_particle_density * &
@@ -308,7 +338,8 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
       case(SORPTION_LANGMUIR)
         ! Csorb = K*Caq*b/(1+K*Caq)
         tempreal = kd_kgw_m3b*molality
-        res = tempreal*isotherm_rxn%eqisothermlangmuirb(irxn) / (1.d0 + tempreal)
+        res = tempreal*isotherm_rxn%eqisothermlangmuirb(irxn) / &
+              (1.d0 + tempreal)
         dres_dc = res/molality - &
                   res / (1.d0 + tempreal) * tempreal / molality
       case(SORPTION_FREUNDLICH)

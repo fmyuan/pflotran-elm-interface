@@ -1634,7 +1634,7 @@ subroutine ReactionInputRecord(rxn)
   type(gas_species_type), pointer :: cur_gas_species
   type(immobile_species_type), pointer :: cur_imm_species
   type(radioactive_decay_rxn_type), pointer :: cur_rad_decay_rxn
-  type(isotherm_linklist_type), pointer :: cur_isotherm_rxn
+  type(isotherm_link_type), pointer :: cur_isotherm_rxn
   character(len=MAXWORDLENGTH) :: word1, word2
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: id = INPUT_RECORD_UNIT

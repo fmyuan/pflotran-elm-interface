@@ -2188,8 +2188,9 @@ subroutine SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,
   call RZeroSorb(rt_auxvar)
   
   if (reaction%isotherm%neqkdrxn > 0) then
-     call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
-                                   reaction%isotherm,reaction%isotherm%multicontinuum_isotherm_rxn,option)
+    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
+                      reaction%isotherm, &
+                      reaction%isotherm%multicontinuum_isotherm_rxn,option)
   endif
   
 end subroutine SecondaryRTotalSorb

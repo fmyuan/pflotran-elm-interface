@@ -31,7 +31,7 @@ function UnitsConvertToInternal(units,internal_units,option,ierr)
   character(len=*) :: units
   character(len=MAXWORDLENGTH) :: internal_units
   type(option_type) :: option
-  PetscInt, optional :: ierr
+  PetscErrorCode, optional :: ierr
 
   character(len=MAXSTRINGLENGTH) :: units_buff
   character(len=MAXSTRINGLENGTH) :: internal_units_buff1
@@ -73,12 +73,13 @@ function UnitsConvertToInternal(units,internal_units,option,ierr)
   enddo
   
   if (.not.successful) then
-     if (present(ierr)) then
-        ierr = -1
-     else
-       option%io_buffer = error_msg
-       call PrintErrMsg(option)
-     endif
+    if (present(ierr)) then
+       ierr = -1
+       return
+    else
+      option%io_buffer = error_msg
+      call PrintErrMsg(option)
+    endif
   endif
 
   UnitsConvertToInternal = conversion_factor

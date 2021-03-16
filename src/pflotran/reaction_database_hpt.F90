@@ -689,7 +689,7 @@ subroutine BasisInit_hpt(reaction,option)
   type(ion_exchange_rxn_type), pointer :: cur_ionx_rxn
   type(ion_exchange_cation_type), pointer :: cur_cation
   type(general_rxn_type), pointer :: cur_general_rxn
-  type(isotherm_linklist_type), pointer :: cur_isotherm_rxn
+  type(isotherm_link_type), pointer :: cur_isotherm_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
   type(transition_state_rxn_type), pointer :: tstrxn

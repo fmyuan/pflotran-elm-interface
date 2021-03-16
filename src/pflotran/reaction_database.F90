@@ -870,7 +870,8 @@ subroutine BasisInit(reaction,option)
   type(microbial_rxn_type), pointer :: cur_microbial_rxn
   type(immobile_decay_rxn_type), pointer :: cur_immobile_decay_rxn
   type(dynamic_kd_rxn_type), pointer :: cur_dynamic_kd_rxn
-  type(isotherm_linklist_type), pointer :: cur_isotherm_rxn, sec_cont_cur_isotherm_rxn
+  type(isotherm_link_type), pointer :: cur_isotherm_rxn, &
+                                       sec_cont_cur_isotherm_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
   type(transition_state_rxn_type), pointer :: tstrxn
