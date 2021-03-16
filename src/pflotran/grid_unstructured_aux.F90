@@ -61,7 +61,10 @@ module Grid_Unstructured_Aux_module
     PetscInt, pointer :: face_to_vertex(:,:)
     PetscInt, pointer :: cell_to_face_ghosted(:,:)
     PetscInt, pointer :: vertex_ids_natural(:)
-    PetscInt, pointer :: cell_neighbors_local_ghosted(:,:) ! local neighbors
+    PetscInt, pointer :: cell_neighbors_local_ghosted(:,:) ! see comment below 
+                            ! (0,local_id) = number of neighbors for local_id
+                            ! (iface=1:N,local_id) = ghosted_ids of neighbors
+                            ! ghosted neighbors have negative ghost_ids
     type(point3d_type), pointer :: vertices(:)
     type(point3d_type), pointer :: face_centroid(:)
     PetscReal, pointer :: face_area(:)
