@@ -1,5 +1,5 @@
 #
-#Description - 2D BGC (CLM-CTC) reaction network for global run (COLOMN MODE)
+#Description - 2D BGC (ELM-CTC) reaction network for global run (COLOMN MODE)
 #
 
 SIMULATION
@@ -26,8 +26,8 @@ END
 #
 #+++++++++++++++++++++++ I. DOMAINS +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #
-skip    ! if skipped, CLM grids will be enforced to replace PF-mesh defined below (discretization/region) 
-#======================= I-0. CLM <==> PFLOTRAN domain mapping files ==========
+skip    ! if skipped, ELM grids will be enforced to replace PF-mesh defined below (discretization/region) 
+#======================= I-0. ELM <==> PFLOTRAN domain mapping files ==========
 MAPPING_FILES                   
   !
 END
@@ -35,7 +35,7 @@ noskip
 
 #======================= I-1. discretization ===================================
 # NOTE: the following ONLY provides required data initialization, and will be 
-#       over-riddn by CLM domains.
+#       over-riddn by ELM domains.
 GRID
   TYPE structured
   ORIGIN 0.d0 0.d0 0.d0
@@ -141,27 +141,25 @@ END
 #==================== III-1. solver options ===================================
 NUMERICAL_METHODS TRANSPORT
   LINEAR_SOLVER
-    SOLVER ITERATIVE   ! with default KSP_TYPE of BCGS and BJACOBI of PC_TYPE
+    SOLVER ITERATIVE   ! with default KSP_TYPE of BCGS and BJACOBI of PC_TYPE 
     PC_TYPE JACOBI     ! default (iterative): BJACOBI. JACOBI may be much faster
-    KSP_TYPE GMRES     ! default: BCGS. GMRES slightly better
+    KSP_TYPE GMRES     ! default: BCGS. GMRES slightly better 
   /
 
 
   NEWTON_SOLVER
-    
     !NUMERICAL_JACOBIAN            ! This is for testing analytical Jacobian in Sandboxes
- 
+
     ATOL 1.0D-20
     RTOL 1.0D-15
     STOL 1.0D-10        ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
-    ITOL 1.0D+32        ! ???
+    ITOL 1.0D-10
 
     MAXIMUM_NUMBER_OF_ITERATIONS 30
     MAXF 100
   /
 
 END
-
 
 #++++++++++++++++++++ IV. TIMERS ++++++++++++++++++++++++++++++++++++++++++++++++++++
 #
@@ -180,8 +178,8 @@ END
 OUTPUT
   !SCREEN OFF             ! totally shut off screen printing of running information
   SCREEN PERIODIC 4800
-  PERIODIC TIME 360 h   ! this is good for directly comparing two outputs
-  !PERIODIC TIMESTEP 1     ! this is good for checking PF each time-step
+  !PERIODIC TIME 1800 s   ! this is good for directly comparing two outputs
+  PERIODIC TIMESTEP 17520     ! this is good for checking PF each time-step
   !FORMAT HDF5
   !NO_INITIAL
 END
@@ -327,7 +325,7 @@ CHEMISTRY
 
   ONLY_VERTICAL_TRANSPORT
 
-  DATABASE CLM-CN_database.dat    ! this database is for all active species without sec./redox reactions at present
+  DATABASE ELM-CN_database.dat    ! this database is for all active species without sec./redox reactions at present
 
   PRIMARY_SPECIES
     CO2(aq)          ! (1)
@@ -414,13 +412,16 @@ noskip
 
   REACTION_SANDBOX
 
-    # CLM-CN SOM decomposition sandboxes
+    # ELM-CN SOM decomposition sandboxes
     SOMDECOMP
-      TEMPERATURE_RESPONSE_FUNCTION
-         Q10 1.5d0
-      /
+      #Abiotic_Factors
+      #  TEMPERATURE_RESPONSE_FUNCTION
+      #    Q10 1.5d0
+      #  /
+
+      #  DECOMP_DEPTH_EFOLDING 0.50d0
+      #/
       
-      DECOMP_DEPTH_EFOLDING 0.50d0
       
       POOLS   ! CN ratio if constant
         SOIL1  12.d0 
@@ -437,13 +438,13 @@ noskip
         UPSTREAM_POOL CWD
         DOWNSTREAM_POOL LITR2 0.76d0           ! sum of fractions to LITR2+LITR3 = 1. (NO hr!)
         DOWNSTREAM_POOL LITR3 0.24d0
-        RATE_DECOMPOSITION 0.00010 1/d         ! CLM-CN fragmentation rate k:
+        RATE_DECOMPOSITION 0.00010 1/d         ! ELM-CTC fragmentation rate k:
       /
 
       REACTION
         UPSTREAM_POOL LITR1
         DOWNSTREAM_POOL SOIL1 0.61d0
-        RATE_DECOMPOSITION 1.204 1/d           ! CLM-CN dec. rate k:
+        RATE_DECOMPOSITION 1.204 1/d           ! ELM-CTC dec. rate k:
         MONOD
           SPECIES_NAME NH4+
           HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
@@ -457,7 +458,7 @@ noskip
       REACTION
         UPSTREAM_POOL LITR2    
         DOWNSTREAM_POOL SOIL2 0.45d0
-        RATE_DECOMPOSITION 0.0726 1/d          ! CLM-CN dec. rate k: 
+        RATE_DECOMPOSITION 0.0726 1/d          ! ELM-CTC dec. rate k: 
         MONOD
           SPECIES_NAME NH4+
           HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
@@ -471,7 +472,7 @@ noskip
       REACTION
         UPSTREAM_POOL LITR3
         DOWNSTREAM_POOL SOIL3 0.71d0
-        RATE_DECOMPOSITION 0.0141 1/d          ! CLM-CN dec. rate k: 
+        RATE_DECOMPOSITION 0.0141 1/d          ! ELM-CTC dec. rate k: 
         MONOD
           SPECIES_NAME NH4+
           HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
@@ -485,22 +486,22 @@ noskip
       REACTION
         UPSTREAM_POOL SOIL1
         DOWNSTREAM_POOL SOIL2 0.72d0
-        RATE_DECOMPOSITION 0.0726 1/d          ! CLM-CN dec. rate k: 
+        RATE_DECOMPOSITION 0.0726 1/d          ! ELM-CTC dec. rate k: 
       /
       REACTION
         UPSTREAM_POOL SOIL2
         DOWNSTREAM_POOL SOIL3 0.54d0
-        RATE_DECOMPOSITION 0.0141 1/d          ! CLM-CN dec. rate k:
+        RATE_DECOMPOSITION 0.0141 1/d          ! ELM-CTC dec. rate k:
       /
       REACTION
         UPSTREAM_POOL SOIL3
         DOWNSTREAM_POOL SOIL4 0.45d0
-        RATE_DECOMPOSITION 0.00141 1/d         ! CLM-CN dec. rate k: 
+        RATE_DECOMPOSITION 0.00141 1/d         ! ELM-CTC dec. rate k: 
         RATE_AD_FACTOR 10.0d0                  ! Accelerated decomposition factor
       /       
       REACTION
         UPSTREAM_POOL SOIL4
-        RATE_DECOMPOSITION 0.00010 1/d         ! CLM-CN dec. rate k: 
+        RATE_DECOMPOSITION 0.00010 1/d         ! ELM-CTC dec. rate k: 
         RATE_AD_FACTOR 100.0d0                 ! Accelerated decomposition factor
       END
       
@@ -547,7 +548,7 @@ noskip
 
   END
 
-# output list will be turned off, if coupled with CLM
+# output list will be turned off, if coupled with ELM
   OUTPUT
     all
     total
@@ -625,12 +626,12 @@ CONSTRAINT initial_constraint
     CWDN        0.2d-22
     NH4sorb     1.d-20
     PlantN      1.d-20
-    Plantndemand   1.d-20     ! 0-resetting its value at end of a CLM time-step, when coupled
-    Plantnh4uptake 1.d-20     ! 0-resetting its value at end of a CLM time-step, when coupled
-    Plantno3uptake 1.d-20     ! 0-resetting its value at end of a CLM time-step, when coupled
-    NGASmin     1.d-20        ! 0-resetting its value at end of a CLM time-step, when coupled
-    NGASnitr    1.d-20        ! 0-resetting its value at end of a CLM time-step, when coupled
-    NGASdeni    1.d-20        ! 0-resetting its value at end of a CLM time-step, when coupled
+    Plantndemand   1.d-20     ! 0-resetting its value at end of an ELM time-step, when coupled
+    Plantnh4uptake 1.d-20     ! 0-resetting its value at end of an ELM time-step, when coupled
+    Plantno3uptake 1.d-20     ! 0-resetting its value at end of an ELM time-step, when coupled
+    NGASmin     1.d-20        ! 0-resetting its value at end of an ELM time-step, when coupled
+    NGASnitr    1.d-20        ! 0-resetting its value at end of an ELM time-step, when coupled
+    NGASdeni    1.d-20        ! 0-resetting its value at end of an ELM time-step, when coupled
     CO2imm      1.56d-2       ! ~ 350 ppmv in air (44.6 moles/m3) 
     N2Oimm      1.383d-5      ! ~ 310 ppbv
     N2imm       34.87d0       ! 0.78084
@@ -649,30 +650,30 @@ skip
     LITR2CHR    1.d-20  
     LITR3CHR    1.d-20  
     CWDCHR      1.d-20  
-    SOIL1NMIN    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled  
-    SOIL2NMIN    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled  
-    SOIL3NMIN    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL4NMIN    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR1NMIN    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR2NMIN    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR3NMIN    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    CWDNMIN      1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL1NIMP    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL2NIMP    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL3NIMP    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL4NIMP    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR1NIMP    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR2NIMP    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR3NIMP    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    CWDNIMP      1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL1NIMM    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL2NIMM    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL3NIMM    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    SOIL4NIMM    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR1NIMM    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR2NIMM    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    LITR3NIMM    1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
-    CWDNIMM      1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
+    SOIL1NMIN    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled  
+    SOIL2NMIN    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled  
+    SOIL3NMIN    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL4NMIN    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR1NMIN    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR2NMIN    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR3NMIN    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    CWDNMIN      1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL1NIMP    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL2NIMP    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL3NIMP    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL4NIMP    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR1NIMP    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR2NIMP    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR3NIMP    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    CWDNIMP      1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL1NIMM    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL2NIMM    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL3NIMM    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    SOIL4NIMM    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR1NIMM    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR2NIMM    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    LITR3NIMM    1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
+    CWDNIMM      1.d-20      ! 0-resetting its value at end of an ELM time-step, when coupled
 noskip
   /
 END

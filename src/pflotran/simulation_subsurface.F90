@@ -655,7 +655,9 @@ subroutine SimSubsurfFinalizeRun(this)
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
   use WIPP_module, only : WIPPDestroy
   use Klinkenberg_module, only : KlinkenbergDestroy
+#ifndef ELM_PFLOTRAN
   use CLM_Rxn_module, only : RCLMRxnDestroy
+#endif
   use Output_EKG_module
 
   implicit none
@@ -705,7 +707,9 @@ subroutine SimSubsurfFinalizeRun(this)
     tran_timestepper => this%tran_process_model_coupler%timestepper
     if (this%option%itranmode == RT_MODE) then
       call RSandboxDestroy()
+#ifndef ELM_PFLOTRAN
       call RCLMRxnDestroy()
+#endif
     endif
   endif
 

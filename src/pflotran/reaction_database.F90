@@ -860,7 +860,9 @@ subroutine BasisInit(reaction,option)
   use Reaction_Solid_Solution_module
 #endif
   use Reaction_Sandbox_module
+#ifndef ELM_PFLOTRAN
   use CLM_Rxn_module
+#endif
 
   implicit none
   
@@ -3777,8 +3779,10 @@ subroutine BasisInit(reaction,option)
   
   ! sandbox reactions
   call RSandboxSetup(reaction,option)
+#ifndef ELM_PFLOTRAN
   call RCLMRxnSetup(reaction,option)
-  
+#endif
+
 90 format(80('-'))
 100 format(/,2x,i4,2x,a)
 110 format(100(/,14x,3(a20,2x)))

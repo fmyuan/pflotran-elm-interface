@@ -171,7 +171,7 @@ module Option_module
     PetscInt  :: th_ice_model         ! specify water/ice/vapor phase partitioning model
     PetscReal :: th_frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
     
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
     PetscBool :: mapping_files
 #endif
 
@@ -503,7 +503,7 @@ subroutine OptionInitRealization(option)
   option%compute_mass_balance_new = PETSC_FALSE
 
 !fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   option%compute_mass_balance_new = PETSC_TRUE
   option%mapping_files = PETSC_FALSE
   ! user-defined CLM-PFLOTRAN mesh maps NOT provided (default)
