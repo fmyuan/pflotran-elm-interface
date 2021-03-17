@@ -74,8 +74,8 @@ function UnitsConvertToInternal(units,internal_units,option,ierr)
   
   if (.not.successful) then
     if (present(ierr)) then
-       ierr = -1
-       return
+      ierr = -1
+      return
     else
       option%io_buffer = error_msg
       call PrintErrMsg(option)
