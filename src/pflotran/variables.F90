@@ -177,5 +177,6 @@ module Variables_module
 
   PetscInt, parameter, public :: ELECTRICAL_CONDUCTIVITY = 142
   PetscInt, parameter, public :: ELECTRICAL_POTENTIAL    = 143
+  PetscInt, parameter, public :: ELECTRICAL_JACOBIAN     = 144
 
 end module Variables_module

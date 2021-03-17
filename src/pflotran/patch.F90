@@ -5933,6 +5933,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         vec_ptr(local_id) = &
           patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
       enddo
+    case(ELECTRICAL_JACOBIAN)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
+      enddo      
     case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
@@ -6895,6 +6900,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       endif
     case(ELECTRICAL_POTENTIAL)
       value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
+    case(ELECTRICAL_JACOBIAN)
+      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)
     case(NATURAL_ID)
@@ -7711,6 +7718,11 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) = &
           vec_ptr(local_id)
       enddo
+    case(ELECTRICAL_JACOBIAN)
+      do local_id=1,grid%nlmax
+        patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar) = &
+          vec_ptr(local_id)
+      enddo      
     case(PROCESS_ID)
       call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')

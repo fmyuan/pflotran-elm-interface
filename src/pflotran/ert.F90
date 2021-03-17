@@ -248,7 +248,7 @@ subroutine ERTCalculateMatrix(realization,M)
                                     grid%cell_neighbors_local_ghosted       &
                                     (1:num_neighbors_up,local_id_up),       &
                                     num_neighbors_up,ghosted_id_dn)
-
+        
         if (.not.associated(ert_auxvars(ghosted_id_up)%delM)) then
           allocate(ert_auxvars(ghosted_id_up)%delM(num_neighbors_up + 1))
           ert_auxvars(ghosted_id_up)%delM = 0.d0
@@ -280,7 +280,7 @@ subroutine ERTCalculateMatrix(realization,M)
                                     grid%cell_neighbors_local_ghosted       &
                                     (1:num_neighbors_dn,local_id_dn),       &
                                     num_neighbors_dn,ghosted_id_up)
-
+        
         if (.not.associated(ert_auxvars(ghosted_id_dn)%delM)) then
           allocate(ert_auxvars(ghosted_id_dn)%delM(num_neighbors_dn + 1))
           ert_auxvars(ghosted_id_dn)%delM = 0.d0

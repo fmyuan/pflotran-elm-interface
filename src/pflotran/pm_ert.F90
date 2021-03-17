@@ -287,6 +287,7 @@ subroutine PMERTSolve(this)
   use Grid_module
   use Solver_module
   use Field_module
+  use Discretization_module
   use ERT_module
   use Survey_module
 
@@ -299,6 +300,7 @@ subroutine PMERTSolve(this)
   type(grid_type), pointer :: grid
   type(solver_type), pointer :: solver
   type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
@@ -326,6 +328,7 @@ subroutine PMERTSolve(this)
   survey => this%survey
   realization => this%realization
   field => realization%field
+  discretization => realization%discretization
   patch => realization%patch
   grid => patch%grid
 
@@ -388,16 +391,16 @@ subroutine PMERTSolve(this)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     !call VecView(field%work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
 
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-
+    call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+    call VecGetArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
     ! store potentials for each electrode
-    do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
+    do ghosted_id=1,grid%ngmax
       if (patch%imat(ghosted_id) <= 0) cycle
-      ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)
+      ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(ghosted_id)
     enddo
+    call VecRestoreArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
 
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
     call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
     sum_linear_iterations = sum_linear_iterations + num_linear_iterations
@@ -513,12 +516,13 @@ subroutine PMERTBuildJacobian(this)
   ! Builds ERT Jacobian Matrix distributed across processors
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 03/09/21
+  ! Date: 03/15/21
   !
 
   use Patch_module
   use Grid_module
   use Survey_module
+  use Material_Aux_class
 
   implicit none 
 
@@ -529,10 +533,12 @@ subroutine PMERTBuildJacobian(this)
   type(option_type), pointer :: option
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt, pointer :: cell_neighbors(:,:)
   PetscReal, allocatable :: phi_sor(:), phi_rec(:)
   PetscReal :: jacob
+  PetscReal :: cond
   PetscInt :: idata
   PetscInt :: ielec
   PetscInt :: ia,ib,im,in
@@ -549,7 +555,8 @@ subroutine PMERTBuildJacobian(this)
   grid => patch%grid
   survey => this%survey
 
-  ert_auxvars => patch%aux%ERT%auxvars  
+  ert_auxvars => patch%aux%ERT%auxvars
+  material_auxvars => patch%aux%Material%auxvars
   cell_neighbors => grid%cell_neighbors_local_ghosted
 
   do idata=1,survey%num_measurement
@@ -614,14 +621,19 @@ subroutine PMERTBuildJacobian(this)
 
       enddo
 
-      ert_auxvars(ghosted_id)%jacobian(idata) = - jacob
+      cond = material_auxvars(ghosted_id)%electrical_conductivity(1)
+      ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to 
+      ! +ve unit source so phi_rec -> - phi_rec
+      ! thus => jacob = phi_s * (dM/dcond) * phi_r
+      ! wrt m=ln(cond) -> dV/dm = cond * dV/dcond
+      ert_auxvars(ghosted_id)%jacobian(idata) = jacob * cond
 
       deallocate(phi_sor, phi_rec)
-
     enddo    
   enddo  
 
   ! I can now deallocate potential and delM (and M just after solving)
+  ! But what about potential field output?
 
 end subroutine PMERTBuildJacobian
 
