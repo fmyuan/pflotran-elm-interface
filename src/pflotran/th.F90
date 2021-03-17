@@ -2898,7 +2898,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
         endif
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
         ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
         ! should not be producing 'darcy-flow' over standing water availability
         ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
@@ -3584,7 +3584,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         endif
 
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
         ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
         ! should not be producing 'darcy-flow' over standing water availability
         ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.

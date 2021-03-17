@@ -872,7 +872,7 @@ subroutine SetOutputFlags(this)
     this%option%print_file_flag = PETSC_FALSE
   endif
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   ! when coupling with CLM, the output of ascii to either screen or file could be huge
   if (this%option%print_screen_flag .and. this%option%print_file_flag) then
     this%option%print_file_flag   = PETSC_TRUE

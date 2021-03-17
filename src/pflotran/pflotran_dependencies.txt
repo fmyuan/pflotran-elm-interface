@@ -44,7 +44,7 @@ checkpoint.o : discretization.o field.o global.o grid.o hdf5.o hdf5_aux.o \
 checkpoint_surface.o : discretization.o grid.o option.o output_aux.o \
                        pflotran_constants.o realization_surface.o \
                        surface_field.o
-clm_rspfuncs.o :
+elm_rspfuncs.o :
 co2_span_wagner.o : co2_sw_rtsafe.o option.o pflotran_constants.o string.o \
                     utility.o
 co2_span_wagner_spline.o : pflotran_constants.o spline.o
@@ -856,7 +856,7 @@ reaction_sandbox_denitr.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_rspfuncs.o
+                            utility.o elm_rspfuncs.o
 reaction_sandbox_degas.o  : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
@@ -866,27 +866,27 @@ reaction_sandbox_langmu.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_rspfuncs.o
+                            utility.o elm_rspfuncs.o
 reaction_sandbox_microbial.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_rspfuncs.o
+                            utility.o elm_rspfuncs.o
 reaction_sandbox_nitrif.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_rspfuncs.o
+                            utility.o elm_rspfuncs.o
 reaction_sandbox_plantn.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_rspfuncs.o
+                            utility.o elm_rspfuncs.o
 reaction_sandbox_somdec.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_rspfuncs.o
+                            utility.o elm_rspfuncs.o
 reaction_solid_solution.o : input_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_mineral.o \
                             reaction_mineral_aux.o \

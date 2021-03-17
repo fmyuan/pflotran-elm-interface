@@ -206,8 +206,8 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
 #include "petsc/finclude/petscdmda.h"
   use petscdmda
   use Option_module
-#ifdef CLM_PFLOTRAN
-  use clmpf_interface_data
+#ifdef ELM_PFLOTRAN
+  use elmpf_interface_data
 #endif
         
   implicit none
@@ -221,7 +221,7 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
 
   PetscErrorCode :: ierr
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   PetscInt :: i, ncell
 #endif
 
@@ -229,7 +229,7 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
   ! Generate the DM object that will manage communication.
   !-----------------------------------------------------------------------
   ! This code is for the DMDACreate3D() interface in PETSc versions >= 3.2 --RTM
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
   call DMDACreate3D(option%mycomm,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE, &
                     DM_BOUNDARY_NONE,stencil_type, &
                     structured_grid%nx,structured_grid%ny,structured_grid%nz, &
@@ -255,22 +255,22 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
     ! in order to match both with each other, it's better to do direct (explicit) decompose as following
     ! (Fengming Yuan @ornl, 2016 Feb.)
     ! some checking
-    if (structured_grid%npx /= size(clm_pf_idata%clm_lx)) then
+    if (structured_grid%npx /= size(elm_pf_idata%elm_lx)) then
       option%io_buffer = 'clm domain X-direction decompose incorrect '
       call printErrMsg(option)
     end if
-    if (structured_grid%npy /= size(clm_pf_idata%clm_ly)) then
+    if (structured_grid%npy /= size(elm_pf_idata%elm_ly)) then
       option%io_buffer = 'clm domain Y-direction decompose incorrect '
       call printErrMsg(option)
     end if
-    if (structured_grid%npz /= size(clm_pf_idata%clm_lz)) then
+    if (structured_grid%npz /= size(elm_pf_idata%elm_lz)) then
       option%io_buffer = 'clm domain Z-direction decompose incorrect '
       call printErrMsg(option)
     end if
 
     ncell = 0
     do i=1, structured_grid%npx
-      ncell = ncell + clm_pf_idata%clm_lx(i)
+      ncell = ncell + elm_pf_idata%elm_lx(i)
     end do
     if (structured_grid%nx /= ncell) then
       option%io_buffer = 'clm domain decomposed X-direction cell no. sum NOT matches with grid%nx'
@@ -279,7 +279,7 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
 
     ncell = 0
     do i=1, structured_grid%npy
-      ncell = ncell + clm_pf_idata%clm_ly(i)
+      ncell = ncell + elm_pf_idata%elm_ly(i)
     end do
     if (structured_grid%ny /= ncell) then
       option%io_buffer = 'clm domain decomposed Y-direction cell no. sum NOT matches with grid%ny'
@@ -288,7 +288,7 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
 
     ncell = 0
     do i=1, structured_grid%npz
-      ncell = ncell + clm_pf_idata%clm_lz(i)
+      ncell = ncell + elm_pf_idata%elm_lz(i)
     end do
     if (structured_grid%nz /= ncell) then
       option%io_buffer = 'clm domain decomposed Z-direction cell no. sum NOT matches with grid%nz'
@@ -300,9 +300,9 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
                     structured_grid%nx,structured_grid%ny,structured_grid%nz, &
                     structured_grid%npx,structured_grid%npy,structured_grid%npz, &
                     ndof,stencil_width, &
-                    clm_pf_idata%clm_lx, &
-                    clm_pf_idata%clm_ly, &
-                    clm_pf_idata%clm_lz, &
+                    elm_pf_idata%elm_lx, &
+                    elm_pf_idata%elm_ly, &
+                    elm_pf_idata%elm_lz, &
                     da,ierr);CHKERRQ(ierr)
 
   endif
@@ -1014,7 +1014,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%area(iconn) = structured_grid%dy(id_up)* &
                                         structured_grid%dz(id_up)
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
               ! need to adjust 'dist' by elevation (z-coordinate) differences, if any, when coupled with CLM
               ! by coupling, grid%z is CLM grid's elevation in meters
               tempreal = abs(zc(id_up) - zc(id_dn))
@@ -1132,7 +1132,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
                                     structured_grid%dz(id_up)
 
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
               ! need to adjust 'dist' by elevation (z-coordinate) differences, if any, when coupled with CLM
               ! by coupling, grid%z is CLM grid's elevation in meters
               tempreal = abs(zc(id_up) - zc(id_dn))

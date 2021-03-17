@@ -26,8 +26,9 @@ module Reaction_module
 #endif  
 
   use Reaction_Sandbox_module
+#ifndef ELM_PFLOTRAN
   use CLM_Rxn_module
-
+#endif
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
   
@@ -86,8 +87,9 @@ subroutine ReactionInit(reaction,input,option)
 
   use Option_module
   use Input_Aux_module
+#ifndef ELM_PFLOTRAN
   use CLM_Rxn_module, only : RCLMRxnInit
-  
+#endif
   implicit none
   
   class(reaction_rt_type), pointer :: reaction
@@ -98,8 +100,10 @@ subroutine ReactionInit(reaction,input,option)
   
   ! must be called prior to the first pass
   call RSandboxInit(option)
+#ifndef ELM_PFLOTRAN
   call RCLMRxnInit(option) 
- 
+#endif
+
   call ReactionReadPass1(reaction,input,option)
   reaction%primary_species_names => GetPrimarySpeciesNames(reaction)
   ! PCL add in colloid dofs
@@ -131,7 +135,9 @@ subroutine ReactionReadPass1(reaction,input,option)
   use Variables_module, only : PRIMARY_MOLALITY, PRIMARY_MOLARITY, &
                                TOTAL_MOLALITY, TOTAL_MOLARITY, &
                                SECONDARY_MOLALITY, SECONDARY_MOLARITY
+#ifndef ELM_PFLOTRAN
   use CLM_Rxn_module, only : RCLMRxnRead
+#endif
   use Generic_module
   
   implicit none
@@ -470,9 +476,11 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('REACTION_SANDBOX')
         call RSandboxRead(input,option)
         reaction_sandbox_read = PETSC_TRUE
+#ifndef ELM_PFLOTRAN
       case('CLM_REACTION')
         call RCLMRxnRead(input,option)
         reaction_clm_read = PETSC_TRUE
+#endif
       case('MICROBIAL_REACTION')
         call MicrobialRead(reaction%microbial,input,option)
       case('MINERALS')
@@ -1140,8 +1148,10 @@ subroutine ReactionReadPass2(reaction,input,option)
         call MineralReadKinetics(reaction%mineral,input,option)
       case('REACTION_SANDBOX')
         call RSandboxSkipInput(input,option)
+#ifndef ELM_PFLOTRAN
       case('CLM_REACTION')
         call RCLMRxnSkipInput(input,option)
+#endif
 #ifdef SOLID_SOLUTION                
       case('SOLID_SOLUTIONS')
         call SolidSolutionReadFromInputFile(reaction%solid_solution_list, &
@@ -3747,7 +3757,9 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   ! 
 
   use Option_module
+#ifndef ELM_PFLOTRAN
   use CLM_Rxn_module, only : RCLMRxn, clmrxn_list 
+#endif
  
   implicit none
   
@@ -3803,10 +3815,12 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   endif
   
   ! add new reactions here and in RReactionDerivative
+#ifndef ELM_PFLOTRAN
   if (associated(clmrxn_list)) then
     call RCLMRxn(Res,Jac,derivative,rt_auxvar,global_auxvar, &
                   material_auxvar,reaction,option)
   endif
+#endif
 
 end subroutine RReaction
 

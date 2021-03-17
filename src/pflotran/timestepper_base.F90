@@ -664,7 +664,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
 ! if coupled with CLM, max_time_step IS unlimited
 ! because 'waypoint' is controled by the interface
 ! otherwise, PF will stop at some point but CLM not-yet done
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
   if (cumulative_time_steps >= max_time_step-1) then
     nullify(cur_waypoint)
     stop_flag = TS_STOP_MAX_TIME_STEP

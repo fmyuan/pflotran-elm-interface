@@ -27,7 +27,7 @@
 #
 ###############################################################################
 
-# PFLOTRAN-CLM source directory -- default to the current directory
+# PFLOTRAN-ELM source directory -- default to the current directory
 SRC_DIR = ./
 
 # make option to search for source files in $SRC_DIR
@@ -59,8 +59,8 @@ ifdef debugbuild
   MYFLAGS += -g -O0
 endif
 
-# always in coupling with CLM
-MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
+# always in coupling with ELM
+MYFLAGS += ${FC_DEFINE_FLAG}ELM_PFLOTRAN ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
 
 ifdef column_mode
   # in this case, no lateral connections and each column totally on 1 processor, implying that NO need to do mpi scatter/gather 
@@ -69,7 +69,7 @@ ifdef column_mode
   MYFLAGS += ${FC_DEFINE_FLAG}COLUMN_MODE
 endif
 
-# calculate the jacobians for tracking variables if coupled with CLM-CN
+# calculate the jacobians for tracking variables if coupled with ELM-CN
 ifdef nojacboian_track_vars
   MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
 endif
@@ -244,8 +244,8 @@ pflotran_base_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 # PFLOTRAN as a library for coupling with ELM
 # source files to be copied/linked from $(pflotran_src) to $SRC_DIR
 common_srcfiles := $(subst $(common_src),,$(pflotran_base_obj:.o=.F90))
-clmpf_interface_srcfiles := $(subst $(SRC_DIR),,$(clmpf_interface_obj:.o=.F90))
-lib_pflotran_obj := $(pflotran_base_obj) $(clmpf_interface_obj)
+elmpf_interface_srcfiles := $(subst $(SRC_DIR),,$(elmpf_interface_obj:.o=.F90))
+lib_pflotran_obj := $(pflotran_base_obj) $(elmpf_interface_obj)
 
 libpflotran.a : $(lib_pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(lib_pflotran_obj)

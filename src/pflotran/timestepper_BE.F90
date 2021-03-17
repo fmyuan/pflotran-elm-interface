@@ -590,7 +590,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
       this%dt = this%time_step_reduction_factor * this%dt  
 
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
       write(option%io_buffer,'('' -> Cut time step: snes='',i3, &
            &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
            &   1pe12.5)')  snes_reason,icut, &
@@ -648,7 +648,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
 
 !fmy: begining
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
   ! the following output produces a large ascii file if coupled with CLM
 
   if (option%print_screen_flag) then
@@ -693,7 +693,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   endif
 
 !fmy: begining
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
 ! the following output produces a large ascii file if coupled with CLM
 
   if (option%print_file_flag) then
