@@ -1367,6 +1367,7 @@ subroutine MineralUpdateSpecSurfaceArea(reaction,rt_auxvar,material_auxvar, &
   PetscReal :: porosity_scale
   PetscReal :: volfrac_scale
   PetscReal :: mnrl_volfrac0
+  PetscReal :: mnrl_volfrac
 
   mineral => reaction%mineral
 
@@ -1383,13 +1384,17 @@ subroutine MineralUpdateSpecSurfaceArea(reaction,rt_auxvar,material_auxvar, &
     volfrac_scale = 1.d0
     mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
                         mineral%kinmnrl_vol_frac_epsilon(imnrl))
+    mnrl_volfrac = max(rt_auxvar%mnrl_volfrac(imnrl), &
+                       mineral%kinmnrl_vol_frac_epsilon(imnrl))
     if (mnrl_volfrac0 > 0.d0) then
-      volfrac_scale = (rt_auxvar%mnrl_volfrac(imnrl)/mnrl_volfrac0)** &
+      volfrac_scale = (mnrl_volfrac/mnrl_volfrac0)** &
                       mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
     endif
 
     rt_auxvar%mnrl_area(imnrl) = &
-        rt_auxvar%mnrl_area0(imnrl)*porosity_scale*volfrac_scale
+        max(rt_auxvar%mnrl_area0(imnrl), &
+            mineral%kinmnrl_surf_area_epsilon(imnrl)) * &
+        porosity_scale*volfrac_scale
 
     if (reaction%update_armor_mineral_surface .and. &
         mineral%kinmnrl_armor_crit_vol_frac(imnrl) > 0.d0) then
@@ -1424,8 +1429,6 @@ subroutine MineralUpdateSpecSurfaceArea(reaction,rt_auxvar,material_auxvar, &
         reaction%update_armor_mineral_surface_flag = 1 ! surface armored
       endif
     endif
-    rt_auxvar%mnrl_area(imnrl) = max(rt_auxvar%mnrl_area(imnrl), &
-                                     mineral%kinmnrl_surf_area_epsilon(imnrl))
 
   enddo
   
