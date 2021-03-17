@@ -301,7 +301,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
          tc = global_auxvar%temp
          !isat = th_auxvar%sat_ice       ! (TODO) not yet figure out how to point to 'th_auxvar'
       endif
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   elseif (option%ntrandof.gt.0 ) then
       air_press = max(air_press, global_auxvar%pres(1))      ! total (air)gas pressure: water pressure if over atm. press., otherwise atm. press.
       lsat = global_auxvar%sat(1)
@@ -331,7 +331,8 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
     c_co2_aq = rt_auxvar%total(this%ispec_co2a, iphase)
 
     co2_p = 350.0d-6 * option%flow%reference_pressure
-#ifdef CLM_PFLOTRAN
+
+#ifdef ELM_PFLOTRAN
     ! resetting 'co2g' from CLM after adjusting
     if (this%ispec_co2g > 0) then
        co2_molar = rt_auxvar%immobile(this%ispec_co2g)/air_vol          ! molCO2/m3 bulk soil --> mol/m3 air space
@@ -387,7 +388,8 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
     c_n2o_aq = rt_auxvar%total(this%ispec_n2oa, iphase)
 
     n2o_p = 310.0d-9 * option%flow%reference_pressure                        ! default (310 ppbv N2O in atm. in about 1990s)
-#ifdef CLM_PFLOTRAN
+
+#ifdef ELM_PFLOTRAN
     ! resetting 'n2og' from CLM after adjusting via 'N2Oimm'
     if (this%ispec_n2og > 0) then
        n2o_molar = rt_auxvar%immobile(this%ispec_n2og)/air_vol          ! molN2O/m3 bulk soil --> mol/m3 air space
@@ -436,7 +438,8 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
     c_n2_aq = rt_auxvar%total(this%ispec_n2a, iphase)                   ! M (mole-N/L)
 
     n2_p = 0.78084d0 * option%flow%reference_pressure                        ! default
-#ifdef CLM_PFLOTRAN
+
+#ifdef ELM_PFLOTRAN
     ! resetting 'n2g' from CLM after adjusting via 'N2imm'
     if (this%ispec_n2g > 0) then
        n2_molar = rt_auxvar%immobile(this%ispec_n2g)/air_vol          ! molN2-N/m3 bulk soil --> mol/m3 air space

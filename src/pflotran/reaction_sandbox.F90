@@ -4,7 +4,9 @@ module Reaction_Sandbox_module
   use petscsys
 
   use Reaction_Sandbox_Base_class
+#ifndef ELM_PFLOTRAN
   use Reaction_Sandbox_CLM_CN_class
+#endif
   use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
   use Reaction_Sandbox_Simple_class
@@ -162,8 +164,10 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
+#ifndef ELM_PFLOTRAN
       case('CLM-CN')
         new_sandbox => CLM_CN_Create()
+#endif
       ! Add new cases statements for new reacton sandbox classes here.
       case('SOMDECOMP')
         new_sandbox => SomDecCreate()

@@ -429,3 +429,4 @@ src/pflotran-elm-interface/matrix_zeroing.F90
 src/pflotran-elm-interface/pm_osrt.F90
 src/pflotran-elm-interface/pmc_subsurface_osrt.F90
 src/pflotran-elm-interface/timestepper_KSP.F90
+src/pflotran-elm-interface/elm_rspfuncs.F90

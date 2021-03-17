@@ -188,7 +188,7 @@ module Option_module
     PetscInt  :: th_ice_model         ! specify water/ice/vapor phase partitioning model
     PetscReal :: th_frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
     
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
     PetscBool :: mapping_files
 #endif
 
@@ -496,7 +496,7 @@ subroutine OptionInitRealization(option)
   option%compute_mass_balance_new = PETSC_FALSE
 
 !fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   option%compute_mass_balance_new = PETSC_TRUE
   option%mapping_files = PETSC_FALSE
   ! user-defined CLM-PFLOTRAN mesh maps NOT provided (default)
@@ -1270,7 +1270,7 @@ subroutine OptionInitMPI1(option)
 
   ! when coupling with CLM, MPI has already initialized, i.e. using MPI_COMM_WORLD directly.
   ! (actually this subroutine is not called in pflotran_clm_main.F90)
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
   call MPI_Init(ierr)
 #endif
 
@@ -1584,7 +1584,7 @@ subroutine OptionFinalize(option)
 
   ! NOTE: MPI communitcator from CLM should have already initialized beyond PFLOTRAN.
   !       SO it must also be finalized beyond PFLOTRAN. Otherwise it causes MPI_Finalize failure.
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)
   call exit(iflag)

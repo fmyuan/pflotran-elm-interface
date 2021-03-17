@@ -155,7 +155,7 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   data_mediator%dataset%global_size = discretization%grid%nmax
 
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   ! by-passing reading dataset%time_storage from the dummy hdf5 file ('dummy.h5'),
   ! which implies that CLM directly updates 'this%dataset%rarray' at each clm-timestep
   if (.not.(StringEndswith(trim(data_mediator%dataset%filename), "dummy.h5")) ) then
@@ -207,7 +207,7 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
   PetscInt :: i
   PetscErrorCode :: ierr
   
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   ! by-passing reading dataset from the dummy hdf5 file,
   ! which implies that CLM directly updates 'this%dataset%rarray' instead of reading
   if (.not.(StringEndswith(trim(this%dataset%filename), "dummy.h5")) ) then

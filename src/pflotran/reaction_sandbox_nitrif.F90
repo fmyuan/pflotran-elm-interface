@@ -218,7 +218,7 @@ subroutine NitrifSetup(this,reaction,option)
   word = 'NGASnitr'
   this%ispec_ngasnit = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   if(this%ispec_ngasnit < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIF: ' // &
        'NGASnitr is not specified as immobile species in the input file' // &
@@ -242,12 +242,11 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
-  use CLM_RspFuncs_module
+  use ELM_RspFuncs_module
 
-#ifdef CLM_PFLOTRAN
-#include "petsc/finclude/petscvec.h"
+#ifdef ELM_PFLOTRAN
   use petscvec
-  use clmpf_interface_data
+  use elmpf_interface_data
 #endif
   
   implicit none
@@ -287,7 +286,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: L_water    ! L(kg)/m3 bulk
   PetscReal :: temp_real, feps0, dfeps0_dx
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   PetscScalar, pointer :: bulkdensity(:)
 #endif
 
@@ -374,13 +373,13 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
 ! N2O production during nitrification (Parton et al. 1996)
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   veclocal_id = option%iflag
 
-  call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
+  call VecGetArrayReadF90(elm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
   CHKERRQ(ierr)
   rho_b = bulkdensity(veclocal_id) ! kg/m3
-  call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
+  call VecRestoreArrayReadF90(elm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
   CHKERRQ(ierr)
 #else
   rho_b = 1.25d3

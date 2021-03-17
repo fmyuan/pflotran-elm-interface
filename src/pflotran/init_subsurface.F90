@@ -162,7 +162,7 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   type(material_property_type), pointer :: material_property
   type(region_type), pointer :: region
   class(material_auxvar_type), pointer :: material_auxvars(:)
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   type(material_property_type), pointer :: material_property_default
   type(strata_type), pointer :: pre_strata
   character(len=MAXSTRINGLENGTH) :: string
@@ -178,7 +178,7 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
     cur_patch%imat = UNINITIALIZED_INTEGER
     grid => cur_patch%grid
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
     ! strata(_list) and material_property are unique for each cell, if CLM coupling with PFLOTRAN
     if(cur_patch%strata_list%num_strata /= grid%nlmax) then
       write(string,*) 'num_strata -', cur_patch%strata_list%num_strata, &

@@ -113,10 +113,8 @@ chem_obj = \
 	${common_src}reaction.o \
 	${common_src}reaction_base.o \
 	${common_src}reaction_aux.o \
-	${common_src}reaction_clm.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
-	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_gmd_1.o \
 	${common_src}reaction_sandbox_gmd_2.o \
@@ -124,7 +122,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_gas.o \
 	${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
-	${common_src}clm_rspfuncs.o \
+	${common_src}elm_rspfuncs.o \
 	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_denitr.o \
 	${common_src}reaction_sandbox_langmu.o \
@@ -291,10 +289,10 @@ solver_obj = \
 	${common_src}solver.o \
 	${common_src}solver_cpr.o
 
-clmpf_interface_obj = \
-	${common_src}pflotran_clm_main.o \
-	${common_src}pflotran_clm_setmapping.o \
-	${common_src}clmpf_interface_data.o \
+elmpf_interface_obj = \
+	${common_src}pflotran_elm_main.o \
+	${common_src}pflotran_elm_setmapping.o \
+	${common_src}elmpf_interface_data.o \
 	${common_src}mapping.o \
 	${common_src}geodesic.o
 	
