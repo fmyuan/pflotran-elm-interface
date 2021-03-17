@@ -446,7 +446,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
   call printMsg(option)
 #endif
 
@@ -633,7 +633,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename_path)
   endif
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
   call printMsg(option)
 #endif
 
@@ -1035,7 +1035,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     option%io_buffer = '--> appending to hdf5 output file: ' // &
                        trim(filename_path)
   endif
-#ifndef CLM_PFLOTRAN
+#ifndef ELM_PFLOTRAN
   call printMsg(option)
 #endif
   

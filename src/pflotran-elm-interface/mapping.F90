@@ -1,6 +1,6 @@
 module Mapping_module
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
 
 ! ************************************************************************** !
 
@@ -24,11 +24,11 @@ module Mapping_module
 
   ! Note:
   !
-  ! CLM has the following:
-  !   (i) 3D subsurface grid (CLM_3DSUB);
-  !   (ii) 2D top-cell grid (CLM_2DTOP).
-  !   (iii) 2D bottom-cell grid (CLM_2DBOT)
-  ! CLM decomposes the 3D subsurface grid across processors in a 2D (i.e.
+  ! ELM has the following:
+  !   (i) 3D subsurface grid (ELM_3DSUB);
+  !   (ii) 2D top-cell grid (ELM_2DTOP).
+  !   (iii) 2D bottom-cell grid (ELM_2DBOT)
+  ! ELM decomposes the 3D subsurface grid across processors in a 2D (i.e.
   ! cells in Z are not split across processors). Thus, the surface cells of
   ! 3D subsurface grid are on the same processors as the 2D surface grid.
   !
@@ -40,13 +40,13 @@ module Mapping_module
   ! processors. PF_3DSUB and PF_2DSUB are derived from simulation%realization;
   ! while PF_SRF refers to simulation%surf_realization.
 
-  PetscInt, parameter, public :: CLM_3DSUB_TO_PF_3DSUB       = 1 ! 3D --> 3D
-  PetscInt, parameter, public :: PF_3DSUB_TO_CLM_3DSUB       = 2 ! 3D --> 3D
+  PetscInt, parameter, public :: ELM_3DSUB_TO_PF_3DSUB       = 1 ! 3D --> 3D
+  PetscInt, parameter, public :: PF_3DSUB_TO_ELM_3DSUB       = 2 ! 3D --> 3D
 
-  PetscInt, parameter, public :: CLM_2DTOP_TO_PF_2DTOP       = 3 ! TOP face of 3D cell
-  PetscInt, parameter, public :: PF_2DTOP_TO_CLM_2DTOP       = 4 ! TOP face of 3D cell
-  PetscInt, parameter, public :: CLM_2DBOT_TO_PF_2DBOT       = 5 ! BOTTOM face of 3D cell
-  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_2DBOT       = 6 ! BOTTOM face of 3D cell
+  PetscInt, parameter, public :: ELM_2DTOP_TO_PF_2DTOP       = 3 ! TOP face of 3D cell
+  PetscInt, parameter, public :: PF_2DTOP_TO_ELM_2DTOP       = 4 ! TOP face of 3D cell
+  PetscInt, parameter, public :: ELM_2DBOT_TO_PF_2DBOT       = 5 ! BOTTOM face of 3D cell
+  PetscInt, parameter, public :: PF_2DBOT_TO_ELM_2DBOT       = 6 ! BOTTOM face of 3D cell
 
   type, public  :: mapping_type
 
@@ -60,7 +60,7 @@ module Mapping_module
     !       s - Source vector      (ns x 1)
     !       d - Destination vector (nd x 1)
     !
-    ! In CLM-PFLOTRAN coupling, s and d vectors are decomposed over multiple processors.
+    ! In ELM-PFLOTRAN coupling, s and d vectors are decomposed over multiple processors.
     ! The decomposition of vectors need not be in a contiguous order.
     !
     ! Each processor perfoms a local matrix-vector product:
@@ -113,9 +113,9 @@ module Mapping_module
                                                     ! component of source vector
 
     ! Header information about number of layers mapped
-    PetscInt           :: clm_nlevsoi               ! Number of CLM nlevsoi
-    PetscInt           :: clm_nlevgrnd              ! Number of CLM nlevgrnd
-    PetscInt           :: clm_nlev_mapped           ! Number of CLM layers mapped
+    PetscInt           :: elm_nlevsoi               ! Number of ELM nlevsoi
+    PetscInt           :: elm_nlevgrnd              ! Number of ELM nlevgrnd
+    PetscInt           :: elm_nlev_mapped           ! Number of ELM layers mapped
     PetscInt           :: pflotran_nlev             ! Number of PFLOTRAN layers
     PetscInt           :: pflotran_nlev_mapped      ! Number of PFLOTRAN layers mapped
 
@@ -124,7 +124,7 @@ module Mapping_module
   public :: MappingCreate, &
             MappingSetSourceMeshCellIds, &
             MappingSetDestinationMeshCellIds, &
-            MappingFromCLMGrids, &
+            MappingFromELMGrids, &
             MappingReadTxtFile, &
             MappingDecompose, &
             MappingFindDistinctSourceMeshCellIds, &
@@ -189,9 +189,9 @@ contains
     map%s2d_scat_s_gb2disloc = PETSC_NULL_VECSCATTER
     map%s_disloc_vec         = PETSC_NULL_VEC
 
-    map%clm_nlevsoi          = 0
-    map%clm_nlevgrnd         = 0
-    map%clm_nlev_mapped      = 0
+    map%elm_nlevsoi          = 0
+    map%elm_nlevgrnd         = 0
+    map%elm_nlev_mapped      = 0
     map%pflotran_nlev        = 0
     map%pflotran_nlev_mapped = 0
     
@@ -201,9 +201,9 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingFromCLMGrids(map,grid,if_dest_pf,option)
+  subroutine MappingFromELMGrids(map,grid,if_dest_pf,option)
   !
-  ! This routine directly obtains grids/soils from CLM.
+  ! This routine directly obtains grids/soils from ELM.
   ! NOTE: only works with structured/cartsian type of pflotran mesh
   ! (modified from subroutine:: MappingReadTxtFile below
   ! Author: Fengming Yuan, ORNL
@@ -227,7 +227,7 @@ contains
     ! local variables
     PetscInt                        :: temp_int
     PetscInt                        :: nwts
-    PetscInt,pointer                :: wts_clmid(:), wts_pfid(:)
+    PetscInt,pointer                :: wts_elmid(:), wts_pfid(:)
     PetscInt                        :: i, j, k, natural_id, grid_count, cell_count
     PetscInt,pointer                :: wts_row_tmp(:), wts_col_tmp(:)
     PetscReal,pointer               :: wts_tmp(:)
@@ -240,7 +240,7 @@ contains
 
     select case(grid%itype)
       case(STRUCTURED_GRID)
-        option%io_buffer = 'MAPPING INFO: CLM grid/column dimension will be mapped into ' // &
+        option%io_buffer = 'MAPPING INFO: ELM grid/column dimension will be mapped into ' // &
            'PF structured/cartesian grid mesh.'
         call printMsg(option)
 
@@ -259,25 +259,25 @@ contains
 
     !
     nwts = -999
-    if (map%clm_nlev_mapped == map%pflotran_nlev_mapped) then
-      if (map%id == CLM_3DSUB_TO_PF_3DSUB .or. map%id == PF_3DSUB_TO_CLM_3DSUB) nwts = grid%structured_grid%nmax
-      if (map%id == CLM_2DTOP_TO_PF_2DTOP .or. map%id == PF_2DTOP_TO_CLM_2DTOP) nwts = grid%structured_grid%nxy
-      if (map%id == CLM_2DBOT_TO_PF_2DBOT .or. map%id == PF_2DBOT_TO_CLM_2DBOT) nwts = grid%structured_grid%nxy
+    if (map%elm_nlev_mapped == map%pflotran_nlev_mapped) then
+      if (map%id == ELM_3DSUB_TO_PF_3DSUB .or. map%id == PF_3DSUB_TO_ELM_3DSUB) nwts = grid%structured_grid%nmax
+      if (map%id == ELM_2DTOP_TO_PF_2DTOP .or. map%id == PF_2DTOP_TO_ELM_2DTOP) nwts = grid%structured_grid%nxy
+      if (map%id == ELM_2DBOT_TO_PF_2DBOT .or. map%id == PF_2DBOT_TO_ELM_2DBOT) nwts = grid%structured_grid%nxy
     else
-      option%io_buffer = 'not equal numbers of soil layers mapped btw CLM and PFLOTRAN! '
+      option%io_buffer = 'not equal numbers of soil layers mapped btw ELM and PFLOTRAN! '
       call printErrMsg(option)
     end if
 
     !
     if(option%myrank == option%io_rank) then
-      ! some information on CLM-PFLOTRAN mesh matching-up (passing)
-      write(*,*) 'CLM nlevsoil mapped = ', map%clm_nlev_mapped
+      ! some information on ELM-PFLOTRAN mesh matching-up (passing)
+      write(*,*) 'ELM nlevsoil mapped = ', map%elm_nlev_mapped
       write(*,*) 'PFLOTRAN nlevsoil mapped = ', map%pflotran_nlev_mapped
-      write(*,*) 'CLM-PFLOTRAN ncell mapped = ', nwts
+      write(*,*) 'ELM-PFLOTRAN ncell mapped = ', nwts
 
-      ! obtain the global cell natural ids for both CLM and PFLTORAN
+      ! obtain the global cell natural ids for both ELM and PFLTORAN
       allocate(wts_pfid(nwts))
-      allocate(wts_clmid(nwts))
+      allocate(wts_elmid(nwts))
       cell_count = 0
 
       do k = 1, grid%structured_grid%nz
@@ -290,29 +290,29 @@ contains
                          (k-1)*grid%structured_grid%nxy        ! z third
 
 
-            ! CLM global grid numering (1-based)
+            ! ELM global grid numering (1-based)
             grid_count = i +                          &        ! west-east (x: longitudal) direction third
                         (j-1)*grid%structured_grid%nx          ! south-north (y: latitudal) direction second
 
             ! cell ids globally
-            if (map%id == CLM_3DSUB_TO_PF_3DSUB .or. map%id == PF_3DSUB_TO_CLM_3DSUB) then  ! 3D subsurface (soil) domain
+            if (map%id == ELM_3DSUB_TO_PF_3DSUB .or. map%id == PF_3DSUB_TO_ELM_3DSUB) then  ! 3D subsurface (soil) domain
               cell_count = cell_count + 1
               wts_pfid(cell_count)  = natural_id
-              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+              wts_elmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
                                       grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
 
-            elseif((map%id == CLM_2DTOP_TO_PF_2DTOP .or. map%id == PF_2DTOP_TO_CLM_2DTOP) &
+            elseif((map%id == ELM_2DTOP_TO_PF_2DTOP .or. map%id == PF_2DTOP_TO_ELM_2DTOP) &
                .and. k==grid%structured_grid%nz) then  ! 2D top face
               cell_count = cell_count + 1
               wts_pfid(cell_count)  = natural_id
-              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+              wts_elmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
                                       grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
 
-            elseif((map%id == CLM_2DBOT_TO_PF_2DBOT .or. map%id == PF_2DBOT_TO_CLM_2DBOT) &
+            elseif((map%id == ELM_2DBOT_TO_PF_2DBOT .or. map%id == PF_2DBOT_TO_ELM_2DBOT) &
                .and. k==1) then  ! 2D bottom face
               cell_count = cell_count + 1
               wts_pfid(cell_count)  = natural_id
-              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+              wts_elmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
                                       grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
 
             endif
@@ -322,19 +322,19 @@ contains
       end do   ! z
       ! just in case, do the following checking
       if (cell_count /= nwts) then
-        option%io_buffer = 'not equal numbers of cell_counts mapped btw CLM and PFLOTRAN! '
+        option%io_buffer = 'not equal numbers of cell_counts mapped btw ELM and PFLOTRAN! '
         call printErrMsg(option)
       endif
 
       ! sort destination mesh id obtained above
       ! because mapping approach requires 'destination mesh' id (row-id in wts_matrix) in descending order
       if (if_dest_pf) then
-        ! PF mesh as destination mesh (row-id in wts_matrix), while CLM mesh is source-mesh
-        call PetscSortIntWithArray(nwts,wts_pfid,wts_clmid,ierr)
+        ! PF mesh as destination mesh (row-id in wts_matrix), while ELM mesh is source-mesh
+        call PetscSortIntWithArray(nwts,wts_pfid,wts_elmid,ierr)
 
       else
-        ! CLM mesh as destination mesh (row-id in wts_matrix), while PF mesh is source-mesh
-        call PetscSortIntWithArray(nwts,wts_clmid,wts_pfid,ierr)
+        ! ELM mesh as destination mesh (row-id in wts_matrix), while PF mesh is source-mesh
+        call PetscSortIntWithArray(nwts,wts_elmid,wts_pfid,ierr)
       end if
 
 
@@ -365,12 +365,12 @@ contains
           do ii = 1, nread
             if (if_dest_pf) then
               map%s2d_icsr(ii) = wts_pfid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
-              map%s2d_jcsr(ii) = wts_clmid(cum_nread-nread+ii) - 1
+              map%s2d_jcsr(ii) = wts_elmid(cum_nread-nread+ii) - 1
             else
-              map%s2d_icsr(ii) = wts_clmid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              map%s2d_icsr(ii) = wts_elmid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
               map%s2d_jcsr(ii) = wts_pfid(cum_nread-nread+ii) - 1
             end if
-           ! set 'wts' to 1.0, assuming 1:1 mapping btw CLM and PF
+           ! set 'wts' to 1.0, assuming 1:1 mapping btw ELM and PF
            ! i.e. no scaling or weighting of area/volume.
            ! SO, all data passing MUST be in unit of per area/volume or independent of area/volume.
             map%s2d_wts(ii)  = 1.d0
@@ -383,12 +383,12 @@ contains
           do ii = 1, nread
             if (if_dest_pf) then
               wts_row_tmp(ii) = wts_pfid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
-              wts_col_tmp(ii) = wts_clmid(cum_nread-nread+ii) - 1
+              wts_col_tmp(ii) = wts_elmid(cum_nread-nread+ii) - 1
             else
-              wts_row_tmp(ii) = wts_clmid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              wts_row_tmp(ii) = wts_elmid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
               wts_col_tmp(ii) = wts_pfid(cum_nread-nread+ii) - 1
             end if
-           ! set 'wts' to 1.0, assuming 1:1 mapping btw CLM and PF
+           ! set 'wts' to 1.0, assuming 1:1 mapping btw ELM and PF
            ! i.e. no scaling or weighting of area/volume.
            ! SO, all data passing MUST be in unit of per area/volume or independent of area/volume.
             wts_tmp(ii)  = 1.d0
@@ -412,7 +412,7 @@ contains
       deallocate(wts_col_tmp)
       deallocate(wts_tmp)
       deallocate(wts_pfid)
-      deallocate(wts_clmid)
+      deallocate(wts_elmid)
 
     else
       ! Other ranks receive data from io_rank
@@ -434,7 +434,7 @@ contains
 
     end if !else of if(option%myrank == option%io_rank)
 
-  end subroutine MappingFromCLMGrids
+  end subroutine MappingFromELMGrids
 
 ! ************************************************************************** !
 
@@ -497,18 +497,18 @@ contains
         call StringToLower(card)
 
         select case (trim(card))
-          case('clm_nlevsoi')
-            hint = 'clm_nlevsoi'
-            call InputReadInt(input,option,map%clm_nlevsoi)
-            call InputErrorMsg(input,option,'CLM nlevsoi',hint)
-          case('clm_nlevgrnd')
-            hint = 'clm_nlevgrnd'
-            call InputReadInt(input,option,map%clm_nlevgrnd)
-            call InputErrorMsg(input,option,'CLM nlevgrnd',hint)
-          case('clm_nlev_mapped')
-            hint = 'clm_nlev_mapped'
-            call InputReadInt(input,option,map%clm_nlev_mapped)
-            call InputErrorMsg(input,option,'CLM nlev mapped',hint)
+          case('elm_nlevsoi')
+            hint = 'elm_nlevsoi'
+            call InputReadInt(input,option,map%elm_nlevsoi)
+            call InputErrorMsg(input,option,'ELM nlevsoi',hint)
+          case('elm_nlevgrnd')
+            hint = 'elm_nlevgrnd'
+            call InputReadInt(input,option,map%elm_nlevgrnd)
+            call InputErrorMsg(input,option,'ELM nlevgrnd',hint)
+          case('elm_nlev_mapped')
+            hint = 'elm_nlev_mapped'
+            call InputReadInt(input,option,map%elm_nlev_mapped)
+            call InputErrorMsg(input,option,'ELM nlev mapped',hint)
           case('pflotran_nlev')
             hint = 'pflotran_nlev'
             call InputReadInt(input,option,map%pflotran_nlev)
@@ -638,19 +638,19 @@ contains
                     
     endif
 
-    ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
-    temp_int_array(1) = map%clm_nlevsoi
-    temp_int_array(2) = map%clm_nlevgrnd
-    temp_int_array(3) = map%clm_nlev_mapped
+    ! Broadcast from root information regarding ELM/PFLOTRAN num soil layers
+    temp_int_array(1) = map%elm_nlevsoi
+    temp_int_array(2) = map%elm_nlevgrnd
+    temp_int_array(3) = map%elm_nlev_mapped
     temp_int_array(4) = map%pflotran_nlev
     temp_int_array(5) = map%pflotran_nlev_mapped
 
     call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER,option%io_rank, &
                  option%mycomm,ierr)
     
-    map%clm_nlevsoi = temp_int_array(1)
-    map%clm_nlevgrnd = temp_int_array(2)
-    map%clm_nlev_mapped = temp_int_array(3)
+    map%elm_nlevsoi = temp_int_array(1)
+    map%elm_nlevgrnd = temp_int_array(2)
+    map%elm_nlev_mapped = temp_int_array(3)
     map%pflotran_nlev = temp_int_array(4)
     map%pflotran_nlev_mapped = temp_int_array(5)
 
@@ -1153,7 +1153,7 @@ contains
 
     ! Allocate memory
     if(associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
-    ! it has been allocated before (when reading mesh file either in txt or from CLM)
+    ! it has been allocated before (when reading mesh file either in txt or from ELM)
     allocate(map%s2d_jcsr(map%s2d_s_ncells))
     allocate(int_array (map%s2d_s_ncells))
     allocate(int_array2(map%s2d_s_ncells))

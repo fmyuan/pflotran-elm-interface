@@ -197,7 +197,7 @@ subroutine PlantNSetup(this,reaction,option)
   this%ispec_plantno3uptake = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
                  PETSC_FALSE,option)
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   if(this%ispec_plantnh4uptake < 0 .and. this%ispec_plantno3uptake < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN: ' // &
        'At least one of "Plantnh4uptake" or "Plantno3uptake " ' // &
@@ -207,7 +207,7 @@ subroutine PlantNSetup(this,reaction,option)
   endif
 #endif
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   if(this%ispec_plantnh4uptake < 0 .and. this%ispec_plantno3uptake < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN: ' // &
        'At least one of "Plantnh4uptake" or "Plantno3uptake " ' // &
@@ -237,12 +237,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
   use Reaction_Immobile_Aux_module
   use Material_Aux_class, only : material_auxvar_type
-  use CLM_RspFuncs_module
+  use ELM_RspFuncs_module
 
-#ifdef CLM_PFLOTRAN
-#include "petsc/finclude/petscvec.h"
+#ifdef ELM_PFLOTRAN
   use petscvec
-  use clmpf_interface_data
+  use elmpf_interface_data
 #endif
   
   implicit none
@@ -299,7 +298,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: dnrate_no3_dnh4       !d(nrate_no3)/d(nh4)
   PetscReal :: dnrate_no3_dno3       !d(nrate_no3)/d(no3)
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   PetscScalar, pointer :: rate_plantndemand_pf_loc(:)   !
 #endif 
 
@@ -427,15 +426,15 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   !--------------------------------------------------------------------------------------------
   ! plant N demand rates
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   veclocal_id = option%iflag
 
-  call VecGetArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
+  call VecGetArrayReadF90(elm_pf_idata%rate_plantndemand_pfs, &
        rate_plantndemand_pf_loc, ierr)
 
   this%rate_plantndemand = max(0.d0, rate_plantndemand_pf_loc(veclocal_id) * volume)          ! moles/m3/s * m3
 
-  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
+  call VecRestoreArrayReadF90(elm_pf_idata%rate_plantndemand_pfs, &
        rate_plantndemand_pf_loc, ierr)
 
   if(this%rate_plantndemand<=0.d0) return

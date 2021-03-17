@@ -199,7 +199,7 @@ subroutine DenitrSetup(this,reaction,option)
   word = 'NGASdeni'
   this%ispec_ngasdeni = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   if(this%ispec_ngasdeni < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
        ' NGASdeni is not specified as immobile species in the input file. ' // &
@@ -220,12 +220,11 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
-  use CLM_RspFuncs_module
+  use ELM_RspFuncs_module
 
-#ifdef CLM_PFLOTRAN
-#include "petsc/finclude/petscvec.h"
+#ifdef ELM_PFLOTRAN
   use petscvec
-  use clmpf_interface_data
+  use elmpf_interface_data
 #endif
 
   implicit none
@@ -286,12 +285,12 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   ires_n2  = this%ispec_n2 + reaction%offset_aqueous
   ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   veclocal_id = option%iflag
-  call VecGetArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
+  call VecGetArrayReadF90(elm_pf_idata%bsw_pfs, bsw, ierr)
   CHKERRQ(ierr)
   temp_real = bsw(veclocal_id)
-  call VecRestoreArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
+  call VecRestoreArrayReadF90(elm_pf_idata%bsw_pfs, bsw, ierr)
   CHKERRQ(ierr)
 
 #else

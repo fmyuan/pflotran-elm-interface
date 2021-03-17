@@ -1,5 +1,5 @@
-module pflotran_clm_setmapping_module
-#ifdef CLM_PFLOTRAN
+module pflotran_elm_setmapping_module
+#ifdef ELM_PFLOTRAN
 
 ! ************************************************************************** !
 
@@ -33,12 +33,12 @@ module pflotran_clm_setmapping_module
        pflotranModelInitMapFaceToFace
 
   ! mesh ids
-  PetscInt, parameter :: CLM_3DSUB_MESH = 1
+  PetscInt, parameter :: ELM_3DSUB_MESH = 1
   PetscInt, parameter :: PF_3DSUB_MESH  = 2
-  PetscInt, parameter :: CLM_FACE_MESH  = 3
+  PetscInt, parameter :: ELM_FACE_MESH  = 3
   PetscInt, parameter :: PF_FACE_MESH   = 4
 
-  !PetscInt, parameter :: CLM_2DTOP_MESH = 5
+  !PetscInt, parameter :: ELM_2DTOP_MESH = 5
   !PetscInt, parameter :: PF_2DTOP_MESH  = 6
 
   character(len=MAXWORDLENGTH) :: subname = ""
@@ -56,7 +56,7 @@ contains
   ! before model integration is performed by the call to StepperRun()
   ! routine
   ! NOTE(bja, 2013-07) this really needs to be moved out of pflotran
-  ! CLM should be responsible for passing data in the correct
+  ! ELM should be responsible for passing data in the correct
   ! format. That may require pflotran to provide a call back function
   ! for grid info.
   !
@@ -67,7 +67,7 @@ contains
     use String_module
     use Option_module
     use Input_Aux_module
-    use pflotran_clm_main_module, only : pflotran_model_type
+    use pflotran_elm_main_module, only : pflotran_model_type
 
     !use Simulation_Subsurface_class, only : subsurface_simulation_type
     !use Realization_class, only : realization_type
@@ -77,41 +77,41 @@ contains
     type(pflotran_model_type), pointer, intent(inout) :: model
     type(input_type), pointer :: input
 
-    PetscBool :: clm2pf_3dsub_file
-    PetscBool :: pf2clm_3dsub_file
+    PetscBool :: elm2pf_3dsub_file
+    PetscBool :: pf2elm_3dsub_file
 
-    PetscBool :: clm2pf_bctop_file
-    PetscBool :: pf2clm_bctop_file
+    PetscBool :: elm2pf_bctop_file
+    PetscBool :: pf2elm_bctop_file
 
-    PetscBool :: clm2pf_bcbot_file
-    PetscBool :: pf2clm_bcbot_file
+    PetscBool :: elm2pf_bcbot_file
+    PetscBool :: pf2elm_bcbot_file
 
     character(len=MAXSTRINGLENGTH) :: string
     character(len=MAXWORDLENGTH) :: word
 
     !nullify(model%pf_cells)
-    !nullify(model%clm_cells)
-    nullify(model%map_clm_sub_to_pf_sub)
-    nullify(model%map_clm_2dtop_to_pf_2dtop)
-    nullify(model%map_pf_sub_to_clm_sub)
+    !nullify(model%elm_cells)
+    nullify(model%map_elm_sub_to_pf_sub)
+    nullify(model%map_elm_2dtop_to_pf_2dtop)
+    nullify(model%map_pf_sub_to_elm_sub)
     !
-    nullify(model%map_clm_2dbot_to_pf_2dbot)
-    nullify(model%map_pf_2dbot_to_clm_2dbot)
-    nullify(model%map_pf_2dtop_to_clm_2dtop)
+    nullify(model%map_elm_2dbot_to_pf_2dbot)
+    nullify(model%map_pf_2dbot_to_elm_2dbot)
+    nullify(model%map_pf_2dtop_to_elm_2dtop)
 
-    model%nlclm = -1
-    model%ngclm = -1
+    model%nlelm = -1
+    model%ngelm = -1
 
     input => InputCreate(IUNIT_TEMP, &
                     model%option%input_filename, model%option)
 
     ! Read names of mapping file
-    clm2pf_3dsub_file=PETSC_FALSE
-    pf2clm_3dsub_file=PETSC_FALSE
-    clm2pf_bctop_file=PETSC_FALSE
-    pf2clm_bctop_file=PETSC_FALSE
-    clm2pf_bcbot_file=PETSC_FALSE
-    pf2clm_bcbot_file=PETSC_FALSE
+    elm2pf_3dsub_file=PETSC_FALSE
+    pf2elm_3dsub_file=PETSC_FALSE
+    elm2pf_bctop_file=PETSC_FALSE
+    pf2elm_bctop_file=PETSC_FALSE
+    elm2pf_bcbot_file=PETSC_FALSE
+    pf2elm_bcbot_file=PETSC_FALSE
     
     string = "MAPPING_FILES"
     call InputFindStringInFile(input,model%option,string)
@@ -126,67 +126,67 @@ contains
       call StringToUpper(word)
 
       select case(trim(word))
-        case('CLM2PF_SUB_FILE')
-          model%map_clm_sub_to_pf_sub => MappingCreate()
-          call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_sub%filename, &
+        case('ELM2PF_SUB_FILE')
+          model%map_elm_sub_to_pf_sub => MappingCreate()
+          call InputReadNChars(input, model%option, model%map_elm_sub_to_pf_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_clm_sub_to_pf_sub%filename = &
-            trim(model%map_clm_sub_to_pf_sub%filename)//CHAR(0)
-          model%map_clm_sub_to_pf_sub%id = CLM_3DSUB_TO_PF_3DSUB
+          model%map_elm_sub_to_pf_sub%filename = &
+            trim(model%map_elm_sub_to_pf_sub%filename)//CHAR(0)
+          model%map_elm_sub_to_pf_sub%id = ELM_3DSUB_TO_PF_3DSUB
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
-          clm2pf_3dsub_file=PETSC_TRUE
-        case('PF2CLM_SUB_FILE')
-          model%map_pf_sub_to_clm_sub => MappingCreate()
-          call InputReadNChars(input, model%option, model%map_pf_sub_to_clm_sub%filename, &
+          elm2pf_3dsub_file=PETSC_TRUE
+        case('PF2ELM_SUB_FILE')
+          model%map_pf_sub_to_elm_sub => MappingCreate()
+          call InputReadNChars(input, model%option, model%map_pf_sub_to_elm_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_pf_sub_to_clm_sub%filename = &
-            trim(model%map_pf_sub_to_clm_sub%filename)//CHAR(0)
-          model%map_pf_sub_to_clm_sub%id = PF_3DSUB_TO_CLM_3DSUB
+          model%map_pf_sub_to_elm_sub%filename = &
+            trim(model%map_pf_sub_to_elm_sub%filename)//CHAR(0)
+          model%map_pf_sub_to_elm_sub%id = PF_3DSUB_TO_ELM_3DSUB
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
-          pf2clm_3dsub_file=PETSC_TRUE
+          pf2elm_3dsub_file=PETSC_TRUE
 
-        case('CLM2PF_BCTOP_FILE')
-          model%map_clm_2dtop_to_pf_2dtop => MappingCreate()
-          call InputReadNChars(input, model%option, model%map_clm_2dtop_to_pf_2dtop%filename, &
+        case('ELM2PF_BCTOP_FILE')
+          model%map_elm_2dtop_to_pf_2dtop => MappingCreate()
+          call InputReadNChars(input, model%option, model%map_elm_2dtop_to_pf_2dtop%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_clm_2dtop_to_pf_2dtop%filename = &
-            trim(model%map_clm_2dtop_to_pf_2dtop%filename)//CHAR(0)
-          model%map_clm_2dtop_to_pf_2dtop%id = CLM_2DTOP_TO_PF_2DTOP
+          model%map_elm_2dtop_to_pf_2dtop%filename = &
+            trim(model%map_elm_2dtop_to_pf_2dtop%filename)//CHAR(0)
+          model%map_elm_2dtop_to_pf_2dtop%id = ELM_2DTOP_TO_PF_2DTOP
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
-          clm2pf_bctop_file=PETSC_TRUE
-        case('PF2CLM_BCTOP_FILE')
-          model%map_pf_2dtop_to_clm_2dtop => MappingCreate()
-          call InputReadNChars(input, model%option, model%map_pf_2dtop_to_clm_2dtop%filename, &
+          elm2pf_bctop_file=PETSC_TRUE
+        case('PF2ELM_BCTOP_FILE')
+          model%map_pf_2dtop_to_elm_2dtop => MappingCreate()
+          call InputReadNChars(input, model%option, model%map_pf_2dtop_to_elm_2dtop%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_pf_2dtop_to_clm_2dtop%filename = &
-              trim(model%map_pf_2dtop_to_clm_2dtop%filename)//CHAR(0)
-          model%map_pf_2dtop_to_clm_2dtop%id = PF_2DTOP_TO_CLM_2DTOP
+          model%map_pf_2dtop_to_elm_2dtop%filename = &
+              trim(model%map_pf_2dtop_to_elm_2dtop%filename)//CHAR(0)
+          model%map_pf_2dtop_to_elm_2dtop%id = PF_2DTOP_TO_ELM_2DTOP
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
-          pf2clm_bctop_file=PETSC_TRUE
-        case('CLM2PF_BCBOT_FILE')
-          model%map_clm_2dbot_to_pf_2dbot => MappingCreate()
-          call InputReadNChars(input, model%option, model%map_clm_2dbot_to_pf_2dbot%filename, &
+          pf2elm_bctop_file=PETSC_TRUE
+        case('ELM2PF_BCBOT_FILE')
+          model%map_elm_2dbot_to_pf_2dbot => MappingCreate()
+          call InputReadNChars(input, model%option, model%map_elm_2dbot_to_pf_2dbot%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_clm_2dbot_to_pf_2dbot%filename = &
-            trim(model%map_clm_2dbot_to_pf_2dbot%filename)//CHAR(0)
-          model%map_clm_2dbot_to_pf_2dbot%id = CLM_2DBOT_TO_PF_2DBOT
+          model%map_elm_2dbot_to_pf_2dbot%filename = &
+            trim(model%map_elm_2dbot_to_pf_2dbot%filename)//CHAR(0)
+          model%map_elm_2dbot_to_pf_2dbot%id = ELM_2DBOT_TO_PF_2DBOT
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
-          clm2pf_bcbot_file=PETSC_TRUE
-        case('PF2CLM_BCBOT_FILE')
-          model%map_pf_2dbot_to_clm_2dbot => MappingCreate()
-          call InputReadNChars(input, model%option, model%map_pf_2dbot_to_clm_2dbot%filename, &
+          elm2pf_bcbot_file=PETSC_TRUE
+        case('PF2ELM_BCBOT_FILE')
+          model%map_pf_2dbot_to_elm_2dbot => MappingCreate()
+          call InputReadNChars(input, model%option, model%map_pf_2dbot_to_elm_2dbot%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_pf_2dbot_to_clm_2dbot%filename = &
-            trim(model%map_pf_2dbot_to_clm_2dbot%filename)//CHAR(0)
-          model%map_pf_2dbot_to_clm_2dbot%id = PF_2DBOT_TO_CLM_2DBOT
+          model%map_pf_2dbot_to_elm_2dbot%filename = &
+            trim(model%map_pf_2dbot_to_elm_2dbot%filename)//CHAR(0)
+          model%map_pf_2dbot_to_elm_2dbot%id = PF_2DBOT_TO_ELM_2DBOT
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
-          pf2clm_bcbot_file=PETSC_TRUE
+          pf2elm_bcbot_file=PETSC_TRUE
         case default
           model%option%io_buffer='Keyword ' // trim(word) // &
             ' in input file not recognized and ignored'
@@ -196,57 +196,57 @@ contains
     enddo
     call InputDestroy(input)
 
-    if ((.not. clm2pf_3dsub_file) .and. &
-        (.not. pf2clm_3dsub_file) ) then
+    if ((.not. elm2pf_3dsub_file) .and. &
+        (.not. pf2elm_3dsub_file) ) then
       model%option%io_buffer='One of the 3D soil-mesh mapping files not found - So,' // &
-      ' CLM grids conversion to PF structured-cartesian grid USED!'
+      ' ELM grids conversion to PF structured-cartesian grid USED!'
       call printMsg(model%option)
 
-      if(.not.associated(model%map_clm_sub_to_pf_sub)) then
-        model%map_clm_sub_to_pf_sub => MappingCreate()
-        model%map_clm_sub_to_pf_sub%id = CLM_3DSUB_TO_PF_3DSUB
+      if(.not.associated(model%map_elm_sub_to_pf_sub)) then
+        model%map_elm_sub_to_pf_sub => MappingCreate()
+        model%map_elm_sub_to_pf_sub%id = ELM_3DSUB_TO_PF_3DSUB
       endif
 
-      if(.not.associated(model%map_pf_sub_to_clm_sub)) then
-        model%map_pf_sub_to_clm_sub => MappingCreate()
-        model%map_pf_sub_to_clm_sub%id = PF_3DSUB_TO_CLM_3DSUB
+      if(.not.associated(model%map_pf_sub_to_elm_sub)) then
+        model%map_pf_sub_to_elm_sub => MappingCreate()
+        model%map_pf_sub_to_elm_sub%id = PF_3DSUB_TO_ELM_3DSUB
       endif
 
     endif
     
     if(model%option%iflowmode==TH_MODE) then
-      if(.not.clm2pf_bctop_file .and. .not.pf2clm_bctop_file) then
+      if(.not.elm2pf_bctop_file .and. .not.pf2elm_bctop_file) then
          model%option%io_buffer='Running in TH_MODE ' // &
           ' without pair of top-cell mesh mapping files - SO, ' // &
-          ' CLM grids conversion to PF structured-cartesian grid USED!'
+          ' ELM grids conversion to PF structured-cartesian grid USED!'
         call printMsg(model%option)
 
-        if(.not.associated(model%map_clm_2dtop_to_pf_2dtop)) then
-          model%map_clm_2dtop_to_pf_2dtop => MappingCreate()
-          model%map_clm_2dtop_to_pf_2dtop%id = CLM_2DTOP_TO_PF_2DTOP
+        if(.not.associated(model%map_elm_2dtop_to_pf_2dtop)) then
+          model%map_elm_2dtop_to_pf_2dtop => MappingCreate()
+          model%map_elm_2dtop_to_pf_2dtop%id = ELM_2DTOP_TO_PF_2DTOP
         endif
 
-        if(.not.associated(model%map_pf_2dtop_to_clm_2dtop)) then
-          model%map_pf_2dtop_to_clm_2dtop => MappingCreate()
-          model%map_pf_2dtop_to_clm_2dtop%id = PF_2DTOP_TO_CLM_2DTOP
+        if(.not.associated(model%map_pf_2dtop_to_elm_2dtop)) then
+          model%map_pf_2dtop_to_elm_2dtop => MappingCreate()
+          model%map_pf_2dtop_to_elm_2dtop%id = PF_2DTOP_TO_ELM_2DTOP
         endif
 
       endif
 
-      if(.not.clm2pf_bcbot_file .and. .not.pf2clm_bcbot_file) then
+      if(.not.elm2pf_bcbot_file .and. .not.pf2elm_bcbot_file) then
         model%option%io_buffer='Running in TH_MODE ' // &
           ' without pair of bottom-cell mesh mapping files - SO, ' // &
-          ' CLM grids conversion to PF structured-cartesian grid USED!'
+          ' ELM grids conversion to PF structured-cartesian grid USED!'
         call printMsg(model%option)
 
-        if(.not.associated(model%map_clm_2dbot_to_pf_2dbot)) then
-          model%map_clm_2dbot_to_pf_2dbot => MappingCreate()
-          model%map_clm_2dbot_to_pf_2dbot%id = CLM_2DBOT_TO_PF_2DBOT
+        if(.not.associated(model%map_elm_2dbot_to_pf_2dbot)) then
+          model%map_elm_2dbot_to_pf_2dbot => MappingCreate()
+          model%map_elm_2dbot_to_pf_2dbot%id = ELM_2DBOT_TO_PF_2DBOT
         endif
 
-        if(.not.associated(model%map_pf_2dbot_to_clm_2dbot)) then
-          model%map_pf_2dbot_to_clm_2dbot => MappingCreate()
-          model%map_pf_2dbot_to_clm_2dbot%id = PF_2DBOT_TO_CLM_2DBOT
+        if(.not.associated(model%map_pf_2dbot_to_elm_2dbot)) then
+          model%map_pf_2dbot_to_elm_2dbot => MappingCreate()
+          model%map_pf_2dbot_to_elm_2dbot%id = PF_2DBOT_TO_ELM_2DBOT
         endif
 
       endif
@@ -258,12 +258,12 @@ contains
 ! ************************************************************************** !
 
   subroutine pflotranModelInitMapping(pflotran_model,  &
-                                      grid_clm_cell_ids_nindex, &
-                                      grid_clm_npts_local, &
+                                      grid_elm_cell_ids_nindex, &
+                                      grid_elm_npts_local, &
                                       map_id)
   ! 
   ! Initialize mapping between the two model grid
-  ! (CLM and PFLTORAN)
+  ! (ELM and PFLTORAN)
   ! 
   ! Author: Gautam Bisht
   ! Date: 03/24/2011
@@ -272,32 +272,32 @@ contains
     use Option_module
     use String_module
 
-    use pflotran_clm_main_module, only : pflotran_model_type
+    use pflotran_elm_main_module, only : pflotran_model_type
 
     implicit none
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
-    PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
-    PetscInt, intent(in)                              :: grid_clm_npts_local
+    PetscInt, intent(in), pointer                     :: grid_elm_cell_ids_nindex(:)
+    PetscInt, intent(in)                              :: grid_elm_npts_local
     PetscInt, intent(in)                              :: map_id
     
     select case (map_id)
-      case (CLM_3DSUB_TO_PF_3DSUB, PF_3DSUB_TO_CLM_3DSUB)
+      case (ELM_3DSUB_TO_PF_3DSUB, PF_3DSUB_TO_ELM_3DSUB)
         call pflotranModelInitMappingSub2Sub(pflotran_model,  &
-                                      grid_clm_cell_ids_nindex, &
-                                      grid_clm_npts_local, &
+                                      grid_elm_cell_ids_nindex, &
+                                      grid_elm_npts_local, &
                                       map_id)
       ! A more generalized Mapping for Faces (sidesets) is now implemented (F.-M. Yuan)
-      !case (CLM_2DTOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_2DTOP)
+      !case (ELM_2DTOP_TO_PF_2DTOP, PF_2DTOP_TO_ELM_2DTOP)
       !  call pflotranModelInitMapTopTo2DSub(pflotran_model,  &
-      !                                      grid_clm_cell_ids_nindex, &
-      !                                      grid_clm_npts_local, &
+      !                                      grid_elm_cell_ids_nindex, &
+      !                                      grid_elm_npts_local, &
       !                                      map_id)
-      case (CLM_2DTOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_2DTOP, &
-            CLM_2DBOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_2DBOT)
+      case (ELM_2DTOP_TO_PF_2DTOP, PF_2DTOP_TO_ELM_2DTOP, &
+            ELM_2DBOT_TO_PF_2DBOT, PF_2DBOT_TO_ELM_2DBOT)
         call pflotranModelInitMapFaceToFace(pflotran_model,  &
-                                            grid_clm_cell_ids_nindex, &
-                                            grid_clm_npts_local, &
+                                            grid_elm_cell_ids_nindex, &
+                                            grid_elm_npts_local, &
                                             map_id)
 
       case default
@@ -311,12 +311,12 @@ contains
 ! ************************************************************************** !
 
   subroutine pflotranModelInitMappingSub2Sub(pflotran_model,  &
-                                      grid_clm_cell_ids_nindex, &
-                                      grid_clm_npts_local, &
+                                      grid_elm_cell_ids_nindex, &
+                                      grid_elm_npts_local, &
                                       map_id)
   ! 
   ! Initialize mapping between 3D subsurface
-  ! CLM grid and 3D subsurface PFLOTRAN grid.
+  ! ELM grid and 3D subsurface PFLOTRAN grid.
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/09/2013
@@ -329,23 +329,23 @@ contains
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use Realization_subsurface_class, only : realization_subsurface_type
 
-    use pflotran_clm_main_module, only : pflotran_model_type
-    use clmpf_interface_data
+    use pflotran_elm_main_module, only : pflotran_model_type
+    use elmpf_interface_data
 
     implicit none
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
-    PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
-    PetscInt, intent(in)                              :: grid_clm_npts_local
+    PetscInt, intent(in), pointer                     :: grid_elm_cell_ids_nindex(:)
+    PetscInt, intent(in)                              :: grid_elm_npts_local
     PetscInt, intent(in)                              :: map_id
 
     ! local
     PetscInt                           :: local_id, ghosted_id, grid_pf_npts_local, grid_pf_npts_ghost
-    PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
+    PetscInt                           :: grid_elm_npts_ghost, source_mesh_id
     PetscInt                           :: dest_mesh_id
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
     PetscInt, pointer                  :: grid_pf_local_nindex(:), grid_pf_ghosted_nindex(:)
-    PetscInt, pointer                  :: grid_clm_local_nindex(:), grid_clm_ghosted_nindex(:)
+    PetscInt, pointer                  :: grid_elm_local_nindex(:), grid_elm_ghosted_nindex(:)
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
@@ -372,14 +372,14 @@ contains
 
     ! Choose the appriopriate map
     select case(map_id)
-      case(CLM_3DSUB_TO_PF_3DSUB)
-        map => pflotran_model%map_clm_sub_to_pf_sub
-        source_mesh_id = CLM_3DSUB_MESH
+      case(ELM_3DSUB_TO_PF_3DSUB)
+        map => pflotran_model%map_elm_sub_to_pf_sub
+        source_mesh_id = ELM_3DSUB_MESH
         dest_mesh_id = PF_3DSUB_MESH
-      case(PF_3DSUB_TO_CLM_3DSUB)
-        map => pflotran_model%map_pf_sub_to_clm_sub
+      case(PF_3DSUB_TO_ELM_3DSUB)
+        map => pflotran_model%map_pf_sub_to_elm_sub
         source_mesh_id = PF_3DSUB_MESH
-        dest_mesh_id = CLM_3DSUB_MESH
+        dest_mesh_id = ELM_3DSUB_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -390,41 +390,41 @@ contains
       if (index(map%filename, '.txt') > 0) then
         call MappingReadTxtFile(map, map%filename, option)
       else
-        option%io_buffer = 'Invalid mapping file name (must be in *.txt) between CLM and PFLOTRAN!'
+        option%io_buffer = 'Invalid mapping file name (must be in *.txt) between ELM and PFLOTRAN!'
         call printErrMsg(option)
       endif
 
-      ! checking if the CLM-PF has same number of soil layers for mapping
-      if (map%pflotran_nlev /= clm_pf_idata%nzclm_mapped) then
-         option%io_buffer = 'Invalid mapping soil layers between CLM and PFLOTRAN!'
+      ! checking if the ELM-PF has same number of soil layers for mapping
+      if (map%pflotran_nlev /= elm_pf_idata%nzelm_mapped) then
+         option%io_buffer = 'Invalid mapping soil layers between ELM and PFLOTRAN!'
         call printErrMsg(option)
       end if
 
     elseif(.not.option%mapping_files) then
-      ! directly mapping between CLM and PF meshes, if no user-defined mapping file
+      ! directly mapping between ELM and PF meshes, if no user-defined mapping file
       map%pflotran_nlev_mapped = grid%structured_grid%nz
-      map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
+      map%elm_nlev_mapped = elm_pf_idata%nzelm_mapped
       if (dest_mesh_id == PF_3DSUB_MESH) then
-        call MappingFromCLMGrids(map, grid, PETSC_TRUE, option)
-      elseif(dest_mesh_id == CLM_3DSUB_MESH) then
-        call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
+        call MappingFromELMGrids(map, grid, PETSC_TRUE, option)
+      elseif(dest_mesh_id == ELM_3DSUB_MESH) then
+        call MappingFromELMGrids(map, grid, PETSC_FALSE, option)
       endif
 
     else
 
-        option%io_buffer = 'MUST provide mapping files between CLM and PFLOTRAN! '
+        option%io_buffer = 'MUST provide mapping files between ELM and PFLOTRAN! '
         call printErrMsg(option)
 
     endif
 
-    grid_clm_npts_ghost=0
-    ! Allocate memory to identify if CLM cells are local or ghosted.
-    ! Note: Presently all CLM cells are local
-    allocate(grid_clm_local_nindex(grid_clm_npts_local))
-    allocate(grid_clm_ghosted_nindex(grid_clm_npts_local))
-    do local_id = 1, grid_clm_npts_local
-      grid_clm_local_nindex(local_id) = local_id     ! LOCAL ID
-      grid_clm_ghosted_nindex(local_id) = local_id   ! same as local ID
+    grid_elm_npts_ghost=0
+    ! Allocate memory to identify if ELM cells are local or ghosted.
+    ! Note: Presently all ELM cells are local
+    allocate(grid_elm_local_nindex(grid_elm_npts_local))
+    allocate(grid_elm_ghosted_nindex(grid_elm_npts_local))
+    do local_id = 1, grid_elm_npts_local
+      grid_elm_local_nindex(local_id) = local_id     ! LOCAL ID
+      grid_elm_ghosted_nindex(local_id) = local_id   ! same as local ID
     enddo
 
     ! Find cell IDs for PFLOTRAN grid
@@ -464,12 +464,12 @@ contains
 #endif
 
     select case(source_mesh_id)
-      case(CLM_3DSUB_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_npts_ghost,      &
-                                         grid_clm_cell_ids_nindex, &
-                                         grid_clm_local_nindex,    &
-                                         grid_clm_ghosted_nindex)
+      case(ELM_3DSUB_MESH)
+        call MappingSetSourceMeshCellIds(map, option, grid_elm_npts_local, &
+                                         grid_elm_npts_ghost,      &
+                                         grid_elm_cell_ids_nindex, &
+                                         grid_elm_local_nindex,    &
+                                         grid_elm_ghosted_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost,      &
                                               grid_pf_cell_ids_nindex, &
@@ -480,10 +480,10 @@ contains
                                         grid_pf_cell_ids_nindex,   &
                                         grid_pf_local_nindex,      &
                                         grid_pf_ghosted_nindex)
-        call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
-                                              grid_clm_npts_ghost, &
-                                              grid_clm_cell_ids_nindex, &
-                                              grid_clm_local_nindex)
+        call MappingSetDestinationMeshCellIds(map, option, grid_elm_npts_local, &
+                                              grid_elm_npts_ghost, &
+                                              grid_elm_cell_ids_nindex, &
+                                              grid_elm_local_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -498,18 +498,18 @@ contains
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
     deallocate(grid_pf_ghosted_nindex)
-    deallocate(grid_clm_local_nindex)
-    deallocate(grid_clm_ghosted_nindex)
+    deallocate(grid_elm_local_nindex)
+    deallocate(grid_elm_ghosted_nindex)
 
     ! Setting the number of cells constituting the 3D
     ! subsurface domain for each model.
-    ! NOTE: no need for CLM's cell numbers, which have already set in clm_interface.
+    ! NOTE: no need for ELM's cell numbers, which have already set in elm_interface.
     select case(map_id)
-      case(CLM_3DSUB_TO_PF_3DSUB)
+      case(ELM_3DSUB_TO_PF_3DSUB)
         ! none
-      case(PF_3DSUB_TO_CLM_3DSUB)
-        clm_pf_idata%nlpf_sub  = grid_pf_npts_local
-        clm_pf_idata%ngpf_sub  = grid_pf_npts_ghost+grid_pf_npts_local
+      case(PF_3DSUB_TO_ELM_3DSUB)
+        elm_pf_idata%nlpf_sub  = grid_pf_npts_local
+        elm_pf_idata%ngpf_sub  = grid_pf_npts_ghost+grid_pf_npts_local
       case default
         option%io_buffer = 'map_id argument NOT yet supported in ' // &
                         'pflotranModelInitMappingSubToSub'
@@ -539,8 +539,8 @@ contains
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use Realization_Subsurface_class, only : realization_subsurface_type
 
-    use pflotran_clm_main_module, only : pflotran_model_type
-    use clmpf_interface_data
+    use pflotran_elm_main_module, only : pflotran_model_type
+    use elmpf_interface_data
 
     implicit none
 
@@ -581,7 +581,7 @@ contains
     grid            => patch%grid
     !------------
 
-    call VecGetArrayF90(clm_pf_idata%area_top_face_pfp, area_p, ierr)
+    call VecGetArrayF90(elm_pf_idata%area_top_face_pfp, area_p, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     if(grid%itype == STRUCTURED_GRID) then
       ! Structured grid
@@ -606,7 +606,7 @@ contains
           iface = 5
         else
           call printErrMsg(pflotran_model%option, &
-            'Only hex and wedge cell_type supported in CLM-PFLOTRAN')
+            'Only hex and wedge cell_type supported in ELM-PFLOTRAN')
         endif
 
         ! Get face-id
@@ -616,24 +616,24 @@ contains
         area_p(local_id) = grid%unstructured_grid%face_area(face_id)
       enddo
     endif
-    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfp, area_p, ierr)
+    call VecRestoreArrayF90(elm_pf_idata%area_top_face_pfp, area_p, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_elm_sub, &
                                     option, &
-                                    clm_pf_idata%area_top_face_pfp, &
-                                    clm_pf_idata%area_top_face_clms)
+                                    elm_pf_idata%area_top_face_pfp, &
+                                    elm_pf_idata%area_top_face_elms)
 
   end subroutine pflotranModelGetTopFaceArea
 
 ! ************************************************************************** !
 
   subroutine pflotranModelInitMapFaceToFace(pflotran_model,  &
-                                            grid_clm_cell_ids_nindex, &
-                                            grid_clm_npts_local, &
+                                            grid_elm_cell_ids_nindex, &
+                                            grid_elm_npts_local, &
                                             map_id)
   !
-  ! This routine maps CLM grids/columns structure onto BC faces
+  ! This routine maps ELM grids/columns structure onto BC faces
   ! (TOP, BOTTOM, EAST, WEST, NORTH, or, SOUTH, which type depends on BC condition-name in PF input cards)
   ! of PFLOTRAN 3D Domain grid,
   ! by extending GB's code - Fengming Yuan, ORNL
@@ -641,11 +641,11 @@ contains
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/09/13
   !
-  ! 02/14/2014 - TOP/BOTTOM faces, from CLM => PF, finished
-  ! 05/12/2014 - TOP/BOTTOM faces, from PF => CLM, finished
+  ! 02/14/2014 - TOP/BOTTOM faces, from ELM => PF, finished
+  ! 05/12/2014 - TOP/BOTTOM faces, from PF => ELM, finished
   !
-  ! NOTE: for TOP face, BC condition name: 'clm_gflux_bc') ('g' for ground);
-  !       for BOTTOM face, BC condition name: 'clm_bflux_bc') ('b' for bottom);
+  ! NOTE: for TOP face, BC condition name: 'elm_gflux_bc') ('g' for ground);
+  !       for BOTTOM face, BC condition name: 'elm_bflux_bc') ('b' for bottom);
 
     use Option_module
     use Grid_module
@@ -655,26 +655,26 @@ contains
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use Realization_Subsurface_class, only : realization_subsurface_type
 
-    use pflotran_clm_main_module, only : pflotran_model_type
-    use clmpf_interface_data
+    use pflotran_elm_main_module, only : pflotran_model_type
+    use elmpf_interface_data
 
     implicit none
 
 #include "petsc/finclude/petscviewer.h"
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
-    PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
-    PetscInt, intent(in)                              :: grid_clm_npts_local
+    PetscInt, intent(in), pointer                     :: grid_elm_cell_ids_nindex(:)
+    PetscInt, intent(in)                              :: grid_elm_npts_local
     PetscInt, intent(in)                              :: map_id
 
     ! local
     PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
-    PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
+    PetscInt                           :: grid_elm_npts_ghost, source_mesh_id
     PetscInt                           :: dest_mesh_id
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
     PetscInt, pointer                  :: grid_pf_local_nindex(:), grid_pf_ghosted_nindex(:)
-    PetscInt, pointer                  :: grid_clm_local_nindex(:)
-    PetscInt, pointer                  :: grid_clm_cell_ids_nindex_copy(:)
+    PetscInt, pointer                  :: grid_elm_local_nindex(:)
+    PetscInt, pointer                  :: grid_elm_cell_ids_nindex_copy(:)
     PetscInt                           :: count
     PetscInt                           :: ghosted_id, natural_id, icell
     PetscInt                           :: iconn
@@ -714,33 +714,33 @@ contains
     grid            => patch%grid
     !------------
 
-    allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
-    grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
+    allocate(grid_elm_cell_ids_nindex_copy(grid_elm_npts_local))
+    grid_elm_cell_ids_nindex_copy = grid_elm_cell_ids_nindex
 
     ! Choose the appriopriate map
     select case(map_id)
-      case(CLM_2DTOP_TO_PF_2DTOP)
-        map => pflotran_model%map_clm_2dtop_to_pf_2dtop
-        source_mesh_id = CLM_FACE_MESH
+      case(ELM_2DTOP_TO_PF_2DTOP)
+        map => pflotran_model%map_elm_2dtop_to_pf_2dtop
+        source_mesh_id = ELM_FACE_MESH
         dest_mesh_id = PF_FACE_MESH
         region_name = 'top'
 
-      case(PF_2DTOP_TO_CLM_2DTOP)
-        map => pflotran_model%map_pf_2dtop_to_clm_2dtop
+      case(PF_2DTOP_TO_ELM_2DTOP)
+        map => pflotran_model%map_pf_2dtop_to_elm_2dtop
         source_mesh_id = PF_FACE_MESH
-        dest_mesh_id = CLM_FACE_MESH
+        dest_mesh_id = ELM_FACE_MESH
         region_name = 'top'
 
-      case(CLM_2DBOT_TO_PF_2DBOT)
-        map => pflotran_model%map_clm_2dbot_to_pf_2dbot
-        source_mesh_id = CLM_FACE_MESH
+      case(ELM_2DBOT_TO_PF_2DBOT)
+        map => pflotran_model%map_elm_2dbot_to_pf_2dbot
+        source_mesh_id = ELM_FACE_MESH
         dest_mesh_id = PF_FACE_MESH
         region_name = 'bottom'
 
-      case(PF_2DBOT_TO_CLM_2DBOT)
-        map => pflotran_model%map_pf_2dbot_to_clm_2dbot
+      case(PF_2DBOT_TO_ELM_2DBOT)
+        map => pflotran_model%map_pf_2dbot_to_elm_2dbot
         source_mesh_id = PF_FACE_MESH
-        dest_mesh_id = CLM_FACE_MESH
+        dest_mesh_id = ELM_FACE_MESH
         region_name = 'bottom'
 
       case default
@@ -758,28 +758,28 @@ contains
       endif
 
     elseif(.not.option%mapping_files) then
-      ! directly mapping between CLM and PF meshes, if no user-defined mapping file
+      ! directly mapping between ELM and PF meshes, if no user-defined mapping file
       map%pflotran_nlev_mapped = grid%structured_grid%nz
-      map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
+      map%elm_nlev_mapped = elm_pf_idata%nzelm_mapped
       if (dest_mesh_id == PF_FACE_MESH) then
-        call MappingFromCLMGrids(map, grid, PETSC_TRUE, option)
-      elseif(dest_mesh_id == CLM_FACE_MESH) then
-        call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
+        call MappingFromELMGrids(map, grid, PETSC_TRUE, option)
+      elseif(dest_mesh_id == ELM_FACE_MESH) then
+        call MappingFromELMGrids(map, grid, PETSC_FALSE, option)
       endif
 
     else
 
-        option%io_buffer = 'MUST provide mapping files between CLM and PFLOTRAN! '
+        option%io_buffer = 'MUST provide mapping files between ELM and PFLOTRAN! '
         call printErrMsg(option)
 
     endif
 
-    grid_clm_npts_ghost=0
-    ! Allocate memory to identify if CLM cells are local or ghosted.
-    ! Note: Presently all CLM cells are local
-    allocate(grid_clm_local_nindex(grid_clm_npts_local))
-    do local_id = 1, grid_clm_npts_local
-      grid_clm_local_nindex(local_id) = local_id ! LOCAL
+    grid_elm_npts_ghost=0
+    ! Allocate memory to identify if ELM cells are local or ghosted.
+    ! Note: Presently all ELM cells are local
+    allocate(grid_elm_local_nindex(grid_elm_npts_local))
+    do local_id = 1, grid_elm_npts_local
+      grid_elm_local_nindex(local_id) = local_id ! LOCAL
     enddo
 
 
@@ -793,7 +793,7 @@ contains
       cur_region => patch%region_list%first
       do
         if (.not.associated(cur_region)) exit
-        ! the top/bottom cells of CLM soil domain (3-D) with a REGION name 'top'/'bottom' in PF input card
+        ! the top/bottom cells of ELM soil domain (3-D) with a REGION name 'top'/'bottom' in PF input card
         if (StringCompareIgnoreCase(trim(cur_region%name), trim(region_name))) then
 
           found=PETSC_TRUE
@@ -997,19 +997,19 @@ contains
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
-    ! Step-3: Find face cells-ids of CLM soil/below-ground domain
+    ! Step-3: Find face cells-ids of ELM soil/below-ground domain
     !
-    allocate(v_loc(grid_clm_npts_local))
+    allocate(v_loc(grid_elm_npts_local))
     v_loc = 1.d0
-    call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, face_ids_loc, ierr)
+    call VecCreateSeq(PETSC_COMM_SELF, grid_elm_npts_local, face_ids_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
-    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_sub, PETSC_DECIDE, face_ids, ierr)
+    call VecCreateMPI(option%mycomm, elm_pf_idata%nlelm_sub, PETSC_DECIDE, face_ids, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecSet(face_ids, -1.d0, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-    ! Set 1.0 to all cells that make up surface of CLM subsurface domain
-    call VecSetValues(face_ids, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
+    ! Set 1.0 to all cells that make up surface of ELM subsurface domain
+    call VecSetValues(face_ids, grid_elm_npts_local, grid_elm_cell_ids_nindex_copy, &
                       v_loc, INSERT_VALUES, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
@@ -1022,7 +1022,7 @@ contains
     call VecGetArrayF90(face_ids, v_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     count = 0
-    do local_id=1,clm_pf_idata%nlclm_sub
+    do local_id=1,elm_pf_idata%nlelm_sub
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
@@ -1032,7 +1032,7 @@ contains
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     count = 0
-    do local_id=1,clm_pf_idata%nlclm_sub
+    do local_id=1,elm_pf_idata%nlelm_sub
       if(v_loc(local_id) == 1.d0) then
         v_loc(local_id) = istart + count
         count = count + 1
@@ -1042,16 +1042,16 @@ contains
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
-    allocate(int_array(grid_clm_npts_local))
-    do iconn = 1, grid_clm_npts_local
+    allocate(int_array(grid_elm_npts_local))
+    do iconn = 1, grid_elm_npts_local
       int_array(iconn) = iconn - 1
     enddo
-    call ISCreateGeneral(option%mycomm, grid_clm_npts_local, int_array, &
+    call ISCreateGeneral(option%mycomm, grid_elm_npts_local, int_array, &
                          PETSC_COPY_VALUES, is_to, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     deallocate(int_array)
 
-    call ISCreateGeneral(option%mycomm, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
+    call ISCreateGeneral(option%mycomm, grid_elm_npts_local, grid_elm_cell_ids_nindex_copy, &
                          PETSC_COPY_VALUES, is_from, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
@@ -1077,10 +1077,10 @@ contains
     call VecGetArrayF90(face_ids_loc, v_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     count = 0
-    do iconn = 1, grid_clm_npts_local
+    do iconn = 1, grid_elm_npts_local
       if (v_loc(iconn)>-1) then
         count = count + 1
-        grid_clm_cell_ids_nindex_copy(count) = INT(v_loc(iconn))
+        grid_elm_cell_ids_nindex_copy(count) = INT(v_loc(iconn))
       endif
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
@@ -1089,7 +1089,7 @@ contains
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !
-    ! Step-4: Recompute 'map%s2d_i/jscr' for clm mesh
+    ! Step-4: Recompute 'map%s2d_i/jscr' for elm mesh
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, face_ids_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
@@ -1103,9 +1103,9 @@ contains
 
 
     do iconn = 1, map%s2d_nwts
-      if (source_mesh_id == CLM_FACE_MESH) then
+      if (source_mesh_id == ELM_FACE_MESH) then
          int_array(iconn) = map%s2d_jcsr(iconn)
-      elseif (dest_mesh_id == CLM_FACE_MESH) then
+      elseif (dest_mesh_id == ELM_FACE_MESH) then
          int_array(iconn) = map%s2d_icsr(iconn)
       endif
     enddo
@@ -1138,9 +1138,9 @@ contains
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        if (source_mesh_id == CLM_FACE_MESH) then
+        if (source_mesh_id == ELM_FACE_MESH) then
            map%s2d_jcsr(count) = INT(v_loc(iconn))
-        elseif (dest_mesh_id == CLM_FACE_MESH) then
+        elseif (dest_mesh_id == ELM_FACE_MESH) then
            map%s2d_icsr(count) = INT(v_loc(iconn))
         endif
       endif
@@ -1152,7 +1152,7 @@ contains
 
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
-        'match face cells on which BC is applied - CLM.'
+        'match face cells on which BC is applied - ELM.'
       call printErrMsg(option)
     endif
 
@@ -1161,12 +1161,12 @@ contains
 
     !
     select case(source_mesh_id)
-      case(CLM_FACE_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_npts_ghost,           &
-                                         grid_clm_cell_ids_nindex_copy, &
-                                         grid_clm_local_nindex,         &
-                                         grid_clm_local_nindex)
+      case(ELM_FACE_MESH)
+        call MappingSetSourceMeshCellIds(map, option, grid_elm_npts_local, &
+                                         grid_elm_npts_ghost,           &
+                                         grid_elm_cell_ids_nindex_copy, &
+                                         grid_elm_local_nindex,         &
+                                         grid_elm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost,      &
                                               grid_pf_cell_ids_nindex, &
@@ -1177,10 +1177,10 @@ contains
                                          grid_pf_cell_ids_nindex, &
                                          grid_pf_local_nindex,    &
                                          grid_pf_ghosted_nindex)
-        call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
-                                              grid_clm_npts_ghost,           &
-                                              grid_clm_cell_ids_nindex_copy, &
-                                              grid_clm_local_nindex)
+        call MappingSetDestinationMeshCellIds(map, option, grid_elm_npts_local, &
+                                              grid_elm_npts_ghost,           &
+                                              grid_elm_cell_ids_nindex_copy, &
+                                              grid_elm_local_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to ' // &
           'pflotranModelInitMappingFaceToFace'
@@ -1190,8 +1190,8 @@ contains
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
     deallocate(grid_pf_ghosted_nindex)
-    deallocate(grid_clm_cell_ids_nindex_copy)
-    deallocate(grid_clm_local_nindex)
+    deallocate(grid_elm_cell_ids_nindex_copy)
+    deallocate(grid_elm_local_nindex)
 
     call MappingDecompose(map, option)
     call MappingFindDistinctSourceMeshCellIds(map, option)
@@ -1201,16 +1201,16 @@ contains
 
     ! Setting the number of cells constituting the face of the 3D
     ! subsurface domain for each model.
-    ! NOTE: no need for CLM's cell numbers, which have already set in clm_interface.
+    ! NOTE: no need for ELM's cell numbers, which have already set in elm_interface.
     select case(map_id)
-      case(CLM_2DTOP_TO_PF_2DTOP, CLM_2DBOT_TO_PF_2DBOT)
+      case(ELM_2DTOP_TO_PF_2DTOP, ELM_2DBOT_TO_PF_2DBOT)
         ! none
-      case(PF_2DTOP_TO_CLM_2DTOP)
-        clm_pf_idata%nlpf_2dtop  = grid_pf_npts_local
-        clm_pf_idata%ngpf_2dtop  = grid_pf_npts_ghost+grid_pf_npts_local
-      case(PF_2DBOT_TO_CLM_2DBOT)
-        clm_pf_idata%nlpf_2dbot  = grid_pf_npts_local
-        clm_pf_idata%ngpf_2dbot  = grid_pf_npts_ghost+grid_pf_npts_local
+      case(PF_2DTOP_TO_ELM_2DTOP)
+        elm_pf_idata%nlpf_2dtop  = grid_pf_npts_local
+        elm_pf_idata%ngpf_2dtop  = grid_pf_npts_ghost+grid_pf_npts_local
+      case(PF_2DBOT_TO_ELM_2DBOT)
+        elm_pf_idata%nlpf_2dbot  = grid_pf_npts_local
+        elm_pf_idata%ngpf_2dbot  = grid_pf_npts_ghost+grid_pf_npts_local
       case default
         option%io_buffer = 'map_id argument NOT yet supported in ' // &
                         'pflotranModelInitMappingFaceToFace'
@@ -1223,6 +1223,6 @@ contains
 #endif
 ! ************************************************************************** !
   
-end module pflotran_clm_setmapping_module
+end module pflotran_elm_setmapping_module
 
 

@@ -7,7 +7,7 @@ module Reaction_Sandbox_SomDec_class
   use Global_Aux_module
   use Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
-  use CLM_RspFuncs_module
+  use ELM_RspFuncs_module
   use Utility_module, only : HFunctionSmooth
 
 ! -----------------------------------------------------------------------------
@@ -246,7 +246,7 @@ function AbioticFactorsCreate()
 
   allocate(new_factors)
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   new_factors%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLMCN
   new_factors%moisture_response_function    = MOISTURE_RESPONSE_FUNCTION_CLMCN
 #else
@@ -1435,7 +1435,7 @@ subroutine SomDecSetup(this,reaction,option)
   word = 'NH4+'
   this%species_id_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   if(this%species_id_nh4 <= 0) then
     option%io_buffer = 'NH4+ is not specified in the input file!'
     call printErrMsg(option)
@@ -1500,11 +1500,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
 
-#ifdef CLM_PFLOTRAN
-#include "petsc/finclude/petscvec.h"
+#ifdef ELM_PFLOTRAN
   use petscvec
-
-  use clmpf_interface_data
+  use elmpf_interface_data
 #endif
 
   implicit none
@@ -1529,7 +1527,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt  :: veclocal_id
   PetscErrorCode :: ierr
   PetscInt, parameter :: iphase = 1
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   PetscScalar, pointer :: zsoi_pf_loc(:)
   PetscScalar, pointer :: kd_scalar_pf_loc(:)
   PetscScalar, pointer :: xfactor_pf_loc(:)
@@ -1574,33 +1572,33 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   tc = global_auxvar%temp
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   veclocal_id = option%iflag
 
   ! put an error checking for C/N unit conversion here
   ! because it may cause CLM-CN mass-balance error due to conversion btw mass (CLM-CN) and mole (PF)
-  temp_real = clm_pf_idata%N_molecular_weight/clm_pf_idata%C_molecular_weight
+  temp_real = elm_pf_idata%N_molecular_weight/elm_pf_idata%C_molecular_weight
   if (abs(temp_real-CN_ratio_mass_to_mol)>1.d-15) then
      option%io_buffer = 'SomDec: ' // &
-       ' CN_ratio_mass_to_mol convertor in clm_rspfuncs.F90 is NOT matching with that ' // &
-       ' in clm_pflotran_interface_data.F90. ' // &
-       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+       ' CN_ratio_mass_to_mol convertor in elm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in elm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in ELM-CN. Please check it.'
      call printErrMsg(option)
   end if
 
-  if (abs(clm_pf_idata%C_molecular_weight-C_molecular_weight)>1.d-15) then
+  if (abs(elm_pf_idata%C_molecular_weight-C_molecular_weight)>1.d-15) then
      option%io_buffer = 'SomDec: ' // &
-       ' C_molecular_weight constant in clm_rspfuncs.F90 is NOT matching with that ' // &
-       ' in clm_pflotran_interface_data.F90. ' // &
-       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+       ' C_molecular_weight constant in elm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in elm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in ELM-CN. Please check it.'
      call printErrMsg(option)
   end if
 
-  if (abs(clm_pf_idata%N_molecular_weight-N_molecular_weight)>1.d-15) then
+  if (abs(elm_pf_idata%N_molecular_weight-N_molecular_weight)>1.d-15) then
      option%io_buffer = 'SomDec: ' // &
-       ' N_molecular_weight constant in clm_rspfuncs.F90 is NOT matching with that ' // &
-       ' in clm_pflotran_interface_data.F90. ' // &
-       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+       ' N_molecular_weight constant in elm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in elm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in ELM-CN. Please check it.'
      call printErrMsg(option)
   end if
 
@@ -1621,7 +1619,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     cur_abioticfactors => cur_rxn%abiotic_factors
 
     !-----------
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
     if(option%nflowspec>0 .and. &
        cur_abioticfactors%moisture_response_function /= MOISTURE_RESPONSE_FUNCTION_OFF) then
       f_w = GetMoistureResponse(theta, veclocal_id, &
@@ -1629,10 +1627,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     else
       ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
-      call VecGetArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
+      call VecGetArrayReadF90(elm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
       CHKERRQ(ierr)
       f_w = xfactor_pf_loc(veclocal_id)
-      call VecRestoreArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
+      call VecRestoreArrayReadF90(elm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 #else
@@ -1649,12 +1647,12 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     else
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
       !multiplying O-Scalar, passing directly from CLM
-      call VecGetArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
+      call VecGetArrayReadF90(elm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
       CHKERRQ(ierr)
       f_w = f_w * xfactor_pf_loc(veclocal_id)
-      call VecRestoreArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
+      call VecRestoreArrayReadF90(elm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
       CHKERRQ(ierr)
 #endif
       !
@@ -1662,7 +1660,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     !-----------
     ! temperature response function
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
     if (option%nflowspec>0) then
       f_t = GetTemperatureResponse(tc, &
                                    cur_abioticfactors%temperature_response_function, &
@@ -1670,10 +1668,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     else
       ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
-      call VecGetArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+      call VecGetArrayReadF90(elm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
       CHKERRQ(ierr)
       f_t = xfactor_pf_loc(veclocal_id)
-      call VecRestoreArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+      call VecRestoreArrayReadF90(elm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
@@ -1692,24 +1690,24 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 #endif
 
     !-----------
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
     if (cur_abioticfactors%decomp_depth_efolding > 0.d0) then
-      call VecGetArrayReadF90(clm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
+      call VecGetArrayReadF90(elm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
       CHKERRQ(ierr)
       f_depth = exp(-zsoi_pf_loc(veclocal_id)/cur_abioticfactors%decomp_depth_efolding)
       f_depth = min(1.0d0, max(1.d-20, f_depth))
-      call VecRestoreArrayReadF90(clm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
+      call VecRestoreArrayReadF90(elm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
       CHKERRQ(ierr)
     else
       f_depth = 1.0d0
     endif
 
     ! the following is an additional scalar to relate SOM decomposition rate with location (site)
-    call VecGetArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
+    call VecGetArrayReadF90(elm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
     CHKERRQ(ierr)
     kd_scalar = kd_scalar_pf_loc(veclocal_id)
 
-    call VecRestoreArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
+    call VecRestoreArrayReadF90(elm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
     CHKERRQ(ierr)
 
 #else

@@ -8,8 +8,8 @@ module Factory_Subsurface_module
   use Utility_module, only : Equal
   
 
-#ifdef CLM_PFLOTRAN
-  use clmpf_interface_data, only : clm_pf_idata
+#ifdef ELM_PFLOTRAN
+  use elmpf_interface_data, only : elm_pf_idata
 #endif
 
   implicit none
@@ -1949,9 +1949,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use NW_Transport_Aux_module
   use Init_Common_module
 
-
-#ifdef CLM_PFLOTRAN
-  use clmpf_interface_data
+#ifdef ELM_PFLOTRAN
+  use elmpf_interface_data
 #endif
 
 
@@ -1991,7 +1990,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 !-------------------
   ! when coupling with CLM, need to know if meshmaps are provided prior to 'GRID' reading
   ! if not, CLM mesh will directly over-ride whatever in PF input card
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   string = "MAPPING_FILES"
   call InputFindStringInFile(input,option,string)
   if (.not.InputError(input)) then
@@ -2075,16 +2074,16 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputReadInt(input,option,grid%structured_grid%npz)
           call InputDefaultMsg(input,option,'npz')
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
           if (.not. option%mapping_files) then
             ! note that, if coupled with CLM, CLM land domain configuration
             ! will over-ride 'npx/npy/npz' read above
             option%io_buffer = ' CLM land mpi configuration will over-ride PF'
             call printMsg(option)
 
-            grid%structured_grid%npx = clm_pf_idata%npx
-            grid%structured_grid%npy = clm_pf_idata%npy
-            grid%structured_grid%npz = clm_pf_idata%npz
+            grid%structured_grid%npx = elm_pf_idata%npx
+            grid%structured_grid%npy = elm_pf_idata%npy
+            grid%structured_grid%npz = elm_pf_idata%npz
           endif
 #endif
  
@@ -2299,7 +2298,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(input_type), pointer :: input, input_parent
   type(survey_type), pointer :: survey
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   type(material_property_type), pointer :: material_property_default
   class(characteristic_curves_type), pointer :: characteristic_curves_default
   type(strata_type), pointer :: pre_strata
@@ -2369,11 +2368,11 @@ subroutine SubsurfaceReadInput(simulation,input)
 
     select case(trim(card))
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
 !....................
       case ('MAPPING_FILES')
         call InputSkipToEND(input,option,'')
-        ! skip 'MAPPING_FILES ... END' block, which will read in pflotran_clm_setmapping.F90
+        ! skip 'MAPPING_FILES ... END' block, which will read in pflotran_elm_setmapping.F90
         ! needed, otherwise model crashes
 #endif
 
@@ -3621,8 +3620,8 @@ subroutine SubsurfaceReadInput(simulation,input)
               endif
               waypoint => WaypointCreate()
               waypoint%final = PETSC_TRUE
-#ifdef CLM_PFLOTRAN
-              waypoint%time = clm_pf_idata%final_time   ! must be in seconds
+#ifdef ELM_PFLOTRAN
+              waypoint%time = elm_pf_idata%final_time   ! must be in seconds
 #else
               waypoint%time = temp_real*temp_real2
 #endif
@@ -3860,7 +3859,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   call InputPopBlock(input,option) ! SUBSURFACE
 
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
     ! material_properties are unique for each cell, if CLM coupling with PFLOTRAN
     ! hack here to re-create a series of materials, and then
     ! (1) in 'strata' material properties will be assigned to each cell
@@ -3891,7 +3890,7 @@ subroutine SubsurfaceReadInput(simulation,input)
     call StrataInitList(realization%patch%strata_list)
 
     ! reset cell by cell
-    do local_id = 1, clm_pf_idata%nlclm_sub
+    do local_id = 1, elm_pf_idata%nlelm_sub
       write(string,*) local_id
       !
       !----------
@@ -4013,9 +4012,9 @@ subroutine SubsurfaceReadInput(simulation,input)
           region%coordinates(2)%y = +1.d20
         elseif(region%def_type == DEFINED_BY_BLOCK) then
           region%i1 = 1
-          region%i2 = clm_pf_idata%nxclm_mapped
+          region%i2 = elm_pf_idata%nxelm_mapped
           region%j1 = 1
-          region%j2 = clm_pf_idata%nyclm_mapped
+          region%j2 = elm_pf_idata%nyelm_mapped
         end if
       end if
 
@@ -4029,11 +4028,11 @@ subroutine SubsurfaceReadInput(simulation,input)
       region%name= "top"
       region%iface = TOP_FACE
       region%i1 = 1
-      region%i2 = clm_pf_idata%nxclm_mapped
+      region%i2 = elm_pf_idata%nxelm_mapped
       region%j1 = 1
-      region%j2 = clm_pf_idata%nyclm_mapped
-      region%k1 = clm_pf_idata%nzclm_mapped
-      region%k2 = clm_pf_idata%nzclm_mapped
+      region%j2 = elm_pf_idata%nyelm_mapped
+      region%k1 = elm_pf_idata%nzelm_mapped
+      region%k2 = elm_pf_idata%nzelm_mapped
       call RegionAddToList(region,realization%region_list)
       nullify(region)
     end if
@@ -4043,9 +4042,9 @@ subroutine SubsurfaceReadInput(simulation,input)
       region%name= "bottom"
       region%iface = BOTTOM_FACE
       region%i1 = 1
-      region%i2 = clm_pf_idata%nxclm_mapped
+      region%i2 = elm_pf_idata%nxelm_mapped
       region%j1 = 1
-      region%j2 = clm_pf_idata%nyclm_mapped
+      region%j2 = elm_pf_idata%nyelm_mapped
       region%k1 = 1
       region%k2 = 1
       call RegionAddToList(region,realization%region_list)
@@ -4056,11 +4055,11 @@ subroutine SubsurfaceReadInput(simulation,input)
       region%def_type = DEFINED_BY_BLOCK
       region%name= "all"
       region%i1 = 1
-      region%i2 = clm_pf_idata%nxclm_mapped
+      region%i2 = elm_pf_idata%nxelm_mapped
       region%j1 = 1
-      region%j2 = clm_pf_idata%nyclm_mapped
+      region%j2 = elm_pf_idata%nyelm_mapped
       region%k1 = 1
-      region%k2 = clm_pf_idata%nzclm_mapped
+      region%k2 = elm_pf_idata%nzelm_mapped
       call RegionAddToList(region,realization%region_list)
       nullify(region)
     end if

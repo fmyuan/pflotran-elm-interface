@@ -18,8 +18,8 @@ module Reaction_Sandbox_Microbial_class
   use PFLOTRAN_Constants_module
   use Reaction_Database_Aux_module
 
-#ifdef CLM_PFLOTRAN
-  use CLM_RspFuncs_module
+#ifdef ELM_PFLOTRAN
+  use ELM_RspFuncs_module
 #endif
 
   implicit none
@@ -94,7 +94,7 @@ function MicrobialCreate()
 
   allocate(MicrobialCreate)
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   MicrobialCreate%temperature_response_function = -1
   MicrobialCreate%moisture_response_function = -1
   MicrobialCreate%ph_response_function = -1
@@ -190,7 +190,7 @@ subroutine MicrobialRead(this,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
       case('TEMPERATURE_RESPONSE_FUNCTION')
         do
           call InputReadPflotranString(input,option)
@@ -447,10 +447,9 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
   use Material_Aux_class, only : material_auxvar_type
   use Utility_module, only : DeallocateArray
   
-#ifdef CLM_PFLOTRAN
-#include "petsc/finclude/petscvec.h"
+#ifdef ELM_PFLOTRAN
   use petscvec
-  use clmpf_interface_data
+  use elmpf_interface_data
 #endif
   
   implicit none
@@ -477,7 +476,7 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: f_ph
   PetscReal :: ph
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   PetscReal :: tc
   PetscReal :: theta
 #endif
@@ -492,7 +491,7 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
   volume = material_auxvar%volume
 
 ! temperature response function 
-#ifdef CLM_PFLOTRAN 
+#ifdef ELM_PFLOTRAN 
   tc = global_auxvar%temp
   f_t = GetTemperatureResponse(tc, this%temperature_response_function, this%Q10) 
 #else
@@ -500,7 +499,7 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 
   ! moisture response function 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   local_id = option%iflag ! temporary measure suggested by Glenn
   theta = global_auxvar%sat(1) * porosity 
   f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
@@ -508,7 +507,7 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
   f_w = 1.0d0
 #endif
 
-#ifdef CLM_PFLOTRAN
+#ifdef ELM_PFLOTRAN
   if (this%ph_response_function > 0) then
     if (this%fixed_ph > 0.0d0) then
       ph = this%fixed_ph
