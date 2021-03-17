@@ -70,7 +70,7 @@ module Reaction_module
             ReactionInitializeLogK_hpt, &
             RUpdateKineticState, &
             RUpdateTempDependentCoefs, &
-            RZeroSorb, &
+            RTotalSorb, &
             RCO2MoleFraction
 
 contains
@@ -2027,7 +2027,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! once equilibrated, compute sorbed concentrations
   if (reaction%nsorb > 0) then
     if (reaction%neqsorb > 0) then
-      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option) 
     endif
     if (reaction%surface_complexation%nkinmrsrfcplx > 0) then
       call RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
@@ -4365,7 +4365,17 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   endif
   
   if (reaction%isotherm%neqkdrxn > 0) then
-    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction%isotherm,reaction%isotherm%isotherm_rxn,option)
+    if (option%use_mc) then
+      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
+                        reaction%isotherm, &
+                        reaction%isotherm%multicontinuum_isotherm_rxn,option)
+      ! Convert from mol/L -> mol/m^3
+      rt_auxvar%total_sorb_eq(:) = rt_auxvar%total_sorb_eq(:) / 1000.d0
+      rt_auxvar%dtotal_sorb_eq(:,:) = rt_auxvar%dtotal_sorb_eq(:,:) / 1000.d0
+    else
+      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction%isotherm, &
+                        reaction%isotherm%isotherm_rxn,option)
+    endif
   endif
   
 end subroutine RTotalSorb

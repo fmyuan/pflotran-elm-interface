@@ -838,7 +838,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
-      call SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     endif
     total_upd(:,i) = rt_auxvar%total(:,1)
     dtotal(:,:,i) = rt_auxvar%aqueous%dtotal(:,:,1)
@@ -1475,7 +1475,7 @@ end subroutine SecondaryRTUpdateIterate
 ! ************************************************************************** !
 
 subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
-                                       reaction,option) 
+                                       reaction,sec_porosity,option) 
   ! 
   ! Updates the equilibrium secondary continuum
   ! variables
@@ -1491,20 +1491,27 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   use Reactive_Transport_Aux_module
   use Reaction_module
   use Global_Aux_module
+  use Material_Aux_class
  
   implicit none
   
-
+  class(material_auxvar_type), allocatable :: material_auxvar
   type(option_type), pointer :: option
   type(sec_transport_type) :: sec_transport_vars
   type(global_auxvar_type) :: global_auxvars
   class(reaction_rt_type), pointer :: reaction
+  PetscReal :: sec_porosity
   PetscInt :: ngcells,ncomp
   PetscInt :: i,j
   
   ngcells = sec_transport_vars%ncells
   ncomp = reaction%naqcomp
-                   
+
+  allocate(material_auxvar)
+  call MaterialAuxVarInit(material_auxvar,option)
+  material_auxvar%porosity = sec_porosity
+
+  
   do j = 1, ncomp
     do i = 1, ngcells
       sec_transport_vars%sec_rt_auxvar(i)%pri_molal(j) = sec_transport_vars%&
@@ -1514,9 +1521,13 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
     
   do i = 1, ngcells
     call RTotalAqueous(sec_transport_vars%sec_rt_auxvar(i),global_auxvars, &
-                reaction,option)
+                       reaction,option)
+    if (reaction%neqsorb > 0) then
+      call RTotalSorb(sec_transport_vars%sec_rt_auxvar(i),global_auxvars, &
+                      material_auxvar,reaction,option)
+    endif
   enddo
-  
+ 
 end subroutine SecondaryRTUpdateEquilState
 
 ! ************************************************************************** !
@@ -1683,7 +1694,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
-      call SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     endif
     total_upd(:,i) = rt_auxvar%total(:,1)
     if (reaction%neqsorb > 0) then 
@@ -2156,44 +2167,6 @@ subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
 
 
 end subroutine MphaseSecHeatAuxVarCompute
-
-! ************************************************************************** !
-
-subroutine SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                               option)
-  ! 
-  ! Computes the secondary total sorbed component concentrations and
-  ! derivative with respect to free-ion
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 02/20/2014
-  ! 
-
-  use Option_module
-  use Global_Aux_module
-  use Reaction_Aux_module
-  use Reaction_module
-  use Reactive_Transport_Aux_module
-  use Material_Aux_class
-  use Reaction_Isotherm_module
-  
-  implicit none
-  
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  class(reaction_rt_type) :: reaction
-  type(option_type) :: option
-  
-  call RZeroSorb(rt_auxvar)
-  
-  if (reaction%isotherm%neqkdrxn > 0) then
-    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
-                      reaction%isotherm, &
-                      reaction%isotherm%multicontinuum_isotherm_rxn,option)
-  endif
-  
-end subroutine SecondaryRTotalSorb
 
 ! ************************************************************************** !
 
