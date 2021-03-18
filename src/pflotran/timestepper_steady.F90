@@ -18,6 +18,7 @@ module Timestepper_Steady_class
 
  !   procedure, public :: Init => TimestepperSteadyInit
     procedure, public :: StepDT => TimestepperSteadyStepDT
+    procedure, public :: SetTargetTime => TimestepperSteadySetTargetTime
     procedure, public :: UpdateDT => TimestepperSteadyUpdateDT
     procedure, public :: InputRecord => TimestepperSteadyInputRecord
 
@@ -220,9 +221,38 @@ subroutine TimestepperSteadyUpdateDT(this,process_model)
 
   class(timestepper_steady_type) :: this
   class(pm_base_type) :: process_model
-  
 
 end subroutine TimestepperSteadyUpdateDT
+
+! ************************************************************************** !
+
+subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
+                                          snapshot_plot_flag, &
+                                          observation_plot_flag, &
+                                          massbal_plot_flag,checkpoint_flag)
+  ! 
+  ! Sets target time for steady state ts, which 
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/20/13
+  ! 
+
+  use Option_module
+
+  implicit none
+
+  class(timestepper_steady_type) :: this
+  PetscReal :: sync_time
+  type(option_type) :: option
+  PetscInt :: stop_flag
+  PetscBool :: snapshot_plot_flag
+  PetscBool :: observation_plot_flag
+  PetscBool :: massbal_plot_flag
+  PetscBool :: checkpoint_flag
+
+  this%target_time = sync_time
+
+end subroutine TimestepperSteadySetTargetTime
 
 ! ************************************************************************** !
 

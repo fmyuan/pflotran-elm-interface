@@ -557,10 +557,10 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   implicit none
 
   class(pmc_base_type), target :: this
-  character(len=MAXSTRINGLENGTH) :: filename_append
   PetscReal :: sync_time
   PetscInt :: stop_flag
 
+  character(len=MAXSTRINGLENGTH) :: filename_append
   PetscInt :: local_stop_flag
   PetscBool :: failure
   PetscBool :: checkpoint_at_this_time_flag

@@ -26,6 +26,8 @@ module PM_ERT_class
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
     procedure, public :: SetRealization => PMERTSetRealization
     procedure, public :: InitializeRun => PMERTInitializeRun
+    procedure, public :: SetupSolvers => PMERTSetupSolvers
+    procedure, public :: Solve => PMERTSolve
     procedure, public :: FinalizeRun => PMERTFinalizeRun
     procedure, public :: AcceptSolution => PMERTAcceptSolution
     procedure, public :: UpdateSolution => PMERTUpdateSolution
@@ -36,9 +38,6 @@ module PM_ERT_class
 
   public :: PMERTCreate, &
             PMERTInit, &
-            PMERTInitializeRun, &
-            PMERTSetupSolver, &
-            PMERTSolve, &
             PMERTStrip
 
 contains
@@ -214,7 +213,7 @@ end subroutine PMERTInitializeRun
 
 ! ************************************************************************** !
 
-subroutine PMERTSetupSolver(this)
+subroutine PMERTSetupSolvers(this)
   !
   ! Author: Piyoosh Jaysaval
   ! Date: 01/29/21
@@ -272,11 +271,11 @@ subroutine PMERTSetupSolver(this)
 
   call SolverSetKSPOptions(solver,option)
 
-end subroutine PMERTSetupSolver
+end subroutine PMERTSetupSolvers
 
 ! ************************************************************************** !
 
-subroutine PMERTSolve(this)
+subroutine PMERTSolve(this,time,ierr)
 
   ! Solves the linear systsem for ERT for all electrodes
   !
@@ -288,11 +287,14 @@ subroutine PMERTSolve(this)
   use Solver_module
   use Field_module
   use ERT_module
+  use String_module
   use Survey_module
 
   implicit none
 
   class(pm_ert_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: solve_ierr
 
   class(realization_subsurface_type), pointer :: realization
   type(patch_type), pointer :: patch
@@ -319,6 +321,8 @@ subroutine PMERTSolve(this)
   PetscErrorCode :: ierr
   KSPConvergedReason :: ksp_reason
 
+  call PMBasePrintHeader(this)
+  solve_ierr = 0
   ! Forward solve start
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
@@ -345,7 +349,13 @@ subroutine PMERTSolve(this)
 
   nelec = survey%num_electrode
 
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'(" Solving for electrode:")',advance='no')
+  endif
   do ielec=1,nelec
+    if (OptionPrintToScreen(this%option)) then
+      write(*,'(x,a)',advance='no') trim(StringWrite(ielec))
+    endif
 
     ! Initial Solution -> analytic sol for a half-space
     ! Get Analytical potential for a half-space
@@ -402,11 +412,10 @@ subroutine PMERTSolve(this)
     call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
     sum_linear_iterations = sum_linear_iterations + num_linear_iterations
 
-    if (OptionPrintToScreen(this%option)) then
-      write(*,'(/," Solved for electrode: ", i10,/)') ielec
-    endif
-
   enddo
+  if (OptionPrintToScreen(this%option)) then
+    write(*,*)
+  endif
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
