@@ -40,6 +40,7 @@ module PM_Base_class
     procedure, public :: Jacobian => PMBaseJacobian
     procedure, public :: UpdateTimestep => PMBaseUpdateTimestep
     procedure, public :: InitializeTimestep => PMBaseThisOnly
+    procedure, public :: SetupSolvers => PMBaseThisOnly
     procedure, public :: PreSolve => PMBaseThisOnly
     procedure, public :: Solve => PMBaseThisTimeError
     procedure, public :: PostSolve => PMBaseThisOnly

@@ -652,9 +652,8 @@ end subroutine AddPMCUDFBiosphere
 
 ! ************************************************************************** !
 
-subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,option)
-
-  !
+subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name, &
+                                      realization,option)
   ! Adds a Geophysics PMC
   !
   ! Author: Piyoosh Jaysaval
@@ -710,7 +709,11 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,op
   string = trim(pm_base%name)
   call LoggingCreateStage(string,pmc_geophysics%stage)
   simulation%geop_process_model_coupler => pmc_geophysics
-  simulation%process_model_coupler_list => simulation%geop_process_model_coupler
+  if (associated(simulation%process_model_coupler_list)) then
+    simulation%process_model_coupler_list%peer => pmc_geophysics
+  else
+    simulation%process_model_coupler_list => pmc_geophysics
+  endif
 
 end subroutine AddPMCSubsurfaceGeophysics
 

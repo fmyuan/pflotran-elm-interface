@@ -1053,11 +1053,11 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
             this%cumulative_time_step_cuts
     write(string,'(i12)') this%cumulative_wasted_linear_iterations
 
-    write(*,'(a)') trim(this%name) // ' TS BE Wasted Linear Iterations = ' // &
-         trim(adjustl(string))
+    write(*,'(x,a)') trim(this%name) // &
+      ' TS BE Wasted Linear Iterations = ' // trim(adjustl(string))
     write(string,'(i12)') this%cumulative_wasted_newton_iterations
-    write(*,'(a)') trim(this%name) // ' TS BE Wasted Newton Iterations = ' // &
-      trim(adjustl(string))
+    write(*,'(x,a)') trim(this%name) // &
+      ' TS BE Wasted Newton Iterations = ' // trim(adjustl(string))
 
     write(string,'(f12.1)') this%cumulative_solver_time
     write(*,'(x,a)') trim(this%name) // ' TS BE SNES time = ' // &

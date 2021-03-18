@@ -82,7 +82,6 @@ subroutine PMCGeophysicsSetupSolvers(this)
   ! Date: 01/29/21
   !
   use Option_module
-  use Timestepper_Steady_class
 
   implicit none
 
@@ -94,18 +93,11 @@ subroutine PMCGeophysicsSetupSolvers(this)
 
   option => this%option
 
-  select type(ts=>this%timestepper)
-    class is(timestepper_Steady_type)
-    class default
-      option%io_buffer = 'A Steady timestepper must be used for geophysics.'
-      call PrintErrMsg(option)
-  end select
-
   select type(pm=>this%pm_ptr%pm)
     class is(pm_ert_type)
       pm_ert => pm
       ! Sets up solver for ERT
-      call PMERTSetupSolver(pm_ert)
+      call pm_ert%SetupSolvers()
     class default
       option%io_buffer = 'Solver setup implemented only for ERT &
                           &geophysics process model.'
@@ -124,7 +116,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   ! Date: 01/29/21
   !
   use Option_module
-  use Timestepper_Base_class
+  use Timestepper_Base_class, only: TS_STOP_FAILURE
 
   implicit none
 
@@ -136,7 +128,11 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
 
   PetscLogDouble :: log_start_time
   PetscLogDouble :: log_end_time
+  PetscReal :: dummy_time = 0.d0
+  PetscInt :: local_stop_flag
   PetscErrorCode :: ierr
+
+  if (stop_flag == TS_STOP_FAILURE) return
 
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
@@ -145,18 +141,16 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   select type(pm=>this%pm_ptr%pm)
     class is(pm_ert_type)
       pm_ert => pm
-      call PMERTSolve(pm_ert)
+      call pm_ert%Solve(dummy_time,ierr)
     class default
-      option%io_buffer = 'StepDT implemented only for ERT &
+      option%io_buffer = 'RunToTime implemented only for ERT &
                           &geophysics process model.'
       call PrintErrMsg(option)
   end select
+  if (ierr /= 0) stop_flag = TS_STOP_FAILURE
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
-
-  ! set stop flag to end the geophysics simulation
-  stop_flag = TS_STOP_END_SIMULATION
 
   ! call this%timer%Start()
   ! do ielectrode = 1, this%num_electrodes
