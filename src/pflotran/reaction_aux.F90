@@ -181,6 +181,7 @@ module Reaction_Aux_module
     PetscInt :: print_free_conc_type
     PetscInt :: print_tot_conc_type
     PetscInt :: print_secondary_conc_type
+    PetscBool :: print_total_mass_kg
     PetscInt :: num_dbase_temperatures
     PetscInt :: num_dbase_parameters
     PetscReal, pointer :: dbase_temperatures(:)
@@ -475,6 +476,7 @@ function ReactionCreate()
   reaction%print_free_ion = PETSC_FALSE
   reaction%print_total_bulk = PETSC_FALSE
   reaction%use_geothermal_hpt = PETSC_FALSE
+  reaction%print_total_mass_kg = PETSC_FALSE
 
   reaction%initialize_with_molality = PETSC_FALSE
   reaction%print_free_conc_type = 0

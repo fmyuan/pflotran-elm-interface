@@ -3371,6 +3371,13 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%print_auxiliary = PETSC_TRUE
       case('PRINT_VERBOSE_CONSTRAINTS')
         reaction%print_verbose_constraints = PETSC_TRUE
+      case('PRINT_TOTAL_MASS_KG')
+        if (.not.reaction%use_full_geochemistry) then
+          option%io_buffer = 'USE_FULL_GEOCHEMISTRY MUST BE SPECIFIED &
+                              &WHEN USING PRINT_TOTAL_MASS_KG'
+          call PrintErrMsg(option)
+        endif
+          reaction%print_total_mass_kg = PETSC_TRUE        
       case ('SITE_DENSITY')
         call InputReadWord(input,option,name,PETSC_TRUE)  
         call InputErrorMsg(input,option,'Site Name', &
