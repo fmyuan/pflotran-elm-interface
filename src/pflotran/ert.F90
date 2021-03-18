@@ -422,17 +422,25 @@ subroutine ERTConductivityFromEmpiricalEqs(global_auxvar, material_auxvar)
 
   ! Archie's law parameters
   ! TODO: Should read from input file
-  PetscReal, parameter :: a = 1.d0        ! Tortuality
-  PetscReal, parameter :: m = 1.8d0       ! Cementation Factor
+  PetscReal, parameter :: a = 1.d0        ! Tortuosity factor constant
+  PetscReal, parameter :: m = 1.9d0       ! Cementation exponent
   PetscReal, parameter :: n = 2.d0        ! Saturation exponent
   PetscReal, parameter :: cond_w = 0.01d0 ! Water conductivity
-
+  ! Waxman-Smits additional paramters
+  PetscReal, parameter :: cond_c = 0.03d0 ! Clay conductivity
+  PetscReal, parameter :: Vc = 0.2d0      ! Clay/Shale volume 
   ! calculated total resistivity
   PetscReal :: cond
-  PetscReal :: factor
+  PetscReal :: porosity, saturation
 
-  cond = ( ((material_auxvar%porosity)**m) * ((global_auxvar%sat(1))**n) * &
-          cond_w ) / a
+  porosity = material_auxvar%porosity
+  saturation = global_auxvar%sat(1)
+
+  ! Archie's law
+  cond = cond_w * (porosity**m) * (saturation**n) / a
+
+  ! Waxmax-Smits equations/Dual-Water model 
+  !cond = cond + cond_c * Vc * (1-porosity) * saturation**(n-1)
 
   material_auxvar%electrical_conductivity(1) = cond
 
