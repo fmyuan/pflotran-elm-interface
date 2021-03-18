@@ -371,7 +371,7 @@ contains
     ! Add values for self
     delM(1) = delM(1) + dcoef_self
     ! insert values for neighbor
-    delM(ineighbor) = dcoef_neighbor
+    delM(1+ineighbor) = dcoef_neighbor
 
     ! Not storing following as these can be retrieved from ineighbor's value
     !delM(1 + num_neighbor + 2*ineighbor -1) = dcoef_neighbor
@@ -401,6 +401,42 @@ contains
   end function FindLocNeighbor
   
 end subroutine ERTCalculateMatrix
+
+! ************************************************************************** !
+
+subroutine ERTConductivityFromEmpiricalEqs(global_auxvar, material_auxvar)
+  !
+  ! Calculates conductivity using petrophysical empirical relations
+  ! using Archie's law or Waxman-Smits equation
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 03/18/21
+  !
+
+  use Global_Aux_module
+
+  implicit none
+
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+
+  ! Archie's law parameters
+  ! TODO: Should read from input file
+  PetscReal, parameter :: a = 1.d0        ! Tortuality
+  PetscReal, parameter :: m = 1.8d0       ! Cementation Factor
+  PetscReal, parameter :: n = 2.d0        ! Saturation exponent
+  PetscReal, parameter :: cond_w = 0.01d0 ! Water conductivity
+
+  ! calculated total resistivity
+  PetscReal :: cond
+  PetscReal :: factor
+
+  cond = ( ((material_auxvar%porosity)**m) * ((global_auxvar%sat(1))**n) * &
+          cond_w ) / a
+
+  material_auxvar%electrical_conductivity(1) = cond
+
+end subroutine ERTConductivityFromEmpiricalEqs
 
 ! ************************************************************************** !
 

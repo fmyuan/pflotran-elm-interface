@@ -101,9 +101,9 @@ eos_gas.o : eos_database.o eos_water.o input_aux.o lookup_table.o option.o \
             pflotran_constants.o utility.o
 eos_water.o : eos_database.o geometry.o input_aux.o lookup_table.o option.o \
               pflotran_constants.o utility.o
-ert.o : connection.o coupler.o debug.o ert_aux.o field.o grid.o material_aux.o \
-        option.o patch.o pflotran_constants.o realization_subsurface.o \
-        survey.o
+ert.o : connection.o coupler.o debug.o ert_aux.o field.o global_aux.o grid.o \
+        material_aux.o option.o patch.o pflotran_constants.o \
+        realization_subsurface.o survey.o
 ert_aux.o : global_aux.o material_aux.o option.o pflotran_constants.o \
             reactive_transport_aux.o survey.o utility.o
 factory_geomechanics.o : condition_control.o convergence.o discretization.o \
