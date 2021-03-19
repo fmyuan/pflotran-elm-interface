@@ -77,10 +77,9 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
   type(survey_type) :: survey
 
   allocate(auxvar%potential(survey%num_electrode))
-  allocate(auxvar%jacobian(survey%num_measurement))
   auxvar%potential = 0.d0
-  auxvar%jacobian = 0.d0
 
+  nullify(auxvar%jacobian)
   nullify(auxvar%delM)
 
 end subroutine ERTAuxVarInit

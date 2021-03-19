@@ -426,7 +426,7 @@ subroutine PMERTSolve(this)
 
   ! Build Jacobian
   if (this%compute_jacobian) call PMERTBuildJacobian(this)
-print*,this%compute_jacobian
+
 end subroutine PMERTSolve
 
 ! ************************************************************************** !
@@ -627,6 +627,12 @@ subroutine PMERTBuildJacobian(this)
       enddo
 
       cond = material_auxvars(ghosted_id)%electrical_conductivity(1)
+
+      if (.not.associated(ert_auxvars(ghosted_id)%jacobian)) then
+        allocate(ert_auxvars(ghosted_id)%jacobian(survey%num_measurement))
+        ert_auxvars(ghosted_id)%jacobian = 0.d0
+      endif
+      
       ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to 
       ! +ve unit source so phi_rec -> - phi_rec
       ! thus => jacob = phi_s * (dM/dcond) * phi_r
