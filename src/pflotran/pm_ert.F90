@@ -21,6 +21,8 @@ module PM_ERT_class
     type(survey_type), pointer :: survey
     Vec :: rhs
     PetscLogDouble :: cumulative_ert_time
+    ! ERT options
+    PetscBool :: compute_jacobian
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -87,6 +89,7 @@ subroutine PMERTInit(pm_ert)
   nullify(pm_ert%survey)
 
   pm_ert%rhs = PETSC_NULL_VEC
+  pm_ert%compute_jacobian = PETSC_FALSE
 
 end subroutine PMERTInit
 
@@ -135,6 +138,8 @@ subroutine PMERTReadSimOptionsBlock(this,input)
 
     select case(trim(keyword))
       ! Add various options for ERT if needed here
+      case('COMPUTE_JACOBIAN')
+        this%compute_jacobian = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -338,7 +343,7 @@ subroutine PMERTSolve(this)
   num_linear_iterations = 0
 
   ! Build System matrix
-  call ERTCalculateMatrix(realization,solver%M)
+  call ERTCalculateMatrix(realization,solver%M,this%compute_jacobian)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
   !call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
 
@@ -420,8 +425,8 @@ subroutine PMERTSolve(this)
   call PMERTAssembleSimulatedData(this)
 
   ! Build Jacobian
-  call PMERTBuildJacobian(this)
-
+  if (this%compute_jacobian) call PMERTBuildJacobian(this)
+print*,this%compute_jacobian
 end subroutine PMERTSolve
 
 ! ************************************************************************** !
