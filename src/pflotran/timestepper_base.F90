@@ -48,7 +48,6 @@ module Timestepper_Base_class
     
     PetscBool :: init_to_steady_state
     PetscBool :: run_as_steady_state
-    PetscReal :: steady_state_rel_tol
     
     PetscBool :: time_step_cut_flag  ! flag toggled if timestep is cut
 
@@ -176,12 +175,12 @@ subroutine TimestepperBaseInit(this)
   this%time_step_cut_flag = PETSC_FALSE
   
   this%init_to_steady_state = PETSC_FALSE
-  this%steady_state_rel_tol = 1.d-8
   this%run_as_steady_state = PETSC_FALSE
   
   nullify(this%local_waypoint_list)
   nullify(this%cur_waypoint)
   nullify(this%prev_waypoint)
+  nullify(this%solver)
   this%revert_dt = PETSC_FALSE
   this%num_contig_revert_due_to_sync = 0
   this%max_num_contig_revert = 2
@@ -308,10 +307,6 @@ subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
       option%io_buffer = 'INITIALIZE_TO_STEADY_STATE capability has been &
                          &disabled.'
       call PrintErrMsg(option)
-      this%init_to_steady_state = PETSC_TRUE
-      call InputReadDouble(input,option,this%steady_state_rel_tol)
-      call InputErrorMsg(input,option,'steady state convergence relative &
-                         &tolerance',error_string)
     case('RUN_AS_STEADY_STATE')
       option%io_buffer = 'RUN_AS_STEADY_STATE capability has been disabled.'
       call PrintErrMsg(option)

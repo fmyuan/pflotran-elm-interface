@@ -170,7 +170,7 @@ end subroutine PMCBaseInit
 
 ! ************************************************************************** !
 
-subroutine PMCBaseReadNumericalMethods(this,input)
+subroutine PMCBaseReadNumericalMethods(this,input,pm_label)
   !
   ! Author: Glenn Hammond
   ! Date: 03/09/20
@@ -183,6 +183,7 @@ subroutine PMCBaseReadNumericalMethods(this,input)
 
   class(pmc_base_type) :: this
   type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: pm_label
 
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: keyword
@@ -205,7 +206,7 @@ subroutine PMCBaseReadNumericalMethods(this,input)
 
     if (InputCheckExit(input,option)) exit
 
-    error_string = 'SUBSURFACE,NUMERICAL_METHODS'
+    error_string = 'SUBSURFACE,NUMERICAL_METHODS,'//pm_label
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
@@ -658,7 +659,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
         (mod(this%timestepper%steps,this%pm_list% &
              output_option%periodic_msbl_output_ts_imod) == 0)
 
-      if (this%option%steady_state) &
+      if (this%pm_list%steady_state) &
         snapshot_plot_at_this_timestep_flag = PETSC_TRUE
 
       call this%Output(this%pm_list%realization_base, &
@@ -679,14 +680,14 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       endif
     endif
 
-    ! Checkpointing forces peers to be executed prior to the checkpoing.  If
-    ! so, we need to skip the peer RunToTime outside the loop
+    ! Checkpointing forces peers to be executed prior to the checkpointing.
+    ! If so, we need to skip the peer RunToTime outside the loop
     peer_already_run_to_time = PETSC_FALSE
     if (this%is_master .and. &
         (checkpoint_at_this_time_flag .or. &
          checkpoint_at_this_timestep_flag)) then
-      ! if checkpointing, need to sync all other PMCs.  Those "below" are
-      ! already in sync, but not those "next".
+      ! if checkpointing, need to sync all other PMCs.  Children are
+      ! already in sync, but peers are not.
       ! Set data needed by process-model
       call this%SetAuxData()
       ! Run neighboring process model couplers
@@ -715,6 +716,10 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     if (this%is_master) then
       if (this%timestepper%WallClockStop(this%option)) then
          local_stop_flag = TS_STOP_WALLCLOCK_EXCEEDED
+      endif
+      ! must come after wall clock as steady state overrides
+      if (this%pm_list%steady_state) then
+        local_stop_flag = TS_STOP_END_SIMULATION
       endif
     endif
 

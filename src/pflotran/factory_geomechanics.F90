@@ -64,6 +64,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   use Input_Aux_module
   use Logging_module
   use Output_Aux_module
+  use Waypoint_module
 
   implicit none
 
@@ -304,13 +305,6 @@ subroutine GeomechanicsJumpStart(simulation)
                            PETSC_NULL_CHARACTER, "-vecload_block_size", &
                            failure, ierr);CHKERRQ(ierr)
                              
-  if (option%steady_state) then
-    option%io_buffer = 'Running in steady-state not yet supported for &
-                       &surface-flow.'
-    call PrintErrMsg(option)
-    return
-  endif
-  
   geomech_timestepper%name = 'GEOMECHANICS'
  
   master_timestepper => geomech_timestepper

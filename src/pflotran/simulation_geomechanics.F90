@@ -215,6 +215,7 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
   ! Modified by Satish Karra, 06/22/16
 
   use Timestepper_Steady_class
+  use Timestepper_Base_class
 
   implicit none
 

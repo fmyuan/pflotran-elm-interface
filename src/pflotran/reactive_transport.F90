@@ -2732,7 +2732,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   ! Get pointer to Vector data
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
  
-  if (.not.option%steady_state) then
+  if (.not.option%transport%steady_state) then
 #if 1
     call VecGetArrayF90(field%tran_accum, accum_p, ierr);CHKERRQ(ierr)
     r_p = r_p - accum_p / option%tran_dt
@@ -3533,7 +3533,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   endif
   nphase = rt_parameter%nphase
 
-  if (.not.option%steady_state) then
+  if (.not.option%transport%steady_state) then
   call PetscLogEventBegin(logging%event_rt_jacobian_accum,ierr);CHKERRQ(ierr)
 #if 1  
     do local_id = 1, grid%nlmax  ! For each local node do...
