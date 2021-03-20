@@ -2005,7 +2005,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
 
   ! Accumulation terms ------------------------------------
-  if (.not.option%steady_state) then
+  if (.not.option%flow%steady_state) then
     r_p(1:grid%nlmax) = r_p(1:grid%nlmax) - accum_p(1:grid%nlmax)
 
     do local_id = 1, grid%nlmax  ! For each local node do...
@@ -2622,7 +2622,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
     inlinesurface_auxvars => patch%aux%InlineSurface%auxvars
   endif
 
-  if (.not.option%steady_state) then
+  if (.not.option%flow%steady_state) then
 
     ! Accumulation terms ------------------------------------
     do local_id = 1, grid%nlmax  ! For each local node do...

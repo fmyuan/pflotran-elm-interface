@@ -30,6 +30,7 @@ module Option_Flow_module
     PetscBool :: num_as_alyt_derivs
     PetscBool :: only_energy_eq
     PetscBool :: full_perm_tensor
+    PetscBool :: steady_state
 
     ! If true, permeability changes due to pressure
     PetscBool :: update_flow_perm 
@@ -153,6 +154,7 @@ subroutine OptionFlowInitRealization(option)
   option%set_secondary_init_temp = PETSC_FALSE
   option%minimum_hydrostatic_pressure = -1.d20
   option%th_freezing = PETSC_FALSE
+  option%steady_state = PETSC_FALSE
 
 end subroutine OptionFlowInitRealization
 
