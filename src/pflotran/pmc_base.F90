@@ -664,7 +664,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
         snapshot_plot_at_this_timestep_flag = PETSC_TRUE
 
       if (this%pm_list%output_option%force_synchronized_output .and. &
-          associated(this%peer)) then
+          associated(this%peer) .and. .not.peer_already_run_to_time) then
         ! this%Output current performs actions beyond solely outputing data
         ! (e.g. time averaging of data). but we should only force the peers
         ! on actual output
@@ -704,18 +704,21 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     endif
 
     if (this%is_master) then
-      if ((checkpoint_at_this_time_flag .or. &
-           checkpoint_at_this_timestep_flag) .and. &
-          associated(this%peer)) then
-        ! if checkpointing, need to sync all other PMCs.  Children are
-        ! already in sync, but peers are not.
-        call this%SetAuxData()
-        ! Run neighboring process model couplers
-        call this%peer%RunToTime(this%timestepper%target_time,local_stop_flag)
-        ! Checkpointing forces peers to be executed prior to the checkpointing.
-        ! If so, we need to skip the peer RunToTime outside the loop
-        peer_already_run_to_time = PETSC_TRUE
-        call this%GetAuxData()
+      if (checkpoint_at_this_time_flag .or. &
+          checkpoint_at_this_timestep_flag) then
+        if (associated(this%peer) .and. .not.peer_already_run_to_time) then
+          ! if checkpointing, need to sync all other PMCs.  Children are
+          ! already in sync, but peers are not.
+          call this%SetAuxData()
+          ! Run neighboring process model couplers
+          call this%peer%RunToTime(this%timestepper%target_time, &
+                                   local_stop_flag)
+          ! Checkpointing forces peers to be executed prior to the 
+          ! checkpointing. If so, we need to skip the peer RunToTime 
+          ! outside the loop
+          peer_already_run_to_time = PETSC_TRUE
+          call this%GetAuxData()
+        endif
         ! it is possible that two identical checkpoint files will be created,
         ! one at the time and another at the time step, but this is fine.
         if (checkpoint_at_this_time_flag) then
