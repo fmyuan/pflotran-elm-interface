@@ -1987,12 +1987,15 @@ subroutine BasisInit(reaction,option)
 
       allocate(mineral%kinmnrl_armor_pwr(mineral%nkinmnrl))
       mineral%kinmnrl_armor_pwr = 0.d0
-
       allocate(mineral%kinmnrl_armor_crit_vol_frac(mineral%nkinmnrl))
       mineral%kinmnrl_armor_crit_vol_frac = 0.d0
-
       allocate(mineral%kinmnrl_armor_min_names(mineral%nkinmnrl))
       mineral%kinmnrl_armor_min_names = ''
+
+      allocate(mineral%kinmnrl_surf_area_epsilon(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_epsilon = 0.d0
+      allocate(mineral%kinmnrl_vol_frac_epsilon(mineral%nkinmnrl))
+      mineral%kinmnrl_vol_frac_epsilon = 0.d0
 
       allocate(mineral%kinmnrl_num_prefactors(mineral%nkinmnrl))
       mineral%kinmnrl_num_prefactors = 0
@@ -2323,6 +2326,10 @@ subroutine BasisInit(reaction,option)
           mineral%kinmnrl_armor_pwr(ikinmnrl) = tstrxn%armor_pwr
           mineral%kinmnrl_armor_crit_vol_frac(ikinmnrl) = &
             tstrxn%armor_crit_vol_frac
+          mineral%kinmnrl_surf_area_epsilon(ikinmnrl) = &
+            tstrxn%surf_area_epsilon
+          mineral%kinmnrl_vol_frac_epsilon(ikinmnrl) = &
+            tstrxn%vol_frac_epsilon
 
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
             ! no prefactors, rates stored in upper level

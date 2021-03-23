@@ -1955,6 +1955,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   use Material_Aux_class
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
+  use Reaction_Mineral_module
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z, &
                                PERMEABILITY_XY, PERMEABILITY_XZ, &
@@ -2018,79 +2019,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       do imnrl = 1, reaction%mineral%nkinmnrl
-
-        porosity_scale = 1.d0
-        if (reaction%update_mnrl_surf_with_porosity) then
-          porosity_scale = &
-            ((1.d0-material_auxvars(ghosted_id)%porosity_base) / &
-             (1.d0-porosity0_p(local_id)))** &
-             reaction%mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
-!       geh: srf_area_vol_frac_pwr must be defined on a per mineral basis, not
-!       solely material type.
-!       material_property_array(patch%imat(ghosted_id))%ptr%mnrl_surf_area_porosity_pwr
-        endif
-
-        volfrac_scale = 1.d0
-        if (rt_auxvars(ghosted_id)%mnrl_volfrac0(imnrl) > 0.d0) then
-          volfrac_scale = (rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl)/ &
-                         rt_auxvars(ghosted_id)%mnrl_volfrac0(imnrl))** &
-             reaction%mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
-!       geh: srf_area_vol_frac_pwr must be defined on a per mineral basis, not
-!       solely material type.
-!       material_property_array(patch%imat(ghosted_id))%ptr%mnrl_surf_area_volfrac_pwr
-!         rt_auxvars(ghosted_id)%mnrl_area(imnrl) = &
-!           rt_auxvars(ghosted_id)%mnrl_area0(imnrl)*porosity_scale*volfrac_scale
-!       else
-!         rt_auxvars(ghosted_id)%mnrl_area(imnrl) = &
-!           rt_auxvars(ghosted_id)%mnrl_area0(imnrl)
-        endif
-
-        rt_auxvars(ghosted_id)%mnrl_area(imnrl) = &
-            rt_auxvars(ghosted_id)%mnrl_area0(imnrl)*porosity_scale*volfrac_scale
-
-        if (reaction%update_armor_mineral_surface .and. &
-            reaction%mineral%kinmnrl_armor_crit_vol_frac(imnrl) > 0.d0) then
-          imnrl_armor = imnrl
-          do imnrl1 = 1, reaction%mineral%nkinmnrl
-            if (reaction%mineral%kinmnrl_armor_min_names(imnrl) == &
-                reaction%mineral%kinmnrl_names(imnrl1)) then
-              imnrl_armor = imnrl1
-              exit
-            endif
-          enddo
-
-!         print *,'update-armor: ',imnrl,imnrl_armor, &
-!         reaction%mineral%kinmnrl_armor_min_names(imnrl_armor)
-
-!       check for negative surface area armoring correction
-          if (reaction%mineral%kinmnrl_armor_crit_vol_frac(imnrl) > &
-              rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl_armor)) then
-
-            if (reaction%update_armor_mineral_surface_flag == 0) then ! surface unarmored
-              rt_auxvars(ghosted_id)%mnrl_area(imnrl) = &
-                rt_auxvars(ghosted_id)%mnrl_area(imnrl) * &
-                ((reaction%mineral%kinmnrl_armor_crit_vol_frac(imnrl) &
-                - rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl_armor))/ &
-                reaction%mineral%kinmnrl_armor_crit_vol_frac(imnrl))** &
-                reaction%mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
-            else
-              rt_auxvars(ghosted_id)%mnrl_area(imnrl) = rt_auxvars(ghosted_id)%mnrl_area0(imnrl)
-              reaction%update_armor_mineral_surface_flag = 0
-            endif
-          else
-            rt_auxvars(ghosted_id)%mnrl_area(imnrl) = 0.d0
-            reaction%update_armor_mineral_surface_flag = 1 ! surface armored
-          endif
-        endif
-
-!       print *,'update min srf: ',imnrl,local_id,reaction%mineral%kinmnrl_names(imnrl), &
-!       reaction%mineral%kinmnrl_armor_min_names(imnrl), &
-!       reaction%update_armor_mineral_surface, &
-!       rt_auxvars(ghosted_id)%mnrl_area(imnrl), &
-!       reaction%mineral%kinmnrl_armor_pwr(imnrl), &
-!       reaction%mineral%kinmnrl_armor_crit_vol_frac(imnrl), &
-!       rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl_armor), &
-!       rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl)
+        call MineralUpdateSpecSurfaceArea(reaction,rt_auxvars(ghosted_id), &
+                                          material_auxvars(ghosted_id), &
+                                          porosity0_p(local_id),option)
       enddo
     enddo
 
