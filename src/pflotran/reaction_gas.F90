@@ -200,7 +200,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   PetscReal :: lnQK
   PetscReal :: m_cl, m_na, muco2, xmass
   PetscReal :: pressure, temperature, xphico2
-  PetscInt :: ieqgas
+  PetscInt :: iactgas
 
 ! *********** Add SC phase and gas contributions ***********************  
   ! CO2-specific
@@ -213,7 +213,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   den_kg_per_L = global_auxvar%den_kg(iphase)*xmass*1.d-3
 
   if (global_auxvar%sat(iphase) > 1.D-20) then
-    do ieqgas = 1, reaction%gas%npassive_gas ! all gas phase species are secondary
+    do iactgas = 1, reaction%gas%nactive_gas ! all gas phase species are secondary
 
       pressure = global_auxvar%pres(2)
       temperature = global_auxvar%temp
@@ -230,7 +230,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
 !            global_auxvar%fugacoeff(1) = xphico2
 
 
-      if (abs(reaction%species_idx%co2_gas_id) == ieqgas ) then
+      if (abs(reaction%species_idx%co2_gas_id) == iactgas ) then
 
         if (reaction%species_idx%na_ion_id /= 0 .and. reaction%species_idx%cl_ion_id /= 0) then
           m_na = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
@@ -246,34 +246,34 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
            
       else   
         lngamco2 = 0.d0
-        lnQK = -reaction%gas%acteqlogK(ieqgas)*LOG_TO_LN
+        lnQK = -reaction%gas%acteqlogK(iactgas)*LOG_TO_LN
       endif 
           
-      if (reaction%gas%acteqh2oid(ieqgas) > 0) then
-        lnQK = lnQK + reaction%gas%acteqh2ostoich(ieqgas)*rt_auxvar%ln_act_h2o
+      if (reaction%gas%acteqh2oid(iactgas) > 0) then
+        lnQK = lnQK + reaction%gas%acteqh2ostoich(iactgas)*rt_auxvar%ln_act_h2o
       endif
    
    ! contribute to %total          
    !     do i = 1, ncomp
    ! removed loop over species, suppose only one primary species is related
-      icomp = reaction%gas%acteqspecid(1,ieqgas)
+      icomp = reaction%gas%acteqspecid(1,iactgas)
       pressure = pressure * 1.D-5
         
-!     rt_auxvar%gas_pp(ieqgas) = &
+!     rt_auxvar%gas_pp(iactgas) = &
 !         exp(lnQK+lngamco2)*rt_auxvar%pri_molal(icomp) &
 !         /(IDEAL_GAS_CONSTANT*1.d-2*(temperature+273.15D0)*xphico2)
 
 !     This form includes factor Z in pV = ZRT for nonideal gas
-      rt_auxvar%gas_pp(ieqgas) = &
+      rt_auxvar%gas_pp(iactgas) = &
           exp(lnQK)*rt_auxvar%pri_act_coef(icomp)*rt_auxvar%pri_molal(icomp)* &
           den/pressure/xphico2
 
       rt_auxvar%total(icomp,iphase) = rt_auxvar%total(icomp,iphase) + &
-          reaction%gas%acteqstoich(1,ieqgas)* &
-          rt_auxvar%gas_pp(ieqgas)
+          reaction%gas%acteqstoich(1,iactgas)* &
+          rt_auxvar%gas_pp(iactgas)
 
-!       print *,'RTotal: ',icomp,ieqgas,pressure, temperature, xphico2, &
-!         global_auxvar%sat(iphase),rt_auxvar%gas_pp(ieqgas), &
+!       print *,'RTotal: ',icomp,iactgas,pressure, temperature, xphico2, &
+!         global_auxvar%sat(iphase),rt_auxvar%gas_pp(iactgas), &
 !         rt_auxvar%pri_act_coef(icomp)*exp(lnQK)*rt_auxvar%pri_molal(icomp) &
 !         /pressure/xphico2*den
 
@@ -282,10 +282,10 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
    !      tempreal = exp(lnQK+lngamco2)/pressure/xphico2*den
 !     tempreal = rt_auxvar%pri_act_coef(icomp)*exp(lnQK) &
 !         /pressure/xphico2*den
-      tempreal = rt_auxvar%gas_pp(ieqgas)/rt_auxvar%pri_molal(icomp)
+      tempreal = rt_auxvar%gas_pp(iactgas)/rt_auxvar%pri_molal(icomp)
       rt_auxvar%aqueous%dtotal(icomp,icomp,iphase) = &
           rt_auxvar%aqueous%dtotal(icomp,icomp,iphase) + &
-          reaction%gas%acteqstoich(1,ieqgas)*tempreal
+          reaction%gas%acteqstoich(1,iactgas)*tempreal
     enddo
   ! rt_auxvar%total(:,iphase) = rt_auxvar%total(:,iphase)!*den_kg_per_L
   ! units of dtotal = kg water/L water
