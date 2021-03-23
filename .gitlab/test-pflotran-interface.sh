@@ -21,8 +21,8 @@ cp -R ./coverage $ARTIFACT_DIR
 
 if [ $REGRESSION_EXIT_CODE -ne 0 ]; then
   echo "Regression tests failed" >&2
-  exit 1
+  echo 'failed' > $ARTIFACT_DIR/status
 else
-  exit 0
+  echo 'success' > $ARTIFACT_DIR/status
 fi
 

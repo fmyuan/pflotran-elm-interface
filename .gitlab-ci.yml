@@ -63,14 +63,16 @@ pflotran:
       --build-arg IMAGE=$IMAGE
       --cache-from $IMAGE
       --tag $NEW_IMAGE
-      .
+      . || true
     # DO NOT PUSH THE NEW IMAGE
     # copy regression results from image by launching container, copying
     # and destorying the container
     - id=$(docker create $NEW_IMAGE)
     - docker cp $id:/tmp/test-pflotran .
     - docker rm -v $id
+    - exit $(grep -c 'failed' ./test-pflotran/status)
   artifacts:
+    when: always
     paths:
       - test-pflotran
 
@@ -87,12 +89,14 @@ pflotran-interface:
       --build-arg IMAGE=$IMAGE
       --cache-from $IMAGE
       --tag $NEW_IMAGE
-      .
+      . || true
     # DO NOT PUSH THE NEW IMAGE
     - id=$(docker create $NEW_IMAGE)
     - docker cp $id:/tmp/test-pflotran-interface .
     - docker rm -v $id
+    - exit $(grep -c 'failed' ./test-pflotran-interface/status)
   artifacts:
+    when: always
     paths:
       - test-pflotran-interface
 
