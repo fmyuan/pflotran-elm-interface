@@ -23,6 +23,13 @@ module PM_ERT_class
     PetscLogDouble :: cumulative_ert_time
     ! ERT options
     PetscBool :: compute_jacobian
+    ! EMPIRICAL Archie and Waxman-Smits options
+    PetscReal :: tortuosity_constant   ! a
+    PetscReal :: cementation_exponent  ! m
+    PetscReal :: saturation_exponent   ! n
+    PetscReal :: water_conductivity
+    PetscReal :: clay_conductivity
+    PetscReal :: clay_volume_factor  
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -91,6 +98,14 @@ subroutine PMERTInit(pm_ert)
   pm_ert%rhs = PETSC_NULL_VEC
   pm_ert%compute_jacobian = PETSC_FALSE
 
+  ! Archie and Waxman-Smits default values
+  pm_ert%tortuosity_constant = 1.d0
+  pm_ert%cementation_exponent = 1.9d0
+  pm_ert%saturation_exponent = 2.d0
+  pm_ert%water_conductivity = 0.01d0
+  pm_ert%clay_conductivity = 0.03d0
+  pm_ert%clay_volume_factor = 0.2d0
+
 end subroutine PMERTInit
 
 ! ************************************************************************** !
@@ -140,6 +155,24 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       ! Add various options for ERT if needed here
       case('COMPUTE_JACOBIAN')
         this%compute_jacobian = PETSC_TRUE
+      case('TORTUOSITY_CONSTANT')
+        call InputReadDouble(input,option,this%tortuosity_constant)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('CEMENTATION_EXPONENT')
+        call InputReadDouble(input,option,this%cementation_exponent)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('SATURATION_EXPONENT')
+        call InputReadDouble(input,option,this%saturation_exponent)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('WATER_CONDUCTIVITY')
+        call InputReadDouble(input,option,this%water_conductivity)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('CLAY_CONDUCTIVITY')
+        call InputReadDouble(input,option,this%clay_conductivity)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('CLAY_VOLUME_FACTOR','SHALE_VOLUME_FACTOR')
+        call InputReadDouble(input,option,this%clay_volume_factor)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -632,7 +665,7 @@ subroutine PMERTBuildJacobian(this)
         allocate(ert_auxvars(ghosted_id)%jacobian(survey%num_measurement))
         ert_auxvars(ghosted_id)%jacobian = 0.d0
       endif
-      
+
       ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to 
       ! +ve unit source so phi_rec -> - phi_rec
       ! thus => jacob = phi_s * (dM/dcond) * phi_r
