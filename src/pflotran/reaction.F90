@@ -2027,7 +2027,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! once equilibrated, compute sorbed concentrations
   if (reaction%nsorb > 0) then
     if (reaction%neqsorb > 0) then
-      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option) 
+      if (option%iflag == 1) then
+        call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                        reaction%isotherm%multicontinuum_isotherm_rxn,option) 
+      else
+        call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                        reaction%isotherm%isotherm_rxn,option)
+      endif
     endif
     if (reaction%surface_complexation%nkinmrsrfcplx > 0) then
       call RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
@@ -4196,7 +4202,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   if (reaction%neqsorb > 0) then
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
-                    reaction,option)
+                    reaction,reaction%isotherm%isotherm_rxn,option)
   endif
   if (option%iflowmode == MPH_MODE) then
     call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
@@ -4329,7 +4335,8 @@ end subroutine RZeroSorb
 
 ! ************************************************************************** !
 
-subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                      isotherm_rxn, option)
   ! 
   ! Computes the total sorbed component concentrations and
   ! derivative with respect to free-ion
@@ -4346,6 +4353,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
+  type(isotherm_rxn_type) :: isotherm_rxn
   type(option_type) :: option
   
   call RZeroSorb(rt_auxvar)
@@ -4365,17 +4373,8 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   endif
   
   if (reaction%isotherm%neqkdrxn > 0) then
-    if (option%use_mc) then
-      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
-                        reaction%isotherm, &
-                        reaction%isotherm%multicontinuum_isotherm_rxn,option)
-      ! Convert from mol/L -> mol/m^3
-      rt_auxvar%total_sorb_eq(:) = rt_auxvar%total_sorb_eq(:) / 1000.d0
-      rt_auxvar%dtotal_sorb_eq(:,:) = rt_auxvar%dtotal_sorb_eq(:,:) / 1000.d0
-    else
       call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction%isotherm, &
-                        reaction%isotherm%isotherm_rxn,option)
-    endif
+                        isotherm_rxn,option)
   endif
   
 end subroutine RTotalSorb

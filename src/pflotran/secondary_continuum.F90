@@ -649,13 +649,16 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
       global_auxvar%sat(option%gas_phase) = &
         1.d0 - global_auxvar%sat(option%liquid_phase)
     endif
-                      
+
+    !Use multicontinuum sorption
+    option%iflag = 1
     call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                           material_auxvar, &
                           reaction,constraint, &
                           num_iterations, &
                           PETSC_FALSE,option)   
-                          
+    option%iflag = 0
+    
     rt_sec_transport_vars%updated_conc(:,cell) =  rt_auxvar%pri_molal   
        
   enddo                                    
@@ -829,8 +832,8 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   
   total_primary_node = auxvar%total(:,1)                         ! in mol/L 
   dtotal_prim = auxvar%aqueous%dtotal(:,:,1)
-  pordt = porosity/option%tran_dt
-  pordiff = porosity*diffusion_coefficient
+  pordt = porosity/option%tran_dt * 1.d3
+  pordiff = porosity*diffusion_coefficient * 1.d3
 
   call RTAuxVarInit(rt_auxvar,reaction,option)
   do i = 1, ngcells
@@ -838,7 +841,8 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
-      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+       call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                       reaction%isotherm%multicontinuum_isotherm_rxn,option)
     endif
     total_upd(:,i) = rt_auxvar%total(:,1)
     dtotal(:,:,i) = rt_auxvar%aqueous%dtotal(:,:,1)
@@ -855,7 +859,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     ! Accumulation
     do i = 1, ngcells
       n = j + (i-1)*ncomp
-      res(n) = pordt*(total_upd(j,i) - total_prev(j,i))*vol(i)    ! in mol/L*m3/s
+      res(n) = pordt*(total_upd(j,i) - total_prev(j,i))*vol(i)
       if (reaction%neqsorb > 0) then 
         res(n) = res(n) + vol(i)/option%tran_dt*(total_sorb_upd(j,i) - total_sorb_prev(j,i))
       endif      
@@ -885,10 +889,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                + dm_plus(ngcells-1))*(total_upd(j,ngcells) - &
                                total_upd(j,ngcells-1))  
                                
-  enddo
-                         
-  res = res*1.d3 ! Convert mol/L*m3/s to mol/s                                                    
-                                                                                                          
+  enddo                                                                                                                                                       
 !================ Calculate the secondary jacobian =============================        
 
 
@@ -937,14 +938,14 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   i = 1
   do j = 1, ncomp
     do k = 1, ncomp
-      coeff_diag(j,k,i) = coeff_diag(j,k,i)*dtotal(j,k,i) ! m3/s*kg/L
+      coeff_diag(j,k,i) = coeff_diag(j,k,i)*dtotal(j,k,i)
       coeff_right(j,k,i) = coeff_right(j,k,i)*dtotal(j,k,i+1)
     enddo
   enddo
   do i = 2, ngcells-1
     do j = 1, ncomp
       do k = 1, ncomp
-        coeff_diag(j,k,i) = coeff_diag(j,k,i)*dtotal(j,k,i) ! m3/s*kg/L
+        coeff_diag(j,k,i) = coeff_diag(j,k,i)*dtotal(j,k,i) 
         coeff_left(j,k,i) = coeff_left(j,k,i)*dtotal(j,k,i-1)
         coeff_right(j,k,i) = coeff_right(j,k,i)*dtotal(j,k,i+1)
       enddo
@@ -953,7 +954,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   i = ngcells
   do j = 1, ncomp
     do k = 1, ncomp
-      coeff_diag(j,k,i) = coeff_diag(j,k,i)*dtotal(j,k,i) ! m3/s*kg/L
+      coeff_diag(j,k,i) = coeff_diag(j,k,i)*dtotal(j,k,i) 
       coeff_left(j,k,i) = coeff_left(j,k,i)*dtotal(j,k,i-1)
     enddo
   enddo
@@ -969,12 +970,6 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       enddo
     enddo
   enddo
-    
-  
-  ! Convert m3/s*kg/L to kg water/s
-  coeff_right = coeff_right*1.d3
-  coeff_left = coeff_left*1.d3
-  coeff_diag = coeff_diag*1.d3
   
 !====================== Add reaction contributions =============================        
   
@@ -1148,8 +1143,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   call RTAuxVarStrip(rt_auxvar)
   
 
-  b_m = pordiff/dm_plus(ngcells)*area(ngcells)*inv_D_M ! in m3/kg
-  b_m = b_m*1.d3 ! in L/kg  For log formulation, L/mol
+  b_m = pordiff/dm_plus(ngcells)*area(ngcells)*inv_D_M ! in L/kg  For log formulation, L/mol
   
   dCsec_dCprim = b_m*dtotal_prim
       
@@ -1214,11 +1208,11 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
             
   ! Calculate the coupling term
   res_transport = pordiff/dm_plus(ngcells)*area_fm* &
-                  (total_current_M - total_primary_node)*prim_vol*1.d3 ! in mol/s
+                  (total_current_M - total_primary_node)*prim_vol ! in mol/s
                                            
   ! Calculate the jacobian contribution due to coupling term
   sec_jac = area_fm*pordiff/dm_plus(ngcells)*(dPsisec_dCprim - dtotal_prim)* &
-            prim_vol*1.d3 ! in kg water/s
+            prim_vol ! in kg water/s
       
   ! Store the contribution to the primary jacobian term
   sec_transport_vars%sec_jac = sec_jac 
@@ -1268,7 +1262,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         ! Accumulation
         do i = 1, ngcells
           n = j + (i-1)*ncomp
-          res(n) = pordt*(total_upd(j,i) - total_prev(j,i))*vol(i)    ! in mol/L*m3/s
+          res(n) = pordt*(total_upd(j,i) - total_prev(j,i))*vol(i)
         enddo
   
         ! Flux terms
@@ -1297,9 +1291,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                                    total_upd(j,ngcells-1))  
                                
       enddo
-                         
-      res = res*1.d3 ! Convert mol/L*m3/s to mol/s                                                    
-                                                                                                                  
+                                                                                         
 !============================== Forward solve ==================================        
                         
       rhs = -res   
@@ -1365,7 +1357,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       ! Calculate the coupling term
       res_transport_pert = pordiff/dm_plus(ngcells)*area_fm* &
                            (total_current_M_pert - total_primary_node_pert)* &
-                           prim_vol*1.d3 ! in mol/s
+                           prim_vol ! in mol/s
   
       dtotal_prim_num(:,l) = (total_primary_node_pert(:) - &
                                total_primary_node(:))/pert
@@ -1524,7 +1516,8 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
                        reaction,option)
     if (reaction%neqsorb > 0) then
       call RTotalSorb(sec_transport_vars%sec_rt_auxvar(i),global_auxvars, &
-                      material_auxvar,reaction,option)
+                      material_auxvar,reaction, &
+                      reaction%isotherm%multicontinuum_isotherm_rxn,option)
     endif
   enddo
  
@@ -1681,8 +1674,8 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   res = 0.d0
   
   total_primary_node = auxvar%total(:,1)                         ! in mol/L 
-  pordt = porosity/option%tran_dt
-  pordiff = porosity*diffusion_coefficient
+  pordt = porosity/option%tran_dt * 1.d3
+  pordiff = porosity*diffusion_coefficient * 1.d3
 
   allocate(material_auxvar)
   call MaterialAuxVarInit(material_auxvar,option)
@@ -1694,7 +1687,8 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     rt_auxvar%pri_molal = conc_upd(:,i)
     call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
     if (reaction%neqsorb > 0) then
-      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                      reaction%isotherm%multicontinuum_isotherm_rxn,option)
     endif
     total_upd(:,i) = rt_auxvar%total(:,1)
     if (reaction%neqsorb > 0) then 
@@ -1709,7 +1703,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     ! Accumulation
     do i = 1, ngcells
       n = j + (i-1)*ncomp
-      res(n) = pordt*(total_upd(j,i) - total_prev(j,i))*vol(i)    ! in mol/L*m3/s
+      res(n) = pordt*(total_upd(j,i) - total_prev(j,i))*vol(i) 
       if (reaction%neqsorb > 0) then 
         res(n) = res(n) + vol(i)/option%tran_dt*(total_sorb_upd(j,i) - total_sorb_prev(j,i))
       endif 
@@ -1739,11 +1733,8 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
                                + dm_plus(ngcells-1))*(total_upd(j,ngcells) - &
                                total_upd(j,ngcells-1))  
                                
-  enddo
-                         
-  res = res*1.d3 ! Convert mol/L*m3/s to mol/s                                             
-                                    
-                                    
+  enddo                                      
+                                                                        
 !====================== Add reaction contributions =============================        
   
   ! Reaction 
