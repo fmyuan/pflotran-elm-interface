@@ -24,6 +24,7 @@ module PM_NWT_class
     PetscReal :: newton_inf_abs_update_tol
     PetscReal :: newton_inf_abs_res_tol
     PetscReal :: max_dlnC
+    PetscReal :: dt_cut
     PetscBool :: check_post_converged
     PetscBool :: check_post_convergence
     PetscBool :: check_update
@@ -49,6 +50,11 @@ module PM_NWT_class
     PetscBool :: temperature_dependent_diffusion
     PetscBool :: transient_porosity
     PetscBool :: steady_flow
+    PetscBool :: zero_out_borehole
+    PetscReal :: bh_zero_value
+    character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
+    PetscInt, pointer :: bh_material_ids(:)
+
   end type pm_nwt_params_type
   
   type, public, extends(pm_base_type) :: pm_nwt_type
@@ -126,6 +132,7 @@ function PMNWTCreate()
   nwt_pm%controls%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
   nwt_pm%controls%newton_inf_abs_update_tol = UNINITIALIZED_DOUBLE
   nwt_pm%controls%newton_inf_abs_res_tol = UNINITIALIZED_DOUBLE
+  nwt_pm%controls%dt_cut = 0.5d0
   nwt_pm%controls%max_dlnC = 5.0d0
   nwt_pm%controls%check_post_converged = PETSC_FALSE
   ! set to true so that itol_relative_update always gets checked:
@@ -151,6 +158,10 @@ function PMNWTCreate()
   nwt_pm%params%calculate_transverse_dispersion = PETSC_FALSE
   nwt_pm%params%temperature_dependent_diffusion = PETSC_FALSE
   nwt_pm%params%steady_flow = PETSC_FALSE
+  nwt_pm%params%zero_out_borehole = PETSC_FALSE
+  nwt_pm%params%bh_zero_value = 1.0d-20  ! [mol/m3]
+  nullify(nwt_pm%params%bh_material_names)
+  nullify(nwt_pm%params%bh_material_ids)
   
 
   call PMBaseInit(nwt_pm)
@@ -338,9 +349,18 @@ subroutine PMNWTSetup(this)
   this%params%nspecies = reaction_nw%params%nspecies
   this%params%nauxiliary = reaction_nw%params%nauxiliary
   this%params%calculate_transverse_dispersion = &
-                               reaction_nw%params%calculate_transverse_dispersion
+                           reaction_nw%params%calculate_transverse_dispersion
   this%params%temperature_dependent_diffusion = &
-                               reaction_nw%params%temperature_dependent_diffusion
+                           reaction_nw%params%temperature_dependent_diffusion
+  if(associated(reaction_nw%params%bh_material_names)) then
+    this%params%bh_zero_value = reaction_nw%params%bh_zero_value
+    allocate(this%params%bh_material_names(&
+                       size(reaction_nw%params%bh_material_names)))
+    this%params%bh_material_names = reaction_nw%params%bh_material_names
+    allocate(this%params%bh_material_ids(&
+                       size(reaction_nw%params%bh_material_names)))
+    this%params%bh_material_ids = UNINITIALIZED_INTEGER
+  endif
         
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -405,10 +425,15 @@ subroutine PMNWTInitializeRun(this)
   ! Author: Jenn Frederick
   ! Date: 04/02/2019
   ! 
+
+  use Material_module
   
   implicit none
   
   class(pm_nwt_type) :: this
+
+  PetscInt :: p
+  type(material_property_type), pointer :: material_property
   
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
@@ -420,6 +445,24 @@ subroutine PMNWTInitializeRun(this)
   
   this%realization%patch%aux%NWT%truncate_output = &
     this%realization%reaction_nw%truncate_output
+
+  ! set borehole material ids
+  if (associated(this%params%bh_material_names)) then
+    this%params%zero_out_borehole = PETSC_TRUE
+    do p = 1, size(this%params%bh_material_names)
+      material_property => &
+        MaterialPropGetPtrFromList(this%params%bh_material_names(p), &
+                                   this%realization%patch%material_properties)
+      if (.not.associated(material_property)) then
+        this%option%io_buffer = 'Borehole material "' // &
+          trim(this%params%bh_material_names(p)) // &
+          '" not found among material properties.'
+        call PrintErrMsg(this%option)
+      endif
+      this%params%bh_material_ids(p) = material_property%internal_id
+      print *, this%params%bh_material_names(p), this%params%bh_material_ids(p)
+    enddo
+  endif
   
   call PMNWTUpdateSolution(this)
   
@@ -435,15 +478,67 @@ subroutine PMNWTInitializeTimestep(this)
   
   use Global_module
   use Material_module
-  use Option_module
+  use Patch_module
+  use Field_module 
   
   implicit none
   
   class(pm_nwt_type) :: this
+
+  PetscErrorCode :: ierr
     
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: i, idof
+  PetscInt :: offset, index
+  PetscReal, pointer :: xx_p(:)
+
   this%option%tran_dt = this%option%dt
+  field => this%realization%field
+  patch => this%realization%patch
 
   call PMBasePrintHeader(this)
+
+  ! If a material change to borehole materials has happened, remove all 
+  ! NWT species mass from the borehole material region.
+  if (this%params%zero_out_borehole) then
+    do local_id = 1, patch%grid%nlmax
+      ghosted_id = patch%grid%nL2G(local_id)
+      ! loop through the borehole material IDs:
+      do i = 1, size(this%params%bh_material_ids)
+        if (patch%imat(ghosted_id) == this%params%bh_material_ids(i)) then
+          ! Means the current grid cell is one of the borehole materials
+          ! We now want to zero out all the mass from NWT process model. But,
+          ! it should only happen at the very first timestep that we find 
+          ! this borehole material. So after we get here, we should set the 
+          ! flag zero_out_borehole to FALSE.
+          ! NOTE: Will this work if there are two intrusions? No!
+
+          call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          ! compute offset in solution vector for first dof in grid cell
+          offset = (local_id-1)*this%params%nspecies
+          do idof = 1, this%params%nspecies
+            index = idof + offset
+            xx_p(index) = this%params%bh_zero_value
+          enddo
+          call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+
+          write(this%option%io_buffer,*) local_id
+          this%option%io_buffer = "All NWT mass zero'd at cell " // &
+            trim(adjustl(this%option%io_buffer)) // &
+            ' due to borehole material.'
+          call PrintMsg(this%option)
+          write(this%option%io_buffer,*) this%params%bh_zero_value
+          this%option%io_buffer = 'The "zero" value is set to ' // &
+            trim(adjustl(this%option%io_buffer)) // ' mol/m3.'
+          call PrintMsg(this%option)
+
+          this%params%zero_out_borehole = PETSC_FALSE
+        endif
+      enddo
+    enddo
+  endif
   
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
@@ -572,7 +667,7 @@ subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     if (num_newton_iterations <= iacceleration) then
       dtt = tfac(num_newton_iterations) * dt
     else
-      dtt = 0.5d0 * dt
+      dtt = this%controls%dt_cut * dt
     endif
   endif
 
@@ -1009,14 +1104,18 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
 
     converged_due_to_rel_update = (Initialized(nwt_itol_rel_update) .and. &
                                    max_relative_change < nwt_itol_rel_update)
-    converged_due_to_rel_update = (Initialized(nwt_itol_rel_update) .and. &
-                                   (problem_cells == 0))
+    !converged_due_to_rel_update = (Initialized(nwt_itol_rel_update) .and. &
+    !                               (problem_cells == 0))
     converged_due_to_abs_update = (Initialized(nwt_itol_abs_update) .and. &
                                    max_absolute_change < nwt_itol_abs_update)
     converged_due_to_scaled_res = (Initialized(nwt_itol_scaled_res) .and. &
                                    max_scaled_residual < nwt_itol_scaled_res)
     converged_due_to_abs_res = (Initialized(nwt_itol_abs_res) .and. &
                                 max_absolute_residual < nwt_itol_abs_res)
+    WRITE(*,*)  ' converged_due_to_rel_update = ', converged_due_to_rel_update
+    WRITE(*,*)  ' converged_due_to_abs_update = ', converged_due_to_abs_update
+    WRITE(*,*)  ' converged_due_to_scaled_res = ', converged_due_to_scaled_res
+    WRITE(*,*)  ' converged_due_to_abs_res = ', converged_due_to_abs_res
     if (converged_due_to_rel_update .or. converged_due_to_abs_update) then
       converged_due_to_update = PETSC_TRUE
     endif
@@ -1037,7 +1136,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   !WRITE(*,*) '              maxloc = ', maxloc4
   !WRITE(*,*) ' max_absolute_update = ', max_absolute_change
   !WRITE(*,*) '              maxloc = ', maxloc3
-  !WRITE(*,*)  '      converged_flag = ', converged_flag
+  WRITE(*,*)  ' ITOL converged_flag = ', converged_flag
 
   
   ! get global minimum
@@ -1047,11 +1146,15 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   ! this will override all previous convergence criteria to keep iterating
     if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
       this%realization%option%converged = PETSC_FALSE
-      !this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
+      !!this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
       this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
     else  ! means ITOL_* tolerances were satisfied, but the previous
-          ! criteria were not met
+          ! criteria were maybe not met
       ! do nothing - let the instruction proceed based on previous criteria
+
+      ! test:
+      !this%realization%option%converged = PETSC_TRUE
+      !this%realization%option%convergence = CONVERGENCE_CONVERGED
     endif
 
   if (this%print_ekg) then

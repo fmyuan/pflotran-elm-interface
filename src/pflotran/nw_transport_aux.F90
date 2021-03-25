@@ -63,6 +63,8 @@ module NW_Transport_Aux_module
     PetscBool :: calculate_transverse_dispersion
     PetscBool :: temperature_dependent_diffusion
     PetscReal :: truncated_concentration
+    PetscReal :: bh_zero_value
+    character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
   end type nwt_params_type
   
   type, public :: nwt_print_type
@@ -272,6 +274,8 @@ function NWTReactionCreate()
   reaction_nw%params%calculate_transverse_dispersion = PETSC_FALSE
   reaction_nw%params%temperature_dependent_diffusion = PETSC_FALSE
   reaction_nw%params%truncated_concentration = UNINITIALIZED_DOUBLE
+  reaction_nw%params%bh_zero_value = 1.0d-20  ! [mol/m3]
+  nullify(reaction_nw%params%bh_material_names)
   
   nullify(reaction_nw%print_what)
   allocate(reaction_nw%print_what)
@@ -332,10 +336,12 @@ subroutine NWTRead(reaction_nw,input,option)
   
   character(len=MAXWORDLENGTH) :: keyword, word, parent_name_hold
   character(len=MAXSTRINGLENGTH) :: error_string_base, error_string
+  PetscInt :: num_materials
   PetscInt :: k, j
   type(species_type), pointer :: new_species, prev_species
   character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
   character(len=MAXWORDLENGTH), pointer :: temp_species_parents(:)
+  character(len=MAXWORDLENGTH) :: bh_materials(50)
   type(radioactive_decay_rxn_type), pointer :: new_rad_rxn, prev_rad_rxn
   
   error_string_base = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
@@ -344,9 +350,13 @@ subroutine NWTRead(reaction_nw,input,option)
   allocate(temp_species_parents(50))
   temp_species_names = ''
   temp_species_parents = ''
+  bh_materials = ''
   nullify(prev_rad_rxn)
   nullify(prev_species)
   k = 0
+
+  option%io_buffer = 'pflotran card:: NUCLEAR_WASTE_CHEMISTRY'
+  call PrintMsg(option)
   
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -497,6 +507,31 @@ subroutine NWTRead(reaction_nw,input,option)
         call InputErrorMsg(input,option,'concentration value',error_string)
       case('OUTPUT')
         call NWTReadOutput(reaction_nw,input,option)
+      case('BOREHOLE_MATERIALS')
+        error_string = trim(error_string_base) // ',BOREHOLE_MATERIALS'
+        num_materials = 0
+        do 
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'borehole material name or VALUE', &
+                             error_string)
+          call StringToUpper(word)
+          if (trim(word) == 'VALUE') then
+            call InputReadDouble(input,option,reaction_nw%params%bh_zero_value)
+            call InputErrorMsg(input,option,'borehole material zero value', &
+                               error_string)
+          else
+            num_materials = num_materials + 1
+            bh_materials(num_materials) = trim(word)
+          endif  
+        enddo
+        allocate(reaction_nw%params%bh_material_names(num_materials))
+        do num_materials = 1, size(reaction_nw%params%bh_material_names)
+          reaction_nw%params%bh_material_names(num_materials) = &
+                                                  bh_materials(num_materials)
+        enddo
       case default
         call InputKeywordUnrecognized(input,keyword,error_string_base,option)
     end select
@@ -514,8 +549,9 @@ subroutine NWTRead(reaction_nw,input,option)
   
   ! assign species_id, parent_id to the rad_rxn objects
   ! check that all radioactive species were listed in the SPECIES block
-  call NWTVerifySpecies(reaction_nw%species_list,reaction_nw%rad_decay_rxn_list, &
-                        temp_species_names,temp_species_parents,option)
+  call NWTVerifySpecies(reaction_nw%species_list, &
+                        reaction_nw%rad_decay_rxn_list,temp_species_names, &
+                        temp_species_parents,option)
                         
    deallocate(temp_species_names)
    deallocate(temp_species_parents)
@@ -644,6 +680,12 @@ subroutine NWTReadPass2(reaction_nw,input,option)
       case('LOG_FORMULATION')
       case('TRUNCATE_CONCENTRATION')
       case('OUTPUT')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+        enddo
+      case('BOREHOLE_MATERIALS')
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
