@@ -1215,6 +1215,8 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,dataset, &
                                                  real_count)
+              coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = &
+                DIRICHLET_BC
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
@@ -1251,6 +1253,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,dataset, &
                                                  real_count)
+              coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
