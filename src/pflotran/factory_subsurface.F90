@@ -679,6 +679,7 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name, &
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
+  use Waypoint_module
 
   implicit none
 
@@ -696,16 +697,18 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name, &
   call pmc_geophysics%SetName(pmc_name)
   call pmc_geophysics%SetOption(option)
   call pmc_geophysics%SetCheckpointOption(simulation%checkpoint_option)
-  call pmc_geophysics%SetWaypointList(simulation%waypoint_list_subsurface)
 
   pmc_geophysics%pm_list => pm_base
   pmc_geophysics%pm_ptr%pm => pm_base
   pmc_geophysics%realization => realization
 
   ! add time integrator
-  select type(pm_base)
+  select type(pm=>pm_base)
     class is(pm_ert_type)
       pmc_geophysics%timestepper => TimestepperSteadyCreate()
+      call WaypointListCopyAndMerge(simulation%waypoint_list_subsurface, &
+                                    pm%waypoint_list,option)
+      call pmc_geophysics%SetWaypointList(pm%waypoint_list)
     class default
       pmc_geophysics%timestepper => TimestepperSteadyCreate()
   end select

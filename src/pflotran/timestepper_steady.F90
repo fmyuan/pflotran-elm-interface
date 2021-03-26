@@ -17,6 +17,7 @@ module Timestepper_Steady_class
   contains
 
     procedure, public :: ReadSelectCase => TimestepperSteadyReadSelectCase
+    procedure, public :: SetTargetTime => TimestepperSteadySetTargetTime
     procedure, public :: UpdateDT => TimestepperSteadyUpdateDT
     procedure, public :: StepDT => TimestepperSteadyStepDT
     procedure, public :: PrintInfo => TimestepperSteadyPrintInfo
