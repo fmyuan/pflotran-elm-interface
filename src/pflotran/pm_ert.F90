@@ -9,6 +9,7 @@ module PM_ERT_class
   use Option_module
   use ERT_Aux_module
   use Survey_module
+  use Waypoint_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -19,6 +20,7 @@ module PM_ERT_class
     class(realization_subsurface_type), pointer :: realization
     class(communicator_type), pointer :: comm1
     type(survey_type), pointer :: survey
+    type(waypoint_list_type), pointer :: waypoint_list
     Vec :: rhs
     PetscLogDouble :: cumulative_ert_time
   contains
@@ -84,6 +86,7 @@ subroutine PMERTInit(pm_ert)
   nullify(pm_ert%realization)
   nullify(pm_ert%comm1)
   nullify(pm_ert%survey)
+  pm_ert%waypoint_list => WaypointListCreate()
 
   pm_ert%rhs = PETSC_NULL_VEC
 
@@ -100,15 +103,24 @@ subroutine PMERTReadSimOptionsBlock(this,input)
   !
   use Input_Aux_module
   use String_module
+  use Units_module
+  use Utility_module
 
   implicit none
 
   class(pm_ert_type) :: this
   type(input_type), pointer :: input
 
+  type(option_type), pointer :: option
+  type(waypoint_type), pointer :: waypoint
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
-  type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: internal_units
+  PetscReal :: units_conversion
+  PetscReal, pointer :: temp_real_array(:)
+  PetscInt :: temp_int
   PetscBool :: found
 
   option => this%option
@@ -134,6 +146,23 @@ subroutine PMERTReadSimOptionsBlock(this,input)
 
     select case(trim(keyword))
       ! Add various options for ERT if needed here
+      case('SURVEY_TIMES')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'units','OUTPUT,TIMES')
+        internal_units = 'sec'
+        units_conversion = &
+          UnitsConvertToInternal(word,internal_units,option)
+        string = trim(error_string) // 'SURVEY_TIMES'
+        nullify(temp_real_array)
+        call UtilityReadArray(temp_real_array,NEG_ONE_INTEGER, &
+                              string,input,option)
+        do temp_int = 1, size(temp_real_array)
+          waypoint => WaypointCreate()
+          waypoint%time = temp_real_array(temp_int)*units_conversion
+          waypoint%sync = PETSC_TRUE
+          call WaypointInsertInList(waypoint,this%waypoint_list)
+        enddo
+        call DeallocateArray(temp_real_array)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -210,6 +239,21 @@ recursive subroutine PMERTInitializeRun(this)
   call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
 
 end subroutine PMERTInitializeRun
+
+! ************************************************************************** !
+
+subroutine PMERTDummyExtension(this)
+  !
+  ! Dummy routine to supercede requirement for extension from base
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/26/21
+  !
+  implicit none
+
+  class(pm_ert_type) :: this
+
+end subroutine PMERTDummyExtension
 
 ! ************************************************************************** !
 
@@ -626,6 +670,7 @@ subroutine PMERTStrip(this)
   nullify(this%realization)
   nullify(this%comm1)
   nullify(this%survey)
+  call WaypointListDestroy(this%waypoint_list)
 
   if (this%rhs /= PETSC_NULL_VEC) then
     call VecDestroy(this%rhs,ierr);CHKERRQ(ierr)
