@@ -21,8 +21,9 @@ module PM_ERT_class
     class(communicator_type), pointer :: comm1
     type(survey_type), pointer :: survey
     type(waypoint_list_type), pointer :: waypoint_list
+    PetscInt :: linear_iterations_in_step
+    PetscLogDouble :: ksp_time
     Vec :: rhs
-    PetscLogDouble :: cumulative_ert_time
     ! ERT options
     PetscBool :: compute_jacobian
     ! EMPIRICAL Archie and Waxman-Smits options
@@ -71,8 +72,7 @@ function PMERTCreate()
   allocate(pm_ert)
   call PMERTInit(pm_ert)
   pm_ert%name = 'Electrical Resistivity Tomography'
-  pm_ert%header = 'ERT'
-  pm_ert%cumulative_ert_time = 0.d0
+  pm_ert%header = 'ERT GEOPHYSICS'
 
   PMERTCreate => pm_ert
 
@@ -97,6 +97,8 @@ subroutine PMERTInit(pm_ert)
   nullify(pm_ert%survey)
   pm_ert%waypoint_list => WaypointListCreate()
 
+  pm_ert%linear_iterations_in_step = 0
+  pm_ert%ksp_time = 0.d0
   pm_ert%rhs = PETSC_NULL_VEC
   pm_ert%compute_jacobian = PETSC_FALSE
 
@@ -393,7 +395,6 @@ subroutine PMERTSolve(this,time,ierr)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: num_linear_iterations
-  PetscInt :: sum_linear_iterations
   PetscReal :: val
   PetscReal :: average_cond
   PetscReal, pointer :: vec_ptr(:)
@@ -420,9 +421,6 @@ subroutine PMERTSolve(this,time,ierr)
 
   ert_auxvars => patch%aux%ERT%auxvars
 
-  sum_linear_iterations = 0
-  num_linear_iterations = 0
-
   ! Build System matrix
   call ERTCalculateMatrix(realization,solver%M,this%compute_jacobian)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
@@ -433,6 +431,7 @@ subroutine PMERTSolve(this,time,ierr)
   average_cond = survey%average_conductivity
 
   nelec = survey%num_electrode
+  this%linear_iterations_in_step = 0
 
   if (OptionPrintToScreen(this%option)) then
     write(*,'(" Solving for electrode:")',advance='no')
@@ -481,6 +480,7 @@ subroutine PMERTSolve(this,time,ierr)
     call PetscTime(log_ksp_start_time,ierr); CHKERRQ(ierr)
     call KSPSolve(solver%ksp,this%rhs,field%work,ierr);CHKERRQ(ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+    this%ksp_time = this%ksp_time + (log_end_time - log_ksp_start_time)
     !call VecView(field%work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
 
     call DiscretizationGlobalToLocal(discretization,field%work, &
@@ -495,20 +495,12 @@ subroutine PMERTSolve(this,time,ierr)
 
     call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
     call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
-    sum_linear_iterations = sum_linear_iterations + num_linear_iterations
-
+    this%linear_iterations_in_step = this%linear_iterations_in_step + &
+                                     num_linear_iterations
   enddo
-  if (OptionPrintToScreen(this%option)) then
-    write(*,*)
-  endif
-
-  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
-
-  this%cumulative_ert_time = this%cumulative_ert_time + log_end_time - &
-                                                        log_start_time
 
   ! Assemble solutions
-  call PMERTAssembleSimulatedData(this)
+  call PMERTAssembleSimulatedData(this,time)
 
   ! Build Jacobian
   if (this%compute_jacobian) call PMERTBuildJacobian(this)
@@ -517,7 +509,7 @@ end subroutine PMERTSolve
 
 ! ************************************************************************** !
 
-subroutine PMERTAssembleSimulatedData(this)
+subroutine PMERTAssembleSimulatedData(this,time)
   !
   ! Assembles ERT simulated data for each measurement
   !
@@ -532,6 +524,7 @@ subroutine PMERTAssembleSimulatedData(this)
   implicit none
 
   class(pm_ert_type) :: this
+  PetscReal :: time
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -545,6 +538,7 @@ subroutine PMERTAssembleSimulatedData(this)
   PetscInt :: ia,ib,im,in
   PetscInt :: local_id_m,local_id_n
   PetscInt :: ghosted_id_m,ghosted_id_n
+  character(len=MAXWORDLENGTH) :: time_suffix
   PetscErrorCode :: ierr
 
   option => this%option
@@ -596,7 +590,12 @@ subroutine PMERTAssembleSimulatedData(this)
   enddo
 
   ! write simuated data in a E4D .srv file
-  if (option%myrank == option%io_rank) call SurveyWriteERT(this%survey)
+  if (option%myrank == option%io_rank) then
+    write(time_suffix,'(f15.4)') time/this%output_option%tconv
+    time_suffix = trim(adjustl(time_suffix)) // &
+                  trim(adjustl(this%output_option%tunit))
+    call SurveyWriteERT(this%survey,time_suffix,option)
+  endif
 
 end subroutine PMERTAssembleSimulatedData
 
@@ -768,11 +767,6 @@ recursive subroutine PMERTFinalizeRun(this)
   implicit none
 
   class(pm_ert_type) :: this
-
-  if (OptionPrintToScreen(this%option)) then
-    write(*,'(/," ERT Time: ", es12.4, " [sec]")') &
-            this%cumulative_ert_time
-  endif
 
   if (associated(this%next)) then
     call this%next%FinalizeRun()
