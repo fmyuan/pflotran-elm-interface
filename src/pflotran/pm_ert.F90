@@ -39,6 +39,7 @@ module PM_ERT_class
     procedure, public :: SetRealization => PMERTSetRealization
     procedure, public :: InitializeRun => PMERTInitializeRun
     procedure, public :: SetupSolvers => PMERTSetupSolvers
+    procedure, public :: PreSolve => PMERTPreSolve
     procedure, public :: Solve => PMERTSolve
     procedure, public :: FinalizeRun => PMERTFinalizeRun
     procedure, public :: AcceptSolution => PMERTAcceptSolution
@@ -356,6 +357,71 @@ subroutine PMERTSetupSolvers(this)
   call SolverSetKSPOptions(solver,option)
 
 end subroutine PMERTSetupSolvers
+
+! ************************************************************************** !
+
+subroutine PMERTPreSolve(this)
+
+  ! Update flow and transport dependent variables (e.g. bulk conductivity)
+  ! prior to solve.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/29/21
+  !
+  use Field_module
+  use Global_Aux_module
+  use Grid_module
+  use Material_Aux_class
+  use Option_module
+  use Patch_module
+  use Reactive_Transport_Aux_module
+  use Realization_Base_class
+  use Variables_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(grid_type), pointer :: grid
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: ghosted_id
+  PetscInt :: species_id
+  PetscReal :: tempreal
+  PetscErrorCode :: ierr
+
+  option => this%option
+  patch => this%realization%patch
+  grid => patch%grid
+
+  global_auxvars => patch%aux%Global%auxvars
+  nullify(rt_auxvars)
+  if (associated(patch%aux%RT)) then
+    rt_auxvars => patch%aux%RT%auxvars
+  endif
+  material_auxvars => patch%aux%Material%auxvars
+
+  do ghosted_id = 1, grid%ngmax
+!    material_auxvars(ghosted_id)%electrical_conductivity = &
+    tempreal = &
+      material_auxvars(ghosted_id)%porosity * &
+      global_auxvars(ghosted_id)%temp * & ! temperature
+      global_auxvars(ghosted_id)%sat(1)   ! liquid saturation
+  enddo
+
+  if (associated(rt_auxvars)) then
+    species_id = 1  ! hardwired to 1 for now
+    do ghosted_id = 1, grid%ngmax
+      material_auxvars(ghosted_id)%electrical_conductivity = &
+        material_auxvars(ghosted_id)%electrical_conductivity * &
+        rt_auxvars(ghosted_id)%total(species_id,1)
+    enddo
+  endif
+ 
+end subroutine PMERTPreSolve
 
 ! ************************************************************************** !
 
