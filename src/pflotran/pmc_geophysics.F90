@@ -146,11 +146,13 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   option => this%option
   output_option => this%pm_ptr%pm%output_option
   timestepper => TimestepperSteadyCast(this%timestepper)
+  linear_iterations_in_step = 0
 
   pm_base => this%pm_ptr%pm
   select type(pm=>this%pm_ptr%pm)
     class is(pm_ert_type)
       pm_ert => pm
+      call pm_ert%PreSolve()
       call pm_ert%Solve(timestepper%target_time,ierr)
       linear_iterations_in_step = pm_ert%linear_iterations_in_step
     class default
