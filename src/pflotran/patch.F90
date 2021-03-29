@@ -8914,7 +8914,7 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
         sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
         if (reaction%print_total_mass_kg) then
           ! sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
-          sorb_species_mass = sorb_species_mass * reaction%eqcplx_molar_wt(j) * 1.0d-3
+          sorb_species_mass = sorb_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
         endif
       else
         sorb_species_mass = 0.d0
