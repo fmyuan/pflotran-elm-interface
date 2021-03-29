@@ -55,7 +55,7 @@ module PMC_Base_class
     procedure, public :: RestartBinary => PMCBaseRestartBinary
     procedure, public :: CheckpointHDF5 => PMCBaseCheckpointHDF5
     procedure, public :: RestartHDF5 => PMCBaseRestartHDF5
-    procedure, public :: FinalizeRun
+    procedure, public :: FinalizeRun => PMCBaseFinalizeRun
     procedure, public :: OutputLocal
     procedure, public :: UpdateSolution => PMCBaseUpdateSolution
     procedure, public :: Destroy => PMCBaseDestroy
@@ -98,6 +98,7 @@ module PMC_Base_class
             PMCBaseInit, &
             PMCBaseInputRecord, &
             PMCBaseSetChildPeerPtr, &
+            PMCBaseFinalizeRun, &
             PMCBaseStrip, &
             SetOutputFlags, &
             PMCCastToBase
@@ -674,7 +675,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
             observation_plot_at_this_timestep_flag .or. &
             massbal_plot_at_this_time_flag .or. &
             massbal_plot_at_this_timestep_flag) then
-          ! if printing synchronized output, need to sync all other PMCs.  
+          ! if printing synchronized output, need to sync all other PMCs.
           ! children are already in sync, but peers are not.
           call this%SetAuxData()
           ! Run neighboring process model couplers
@@ -713,8 +714,8 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
           ! Run neighboring process model couplers
           call this%peer%RunToTime(this%timestepper%target_time, &
                                    local_stop_flag)
-          ! Checkpointing forces peers to be executed prior to the 
-          ! checkpointing. If so, we need to skip the peer RunToTime 
+          ! Checkpointing forces peers to be executed prior to the
+          ! checkpointing. If so, we need to skip the peer RunToTime
           ! outside the loop
           peer_already_run_to_time = PETSC_TRUE
           call this%GetAuxData()
@@ -818,7 +819,7 @@ end subroutine PMCBaseUpdateSolution
 
 ! ************************************************************************** !
 
-recursive subroutine FinalizeRun(this)
+recursive subroutine PMCBaseFinalizeRun(this)
   !
   ! Finalizes the time stepping
   !
@@ -849,9 +850,6 @@ recursive subroutine FinalizeRun(this)
   if (associated(this%pm_list)) then
     call this%pm_list%FinalizeRun()
   endif
-  if (OptionPrintToScreen(this%option)) then
-    write(*,'("----------")')
-  endif
 
   if (associated(this%child)) then
     call this%child%FinalizeRun()
@@ -861,7 +859,7 @@ recursive subroutine FinalizeRun(this)
     call this%peer%FinalizeRun()
   endif
 
-end subroutine FinalizeRun
+end subroutine PMCBaseFinalizeRun
 
 ! ************************************************************************** !
 

@@ -27,46 +27,71 @@ module Timestepper_Steady_class
 
   end type timestepper_steady_type
 
-  public :: TimestepperSteadyCreate
+  public :: TimestepperSteadyCreate, &
+            TimestepperSteadyCast
 
 contains
 
 ! ************************************************************************** !
 
 function TimestepperSteadyCreate()
-  ! 
+  !
   ! Allocates a new steady state timestepper object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_steady_type), pointer :: TimestepperSteadyCreate
-  
+
   class(timestepper_steady_type), pointer :: stepper
-  
+
   allocate(stepper)
   call stepper%Init()
-  
+
   TimestepperSteadyCreate => stepper
-  
+
 end function TimestepperSteadyCreate
+
+! ************************************************************************** !
+
+function TimestepperSteadyCast(this)
+  !
+  ! Casts a timestepper object to its appropriate class
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/29/21
+  !
+  use Timestepper_Base_class
+
+  implicit none
+
+  class(timestepper_base_type), pointer :: this
+
+  class(timestepper_steady_type), pointer :: TimestepperSteadyCast
+
+  select type(this)
+    class is(timestepper_steady_type)
+      TimestepperSteadyCast => this
+  end select
+
+end function TimestepperSteadyCast
 
 ! ************************************************************************** !
 
 subroutine TimestepperSteadyReadSelectCase(this,input,keyword,found, &
                                            error_string,option)
-  ! 
+  !
   ! Reads select case statement for Steady
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
-  ! 
+  !
   use Option_module
   use Input_Aux_module
-  
+
   implicit none
 
   class(timestepper_steady_type) :: this
@@ -85,21 +110,21 @@ end subroutine TimestepperSteadyReadSelectCase
 ! ************************************************************************** !
 
 subroutine TimestepperSteadyUpdateDT(this,process_model)
-  ! 
+  !
   ! Updates time step
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
-  ! 
+  !
   use PM_Base_class
 
   implicit none
 
   class(timestepper_steady_type) :: this
   class(pm_base_type) :: process_model
-  
+
   ! do nothing
-  
+
 end subroutine TimestepperSteadyUpdateDT
 
 ! ************************************************************************** !
@@ -135,12 +160,12 @@ end subroutine TimestepperSteadySetTargetTime
 ! ************************************************************************** !
 
 subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
-  ! 
+  !
   ! Steps forward one step in time
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
-  ! 
+  !
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use PM_Base_class
@@ -149,23 +174,23 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
   use Output_EKG_module, only : IUNIT_EKG
   use String_module
   use Timestepper_Base_class
-  
+
   implicit none
 
   class(timestepper_steady_type) :: this
   class(pm_base_type) :: process_model
   PetscInt :: stop_flag
-  
+
   SNESConvergedReason :: snes_reason
-  
+
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
-  
+
   PetscLogDouble :: log_start_time
   PetscLogDouble :: log_end_time
   PetscInt :: num_newton_iterations
   PetscInt :: num_linear_iterations
-  
+
   PetscReal :: tconv
   character(len=MAXWORDLENGTH) :: tunit
   PetscReal :: fnorm, inorm, scaled_fnorm
@@ -178,15 +203,15 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
 
   num_linear_iterations = 0
   num_newton_iterations = 0
-  
+
   option%time = this%target_time
   tconv = process_model%output_option%tconv
   tunit = process_model%output_option%tunit
 
   call process_model%InitializeTimestep()
-    
+
   call process_model%PreSolve()
-    
+
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
   call SNESSolve(solver%snes,PETSC_NULL_VEC, &
@@ -209,7 +234,7 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
     num_newton_iterations
   this%cumulative_linear_iterations = this%cumulative_linear_iterations + &
     num_linear_iterations
-  
+
   if (snes_reason <= SNES_CONVERGED_ITERATING .or. &
       .not. process_model%AcceptSolution()) then
     call SolverNewtonPrintFailedReason(solver,option)
@@ -238,7 +263,7 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
     stop_flag = TS_STOP_FAILURE
     return
   endif
- 
+
   ! print screen output
   call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
@@ -256,7 +281,7 @@ subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
 
     print *,' --> SNES Linear/Non-Linear Iterations = ', &
              num_linear_iterations,' / ',num_newton_iterations
-    write(*,'("  --> SNES Residual: ",1p2e14.6)') fnorm, inorm 
+    write(*,'("  --> SNES Residual: ",1p2e14.6)') fnorm, inorm
   endif
 
   if (option%print_file_flag) then
@@ -288,12 +313,12 @@ end subroutine TimestepperSteadyStepDT
 ! ************************************************************************** !
 
 subroutine TimestepperSteadyPrintInfo(this,option)
-  ! 
+  !
   ! Prints settings for steady timestepper.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
-  ! 
+  !
   use Option_module
   use String_module
 
@@ -319,23 +344,23 @@ end subroutine TimestepperSteadyPrintInfo
 ! ************************************************************************** !
 
 subroutine TimestepperSteadyInputRecord(this)
-  ! 
+  !
   ! Prints information about the time stepper to the input record.
   ! To get a## format, must match that in simulation types.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/16/20
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(timestepper_steady_type) :: this
 
   PetscInt :: id
   character(len=MAXWORDLENGTH) :: word
-   
+
   id = INPUT_RECORD_UNIT
-  
+
   write(id,'(a29)',advance='no') 'pmc steady timestepper: '
   write(id,'(a)') this%name
 
@@ -344,60 +369,71 @@ end subroutine TimestepperSteadyInputRecord
 ! ************************************************************************** !
 
 recursive subroutine TimestepperSteadyFinalizeRun(this,option)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(timestepper_steady_type) :: this
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
-  
+
 #ifdef DEBUG
   call PrintMsg(option,'TimestepperSteadyFinalizeRun()')
 #endif
-  
-  if (OptionPrintToScreen(option)) then
-    write(*,'(/,x,a," TS Steady steps = ",i6," newton = ",i8,&
-            &" linear = ",i10)') &
-            trim(this%name), &
-            this%steps, &
-            this%cumulative_newton_iterations, &
-            this%cumulative_linear_iterations
 
-    write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(x,a)') trim(this%name) // ' TS Steady SNES time = ' // &
-      trim(adjustl(string)) // ' seconds'
+  if (OptionPrintToScreen(option)) then
+    if (this%cumulative_newton_iterations > 0) then
+      write(*,'(/,x,a," TS Steady steps = ",i6," newton = ",i8,&
+              &" linear = ",i10)') &
+              trim(this%name), &
+              this%steps, &
+              this%cumulative_newton_iterations, &
+              this%cumulative_linear_iterations
+      write(string,'(f12.1)') this%cumulative_solver_time
+      write(*,'(x,a)') trim(this%name) // ' TS Steady SNES time = ' // &
+                       trim(adjustl(string)) // ' seconds'
+    else if (this%cumulative_linear_iterations > 0) then
+      write(*,'(/,x,a," TS Steady steps = ",i6," linear = ",i10)') &
+              trim(this%name), &
+              this%steps, this%cumulative_linear_iterations
+      write(string,'(f12.1)') this%cumulative_solver_time
+      write(*,'(x,a)') trim(this%name) // ' TS Steady KSP time = ' // &
+                       trim(adjustl(string)) // ' seconds'
+    else if (this%steps > 0) then
+      write(*,'(/,x,a," TS Steady steps = ",i6)') &
+              trim(this%name), this%steps
+    endif
   endif
-  
+
 end subroutine TimestepperSteadyFinalizeRun
 
 ! ************************************************************************** !
 
 subroutine TimestepperSteadyDestroy(this)
-  ! 
+  !
   ! Deallocates a time stepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/19/21
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_steady_type) :: this
-  
+
   call this%Strip()
-  
+
 !  deallocate(this)
 !  nullify(this)
-  
+
 end subroutine TimestepperSteadyDestroy
 
 end module Timestepper_Steady_class
