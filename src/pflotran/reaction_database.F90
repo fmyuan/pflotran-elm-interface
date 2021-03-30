@@ -836,6 +836,7 @@ subroutine BasisInit(reaction,option)
   use Reaction_Microbial_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Gas_Aux_module
+  use Reaction_Isotherm_Aux_module
   
 #ifdef SOLID_SOLUTION  
   use Reaction_Solid_Solution_module
@@ -869,7 +870,8 @@ subroutine BasisInit(reaction,option)
   type(microbial_rxn_type), pointer :: cur_microbial_rxn
   type(immobile_decay_rxn_type), pointer :: cur_immobile_decay_rxn
   type(dynamic_kd_rxn_type), pointer :: cur_dynamic_kd_rxn
-  type(kd_rxn_type), pointer :: cur_kd_rxn, sec_cont_cur_kd_rxn
+  type(isotherm_link_type), pointer :: cur_isotherm_rxn, &
+                                       sec_cont_cur_isotherm_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
   type(transition_state_rxn_type), pointer :: tstrxn
@@ -3522,84 +3524,76 @@ subroutine BasisInit(reaction,option)
 
   ! Kd reactions
   
-  if (reaction%neqkdrxn > 0) then
+  if (reaction%isotherm%neqkdrxn > 0) then
 
+    call IsothermRxnCreate(reaction%isotherm%isotherm_rxn, &
+      reaction%isotherm)
     ! allocate arrays
-    allocate(reaction%eqkdspecid(reaction%neqkdrxn))
-    reaction%eqkdspecid = 0
-    allocate(reaction%eqkdtype(reaction%neqkdrxn))
-    reaction%eqkdtype = 0
-    allocate(reaction%eqkddistcoef(reaction%neqkdrxn))
-    reaction%eqkddistcoef = 0.d0
-    allocate(reaction%eqkdlangmuirb(reaction%neqkdrxn))
-    reaction%eqkdlangmuirb = 0.d0
-    allocate(reaction%eqkdfreundlichn(reaction%neqkdrxn))
-    reaction%eqkdfreundlichn = 0.d0
-    allocate(reaction%eqkdmineral(reaction%neqkdrxn))
-    reaction%eqkdmineral = 0
+    allocate(reaction%isotherm%eqkdspecid(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqkdspecid = 0
+    allocate(reaction%isotherm%eqisothermtype(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqisothermtype = 0
+    allocate(reaction%isotherm%eqkdmineral(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqkdmineral = 0
 
-    cur_kd_rxn => reaction%kd_rxn_list
+    cur_isotherm_rxn => reaction%isotherm%isotherm_list
     
     if (option%use_mc) then
-      allocate(reaction%sec_cont_eqkdtype(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdtype = 0   
-      allocate(reaction%sec_cont_eqkddistcoef(reaction%neqkdrxn))
-      reaction%sec_cont_eqkddistcoef = 0.d0
-      allocate(reaction%sec_cont_eqkdlangmuirb(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdlangmuirb = 0.d0
-      allocate(reaction%sec_cont_eqkdfreundlichn(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdfreundlichn = 0.d0
-      sec_cont_cur_kd_rxn => reaction%sec_cont_kd_rxn_list
+      call IsothermRxnCreate(reaction%isotherm%multicontinuum_isotherm_rxn, &
+                             reaction%isotherm)
+      sec_cont_cur_isotherm_rxn => &
+        reaction%isotherm%multicontinuum_isotherm_list
     endif
     
     irxn = 0
     do  
-      if (.not.associated(cur_kd_rxn)) exit
+      if (.not.associated(cur_isotherm_rxn)) exit
 
       irxn = irxn + 1
 
       found = PETSC_FALSE
       do i = 1, reaction%naqcomp
-        if (StringCompare(cur_kd_rxn%species_name, &
+        if (StringCompare(cur_isotherm_rxn%species_name, &
                           reaction%primary_species_names(i), &
                           MAXWORDLENGTH)) then
-          reaction%eqkdspecid(irxn) = i
+          reaction%isotherm%eqkdspecid(irxn) = i
           found = PETSC_TRUE
           exit      
         endif
       enddo
       if (.not.found) then
-        option%io_buffer = 'Species ' // trim(cur_kd_rxn%species_name) // &
+        option%io_buffer = 'Species ' // trim(cur_isotherm_rxn%species_name) // &
                  ' in kd reaction &
                  & not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%eqkdtype(irxn) = cur_kd_rxn%itype
+      reaction%isotherm%eqisothermtype(irxn) = cur_isotherm_rxn%itype
       ! associate mineral id
-      if (len_trim(cur_kd_rxn%kd_mineral_name) > 1) then
-        reaction%eqkdmineral(irxn) = &
-          GetKineticMineralIDFromName(cur_kd_rxn%kd_mineral_name, &
+      if (len_trim(cur_isotherm_rxn%kd_mineral_name) > 1) then
+        reaction%isotherm%eqkdmineral(irxn) = &
+          GetKineticMineralIDFromName(cur_isotherm_rxn%kd_mineral_name, &
                                       reaction%mineral,option)
-        if (reaction%eqkdmineral(irxn) < 0) then
+        if (reaction%isotherm%eqkdmineral(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
                              ' listed in kd (linear sorption) &
                              &reaction not found in mineral list'
           call PrintErrMsg(option)
         endif
       endif      
-      reaction%eqkddistcoef(irxn) = cur_kd_rxn%Kd
-      reaction%eqkdlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
-      reaction%eqkdfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
+      reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn) = cur_isotherm_rxn%Kd
+      reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(irxn) = cur_isotherm_rxn%Langmuir_b
+      reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(irxn) = cur_isotherm_rxn%Freundlich_n
        
-      cur_kd_rxn => cur_kd_rxn%next
+      cur_isotherm_rxn => cur_isotherm_rxn%next
       
       if (option%use_mc) then
-        reaction%sec_cont_eqkdtype(irxn) = sec_cont_cur_kd_rxn%itype
-        reaction%sec_cont_eqkddistcoef(irxn) = sec_cont_cur_kd_rxn%Kd
-        reaction%sec_cont_eqkdlangmuirb(irxn) = sec_cont_cur_kd_rxn%Langmuir_b
-        reaction%sec_cont_eqkdfreundlichn(irxn) = &
-          sec_cont_cur_kd_rxn%Freundlich_n
-        sec_cont_cur_kd_rxn => sec_cont_cur_kd_rxn%next
+        reaction%isotherm%multicontinuum_isotherm_rxn%eqisothermcoeff(irxn) = &
+          sec_cont_cur_isotherm_rxn%Kd
+        reaction%isotherm%multicontinuum_isotherm_rxn%eqisothermlangmuirb(irxn) = &
+          sec_cont_cur_isotherm_rxn%Langmuir_b
+        reaction%isotherm%multicontinuum_isotherm_rxn%eqisothermfreundlichn(irxn) = &
+          sec_cont_cur_isotherm_rxn%Freundlich_n
+        sec_cont_cur_isotherm_rxn => sec_cont_cur_isotherm_rxn%next
       endif
       
     enddo
@@ -3609,8 +3603,8 @@ subroutine BasisInit(reaction,option)
     do icplx = 1, reaction%neqcplx
       do icomp = 1, reaction%eqcplxspecid(0,icplx)
         ipri_spec = reaction%eqcplxspecid(icomp,icplx)
-        do irxn = 1, reaction%neqkdrxn
-          if (reaction%eqkdspecid(irxn) == ipri_spec) then
+        do irxn = 1, reaction%isotherm%neqkdrxn
+          if (reaction%isotherm%eqkdspecid(irxn) == ipri_spec) then
             found = PETSC_TRUE
             option%io_buffer = 'Primary aqueous species "' // &
               trim(reaction%primary_species_names(ipri_spec)) // &
@@ -3984,22 +3978,22 @@ subroutine BasisInit(reaction,option)
     enddo
 
     write(86,'(/,"<Isotherms")')
-    do irxn = 1, reaction%neqkdrxn
+    do irxn = 1, reaction%isotherm%neqkdrxn
        write(86,'(a," ; ")',advance='no') &
-         trim(reaction%primary_species_names(reaction%eqkdspecid(irxn)))
-      select case (reaction%eqkdtype(irxn))
+         trim(reaction%primary_species_names(reaction%isotherm%eqkdspecid(irxn)))
+      select case (reaction%isotherm%eqisothermtype(irxn))
         case(SORPTION_LINEAR)
            write(86,'("linear ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
+             reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn)
            write(86,'()')
         case(SORPTION_LANGMUIR)
            write(86,'("langmuir ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
-           write(86,'(es13.5)') reaction%eqkdlangmuirb(irxn)
+             reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn)
+           write(86,'(es13.5)') reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(irxn)
         case(SORPTION_FREUNDLICH)
            write(86,'("freundlich ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
-           write(86,'(es13.5)') reaction%eqkdfreundlichn(irxn)
+             reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn)
+           write(86,'(es13.5)') reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(irxn)
       end select
     enddo
 

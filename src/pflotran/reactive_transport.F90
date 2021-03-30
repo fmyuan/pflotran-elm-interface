@@ -217,7 +217,7 @@ subroutine RTSetup(realization)
       option%io_buffer = 'Non-initialized tortuosity.'
       call PrintMsg(option)
     endif
-    if (reaction%neqkdrxn > 0) then
+    if (reaction%isotherm%neqkdrxn > 0) then
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1
@@ -728,6 +728,7 @@ subroutine RTUpdateEquilibriumState(realization)
   PetscInt :: ghosted_id, local_id
   PetscReal :: conc, max_conc, min_conc
   PetscErrorCode :: ierr
+  PetscReal :: sec_porosity
   
   option => realization%option
   patch => realization%patch
@@ -772,9 +773,11 @@ subroutine RTUpdateEquilibriumState(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+        sec_porosity = patch%material_property_array(1)%ptr% &
+                        secondary_continuum_porosity
         call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
                                           global_auxvars(ghosted_id), &
-                                          reaction,option)                     
+                                          reaction,sec_porosity,option)                     
     enddo
   endif
   
