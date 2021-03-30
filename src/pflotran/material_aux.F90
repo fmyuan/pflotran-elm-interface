@@ -55,6 +55,7 @@ module Material_Aux_class
                           ! function of soil compressibity, etc.
     PetscReal :: dporosity_dp
     PetscReal :: tortuosity
+    PetscReal :: epsilon !Secondary continuum fraction volume fraction
     PetscReal :: soil_particle_density
     PetscReal, pointer :: permeability(:)
     PetscReal, pointer :: sat_func_prop(:)
@@ -188,6 +189,7 @@ subroutine MaterialAuxVarInit(auxvar,option)
   auxvar%porosity = UNINITIALIZED_DOUBLE
   auxvar%dporosity_dp = 0.d0
   auxvar%tortuosity = UNINITIALIZED_DOUBLE
+  auxvar%epsilon = UNINITIALIZED_DOUBLE
   auxvar%soil_particle_density = UNINITIALIZED_DOUBLE
   if (option%iflowmode /= NULL_MODE) then
     if (option%flow%full_perm_tensor) then
@@ -237,6 +239,7 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%porosity_base = auxvar%porosity_base
   auxvar2%porosity = auxvar%porosity
   auxvar2%tortuosity = auxvar%tortuosity
+  auxvar2%epsilon = auxvar%epsilon
   auxvar2%soil_particle_density = auxvar%soil_particle_density
   if (associated(auxvar%permeability)) then
     auxvar2%permeability = auxvar%permeability
@@ -681,6 +684,8 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%porosity = value
     case(TORTUOSITY)
       material_auxvar%tortuosity = value
+    case(EPSILON)
+      material_auxvar%epsilon = value
     case(PERMEABILITY_X)
       material_auxvar%permeability(perm_xx_index) = value
     case(PERMEABILITY_Y)

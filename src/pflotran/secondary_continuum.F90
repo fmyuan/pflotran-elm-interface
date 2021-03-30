@@ -492,7 +492,7 @@ end subroutine SecondaryRTTimeCut
 
 ! ************************************************************************** !
 
-subroutine SecondaryRTAuxVarInit(multicontinuum,rt_sec_transport_vars,reaction, &
+subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,reaction, &
                                  initial_condition,constraint,option)
   ! 
   ! Initializes all the secondary continuum reactive
@@ -534,6 +534,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,rt_sec_transport_vars,reaction, 
   PetscInt :: i, cell
   PetscReal :: area_per_vol
   PetscReal :: dum1
+  PetscReal :: epsilon
   PetscInt :: num_iterations
   PetscErrorCode :: ierr
   
@@ -555,7 +556,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,rt_sec_transport_vars,reaction, 
         
   rt_sec_transport_vars%ncells = multicontinuum%ncells
   rt_sec_transport_vars%aperture = multicontinuum%aperture
-  rt_sec_transport_vars%epsilon = multicontinuum%epsilon 
+  rt_sec_transport_vars%epsilon = epsilon !multicontinuum%epsilon 
   rt_sec_transport_vars%log_spacing = multicontinuum%log_spacing
   rt_sec_transport_vars%outer_spacing = multicontinuum%outer_spacing    
         

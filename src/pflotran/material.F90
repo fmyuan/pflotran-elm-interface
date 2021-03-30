@@ -1643,6 +1643,10 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       do i=1, Material%num_aux
         Material%auxvars(i)%tortuosity = value
       enddo
+    case(EPSILON)
+      do i=1, Material%num_aux
+        Material%auxvars(i)%epsilon = value
+      enddo
     case(PERMEABILITY_X)
       do i=1, Material%num_aux
         Material%auxvars(i)%permeability(perm_xx_index) = value
@@ -1736,6 +1740,10 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
         Material%auxvars(ghosted_id)%tortuosity = vec_loc_p(ghosted_id)
+      enddo
+    case(EPSILON)
+      do ghosted_id=1, Material%num_aux
+        Material%auxvars(ghosted_id)%epsilon = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_X)
       do ghosted_id=1, Material%num_aux
