@@ -64,7 +64,9 @@ module NW_Transport_Aux_module
     PetscBool :: temperature_dependent_diffusion
     PetscReal :: truncated_concentration
     PetscReal :: bh_zero_value
+    PetscReal :: init_total_mass_conc
     character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
+    character(len=MAXWORDLENGTH), pointer :: dirichlet_material_names(:)
   end type nwt_params_type
   
   type, public :: nwt_print_type
@@ -126,6 +128,7 @@ module NW_Transport_Aux_module
     type(nwt_print_type), pointer :: print_what 
     PetscBool :: reaction_nw_on
     PetscBool :: truncate_output
+    PetscBool :: screening_run
   end type reaction_nw_type
 
   interface NWTAuxVarDestroy
@@ -264,6 +267,7 @@ function NWTReactionCreate()
   nullify(reaction_nw%rad_decay_rxn_list)
   reaction_nw%reaction_nw_on = PETSC_TRUE
   reaction_nw%truncate_output = PETSC_FALSE
+  reaction_nw%screening_run = PETSC_FALSE
   
   nullify(reaction_nw%params)
   allocate(reaction_nw%params)
@@ -274,8 +278,10 @@ function NWTReactionCreate()
   reaction_nw%params%calculate_transverse_dispersion = PETSC_FALSE
   reaction_nw%params%temperature_dependent_diffusion = PETSC_FALSE
   reaction_nw%params%truncated_concentration = UNINITIALIZED_DOUBLE
-  reaction_nw%params%bh_zero_value = 1.0d-20  ! [mol/m3]
+  reaction_nw%params%bh_zero_value = 1.0d-20  ! [mol/m3-bulk]
+  reaction_nw%params%init_total_mass_conc = UNINITIALIZED_DOUBLE
   nullify(reaction_nw%params%bh_material_names)
+  nullify(reaction_nw%params%dirichlet_material_names)
   
   nullify(reaction_nw%print_what)
   allocate(reaction_nw%print_what)
@@ -342,6 +348,7 @@ subroutine NWTRead(reaction_nw,input,option)
   character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
   character(len=MAXWORDLENGTH), pointer :: temp_species_parents(:)
   character(len=MAXWORDLENGTH) :: bh_materials(50)
+  character(len=MAXWORDLENGTH) :: dirichlet_materials(50)
   type(radioactive_decay_rxn_type), pointer :: new_rad_rxn, prev_rad_rxn
   
   error_string_base = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
@@ -505,6 +512,43 @@ subroutine NWTRead(reaction_nw,input,option)
         call InputReadDouble(input,option, &
                              reaction_nw%params%truncated_concentration)
         call InputErrorMsg(input,option,'concentration value',error_string)
+      case('DIRICHLET_MATERIALS')
+        reaction_nw%screening_run = PETSC_TRUE
+        error_string = trim(error_string_base) // ',DIRICHLET_MATERIALS'
+        num_materials = 0
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'Dirichlet material name or VALUE', &
+                             error_string)
+          call StringToUpper(word)
+          if (trim(word) == 'VALUE') then
+            call InputReadDouble(input,option, &
+                                 reaction_nw%params%init_total_mass_conc)
+            call InputErrorMsg(input,option,'Dirichlet material total mass &
+                               &concentration value',error_string)
+          else
+            num_materials = num_materials + 1
+            dirichlet_materials(num_materials) = trim(word)
+          endif  
+        enddo
+        if (Uninitialized(reaction_nw%params%init_total_mass_conc)) then
+          option%io_buffer = 'ERROR: The VALUE must be given in the ' &
+                             // trim(error_string_base) // ' block.'
+          call PrintErrMsg(option)
+        endif
+        if (num_materials == 0) then
+          option%io_buffer = 'ERROR: At least one Dirichlet MATERIAL_PROPERTY &
+            &name must be provided in the ' // trim(error_string_base) // ' block.'
+          call PrintErrMsg(option)
+        endif
+        allocate(reaction_nw%params%dirichlet_material_names(num_materials))
+        do num_materials = 1, size(reaction_nw%params%dirichlet_material_names)
+          reaction_nw%params%dirichlet_material_names(num_materials) = &
+                                          dirichlet_materials(num_materials)
+        enddo
       case('OUTPUT')
         call NWTReadOutput(reaction_nw,input,option)
       case('BOREHOLE_MATERIALS')
@@ -527,6 +571,11 @@ subroutine NWTRead(reaction_nw,input,option)
             bh_materials(num_materials) = trim(word)
           endif  
         enddo
+        if (num_materials == 0) then
+          option%io_buffer = 'ERROR: At least one borehole MATERIAL_PROPERTY &
+            &name must be provided in the ' // trim(error_string_base) // ' block.'
+          call PrintErrMsg(option)
+        endif
         allocate(reaction_nw%params%bh_material_names(num_materials))
         do num_materials = 1, size(reaction_nw%params%bh_material_names)
           reaction_nw%params%bh_material_names(num_materials) = &
@@ -679,6 +728,12 @@ subroutine NWTReadPass2(reaction_nw,input,option)
         enddo
       case('LOG_FORMULATION')
       case('TRUNCATE_CONCENTRATION')
+      case('DIRICHLET_MATERIALS')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+        enddo
       case('OUTPUT')
         do
           call InputReadPflotranString(input,option)

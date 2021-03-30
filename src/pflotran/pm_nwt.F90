@@ -52,8 +52,11 @@ module PM_NWT_class
     PetscBool :: steady_flow
     PetscBool :: zero_out_borehole
     PetscReal :: bh_zero_value
+    PetscReal :: init_total_mass_conc
     character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
+    character(len=MAXWORDLENGTH), pointer :: dirichlet_material_names(:)
     PetscInt, pointer :: bh_material_ids(:)
+    PetscInt, pointer :: dirichlet_material_ids(:)
 
   end type pm_nwt_params_type
   
@@ -159,9 +162,12 @@ function PMNWTCreate()
   nwt_pm%params%temperature_dependent_diffusion = PETSC_FALSE
   nwt_pm%params%steady_flow = PETSC_FALSE
   nwt_pm%params%zero_out_borehole = PETSC_FALSE
-  nwt_pm%params%bh_zero_value = 1.0d-20  ! [mol/m3]
+  nwt_pm%params%bh_zero_value = 1.0d-20  ! [mol/m3-bulk]
+  nwt_pm%params%init_total_mass_conc = UNINITIALIZED_DOUBLE
   nullify(nwt_pm%params%bh_material_names)
+  nullify(nwt_pm%params%dirichlet_material_names)
   nullify(nwt_pm%params%bh_material_ids)
+  nullify(nwt_pm%params%dirichlet_material_ids)
   
 
   call PMBaseInit(nwt_pm)
@@ -361,6 +367,16 @@ subroutine PMNWTSetup(this)
                        size(reaction_nw%params%bh_material_names)))
     this%params%bh_material_ids = UNINITIALIZED_INTEGER
   endif
+  if(reaction_nw%screening_run) then
+    allocate(this%params%dirichlet_material_names(&
+                       size(reaction_nw%params%dirichlet_material_names)))
+    this%params%dirichlet_material_names = &
+                               reaction_nw%params%dirichlet_material_names
+    allocate(this%params%dirichlet_material_ids(&
+                       size(reaction_nw%params%dirichlet_material_names)))
+    this%params%dirichlet_material_ids = UNINITIALIZED_INTEGER
+    this%params%init_total_mass_conc = reaction_nw%params%init_total_mass_conc
+  endif
         
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -427,6 +443,7 @@ subroutine PMNWTInitializeRun(this)
   ! 
 
   use Material_module
+  use Coupler_module
   
   implicit none
   
@@ -434,6 +451,7 @@ subroutine PMNWTInitializeRun(this)
 
   PetscInt :: p
   type(material_property_type), pointer :: material_property
+  type(coupler_type), pointer :: init_condition
   
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
@@ -460,7 +478,22 @@ subroutine PMNWTInitializeRun(this)
         call PrintErrMsg(this%option)
       endif
       this%params%bh_material_ids(p) = material_property%internal_id
-      print *, this%params%bh_material_names(p), this%params%bh_material_ids(p)
+    enddo
+  endif
+
+  ! set screening run dirichlet material ids
+  if (this%realization%reaction_nw%screening_run) then
+    do p = 1, size(this%params%dirichlet_material_names)
+      material_property => &
+        MaterialPropGetPtrFromList(this%params%dirichlet_material_names(p), &
+                                   this%realization%patch%material_properties)
+      if (.not.associated(material_property)) then
+        this%option%io_buffer = 'Dirichlet material "' // &
+          trim(this%params%dirichlet_material_names(p)) // &
+          '" not found among material properties.'
+        call PrintErrMsg(this%option)
+      endif
+      this%params%dirichlet_material_ids(p) = material_property%internal_id
     enddo
   endif
   
@@ -489,14 +522,17 @@ subroutine PMNWTInitializeTimestep(this)
     
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: i, idof
   PetscInt :: offset, index
+  PetscInt :: istart, iend
   PetscReal, pointer :: xx_p(:)
 
   this%option%tran_dt = this%option%dt
   field => this%realization%field
   patch => this%realization%patch
+  nwt_auxvars => this%realization%patch%aux%NWT%auxvars
 
   call PMBasePrintHeader(this)
 
@@ -522,6 +558,10 @@ subroutine PMNWTInitializeTimestep(this)
             index = idof + offset
             xx_p(index) = this%params%bh_zero_value
           enddo
+          ! calculate range of species
+          istart = offset + 1
+          iend = offset + this%params%nspecies
+          nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
           call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
 
           write(this%option%io_buffer,*) local_id
@@ -535,6 +575,32 @@ subroutine PMNWTInitializeTimestep(this)
           call PrintMsg(this%option)
 
           this%params%zero_out_borehole = PETSC_FALSE
+        endif
+      enddo
+    enddo
+  endif
+
+  ! If this is a screening run, then hold the mass in the list of Dirichlet
+  ! materials constant (at initial value).
+  if (this%realization%reaction_nw%screening_run) then
+    do local_id = 1, patch%grid%nlmax
+      ghosted_id = patch%grid%nL2G(local_id)
+      ! loop through the dirichlet material IDs:
+      do i = 1, size(this%params%dirichlet_material_ids)
+        if (patch%imat(ghosted_id) == this%params%dirichlet_material_ids(i)) then
+          ! Means the current grid cell is one of the dirichlet materials
+          call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          ! compute offset in solution vector for first dof in grid cell
+          offset = (local_id-1)*this%params%nspecies
+          do idof = 1, this%params%nspecies
+            index = idof + offset
+            xx_p(index) = this%params%init_total_mass_conc
+          enddo
+          ! calculate range of species
+          istart = offset + 1
+          iend = offset + this%params%nspecies
+          nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
+          call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
         endif
       enddo
     enddo
@@ -561,6 +627,8 @@ subroutine PMNWTInitializeTimestep(this)
   endif
   
   call NWTInitializeTimestep(this%realization)
+  ! This will eventually call NWTEqDissPrecipSorb() so that the aqueous,
+  ! precipitated, and sorbed amounts of the total bulk mass get adjusted.
   
 end subroutine PMNWTInitializeTimestep
 
@@ -1113,9 +1181,13 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     converged_due_to_abs_res = (Initialized(nwt_itol_abs_res) .and. &
                                 max_absolute_residual < nwt_itol_abs_res)
     WRITE(*,*)  ' converged_due_to_rel_update = ', converged_due_to_rel_update
+    WRITE(*,*)  '   max_relative_change = ', max_relative_change
     WRITE(*,*)  ' converged_due_to_abs_update = ', converged_due_to_abs_update
+    WRITE(*,*) '    max_absolute_update = ', max_absolute_change
     WRITE(*,*)  ' converged_due_to_scaled_res = ', converged_due_to_scaled_res
+    WRITE(*,*) '    max_scaled_residual = ', max_scaled_residual
     WRITE(*,*)  ' converged_due_to_abs_res = ', converged_due_to_abs_res
+    WRITE(*,*) '    max_absolute_residual = ', max_absolute_residual
     if (converged_due_to_rel_update .or. converged_due_to_abs_update) then
       converged_due_to_update = PETSC_TRUE
     endif
