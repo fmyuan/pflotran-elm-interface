@@ -775,7 +775,7 @@ subroutine RTUpdateEquilibriumState(realization)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
         sec_porosity = patch%material_property_array(1)%ptr% &
-                        secondary_continuum_porosity
+                        multicontinuum%porosity
         call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
                                           global_auxvars(ghosted_id), &
                                           reaction,sec_porosity,option)                     

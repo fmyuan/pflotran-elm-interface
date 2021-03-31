@@ -196,7 +196,8 @@ subroutine MphaseSetupPatch(realization)
     allocate(mphase_sec_heat_vars(grid%nlmax))
   
     do local_id = 1, grid%nlmax
-  
+       
+      ghosted_id = grid%nL2G(local_id)
     ! Assuming the same secondary continuum for all regions (need to make it an array)
     ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
@@ -214,7 +215,7 @@ subroutine MphaseSetupPatch(realization)
       mphase_sec_heat_vars(local_id)%aperture = &
         patch%material_property_array(1)%ptr%multicontinuum%aperture
       mphase_sec_heat_vars(local_id)%epsilon = &
-        patch%material_property_array(1)%ptr%multicontinuum%epsilon
+        patch%aux%Material%auxvars(ghosted_id)%epsilon
       mphase_sec_heat_vars(local_id)%log_spacing = &
         patch%material_property_array(1)%ptr%multicontinuum%log_spacing
       mphase_sec_heat_vars(local_id)%outer_spacing = &
