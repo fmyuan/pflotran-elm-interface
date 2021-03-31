@@ -9,6 +9,7 @@ module Simulation_Subsurface_class
   use Output_Aux_module
   use PM_Base_class
   use PMC_Base_class
+  use PMC_Geophysics_class
   use PMC_Subsurface_class
   use Realization_Subsurface_class
   use Waypoint_module
@@ -29,6 +30,8 @@ module Simulation_Subsurface_class
     class(pmc_subsurface_type), pointer :: flow_process_model_coupler
     ! pointer to transport process model coupler
     class(pmc_subsurface_type), pointer :: tran_process_model_coupler
+    ! pointer to geophysics process model coupler
+    class(pmc_geophysics_type), pointer :: geop_process_model_coupler
     ! pointer to realization object shared by flow and reactive transport
     class(realization_subsurface_type), pointer :: realization
     ! regression object
@@ -118,6 +121,7 @@ subroutine SimSubsurfInit(this,option)
   this%stop_flag = TS_CONTINUE
   nullify(this%flow_process_model_coupler)
   nullify(this%tran_process_model_coupler)
+  nullify(this%geop_process_model_coupler)
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()

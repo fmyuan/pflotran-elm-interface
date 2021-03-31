@@ -1,5 +1,5 @@
 module Material_Aux_class
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -15,7 +15,7 @@ module Material_Aux_class
   PetscInt, parameter, public :: perm_xy_index = 4
   PetscInt, parameter, public :: perm_yz_index = 5
   PetscInt, parameter, public :: perm_xz_index = 6
-  
+
   ! do not use 0 as an index as there is a case statement in material.F90
   ! designed to catch erroneous values outside [1,2].
   PetscInt, parameter, public :: POROSITY_CURRENT = 1
@@ -25,8 +25,8 @@ module Material_Aux_class
   ! Tensor to scalar conversion models
   ! default for structured grids = TENSOR_TO_SCALAR_LINEAR
   ! default for unstructured grids = TENSOR_TO_SCALAR_POTENTIAL
-  ! Both are set in discretization.F90:DiscretizationReadRequiredCards() 
-  ! immediately after the GRID cards is read with a call to 
+  ! Both are set in discretization.F90:DiscretizationReadRequiredCards()
+  ! immediately after the GRID cards is read with a call to
   ! MaterialAuxSetPermTensorModel()
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_LINEAR = 1
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_FLOW = 2
@@ -34,24 +34,24 @@ module Material_Aux_class
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_FLOW_FT = 4
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_POTENTIAL_FT = 5
 
-  ! flag to determine which model to use for tensor to scalar conversion 
+  ! flag to determine which model to use for tensor to scalar conversion
   ! of permeability
   PetscInt :: perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
-  
+
 !  PetscInt, public :: soil_thermal_conductivity_index
 !  PetscInt, public :: soil_heat_capacity_index
   PetscInt, public :: soil_compressibility_index
   PetscInt, public :: soil_reference_pressure_index
   PetscInt, public :: max_material_index
-  
+
   type, public :: material_auxvar_type
     PetscInt :: id
     PetscReal :: volume
-    PetscReal :: porosity_0 ! initial porosity as defined in input file or 
+    PetscReal :: porosity_0 ! initial porosity as defined in input file or
                             ! initial conditon
-    PetscReal :: porosity_base ! base porosity prescribed by pm outside flow 
+    PetscReal :: porosity_base ! base porosity prescribed by pm outside flow
                                ! (e.g. geomechanics, mineral precip/diss)
-    PetscReal :: porosity ! porosity used in calculation, which may be a 
+    PetscReal :: porosity ! porosity used in calculation, which may be a
                           ! function of soil compressibity, etc.
     PetscReal :: dporosity_dp
     PetscReal :: tortuosity
@@ -60,6 +60,7 @@ module Material_Aux_class
     PetscReal, pointer :: permeability(:)
     PetscReal, pointer :: sat_func_prop(:)
     PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
+    PetscReal, pointer :: electrical_conductivity(:) ! Geophysics -> electrical conductivity for ERT/SIP/EM
     type(fracture_auxvar_type), pointer :: fracture
     PetscReal, pointer :: geomechanics_subsurface_prop(:)
     PetscInt :: creep_closure_id
@@ -69,30 +70,30 @@ module Material_Aux_class
     procedure, public :: PermeabilityTensorToScalar
     procedure, public :: PermeabilityTensorToScalarSafe
   end type material_auxvar_type
-  
+
   type, public :: fracture_auxvar_type
     PetscBool :: fracture_is_on
     PetscReal :: initial_pressure
     PetscReal :: properties(4)
     PetscReal :: vector(3) ! < 0. 0. 0. >
   end type fracture_auxvar_type
- 
+
   type, public :: material_parameter_type
     PetscReal, pointer :: soil_heat_capacity(:) ! MJ/kg rock-K
     PetscReal, pointer :: soil_thermal_conductivity(:,:) ! W/m-K
-  end type material_parameter_type  
-  
+  end type material_parameter_type
+
   type, public :: material_type
-    PetscReal :: time_t, time_tpdt  
+    PetscReal :: time_t, time_tpdt
     PetscInt :: num_aux
     type(material_parameter_type), pointer :: material_parameter
     class(material_auxvar_type), pointer :: auxvars(:)
   end type material_type
-  
+
   ! procedure pointer declarations
   procedure(MaterialCompressSoilDummy), pointer :: &
     MaterialCompressSoilPtr => null()
- 
+
   ! interface blocks
   interface
     subroutine MaterialCompressSoilDummy(auxvar,pressure,compressed_porosity, &
@@ -104,12 +105,12 @@ module Material_Aux_class
     PetscReal, intent(out) :: compressed_porosity
     PetscReal, intent(out) :: dcompressed_porosity_dp
     end subroutine MaterialCompressSoilDummy
-  end interface 
-  
+  end interface
+
   interface MaterialCompressSoil
     procedure MaterialCompressSoilPtr
   end interface
-  
+
   public :: MaterialCompressSoilDummy, &
             MaterialCompressSoilPtr, &
             MaterialCompressSoil, &
@@ -118,7 +119,7 @@ module Material_Aux_class
             MaterialCompressSoilLeijnse, &
             MaterialCompressSoilLinear, &
             MaterialCompressSoilQuadratic
-  
+
   public :: MaterialAuxCreate, &
             MaterialAuxVarInit, &
             MaterialAuxVarCopy, &
@@ -131,25 +132,25 @@ module Material_Aux_class
             MaterialAuxSetPermTensorModel
 
   public :: MaterialAuxVarCompute
-  
+
 contains
 
 ! ************************************************************************** !
 
 function MaterialAuxCreate()
-  ! 
+  !
   ! Allocate and initialize auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/09/14
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(material_type), pointer :: MaterialAuxCreate
-  
+
   type(material_type), pointer :: aux
 
   allocate(aux)
@@ -162,26 +163,26 @@ function MaterialAuxCreate()
   aux%time_tpdt = 0.d0
 
   MaterialAuxCreate => aux
-  
+
 end function MaterialAuxCreate
 
 ! ************************************************************************** !
 
 subroutine MaterialAuxVarInit(auxvar,option)
-  ! 
+  !
   ! Initialize auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/09/14
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(material_auxvar_type) :: auxvar
   type(option_type) :: option
-  
+
   auxvar%id = UNINITIALIZED_INTEGER
   auxvar%volume = UNINITIALIZED_DOUBLE
   auxvar%porosity_0 = UNINITIALIZED_DOUBLE
@@ -204,7 +205,7 @@ subroutine MaterialAuxVarInit(auxvar,option)
   nullify(auxvar%sat_func_prop)
   nullify(auxvar%fracture)
   auxvar%creep_closure_id = 1
-  
+
   if (max_material_index > 0) then
     allocate(auxvar%soil_properties(max_material_index))
     ! initialize these to zero for now
@@ -214,26 +215,36 @@ subroutine MaterialAuxVarInit(auxvar,option)
   endif
 
   nullify(auxvar%geomechanics_subsurface_prop)
-  
+
+  ! PJ: for geophysics
+  if (option%igeopmode /= NULL_MODE) then
+    ! TODO: Tensor conductivity for anisotropy
+    ! using scalar for now
+    allocate(auxvar%electrical_conductivity(1))
+    auxvar%electrical_conductivity = UNINITIALIZED_DOUBLE
+  else
+    nullify(auxvar%electrical_conductivity)
+  endif
+
 end subroutine MaterialAuxVarInit
 
 ! ************************************************************************** !
 
 subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
-  ! 
+  !
   ! Copies an auxiliary variable
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/09/14
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(material_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
-  
+
   auxvar2%volume = auxvar%volume
   auxvar2%porosity_0 = auxvar%porosity_0
   auxvar2%porosity_base = auxvar%porosity_base
@@ -251,7 +262,10 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%soil_properties = auxvar%soil_properties
   endif
   auxvar2%creep_closure_id = auxvar%creep_closure_id
-  
+  if (associated(auxvar%electrical_conductivity)) then
+    auxvar2%electrical_conductivity = auxvar%electrical_conductivity
+  endif
+
 end subroutine MaterialAuxVarCopy
 
 ! ************************************************************************** !
@@ -267,9 +281,9 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
 
   !! simple if longwinded little safety measure here, the calling routine
   !! should also check that model is a sane number but in principle this
-  !! routine should protect itself too. 
+  !! routine should protect itself too.
   !! Please note that if you add a new model type above then you MUST add
-  !! it to this little list here too. 
+  !! it to this little list here too.
   if (model == TENSOR_TO_SCALAR_LINEAR .OR. &
       model == TENSOR_TO_SCALAR_FLOW .OR. &
       model == TENSOR_TO_SCALAR_POTENTIAL .OR. &
@@ -287,19 +301,19 @@ end subroutine MaterialAuxSetPermTensorModel
 ! ************************************************************************** !
 
 subroutine PermeabilityTensorToScalar(material_auxvar,dist,scalar_permeability)
-  ! 
-  ! Transforms a diagonal permeability tensor to a scalar through a dot 
+  !
+  ! Transforms a diagonal permeability tensor to a scalar through a dot
   ! product.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/09/14
-  ! 
+  !
   ! Modified by Moise Rousseau 09/04/19 for full tensor
   !
   use Utility_module, only : Equal
 
   implicit none
-  
+
   class(material_auxvar_type) :: material_auxvar
   ! -1 = fraction upwind
   ! 0 = magnitude
@@ -335,7 +349,7 @@ subroutine PermeabilityTensorToScalar(material_auxvar,dist,scalar_permeability)
       scalar_permeability = &
         FullPermTensorToScalar_Pot(kx,ky,kz,kxy,kxz,kyz,dist)
     case default
-      ! as default, just do linear 
+      ! as default, just do linear
       !scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
       ! as default, do perm in direction of flow
       !scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
@@ -412,7 +426,7 @@ end function DiagPermTensorToScalar_Linear
 ! ************************************************************************** !
 
 function DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
-  
+
   !Permeability in the direction of flow
 
   implicit none
@@ -432,7 +446,7 @@ function FullPermTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
 
   ! Permeability in the direction of flow
   ! Include non diagonal term of the full symetric permeability tensor
-  ! 
+  !
   ! Author: Moise Rousseau
   ! Date: 08/26/19
 
@@ -454,7 +468,7 @@ end function FullPermTensorToScalar_Flow
 ! ************************************************************************** !
 
 function DiagPermTensorToScalar_Potential(kx,ky,kz,dist)
-  
+
   !Permeability in the direction of the potential gradient
 
   implicit none
@@ -475,7 +489,7 @@ function FullPermTensorToScalar_Pot(kx,ky,kz,kxy,kxz,kyz,dist)
   ! Permeability in the direction of the potential gradient
   ! Include off diagonal term
   ! Not working
-  ! 
+  !
   ! Author: Moise Rousseau
   ! Date: 08/26/19
 
@@ -545,10 +559,10 @@ function FullPermTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
   !
   ! Author: Dave Ponting
   ! Date: 03/19/19
-  ! 
+  !
   ! Modify to include non diagonal term
   ! Not working for instance
-  ! 
+  !
   ! Author: Moise Rousseau
   ! Date: 08/26/19
 
@@ -598,18 +612,18 @@ end function FullPermTensorToScalarPotSafe
 ! ************************************************************************** !
 
 function MaterialAuxVarGetValue(material_auxvar,ivar)
-  ! 
+  !
   ! Returns the value of an entry in material_auxvar_type based on ivar.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/28/14
-  ! 
+  !
 
   use Variables_module
-  
+
   implicit none
 
-  class(material_auxvar_type) :: material_auxvar 
+  class(material_auxvar_type) :: material_auxvar
   PetscInt :: ivar
 
   PetscReal :: MaterialAuxVarGetValue
@@ -651,25 +665,27 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
     case(SOIL_REFERENCE_PRESSURE)
       MaterialAuxVarGetValue = material_auxvar% &
                                  soil_properties(soil_reference_pressure_index)
+    case(ELECTRICAL_CONDUCTIVITY)
+      MaterialAuxVarGetValue = material_auxvar%electrical_conductivity(1)
   end select
-  
+
 end function MaterialAuxVarGetValue
 
 ! ************************************************************************** !
 
 subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
-  ! 
+  !
   ! Sets the value of an entry in material_auxvar_type based on ivar.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/28/14
-  ! 
+  !
 
   use Variables_module
-  
+
   implicit none
 
-  class(material_auxvar_type) :: material_auxvar 
+  class(material_auxvar_type) :: material_auxvar
   PetscInt :: ivar
   PetscReal :: value
 
@@ -702,33 +718,35 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%soil_properties(soil_compressibility_index) = value
     case(SOIL_REFERENCE_PRESSURE)
       material_auxvar%soil_properties(soil_reference_pressure_index) = value
+    case(ELECTRICAL_CONDUCTIVITY)
+      material_auxvar%electrical_conductivity(1) = value
   end select
-  
+
 end subroutine MaterialAuxVarSetValue
 
 ! ************************************************************************** !
 
 subroutine MaterialAuxVarCompute(auxvar,pressure)
-  ! 
-  ! Updates secondary material properties that are a function of state 
+  !
+  ! Updates secondary material properties that are a function of state
   ! variables
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/21/19
-  ! 
+  !
 
   implicit none
 
   class(material_auxvar_type), intent(inout) :: auxvar
   PetscReal, intent(in) :: pressure
-  
+
   auxvar%porosity = auxvar%porosity_base
   auxvar%dporosity_dp = 0.d0
   if (soil_compressibility_index > 0) then
     call MaterialCompressSoil(auxvar,pressure,auxvar%porosity, &
                               auxvar%dporosity_dp)
   endif
-  
+
 end subroutine MaterialAuxVarCompute
 
 ! ************************************************************************** !
@@ -736,12 +754,12 @@ end subroutine MaterialAuxVarCompute
 subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
                                        compressed_porosity, &
                                        dcompressed_porosity_dp)
-  ! 
+  !
   ! Calculates soil matrix compression based on Leijnse, 1992.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/14/14
-  ! 
+  !
 
   implicit none
 
@@ -749,11 +767,11 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
-  
+
   PetscReal :: compressibility
   PetscReal :: compression
   PetscReal :: tempreal
-  
+
   compressibility = auxvar%soil_properties(soil_compressibility_index)
   compression = &
     exp(-1.d0 * compressibility * &
@@ -761,7 +779,7 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
   tempreal = (1.d0 - auxvar%porosity_base) * compression
   compressed_porosity = 1.d0 - tempreal
   dcompressed_porosity_dp = tempreal * compressibility
-  
+
 end subroutine MaterialCompressSoilLeijnse
 
 ! ************************************************************************** !
@@ -769,12 +787,12 @@ end subroutine MaterialCompressSoilLeijnse
 subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
                                        compressed_porosity, &
                                        dcompressed_porosity_dp)
-  ! 
+  !
   ! Calculates soil matrix compression based on Eq. 9.6.9 of BRAGFLO
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/14/14
-  ! 
+  !
 
   implicit none
 
@@ -782,9 +800,9 @@ subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
-  
+
   PetscReal :: compressibility
-  
+
 
   ! convert to pore compressiblity by dividing by base porosity
   compressibility = auxvar%soil_properties(soil_compressibility_index) / &
@@ -793,7 +811,7 @@ subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
     exp(compressibility * &
         (pressure - auxvar%soil_properties(soil_reference_pressure_index)))
   dcompressed_porosity_dp = compressibility * compressed_porosity
-  
+
 end subroutine MaterialCompressSoilBRAGFLO
 
 ! ************************************************************************** !
@@ -801,15 +819,15 @@ end subroutine MaterialCompressSoilBRAGFLO
 subroutine MaterialCompressSoilLinear(auxvar,pressure, &
                                       compressed_porosity, &
                                       dcompressed_porosity_dp)
-  ! 
-  ! Calculates soil matrix compression for standard constant 
+  !
+  ! Calculates soil matrix compression for standard constant
   ! aquifer compressibility
   !
   ! variable 'alpha' is Freeze and Cherry, 1982
-  ! 
+  !
   ! Author: Danny Birdsell and Satish Karra
   ! Date: 07/26/2016
-  ! 
+  !
 
   implicit none
 
@@ -817,12 +835,12 @@ subroutine MaterialCompressSoilLinear(auxvar,pressure, &
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
-  
+
   PetscReal :: compressibility
-  
+
   compressibility = auxvar%soil_properties(soil_compressibility_index)
   compressed_porosity = auxvar%porosity_base + compressibility * &
-            (pressure - auxvar%soil_properties(soil_reference_pressure_index)) 
+            (pressure - auxvar%soil_properties(soil_reference_pressure_index))
   dcompressed_porosity_dp = compressibility
 
 end subroutine MaterialCompressSoilLinear
@@ -832,12 +850,12 @@ end subroutine MaterialCompressSoilLinear
 subroutine MaterialCompressSoilPoroExp(auxvar,pressure, &
                                        compressed_porosity, &
                                        dcompressed_porosity_dp)
-  ! 
+  !
   ! Calculates soil matrix compression based on Eq. 9.6.9 of BRAGFLO
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/14/14
-  ! 
+  !
 
   implicit none
 
@@ -845,15 +863,15 @@ subroutine MaterialCompressSoilPoroExp(auxvar,pressure, &
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
-  
+
   PetscReal :: compressibility
-  
+
   compressibility = auxvar%soil_properties(soil_compressibility_index)
   compressed_porosity = auxvar%porosity_base * &
     exp(compressibility * &
         (pressure - auxvar%soil_properties(soil_reference_pressure_index)))
   dcompressed_porosity_dp = compressibility * compressed_porosity
-  
+
 end subroutine MaterialCompressSoilPoroExp
 
 ! ************************************************************************** !
@@ -861,13 +879,13 @@ end subroutine MaterialCompressSoilPoroExp
 subroutine MaterialCompressSoilQuadratic(auxvar,pressure, &
                                          compressed_porosity, &
                                          dcompressed_porosity_dp)
-  ! 
+  !
   ! Calculates soil matrix compression based on a quadratic model
-  ! This is thedefaul model adopted in ECLIPSE 
+  ! This is thedefaul model adopted in ECLIPSE
   !
   ! Author: Paolo Orsini
   ! Date: 02/27/17
-  ! 
+  !
 
   implicit none
 
@@ -875,7 +893,7 @@ subroutine MaterialCompressSoilQuadratic(auxvar,pressure, &
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
-  
+
   PetscReal :: compressibility
   PetscReal :: compress_factor
 
@@ -886,22 +904,22 @@ subroutine MaterialCompressSoilQuadratic(auxvar,pressure, &
 
   compressed_porosity = auxvar%porosity_base * &
           ( 1.0 + compress_factor + (compress_factor**2)/2.0 )
-  
+
   dcompressed_porosity_dp = auxvar%porosity_base * &
-          ( 1.0 + compress_factor) * compressibility  
-  
+          ( 1.0 + compress_factor) * compressibility
+
 end subroutine MaterialCompressSoilQuadratic
 
 ! ************************************************************************** !
 
 function MaterialAuxIndexToPropertyName(i)
-  ! 
+  !
   ! Returns the name of the soil property associated with an index
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/06/16
-  ! 
-  
+  !
+
   implicit none
 
   PetscInt :: i
@@ -925,14 +943,14 @@ end function MaterialAuxIndexToPropertyName
 ! ************************************************************************** !
 
 subroutine MaterialAuxVarFractureStrip(fracture)
-  ! 
+  !
   ! Deallocates a fracture auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/14/17
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
 
   type(fracture_auxvar_type), pointer :: fracture
@@ -942,24 +960,24 @@ subroutine MaterialAuxVarFractureStrip(fracture)
   ! properties and vector are now static arrays.
   deallocate(fracture)
   nullify(fracture)
-  
+
 end subroutine MaterialAuxVarFractureStrip
 
 ! ************************************************************************** !
 
 subroutine MaterialAuxVarStrip(auxvar)
-  ! 
+  !
   ! Deallocates a material auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/09/14
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
 
   class(material_auxvar_type) :: auxvar
-  
+
   call DeallocateArray(auxvar%permeability)
   call DeallocateArray(auxvar%sat_func_prop)
   call DeallocateArray(auxvar%soil_properties)
@@ -967,43 +985,44 @@ subroutine MaterialAuxVarStrip(auxvar)
   if (associated(auxvar%geomechanics_subsurface_prop)) then
     call DeallocateArray(auxvar%geomechanics_subsurface_prop)
   endif
-  
+  call DeallocateArray(auxvar%electrical_conductivity)
+
 end subroutine MaterialAuxVarStrip
 
 ! ************************************************************************** !
 
 subroutine MaterialAuxDestroy(aux)
-  ! 
+  !
   ! Deallocates a material auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/02/11
-  ! 
+  !
   use Utility_module, only : DeallocateArray
 
   implicit none
 
   type(material_type), pointer :: aux
-  
+
   PetscInt :: iaux
-  
+
   if (.not.associated(aux)) return
-  
+
   if (associated(aux%auxvars)) then
     do iaux = 1, aux%num_aux
       call MaterialAuxVarStrip(aux%auxvars(iaux))
-    enddo  
+    enddo
     deallocate(aux%auxvars)
   endif
   nullify(aux%auxvars)
-    
+
   if (associated(aux%material_parameter)) then
     call DeallocateArray(aux%material_parameter%soil_heat_capacity)
     call DeallocateArray(aux%material_parameter%soil_thermal_conductivity)
   endif
   deallocate(aux%material_parameter)
   nullify(aux%material_parameter)
-  
+
   deallocate(aux)
   nullify(aux)
 

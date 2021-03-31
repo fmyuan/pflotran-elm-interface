@@ -217,7 +217,7 @@ subroutine RTSetup(realization)
       option%io_buffer = 'Non-initialized tortuosity.'
       call PrintMsg(option)
     endif
-    if (reaction%neqkdrxn > 0) then
+    if (reaction%isotherm%neqkdrxn > 0) then
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1
@@ -729,6 +729,7 @@ subroutine RTUpdateEquilibriumState(realization)
   PetscInt :: ghosted_id, local_id
   PetscReal :: conc, max_conc, min_conc
   PetscErrorCode :: ierr
+  PetscReal :: sec_porosity
   
   option => realization%option
   patch => realization%patch
@@ -773,9 +774,11 @@ subroutine RTUpdateEquilibriumState(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+        sec_porosity = patch%material_property_array(1)%ptr% &
+                        secondary_continuum_porosity
         call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
                                           global_auxvars(ghosted_id), &
-                                          reaction,option)                     
+                                          reaction,sec_porosity,option)                     
     enddo
   endif
   
@@ -1364,7 +1367,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
   type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: sum_connection, iconn  
   PetscReal :: qsrc(2)
-  PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, ieqgas
+  PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, iactgas
   PetscBool :: volumetric
   PetscInt :: flow_src_sink_type
   PetscReal :: coef_in(2), coef_out(2)
@@ -1525,14 +1528,14 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
           
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%gas%npassive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%gas%paseqspecid(1,ieqgas)
+              do iactgas = 1, reaction%gas%nactive_gas
+                if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                  icomp = reaction%gas%paseqspecid(1,iactgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
                   Res(icomp) = -msrc(2)
                   rhs_p(istartall+icomp) = rhs_p(istartall+icomp) - Res(icomp)
-!                 print *,'RT SC source', ieqgas,icomp, res(icomp)  
+!                 print *,'RT SC source', iactgas,icomp, res(icomp)  
                 endif 
               enddo
           end select 
@@ -2423,7 +2426,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   PetscReal :: msrc(1:realization%option%nflowspec)
-  PetscInt :: icomp, ieqgas
 
   option => realization%option
   field => realization%field
@@ -2705,7 +2707,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   PetscReal :: msrc(1:realization%option%nflowspec)
-  PetscInt :: icomp, ieqgas
+  PetscInt :: icomp, iactgas
 
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: sec_diffusion_coefficient
@@ -2906,14 +2908,14 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
           
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%gas%npassive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%gas%paseqspecid(1,ieqgas)
+              do iactgas = 1, reaction%gas%nactive_gas
+                if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                  icomp = reaction%gas%paseqspecid(1,iactgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
                   Res(icomp) = -msrc(2)
                   r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
-!                 print *,'RT SC source', ieqgas,icomp, res(icomp)
+!                 print *,'RT SC source', iactgas,icomp, res(icomp)
                 endif 
               enddo
           end select 
@@ -3562,7 +3564,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
                        multicontinuum%porosity
                         
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
-          option%io_buffer = 'Current multicomponent implementation is for '// &
+          option%io_buffer = 'Current multicontinuum implementation is for '// &
                              'aqueous reactions only'
           call PrintErrMsg(option)
         endif
@@ -4287,6 +4289,7 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   PetscReal, pointer :: dxx_ptr(:), xx_ptr(:), yy_ptr(:)
   PetscInt :: local_id, ghosted_id, imnrl
   PetscReal :: delta_volfrac
+  PetscMPIInt :: mpi_int
   PetscErrorCode :: ierr
   
   option => realization%option
@@ -4304,7 +4307,6 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   
   call VecStrideNormAll(field%tran_dxx,NORM_INFINITY,dcmax,ierr);CHKERRQ(ierr)
                      
-#if 1
   ! update mineral volume fractions
   if (reaction%mineral%nkinmnrl > 0) then
     do local_id = 1, grid%nlmax
@@ -4318,9 +4320,11 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
         dvfmax(imnrl) = max(dabs(delta_volfrac),dvfmax(imnrl))
       enddo
     enddo
+    mpi_int = reaction%mineral%nkinmnrl
+    call MPI_Allreduce(MPI_IN_PLACE,dvfmax,mpi_int,MPI_DOUBLE_PRECISION, &
+                       MPI_MAX,option%mycomm,ierr)
   endif 
-#endif
-      
+
 end subroutine RTMaxChange
 
 ! ************************************************************************** !

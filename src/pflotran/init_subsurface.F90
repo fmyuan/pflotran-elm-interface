@@ -34,10 +34,10 @@ subroutine SubsurfInitMaterialProperties(realization)
   
   class(realization_subsurface_type) :: realization
   
-  call SubsurfAllocMatPropDataStructs(realization)
-  call InitSubsurfAssignMatIDsToRegns(realization)
+  call SubsurfAllocMatPropDataStructs(realization)  
+  call InitSubsurfAssignMatIDsToRegns(realization)    
   call InitSubsurfAssignMatProperties(realization)
-  
+
 end subroutine SubsurfInitMaterialProperties
 
 ! ************************************************************************** !
@@ -258,7 +258,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
-                               EPSILON
+                               EPSILON, ELECTRICAL_CONDUCTIVITY
+
   use HDF5_module
   use Utility_module, only : DeallocateArray
   
@@ -278,6 +279,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: perm_pow_p(:)
   PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: compress_p(:)
+  PetscReal, pointer :: cond_p(:)
+
   Vec :: epsilon0
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -321,9 +324,16 @@ subroutine InitSubsurfAssignMatProperties(realization)
   endif
   call VecGetArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
+
   call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
                                      epsilon0);
   call VecGetArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
+
+  ! geophysics
+  if (option%ngeopdof > 0) then
+    call VecGetArrayF90(field%electrical_conductivity,cond_p, &
+      ierr);CHKERRQ(ierr)
+  endif  
         
   ! have to use Material%auxvars() and not material_auxvars() due to memory
   ! errors in gfortran
@@ -424,6 +434,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
     eps0_p(local_id) = material_property%multicontinuum%epsilon
+
+    if (option%ngeopdof > 0) then
+      cond_p(local_id) = material_property%electrical_conductivity
+    endif  
   enddo
 
   call MaterialPropertyDestroy(null_material_property)
@@ -446,6 +460,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
   call VecRestoreArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
         
+  if (option%ngeopdof > 0) then
+    call VecRestoreArrayF90(field%electrical_conductivity,cond_p, &
+      ierr);CHKERRQ(ierr)
+  endif 
+
   ! read in any user-defined property fields
   do material_id = 1, size(patch%material_property_array)
     material_property => &
@@ -553,6 +572,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                EPSILON,ZERO_INTEGER)
   call VecDestroy(epsilon0,ierr);CHKERRQ(ierr);
+
+  if (option%ngeopdof > 0) then
+     call DiscretizationGlobalToLocal(discretization, &
+                     field%electrical_conductivity,field%work_loc,ONEDOF) 
+     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               ELECTRICAL_CONDUCTIVITY,ZERO_INTEGER)
+  endif                                                        
 
   ! copy rock properties to neighboring ghost cells
   do i = 1, max_material_index
