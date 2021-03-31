@@ -556,7 +556,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
         
   rt_sec_transport_vars%ncells = multicontinuum%ncells
   rt_sec_transport_vars%aperture = multicontinuum%aperture
-  rt_sec_transport_vars%epsilon = epsilon !multicontinuum%epsilon 
+  rt_sec_transport_vars%epsilon = epsilon 
   rt_sec_transport_vars%log_spacing = multicontinuum%log_spacing
   rt_sec_transport_vars%outer_spacing = multicontinuum%outer_spacing    
         

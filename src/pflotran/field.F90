@@ -20,7 +20,6 @@ module Field_module
     Vec :: porosity_tpdt
     Vec :: porosity_geomech_store
     Vec :: tortuosity0
-    Vec :: epsilon0
 
     Vec :: perm0_xx, perm0_yy, perm0_zz
     Vec :: perm0_xz, perm0_xy, perm0_yz
@@ -103,7 +102,6 @@ function FieldCreate()
   field%porosity_t = PETSC_NULL_VEC
   field%porosity_tpdt = PETSC_NULL_VEC
   field%tortuosity0 = PETSC_NULL_VEC
-  field%epsilon0 = PETSC_NULL_VEC
 
   field%perm0_xx = PETSC_NULL_VEC
   field%perm0_yy = PETSC_NULL_VEC
@@ -204,9 +202,6 @@ subroutine FieldDestroy(field)
   endif
   if (field%tortuosity0 /= PETSC_NULL_VEC) then
     call VecDestroy(field%tortuosity0,ierr);CHKERRQ(ierr)
-  endif
-  if (field%epsilon0 /= PETSC_NULL_VEC) then
-    call VecDestroy(field%epsilon0,ierr);CHKERRQ(ierr)
   endif
 
   if (field%perm0_xx /= PETSC_NULL_VEC) then

@@ -278,6 +278,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: perm_pow_p(:)
   PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: compress_p(:)
+  Vec :: epsilon0
   
   character(len=MAXSTRINGLENGTH) :: string, string2
   type(material_property_type), pointer :: material_property
@@ -320,7 +321,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
   endif
   call VecGetArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%epsilon0,eps0_p,ierr);CHKERRQ(ierr)
+  call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
+                                     epsilon0);
+  call VecGetArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
         
   ! have to use Material%auxvars() and not material_auxvars() due to memory
   ! errors in gfortran
@@ -441,7 +444,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   endif
   call VecRestoreArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%epsilon0,eps0_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
         
   ! read in any user-defined property fields
   do material_id = 1, size(patch%material_property_array)
@@ -486,7 +489,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
       if (associated(material_property%multicontinuum%epsilon_dataset)) then
         call SubsurfReadDatasetToVecWithMask(realization, &
                material_property%multicontinuum%epsilon_dataset, &
-               material_property%internal_id,PETSC_FALSE,field%epsilon0)
+               material_property%internal_id,PETSC_FALSE,epsilon0)
       endif
     endif
   enddo
@@ -545,10 +548,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                     field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                TORTUOSITY,ZERO_INTEGER)
-  call DiscretizationGlobalToLocal(discretization,field%epsilon0, &
+  call DiscretizationGlobalToLocal(discretization,epsilon0, &
                                     field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                EPSILON,ZERO_INTEGER)
+  call VecDestroy(epsilon0,ierr);CHKERRQ(ierr);
 
   ! copy rock properties to neighboring ghost cells
   do i = 1, max_material_index
