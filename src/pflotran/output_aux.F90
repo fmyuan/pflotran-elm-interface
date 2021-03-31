@@ -35,6 +35,7 @@ module Output_Aux_module
     PetscBool :: print_final_snap
     PetscBool :: print_initial_massbal
     PetscBool :: print_final_massbal
+    PetscBool :: print_ss_massbal
 
     PetscBool :: print_hdf5
     PetscBool :: extend_hdf5_time_format
@@ -226,6 +227,7 @@ function OutputOptionCreate()
   output_option%print_final_snap = PETSC_TRUE
   output_option%print_initial_massbal = PETSC_FALSE
   output_option%print_final_massbal = PETSC_TRUE
+  output_option%print_ss_massbal = PETSC_TRUE
   output_option%plot_number = 0
   output_option%screen_imod = 1
   output_option%output_file_imod = 1
@@ -329,6 +331,7 @@ function OutputOptionDuplicate(output_option)
   output_option2%print_initial_snap = output_option%print_initial_snap
   output_option2%print_final_snap = output_option%print_final_snap
   output_option2%print_initial_massbal = output_option%print_initial_massbal
+  output_option2%print_ss_massbal = output_option%print_ss_massbal
   output_option2%print_final_massbal = output_option%print_final_massbal
   output_option2%plot_number = output_option%plot_number
   output_option2%screen_imod = output_option%screen_imod
