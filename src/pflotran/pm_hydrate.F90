@@ -354,6 +354,17 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
       case('SALINITY')
         call InputReadDouble(input,option,hydrate_xmol_nacl)
         call InputErrorMsg(input,option,'SALINITY',error_string)        
+      case('THERMAL_CONDUCTIVITY')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','thermal_conductivity_func')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('IGHCC2')
+            hydrate_tcond = 1
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'PERM_SCALING_FUNCTION',option)
+        end select
     end select
 
   enddo
