@@ -49,6 +49,7 @@ CHEMISTRY
     O2(aq)
   /
   ACTIVE_GAS_SPECIES
+    GAS_TRANSPORT_IS_UNVETTED
     A(g)
     O2(g)
   /

@@ -1,5 +1,5 @@
 module Auxiliary_module
-  
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Global_Aux_module
@@ -12,16 +12,17 @@ module Auxiliary_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
   use Material_Aux_class
+  use ERT_Aux_module
   use Secondary_Continuum_Aux_module
   use InlineSurface_Aux_module
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
 
-  type, public :: auxiliary_type 
+  type, public :: auxiliary_type
     type(global_type), pointer :: Global
     type(reactive_transport_type), pointer :: RT
     type(nw_transport_type), pointer :: NWT
@@ -32,11 +33,12 @@ module Auxiliary_module
     type(hydrate_type), pointer :: Hydrate
     type(wippflo_type), pointer :: WIPPFlo
     type(material_type), pointer :: Material
+    type(ert_type), pointer :: ERT
     type(sc_heat_type), pointer :: SC_heat
     type(sc_rt_type), pointer :: SC_RT
     type(inlinesurface_type), pointer :: InlineSurface
   end type auxiliary_type
-  
+
   public :: AuxInit, &
             AuxDestroy
 
@@ -45,23 +47,24 @@ contains
 ! ************************************************************************** !
 
 subroutine AuxInit(aux)
-  ! 
+  !
   ! Nullifies pointers in auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/09/08
-  ! 
+  !
 
   implicit none
-  
+
   type(auxiliary_type) :: aux
-  
+
   nullify(aux%Global)
   nullify(aux%RT)
   nullify(aux%NWT)
   nullify(aux%TH)
   nullify(aux%Richards)
-  
+  nullify(aux%ERT)
+
   nullify(aux%Mphase)
   nullify(aux%General)
   nullify(aux%Hydrate)
@@ -76,17 +79,17 @@ end subroutine AuxInit
 ! ************************************************************************** !
 
 subroutine AuxDestroy(aux)
-  ! 
+  !
   ! Deallocates any allocated pointers in auxiliary object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/09/08
-  ! 
+  !
 
   implicit none
-  
+
   type(auxiliary_type) :: aux
-  
+
   call GlobalAuxDestroy(aux%Global)
   call RTAuxDestroy(aux%RT)
   call NWTAuxDestroy(aux%NWT)
@@ -97,10 +100,11 @@ subroutine AuxDestroy(aux)
   call HydrateAuxDestroy(aux%Hydrate)
   call WIPPFloAuxDestroy(aux%WIPPFlo)
   call MaterialAuxDestroy(aux%Material)
+  call ERTAuxDestroy(aux%ERT)
   call SecondaryAuxHeatDestroy(aux%SC_heat)
   call SecondaryAuxRTDestroy(aux%SC_RT)
   call InlineSurfaceAuxDestroy(aux%InlineSurface)
-  
+
   nullify(aux%Global)
   nullify(aux%RT)
   nullify(aux%NWT)
@@ -110,6 +114,7 @@ subroutine AuxDestroy(aux)
   nullify(aux%Hydrate)
   nullify(aux%WIPPFlo)
   nullify(aux%Material)
+  nullify(aux%ERT)
   nullify(aux%SC_Heat)
   nullify(aux%SC_RT)
   nullify(aux%InlineSurface)

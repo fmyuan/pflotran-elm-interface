@@ -124,6 +124,25 @@ module Condition_module
     type(tran_condition_ptr_type), pointer :: array(:)
   end type tran_condition_list_type
 
+  ! Geophysics conditions
+  type, public :: geop_condition_type
+    PetscInt :: id                     ! id from which condition can be referenced
+    PetscInt :: itype                  ! integer describing type of condition
+    character(len=MAXWORDLENGTH) :: name  ! name of condition (e.g. boundary_potential)
+    type(geop_condition_type), pointer :: next
+  end type geop_condition_type
+
+  type, public :: geop_condition_ptr_type
+    type(geop_condition_type), pointer :: ptr
+  end type geop_condition_ptr_type
+
+  type, public :: geop_condition_list_type
+    PetscInt :: num_conditions
+    type(geop_condition_type), pointer :: first
+    type(geop_condition_type), pointer :: last
+    type(geop_condition_ptr_type), pointer :: array(:)
+  end type geop_condition_list_type
+
   public :: FlowConditionCreate, FlowConditionDestroy, FlowConditionRead, &
             FlowConditionGeneralRead, &
             FlowConditionHydrateRead, &
@@ -141,7 +160,11 @@ module Condition_module
             GetSubConditionName, &
             FlowConditionUnknownItype, &
             FlowCondInputRecord, &
-            TranCondInputRecord
+            TranCondInputRecord, &
+            GeopConditionCreate, &
+            GeopConditionAddToList, GeopConditionInitList, &
+            GeopConditionDestroyList, GeopConditionGetPtrFromList, &
+            GeopConditionRead
 
 contains
 
@@ -224,6 +247,35 @@ function TranConditionCreate(option)
   TranConditionCreate => condition
 
 end function TranConditionCreate
+
+! ************************************************************************** !
+
+function GeopConditionCreate(option)
+  !
+  ! Creates a geophysics condition
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  !
+
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  type(geop_condition_type), pointer :: GeopConditionCreate
+
+  type(geop_condition_type), pointer :: condition
+
+  allocate(condition)
+  nullify(condition%next)
+  condition%id = 0
+  condition%itype = 0
+  condition%name = ''
+
+  GeopConditionCreate => condition
+
+end function GeopConditionCreate
 
 ! ************************************************************************** !
 
@@ -757,7 +809,7 @@ subroutine FlowConditionRead(condition,input,option)
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     internal_units = 'not_assigned'
 
     call InputReadPflotranString(input,option)
@@ -1110,7 +1162,7 @@ subroutine FlowConditionRead(condition,input,option)
     condition%iphase = default_iphase
   endif
 
-  !geh: simple check to ensure that DIRICHLET_SEEPAGE and 
+  !geh: simple check to ensure that DIRICHLET_SEEPAGE and
   !     DIRICHLET_CONDUCTANCE_BC are only used in TH and RICHARDS
   select case(option%iflowmode)
     case(RICHARDS_MODE,TH_MODE)
@@ -1490,7 +1542,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     internal_units = 'not_assigned'
 
     call InputReadPflotranString(input,option)
@@ -2378,7 +2430,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               associated(hydrate%ice_saturation)) then
         condition%iphase = QUAD_STATE
       endif
-      
+
     endif
     if (condition%iphase == NULL_STATE) then
       option%io_buffer = 'General Phase non-rate/flux condition contains &
@@ -2386,7 +2438,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
       call printErrMsg(option)
     endif
   endif
-  
+
    ! verify the datasets
   word = 'liquid pressure'
   call FlowSubConditionVerify(option,condition,word,hydrate%liquid_pressure, &
@@ -2576,11 +2628,11 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
       card_found = PETSC_TRUE
       ! by default, is_cyclic is set to PETSC_FALSE
       default_time_storage%is_cyclic = PETSC_TRUE
-      
+
     case('SYNC_TIMESTEP_WITH_UPDATE')
       card_found = PETSC_TRUE
       condition%sync_time_with_update = PETSC_TRUE
-      
+
     case('INTERPOLATION')
       card_found = PETSC_TRUE
       call InputReadCard(input,option,word)
@@ -2594,7 +2646,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
           default_time_storage%time_interpolation_method = &
             INTERPOLATION_LINEAR
       end select
-      
+
     case('DATUM')
       card_found = PETSC_TRUE
       dataset_ascii => DatasetAsciiCreate()
@@ -2650,7 +2702,7 @@ subroutine TranConditionRead(condition,constraint_list, &
   type(option_type) :: option
 
   class(tran_constraint_base_type), pointer :: constraint
-  class(tran_constraint_coupler_base_type), pointer :: constraint_coupler 
+  class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
@@ -2772,7 +2824,7 @@ subroutine TranConditionRead(condition,constraint_list, &
           endif
         enddo
         call InputPopBlock(input,option)
-        
+
       case('CONSTRAINT')
         select case(option%itranmode)
           case(RT_MODE)
@@ -2819,7 +2871,7 @@ subroutine TranConditionRead(condition,constraint_list, &
                        &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
     call PrintErrMsg(option)
   endif
-  
+
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     conversion = UnitsConvertToInternal(default_time_units,internal_units, &
@@ -2840,9 +2892,78 @@ end subroutine TranConditionRead
 
 ! ************************************************************************** !
 
+subroutine GeopConditionRead(condition,input,option)
+  !
+  ! Reads a geophysics condition from the input file
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  !
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Logging_module
+  !use Units_module
+
+
+  implicit none
+
+  type(geop_condition_type) :: condition
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  call PetscLogEventBegin(logging%event_geop_condition_read, &
+                          ierr);CHKERRQ(ierr)
+
+  ! read the condition
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+    call InputReadStringErrorMsg(input,option,'CONDITION')
+
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'keyword','CONDITION')
+
+    select case(trim(word))
+
+      case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'TYPE','CONDITION')
+        call StringToUpper(word)
+        select case(word)
+            case('DIRICHLET')
+              condition%itype = DIRICHLET_BC
+            case default ! only Dirichlet implemented for now!
+              call InputKeywordUnrecognized(input,word, &
+                                            'geophysics condition type', &
+                                            option)
+        end select
+
+      case default
+        call InputKeywordUnrecognized(input,word,'geophysics condition',option)
+    end select
+
+  enddo
+  call InputPopBlock(input,option)
+
+
+  call PetscLogEventEnd(logging%event_geop_condition_read,ierr);CHKERRQ(ierr)
+
+end subroutine GeopConditionRead
+
+! ************************************************************************** !
+
 subroutine ConditionReadValues(input,option,keyword,dataset_base, &
                                data_external_units,data_internal_units)
-  ! 
+  !
   ! Read the value(s) of a condition variable
   !
   ! Author: Glenn Hammond
@@ -2915,7 +3036,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   if (StringStartsWithAlpha(word)) then
     call InputPushCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
-        StringCompare(word,'FILE',FOUR_INTEGER)) then 
+        StringCompare(word,'FILE',FOUR_INTEGER)) then
       input%err_buf2 = trim(keyword) // ', FILE'
       input%err_buf = 'keyword'
       call InputReadFilename(input,option,string2)
@@ -2968,7 +3089,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
           allocate(flow_dataset%time_series%times(dims(2)))
           flow_dataset%time_series%times = UNINITIALIZED_DOUBLE
           allocate(flow_dataset%time_series%values(flow_dataset% &
-                                                     time_series%rank,dims(2))) 
+                                                     time_series%rank,dims(2)))
           flow_dataset%time_series%values = UNINITIALIZED_DOUBLE
           icount = 1
           do i = 1, dims(2)
@@ -3010,7 +3131,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
       call DatasetDestroy(dataset_base)
       dataset_base => DatasetBaseCreate()
       dataset_base%name = word
-    else if (length==FOUR_INTEGER .and. StringCompare(word,'LIST',length)) then 
+    else if (length==FOUR_INTEGER .and. StringCompare(word,'LIST',length)) then
       error_string = 'CONDITION,' // trim(keyword) // ',LIST'
       call DatasetAsciiReadList(dataset_ascii,input,data_external_units, &
                                 data_internal_units,error_string,option)
@@ -3213,7 +3334,7 @@ end function GetSubConditionName
 ! ************************************************************************** !
 
 subroutine FlowConditionUpdate(condition_list,option)
-  ! 
+  !
   ! Updates a transient condition
   !
   ! Author: Glenn Hammond
@@ -3256,7 +3377,7 @@ end subroutine FlowConditionUpdate
 ! ************************************************************************** !
 
 subroutine TranConditionUpdate(condition_list,option)
-  ! 
+  !
   ! Updates a transient transport condition
   !
   ! Author: Glenn Hammond
@@ -3458,6 +3579,89 @@ function TranConditionGetPtrFromList(condition_name,condition_list)
   enddo
 
 end function TranConditionGetPtrFromList
+
+! ************************************************************************** !
+
+subroutine GeopConditionInitList(list)
+  !
+  ! Initializes a geophysics condition list
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  !
+
+  implicit none
+
+  type(geop_condition_list_type) :: list
+
+  nullify(list%first)
+  nullify(list%last)
+  nullify(list%array)
+  list%num_conditions = 0
+
+end subroutine GeopConditionInitList
+
+! ************************************************************************** !
+
+subroutine GeopConditionAddToList(new_condition,list)
+  !
+  ! Adds a new condition to a geophysics condition list
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  !
+
+  implicit none
+
+  type(geop_condition_type), pointer :: new_condition
+  type(geop_condition_list_type) :: list
+
+  list%num_conditions = list%num_conditions + 1
+  new_condition%id = list%num_conditions
+  if (.not.associated(list%first)) list%first => new_condition
+  if (associated(list%last)) list%last%next => new_condition
+  list%last => new_condition
+
+end subroutine GeopConditionAddToList
+
+! ************************************************************************** !
+
+function GeopConditionGetPtrFromList(condition_name,condition_list)
+  !
+  ! Returns a pointer to the condition matching
+  ! condition_name
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  !
+
+  use String_module
+
+  implicit none
+
+  type(geop_condition_type), pointer :: GeopConditionGetPtrFromList
+  character(len=MAXWORDLENGTH) :: condition_name
+  type(geop_condition_list_type) :: condition_list
+
+  PetscInt :: length
+  type(geop_condition_type), pointer :: condition
+
+  nullify(GeopConditionGetPtrFromList)
+  condition => condition_list%first
+
+  do
+    if (.not.associated(condition)) exit
+    length = len_trim(condition_name)
+    if (length == len_trim(condition%name) .and. &
+        StringCompare(condition%name,condition_name, &
+                        length)) then
+      GeopConditionGetPtrFromList => condition
+      return
+    endif
+    condition => condition%next
+  enddo
+
+end function GeopConditionGetPtrFromList
 
 ! ************************************************************************** !
 
@@ -4083,5 +4287,63 @@ subroutine TranConditionDestroy(condition)
   nullify(condition)
 
 end subroutine TranConditionDestroy
+
+! ************************************************************************** !
+
+subroutine GeopConditionDestroyList(condition_list)
+  !
+  ! Deallocates a list of geophysics conditions
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  !
+
+  implicit none
+
+  type(geop_condition_list_type), pointer :: condition_list
+
+  type(geop_condition_type), pointer :: condition, prev_condition
+
+  if (.not.associated(condition_list)) return
+
+  condition => condition_list%first
+  do
+    if (.not.associated(condition)) exit
+    prev_condition => condition
+    condition => condition%next
+    call GeopConditionDestroy(prev_condition)
+  enddo
+
+  condition_list%num_conditions = 0
+  nullify(condition_list%first)
+  nullify(condition_list%last)
+  if (associated(condition_list%array)) deallocate(condition_list%array)
+  nullify(condition_list%array)
+
+  deallocate(condition_list)
+  nullify(condition_list)
+
+end subroutine GeopConditionDestroyList
+
+! ************************************************************************** !
+
+subroutine GeopConditionDestroy(condition)
+  !
+  ! Deallocates a geophysics condition
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 01/26/21
+  !
+
+  implicit none
+
+  type(geop_condition_type), pointer :: condition
+
+  if (.not.associated(condition)) return
+
+  deallocate(condition)
+  nullify(condition)
+
+end subroutine GeopConditionDestroy
 
 end module Condition_module

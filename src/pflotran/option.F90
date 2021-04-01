@@ -8,6 +8,7 @@ module Option_module
   use PFLOTRAN_Constants_module
   use Option_Flow_module
   use Option_Transport_module
+  use Option_Geophysics_module
 
   implicit none
 
@@ -17,6 +18,7 @@ module Option_module
 
     type(flow_option_type), pointer :: flow
     type(transport_option_type), pointer :: transport
+    type(geophysics_option_type), pointer :: geophysics
 
     PetscInt :: id                         ! id of realization
     PetscInt :: exit_code                  ! code passed out of PFLOTRAN
@@ -52,12 +54,12 @@ module Option_module
     PetscInt :: iflow_sub_mode
     character(len=MAXWORDLENGTH) :: tranmode
     PetscInt :: itranmode
+    character(len=MAXWORDLENGTH) :: geopmode
+    PetscInt :: igeopmode
 
     PetscInt :: nphase
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
-    PetscInt :: oil_phase
-    PetscInt :: solvent_phase
     PetscInt :: hydrate_phase
     PetscInt :: ice_phase
     PetscInt :: phase_map(MAX_PHASE)
@@ -75,16 +77,18 @@ module Option_module
     PetscInt :: geomech_subsurf_coupling
     PetscReal :: geomech_gravity(3)
     PetscBool :: sec_vars_update
+
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id
     PetscInt :: saturation_pressure_id
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
-    PetscInt :: oil_id  ! index of oil component dof
     PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: ntrandof
+
+    PetscInt :: ngeopdof ! geophysics # of dof
 
     PetscInt :: iflag
     PetscInt :: status
@@ -279,6 +283,7 @@ function OptionCreate()
   allocate(option)
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
+  option%geophysics => OptionGeophysicsCreate()
 
   ! DO NOT initialize members of the option type here.  One must decide
   ! whether the member needs initialization once for all stochastic
@@ -414,14 +419,16 @@ subroutine OptionInitRealization(option)
   option%itranmode = NULL_MODE
   option%ntrandof = 0
 
+  option%geopmode = ""
+  option%igeopmode = NULL_MODE
+  option%ngeopdof = 0
+
   option%phase_map = UNINITIALIZED_INTEGER
 
   option%nphase = 0
 
   option%liquid_phase  = UNINITIALIZED_INTEGER
-  option%oil_phase     = UNINITIALIZED_INTEGER
   option%gas_phase     = UNINITIALIZED_INTEGER
-  option%solvent_phase = UNINITIALIZED_INTEGER
   option%hydrate_phase = UNINITIALIZED_INTEGER
   option%ice_phase = UNINITIALIZED_INTEGER
 
@@ -709,7 +716,12 @@ subroutine PrintErrMsgByRank2(option,string)
     print *
     print *, 'Stopping!'
   endif
-  call exit(EXIT_USER_ERROR)
+  select case(option%exit_code)
+    case(EXIT_FAILURE)
+      call exit(option%exit_code)
+    case default
+      call exit(EXIT_USER_ERROR)
+  end select
 
 end subroutine PrintErrMsgByRank2
 
@@ -1296,6 +1308,7 @@ subroutine OptionInitPetsc(option)
                                   string, ierr);CHKERRQ(ierr)
   endif
 
+  call OptionBeginTiming(option)
   call LoggingCreate()
 
 end subroutine OptionInitPetsc
@@ -1563,6 +1576,7 @@ subroutine OptionDestroy(option)
 
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
+  call OptionGeophysicsDestroy(option%geophysics)
 
   ! all the below should be placed somewhere other than option.F90
 

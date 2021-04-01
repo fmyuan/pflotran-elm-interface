@@ -13,12 +13,14 @@ module Reaction_module
   use Reaction_Microbial_module
   use Reaction_Immobile_module
   use Reaction_Gas_module
+  use Reaction_Isotherm_module
 
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Mineral_Aux_module
   use Reaction_Microbial_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Gas_Aux_module
+  use Reaction_Isotherm_Aux_module
 
 #ifdef SOLID_SOLUTION  
   use Reaction_Solid_Solution_module
@@ -68,7 +70,7 @@ module Reaction_module
             ReactionInitializeLogK_hpt, &
             RUpdateKineticState, &
             RUpdateTempDependentCoefs, &
-            RZeroSorb, &
+            RTotalSorb, &
             RCO2MoleFraction
 
 contains
@@ -146,7 +148,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: internal_units
-  character(len=MAXWORDLENGTH) :: kd_units
   type(aq_species_type), pointer :: species, prev_species
   type(gas_species_type), pointer :: gas, prev_gas
   type(immobile_species_type), pointer :: immobile_species
@@ -158,8 +159,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
   type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn, prev_dynamic_kd_rxn
-  type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
-  type(kd_rxn_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
   type(generic_parameter_type), pointer :: generic_list
   PetscInt :: i, temp_int
   PetscReal :: temp_real
@@ -177,17 +176,11 @@ subroutine ReactionReadPass1(reaction,input,option)
   nullify(prev_general_rxn)
   nullify(prev_radioactive_decay_rxn)
   nullify(prev_dynamic_kd_rxn)
-  nullify(prev_kd_rxn)
   nullify(prev_ionx_rxn)
-  
-  if (option%use_mc) then
-    nullify(sec_cont_prev_kd_rxn)
-  endif
   
   reaction_sandbox_read = PETSC_FALSE
   reaction_clm_read = PETSC_FALSE
   
-  kd_units = ''
   srfcplx_count = 0
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -280,6 +273,18 @@ subroutine ReactionReadPass1(reaction,input,option)
             reaction%gas_diffusion_coefficients => generic_list
         end select
       case('ACTIVE_GAS_SPECIES')
+        call InputReadPflotranString(input,option)
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword', &
+                           'CHEMISTRY,GAS_TRANSPORT_IS_UNVETTED')
+        call StringToUpper(word)
+        if (.not.StringCompare(word,'GAS_TRANSPORT_IS_UNVETTED')) then
+          option%io_buffer = 'Before using gas transport capability, &
+            &please acknowledge that gas transport is &
+            &unvetted by adding the card GAS_TRANSPORT_IS_UNVETTED to the &
+            &top of ACTIVE_GAS_SPECIES block.'
+          call PrintErrMsg(option)
+        endif
         string = 'CHEMISTRY,ACTIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,ACTIVE_GAS,string,input,option)
       !TODO(geh): remove GAS_SPECIES
@@ -656,146 +661,8 @@ subroutine ReactionReadPass1(reaction,input,option)
                 nullify(dynamic_kd_rxn)
               enddo
               call InputPopBlock(input,option)
-
             case('ISOTHERM_REACTIONS')
-              call InputPushBlock(input,option)
-              do
-                call InputReadPflotranString(input,option)
-                if (InputError(input)) exit
-                if (InputCheckExit(input,option)) exit
-
-                reaction%neqkdrxn = reaction%neqkdrxn + 1
-
-                kd_rxn => KDRxnCreate()
-                if (option%use_mc) then
-                  sec_cont_kd_rxn => KDRxnCreate()
-                endif
-                ! first string is species name
-                call InputReadCard(input,option,word)
-                call InputErrorMsg(input,option,'species name', &
-                                   'CHEMISTRY,ISOTHERM_REACTIONS')
-                kd_rxn%species_name = trim(word)
-                if (option%use_mc) then
-                  sec_cont_kd_rxn%species_name = kd_rxn%species_name
-                endif
-                call InputPushBlock(input,option)
-                do 
-                  call InputReadPflotranString(input,option)
-                  if (InputError(input)) exit
-                  if (InputCheckExit(input,option)) exit
-
-                  call InputReadCard(input,option,word)
-                  call InputErrorMsg(input,option,'keyword', &
-                                     'CHEMISTRY,ISOTHERM_REACTIONS')
-                  call StringToUpper(word)
-                  
-                  ! default type is linear
-                  kd_rxn%itype = SORPTION_LINEAR
-                  select case(trim(word))
-                    case('TYPE')
-                      call InputReadCard(input,option,word)
-                      call InputErrorMsg(input,option,'type', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
-                      select case(word)
-                        case('LINEAR')
-                          kd_rxn%itype = SORPTION_LINEAR
-                        case('LANGMUIR')
-                          kd_rxn%itype = SORPTION_LANGMUIR
-                        case('FREUNDLICH')
-                          kd_rxn%itype = SORPTION_FREUNDLICH
-                        case default
-                          call InputKeywordUnrecognized(input,word, &
-                                'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE', &
-                                option)
-                      end select
-                      if (option%use_mc) then
-                        sec_cont_kd_rxn%itype = kd_rxn%itype
-                      endif
-                    case('KD')
-                      call InputKeywordDeprecated('KD', &
-                                           'DISTRIBUTION_COEFFICIENT',option)
-                    case('DISTRIBUTION_COEFFICIENT')
-                      call InputReadDouble(input,option,kd_rxn%Kd)
-                      call InputErrorMsg(input,option, &
-                                         'DISTRIBUTION_COEFFICIENT', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
-                      call InputReadWord(input,option,word,PETSC_TRUE)
-                      if (input%ierr == 0) kd_units = trim(word)
-                    ! S.Karra, 02/20/2014
-                    case('SEC_CONT_DISTRIBUTION_COEFFICIENT', &
-                         'SEC_CONT_KD')
-                         if (.not.option%use_mc) then
-                           option%io_buffer = 'Make sure MULTIPLE_CONTINUUM ' &
-                                   // 'keyword is set, SECONDARY_CONTINUUM_KD.'
-                           call PrintErrMsg(option)
-                         else
-                           call InputReadDouble(input,option,sec_cont_kd_rxn%Kd)
-                           call InputErrorMsg(input,option, &
-                             'SECONDARY_CONTINUUM_DISTRIBUTION_COEFFICIENT', &
-                             'CHEMISTRY,ISOTHERM_REACTIONS')                    
-                        endif
-                    case('LANGMUIR_B')
-                      call InputReadDouble(input,option,kd_rxn%Langmuir_B)
-                      call InputErrorMsg(input,option,'Langmuir_B', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
-                      kd_rxn%itype = SORPTION_LANGMUIR
-                    case('FREUNDLICH_N')
-                      call InputReadDouble(input,option,kd_rxn%Freundlich_N)
-                      call InputErrorMsg(input,option,'Freundlich_N', &
-                                         'CHEMISTRY,ISOTHERM_REACTIONS')
-                      kd_rxn%itype = SORPTION_FREUNDLICH
-                    case('KD_MINERAL_NAME')
-                      call InputReadWord(input,option,word,PETSC_TRUE)
-                      call InputErrorMsg(input,option,'KD_MINERAL_NAME', &
-                                         'ISOTHERM_REACTIONS,KD_MINERAL_NAME')
-                      kd_rxn%kd_mineral_name = word                      
-                    case default
-                      call InputKeywordUnrecognized(input,word, &
-                              'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS',option)
-                  end select
-                enddo
-                call InputPopBlock(input,option)
-
-                if (len_trim(kd_units) > 0) then
-                  if (len_trim(kd_rxn%kd_mineral_name) > 0) then
-                    internal_units = 'L/kg'
-                    kd_rxn%Kd = kd_rxn%Kd * &
-                      UnitsConvertToInternal(kd_units,internal_units,option)
-                  else
-                    internal_units = 'kg/m^3'
-                    kd_rxn%Kd = kd_rxn%Kd * &
-                      UnitsConvertToInternal(kd_units,internal_units,option)
-                  endif
-                endif
-
-                ! add to list
-                if (.not.associated(reaction%kd_rxn_list)) then
-                  reaction%kd_rxn_list => kd_rxn
-                  kd_rxn%id = 1
-                endif
-                if (associated(prev_kd_rxn)) then
-                  prev_kd_rxn%next => kd_rxn
-                  kd_rxn%id = prev_kd_rxn%id + 1
-                endif
-                prev_kd_rxn => kd_rxn
-                nullify(kd_rxn)
-                
-                if (option%use_mc) then
-                ! add to list
-                  if (.not.associated(reaction%sec_cont_kd_rxn_list)) then
-                    reaction%sec_cont_kd_rxn_list => sec_cont_kd_rxn
-                    sec_cont_kd_rxn%id = 1
-                  endif
-                  if (associated(sec_cont_prev_kd_rxn)) then
-                    sec_cont_prev_kd_rxn%next => sec_cont_kd_rxn
-                    sec_cont_kd_rxn%id = sec_cont_prev_kd_rxn%id + 1
-                  endif
-                  sec_cont_prev_kd_rxn => sec_cont_kd_rxn
-                  nullify(sec_cont_kd_rxn)
-                endif
-              enddo
-              call InputPopBlock(input,option)
-            
+              call IsothermRead(reaction%isotherm,input,option)         
             case('SURFACE_COMPLEXATION_RXN')
               call SurfaceComplexationRead(reaction,input,option)
             case('ION_EXCHANGE_RXN')
@@ -1034,13 +901,12 @@ subroutine ReactionReadPass1(reaction,input,option)
   
   reaction%neqsorb = reaction%neqionxrxn + &
                      reaction%neqdynamickdrxn + &
-                     reaction%neqkdrxn + &
+                     reaction%isotherm%neqkdrxn + &
                      reaction%surface_complexation%neqsrfcplxrxn
   reaction%nsorb = reaction%neqsorb + &
                    reaction%surface_complexation%nkinmrsrfcplxrxn + &
                    reaction%surface_complexation%nkinsrfcplxrxn
     
-
   if (reaction%print_free_conc_type == 0) then
     if (reaction%initialize_with_molality) then
       reaction%print_free_conc_type = PRIMARY_MOLALITY
@@ -2161,7 +2027,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! once equilibrated, compute sorbed concentrations
   if (reaction%nsorb > 0) then
     if (reaction%neqsorb > 0) then
-      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+      if (option%iflag == 1) then
+        call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                        reaction%isotherm%multicontinuum_isotherm_rxn,option) 
+      else
+        call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                        reaction%isotherm%isotherm_rxn,option)
+      endif
     endif
     if (reaction%surface_complexation%nkinmrsrfcplx > 0) then
       call RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
@@ -2268,7 +2140,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   PetscInt :: imnrl,igas
   PetscInt :: eqcplxsort(reaction%neqcplx+1)
   PetscInt :: eqcplxid(reaction%neqcplx+1)
-  PetscInt :: eqminsort(reaction%mineral%nmnrl)
+  PetscInt :: eqmnrlsort(reaction%mineral%nmnrl)
   PetscInt, allocatable :: eqsrfcplxsort(:)
   PetscBool :: finished, found
   PetscReal :: conc, conc2
@@ -2566,82 +2438,85 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
                                 reaction%eqcplx_logK(icplx)
     enddo 
 
-    !print speciation precentages
-    write(option%fid_out,92)
-    92 format(/)
-    134 format(2x,'complex species           percent   molality')
-    135 format(2x,'primary species: ',a24,2x,' total conc: ',1pe12.4)
-    136 format(2x,a24,2x,f6.2,2x,1pe12.4,1p2e12.4)
-    do icomp = 1, reaction%naqcomp
-    
-      eqcplxsort = 0
-      eqcplxid = 0
-      percent = 0.d0
-      totj = 0.d0
+    if (reaction%print_verbose_constraints) then
+      !print speciation precentages
+      write(option%fid_out,92)
+      92 format(/)
+      134 format(2x,'complex species           percent   molality')
+      135 format(2x,'primary species: ',a24,2x,' total conc: ',1pe12.4)
+      136 format(2x,a24,2x,f6.2,2x,1pe12.4,1p2e12.4)
+      do icomp = 1, reaction%naqcomp
       
-      icount = 0
-      do icplx = 1, reaction%neqcplx
-        found = PETSC_FALSE
-        do i = 1, reaction%eqcplxspecid(0,icplx)
-          if (reaction%eqcplxspecid(i,icplx) == icomp) then
-            icount = icount + 1
-            found = PETSC_TRUE
-            exit
+        eqcplxsort = 0
+        eqcplxid = 0
+        percent = 0.d0
+        totj = 0.d0
+        
+        ! find and sort equilibrium aq complexes
+        icount = 0
+        do icplx = 1, reaction%neqcplx
+          found = PETSC_FALSE
+          do i = 1, reaction%eqcplxspecid(0,icplx)
+            if (reaction%eqcplxspecid(i,icplx) == icomp) then
+              icount = icount + 1
+              found = PETSC_TRUE
+              exit
+            endif
+          enddo
+          if (found) then
+            eqcplxid(icount) = icplx
+            percent(icount) = dabs(rt_auxvar%sec_molal(icplx)* &
+                                   reaction%eqcplxstoich(i,icplx))
+            totj = totj + percent(icount)
           endif
         enddo
-        if (found) then
-          eqcplxid(icount) = icplx
-          percent(icount) = dabs(rt_auxvar%sec_molal(icplx)* &
-                                 reaction%eqcplxstoich(i,icplx))
-          totj = totj + percent(icount)
-        endif
-      enddo
-      icount = icount + 1
-      eqcplxid(icount) = -icomp
-      percent(icount) = rt_auxvar%pri_molal(icomp)
-      totj = totj + percent(icount)
-      percent = percent / totj
-      
-      eqcplxsort = 0
-      do i = 1, icount
-        eqcplxsort(i) = i
-      enddo
-      
-      do
-        finished = PETSC_TRUE
-        do i = 1, icount-1
-          icplx = eqcplxsort(i)
-          icplx2 = eqcplxsort(i+1)
-          if (percent(abs(icplx)) < percent(abs(icplx2))) then
-            eqcplxsort(i) = icplx2
-            eqcplxsort(i+1) = icplx
-            finished = PETSC_FALSE
+        icount = icount + 1
+        eqcplxid(icount) = -icomp
+        percent(icount) = rt_auxvar%pri_molal(icomp)
+        totj = totj + percent(icount)
+        percent = percent / totj
+        
+        eqcplxsort = 0
+        do i = 1, icount
+          eqcplxsort(i) = i
+        enddo
+        
+        do
+          finished = PETSC_TRUE
+          do i = 1, icount-1
+            icplx = eqcplxsort(i)
+            icplx2 = eqcplxsort(i+1)
+            if (percent(abs(icplx)) < percent(abs(icplx2))) then
+              eqcplxsort(i) = icplx2
+              eqcplxsort(i+1) = icplx
+              finished = PETSC_FALSE
+            endif
+          enddo
+          if (finished) exit
+        enddo
+  
+        write(option%fid_out,90)
+        write(option%fid_out,135) reaction%primary_species_names(icomp), &
+                                  rt_auxvar%total(icomp,iphase)
+        write(option%fid_out,134)
+        write(option%fid_out,90)
+        do i = 1, icount
+          j = eqcplxsort(i)
+          if (percent(j) < 0.0001d0) cycle
+          icplx = eqcplxid(j)
+          if (icplx < 0) then
+            icplx = abs(icplx)
+            write(option%fid_out,136) reaction%primary_species_names(icplx), &
+                                      percent(j)*100.d0, &
+                                      rt_auxvar%pri_molal(icplx)
+          else
+            write(option%fid_out,136) reaction%secondary_species_names(icplx), &
+                                      percent(j)*100.d0, &
+                                      rt_auxvar%sec_molal(icplx)
           endif
         enddo
-        if (finished) exit
       enddo
-
-      write(option%fid_out,90)
-      write(option%fid_out,135) reaction%primary_species_names(icomp), &
-                                rt_auxvar%total(icomp,iphase)
-      write(option%fid_out,134)
-      write(option%fid_out,90)
-      do i = 1, icount
-        j = eqcplxsort(i)
-        if (percent(j) < 0.0001d0) cycle
-        icplx = eqcplxid(j)
-        if (icplx < 0) then
-          icplx = abs(icplx)
-          write(option%fid_out,136) reaction%primary_species_names(icplx), &
-                                    percent(j)*100.d0, &
-                                    rt_auxvar%pri_molal(icplx)
-        else
-          write(option%fid_out,136) reaction%secondary_species_names(icplx), &
-                                    percent(j)*100.d0, &
-                                    rt_auxvar%sec_molal(icplx)
-        endif
-      enddo
-    enddo
+    endif
 
   endif 
           
@@ -2831,16 +2706,16 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
 
     ! sort mineral saturation indices from largest to smallest
     do i = 1, mineral_reaction%nmnrl
-      eqminsort(i) = i
+      eqmnrlsort(i) = i
     enddo
     do
       finished = PETSC_TRUE
       do i = 1, mineral_reaction%nmnrl-1
-        icplx = eqminsort(i)
-        icplx2 = eqminsort(i+1)
+        icplx = eqmnrlsort(i)
+        icplx2 = eqmnrlsort(i+1)
         if (QK(icplx) < QK(icplx2)) then
-          eqminsort(i) = icplx2
-          eqminsort(i+1) = icplx
+          eqmnrlsort(i) = icplx2
+          eqmnrlsort(i+1) = icplx
           finished = PETSC_FALSE
         endif
       enddo
@@ -2851,12 +2726,41 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     write(option%fid_out,90)
   
     do imnrl = 1, mineral_reaction%nmnrl
-      i = eqminsort(imnrl)
+      i = eqmnrlsort(imnrl)
       affinity = -1.d0*IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*lnQK(i)
       write(option%fid_out,131) mineral_reaction%mineral_names(i), &
                                 lnQK(i)*LN_TO_LOG, affinity, &
                                 mineral_reaction%mnrl_logK(i)
     enddo
+
+    if (reaction%print_verbose_constraints) then
+      write(option%fid_out,92)
+      137 format(2x,'minerals                              log SI')
+      138 format(2x,a30,2x,f12.4)
+      139 format(2x,'None')
+      do icomp = 1, reaction%naqcomp
+        write(option%fid_out,90)
+        write(option%fid_out,135) reaction%primary_species_names(icomp), &
+                                  rt_auxvar%total(icomp,iphase)
+        write(option%fid_out,137)
+        write(option%fid_out,90)
+        ! print the sorted mineral saturation indices by aqueous species
+        icount = 0
+        do j = 1, mineral_reaction%nmnrl
+          imnrl = eqmnrlsort(j)
+          do i = 1, mineral_reaction%mnrlspecid(0,imnrl)
+            if (mineral_reaction%mnrlspecid(i,imnrl) == icomp) then
+              write(option%fid_out,138) mineral_reaction%mineral_names(imnrl), &
+                                        lnQK(imnrl)*LN_TO_LOG
+              icount = icount + 1
+              exit
+            endif
+          enddo
+        enddo
+        if (icount == 0) write(option%fid_out,139)
+      enddo
+    endif
+
   endif
     
   if (reaction%gas%npassive_gas > 0) then
@@ -3326,6 +3230,15 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%use_full_geochemistry = PETSC_TRUE
       case('AUXILIARY')
         reaction%print_auxiliary = PETSC_TRUE
+      case('PRINT_VERBOSE_CONSTRAINTS')
+        reaction%print_verbose_constraints = PETSC_TRUE
+      case('PRINT_TOTAL_MASS_KG')
+        if (.not.reaction%use_full_geochemistry) then
+          option%io_buffer = 'USE_FULL_GEOCHEMISTRY MUST BE SPECIFIED &
+                              &WHEN USING PRINT_TOTAL_MASS_KG'
+          call PrintErrMsg(option)
+        endif
+          reaction%print_total_mass_kg = PETSC_TRUE        
       case ('SITE_DENSITY')
         call InputReadWord(input,option,name,PETSC_TRUE)  
         call InputErrorMsg(input,option,'Site Name', &
@@ -4296,7 +4209,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   if (reaction%neqsorb > 0) then
     call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
-                    reaction,option)
+                    reaction,reaction%isotherm%isotherm_rxn,option)
   endif
   if (option%iflowmode == MPH_MODE) then
     call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
@@ -4429,7 +4342,8 @@ end subroutine RZeroSorb
 
 ! ************************************************************************** !
 
-subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                      isotherm_rxn, option)
   ! 
   ! Computes the total sorbed component concentrations and
   ! derivative with respect to free-ion
@@ -4446,6 +4360,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
+  type(isotherm_rxn_type) :: isotherm_rxn
   type(option_type) :: option
   
   call RZeroSorb(rt_auxvar)
@@ -4464,8 +4379,9 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
                              reaction,option)
   endif
   
-  if (reaction%neqkdrxn > 0) then
-    call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+  if (reaction%isotherm%neqkdrxn > 0) then
+      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction%isotherm, &
+                        isotherm_rxn,option)
   endif
   
 end subroutine RTotalSorb
@@ -4490,6 +4406,7 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
+  type(isotherm_rxn_type) :: isotherm_rxn
   type(option_type) :: option
   
   PetscInt :: irxn
@@ -4541,85 +4458,6 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
   enddo
 
 end subroutine RTotalSorbDynamicKD
-
-! ************************************************************************** !
-
-subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                        option)
-  ! 
-  ! Computes the total sorbed component concentrations and
-  ! derivative with respect to free-ion for the linear
-  ! K_D model
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 09/30/2010
-  ! 
-
-  use Option_module
-
-  implicit none
-
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  class(reaction_rt_type) :: reaction
-  type(option_type) :: option
-  
-  PetscInt :: irxn
-  PetscInt :: icomp
-  PetscReal :: res
-  PetscReal :: dres_dc
-  PetscReal :: molality
-  PetscReal :: tempreal
-  PetscReal :: one_over_n
-  PetscReal :: molality_one_over_n
-  PetscReal :: kd_kgw_m3b  
-
-  PetscInt, parameter :: iphase = 1
-
-  do irxn = 1, reaction%neqkdrxn
-    icomp = reaction%eqkdspecid(irxn)
-    molality = rt_auxvar%pri_molal(icomp)
-    if (reaction%eqkdmineral(irxn) > 0) then
-      ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
-      ! nothing to do with the soil volume; that is calculated through as a 
-      ! function of porosity.
-      kd_kgw_m3b = reaction%eqkddistcoef(irxn) * & !KD units [mL water/g soil]
-                   global_auxvar%den_kg(iphase) * &
-                   (1.d0-material_auxvar%porosity) * &
-                   material_auxvar%soil_particle_density * &
-                   1.d-3 * & ! convert mL water/g soil to m^3 water/kg soil
-                   (rt_auxvar%mnrl_volfrac(reaction%eqkdmineral(irxn)))
-    else
-      kd_kgw_m3b = reaction%eqkddistcoef(irxn)
-    endif
-    select case(reaction%eqkdtype(irxn))
-      case(SORPTION_LINEAR)
-        ! Csorb = Kd*Caq
-        res = kd_kgw_m3b*molality
-        dres_dc = kd_kgw_m3b
-      case(SORPTION_LANGMUIR)
-        ! Csorb = K*Caq*b/(1+K*Caq)
-        tempreal = kd_kgw_m3b*molality
-        res = tempreal*reaction%eqkdlangmuirb(irxn) / (1.d0 + tempreal)
-        dres_dc = res/molality - &
-                  res / (1.d0 + tempreal) * tempreal / molality
-      case(SORPTION_FREUNDLICH)
-        ! Csorb = Kd*Caq**(1/n)
-        one_over_n = 1.d0/reaction%eqkdfreundlichn(irxn)
-        molality_one_over_n = molality**one_over_n
-        res = kd_kgw_m3b*molality**one_over_n
-        dres_dc = res/molality*one_over_n
-      case default
-        res = 0.d0
-        dres_dc = 0.d0
-    end select
-    rt_auxvar%total_sorb_eq(icomp) = rt_auxvar%total_sorb_eq(icomp) + res
-    rt_auxvar%dtotal_sorb_eq(icomp,icomp) = &
-      rt_auxvar%dtotal_sorb_eq(icomp,icomp) + dres_dc 
-  enddo
-
-end subroutine RTotalSorbKD
 
 ! ************************************************************************** !
 

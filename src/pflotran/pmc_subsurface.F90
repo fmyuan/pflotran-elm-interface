@@ -133,7 +133,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use PM_NWT_class
   use PM_Waste_Form_class
   use PM_UFD_Decay_class
-  use Secondary_Continuum_module, only : SecondaryRTUpdateIterate  
   use Solver_module
   use Timestepper_Base_class
   use Timestepper_BE_class

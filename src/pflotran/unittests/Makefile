@@ -38,6 +38,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/option.o \
 	$(EXE_DIR)/option_flow.o \
 	$(EXE_DIR)/option_transport.o \
+	$(EXE_DIR)/option_geophysics.o \
 	$(EXE_DIR)/pflotran_constants.o \
 	$(EXE_DIR)/saturation_function.o \
 	$(EXE_DIR)/string.o \
@@ -93,5 +94,5 @@ clean-pfunit :
 	./build-pfunit.sh -c $(FC) -d $(PFUNIT_DIR) -n
 
 # uncomment the PRECIOUS rule to keep the intermediate F90 files
-#.PRECIOUS : %.F90
+.PRECIOUS : %.F90
 

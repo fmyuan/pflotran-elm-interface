@@ -327,6 +327,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   
   use Option_module
   use Grid_module
+  use String_module
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -348,6 +349,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   integer(HSIZE_T) :: offset(3), length(3), stride(3)
   integer :: ndims_h5
   PetscMPIInt :: rank_mpi
+  PetscInt :: cell_id_bounds(2)
   ! seeting to MPIInt to ensure i4
   integer, allocatable :: indices_i4(:)
   integer(HSIZE_T) :: num_data_in_file
@@ -433,6 +435,19 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
   call h5dclose_f(data_set_id,hdf5_err)
+
+  cell_id_bounds(1) = minval(indices(1:iend-istart))
+  cell_id_bounds(2) = maxval(indices(1:iend-istart))
+  cell_id_bounds(1) = -cell_id_bounds(1)
+  call MPI_Allreduce(MPI_IN_PLACE,cell_id_bounds,TWO_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
+  cell_id_bounds(1) = -cell_id_bounds(1)
+  if (cell_id_bounds(1) < 1 .or. cell_id_bounds(2) > grid%nmax) then
+    option%io_buffer = 'One or more "Cell Ids" in HDF5 dataset &
+      &are outside the range of valid cell IDs: 1-' // &
+      adjustl(StringWrite(grid%nmax))
+    call PrintErrMsg(option)
+  endif
 
   call PetscLogEventEnd(logging%event_read_indices_hdf5,ierr);CHKERRQ(ierr)
   

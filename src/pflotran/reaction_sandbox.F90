@@ -10,6 +10,8 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Simple_class
   use Reaction_Sandbox_Cyber_class
   use Reaction_Sandbox_Gas_class 
+  use Reaction_Sandbox_GMD_1_class 
+  use Reaction_Sandbox_GMD_2_class 
 
   ! Add new reacton sandbox classes here.
   
@@ -166,6 +168,10 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => CyberCreate()
       case('GAS')
         new_sandbox => GasCreate()
+      case('GMD_1')
+        new_sandbox => GMD1Create()
+      case('GMD_2')
+        new_sandbox => GMD2Create()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)

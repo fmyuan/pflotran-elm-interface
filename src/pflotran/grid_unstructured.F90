@@ -2260,7 +2260,10 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
           magnitude = sqrt(DotProduct(vcross,vcross))
           n1 = vcross/magnitude
           area1 = 0.5d0*magnitude
-          area1 = dabs(area1*DotProduct(n1,n_up_dn))
+          !added by Moise Rousseau (01-13-2021)
+          if (unstructured_grid%project_face_area_along_normal) &
+            area1 = dabs(area1*DotProduct(n1,n_up_dn))
+          !else TRUE_AREA, do not project // end addition
           !geh: The below does not project onto the vector between cell centers.
           !gehbug area1 = 0.5d0*sqrt(DotProduct(n1,n1))
           
@@ -2277,7 +2280,8 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
             magnitude = sqrt(DotProduct(vcross,vcross))
             n2 = vcross/magnitude
             area2 = 0.5d0*magnitude
-            area2 = dabs(area2*DotProduct(n2,n_up_dn))
+            if (unstructured_grid%project_face_area_along_normal) &
+              area2 = dabs(area2*DotProduct(n2,n_up_dn))
           else 
             area2 = 0.d0
           endif
