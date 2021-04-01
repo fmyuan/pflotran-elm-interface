@@ -363,7 +363,7 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             hydrate_tcond = 1
           case default
             call InputKeywordUnrecognized(input,word,&
-                 'PERM_SCALING_FUNCTION',option)
+                 'HYDRATE COMPOSITE THERMAL CONDUCTIVITY MODEL',option)
         end select
     end select
 

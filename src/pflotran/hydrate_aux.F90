@@ -3482,13 +3482,12 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
 
   select case(hydrate_tcond)
     case(0)
-      ! Default function
       keff = sqrt(sat(lid)) * (kwet - kdry)
     case(1)
       ! IGHCC2 function (seems odd if phi = 1 and sat(lid) = 1)
       keff = kdry + phi * (sat(lid)*kwet + sat(hid)*k_hyd + sat(iid) * k_ice &
              + sat(gid)*k_ch4)
-    case(2)
+    case(2) ! Default function
       keff = kdry + phi * (sat(lid)*k_h20 + sat(hid)*k_hyd + &
              sat(iid)*k_ice + sat(gid)*k_ch4)
   end select
