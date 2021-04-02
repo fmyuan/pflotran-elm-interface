@@ -139,6 +139,7 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   ! Author: Glenn Hammond
   ! Date: 03/19/21
   !
+  use Timestepper_Base_class
 
   use Option_module
 
@@ -154,6 +155,17 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   PetscBool :: checkpoint_flag
 
   this%target_time = sync_time
+  do 
+    if (.not.associated(this%cur_waypoint)) exit
+    if (sync_time >= this%cur_waypoint%time) then
+      this%cur_waypoint => this%cur_waypoint%next
+    else
+      exit
+    endif
+  enddo
+  if (.not.associated(this%cur_waypoint)) then
+    stop_flag = TS_STOP_END_SIMULATION
+  endif
 
 end subroutine TimestepperSteadySetTargetTime
 
