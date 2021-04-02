@@ -104,7 +104,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
   pm_ert%clay_conductivity = 0.03d0
-  pm_ert%clay_volume_factor = 0.2d0
+  pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
 
 end subroutine PMERTInit
 

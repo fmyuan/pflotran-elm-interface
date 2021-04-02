@@ -100,7 +100,8 @@ STANDARD_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
 	wipp/transport/wipp_regular.cfg \
-	default/integral_flux/integral_flux.cfg
+	default/integral_flux/integral_flux.cfg \
+	geophys/ert/ert.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
@@ -167,6 +168,9 @@ TRANSPORT_CFG = \
 	default/velocity/velocity.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
 	wipp/transport/wipp_regular.cfg
+
+GEOPHYSICS_CFG = \
+	geophys/ert/ert.cfg
 
 MESH_CFG = \
 	default/discretization/discretization.cfg
@@ -253,6 +257,10 @@ flow :
 transport :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(TRANSPORT_CFG) --suite transport
+
+geophysics :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(GEOPHYSICS_CFG) --suite geophysics
 
 mesh :
 ifneq ($(strip $(PARMETIS_LIB)),)
@@ -374,3 +382,6 @@ clean-tests :
 	-rm -f ufd/wf_doubles-*.vtk
 	-rm -f ufd/wf_region-*.vtk
 	-rm -f ufd/glass_full_geochem_np4-*.vtk
+	-rm -f geophys/ert/*.h5
+	-rm -f geophys/ert/*.dat
+	-rm -f geophys/ert/ert-simulated.srv
