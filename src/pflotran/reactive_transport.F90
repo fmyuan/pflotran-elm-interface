@@ -1363,7 +1363,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
   type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: sum_connection, iconn  
   PetscReal :: qsrc(2)
-  PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, ieqgas
+  PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, iactgas
   PetscBool :: volumetric
   PetscInt :: flow_src_sink_type
   PetscReal :: coef_in(2), coef_out(2)
@@ -1524,14 +1524,14 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
           
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%gas%npassive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%gas%paseqspecid(1,ieqgas)
+              do iactgas = 1, reaction%gas%nactive_gas
+                if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                  icomp = reaction%gas%paseqspecid(1,iactgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
                   Res(icomp) = -msrc(2)
                   rhs_p(istartall+icomp) = rhs_p(istartall+icomp) - Res(icomp)
-!                 print *,'RT SC source', ieqgas,icomp, res(icomp)  
+!                 print *,'RT SC source', iactgas,icomp, res(icomp)  
                 endif 
               enddo
           end select 
@@ -2422,7 +2422,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   PetscReal :: msrc(1:realization%option%nflowspec)
-  PetscInt :: icomp, ieqgas
 
   option => realization%option
   field => realization%field
@@ -2704,7 +2703,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   PetscReal :: msrc(1:realization%option%nflowspec)
-  PetscInt :: icomp, ieqgas
+  PetscInt :: icomp, iactgas
 
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: sec_diffusion_coefficient
@@ -2905,14 +2904,14 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
           
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%gas%npassive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%gas%paseqspecid(1,ieqgas)
+              do iactgas = 1, reaction%gas%nactive_gas
+                if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                  icomp = reaction%gas%paseqspecid(1,iactgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
                   Res(icomp) = -msrc(2)
                   r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
-!                 print *,'RT SC source', ieqgas,icomp, res(icomp)
+!                 print *,'RT SC source', iactgas,icomp, res(icomp)
                 endif 
               enddo
           end select 
@@ -3561,7 +3560,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
                        secondary_continuum_porosity
                         
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
-          option%io_buffer = 'Current multicomponent implementation is for '// &
+          option%io_buffer = 'Current multicontinuum implementation is for '// &
                              'aqueous reactions only'
           call PrintErrMsg(option)
         endif

@@ -139,7 +139,7 @@ subroutine THSetupPatch(realization)
   type(fluid_property_type), pointer :: cur_fluid_property
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
-  type(cc_thermal_type), pointer :: thermal_cc
+  class(cc_thermal_type), pointer :: thermal_cc
   character(len=MAXWORDLENGTH) :: word
   PetscReal :: area_per_vol
 
@@ -236,6 +236,13 @@ subroutine THSetupPatch(realization)
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
       !------------------------------------------
       type is(kT_default_type)
+        patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
+        tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
+        tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
+        patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
+      !------------------------------------------
+      type is(kT_linear_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
         tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value

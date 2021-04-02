@@ -58,8 +58,6 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: FMWH2O = 18.01534d0  ! kg/kmol h2o
   PetscReal, parameter, public :: FMWCO2 = 44.0098d0
   PetscReal, parameter, public :: FMWAIR = 28.96d0
-  PetscReal, parameter, public :: FMWGLYC = 76.09d0 ! propylene glycol (C3H8O2)
-  PetscReal, parameter, public :: FMWOIL = 142.D0 ! used as deafault value
 
   ! constants
   PetscReal, parameter, public :: DAYS_PER_YEAR = 365.d0

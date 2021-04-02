@@ -60,8 +60,6 @@ module Option_module
     PetscInt :: nphase
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
-    PetscInt :: oil_phase
-    PetscInt :: solvent_phase
     PetscInt :: hydrate_phase
     PetscInt :: ice_phase
     PetscInt :: phase_map(MAX_PHASE)
@@ -79,13 +77,13 @@ module Option_module
     PetscInt :: geomech_subsurf_coupling
     PetscReal :: geomech_gravity(3)
     PetscBool :: sec_vars_update
+
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id
     PetscInt :: saturation_pressure_id
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
-    PetscInt :: oil_id  ! index of oil component dof
     PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: ntrandof
@@ -430,9 +428,7 @@ subroutine OptionInitRealization(option)
   option%nphase = 0
 
   option%liquid_phase  = UNINITIALIZED_INTEGER
-  option%oil_phase     = UNINITIALIZED_INTEGER
   option%gas_phase     = UNINITIALIZED_INTEGER
-  option%solvent_phase = UNINITIALIZED_INTEGER
   option%hydrate_phase = UNINITIALIZED_INTEGER
   option%ice_phase = UNINITIALIZED_INTEGER
 

@@ -32,7 +32,7 @@ module Reaction_Sandbox_Example_class
   contains
     procedure, public :: ReadInput => ExampleRead
     procedure, public :: Setup => ExampleSetup
-    procedure, public :: Evaluate => ExampleReact
+    procedure, public :: Evaluate => ExampleEvaluate
     procedure, public :: Destroy => ExampleDestroy
   end type reaction_sandbox_example_type
 
@@ -180,9 +180,9 @@ end subroutine ExampleSetup
 
 ! ************************************************************************** !
 
-subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
-                         rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option)
+subroutine ExampleEvaluate(this,Residual,Jacobian,compute_derivative, &
+                           rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                           option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -259,6 +259,8 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
   ! option - Provides handle for controlling simulation, catching and
   !          reporting errors.
   
+! 10. Add code for residual evaluation
+
   ! Unit of the residual must be in moles/second
   ! global_auxvar%sat(iphase) = saturation of cell
   ! 1.d3 converts m^3 water -> L water
@@ -282,7 +284,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
     ! always add contribution to Jacobian
     ! units = (mol/sec)*(kg water/mol) = kg water/sec
     Jacobian(this%species_id,this%species_id) = &
-    Jacobian(this%species_id,this%species_id) + &
+    Jacobian(this%species_id,this%species_id) - &
       (-1.d0) * & ! negative stoichiometry
       this%rate_constant * & ! 1/sec
       L_water * & ! L water
@@ -294,7 +296,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
   
-end subroutine ExampleReact
+end subroutine ExampleEvaluate
 
 ! ************************************************************************** !
 

@@ -306,6 +306,15 @@ clean-tests :
 	-find . -type f -name '*.testlog' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.out' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.tec' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.pft' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.xmf' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.vtk' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.bio' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.wf' -print0 | xargs -0 -r rm
+	-find . -type f -name '-int.dat' -print0 | xargs -0 -r rm
+	-find . -type f -name '-mas.dat' -print0 | xargs -0 -r rm
+	-find . -type f -name '-obs*.tec' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.pnl' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.regression' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.stdout' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.old' -print0 | xargs -0 -r rm
@@ -317,7 +326,6 @@ clean-tests :
 	-find . -type f -name '*.dpd' -print0 | xargs -0 -r rm
 	-find . -type f -name 'e4d*.log' -print0 | xargs -0 -r rm
 	-find . -type d -name '__pycache__' -print0 | xargs -0 -r rm 
-	-rm -f mfd/mfd-mas.dat
 	-rm -f mfd/mfd.h5
 	-rm -f default/543/543_flow_and_tracer-np8.h5
 	-rm -f default/543/543_flow_and_tracer.h5
@@ -325,28 +333,14 @@ clean-tests :
 	-rm -f default/discretization/mixed_implicit.h5
 	-rm -f general/calcite_flow_and_tran_general.h5
 	-rm -f general/ictest1D.h5
-	-rm -f general/ictest1D-mas.dat
 	-rm -f general/ictest2D.h5
-	-rm -f general/ictest2D-mas.dat
-	-rm -f ngee/sink-mas.dat 
 	-rm -f ngee/sink.h5 
-	-rm -f ngee/source-mas.dat
 	-rm -f ngee/source.h5
 	-rm -f default/543/543_flow_and_tracer_dbase.h5
-	-rm -f ascem/batch/calcite-kinetics-int.dat
-	-rm -f ascem/batch/calcite-kinetics-volume-fractions-int.dat
-	-rm -f ascem/batch/general-reaction-int.dat
-	-rm -f ngee/CLM-CN-int.dat
-	-rm -f shortcourse/1D_variably_saturated_flow/vsat_flow_pulse_2layer-int.dat
-	-rm -f shortcourse/copper_leaching/cu_leaching-int.dat
-	-rm -f wipp/nuts/case3-int.dat
-	-rm -f wipp/nuts/case4r1_modified-int.dat
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d-np4.h5
 	-rm -f wipp/bragflo/wipp_flow/well_production2-ss_mass-0.dat
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d.h5
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_one_cell.h5
-	-rm -f wipp/bragflo/wipp_flow/*.pnl
-	-rm -f wipp/wipp_flow/gas_generation/*.pnl 
 	-rm -f wipp/wipp_flow/gas_generation/*.h5
 	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
 	-rm -f default/multicontinuum/0D_heat_TH-int.dat
@@ -367,21 +361,6 @@ clean-tests :
 	-rm -f default/condition/dataset/z_line_node_centered.h5
 	-rm -f default/salinity/20x20_xz.h5
 	-rm -f default/timestepping/20x20_xz.h5
-	-rm -f default/output/output_biosphere-0.bio
-	-rm -f default/output/output_WIPP_pnl-0.pnl
-	-rm -f default/output/output_waste_form_wf-0.wf
-	-rm -f default/output/output_vtk-000.vtk
-	-rm -f default/output/output_vtk-np3-000.vtk
-	-rm -f default/output/output_xdmf_explicit-000.xmf
-	-rm -f default/output/output_xdmf_explicit_primal-000.xmf
-	-rm -f ufd/glass-0.wf
-	-rm -f ufd/fmdm_dummy-0.wf
-	-rm -f ufd/wf_doubles-0.wf
-	-rm -f ufd/wf_region-wf_mass-*.dat
-	-rm -f ufd/glass-*.vtk
-	-rm -f ufd/wf_doubles-*.vtk
-	-rm -f ufd/wf_region-*.vtk
-	-rm -f ufd/glass_full_geochem_np4-*.vtk
 	-rm -f geophys/ert/*.h5
 	-rm -f geophys/ert/*.dat
 	-rm -f geophys/ert/ert-simulated.srv

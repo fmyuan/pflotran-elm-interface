@@ -772,7 +772,7 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   type(general_auxvar_type) :: general_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:), global_auxvar_ss(0:)
   type(material_auxvar_type) :: material_auxvar(0:)
-  type(characteristic_curves_type) :: characteristic_curves
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
   PetscReal :: scale
   

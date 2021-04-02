@@ -1215,6 +1215,8 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,dataset, &
                                                  real_count)
+              coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = &
+                DIRICHLET_BC
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
@@ -1251,6 +1253,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,dataset, &
                                                  real_count)
+              coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
@@ -4514,11 +4517,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
-         MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
-         OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
-         SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
-         SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY )
+         MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -6063,11 +6062,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
-         LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
-         OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
-         SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
-         SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY)
+         LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
