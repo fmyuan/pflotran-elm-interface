@@ -24,7 +24,6 @@ module PM_ERT_class
     PetscInt :: linear_iterations_in_step
     PetscLogDouble :: ksp_time
     Vec :: rhs
-<<<<<<< HEAD
     ! ERT options
     PetscBool :: compute_jacobian
     ! EMPIRICAL Archie and Waxman-Smits options
@@ -34,8 +33,6 @@ module PM_ERT_class
     PetscReal :: water_conductivity
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor  
-=======
->>>>>>> 75089d40c05fdea7639fb02d7bc8fd9f573c4b27
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -170,7 +167,6 @@ subroutine PMERTReadSimOptionsBlock(this,input)
 
     select case(trim(keyword))
       ! Add various options for ERT if needed here
-<<<<<<< HEAD
       case('COMPUTE_JACOBIAN')
         this%compute_jacobian = PETSC_TRUE
       case('TORTUOSITY_CONSTANT')
@@ -191,8 +187,6 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       case('CLAY_VOLUME_FACTOR','SHALE_VOLUME_FACTOR')
         call InputReadDouble(input,option,this%clay_volume_factor)
         call InputErrorMsg(input,option,keyword,error_string)
-=======
->>>>>>> 75089d40c05fdea7639fb02d7bc8fd9f573c4b27
       case('SURVEY_TIMES')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'units','OUTPUT,TIMES')
@@ -573,28 +567,21 @@ subroutine PMERTSolve(this,time,ierr)
 
   ! Assemble solutions
   call PMERTAssembleSimulatedData(this,time)
-<<<<<<< HEAD
 
   ! Build Jacobian
   if (this%compute_jacobian) call PMERTBuildJacobian(this)
-=======
-  !print*,survey%dsim
->>>>>>> 75089d40c05fdea7639fb02d7bc8fd9f573c4b27
 
 end subroutine PMERTSolve
 
 ! ************************************************************************** !
 
 subroutine PMERTAssembleSimulatedData(this,time)
-<<<<<<< HEAD
   !
   ! Assembles ERT simulated data for each measurement
   !
   ! Author: Piyoosh Jaysaval
   ! Date: 02/10/21
   !
-=======
->>>>>>> 75089d40c05fdea7639fb02d7bc8fd9f573c4b27
 
   use Patch_module
   use Grid_module

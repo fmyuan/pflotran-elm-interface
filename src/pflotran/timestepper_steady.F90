@@ -69,7 +69,6 @@ function TimestepperSteadyCast(this)
   implicit none
 
   class(timestepper_base_type), pointer :: this
-<<<<<<< HEAD
 
   class(timestepper_steady_type), pointer :: TimestepperSteadyCast
 
@@ -78,16 +77,6 @@ function TimestepperSteadyCast(this)
       TimestepperSteadyCast => this
   end select
 
-=======
-
-  class(timestepper_steady_type), pointer :: TimestepperSteadyCast
-
-  select type(this)
-    class is(timestepper_steady_type)
-      TimestepperSteadyCast => this
-  end select
-
->>>>>>> 75089d40c05fdea7639fb02d7bc8fd9f573c4b27
 end function TimestepperSteadyCast
 
 ! ************************************************************************** !
@@ -150,10 +139,7 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   ! Author: Glenn Hammond
   ! Date: 03/19/21
   !
-<<<<<<< HEAD
   use Timestepper_Base_class
-=======
->>>>>>> 75089d40c05fdea7639fb02d7bc8fd9f573c4b27
 
   use Option_module
 
@@ -167,7 +153,6 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   PetscBool :: observation_plot_flag
   PetscBool :: massbal_plot_flag
   PetscBool :: checkpoint_flag
-<<<<<<< HEAD
 
   this%target_time = sync_time
   do 
@@ -183,18 +168,9 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   endif
 
 end subroutine TimestepperSteadySetTargetTime
-=======
 
-  this%target_time = sync_time
->>>>>>> 75089d40c05fdea7639fb02d7bc8fd9f573c4b27
-
-end subroutine TimestepperSteadySetTargetTime
-
-<<<<<<< HEAD
-=======
 ! ************************************************************************** !
 
->>>>>>> 75089d40c05fdea7639fb02d7bc8fd9f573c4b27
 subroutine TimestepperSteadyStepDT(this,process_model,stop_flag)
   !
   ! Steps forward one step in time
