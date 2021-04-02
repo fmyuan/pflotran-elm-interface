@@ -250,8 +250,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
         if (compute_delM) then
           ! For dM/dcond_up matrix
           num_neighbors_up = grid%cell_neighbors_local_ghosted(0,local_id_up)
-          ineighbor = FindLocNeighbor(                                       &
-                                      grid%cell_neighbors_local_ghosted      &
+          ineighbor = FindLocNeighbor(grid%cell_neighbors_local_ghosted      &
                                       (1:num_neighbors_up,local_id_up),      &
                                       num_neighbors_up,ghosted_id_dn)
         
@@ -284,8 +283,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
         if (compute_delM) then                      
           ! For dM/dcond_dn matrix
           num_neighbors_dn = grid%cell_neighbors_local_ghosted(0,local_id_dn)
-          ineighbor = FindLocNeighbor(                                       &
-                                      grid%cell_neighbors_local_ghosted      &
+          ineighbor = FindLocNeighbor(grid%cell_neighbors_local_ghosted      &
                                       (1:num_neighbors_dn,local_id_dn),      &
                                       num_neighbors_dn,ghosted_id_up)
         
