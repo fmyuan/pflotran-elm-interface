@@ -913,7 +913,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 0 ! double
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         call OutputVariableAddToList(output_variable_list,output_variable)
-      case('ELECTRICAL_POTENTIAL')
+      case('ELECTRICAL_POTENTIAL','ELECTRICAL_JACOBIAN')
         icount = 0
         do
           call InputReadInt(input,option,temp_int)

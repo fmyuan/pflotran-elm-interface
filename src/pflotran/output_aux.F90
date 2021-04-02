@@ -1125,6 +1125,16 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Electrical Potential'
       category = OUTPUT_GENERIC
       id = ELECTRICAL_POTENTIAL
+    case ('ELECTRICAL_JACOBIAN')
+      if (option%ngeopdof <= 0) then
+        option%io_buffer = 'ELECTRICAL_JACOBIAN output only supported &
+          &when the GEOPHYSICS process model is used.'
+        call PrintErrMsg(option)
+      endif
+      units = 'Vm/S'
+      name = 'Electrical Jacobian'
+      category = OUTPUT_GENERIC
+      id = ELECTRICAL_JACOBIAN      
   end select
 
 end subroutine OutputVariableToID

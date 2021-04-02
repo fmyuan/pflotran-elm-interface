@@ -119,7 +119,7 @@ end subroutine ERTSetupPatch
 
 ! ************************************************************************** !
 
-subroutine ERTCalculateMatrix(realization,M)
+subroutine ERTCalculateMatrix(realization,M,compute_delM)
   !
   ! Calculate System matrix for ERT
   !
@@ -140,8 +140,10 @@ subroutine ERTCalculateMatrix(realization,M)
 
   type(realization_subsurface_type) :: realization
   Mat :: M
+  PetscBool :: compute_delM
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -154,11 +156,16 @@ subroutine ERTCalculateMatrix(realization,M)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
+  PetscInt :: num_neighbors_up, num_neighbors_dn
+  PetscInt :: ineighbor
   ! Matrix coefficients
   PetscReal :: coef_up, coef_dn
+  PetscReal :: dcoef_up, dcoef_dn
   PetscReal :: area
+  PetscReal :: factor,factor2
   ! Electrical conductivity
   PetscReal :: cond_up, cond_dn, cond_avg
+  PetscReal :: dcond_avg_up, dcond_avg_dn
   PetscReal :: dist_up, dist_dn, dist_0
   PetscReal :: up_frac
   PetscViewer :: viewer
@@ -169,6 +176,7 @@ subroutine ERTCalculateMatrix(realization,M)
   field => realization%field
   patch => realization%patch
   material_auxvars => patch%aux%Material%auxvars
+  ert_auxvars => patch%aux%ERT%auxvars
   grid => patch%grid
 
   ! Pre-set Matrix to zeros
@@ -208,13 +216,29 @@ subroutine ERTCalculateMatrix(realization,M)
 
       ! get harmonic averaged conductivity at the face
       ! NB: cond_avg is actually cond_avg/dist_0
-      cond_avg = (cond_up * cond_dn) / (dist_up*cond_dn + dist_dn*cond_up)
+      factor = dist_up*cond_dn + dist_dn*cond_up
+      cond_avg = (cond_up * cond_dn) / factor
+
+      if (compute_delM) then
+        ! For dM/dcond matrix
+        ! dcond_avg_* = dcond_avg/dcond_*
+        ! NB: dcond_avg_* is acutally dcond_avg_*/dist_0 
+        factor2 = factor * factor
+        dcond_avg_up = (dist_up*cond_dn*cond_dn) / factor2
+        dcond_avg_dn = (dist_dn*cond_up*cond_up) / factor2
+      endif
 
       area = cur_connection_set%area(iconn)
 
       ! get matrix coefficients for up cell
       coef_up = - cond_avg * area
-      coef_dn =   cond_avg * area
+      coef_dn = - coef_up                   ! cond_avg * area
+
+      if (compute_delM) then
+        ! For dM/dcond matrix wrt cond_up
+        dcoef_up = - dcond_avg_up * area
+        dcoef_dn = - dcoef_up                 ! dcond_avg_up * area
+      endif
 
       if (local_id_up > 0) then
         ! set matrix coefficients for the upwind cell
@@ -222,16 +246,57 @@ subroutine ERTCalculateMatrix(realization,M)
                                coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(M,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
+
+        if (compute_delM) then
+          ! For dM/dcond_up matrix
+          num_neighbors_up = grid%cell_neighbors_local_ghosted(0,local_id_up)
+          ineighbor = FindLocNeighbor(grid%cell_neighbors_local_ghosted      &
+                                      (1:num_neighbors_up,local_id_up),      &
+                                      num_neighbors_up,ghosted_id_dn)
+        
+          if (.not.associated(ert_auxvars(ghosted_id_up)%delM)) then
+            allocate(ert_auxvars(ghosted_id_up)%delM(num_neighbors_up + 1))
+            ert_auxvars(ghosted_id_up)%delM = 0.d0
+          endif
+        
+          ! Fill values to dM/dcond_up matrix for up cell
+          call FillValuesToDelM(dcoef_up,dcoef_dn,num_neighbors_up,          &
+                                ineighbor,ert_auxvars(ghosted_id_up)%delM)
+        endif
+
       endif
 
       if (local_id_dn > 0) then
         ! set matrix coefficients for the downwind cell
         coef_up = - coef_up
         coef_dn = - coef_dn
+
+        ! For dM/dcond matrix
+        dcoef_up =   dcond_avg_dn * area
+        dcoef_dn = - dcoef_up               ! - dcond_avg_dn * area
+
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                coef_dn,ADD_VALUES,ierr);CHKERRQ(ierr)
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
+
+        if (compute_delM) then                      
+          ! For dM/dcond_dn matrix
+          num_neighbors_dn = grid%cell_neighbors_local_ghosted(0,local_id_dn)
+          ineighbor = FindLocNeighbor(grid%cell_neighbors_local_ghosted      &
+                                      (1:num_neighbors_dn,local_id_dn),      &
+                                      num_neighbors_dn,ghosted_id_up)
+        
+          if (.not.associated(ert_auxvars(ghosted_id_dn)%delM)) then
+            allocate(ert_auxvars(ghosted_id_dn)%delM(num_neighbors_dn + 1))
+            ert_auxvars(ghosted_id_dn)%delM = 0.d0
+          endif
+
+          ! Fill values to dM/dcond_dn matrix for up cell
+          call FillValuesToDelM(dcoef_dn,dcoef_up,num_neighbors_dn,          &
+                                ineighbor,ert_auxvars(ghosted_id_dn)%delM)
+        endif
+
       endif
 
     enddo
@@ -292,7 +357,101 @@ subroutine ERTCalculateMatrix(realization,M)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
+contains
+  subroutine FillValuesToDelM(dcoef_self,dcoef_neighbor,num_neighbors, &
+                              ineighbor,delM)
+    ! 
+    ! Fills out upper traingle part of the dM/dcond matrix for each cell
+    !   Storing only first rows as other rows can easily be retrieved
+    !   from off-diagonal elements of the first row.
+    !
+    ! Author: Piyoosh Jaysaval
+    ! Date: 03/08/21
+
+    implicit none
+
+    PetscReal :: dcoef_self, dcoef_neighbor
+    PetscInt :: num_neighbors
+    PetscInt :: ineighbor
+    PetscReal :: delM(num_neighbors + 1)
+
+    ! Add values for self
+    delM(1) = delM(1) + dcoef_self
+    ! insert values for neighbor
+    delM(1+ineighbor) = dcoef_neighbor
+
+    ! Not storing following as these can be retrieved from ineighbor's value
+    !delM(1 + num_neighbor + 2*ineighbor -1) = dcoef_neighbor
+    !delM(1 + num_neighbor + 2*ineighbor) = - dcoef_neighbor
+
+  end subroutine FillValuesToDelM
+
+  function FindLocNeighbor(neighbors,num_neighbors,id_neighbor) &
+                                                            result(ineighbor)
+    implicit none
+
+    PetscInt :: num_neighbors
+    PetscInt :: neighbors(num_neighbors)
+    PetscInt :: id_neighbor
+    PetscInt :: ineighbor
+
+    do ineighbor = 1,num_neighbors
+      if(abs(neighbors(ineighbor)) == id_neighbor) exit
+    enddo
+
+    if (ineighbor > num_neighbors) then
+      option%io_buffer = 'ERTCalculateMatrix: There is something wrong ' // &
+        'in finding neighbor location. '
+      call PrintErrMsg(option)
+    endif    
+
+  end function FindLocNeighbor
+  
 end subroutine ERTCalculateMatrix
+
+! ************************************************************************** !
+
+subroutine ERTConductivityFromEmpiricalEqs(global_auxvar, material_auxvar)
+  !
+  ! Calculates conductivity using petrophysical empirical relations
+  ! using Archie's law or Waxman-Smits equation
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 03/18/21
+  !
+
+  use Global_Aux_module
+
+  implicit none
+
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+
+  ! Archie's law parameters
+  ! TODO: Should read from input file
+  PetscReal, parameter :: a = 1.d0        ! Tortuosity factor constant
+  PetscReal, parameter :: m = 1.9d0       ! Cementation exponent
+  PetscReal, parameter :: n = 2.d0        ! Saturation exponent
+  PetscReal, parameter :: cond_w = 0.01d0 ! Water conductivity
+  ! Waxman-Smits additional paramters
+  PetscReal, parameter :: cond_c = 0.03d0 ! Clay conductivity
+  PetscReal, parameter :: Vc = 0.2d0      ! Clay/Shale volume 
+  ! calculated total resistivity
+  PetscReal :: cond
+  PetscReal :: porosity, saturation
+
+  porosity = material_auxvar%porosity
+  saturation = global_auxvar%sat(1)
+
+  ! Archie's law
+  cond = cond_w * (porosity**m) * (saturation**n) / a
+
+  ! Waxmax-Smits equations/Dual-Water model 
+  !cond = cond + cond_c * Vc * (1-porosity) * saturation**(n-1)
+
+  material_auxvar%electrical_conductivity(1) = cond
+
+end subroutine ERTConductivityFromEmpiricalEqs
 
 ! ************************************************************************** !
 

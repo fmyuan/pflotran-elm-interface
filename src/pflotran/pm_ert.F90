@@ -21,6 +21,15 @@ module PM_ERT_class
     type(survey_type), pointer :: survey
     Vec :: rhs
     PetscLogDouble :: cumulative_ert_time
+    ! ERT options
+    PetscBool :: compute_jacobian
+    ! EMPIRICAL Archie and Waxman-Smits options
+    PetscReal :: tortuosity_constant   ! a
+    PetscReal :: cementation_exponent  ! m
+    PetscReal :: saturation_exponent   ! n
+    PetscReal :: water_conductivity
+    PetscReal :: clay_conductivity
+    PetscReal :: clay_volume_factor  
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -87,6 +96,15 @@ subroutine PMERTInit(pm_ert)
   nullify(pm_ert%survey)
 
   pm_ert%rhs = PETSC_NULL_VEC
+  pm_ert%compute_jacobian = PETSC_FALSE
+
+  ! Archie and Waxman-Smits default values
+  pm_ert%tortuosity_constant = 1.d0
+  pm_ert%cementation_exponent = 1.9d0
+  pm_ert%saturation_exponent = 2.d0
+  pm_ert%water_conductivity = 0.01d0
+  pm_ert%clay_conductivity = 0.03d0
+  pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
 
 end subroutine PMERTInit
 
@@ -135,6 +153,26 @@ subroutine PMERTReadSimOptionsBlock(this,input)
 
     select case(trim(keyword))
       ! Add various options for ERT if needed here
+      case('COMPUTE_JACOBIAN')
+        this%compute_jacobian = PETSC_TRUE
+      case('TORTUOSITY_CONSTANT')
+        call InputReadDouble(input,option,this%tortuosity_constant)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('CEMENTATION_EXPONENT')
+        call InputReadDouble(input,option,this%cementation_exponent)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('SATURATION_EXPONENT')
+        call InputReadDouble(input,option,this%saturation_exponent)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('WATER_CONDUCTIVITY')
+        call InputReadDouble(input,option,this%water_conductivity)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('CLAY_CONDUCTIVITY')
+        call InputReadDouble(input,option,this%clay_conductivity)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('CLAY_VOLUME_FACTOR','SHALE_VOLUME_FACTOR')
+        call InputReadDouble(input,option,this%clay_volume_factor)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -287,6 +325,7 @@ subroutine PMERTSolve(this)
   use Grid_module
   use Solver_module
   use Field_module
+  use Discretization_module
   use ERT_module
   use Survey_module
 
@@ -299,6 +338,7 @@ subroutine PMERTSolve(this)
   type(grid_type), pointer :: grid
   type(solver_type), pointer :: solver
   type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
@@ -326,6 +366,7 @@ subroutine PMERTSolve(this)
   survey => this%survey
   realization => this%realization
   field => realization%field
+  discretization => realization%discretization
   patch => realization%patch
   grid => patch%grid
 
@@ -335,7 +376,7 @@ subroutine PMERTSolve(this)
   num_linear_iterations = 0
 
   ! Build System matrix
-  call ERTCalculateMatrix(realization,solver%M)
+  call ERTCalculateMatrix(realization,solver%M,this%compute_jacobian)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
   !call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
 
@@ -388,16 +429,16 @@ subroutine PMERTSolve(this)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     !call VecView(field%work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
 
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-
+    call DiscretizationGlobalToLocal(discretization,field%work, &
+                                     field%work_loc,ONEDOF)
+    call VecGetArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
     ! store potentials for each electrode
-    do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
+    do ghosted_id=1,grid%ngmax
       if (patch%imat(ghosted_id) <= 0) cycle
-      ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(local_id)
+      ert_auxvars(ghosted_id)%potential(ielec) = vec_ptr(ghosted_id)
     enddo
+    call VecRestoreArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
 
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
     call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
     sum_linear_iterations = sum_linear_iterations + num_linear_iterations
@@ -415,13 +456,21 @@ subroutine PMERTSolve(this)
 
   ! Assemble solutions
   call PMERTAssembleSimulatedData(this)
-  !print*,survey%dsim
+
+  ! Build Jacobian
+  if (this%compute_jacobian) call PMERTBuildJacobian(this)
 
 end subroutine PMERTSolve
 
 ! ************************************************************************** !
 
 subroutine PMERTAssembleSimulatedData(this)
+  !
+  ! Assembles ERT simulated data for each measurement
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 02/10/21
+  !
 
   use Patch_module
   use Grid_module
@@ -497,6 +546,140 @@ subroutine PMERTAssembleSimulatedData(this)
   if (option%myrank == option%io_rank) call SurveyWriteERT(this%survey)
 
 end subroutine PMERTAssembleSimulatedData
+
+! ************************************************************************** !
+
+subroutine PMERTBuildJacobian(this)
+  !
+  ! Builds ERT Jacobian Matrix distributed across processors
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 03/15/21
+  !
+
+  use Patch_module
+  use Grid_module
+  use Survey_module
+  use Material_Aux_class
+
+  implicit none 
+
+  class(pm_ert_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(survey_type), pointer :: survey
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+
+  PetscInt, pointer :: cell_neighbors(:,:)
+  PetscReal, allocatable :: phi_sor(:), phi_rec(:)
+  PetscReal :: jacob
+  PetscReal :: cond
+  PetscInt :: idata
+  PetscInt :: ielec
+  PetscInt :: ia,ib,im,in
+  PetscInt :: local_id,ghosted_id
+  PetscInt :: local_id_a,local_id_b
+  PetscInt :: ghosted_id_a,ghosted_id_b 
+  PetscInt :: local_id_m,local_id_n
+  PetscInt :: ghosted_id_m,ghosted_id_n
+  PetscInt :: inbr,num_neighbors
+  PetscErrorCode :: ierr
+
+  option => this%option
+  patch => this%realization%patch
+  grid => patch%grid
+  survey => this%survey
+
+  ert_auxvars => patch%aux%ERT%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  cell_neighbors => grid%cell_neighbors_local_ghosted
+
+  do idata=1,survey%num_measurement
+    
+    ! for A and B electrodes
+    ia = survey%config(1,idata)
+    ib = survey%config(2,idata)
+    im = survey%config(3,idata)
+    in = survey%config(4,idata) 
+
+    do local_id=1,grid%nlmax
+      
+      ghosted_id = grid%nL2G(local_id)         
+      if (patch%imat(ghosted_id) <= 0) cycle
+    
+      num_neighbors = cell_neighbors(0,local_id)
+      allocate(phi_sor(num_neighbors+1), phi_rec(num_neighbors+1))
+      phi_sor = 0.d0
+      phi_rec = 0.d0
+
+      ! Source electrode +A
+      if(ia/=0) phi_sor(1) = phi_sor(1) + ert_auxvars(ghosted_id)%potential(ia)
+      ! Source electrode -B
+      if(ib/=0) phi_sor(1) = phi_sor(1) - ert_auxvars(ghosted_id)%potential(ib)
+      ! Receiver electrode +M
+      if(im/=0) phi_rec(1) = phi_rec(1) + ert_auxvars(ghosted_id)%potential(im)
+      ! Receiver electrode -N
+      if(in/=0) phi_rec(1) = phi_rec(1) - ert_auxvars(ghosted_id)%potential(in)
+
+      jacob = phi_sor(1) * ert_auxvars(ghosted_id)%delM(1) * phi_rec(1)
+
+      do inbr = 1,num_neighbors
+        ! Source electrode +A
+        if (ia/=0) then        
+          phi_sor(inbr+1) = phi_sor(inbr+1) +                               &
+               ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(ia)
+        endif
+
+        ! Source electrode -B
+        if (ib/=0) then
+          phi_sor(inbr+1) = phi_sor(inbr+1) -                               &
+               ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(ib)
+        endif
+
+        ! Receiver electrode +M
+        if (im/=0) then
+          phi_rec(inbr+1) = phi_rec(inbr+1) +                               &
+               ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(im)
+        endif
+
+        ! Receiver electrode -N
+        if (in/=0) then
+          phi_rec(inbr+1) = phi_rec(inbr+1) -                               &
+               ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(in)
+        endif
+
+        jacob = jacob +                                                     &
+          phi_sor(1)*ert_auxvars(ghosted_id)%delM(1+inbr)*phi_rec(inbr+1) + &
+          phi_sor(1+inbr) * (                                               &
+                      ert_auxvars(ghosted_id)%delM(1+inbr)*phi_rec(1) -     &
+                      ert_auxvars(ghosted_id)%delM(1+inbr)*phi_rec(1+inbr) )
+
+      enddo
+
+      cond = material_auxvars(ghosted_id)%electrical_conductivity(1)
+
+      if (.not.associated(ert_auxvars(ghosted_id)%jacobian)) then
+        allocate(ert_auxvars(ghosted_id)%jacobian(survey%num_measurement))
+        ert_auxvars(ghosted_id)%jacobian = 0.d0
+      endif
+
+      ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to 
+      ! +ve unit source so phi_rec -> - phi_rec
+      ! thus => jacob = phi_s * (dM/dcond) * phi_r
+      ! wrt m=ln(cond) -> dV/dm = cond * dV/dcond
+      ert_auxvars(ghosted_id)%jacobian(idata) = jacob * cond
+
+      deallocate(phi_sor, phi_rec)
+    enddo    
+  enddo  
+
+  ! I can now deallocate potential and delM (and M just after solving)
+  ! But what about potential field output?
+
+end subroutine PMERTBuildJacobian
 
 ! ************************************************************************** !
 

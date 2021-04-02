@@ -11,6 +11,8 @@ module ERT_Aux_module
 
   type, public :: ert_auxvar_type
     PetscReal, pointer :: potential(:)    ! ERT potential for all electrodes
+    PetscReal, pointer :: jacobian(:)     ! ERT jacobian for all measurements
+    PetscReal, pointer :: delM(:)         ! system matrix derivative dM/dcond
   end type ert_auxvar_type
 
   type, public :: ert_type
@@ -76,6 +78,9 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
 
   allocate(auxvar%potential(survey%num_electrode))
   auxvar%potential = 0.d0
+
+  nullify(auxvar%jacobian)
+  nullify(auxvar%delM)
 
 end subroutine ERTAuxVarInit
 
@@ -146,6 +151,8 @@ subroutine ERTAuxVarDestroy(auxvar)
   type(ert_auxvar_type) :: auxvar
 
   call DeallocateArray(auxvar%potential)
+  call DeallocateArray(auxvar%jacobian)
+  call DeallocateArray(auxvar%delM)
 
 end subroutine ERTAuxVarDestroy
 
