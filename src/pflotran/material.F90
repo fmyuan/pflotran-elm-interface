@@ -779,8 +779,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 material_property%multicontinuum%epsilon, &
                 material_property%multicontinuum%epsilon_dataset, &
                 'epsilon', 'MATERIAL_PROPERTY',option)
-     !         call InputErrorMsg(input,option,'epsilon', &
-      !                     'MATERIAL_PROPERTY')
             case('APERTURE')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%aperture)
