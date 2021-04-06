@@ -126,10 +126,10 @@ module Hydrate_Aux_module
   PetscReal, parameter :: HYDRATE_DENSITY_KG = 920.d0 !kg/m^3
   PetscReal, parameter :: HYDRATE_DENSITY = 52.15551276d0 !mol/L
   PetscReal, parameter :: MW_CH4 = 16.04d0
-  PetscReal, parameter :: MW_H20 = 18.01d0
+  PetscReal, parameter :: MW_H2O = 18.01d0
 
   PetscReal, parameter, public :: MOL_RATIO_METH = 0.14285714285d0
-  PetscReal, parameter :: MOL_RATIO_H20 = 1.d0 - MOL_RATIO_METH
+  PetscReal, parameter :: MOL_RATIO_H2O = 1.d0 - MOL_RATIO_METH
 
   PetscReal, parameter :: TQD = 1.d-2 !0.d0 !1.0d-2 !Quad point temperature (C)
 
@@ -690,7 +690,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   endif
 #endif
 
-  hyd_auxvar%xmol(wid,hid) = MOL_RATIO_H20
+  hyd_auxvar%xmol(wid,hid) = MOL_RATIO_H2O
   hyd_auxvar%xmol(acid,hid) = MOL_RATIO_METH
   hyd_auxvar%den(hid) = HYDRATE_DENSITY
   hyd_auxvar%den_kg(hid) = HYDRATE_DENSITY_KG
@@ -3466,7 +3466,7 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
   PetscReal, pointer :: sat(:)
 
   PetscReal :: keff
-  PetscReal :: k_h20,k_ch4,k_hyd,k_ice
+  PetscReal :: k_h2o,k_ch4,k_hyd,k_ice
   PetscInt :: lid, gid, hid, iid
 
   lid = 1
@@ -3474,7 +3474,7 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
   hid = 3
   iid = 4
 
-  k_h20 = 0.59d0 !W/m-K
+  k_h2o = 0.59d0 !W/m-K
   k_ch4 = 30.d-3 !W/m-K
   k_hyd = 0.58d0 !W/m-K
   k_ice = 2.2d0   !W/m-K
@@ -3488,7 +3488,7 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
       keff = kdry + phi * (sat(lid)*kwet + sat(hid)*k_hyd + sat(iid) * k_ice &
              + sat(gid)*k_ch4)
     case(2) ! Default function
-      keff = kdry + phi * (sat(lid)*k_h20 + sat(hid)*k_hyd + &
+      keff = kdry + phi * (sat(lid)*k_h2o + sat(hid)*k_hyd + &
              sat(iid)*k_ice + sat(gid)*k_ch4)
   end select
 
@@ -3837,7 +3837,7 @@ subroutine EOSHydrateEnthalpy(T,H)
   !H = H / (Nhyd+1.d0) 
 
   !Constant Cp
-  Cph = 1620.d0*(MW_H20*Nhyd + MW_CH4)/1.d3
+  Cph = 1620.d0*(MW_H2O*Nhyd + MW_CH4)/1.d3
   H = Cph * (T-TQD) + Hh0 / (Nhyd + 1.d0)
   H = H / 1.d3
 
