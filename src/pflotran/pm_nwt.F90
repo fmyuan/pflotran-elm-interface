@@ -444,6 +444,7 @@ subroutine PMNWTInitializeRun(this)
 
   use Material_module
   use Coupler_module
+  use Region_module
   
   implicit none
   
@@ -451,7 +452,9 @@ subroutine PMNWTInitializeRun(this)
 
   PetscInt :: p
   type(material_property_type), pointer :: material_property
+  type(region_type), pointer :: region
   type(coupler_type), pointer :: init_condition
+  character(len=MAXSTRINGLENGTH) :: hack_region_name
   
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
@@ -496,6 +499,16 @@ subroutine PMNWTInitializeRun(this)
       this%params%dirichlet_material_ids(p) = material_property%internal_id
     enddo
   endif
+
+  ! Jenn's hack for upper borehole
+  hack_region_name = 'rBH_OPEN_UPPER'
+  region => RegionGetPtrFromList(hack_region_name, &
+                                 this%realization%patch%region_list)
+  if (.not.associated(region)) then
+    this%option%io_buffer = 'Borehole region "rBH_OPEN_UPPER" not found &
+                            &among regions. This is a hack!'
+    call PrintErrMsg(this%option)
+  endif
   
   call PMNWTUpdateSolution(this)
   
@@ -523,11 +536,13 @@ subroutine PMNWTInitializeTimestep(this)
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
+  type(material_property_type), pointer :: material_property
   PetscInt :: local_id, ghosted_id
   PetscInt :: i, idof
   PetscInt :: offset, index
   PetscInt :: istart, iend
   PetscReal, pointer :: xx_p(:)
+  character(len=MAXSTRINGLENGTH) :: hack_material_name
 
   this%option%tran_dt = this%option%dt
   field => this%realization%field
@@ -605,6 +620,34 @@ subroutine PMNWTInitializeTimestep(this)
       enddo
     enddo
   endif
+
+  ! Jenn's hack for upper borehole
+  hack_material_name = 'BH_OPEN_UPPER'
+  material_property => &
+       MaterialPropGetPtrFromList(hack_material_name, &
+                                  this%realization%patch%material_properties)
+  do local_id = 1, patch%grid%nlmax
+    ghosted_id = patch%grid%nL2G(local_id)
+    ! if within BH_OPEN time interval:
+    if (this%option%time >= 1.10376000d+10 .and. &   ! 350.0 yr
+        this%option%time < 1.73448000d+10) then      ! 550.0 yr
+      if (patch%imat(ghosted_id) == material_property%internal_id) then
+        ! Means the current grid cell is in BH_OPEN_UPPER
+        call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+        ! compute offset in solution vector for first dof in grid cell
+        offset = (local_id-1)*this%params%nspecies
+        do idof = 1, this%params%nspecies
+          index = idof + offset
+          xx_p(index) = 1.d-40  ! mol/m3-bulk
+        enddo
+        ! calculate range of species
+        istart = offset + 1
+        iend = offset + this%params%nspecies
+        nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
+        call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+      endif
+    endif
+  enddo
   
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
@@ -1093,6 +1136,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal :: abs_update, abs_res
   PetscInt :: problem_cells, converged_flag
   PetscInt :: temp_int, i
+  PetscInt :: newton_iter_number
   PetscInt :: maxloc1, maxloc2, maxloc3, maxloc4
   PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
   PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
@@ -1107,6 +1151,8 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
+
+  call SNESGetIterationNumber(this%solver%snes,newton_iter_number,ierr)
   
   converged_flag = 0
   if (this%controls%check_post_convergence) then
@@ -1220,13 +1266,16 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       this%realization%option%converged = PETSC_FALSE
       !!this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
       this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
+      if (newton_iter_number > this%solver%newton_max_iterations) then
+        this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
+      endif
     else  ! means ITOL_* tolerances were satisfied, but the previous
           ! criteria were maybe not met
       ! do nothing - let the instruction proceed based on previous criteria
 
       ! test:
-      !this%realization%option%converged = PETSC_TRUE
-      !this%realization%option%convergence = CONVERGENCE_CONVERGED
+      this%realization%option%converged = PETSC_TRUE
+      this%realization%option%convergence = CONVERGENCE_CONVERGED
     endif
 
   if (this%print_ekg) then
