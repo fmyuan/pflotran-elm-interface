@@ -492,7 +492,7 @@ end subroutine SecondaryRTTimeCut
 
 ! ************************************************************************** !
 
-subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
+subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,reaction, &
                                  initial_condition,constraint,option)
   ! 
   ! Initializes all the secondary continuum reactive
@@ -519,7 +519,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
   implicit none 
   
   type(sec_transport_type) :: rt_sec_transport_vars
-  type(material_property_type), pointer :: ptr
+  type(multicontinuum_property_type), pointer :: multicontinuum
   class(reaction_rt_type), pointer :: reaction
   type(coupler_type), pointer :: initial_condition
   type(option_type), pointer :: option
@@ -534,6 +534,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
   PetscInt :: i, cell
   PetscReal :: area_per_vol
   PetscReal :: dum1
+  PetscReal :: epsilon
   PetscInt :: num_iterations
   PetscErrorCode :: ierr
   
@@ -545,19 +546,19 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
 
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &
-        ptr%secondary_continuum_name, &
-        ptr%secondary_continuum_length, &
-        ptr%secondary_continuum_matrix_block_size, &
-        ptr%secondary_continuum_fracture_spacing, &
-        ptr%secondary_continuum_radius, &
-        ptr%secondary_continuum_area, &
+        multicontinuum%name, &
+        multicontinuum%length, &
+        multicontinuum%matrix_block_size, &
+        multicontinuum%fracture_spacing, &
+        multicontinuum%radius, &
+        multicontinuum%area, &
         option)
         
-  rt_sec_transport_vars%ncells = ptr%secondary_continuum_ncells
-  rt_sec_transport_vars%aperture = ptr%secondary_continuum_aperture
-  rt_sec_transport_vars%epsilon = ptr%secondary_continuum_epsilon 
-  rt_sec_transport_vars%log_spacing = ptr%secondary_continuum_log_spacing
-  rt_sec_transport_vars%outer_spacing = ptr%secondary_continuum_outer_spacing    
+  rt_sec_transport_vars%ncells = multicontinuum%ncells
+  rt_sec_transport_vars%aperture = multicontinuum%aperture
+  rt_sec_transport_vars%epsilon = epsilon 
+  rt_sec_transport_vars%log_spacing = multicontinuum%log_spacing
+  rt_sec_transport_vars%outer_spacing = multicontinuum%outer_spacing    
         
   allocate(rt_sec_transport_vars%area(rt_sec_transport_vars%ncells))
   allocate(rt_sec_transport_vars%vol(rt_sec_transport_vars%ncells))
@@ -578,8 +579,8 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
                               rt_sec_transport_vars%outer_spacing, &
                               area_per_vol,option)                                
   rt_sec_transport_vars%interfacial_area = area_per_vol* &
-         (1.d0 - rt_sec_transport_vars%epsilon)*ptr% &
-         secondary_continuum_area_scaling
+         (1.d0 - rt_sec_transport_vars%epsilon)*multicontinuum% &
+         area_scaling
   
   ! Initializing the secondary RT auxvars
   allocate(rt_sec_transport_vars%sec_rt_auxvar(rt_sec_transport_vars%ncells))
@@ -1439,9 +1440,9 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
       if (realization%patch%imat(ghosted_id) <= 0) cycle
       sec_diffusion_coefficient = realization%patch% &
                                   material_property_array(1)%ptr% &
-                                  secondary_continuum_diff_coeff
+                                  multicontinuum%diff_coeff
       sec_porosity = realization%patch%material_property_array(1)%ptr% &
-                    secondary_continuum_porosity
+                    multicontinuum%porosity
 
       call SecondaryRTAuxVarComputeMulti(&
                                     rt_sec_transport_vars(local_id), &
