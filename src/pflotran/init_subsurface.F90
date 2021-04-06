@@ -308,7 +308,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   
   ! set cell by cell material properties
   ! create null material property for inactive cells
-  null_material_property => MaterialPropertyCreate()
+  null_material_property => MaterialPropertyCreate(option)
   if (option%nflowdof > 0) then
     call VecGetArrayF90(field%perm0_xx,perm_xx_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%perm0_yy,perm_yy_p,ierr);CHKERRQ(ierr)
@@ -433,7 +433,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
-    eps0_p(local_id) = material_property%multicontinuum%epsilon
+    if (associated(material_property%multicontinuum)) then
+      eps0_p(local_id) = material_property%multicontinuum%epsilon
+    endif
 
     if (option%ngeopdof > 0) then
       cond_p(local_id) = material_property%electrical_conductivity
@@ -505,10 +507,12 @@ subroutine InitSubsurfAssignMatProperties(realization)
                material_property%tortuosity_dataset, &
                material_property%internal_id,PETSC_FALSE,field%tortuosity0)
       endif
-      if (associated(material_property%multicontinuum%epsilon_dataset)) then
-        call SubsurfReadDatasetToVecWithMask(realization, &
-               material_property%multicontinuum%epsilon_dataset, &
-               material_property%internal_id,PETSC_FALSE,epsilon0)
+      if (associated(material_property%multicontinuum)) then
+        if (associated(material_property%multicontinuum%epsilon_dataset)) then
+          call SubsurfReadDatasetToVecWithMask(realization, &
+                 material_property%multicontinuum%epsilon_dataset, &
+                 material_property%internal_id,PETSC_FALSE,epsilon0)
+        endif
       endif
     endif
   enddo
@@ -567,10 +571,12 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                     field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                TORTUOSITY,ZERO_INTEGER)
-  call DiscretizationGlobalToLocal(discretization,epsilon0, &
-                                    field%work_loc,ONEDOF)
-  call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               EPSILON,ZERO_INTEGER)
+  if (associated(material_property%multicontinuum)) then
+    call DiscretizationGlobalToLocal(discretization,epsilon0, &
+                                     field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 EPSILON,ZERO_INTEGER)
+  endif
   call VecDestroy(epsilon0,ierr);CHKERRQ(ierr);
 
   if (option%ngeopdof > 0) then

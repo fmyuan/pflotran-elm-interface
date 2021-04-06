@@ -978,21 +978,23 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           call PrintErrMsg(option)
       end select
     endif
-    if (associated(cur_material_property%multicontinuum%epsilon_dataset)) then
-      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
-               '),EPSILON'
-      dataset => &
-        DatasetBaseGetPointer(realization%datasets, &
-                              cur_material_property%multicontinuum%epsilon_dataset%name, &
-                              string,option)
-      call DatasetDestroy(cur_material_property%multicontinuum%epsilon_dataset)
-      select type(dataset)
-        class is (dataset_common_hdf5_type)
-          cur_material_property%multicontinuum%epsilon_dataset => dataset
-        class default
-          option%io_buffer = 'Incorrect dataset type for epsilon.'
-          call PrintErrMsg(option)
-      end select
+    if (associated(cur_material_property%multicontinuum)) then
+      if (associated(cur_material_property%multicontinuum%epsilon_dataset)) then
+        string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+                 '),EPSILON'
+        dataset => &
+          DatasetBaseGetPointer(realization%datasets, &
+                                cur_material_property%multicontinuum%epsilon_dataset%name, &
+                                string,option)
+        call DatasetDestroy(cur_material_property%multicontinuum%epsilon_dataset)
+        select type(dataset)
+          class is (dataset_common_hdf5_type)
+            cur_material_property%multicontinuum%epsilon_dataset => dataset
+          class default
+            option%io_buffer = 'Incorrect dataset type for epsilon.'
+            call PrintErrMsg(option)
+        end select
+      endif
     endif
     if (associated(cur_material_property%permeability_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &

@@ -2926,7 +2926,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
       case ('MATERIAL_PROPERTY')
 
-        material_property => MaterialPropertyCreate()
+        material_property => MaterialPropertyCreate(option)
         call InputReadWord(input,option,material_property%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','MATERIAL_PROPERTY')
         option%io_buffer = '  Name :: ' // trim(material_property%name)

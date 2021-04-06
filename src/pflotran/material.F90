@@ -145,21 +145,25 @@ contains
 
 ! ************************************************************************** !
 
-function MaterialPropertyCreate()
+function MaterialPropertyCreate(option)
   !
   ! Creates a material property
   !
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   !
+  use Option_module
+  
   implicit none
 
   type(material_property_type), pointer :: MaterialPropertyCreate
 
   type(material_property_type), pointer :: material_property
 
+  type(option_type) :: option
+
   allocate(material_property)
-  allocate(material_property%multicontinuum)
+
   material_property%external_id = 0
   material_property%internal_id = 0
   material_property%active = PETSC_TRUE
@@ -221,25 +225,31 @@ function MaterialPropertyCreate()
   material_property%min_pressure = 0.d0
   material_property%max_pressure = 1.d6
   material_property%max_permfactor = 1.d0
-  material_property%multicontinuum%name = ''
-  material_property%multicontinuum%length = 0.d0
-  material_property%multicontinuum%matrix_block_size = 0.d0
-  material_property%multicontinuum%fracture_spacing = 0.d0
-  material_property%multicontinuum%radius = 0.d0
-  material_property%multicontinuum%area = 0.d0
-  material_property%multicontinuum%epsilon = 1.d0
-  material_property%multicontinuum%aperture = 0.d0
-  material_property%multicontinuum%init_temp = 100.d0
-  material_property%multicontinuum%init_conc = 0.d0
-  material_property%multicontinuum%porosity = 0.5d0
-  material_property%multicontinuum%diff_coeff = 1.d-9
-  material_property%multicontinuum%mnrl_volfrac = 0.d0
-  material_property%multicontinuum%mnrl_area = 0.d0
-  material_property%multicontinuum%ncells = 0
-  material_property%multicontinuum%log_spacing = PETSC_FALSE
-  material_property%multicontinuum%outer_spacing = 1.d-3
-  material_property%multicontinuum%area_scaling = 1.d0
-  nullify(material_property%multicontinuum%epsilon_dataset)
+  nullify(material_property%multicontinuum)
+  
+  if (option%use_mc) then
+    allocate(material_property%multicontinuum)
+    material_property%multicontinuum%name = ''
+    material_property%multicontinuum%length = 0.d0
+    material_property%multicontinuum%matrix_block_size = 0.d0
+    material_property%multicontinuum%fracture_spacing = 0.d0
+    material_property%multicontinuum%radius = 0.d0
+    material_property%multicontinuum%area = 0.d0
+    material_property%multicontinuum%epsilon = 1.d0
+    material_property%multicontinuum%aperture = 0.d0
+    material_property%multicontinuum%init_temp = 100.d0
+    material_property%multicontinuum%init_conc = 0.d0
+    material_property%multicontinuum%porosity = 0.5d0
+    material_property%multicontinuum%diff_coeff = 1.d-9
+    material_property%multicontinuum%mnrl_volfrac = 0.d0
+    material_property%multicontinuum%mnrl_area = 0.d0
+    material_property%multicontinuum%ncells = 0
+    material_property%multicontinuum%log_spacing = PETSC_FALSE
+    material_property%multicontinuum%outer_spacing = 1.d-3
+    material_property%multicontinuum%area_scaling = 1.d0
+    nullify(material_property%multicontinuum%epsilon_dataset)
+  endif
+ 
   nullify(material_property%next)
   MaterialPropertyCreate => material_property
 
