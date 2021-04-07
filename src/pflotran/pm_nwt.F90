@@ -501,13 +501,15 @@ subroutine PMNWTInitializeRun(this)
   endif
 
   ! Jenn's hack for upper borehole
-  hack_region_name = 'rBH_OPEN_UPPER'
-  region => RegionGetPtrFromList(hack_region_name, &
-                                 this%realization%patch%region_list)
-  if (.not.associated(region)) then
-    this%option%io_buffer = 'Borehole region "rBH_OPEN_UPPER" not found &
-                            &among regions. This is a hack!'
-    call PrintErrMsg(this%option)
+  if (associated(this%params%bh_material_names)) then
+    hack_region_name = 'rBH_OPEN_UPPER'
+    region => RegionGetPtrFromList(hack_region_name, &
+                                   this%realization%patch%region_list)
+    if (.not.associated(region)) then
+      this%option%io_buffer = 'Borehole region "rBH_OPEN_UPPER" not found &
+                              &among regions. This is a hack!'
+      call PrintErrMsg(this%option)
+    endif
   endif
   
   call PMNWTUpdateSolution(this)
@@ -626,28 +628,30 @@ subroutine PMNWTInitializeTimestep(this)
   material_property => &
        MaterialPropGetPtrFromList(hack_material_name, &
                                   this%realization%patch%material_properties)
-  do local_id = 1, patch%grid%nlmax
-    ghosted_id = patch%grid%nL2G(local_id)
-    ! if within BH_OPEN time interval:
-    if (this%option%time >= 1.10376000d+10 .and. &   ! 350.0 yr
-        this%option%time < 1.73448000d+10) then      ! 550.0 yr
-      if (patch%imat(ghosted_id) == material_property%internal_id) then
-        ! Means the current grid cell is in BH_OPEN_UPPER
-        call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-        ! compute offset in solution vector for first dof in grid cell
-        offset = (local_id-1)*this%params%nspecies
-        do idof = 1, this%params%nspecies
-          index = idof + offset
-          xx_p(index) = 1.d-40  ! mol/m3-bulk
-        enddo
-        ! calculate range of species
-        istart = offset + 1
-        iend = offset + this%params%nspecies
-        nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
-        call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+  if (associated(material_property)) then
+    do local_id = 1, patch%grid%nlmax
+      ghosted_id = patch%grid%nL2G(local_id)
+      ! if within BH_OPEN time interval:
+      if (this%option%time >= 1.10376000d+10 .and. &   ! 350.0 yr
+          this%option%time < 1.73448000d+10) then      ! 550.0 yr
+        if (patch%imat(ghosted_id) == material_property%internal_id) then
+          ! Means the current grid cell is in BH_OPEN_UPPER
+          call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+          ! compute offset in solution vector for first dof in grid cell
+          offset = (local_id-1)*this%params%nspecies
+          do idof = 1, this%params%nspecies
+            index = idof + offset
+            xx_p(index) = 1.d-40  ! mol/m3-bulk
+          enddo
+          ! calculate range of species
+          istart = offset + 1
+          iend = offset + this%params%nspecies
+          nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
+          call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+        endif
       endif
-    endif
-  enddo
+    enddo
+  endif
   
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
