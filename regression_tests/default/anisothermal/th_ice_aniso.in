@@ -1,0 +1,292 @@
+#Description: Test anisotropic frozen thermal characteristic curves in TH mode
+#================================= TH mode ====================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH
+      /
+    /
+  /
+  INPUT_RECORD_FILE
+END
+
+SUBSURFACE
+
+#============================ numerical methods ===============================
+NUMERICAL_METHODS FLOW
+  TIMESTEPPER
+    TS_ACCELERATION 20
+    # MAX_STEPS -1
+    PRESSURE_CHANGE_GOVERNOR 1.e5
+    TEMPERATURE_CHANGE_GOVERNOR 0.1
+    SATURATION_CHANGE_GOVERNOR 1.d0
+    # CONCENTRATION_CHANGE_GOVERNOR 0.5d0
+  /
+
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 150
+    MAX_NORM 1d6
+    MAXF 1000
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+    ITOL 1D-8
+  /
+
+END
+
+#================================ regression ==================================
+REGRESSION
+  CELL_IDS
+    4
+    23
+    45
+    57
+    61
+  /
+END
+
+#============================== discretization ================================
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 4 4 4
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#============================ fluid properties ================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+/
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil_1
+  ID 1
+  SATURATION_FUNCTION default
+  POROSITY 0.30
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.0 kg/m^3
+  THERMAL_CHARACTERISTIC_CURVES cct_f1
+  HEAT_CAPACITY 830.0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY soil_2
+  ID 2
+  SATURATION_FUNCTION default
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2850.0 kg/m^3
+  THERMAL_CHARACTERISTIC_CURVES cct_f2
+  HEAT_CAPACITY 850.0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+THERMAL_CHARACTERISTIC_CURVES cct_f1
+  THERMAL_CONDUCTIVITY_FUNCTION FROZEN
+    THERMAL_CONDUCTIVITY_DRY 0.30d0 W/m-C
+    THERMAL_CONDUCTIVITY_WET 1.45d0 W/m-C
+    KERSTEN_EXPONENT 0.475
+    THERMAL_CONDUCTIVITY_FROZEN 2.35d0 W/m-C
+    KERSTEN_EXPONENT_FROZEN 0.975
+    ICE_MODEL DALL_AMICO
+    ANISOTROPY_RATIO_X 1.00
+    ANISOTROPY_RATIO_Y 0.90
+    ANISOTROPY_RATIO_Z 0.75
+  /
+END
+
+THERMAL_CHARACTERISTIC_CURVES cct_f2
+  THERMAL_CONDUCTIVITY_FUNCTION FROZEN
+    THERMAL_CONDUCTIVITY_DRY 0.25d0 W/m-C
+    THERMAL_CONDUCTIVITY_WET 1.30d0 W/m-C
+    KERSTEN_EXPONENT 0.45
+    THERMAL_CONDUCTIVITY_FROZEN 2.10d0 W/m-C
+    KERSTEN_EXPONENT_FROZEN 0.95
+    ICE_MODEL DALL_AMICO
+    ANISOTROPY_RATIO_X 0.90
+    ANISOTROPY_RATIO_Y 1.00
+    ANISOTROPY_RATIO_Z 0.80
+  /
+END
+
+#========================== saturation functions ==============================
+SATURATION_FUNCTION default
+  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
+  RESIDUAL_SATURATION 0.005
+  LAMBDA 0.721d0
+  ALPHA 2.83d-4
+/
+
+#============================== output options ================================
+skip
+OUTPUT
+  SNAPSHOT_FILE
+    FORMAT TECPLOT BLOCK
+    VARIABLES
+      TEMPERATURE
+      LIQUID_SATURATION
+      ICE_SATURATION
+    /
+  /
+/
+noskip
+
+#================================== times =====================================
+TIME
+  FINAL_TIME 5.0d-1 y
+  INITIAL_TIMESTEP_SIZE 1.0d+0 d
+  MAXIMUM_TIMESTEP_SIZE 1.0d-1 y
+/
+
+#================================== regions ===================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION frz
+  COORDINATES
+    0.d0 0.50d0 1.00d0
+    0.d0 1.00d0 1.00d0
+  /
+  FACE WEST
+END
+
+REGION west
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+  FACE WEST
+END
+
+REGION east
+  COORDINATES
+    1.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+  FACE EAST
+END
+
+REGION top
+  COORDINATES
+    0.d0 1.d0 1.d0
+    1.d0 1.d0 1.d0
+  /
+  FACE TOP
+END
+
+REGION bottom
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 0.d0 0.d0
+  /
+  FACE BOTTOM
+END
+
+REGION west_side
+  COORDINATE 0.05d0 0.5d0 0.5d0
+END
+
+REGION east_side
+  COORDINATE 0.95d0 0.5d0 0.5d0
+END
+
+REGION S1
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION S2
+  COORDINATES
+    1.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION west_side
+  VELOCITY
+/
+
+OBSERVATION
+  REGION east_side
+  VELOCITY
+/
+
+#============================= flow conditions ================================
+FLOW_CONDITION initial
+  UNITS Pa, C
+  TYPE
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  PRESSURE 101325.D0
+  TEMPERATURE 1.0D+0
+END
+
+FLOW_CONDITION freeze
+  UNITS Pa, C, yr
+  TYPE
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  PRESSURE 101325.D0
+  TEMPERATURE -2.00D+0
+END
+
+#============================ condition couplers ==============================
+INITIAL_CONDITION
+  FLOW_CONDITION freeze
+  REGION frz
+/
+
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION S1
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION S2
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION east
+/
+
+BOUNDARY_CONDITION frz
+  FLOW_CONDITION freeze
+  REGION frz
+/
+
+#========================== stratigraphy couplers =============================
+STRATA
+  MATERIAL soil_1
+  REGION S1
+/
+STRATA
+  MATERIAL soil_2
+  REGION S2
+/
+
+END_SUBSURFACE

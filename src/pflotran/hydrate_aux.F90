@@ -927,8 +927,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = 0.d0
       hyd_auxvar%sat(iid) = 0.d0
 
-      call HydratePE(hyd_auxvar%temp, 0.d0, PE_hyd, dP, characteristic_curves, &
-                     material_auxvar,option)
+      call HydratePE(hyd_auxvar%temp, hyd_auxvar%sat(hid), PE_hyd, dP, &
+                     characteristic_curves, material_auxvar,option)
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
       if (hydrate_adjust_ghsz_solubility) then
@@ -1039,7 +1039,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         dTf = 0.d0
       endif
       
-      hyd_auxvar%temp = TQD+dTf
+      hyd_auxvar%temp = TQD-dTf
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                           hyd_auxvar%pres(spid),ierr)
@@ -1157,7 +1157,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         dTf = 0.d0
       endif
 
-      hyd_auxvar%temp = TQD+dTf
+      hyd_auxvar%temp = TQD-dTf
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
           characteristic_curves, material_auxvar,option)
@@ -1235,7 +1235,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call GibbsThomsonFreezing(1.d0-hyd_auxvar%sat(iid),6017.1d0, &
               ICE_DENSITY,TQD,dTf,characteristic_curves, material_auxvar,option)
 
-      hyd_auxvar%temp = TQD+dTf
+      hyd_auxvar%temp = TQD-dTf
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
@@ -1320,7 +1320,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       !  endif
       !endif
 
-      hyd_auxvar%temp = TQD + dTf
+      hyd_auxvar%temp = TQD - dTf
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP, &
           characteristic_curves, material_auxvar, option)
       hyd_auxvar%pres(apid) = PE_hyd
@@ -1672,7 +1672,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
     dTf = 0.d0
   endif
   
-  Tf_ice = TQD + dTf
+  Tf_ice = TQD - dTf
   !Update State
 
   old_state = global_auxvar%istate
@@ -3506,8 +3506,9 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   PetscReal :: T_temp, dTf
 
   if (hydrate_with_gibbs_thomson) then
-    call GibbsThomsonFreezing(1.d0-sat, 54734.d0, HYDRATE_DENSITY, T, dTf, &
-          characteristic_curves, material_auxvar, option)
+    call GibbsThomsonFreezing(1.d0-sat-hydrate_phase_chng_epsilon, &
+                              54734.d0, HYDRATE_DENSITY, T, dTf, &
+                              characteristic_curves, material_auxvar, option)
   else
     dTf = 0.d0
   endif

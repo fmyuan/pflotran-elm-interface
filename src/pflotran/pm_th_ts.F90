@@ -165,6 +165,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
                                   material_auxvars(ghosted_id), &
                                   th_parameter,icct, &
                                   patch%characteristic_curves_array(icc)%ptr, &
+                                  patch%char_curves_thermal_array(icct)%ptr, &
                                   option)
   enddo
 

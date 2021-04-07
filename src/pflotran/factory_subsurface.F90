@@ -1778,6 +1778,8 @@ subroutine SetupWaypointList(simulation)
     call WaypointListFillIn(simulation%waypoint_list_subsurface,option)
     call WaypointListRemoveExtraWaypnts(simulation%waypoint_list_subsurface, &
                                         option)
+    call WaypointListFindDuplicateTimes(simulation%waypoint_list_subsurface, &
+                                        option)
   endif
 
   ! debugging output
@@ -2840,7 +2842,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             option%iflowmode == G_MODE .or. &
             option%iflowmode == H_MODE .or. &
             (option%iflowmode == TH_MODE .and. &
-             .not. th_use_freezing) .or. &
+             .not. option%th_freezing) .or. &
             option%iflowmode == TH_TS_MODE .or. &
             option%iflowmode == WF_MODE) then
           option%io_buffer = &
@@ -2871,7 +2873,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%iflowmode == H_MODE .or. &
                   option%iflowmode == TH_TS_MODE .or. &
                   (option%iflowmode == TH_MODE .and. &
-                    .not. th_use_freezing) .or. &
+                    .not. option%th_freezing) .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
             &modes other than RICHARDS, RICHARDS_TS, TOIL_IMS, WIPP_FLOW, TH, or GENERAL. &

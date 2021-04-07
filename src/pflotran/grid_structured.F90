@@ -479,7 +479,7 @@ subroutine StructGridComputeSpacing(structured_grid,origin_global,option)
       enddo
       structured_grid%bounds(Z_DIRECTION,UPPER) = tempreal
     else
-      structured_grid%bounds(Y_DIRECTION,LOWER) = 0.d0
+      structured_grid%bounds(Z_DIRECTION,LOWER) = 0.d0
       structured_grid%bounds(Z_DIRECTION,UPPER) = 1.d0
     endif
   endif
@@ -972,7 +972,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(-1,iconn) = dist_up/(dist_up+dist_dn)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
-              connections%area(iconn) = 4.d0 * pi * (radius(id_up)+0.5d0*structured_grid%dx(id_up))
+              connections%area(iconn) = 4.d0 * pi * (radius(id_up)+0.5d0*structured_grid%dx(id_up))**2
             enddo
           enddo
         enddo
@@ -1199,11 +1199,12 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection, &
                                          structured_grid%dx(ghosted_id)
               if (iface ==  WEST_FACE) then
                 connection%dist(1,iconn) = 1.d0
-                connection%area(iconn) = 0.d0
+                connection%area(iconn) = 4.d0 * pi * (radius(ghosted_id)- &
+                                         0.5d0*structured_grid%dx(ghosted_id))**2
               else
                 connection%dist(1,iconn) = -1.d0
                 connection%area(iconn) = 4.d0 * pi * (radius(ghosted_id)+ &
-                                         0.5d0*structured_grid%dx(ghosted_id))
+                                         0.5d0*structured_grid%dx(ghosted_id))**2
               endif
           end select
 
