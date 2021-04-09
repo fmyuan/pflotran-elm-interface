@@ -223,6 +223,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: aux(1)
   PetscReal, parameter :: tol = 1.d-3
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
+  PetscInt :: error
   
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
@@ -258,8 +259,8 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     if (auxvar%bc_alpha > 0.d0) then
       select type(sf => characteristic_curves%saturation_function)
         class is(sat_func_VG_type)
-          sf%m     = auxvar%bc_lambda
-          sf%alpha = auxvar%bc_alpha
+          error = sf%set_m(auxvar%bc_lambda)
+          error = sf%set_alpha(auxvar%bc_alpha)
         class is(sat_func_BC_type)
             sf%lambda = auxvar%bc_lambda
             sf%alpha  = auxvar%bc_alpha
