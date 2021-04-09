@@ -1215,6 +1215,8 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,dataset, &
                                                  real_count)
+              coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = &
+                DIRICHLET_BC
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
@@ -1251,6 +1253,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,dataset, &
                                                  real_count)
+              coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
@@ -4514,11 +4517,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
-         MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
-         OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
-         SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
-         SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY )
+         MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -5933,6 +5932,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         vec_ptr(local_id) = &
           patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
       enddo
+    case(ELECTRICAL_JACOBIAN)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
+      enddo      
     case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
@@ -6058,11 +6062,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
-         LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
-         OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
-         SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
-         SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY)
+         LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -6895,6 +6895,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       endif
     case(ELECTRICAL_POTENTIAL)
       value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
+    case(ELECTRICAL_JACOBIAN)
+      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)
     case(NATURAL_ID)
@@ -7711,6 +7713,11 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) = &
           vec_ptr(local_id)
       enddo
+    case(ELECTRICAL_JACOBIAN)
+      do local_id=1,grid%nlmax
+        patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar) = &
+          vec_ptr(local_id)
+      enddo      
     case(PROCESS_ID)
       call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
@@ -8904,14 +8911,18 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       sorb_species_mass = 0.d0
       ! aqueous species; units [mol/L-water]*[m^3-water]*[1000L/m^3-water]=[mol]
       aq_species_mass = rt_auxvars(ghosted_id)%total(j,LIQUID_PHASE) * &
-                        m3_water * 1.0d3
-      ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
-      aq_species_mass = aq_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
+                        m3_water * 1.0d3     
+      if (reaction%print_total_mass_kg) then
+        ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
+        aq_species_mass = aq_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
+      endif
       if (associated(rt_auxvars(ghosted_id)%total_sorb_eq)) then
         ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
         sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
-        ! sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
-        sorb_species_mass = sorb_species_mass * reaction%eqcplx_molar_wt(j) * 1.0d-3
+        if (reaction%print_total_mass_kg) then
+          ! sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
+          sorb_species_mass = sorb_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
+        endif
       else
         sorb_species_mass = 0.d0
       endif
@@ -8924,9 +8935,11 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! precip. species; units [m^3-mnrl/m^3-bulk]*[m^3-bulk]/[m^3-mnrl/mol-mnrl]=[mol]
       ppt_species_mass = rt_auxvars(ghosted_id)%mnrl_volfrac(m) * m3_bulk / &
                          reaction%mineral%kinmnrl_molar_vol(m)
-      ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
-      ppt_species_mass = ppt_species_mass * reaction%mineral%kinmnrl_molar_wt(j) * &
-                         1.0d-3
+      if (reaction%print_total_mass_kg) then
+        ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
+        ppt_species_mass = ppt_species_mass * reaction%mineral%kinmnrl_molar_wt(j) * &
+                           1.0d-3
+      endif
       local_total_mass = local_total_mass + ppt_species_mass
     enddo
   enddo ! Cell loop

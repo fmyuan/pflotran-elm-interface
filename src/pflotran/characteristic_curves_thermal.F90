@@ -44,6 +44,12 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: CalculateTCond => TCFDefaultConductivity
   end type kT_default_type
   !---------------------------------------------------------------------------
+  type, public, extends(kT_default_type) :: kT_linear_type
+  contains
+    procedure, public :: Verify => TCFLinearVerify
+    procedure, public :: CalculateTCond => TCFLinearConductivity
+  end type kT_linear_type
+  !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_power_type
     PetscReal :: ref_temp
     PetscReal :: gamma  ! T^gamma
@@ -525,6 +531,94 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   endif
 
 end subroutine TCFDefaultConductivity
+
+! ************************************************************************** !
+
+function TCFLinearCreate()
+
+  implicit none
+
+  class(kT_linear_type), pointer :: TCFLinearCreate
+
+  allocate(TCFLinearCreate)
+  TCFLinearCreate%isotropic   = PETSC_TRUE
+  TCFLinearCreate%full_tensor = PETSC_FALSE
+  TCFLinearCreate%kT_wet = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%kT_dry = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%alpha  = 1.0d0
+  TCFLinearCreate%kT     = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%kTf    = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%kT_x   = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%kT_y   = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%kT_z   = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%kT_xy  = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%kT_xz  = UNINITIALIZED_DOUBLE
+  TCFLinearCreate%kT_yz  = UNINITIALIZED_DOUBLE
+
+end function TCFLinearCreate
+
+! ************************************************************************** !
+
+subroutine TCFLinearVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_linear_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,LINEAR'
+  endif
+  call TCFBaseVerify(this,string,option)
+  if (Uninitialized(this%kT_wet)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_WET',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kT_dry)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_DRY',string)
+    call PrintErrMsg(option)
+  endif
+
+end subroutine TCFLinearVerify
+
+! ************************************************************************** !
+
+subroutine TCFLinearConductivity(this,liquid_saturation,temperature, &
+                                 thermal_conductivity,dkT_dsatl,dkT_dtemp, &
+                                 option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_linear_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: tempreal
+
+  dkT_dtemp = 0.d0 ! only a function of saturation
+  
+  if (liquid_saturation > 0.d0) then
+    tempreal = liquid_saturation * &
+               (this%kT_wet - this%kT_dry)
+    thermal_conductivity = this%kT_dry + tempreal
+    dkT_dsatl = 0.5d0 * tempreal / liquid_saturation
+  else
+    thermal_conductivity = this%kT_dry
+    dkT_dsatl = 0.d0
+  endif
+
+end subroutine TCFLinearConductivity
 
 ! ************************************************************************** !
 
@@ -1704,6 +1798,8 @@ subroutine CharCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCFConstantCreate()
       case('DEFAULT')
         this%thermal_conductivity_function => TCFDefaultCreate()
+      case('LINEAR')
+        this%thermal_conductivity_function => TCFLinearCreate()
       case('POWER')
         this%thermal_conductivity_function => TCFPowerCreate()
       case('CUBIC_POLYNOMIAL')
@@ -1829,6 +1925,8 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
     error_string = trim(error_string) // 'CONSTANT'
   class is(kT_default_type)
     error_string = trim(error_string) // 'DEFAULT'
+  class is(kT_linear_type)
+    error_string = trim(error_string) // 'LINEAR'
   class is(kT_power_type)
     error_string = trim(error_string) // 'POWER'
   class is(kT_cubic_polynomial_type)
@@ -1881,6 +1979,9 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
       !------------------------------------------
     class is(kT_default_type)
       call TCFDefaultRead(tcf,input,keyword,error_string,'default',option)
+      !------------------------------------------
+    class is(kT_linear_type)
+      call TCFDefaultRead(tcf,input,keyword,error_string,'linear',option)
       !------------------------------------------
     class is(kT_power_type)
       select case(keyword)
@@ -3126,6 +3227,15 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         !---------------------------------
       class is (kT_default_type)
         write(id,'(a)') 'only saturation-dependent (default)'
+        write(id,'(a29)',advance='no') 'kT_wet: '
+        write(word1,*) tcf%kT_wet
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'kT_dry: '
+        write(word1,*) tcf%kT_dry
+        write(id,'(a)') adjustl(trim(word1))
+        !---------------------------------
+      class is (kT_linear_type)
+        write(id,'(a)') 'only saturation-dependent (linear)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
         write(id,'(a)') adjustl(trim(word1))

@@ -440,7 +440,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
-  type(cc_thermal_type) :: thermal_cc_up, thermal_cc_dn
+  class(cc_thermal_type) :: thermal_cc_up, thermal_cc_dn
   PetscReal :: Res(option%nflowdof)
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -2517,7 +2517,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   type(general_parameter_type) :: general_parameter
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: Res(1:option%nflowdof)
-  type(cc_thermal_type) :: thermal_cc_dn
+  class(cc_thermal_type) :: thermal_cc_dn
   PetscReal :: J(3,3)
   PetscBool :: analytical_derivatives
   PetscBool :: update_upwind_direction_
@@ -3934,7 +3934,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   type(global_auxvar_type) :: global_auxvar,global_auxvar_ss
   class(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux(option%nphase)
-  type(characteristic_curves_type) :: characteristic_curves
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
   PetscReal :: scale
   PetscReal :: Res(option%nflowdof)
@@ -4420,7 +4420,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
-  type(cc_thermal_type) :: thermal_cc_up, thermal_cc_dn
+  class(cc_thermal_type) :: thermal_cc_up, thermal_cc_dn
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   PetscReal :: Janal_up(option%nflowdof,option%nflowdof)
@@ -4643,7 +4643,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   type(coupler_type), pointer :: source_sink
   type(general_auxvar_type) :: gen_auxvar(0:), gen_auxvar_ss(0:1)
   type(global_auxvar_type) :: global_auxvar, global_auxvar_ss
-  type(characteristic_curves_type) :: characteristic_curves
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
   class(material_auxvar_type) :: material_auxvar
   PetscReal :: scale

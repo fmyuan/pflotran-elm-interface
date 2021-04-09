@@ -139,7 +139,7 @@ subroutine THSetupPatch(realization)
   type(fluid_property_type), pointer :: cur_fluid_property
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
-  type(cc_thermal_type), pointer :: thermal_cc
+  class(cc_thermal_type), pointer :: thermal_cc
   character(len=MAXWORDLENGTH) :: word
   PetscReal :: area_per_vol
 
@@ -242,6 +242,13 @@ subroutine THSetupPatch(realization)
         tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
         patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
       !------------------------------------------
+      type is(kT_linear_type)
+        patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
+        patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
+        tcf%kT_dry = tcf%kT_dry*option%scale ! apply scale to original value
+        tcf%kT_wet = tcf%kT_wet*option%scale ! apply scale to original value
+        patch%aux%TH%th_parameter%alpha(icct) = tcf%alpha
+      !------------------------------------------
       type is(kT_linear_resistivity_type)
         patch%aux%TH%th_parameter%ckdry(icct) = tcf%kT_dry*option%scale
         patch%aux%TH%th_parameter%ckwet(icct) = tcf%kT_wet*option%scale
@@ -336,32 +343,33 @@ subroutine THSetupPatch(realization)
     allocate(TH_sec_heat_vars(grid%nlmax))
   
     do local_id = 1, grid%nlmax
-  
+
+      ghosted_id = grid%nL2G(local_id)
     ! Assuming the same secondary continuum for all regions (need to 
     ! make it an array)
     ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
         TH_sec_heat_vars(local_id)%sec_continuum, &
-        patch%material_property_array(1)%ptr%secondary_continuum_name, &
-        patch%material_property_array(1)%ptr%secondary_continuum_length, &
+        patch%material_property_array(1)%ptr%multicontinuum%name, &
+        patch%material_property_array(1)%ptr%multicontinuum%length, &
         patch%material_property_array(1)%ptr% &
-          secondary_continuum_matrix_block_size, &
+          multicontinuum%matrix_block_size, &
         patch%material_property_array(1)%ptr% &
-          secondary_continuum_fracture_spacing, &
-        patch%material_property_array(1)%ptr%secondary_continuum_radius, &
-        patch%material_property_array(1)%ptr%secondary_continuum_area, &
+          multicontinuum%fracture_spacing, &
+        patch%material_property_array(1)%ptr%multicontinuum%radius, &
+        patch%material_property_array(1)%ptr%multicontinuum%area, &
         option)
         
       TH_sec_heat_vars(local_id)%ncells = &
-        patch%material_property_array(1)%ptr%secondary_continuum_ncells
+        patch%material_property_array(1)%ptr%multicontinuum%ncells
       TH_sec_heat_vars(local_id)%aperture = &
-        patch%material_property_array(1)%ptr%secondary_continuum_aperture
+        patch%material_property_array(1)%ptr%multicontinuum%aperture
       TH_sec_heat_vars(local_id)%epsilon = &
-        patch%material_property_array(1)%ptr%secondary_continuum_epsilon
+        patch%aux%Material%auxvars(ghosted_id)%epsilon
       TH_sec_heat_vars(local_id)%log_spacing = &
-        patch%material_property_array(1)%ptr%secondary_continuum_log_spacing
+        patch%material_property_array(1)%ptr%multicontinuum%log_spacing
       TH_sec_heat_vars(local_id)%outer_spacing = &
-        patch%material_property_array(1)%ptr%secondary_continuum_outer_spacing
+        patch%material_property_array(1)%ptr%multicontinuum%outer_spacing
                 
       allocate(TH_sec_heat_vars(local_id)%area( &
                                TH_sec_heat_vars(local_id)%ncells))
@@ -389,7 +397,7 @@ subroutine THSetupPatch(realization)
       TH_sec_heat_vars(local_id)%interfacial_area = area_per_vol* &
         (1.d0 - TH_sec_heat_vars(local_id)%epsilon)* &
         patch%material_property_array(1)%ptr% &
-        secondary_continuum_area_scaling
+        multicontinuum%area_scaling
 
     ! Setting the initial values of all secondary node temperatures same 
     ! as primary node temperatures (with initial dirichlet BC only) 
@@ -399,7 +407,7 @@ subroutine THSetupPatch(realization)
       
       if (option%flow%set_secondary_init_temp) then
         TH_sec_heat_vars(local_id)%sec_temp = &
-          patch%material_property_array(1)%ptr%secondary_continuum_init_temp
+          patch%material_property_array(1)%ptr%multicontinuum%init_temp
       else
         TH_sec_heat_vars(local_id)%sec_temp = &
         initial_condition%flow_condition%temperature%dataset%rarray(1)

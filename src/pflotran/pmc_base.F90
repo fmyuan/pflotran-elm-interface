@@ -55,7 +55,7 @@ module PMC_Base_class
     procedure, public :: RestartBinary => PMCBaseRestartBinary
     procedure, public :: CheckpointHDF5 => PMCBaseCheckpointHDF5
     procedure, public :: RestartHDF5 => PMCBaseRestartHDF5
-    procedure, public :: FinalizeRun
+    procedure, public :: FinalizeRun => PMCBaseFinalizeRun
     procedure, public :: OutputLocal
     procedure, public :: UpdateSolution => PMCBaseUpdateSolution
     procedure, public :: Destroy => PMCBaseDestroy
@@ -98,6 +98,7 @@ module PMC_Base_class
             PMCBaseInit, &
             PMCBaseInputRecord, &
             PMCBaseSetChildPeerPtr, &
+            PMCBaseFinalizeRun, &
             PMCBaseStrip, &
             SetOutputFlags, &
             PMCCastToBase
@@ -170,7 +171,7 @@ end subroutine PMCBaseInit
 
 ! ************************************************************************** !
 
-subroutine PMCBaseReadNumericalMethods(this,input)
+subroutine PMCBaseReadNumericalMethods(this,input,pm_label)
   !
   ! Author: Glenn Hammond
   ! Date: 03/09/20
@@ -183,6 +184,7 @@ subroutine PMCBaseReadNumericalMethods(this,input)
 
   class(pmc_base_type) :: this
   type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: pm_label
 
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: keyword
@@ -205,7 +207,7 @@ subroutine PMCBaseReadNumericalMethods(this,input)
 
     if (InputCheckExit(input,option)) exit
 
-    error_string = 'SUBSURFACE,NUMERICAL_METHODS'
+    error_string = 'SUBSURFACE,NUMERICAL_METHODS,'//pm_label
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
@@ -557,10 +559,10 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   implicit none
 
   class(pmc_base_type), target :: this
-  character(len=MAXSTRINGLENGTH) :: filename_append
   PetscReal :: sync_time
   PetscInt :: stop_flag
 
+  character(len=MAXSTRINGLENGTH) :: filename_append
   PetscInt :: local_stop_flag
   PetscBool :: failure
   PetscBool :: checkpoint_at_this_time_flag
@@ -644,6 +646,7 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       call this%GetAuxData()
     endif
 
+    peer_already_run_to_time = PETSC_FALSE
     ! only print output for process models of depth 0
     if (associated(this%Output)) then
       ! however, if we are using the modulus of the output_option%imod, we may
@@ -658,8 +661,30 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
         (mod(this%timestepper%steps,this%pm_list% &
              output_option%periodic_msbl_output_ts_imod) == 0)
 
-      if (this%option%steady_state) &
+      if (this%pm_list%steady_state) &
         snapshot_plot_at_this_timestep_flag = PETSC_TRUE
+
+      if (this%pm_list%output_option%force_synchronized_output .and. &
+          associated(this%peer) .and. .not.peer_already_run_to_time) then
+        ! this%Output current performs actions beyond solely outputing data
+        ! (e.g. time averaging of data). but we should only force the peers
+        ! on actual output
+        if (snapshot_plot_at_this_time_flag .or. &
+            snapshot_plot_at_this_timestep_flag .or. &
+            observation_plot_at_this_time_flag .or. &
+            observation_plot_at_this_timestep_flag .or. &
+            massbal_plot_at_this_time_flag .or. &
+            massbal_plot_at_this_timestep_flag) then
+          ! if printing synchronized output, need to sync all other PMCs.
+          ! children are already in sync, but peers are not.
+          call this%SetAuxData()
+          ! Run neighboring process model couplers
+          call this%peer%RunToTime(this%timestepper%target_time, &
+                                   local_stop_flag)
+          peer_already_run_to_time = PETSC_TRUE
+          call this%GetAuxData()
+        endif
+      endif
 
       call this%Output(this%pm_list%realization_base, &
                        (snapshot_plot_at_this_time_flag .or. &
@@ -679,42 +704,46 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
       endif
     endif
 
-    ! Checkpointing forces peers to be executed prior to the checkpoing.  If
-    ! so, we need to skip the peer RunToTime outside the loop
-    peer_already_run_to_time = PETSC_FALSE
-    if (this%is_master .and. &
-        (checkpoint_at_this_time_flag .or. &
-         checkpoint_at_this_timestep_flag)) then
-      ! if checkpointing, need to sync all other PMCs.  Those "below" are
-      ! already in sync, but not those "next".
-      ! Set data needed by process-model
-      call this%SetAuxData()
-      ! Run neighboring process model couplers
-      if (associated(this%peer)) then
-        call this%peer%RunToTime(this%timestepper%target_time,local_stop_flag)
-        peer_already_run_to_time = PETSC_TRUE
-      endif
-      call this%GetAuxData()
-      ! it is possible that two identical checkpoint files will be created,
-      ! one at the time and another at the time step, but this is fine.
-      if (checkpoint_at_this_time_flag) then
-        filename_append = &
-          CheckpointAppendNameAtTime(this%checkpoint_option, &
-                                     this%option%time,this%option)
-        call this%Checkpoint(filename_append)
-      endif
-      if (checkpoint_at_this_timestep_flag) then
-        filename_append = &
-          CheckpointAppendNameAtTimestep(this%checkpoint_option, &
-                                         this%timestepper%steps, &
-                                         this%option)
-        call this%Checkpoint(filename_append)
-      endif
-    endif
-
     if (this%is_master) then
+      if (checkpoint_at_this_time_flag .or. &
+          checkpoint_at_this_timestep_flag) then
+        if (associated(this%peer) .and. .not.peer_already_run_to_time) then
+          ! if checkpointing, need to sync all other PMCs.  Children are
+          ! already in sync, but peers are not.
+          call this%SetAuxData()
+          ! Run neighboring process model couplers
+          call this%peer%RunToTime(this%timestepper%target_time, &
+                                   local_stop_flag)
+          ! Checkpointing forces peers to be executed prior to the
+          ! checkpointing. If so, we need to skip the peer RunToTime
+          ! outside the loop
+          peer_already_run_to_time = PETSC_TRUE
+          call this%GetAuxData()
+        endif
+        ! it is possible that two identical checkpoint files will be created,
+        ! one at the time and another at the time step, but this is fine.
+        if (checkpoint_at_this_time_flag) then
+          filename_append = &
+            CheckpointAppendNameAtTime(this%checkpoint_option, &
+                                       this%option%time,this%option)
+          call this%Checkpoint(filename_append)
+        endif
+        if (checkpoint_at_this_timestep_flag) then
+          filename_append = &
+            CheckpointAppendNameAtTimestep(this%checkpoint_option, &
+                                           this%timestepper%steps, &
+                                           this%option)
+          call this%Checkpoint(filename_append)
+        endif
+      endif
+
       if (this%timestepper%WallClockStop(this%option)) then
          local_stop_flag = TS_STOP_WALLCLOCK_EXCEEDED
+      endif
+
+      ! must come after wall clock as steady state overrides
+      if (this%pm_list%steady_state) then
+        local_stop_flag = TS_STOP_END_SIMULATION
       endif
     endif
 
@@ -790,7 +819,7 @@ end subroutine PMCBaseUpdateSolution
 
 ! ************************************************************************** !
 
-recursive subroutine FinalizeRun(this)
+recursive subroutine PMCBaseFinalizeRun(this)
   !
   ! Finalizes the time stepping
   !
@@ -821,9 +850,6 @@ recursive subroutine FinalizeRun(this)
   if (associated(this%pm_list)) then
     call this%pm_list%FinalizeRun()
   endif
-  if (OptionPrintToScreen(this%option)) then
-    write(*,'("----------")')
-  endif
 
   if (associated(this%child)) then
     call this%child%FinalizeRun()
@@ -833,7 +859,7 @@ recursive subroutine FinalizeRun(this)
     call this%peer%FinalizeRun()
   endif
 
-end subroutine FinalizeRun
+end subroutine PMCBaseFinalizeRun
 
 ! ************************************************************************** !
 

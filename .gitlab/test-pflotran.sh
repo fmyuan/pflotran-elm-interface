@@ -33,8 +33,8 @@ cp -R $PFLOTRAN_DIR/regression_tests $ARTIFACT_DIR
 cp -R $SRC_DIR/coverage $ARTIFACT_DIR
 
 if [ $UNIT_EXIT_CODE -eq 0 ] && [ $REGRESSION_EXIT_CODE -eq 0 ]; then
-  exit 0
+  echo 'success' > $ARTIFACT_DIR/status
 else
-  exit 1
+  echo 'failed' > $ARTIFACT_DIR/status
 fi
 
