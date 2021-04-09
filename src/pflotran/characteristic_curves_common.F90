@@ -1709,67 +1709,6 @@ subroutine RPFBurdineBCLiqVerify(this,name,option)
     option%io_buffer = UninitializedMessage('LAMBDA',string)
     call PrintErrMsg(option)
   endif
-end subroutine RPFBurdineBCLiqVerify
-
-! ************************************************************************** !
-! ************************************************************************** !
-
-function RPFBurdineBCLiqCreate()
-
-  ! Creates the Brooks-Corey Burdine relative permeability function object
-
-  implicit none
-  
-  class(rpf_Burdine_BC_liq_type), pointer :: RPFBurdineBCLiqCreate
-  
-  allocate(RPFBurdineBCLiqCreate)
-  call RPFBurdineBCLiqCreate%Init()
-  
-end function RPFBurdineBCLiqCreate
-
-! ************************************************************************** !
-
-subroutine RPFBurdineBCLiqInit(this)
-
-  ! Initializes the Brooks-Corey Burdine relative permeability function object
-
-  implicit none
-  
-  class(rpf_Burdine_BC_liq_type) :: this
-
-  call RPFBaseInit(this)
-  this%lambda = UNINITIALIZED_DOUBLE
-  
-  this%analytical_derivative_available = PETSC_TRUE
-  
-end subroutine RPFBurdineBCLiqInit
-
-! ************************************************************************** !
-
-subroutine RPFBurdineBCLiqVerify(this,name,option)
-
-  ! Initializes the Brooks-Corey Burdine relative permeability function object
-
-  use Option_module
-  
-  implicit none
-  
-  class(rpf_Burdine_BC_liq_type) :: this
-  character(len=MAXSTRINGLENGTH) :: name
-  type(option_type) :: option
-  
-  character(len=MAXSTRINGLENGTH) :: string 
-
-  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
-    string = name
-  else
-    string = trim(name) // 'PERMEABILITY_FUNCTION,BURDINE'
-  endif    
-  call RPFBaseVerify(this,name,option)
-  if (Uninitialized(this%lambda)) then
-    option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call PrintErrMsg(option)
-  endif
   
 end subroutine RPFBurdineBCLiqVerify
 
