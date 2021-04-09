@@ -104,6 +104,8 @@ chem_obj = \
 	${common_src}reaction_gas_aux.o \
 	${common_src}reaction_immobile.o \
 	${common_src}reaction_immobile_aux.o \
+	${common_src}reaction_isotherm.o \
+	${common_src}reaction_isotherm_aux.o \
 	${common_src}reaction_microbial.o \
 	${common_src}reaction_microbial_aux.o \
 	${common_src}reaction_mineral.o \
@@ -116,6 +118,8 @@ chem_obj = \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
+	${common_src}reaction_sandbox_gmd_1.o \
+	${common_src}reaction_sandbox_gmd_2.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
 	${common_src}reaction_sandbox_simple.o \

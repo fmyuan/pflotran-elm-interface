@@ -20,6 +20,7 @@ module PMC_Geophysics_class
     procedure, public :: Init => PMCGeophysicsInit
     procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers
     procedure, public :: StepDT => PMCGeophysicsStepDT
+    procedure, public :: FinalizeRun => PMCGeophysicsFinalizeRun
     procedure, public :: Destroy => PMCGeophysicsDestroy
   end type pmc_geophysics_type
 
@@ -82,7 +83,6 @@ subroutine PMCGeophysicsSetupSolvers(this)
   ! Date: 01/29/21
   !
   use Option_module
-  use Timestepper_Steady_class
 
   implicit none
 
@@ -94,18 +94,11 @@ subroutine PMCGeophysicsSetupSolvers(this)
 
   option => this%option
 
-  select type(ts=>this%timestepper)
-    class is(timestepper_Steady_type)
-    class default
-      option%io_buffer = 'A Steady timestepper must be used for geophysics.'
-      call PrintErrMsg(option)
-  end select
-
   select type(pm=>this%pm_ptr%pm)
     class is(pm_ert_type)
       pm_ert => pm
       ! Sets up solver for ERT
-      call PMERTSetupSolver(pm_ert)
+      call pm_ert%SetupSolvers()
     class default
       option%io_buffer = 'Solver setup implemented only for ERT &
                           &geophysics process model.'
@@ -124,39 +117,71 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   ! Date: 01/29/21
   !
   use Option_module
-  use Timestepper_Base_class
+  use Output_Aux_module
+  use PM_Base_class
+  use Timestepper_Steady_class
+  use Timestepper_Base_class, only : TS_STOP_FAILURE
 
   implicit none
 
   class(pmc_geophysics_type) :: this
   PetscInt :: stop_flag
 
+  class(pm_base_type), pointer :: pm_base
   class(pm_ert_type), pointer :: pm_ert
   type(option_type), pointer :: option
+  type(output_option_type), pointer :: output_option
+  class(timestepper_steady_type), pointer :: timestepper
 
   PetscLogDouble :: log_start_time
   PetscLogDouble :: log_end_time
+  PetscInt :: local_stop_flag
+  PetscInt :: linear_iterations_in_step
   PetscErrorCode :: ierr
+
+  if (stop_flag == TS_STOP_FAILURE) return
 
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
   option => this%option
+  output_option => this%pm_ptr%pm%output_option
+  timestepper => TimestepperSteadyCast(this%timestepper)
+  linear_iterations_in_step = 0
 
+  pm_base => this%pm_ptr%pm
   select type(pm=>this%pm_ptr%pm)
     class is(pm_ert_type)
       pm_ert => pm
-      call PMERTSolve(pm_ert)
+      call pm_ert%PreSolve()
+      call pm_ert%Solve(timestepper%target_time,ierr)
+      linear_iterations_in_step = pm_ert%linear_iterations_in_step
     class default
-      option%io_buffer = 'StepDT implemented only for ERT &
+      option%io_buffer = 'RunToTime implemented only for ERT &
                           &geophysics process model.'
       call PrintErrMsg(option)
   end select
+  if (ierr /= 0) stop_flag = TS_STOP_FAILURE
+
+  timestepper%steps = timestepper%steps + 1
+  timestepper%cumulative_linear_iterations = &
+    timestepper%cumulative_linear_iterations + linear_iterations_in_step
+  if (this%option%print_screen_flag) then
+    write(*, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
+         & /,"  linear = ",i5," [",i10,"]")') &
+         timestepper%steps, timestepper%target_time/output_option%tconv, &
+         trim(output_option%tunit), linear_iterations_in_step, &
+         timestepper%cumulative_linear_iterations
+  endif
+  if (this%option%print_file_flag) then
+    write(this%option%fid_out, '(/," Step ",i6," Time= ",1pe12.5," [",a,"]", &
+         & /,"  linear = ",i5," [",i10,"]")') &
+         timestepper%steps, this%timestepper%target_time/output_option%tconv, &
+         trim(output_option%tunit), linear_iterations_in_step, &
+         timestepper%cumulative_linear_iterations
+  endif
 
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
-
-  ! set stop flag to end the geophysics simulation
-  stop_flag = TS_STOP_END_SIMULATION
 
   ! call this%timer%Start()
   ! do ielectrode = 1, this%num_electrodes
@@ -174,18 +199,27 @@ recursive subroutine PMCGeophysicsFinalizeRun(this)
   ! Author: Glenn Hammond
   ! Date: 01/29/21
   !
-
   use Option_module
+  use Timestepper_Steady_class
 
   implicit none
 
   class(pmc_geophysics_type) :: this
+
+  class(timestepper_steady_type), pointer :: timestepper
 
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCGeophysics%FinalizeRun()')
 #endif
 
   nullify(this%realization)
+  select type(pm=>this%pm_ptr%pm)
+    class is(pm_ert_type)
+      timestepper => TimestepperSteadyCast(this%timestepper)
+      timestepper%cumulative_solver_time = pm%ksp_time
+    class default
+  end select
+  call PMCBaseFinalizeRun(this)
 
 end subroutine PMCGeophysicsFinalizeRun
 

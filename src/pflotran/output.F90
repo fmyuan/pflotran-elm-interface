@@ -176,7 +176,20 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
-
+!...............................
+      case('NO_PRINT_SOURCE_SINK')
+        select case(trim(block_name))
+          case('OBSERVATION_FILE')
+            option%io_buffer = 'NO_PRINT_SOURCE_SINK cannot be specified for &
+                               &OUTPUT,OBSERVATION_FILE block.'
+            call PrintErrMsg(option)
+          case('SNAPSHOT_FILE')
+            option%io_buffer = 'NO_PRINT_SOURCE_SINK cannot be specified for &
+                               &OUTPUT,SNAPSHOT_FILE block.'
+            call PrintErrMsg(option)
+          case('MASS_BALANCE_FILE')
+            output_option%print_ss_massbal = PETSC_FALSE
+        end select
 !...............................
       case('TOTAL_MASS_REGIONS')
         select case(trim(block_name))
@@ -900,7 +913,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 0 ! double
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         call OutputVariableAddToList(output_variable_list,output_variable)
-      case('ELECTRICAL_POTENTIAL')
+      case('ELECTRICAL_POTENTIAL','ELECTRICAL_JACOBIAN')
         icount = 0
         do
           call InputReadInt(input,option,temp_int)

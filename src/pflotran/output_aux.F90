@@ -35,6 +35,7 @@ module Output_Aux_module
     PetscBool :: print_final_snap
     PetscBool :: print_initial_massbal
     PetscBool :: print_final_massbal
+    PetscBool :: print_ss_massbal
 
     PetscBool :: print_hdf5
     PetscBool :: extend_hdf5_time_format
@@ -75,6 +76,7 @@ module Output_Aux_module
     PetscReal :: periodic_msbl_output_time_incr
 
     PetscBool :: filter_non_state_variables
+    PetscBool :: force_synchronized_output
 
     PetscInt :: xmf_vert_len
 
@@ -226,6 +228,7 @@ function OutputOptionCreate()
   output_option%print_final_snap = PETSC_TRUE
   output_option%print_initial_massbal = PETSC_FALSE
   output_option%print_final_massbal = PETSC_TRUE
+  output_option%print_ss_massbal = PETSC_TRUE
   output_option%plot_number = 0
   output_option%screen_imod = 1
   output_option%output_file_imod = 1
@@ -240,6 +243,7 @@ function OutputOptionCreate()
   output_option%aveg_var_dtime = 0.d0
   output_option%xmf_vert_len = UNINITIALIZED_INTEGER
   output_option%filter_non_state_variables = PETSC_TRUE
+  output_option%force_synchronized_output = PETSC_TRUE
 
   nullify(output_option%output_variable_list) ! master
   output_option%output_variable_list => OutputVariableListCreate() ! master
@@ -329,6 +333,7 @@ function OutputOptionDuplicate(output_option)
   output_option2%print_initial_snap = output_option%print_initial_snap
   output_option2%print_final_snap = output_option%print_final_snap
   output_option2%print_initial_massbal = output_option%print_initial_massbal
+  output_option2%print_ss_massbal = output_option%print_ss_massbal
   output_option2%print_final_massbal = output_option%print_final_massbal
   output_option2%plot_number = output_option%plot_number
   output_option2%screen_imod = output_option%screen_imod
@@ -851,90 +856,6 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       category = OUTPUT_GENERIC
       id = GAS_ENERGY
       subvar = ONE_INTEGER
-    case ('OIL_PRESSURE')
-      name = 'Oil Pressure'
-      units = 'Pa'
-      category = OUTPUT_PRESSURE
-      id = OIL_PRESSURE
-    case ('OIL_SATURATION')
-      name = 'Oil Saturation'
-      units = ''
-      category = OUTPUT_SATURATION
-      id = OIL_SATURATION
-    case ('OIL_DENSITY')
-      name = 'Oil Density'
-      units = 'kg/m^3'
-      category = OUTPUT_GENERIC
-      id = OIL_DENSITY
-    case ('OIL_DENSITY_MOLAR')
-      name = 'Oil Density'
-      units = 'kmol/m^3'
-       category = OUTPUT_GENERIC
-      id = OIL_DENSITY_MOL
-    case ('OIL_MOBILITY')
-      name = 'Oil Mobility'
-      units = '1/Pa-s'
-      category = OUTPUT_GENERIC
-      id = OIL_MOBILITY
-    case ('OIL_VISCOSITY')
-      name = 'Oil Viscosity'
-      units = 'Pa-s'
-      category = OUTPUT_GENERIC
-      id = OIL_VISCOSITY
-    case ('OIL_ENERGY')
-      name = 'Oil Energy'
-      units = 'MJ/m^3'
-      category = OUTPUT_GENERIC
-      id = OIL_ENERGY
-      subvar = ZERO_INTEGER
-    case ('OIL_ENERGY_PER_VOLUME')
-      name = 'Oil Energy'
-      units = 'MJ/kmol'
-      category = OUTPUT_GENERIC
-      id = OIL_ENERGY
-      subvar = ONE_INTEGER
-    case ('SOLVENT_PRESSURE')
-      name = 'Solvent Pressure'
-      units = 'Pa'
-      category = OUTPUT_PRESSURE
-      id = SOLVENT_PRESSURE
-    case ('SOLVENT_SATURATION')
-      name = 'Solvent Saturation'
-      units = ''
-      category = OUTPUT_SATURATION
-      id = SOLVENT_SATURATION
-    case ('SOLVENT_DENSITY')
-      name = 'Solvent Density'
-      units = 'kg/m^3'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_DENSITY
-    case ('SOLVENT_DENSITY_MOLAR')
-      name = 'Solvent Density'
-      units = 'kmol/m^3'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_DENSITY_MOL
-    case ('SOLVENT_MOBILITY')
-      name = 'Solvent Mobility'
-      units = '1/Pa-s'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_MOBILITY
-    case ('SOLVENT_ENERGY')
-      name = 'Solvent Energy'
-      units = 'MJ/m^3'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_ENERGY
-      subvar = ZERO_INTEGER
-    case ('SOLVENT_ENERGY_PER_VOLUME')
-      name = 'Solvent Energy'
-      units = 'MJ/m^3'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_ENERGY
-      subvar = ONE_INTEGER
-    case ('BUBBLE_POINT')
-      name = 'Bubble Point'
-      units = 'Pa'
-      category = OUTPUT_PRESSURE
-      id = BUBBLE_POINT
     case ('ICE_SATURATION')
       name = 'Ice Saturation'
       units = ''
@@ -1206,6 +1127,16 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Electrical Potential'
       category = OUTPUT_GENERIC
       id = ELECTRICAL_POTENTIAL
+    case ('ELECTRICAL_JACOBIAN')
+      if (option%ngeopdof <= 0) then
+        option%io_buffer = 'ELECTRICAL_JACOBIAN output only supported &
+          &when the GEOPHYSICS process model is used.'
+        call PrintErrMsg(option)
+      endif
+      units = 'Vm/S'
+      name = 'Electrical Jacobian'
+      category = OUTPUT_GENERIC
+      id = ELECTRICAL_JACOBIAN      
   end select
 
 end subroutine OutputVariableToID

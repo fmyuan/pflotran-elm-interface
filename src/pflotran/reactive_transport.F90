@@ -217,7 +217,7 @@ subroutine RTSetup(realization)
       option%io_buffer = 'Non-initialized tortuosity.'
       call PrintMsg(option)
     endif
-    if (reaction%neqkdrxn > 0) then
+    if (reaction%isotherm%neqkdrxn > 0) then
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1
@@ -258,7 +258,8 @@ subroutine RTSetup(realization)
     allocate(rt_sec_transport_vars(grid%ngmax))  
     do ghosted_id = 1, grid%ngmax
     ! Assuming the same secondary continuum type for all regions
-      call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr, &
+      call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr% &
+                                 multicontinuum,material_auxvars(ghosted_id)%epsilon, &
                                  rt_sec_transport_vars(ghosted_id), &
                                  reaction,initial_condition, &
                                  sec_tran_constraint,option)
@@ -728,6 +729,7 @@ subroutine RTUpdateEquilibriumState(realization)
   PetscInt :: ghosted_id, local_id
   PetscReal :: conc, max_conc, min_conc
   PetscErrorCode :: ierr
+  PetscReal :: sec_porosity
   
   option => realization%option
   patch => realization%patch
@@ -772,9 +774,11 @@ subroutine RTUpdateEquilibriumState(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+        sec_porosity = patch%material_property_array(1)%ptr% &
+                        multicontinuum%porosity
         call SecondaryRTUpdateEquilState(rt_sec_transport_vars(ghosted_id), &
                                           global_auxvars(ghosted_id), &
-                                          reaction,option)                     
+                                          reaction,sec_porosity,option)                     
     enddo
   endif
   
@@ -854,7 +858,7 @@ subroutine RTUpdateKineticState(realization)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
         sec_porosity = patch%material_property_array(1)%ptr% &
-                        secondary_continuum_porosity
+                        multicontinuum%porosity
 
         call SecondaryRTUpdateKineticState(rt_sec_transport_vars(ghosted_id), &
                                            global_auxvars(ghosted_id), &
@@ -1363,7 +1367,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
   type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: sum_connection, iconn  
   PetscReal :: qsrc(2)
-  PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, ieqgas
+  PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, iactgas
   PetscBool :: volumetric
   PetscInt :: flow_src_sink_type
   PetscReal :: coef_in(2), coef_out(2)
@@ -1524,14 +1528,14 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
           
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%gas%npassive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%gas%paseqspecid(1,ieqgas)
+              do iactgas = 1, reaction%gas%nactive_gas
+                if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                  icomp = reaction%gas%paseqspecid(1,iactgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
                   Res(icomp) = -msrc(2)
                   rhs_p(istartall+icomp) = rhs_p(istartall+icomp) - Res(icomp)
-!                 print *,'RT SC source', ieqgas,icomp, res(icomp)  
+!                 print *,'RT SC source', iactgas,icomp, res(icomp)  
                 endif 
               enddo
           end select 
@@ -2422,7 +2426,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   PetscReal :: msrc(1:realization%option%nflowspec)
-  PetscInt :: icomp, ieqgas
 
   option => realization%option
   field => realization%field
@@ -2704,7 +2707,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
   ! CO2-specific
   PetscReal :: msrc(1:realization%option%nflowspec)
-  PetscInt :: icomp, ieqgas
+  PetscInt :: icomp, iactgas
 
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal :: sec_diffusion_coefficient
@@ -2730,7 +2733,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   ! Get pointer to Vector data
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
  
-  if (.not.option%steady_state) then
+  if (.not.option%transport%steady_state) then
 #if 1
     call VecGetArrayF90(field%tran_accum, accum_p, ierr);CHKERRQ(ierr)
     r_p = r_p - accum_p / option%tran_dt
@@ -2795,9 +2798,9 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
          
       sec_diffusion_coefficient = patch% &
                                   material_property_array(1)%ptr% &
-                                  secondary_continuum_diff_coeff
+                                  multicontinuum%diff_coeff
       sec_porosity = patch%material_property_array(1)%ptr% &
-                     secondary_continuum_porosity
+                     multicontinuum%porosity
 
       call SecondaryRTResJacMulti(rt_sec_transport_vars(ghosted_id), &
                                   rt_auxvars(ghosted_id), &
@@ -2905,14 +2908,14 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
           
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
-              do ieqgas = 1, reaction%gas%npassive_gas
-                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
-                  icomp = reaction%gas%paseqspecid(1,ieqgas)
+              do iactgas = 1, reaction%gas%nactive_gas
+                if (abs(reaction%species_idx%co2_gas_id) == iactgas) then
+                  icomp = reaction%gas%paseqspecid(1,iactgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
                   Res(icomp) = -msrc(2)
                   r_p(istartall+icomp) = r_p(istartall+icomp) + Res(icomp)
-!                 print *,'RT SC source', ieqgas,icomp, res(icomp)
+!                 print *,'RT SC source', iactgas,icomp, res(icomp)
                 endif 
               enddo
           end select 
@@ -3531,7 +3534,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   endif
   nphase = rt_parameter%nphase
 
-  if (.not.option%steady_state) then
+  if (.not.option%transport%steady_state) then
   call PetscLogEventBegin(logging%event_rt_jacobian_accum,ierr);CHKERRQ(ierr)
 #if 1  
     do local_id = 1, grid%nlmax  ! For each local node do...
@@ -3556,12 +3559,12 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         Jup = Jup*rt_sec_transport_vars(ghosted_id)%epsilon
 
         sec_diffusion_coefficient = patch%material_property_array(1)% &
-                                    ptr%secondary_continuum_diff_coeff
+                                    ptr%multicontinuum%diff_coeff
         sec_porosity = patch%material_property_array(1)%ptr% &
-                       secondary_continuum_porosity
+                       multicontinuum%porosity
                         
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
-          option%io_buffer = 'Current multicomponent implementation is for '// &
+          option%io_buffer = 'Current multicontinuum implementation is for '// &
                              'aqueous reactions only'
           call PrintErrMsg(option)
         endif

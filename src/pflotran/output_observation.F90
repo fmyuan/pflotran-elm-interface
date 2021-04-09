@@ -2448,6 +2448,7 @@ subroutine OutputMassBalance(realization_base)
             if (associated(patch%source_sink_list)) then
               coupler => patch%source_sink_list%first
               if (.not.associated(coupler)) exit
+              if (.not.output_option%print_ss_massbal) exit
             else
               exit
             endif
@@ -2539,7 +2540,11 @@ subroutine OutputMassBalance(realization_base)
           call OutputWriteToHeader(fid,string,'kg','',icol)
           if (option%ntrandof > 0) then
             string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass'
-            call OutputWriteToHeader(fid,string,'kg','',icol)
+            if (reaction%print_total_mass_kg) then                
+              call OutputWriteToHeader(fid,string,'kg','',icol)
+            else
+              call OutputWriteToHeader(fid,string,'mol','',icol)
+            endif
           endif
           cur_mbr => cur_mbr%next
         enddo
@@ -2712,6 +2717,7 @@ subroutine OutputMassBalance(realization_base)
         if (associated(patch%source_sink_list)) then
           coupler => patch%source_sink_list%first
           if (.not.associated(coupler)) exit
+          if (.not.output_option%print_ss_massbal) exit
           global_auxvars_bc_or_ss => patch%aux%Global%auxvars_ss
           if (option%ntrandof > 0) then
             select case(option%itranmode)
