@@ -197,6 +197,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
+  use Characteristic_Curves_VG_module
   use Material_Aux_class
   
   implicit none
@@ -272,13 +273,13 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
         class is(rpf_Mualem_VG_liq_type)
-          rpf%m = auxvar%bc_lambda
+          error = rpf%set_m(auxvar%bc_lambda)
         class is(rpf_Burdine_BC_liq_type)
           rpf%lambda = auxvar%bc_lambda
         class is(rpf_Mualem_BC_liq_type)
           rpf%lambda = auxvar%bc_lambda
         class is(rpf_Burdine_VG_liq_type)
-          rpf%m = auxvar%bc_lambda
+          error = rpf%set_m(auxvar%bc_lambda)
         class default
           option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
           call PrintErrMsg(option)
