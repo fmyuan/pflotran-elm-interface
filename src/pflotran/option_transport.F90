@@ -27,6 +27,7 @@ module Option_Transport_module
     PetscBool :: no_restart_kinetic_sorption
     PetscBool :: no_restart_mineral_vol_frac
     PetscBool :: numerical_derivatives
+    PetscBool :: steady_state
 
     PetscInt :: nphase
         
@@ -119,6 +120,7 @@ subroutine OptionTransportInitRealization(option)
   option%no_checkpoint_kinetic_sorption = PETSC_FALSE
   option%no_restart_kinetic_sorption = PETSC_FALSE
   option%no_restart_mineral_vol_frac = PETSC_FALSE
+  option%steady_state = PETSC_FALSE
   
   option%tran_weight_t0 = 0.d0
   option%tran_weight_t1 = 0.d0
