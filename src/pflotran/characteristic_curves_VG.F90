@@ -52,12 +52,11 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 !         |                        No          extension type
 !         |
 !         |-->SF_VG_extn_type*     Abstract VG type for 0th/1st order extensions
-!         |   |
-!         |   |-->SF_VG_cons_type  Constant    extension type
-!         |   |-->SF_VG_expn_type  Exponential extension type
-!         |   |-->SF_VG_line_type  Linear      extension type
-!         |
-!         |-->SF_VG_quad_type      Quadratic   extension type TODO
+!             |
+!             |-->SF_VG_cons_type  Constant    extension type
+!             |-->SF_VG_expn_type  Exponential extension type
+!             |-->SF_VG_line_type  Linear      extension type
+!             |-->SF_VG_quad_type  Quadratic   extension type
 !
 ! Original VG objects are created by 
 ! sat_func_VG_type =>  SFVGCreate()
