@@ -355,6 +355,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module  
   use Characteristic_Curves_Thermal_module
+  use Characteristic_Curves_VG_module
   use Material_Aux_class
   
   implicit none
@@ -386,6 +387,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscReal :: aux(1)
   PetscReal :: dkr_dsat1
   PetscReal :: dk_ds, dk_dT
+  PetscInt  :: error
   
 ! auxvar%den = 0.d0
 ! auxvar%den_kg = 0.d0
@@ -426,8 +428,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     if (auxvar%bc_alpha > 0.d0) then
       select type(sf => characteristic_curves%saturation_function)
         class is(sat_func_VG_type)
-          sf%m     = auxvar%bc_lambda
-          sf%alpha = auxvar%bc_alpha
+          error = sf%set_m(auxvar%bc_lambda)
+          error = sf%set_alpha(auxvar%bc_alpha)
         class is(sat_func_BC_type)
             sf%lambda = auxvar%bc_lambda
             sf%alpha  = auxvar%bc_alpha
@@ -439,13 +441,13 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
         class is(rpf_Mualem_VG_liq_type)
-          rpf%m = auxvar%bc_lambda
+          error = rpf%set_m(auxvar%bc_lambda)
         class is(rpf_Burdine_BC_liq_type)
           rpf%lambda = auxvar%bc_lambda
         class is(rpf_Mualem_BC_liq_type)
           rpf%lambda = auxvar%bc_lambda
         class is(rpf_Burdine_VG_liq_type)
-          rpf%m = auxvar%bc_lambda
+          error = rpf%set_m(auxvar%bc_lambda)
         class default
           option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
           call printErrMsg(option)
