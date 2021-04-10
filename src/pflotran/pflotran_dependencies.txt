@@ -307,9 +307,10 @@ geomechanics_strata.o : geomechanics_material.o geomechanics_region.o \
 geomechanics_subsurface_properties.o : grid.o input_aux.o material_aux.o \
                                        option.o pflotran_constants.o string.o
 geometry.o : input_aux.o option.o pflotran_constants.o
-global.o : communicator_base.o connection.o coupler.o field.o global_aux.o \
-           grid.o material.o option.o patch.o pflotran_constants.o \
-           realization_base.o realization_subsurface.o variables.o
+global.o : communicator_base.o connection.o coupler.o discretization.o field.o \
+           global_aux.o grid.o material.o option.o output_common.o patch.o \
+           pflotran_constants.o realization_base.o realization_subsurface.o \
+           variables.o
 global_aux.o : option.o pflotran_constants.o utility.o
 grid.o : connection.o dm_kludge.o geometry.o grid_structured.o \
          grid_unstructured.o grid_unstructured_aux.o \

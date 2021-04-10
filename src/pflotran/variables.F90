@@ -171,4 +171,5 @@ module Variables_module
   PetscInt, parameter, public :: TOTAL_BULK_CONC         = 138
   PetscInt, parameter, public :: MNRL_VOLUME_FRACTION    = 139
 
+  PetscInt, parameter, public :: DARCY_VELOCITY          = 141
 end module Variables_module

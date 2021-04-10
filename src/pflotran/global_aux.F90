@@ -30,6 +30,8 @@ module Global_Aux_module
     PetscReal, pointer :: reaction_rate_store(:)
     PetscReal, pointer :: dphi(:,:) !geh: why here?
 !geh    PetscReal :: scco2_eq_logK ! SC CO2
+    PetscReal, pointer :: darcy_vel(:)
+    PetscReal, pointer :: darcy_vel_store(:,:)
   end type global_auxvar_type
   
   type, public :: global_type
@@ -124,6 +126,8 @@ subroutine GlobalAuxVarInit(auxvar,option)
   nullify(auxvar%mass_balance)
   nullify(auxvar%mass_balance_delta)
   nullify(auxvar%dphi)
+  nullify(auxvar%darcy_vel)
+  nullify(auxvar%darcy_vel_store)
 
   nphase = max(option%nphase,option%transport%nphase)
 
@@ -137,6 +141,10 @@ subroutine GlobalAuxVarInit(auxvar,option)
   auxvar%sat = 0.d0
   allocate(auxvar%den_kg(nphase))
   auxvar%den_kg = 0.d0
+  allocate(auxvar%darcy_vel(option%nphase))
+  auxvar%darcy_vel = 0.d0
+  allocate(auxvar%darcy_vel_store(option%nphase,TWO_INTEGER))
+  auxvar%darcy_vel_store = 0.d0
 
   ! need these for reactive transport only if flow is computed
   if (option%nflowdof > 0 .and. option%ntrandof > 0) then
@@ -248,7 +256,11 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
 !  auxvar2%dphi = auxvar%dphi
-  
+  auxvar2%darcy_vel = auxvar%darcy_vel
+  if (associated(auxvar2%darcy_vel_store)) then
+    auxvar2%darcy_vel_store = auxvar%darcy_vel_store
+  endif
+
   if (associated(auxvar2%reaction_rate)) then
     auxvar2%reaction_rate = auxvar%reaction_rate
   endif
@@ -365,6 +377,7 @@ subroutine GlobalAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%xmass)
   call DeallocateArray(auxvar%reaction_rate)
   call DeallocateArray(auxvar%dphi)
+  call DeallocateArray(auxvar%darcy_vel)
 
   call DeallocateArray(auxvar%pres_store)
   call DeallocateArray(auxvar%temp_store)
@@ -373,10 +386,11 @@ subroutine GlobalAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%den_kg_store)
   call DeallocateArray(auxvar%den_store)
   call DeallocateArray(auxvar%reaction_rate_store)
+  call DeallocateArray(auxvar%darcy_vel_store)
   
   call DeallocateArray(auxvar%mass_balance)
   call DeallocateArray(auxvar%mass_balance_delta)
-
+  
 end subroutine GlobalAuxVarStrip
 
 ! ************************************************************************** !
