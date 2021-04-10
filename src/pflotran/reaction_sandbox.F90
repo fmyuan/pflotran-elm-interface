@@ -12,6 +12,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Gas_class 
 
   ! Add new reacton sandbox classes here.
+  use Reaction_Sandbox_bioTH_class ! Edwin virus/particle
   
   use PFLOTRAN_Constants_module
 
@@ -166,6 +167,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => CyberCreate()
       case('GAS')
         new_sandbox => GasCreate()
+      case('BIOPARTICLE')
+        new_sandbox => bioTH_Create()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)
