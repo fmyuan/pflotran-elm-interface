@@ -87,7 +87,7 @@ module Material_module
     PetscReal :: permeability_pwr
     PetscReal :: permeability_crit_por
     PetscReal :: permeability_min_scale_fac
-    class(multicontinuum_property_type), pointer :: multicontinuum
+    type(multicontinuum_property_type), pointer :: multicontinuum
     type(material_property_type), pointer :: next
   end type material_property_type
 
