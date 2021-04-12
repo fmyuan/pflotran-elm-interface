@@ -519,7 +519,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
   implicit none 
   
   type(sec_transport_type) :: rt_sec_transport_vars
-  type(multicontinuum_property_type) :: multicontinuum
+  class(multicontinuum_property_type), pointer :: multicontinuum
   class(reaction_rt_type), pointer :: reaction
   type(coupler_type), pointer :: initial_condition
   type(option_type), pointer :: option
