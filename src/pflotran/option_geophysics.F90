@@ -12,7 +12,8 @@ module Option_Geophysics_module
 
   type, public :: geophysics_option_type
 
-     PetscInt :: num_electrodes
+    PetscInt :: num_electrodes
+    PetscBool :: compute_jacobian  
 
   end type geophysics_option_type
 
@@ -91,6 +92,7 @@ subroutine OptionGeophysicsInitRealization(option)
   ! PFLOTRAN realization or simulation of a single realization
 
   option%num_electrodes = UNINITIALIZED_INTEGER
+  option%compute_jacobian = PETSC_FALSE
 
 end subroutine OptionGeophysicsInitRealization
 
