@@ -2281,6 +2281,7 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
                                    coordinate%y, &
                                    coordinate%z, &
                                    grid%unstructured_grid%explicit_grid,&
+                                   grid%nG2L, &
                                    option,champion,champion_distance)
           call MPI_Allreduce(champion_distance,min_distance_global,&
                      ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MIN,&

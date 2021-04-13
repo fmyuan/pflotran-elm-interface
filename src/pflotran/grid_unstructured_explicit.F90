@@ -1942,8 +1942,10 @@ end function UGridExplicitSetConnections
 
 ! ************************************************************************** !
 
-subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit,option,&
-                                                icell,cell_distance)
+subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit, &
+                                                nG2L,option,icell, &
+                                                cell_distance)
+
   ! 
   ! Returns the cell which its center is the closest for point x,y,z
   ! 
@@ -1959,33 +1961,34 @@ subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit,option,&
   PetscInt :: icell
   PetscReal :: cell_distance
   type(unstructured_explicit_type) :: grid_explicit
+  PetscInt, pointer :: nG2L(:)
   type(option_type) :: option
   
   type(point3d_type) :: pt_test
   type(point3d_type) :: pt_champion
   PetscReal :: min_distance, distance
-  PetscInt :: i, champion
+  PetscInt :: ghosted_id, local_id, champion
   
   !initiate
-  pt_test = grid_explicit%cell_centroids(1)
-  champion = 1
-  min_distance = (pt_test%x-x)**2 + (pt_test%y-y)**2 + (pt_test%z-z)**2
-  pt_champion = pt_test
+  min_distance = 1.d20
   !looking for champion
-  do i = 2, size(grid_explicit%cell_volumes)
-    pt_test = grid_explicit%cell_centroids(i)
+  do ghosted_id = 1, size(grid_explicit%cell_volumes)
+    local_id = nG2L(ghosted_id)
+    if (local_id <= 0) cycle
+    pt_test = grid_explicit%cell_centroids(ghosted_id)
     distance = (pt_test%x-x)**2 + (pt_test%y-y)**2 + (pt_test%z-z)**2
     if (distance < min_distance) then
-      champion = i
+      champion = local_id
       min_distance = distance
       pt_champion = pt_test
+      cycle
     endif
     if (distance == min_distance) then 
       if ((pt_test%x < pt_champion%x) .or. &
          (pt_test%x == pt_champion%x .and. pt_test%y < pt_champion%y) .or. &
          (pt_test%x == pt_champion%x .and. pt_test%y == pt_champion%y .and. &
          pt_test%z < pt_champion%z)) then
-        champion = i
+        champion = local_id
         pt_champion = pt_test
       endif
     endif
