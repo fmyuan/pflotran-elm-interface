@@ -18,7 +18,8 @@ module Grid_Unstructured_Explicit_module
             UGridExplicitSetCellCentroids, &
             UGridExplicitComputeVolumes, &
             UGridExplicitSetBoundaryConnect, &
-            UGridExplicitSetConnections
+            UGridExplicitSetConnections, &
+            UGridExplicitGetClosestCellFromPoint
 
 contains
 
@@ -1938,5 +1939,45 @@ function UGridExplicitSetConnections(explicit_grid,cell_ids,connection_type, &
   UGridExplicitSetConnections => connections
 
 end function UGridExplicitSetConnections
+
+! ************************************************************************** !
+
+subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit,option,&
+                                                icell,cell_distance)
+  ! 
+  ! Returns the cell which its center is the closest for point x,y,z
+  ! 
+  ! Author: Moise Rousseau
+  ! Date: 04/12/21
+  ! 
+  use Option_module
+  use Geometry_module  
+
+  implicit none
+  
+  PetscReal :: x, y, z
+  PetscInt :: icell
+  PetscReal :: cell_distance
+  type(unstructured_explicit_type) :: grid_explicit
+  type(option_type) :: option
+  
+  type(point3d_type) :: pt
+  PetscReal :: min_distance, distance
+  PetscInt :: i, champion
+  
+  min_distance = 1e20
+  do i = 1, size(grid_explicit%cell_volumes)
+    pt = grid_explicit%cell_centroids(i)
+    distance = (pt%x-x)**2 + (pt%y-y)**2 + (pt%z-z)**2
+    if (distance < min_distance) then
+      champion = i
+      min_distance = distance
+    endif
+  enddo
+  
+  icell = champion
+  cell_distance = min_distance
+  
+end subroutine UGridExplicitGetClosestCellFromPoint
 
 end module Grid_Unstructured_Explicit_module
