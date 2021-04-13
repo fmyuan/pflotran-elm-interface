@@ -2224,6 +2224,7 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
   
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
   PetscReal :: x_shift, y_shift, z_shift
+  PetscReal :: dx, dy, dz, min_dx, min_dy, min_dz
   PetscInt :: i, j, k
   PetscErrorCode :: ierr
 
@@ -2269,6 +2270,9 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
                                    coordinate%z, &
                                    grid%unstructured_grid,option,local_id)
       case(EXPLICIT_UNSTRUCTURED_GRID)
+        dx = 1.d20
+        dy = 1.d20
+        dz = 1.d20
         champion = UNINITIALIZED_INTEGER
         champion_distance = UNINITIALIZED_DOUBLE
         if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
@@ -2278,9 +2282,28 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
                                    coordinate%z, &
                                    grid%unstructured_grid%explicit_grid,&
                                    option,champion,champion_distance)
-          call MPI_Allreduce(champion_distance,min_distance_global,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-          if (champion_distance == min_distance_global) local_id = champion
+          call MPI_Allreduce(champion_distance,min_distance_global,&
+                     ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_MIN,&
+                     option%mycomm,ierr)
+          if (champion_distance == min_distance_global) then
+            dx = coordinate%x - &
+               grid%unstructured_grid%explicit_grid%cell_centroids(champion)%x
+          endif
+          call MPI_Allreduce(dx,min_dx,ONE_INTEGER_MPI,&
+                             MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+          if (dx == min_dx) then
+            dy = coordinate%y - &
+               grid%unstructured_grid%explicit_grid%cell_centroids(champion)%y
+          endif
+          call MPI_Allreduce(dy,min_dy,ONE_INTEGER_MPI,&
+                             MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+          if (dy == min_dy) then
+            dz = coordinate%z - &
+               grid%unstructured_grid%explicit_grid%cell_centroids(champion)%z
+          endif
+          call MPI_Allreduce(dz,min_dz,ONE_INTEGER_MPI,&
+                             MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+          if (dz == min_dz) local_id = champion
         endif
       case(POLYHEDRA_UNSTRUCTURED_GRID)
           option%io_buffer = &

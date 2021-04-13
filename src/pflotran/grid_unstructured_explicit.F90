@@ -1961,17 +1961,33 @@ subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit,option,&
   type(unstructured_explicit_type) :: grid_explicit
   type(option_type) :: option
   
-  type(point3d_type) :: pt
+  type(point3d_type) :: pt_test
+  type(point3d_type) :: pt_champion
   PetscReal :: min_distance, distance
   PetscInt :: i, champion
   
-  min_distance = 1e20
-  do i = 1, size(grid_explicit%cell_volumes)
-    pt = grid_explicit%cell_centroids(i)
-    distance = (pt%x-x)**2 + (pt%y-y)**2 + (pt%z-z)**2
+  !initiate
+  pt_test = grid_explicit%cell_centroids(1)
+  champion = 1
+  min_distance = (pt_test%x-x)**2 + (pt_test%y-y)**2 + (pt_test%z-z)**2
+  pt_champion = pt_test
+  !looking for champion
+  do i = 2, size(grid_explicit%cell_volumes)
+    pt_test = grid_explicit%cell_centroids(i)
+    distance = (pt_test%x-x)**2 + (pt_test%y-y)**2 + (pt_test%z-z)**2
     if (distance < min_distance) then
       champion = i
       min_distance = distance
+      pt_champion = pt_test
+    endif
+    if (distance == min_distance) then 
+      if ((pt_test%x < pt_champion%x) .or. &
+         (pt_test%x == pt_champion%x .and. pt_test%y < pt_champion%y) .or. &
+         (pt_test%x == pt_champion%x .and. pt_test%y == pt_champion%y .and. &
+         pt_test%z < pt_champion%z)) then
+        champion = i
+        pt_champion = pt_test
+      endif
     endif
   enddo
   
