@@ -1518,7 +1518,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   call OutputVariableAppendDefaults(realization%output_option% &
                                       output_snap_variable_list,option)
 
-  call RegressionCreateMapping(simulation%regression,realization)
+  call RegressionSetup(simulation%regression,realization)
 ! end from old Init()
 
   call DiscretizationPrintInfo(realization%discretization, &
