@@ -140,11 +140,13 @@ subroutine PMERTReadSimOptionsBlock(this,input)
   PetscReal, pointer :: temp_real_array(:)
   PetscInt :: temp_int
   PetscBool :: found
+  PetscBool :: output_all_surveys
 
   option => this%option
 
   error_string = 'ERT Options'
 
+  output_all_surveys = PETSC_FALSE
   input%ierr = 0
   call InputPushBlock(input,option)
   do
@@ -201,11 +203,22 @@ subroutine PMERTReadSimOptionsBlock(this,input)
           call WaypointInsertInList(waypoint,this%waypoint_list)
         enddo
         call DeallocateArray(temp_real_array)
+      case('OUTPUT_ALL_SURVEYS')
+        output_all_surveys = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  if (output_all_surveys) then
+    waypoint => this%waypoint_list%first
+    do
+      if (.not.associated(waypoint)) exit
+      waypoint%print_snap_output = PETSC_TRUE
+      waypoint => waypoint%next
+    enddo
+  endif
 
 end subroutine PMERTReadSimOptionsBlock
 
