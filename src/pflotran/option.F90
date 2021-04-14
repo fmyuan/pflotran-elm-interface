@@ -113,6 +113,7 @@ module Option_module
 
     PetscBool :: use_isothermal
     PetscBool :: use_mc           ! If true, multiple continuum formulation is used.
+    PetscInt :: mc_flag           ! Flag to use multicontinuum parameters 
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
@@ -440,7 +441,7 @@ subroutine OptionInitRealization(option)
   option%air_id = 0
   option%energy_id = 0
 
-
+  option%mc_flag = 0
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
       ! which should be set via the command line or the input file, but it
