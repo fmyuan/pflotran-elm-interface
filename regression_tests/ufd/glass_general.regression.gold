@@ -1,0 +1,31 @@
+-- GENERIC: Temperature --
+      Max:   5.5790409742156E+01
+      Min:   5.3094594842576E+01
+     Mean:   5.4299899124228E+01
+        1:   5.5790409742156E+01
+-- CONCENTRATION: Total I-129 --
+      Max:   1.1382405880570E-20
+      Min:   9.2516155505448E-21
+     Mean:   9.9999994427200E-21
+        1:   1.1382405880570E-20
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Flow --
+   Time (seconds):   6.4872264862061E-02
+   Time Steps:          149
+   Newton Iterations:          451
+   Linear Solver Iterations:          451
+   Time Step Cuts:            9
+   Solution 2-Norm:   4.5499126622851E+07
+   Residual 2-Norm:   1.0572947042904E-07
+-- SOLUTION: Transport --
+   Time (seconds):   2.5909185409546E-02
+   Time Steps:          149
+   Newton Iterations:          149
+   Linear Solver Iterations:          149
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.0115166648265E-09
+   Residual 2-Norm:   5.6447669886623E-29
