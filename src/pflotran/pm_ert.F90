@@ -387,6 +387,7 @@ subroutine PMERTPreSolve(this)
   use Reactive_Transport_Aux_module
   use Realization_Base_class
   use Variables_module
+  use ERT_module
 
   implicit none
 
@@ -400,34 +401,42 @@ subroutine PMERTPreSolve(this)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id
   PetscInt :: species_id
-  PetscReal :: tempreal
+  PetscReal :: a,m,n,cond_w,cond_c,Vc,cond  ! variables for Archie's law
+  PetscReal :: por,sat
   PetscErrorCode :: ierr
 
   option => this%option
   patch => this%realization%patch
   grid => patch%grid
 
+  a = this%tortuosity_constant
+  m = this%cementation_exponent
+  n = this%saturation_exponent
+  Vc = this%clay_volume_factor
+  cond_w = this%water_conductivity
+  cond_c = this%clay_conductivity
+
   global_auxvars => patch%aux%Global%auxvars
   nullify(rt_auxvars)
   if (associated(patch%aux%RT)) then
     rt_auxvars => patch%aux%RT%auxvars
   endif
-  material_auxvars => patch%aux%Material%auxvars
 
+  material_auxvars => patch%aux%Material%auxvars
   do ghosted_id = 1, grid%ngmax
-!    material_auxvars(ghosted_id)%electrical_conductivity = &
-    tempreal = &
-      material_auxvars(ghosted_id)%porosity * &
-      global_auxvars(ghosted_id)%temp * & ! temperature
-      global_auxvars(ghosted_id)%sat(1)   ! liquid saturation
+    por = material_auxvars(ghosted_id)%porosity
+    sat = global_auxvars(ghosted_id)%sat(1)
+    ! compute conductivity
+    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c,cond)
+    material_auxvars(ghosted_id)%electrical_conductivity = cond
   enddo
 
   if (associated(rt_auxvars)) then
     species_id = 1  ! hardwired to 1 for now
     do ghosted_id = 1, grid%ngmax
-      material_auxvars(ghosted_id)%electrical_conductivity = &
-        material_auxvars(ghosted_id)%electrical_conductivity * &
-        rt_auxvars(ghosted_id)%total(species_id,1)
+      !material_auxvars(ghosted_id)%electrical_conductivity = &
+      !  material_auxvars(ghosted_id)%electrical_conductivity * &
+      !  rt_auxvars(ghosted_id)%total(species_id,1)
     enddo
   endif
  

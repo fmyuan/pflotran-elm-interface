@@ -15,6 +15,7 @@ module ERT_module
   public :: ERTSetup, &
             ERTCalculateMatrix, &
             ERTCalculateAnalyticPotential, &
+            ERTConductivityFromEmpiricalEqs, &
             ERTCalculateAverageConductivity
 
 contains
@@ -393,7 +394,8 @@ end subroutine ERTCalculateMatrix
 
 ! ************************************************************************** !
 
-subroutine ERTConductivityFromEmpiricalEqs(global_auxvar, material_auxvar)
+subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
+                                           cond)
   !
   ! Calculates conductivity using petrophysical empirical relations
   ! using Archie's law or Waxman-Smits equation
@@ -402,36 +404,28 @@ subroutine ERTConductivityFromEmpiricalEqs(global_auxvar, material_auxvar)
   ! Date: 03/18/21
   !
 
-  use Global_Aux_module
-
   implicit none
 
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  PetscReal :: por, sat  ! porosity and saturation
 
   ! Archie's law parameters
-  ! TODO: Should read from input file
-  PetscReal, parameter :: a = 1.d0        ! Tortuosity factor constant
-  PetscReal, parameter :: m = 1.9d0       ! Cementation exponent
-  PetscReal, parameter :: n = 2.d0        ! Saturation exponent
-  PetscReal, parameter :: cond_w = 0.01d0 ! Water conductivity
-  ! Waxman-Smits additional paramters
-  PetscReal, parameter :: cond_c = 0.03d0 ! Clay conductivity
-  PetscReal, parameter :: Vc = 0.2d0      ! Clay/Shale volume 
-  ! calculated total resistivity
-  PetscReal :: cond
-  PetscReal :: porosity, saturation
+  PetscReal :: a        ! Tortuosity factor constant
+  PetscReal :: m        ! Cementation exponent
+  PetscReal :: n        ! Saturation exponent
+  PetscReal :: cond_w   ! Water conductivity
 
-  porosity = material_auxvar%porosity
-  saturation = global_auxvar%sat(1)
+  ! Waxman-Smits additional paramters
+  PetscReal :: cond_c   ! Clay conductivity
+  PetscReal :: Vc       ! Clay/Shale volume 
+  
+  ! calculated bulk conductivity
+  PetscReal :: cond
 
   ! Archie's law
-  cond = cond_w * (porosity**m) * (saturation**n) / a
+  cond = cond_w * (por**m) * (sat**n) / a
 
   ! Waxmax-Smits equations/Dual-Water model 
-  !cond = cond + cond_c * Vc * (1-porosity) * saturation**(n-1)
-
-  material_auxvar%electrical_conductivity(1) = cond
+  cond = cond + cond_c * Vc * (1-por) * sat**(n-1)
 
 end subroutine ERTConductivityFromEmpiricalEqs
 
