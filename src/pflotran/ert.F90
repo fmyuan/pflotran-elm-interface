@@ -288,43 +288,44 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do
-    if (.not.associated(boundary_condition)) exit
+    if (.not.associated(boundary_condition)) exit    
+    if (boundary_condition%geop_condition%itype == DIRICHLET_BC) then
+      cur_connection_set => boundary_condition%connection_set
 
-    cur_connection_set => boundary_condition%connection_set
+      do iconn = 1, cur_connection_set%num_connections
 
-    do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
 
-      sum_connection = sum_connection + 1
+        local_id = cur_connection_set%id_dn(iconn)
+        ghosted_id = grid%nL2G(local_id)
 
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) cycle
 
-      if (patch%imat(ghosted_id) <= 0) cycle
+        cond_dn = material_auxvars(ghosted_id)%electrical_conductivity(1)
 
-      cond_dn = material_auxvars(ghosted_id)%electrical_conductivity(1)
+        dist_0  = cur_connection_set%dist( 0,iconn)
 
-      dist_0  = cur_connection_set%dist( 0,iconn)
+        ! get harmonic averaged conductivity at the face
+        ! NB: cond_avg is actually cond_avg/dist_0
+        ! Use just the same value of down cell
+        ! also note dist(0) = distance from center to boundary/face
+        cond_avg = cond_dn / dist_0
 
-      ! get harmonic averaged conductivity at the face
-      ! NB: cond_avg is actually cond_avg/dist_0
-      ! Use just the same value of down cell
-      ! also note dist(0) = distance from center to boundary/face
-      cond_avg = cond_dn / dist_0
+        area = cur_connection_set%area(iconn)
 
-      area = cur_connection_set%area(iconn)
+        ! get matrix coefficients for up cell -> NO up cell since it's
+        ! the boundary
+        ! down cell for it is the interior cell
+        coef_dn =   cond_avg * area
 
-      ! get matrix coefficients for up cell -> NO up cell since it's
-      ! the boundary
-      ! down cell for it is the interior cell
-      coef_dn =   cond_avg * area
+        ! We need matrix coeff only for down cell so
+        coef_dn = - coef_dn
 
-      ! We need matrix coeff only for down cell so
-      coef_dn = - coef_dn
+        call MatSetValuesLocal(M,1,ghosted_id-1,1,ghosted_id-1,coef_dn, &
+                               ADD_VALUES,ierr);CHKERRQ(ierr)
 
-      call MatSetValuesLocal(M,1,ghosted_id-1,1,ghosted_id-1,coef_dn, &
-                             ADD_VALUES,ierr);CHKERRQ(ierr)
-
-    enddo
+      enddo
+    endif      
     boundary_condition => boundary_condition%next
   enddo
 

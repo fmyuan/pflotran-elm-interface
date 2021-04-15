@@ -2941,7 +2941,9 @@ subroutine GeopConditionRead(condition,input,option)
         select case(word)
             case('DIRICHLET')
               condition%itype = DIRICHLET_BC
-            case default ! only Dirichlet implemented for now!
+            case('ZERO_GRADIENT')
+              condition%itype = ZERO_GRADIENT_BC  
+            case default ! only Dirichlet/Zero Flux implemented for now!
               call InputKeywordUnrecognized(input,word, &
                                             'geophysics condition type', &
                                             option)
