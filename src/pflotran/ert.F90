@@ -23,25 +23,6 @@ contains
 
 subroutine ERTSetup(realization)
   !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 01/29/21
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-
-  type(realization_subsurface_type) :: realization
-
-  call ERTSetupPatch(realization)
-
-  ! Setup other ERT requirements e.g. plot, output, etc.
-
-end subroutine ERTSetup
-
-! ************************************************************************** !
-
-subroutine ERTSetupPatch(realization)
-  !
   ! Creates arrays for ERT auxiliary variables
   !
   ! Author: Piyoosh Jaysaval
@@ -115,7 +96,7 @@ subroutine ERTSetupPatch(realization)
   patch%aux%ERT%auxvars => ert_auxvars
   patch%aux%ERT%num_aux = grid%ngmax
 
-end subroutine ERTSetupPatch
+end subroutine ERTSetup
 
 ! ************************************************************************** !
 
