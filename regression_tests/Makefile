@@ -363,4 +363,4 @@ clean-tests :
 	-rm -f default/timestepping/20x20_xz.h5
 	-rm -f geophys/ert/*.h5
 	-rm -f geophys/ert/*.dat
-	-rm -f geophys/ert/ert-simulated.srv
+	-rm -f geophys/ert/*-ert-*

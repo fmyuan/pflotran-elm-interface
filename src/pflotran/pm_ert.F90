@@ -428,7 +428,7 @@ subroutine PMERTPreSolve(this)
     sat = global_auxvars(ghosted_id)%sat(1)
     ! compute conductivity
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c,cond)
-    material_auxvars(ghosted_id)%electrical_conductivity = cond
+    !material_auxvars(ghosted_id)%electrical_conductivity = cond
   enddo
 
   if (associated(rt_auxvars)) then
