@@ -1552,7 +1552,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   max_abs_pressure_change_NI = 0.d0
   max_abs_pressure_change_TS = 0.d0
   max_rel_pressure_change_TS = 0.d0
-  min_liq_pressure = 1.d20
+  min_liq_pressure = MAX_DOUBLE
   max_liq_pres_rel_change_cell = 0
   max_gas_sat_change_NI_cell = 0
   max_gas_sat_change_TS_cell = 0
@@ -1859,7 +1859,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   converged_gas_equation = PETSC_TRUE
   max_normal_res_liq_ = 0.d0
   max_normal_res_gas_ = 0.d0
-  min_gas_pressure = 1.d20
+  min_gas_pressure = MAX_DOUBLE
   max_normal_res_liq_cell = 0
   max_normal_res_gas_cell = 0
   min_gas_pressure_cell = 0

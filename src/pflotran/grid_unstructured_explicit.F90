@@ -1970,7 +1970,7 @@ subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit, &
   PetscInt :: ghosted_id, local_id, champion
   
   !initiate
-  min_distance = 1.d20
+  min_distance = MAX_DOUBLE
   !looking for champion
   do ghosted_id = 1, size(grid_explicit%cell_volumes)
     local_id = nG2L(ghosted_id)

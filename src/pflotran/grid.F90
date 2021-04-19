@@ -154,19 +154,19 @@ function GridCreate()
   nullify(grid%y)
   nullify(grid%z)
 
-  grid%x_min_global = 1.d20
-  grid%x_max_global = -1.d20
-  grid%y_min_global = 1.d20
-  grid%y_max_global = -1.d20
-  grid%z_min_global = 1.d20
-  grid%z_max_global = -1.d20
+  grid%x_min_global = MAX_DOUBLE
+  grid%x_max_global = -MAX_DOUBLE
+  grid%y_min_global = MAX_DOUBLE
+  grid%y_max_global = -MAX_DOUBLE
+  grid%z_min_global = MAX_DOUBLE
+  grid%z_max_global = -MAX_DOUBLE
 
-  grid%x_min_local = 1.d20
-  grid%x_max_local = -1.d20
-  grid%y_min_local = 1.d20
-  grid%y_max_local = -1.d20
-  grid%z_min_local = 1.d20
-  grid%z_max_local = -1.d20
+  grid%x_min_local = MAX_DOUBLE
+  grid%x_max_local = -MAX_DOUBLE
+  grid%y_min_local = MAX_DOUBLE
+  grid%y_max_local = -MAX_DOUBLE
+  grid%z_min_local = MAX_DOUBLE
+  grid%z_max_local = -MAX_DOUBLE
 
   grid%nmax = 0
   grid%nlmax = 0 
@@ -2270,9 +2270,9 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
                                    coordinate%z, &
                                    grid%unstructured_grid,option,local_id)
       case(EXPLICIT_UNSTRUCTURED_GRID)
-        dx = 1.d20
-        dy = 1.d20
-        dz = 1.d20
+        dx = MAX_DOUBLE
+        dy = MAX_DOUBLE
+        dz = MAX_DOUBLE
         champion = UNINITIALIZED_INTEGER
         champion_distance = UNINITIALIZED_DOUBLE
         if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
