@@ -473,7 +473,6 @@ subroutine PMERTSolve(this,time,ierr)
   PetscErrorCode :: ierr
   KSPConvergedReason :: ksp_reason
 
-  call PMBasePrintHeader(this)
   solve_ierr = 0
   ! Forward solve start
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)

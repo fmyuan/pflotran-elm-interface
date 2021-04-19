@@ -341,8 +341,6 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
 
   PetscInt :: ndof
 
-  call PMBasePrintHeader(this)
-
   ierr = 0
   call InitSubsurfAssignMatIDsToRegns(this%realization)
   call InitSubsurfAssignMatProperties(this%realization)
@@ -374,8 +372,6 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt, parameter :: iphase = 1
     
-  call PMBasePrintHeader(this)
-
   ierr = 0
   do j = 1, 2
     if (j == 1) then

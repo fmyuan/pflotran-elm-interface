@@ -486,8 +486,6 @@ subroutine PMRTInitializeTimestep(this)
  
   this%option%tran_dt = this%option%dt
 
-  call PMBasePrintHeader(this)
-
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)

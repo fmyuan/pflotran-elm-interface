@@ -49,6 +49,7 @@ module PMC_Base_class
     procedure, public :: SetTimestepper => PMCBaseSetTimestepper
     procedure, public :: SetupSolvers => PMCBaseSetupSolvers
     procedure, public :: RunToTime => PMCBaseRunToTime
+    procedure, public :: PrintHeader => PMCBasePrintHeader
     procedure, public :: StepDT => PMCBaseStepDT
     procedure, public :: Checkpoint => PMCBaseCheckpoint
     procedure, public :: CheckpointBinary => PMCBaseCheckpointBinary
@@ -768,6 +769,21 @@ end subroutine PMCBaseRunToTime
 
 ! ************************************************************************** !
 
+subroutine PMCBasePrintHeader(this)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/19/21
+  !
+  implicit none
+
+  class(pmc_base_type) :: this
+
+  call PMBasePrintHeader(this%pm_list)
+
+end subroutine PMCBasePrintHeader
+
+! ************************************************************************** !
+
 subroutine PMCBaseStepDT(this,stop_flag)
   !
   ! Author: Glenn Hammond
@@ -783,6 +799,7 @@ subroutine PMCBaseStepDT(this,stop_flag)
   PetscErrorCode :: ierr
 
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
+  call this%PrintHeader()
   call this%timestepper%StepDT(this%pm_list,stop_flag)
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time

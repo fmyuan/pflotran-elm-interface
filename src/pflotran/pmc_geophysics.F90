@@ -175,27 +175,36 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   if (stop_flag == TS_STOP_FAILURE) return
 
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
+  call this%PrintHeader()
 
   option => this%option
   output_option => this%pm_ptr%pm%output_option
   timestepper => TimestepperSteadyCast(this%timestepper)
   linear_iterations_in_step = 0
 
-  if (Equal(this%cur_waypoint%time,timestepper%target_time)) then
-    this%cur_waypoint => this%cur_waypoint%next
+  if (associated(this%cur_waypoint)) then
+    if (Equal(this%cur_waypoint%time,timestepper%target_time)) then
+      this%cur_waypoint => this%cur_waypoint%next
+    else
+      if (this%option%print_screen_flag) then
+        write(*, '(/," Time= ",1pe12.5," [",a,"]", &
+              &" Skipping geophysics as this is not a survey time.",/)') &
+           timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+      endif
+      if (this%option%print_file_flag) then
+        write(this%option%fid_out, '(/," Time= ",1pe12.5," [",a,"]", &
+              &" Skipping geophysics as this is not a survey time.",/)') &
+           timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+      endif
+      return
+    endif
   else
-    call PMBasePrintHeader(this%pm_list)
-    if (this%option%print_screen_flag) then
-      write(*, '(/," Time= ",1pe12.5," [",a,"]", &
-            &" Skipping geophysics as this is not a survey time.",/)') &
-         timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+    if (option%iflowmode /= NULL_MODE .or. option%itranmode /= NULL_MODE) then
+      option%io_buffer = 'SURVEY_TIMES must be listed under &
+        &SUBSURFACE_GEOPHYSICS OPTIONS when geophysics is coupled to flow &
+        &or transport.'
+       call PrintErrMsg(option)
     endif
-    if (this%option%print_file_flag) then
-      write(this%option%fid_out, '(/," Time= ",1pe12.5," [",a,"]", &
-            &" Skipping geophysics as this is not a survey time.",/)') &
-         timestepper%target_time/output_option%tconv,trim(output_option%tunit)
-    endif
-    return
   endif
 
   pm_base => this%pm_ptr%pm

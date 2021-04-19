@@ -2909,8 +2909,6 @@ subroutine PMWFInitializeTimestep(this)
   grid => this%realization%patch%grid
   dt = option%tran_dt
   
-  call PMBasePrintHeader(this)
-
   ! zero entries from previous time step
   call VecZeroEntries(this%data_mediator%vec,ierr);CHKERRQ(ierr)
 
