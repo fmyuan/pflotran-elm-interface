@@ -42,7 +42,7 @@ module PMC_Base_class
   contains
     procedure, public :: Init => PMCBaseInit
     procedure, public :: ReadNumericalMethods => PMCBaseReadNumericalMethods
-    procedure, public :: InitializeRun
+    procedure, public :: InitializeRun => PMCBaseInitializeRun
     procedure, public :: SetWaypointPtr => PMCBaseSetWaypointPtr
     procedure, public :: InputRecord => PMCBaseInputRecord
     procedure, public :: CastToBase => PMCCastToBase
@@ -96,6 +96,7 @@ module PMC_Base_class
 
   public :: PMCBaseCreate, &
             PMCBaseInit, &
+            PMCBaseInitializeRun, &
             PMCBaseInputRecord, &
             PMCBaseSetChildPeerPtr, &
             PMCBaseFinalizeRun, &
@@ -505,7 +506,7 @@ end subroutine PMCBaseSetTimestepper
 
 ! ************************************************************************** !
 
-recursive subroutine InitializeRun(this)
+recursive subroutine PMCBaseInitializeRun(this)
   !
   ! Initializes the time stepping
   !
@@ -542,7 +543,7 @@ recursive subroutine InitializeRun(this)
     call this%peer%InitializeRun()
   endif
 
-end subroutine InitializeRun
+end subroutine PMCBaseInitializeRun
 
 ! ************************************************************************** !
 
