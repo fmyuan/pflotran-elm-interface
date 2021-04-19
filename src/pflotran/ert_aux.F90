@@ -73,13 +73,17 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
   implicit none
 
   type(ert_auxvar_type) :: auxvar
-  type(option_type) :: option
   type(survey_type) :: survey
+  type(option_type) :: option
 
   allocate(auxvar%potential(survey%num_electrode))
   auxvar%potential = 0.d0
 
   nullify(auxvar%jacobian)
+  if (option%geophysics%compute_jacobian) then
+    allocate(auxvar%jacobian(survey%num_measurement))
+    auxvar%jacobian = 0.d0
+  endif
   nullify(auxvar%delM)
 
 end subroutine ERTAuxVarInit

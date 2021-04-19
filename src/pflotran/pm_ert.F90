@@ -24,8 +24,6 @@ module PM_ERT_class
     PetscInt :: linear_iterations_in_step
     PetscLogDouble :: ksp_time
     Vec :: rhs
-    ! ERT options
-    PetscBool :: compute_jacobian
     ! EMPIRICAL Archie and Waxman-Smits options
     PetscReal :: tortuosity_constant   ! a
     PetscReal :: cementation_exponent  ! m
@@ -101,7 +99,6 @@ subroutine PMERTInit(pm_ert)
   pm_ert%linear_iterations_in_step = 0
   pm_ert%ksp_time = 0.d0
   pm_ert%rhs = PETSC_NULL_VEC
-  pm_ert%compute_jacobian = PETSC_FALSE
 
   ! Archie and Waxman-Smits default values
   pm_ert%tortuosity_constant = 1.d0
@@ -143,11 +140,13 @@ subroutine PMERTReadSimOptionsBlock(this,input)
   PetscReal, pointer :: temp_real_array(:)
   PetscInt :: temp_int
   PetscBool :: found
+  PetscBool :: output_all_surveys
 
   option => this%option
 
   error_string = 'ERT Options'
 
+  output_all_surveys = PETSC_FALSE
   input%ierr = 0
   call InputPushBlock(input,option)
   do
@@ -168,7 +167,7 @@ subroutine PMERTReadSimOptionsBlock(this,input)
     select case(trim(keyword))
       ! Add various options for ERT if needed here
       case('COMPUTE_JACOBIAN')
-        this%compute_jacobian = PETSC_TRUE
+        option%geophysics%compute_jacobian = PETSC_TRUE
       case('TORTUOSITY_CONSTANT')
         call InputReadDouble(input,option,this%tortuosity_constant)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -204,11 +203,22 @@ subroutine PMERTReadSimOptionsBlock(this,input)
           call WaypointInsertInList(waypoint,this%waypoint_list)
         enddo
         call DeallocateArray(temp_real_array)
+      case('OUTPUT_ALL_SURVEYS')
+        output_all_surveys = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  if (output_all_surveys) then
+    waypoint => this%waypoint_list%first
+    do
+      if (.not.associated(waypoint)) exit
+      waypoint%print_snap_output = PETSC_TRUE
+      waypoint => waypoint%next
+    enddo
+  endif
 
 end subroutine PMERTReadSimOptionsBlock
 
@@ -488,7 +498,8 @@ subroutine PMERTSolve(this,time,ierr)
   ert_auxvars => patch%aux%ERT%auxvars
 
   ! Build System matrix
-  call ERTCalculateMatrix(realization,solver%M,this%compute_jacobian)
+  call ERTCalculateMatrix(realization,solver%M, &
+                          this%option%geophysics%compute_jacobian)
   call KSPSetOperators(solver%ksp,solver%M,solver%M,ierr);CHKERRQ(ierr)
   !call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
 
@@ -569,7 +580,7 @@ subroutine PMERTSolve(this,time,ierr)
   call PMERTAssembleSimulatedData(this,time)
 
   ! Build Jacobian
-  if (this%compute_jacobian) call PMERTBuildJacobian(this)
+  if (this%option%geophysics%compute_jacobian) call PMERTBuildJacobian(this)
 
 end subroutine PMERTSolve
 
@@ -778,11 +789,6 @@ subroutine PMERTBuildJacobian(this)
       enddo
 
       cond = material_auxvars(ghosted_id)%electrical_conductivity(1)
-
-      if (.not.associated(ert_auxvars(ghosted_id)%jacobian)) then
-        allocate(ert_auxvars(ghosted_id)%jacobian(survey%num_measurement))
-        ert_auxvars(ghosted_id)%jacobian = 0.d0
-      endif
 
       ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to 
       ! +ve unit source so phi_rec -> - phi_rec
