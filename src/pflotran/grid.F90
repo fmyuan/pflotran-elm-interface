@@ -660,12 +660,12 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           case (STRUCTURED_GRID)
             call GridLocalizeRegionsFromCellIDs(grid,region,option)
           case default
-            option%io_buffer = 'GridLocalizeRegions() must tbe extended ' // &
+            option%io_buffer = 'GridLocalizeRegions() must be extended ' // &
             'for unstructured region DEFINED_BY_CELL_AND_FACE_IDS'
             call PrintErrMsg(option)
         end select
       case (DEFINED_BY_VERTEX_IDS)
-        option%io_buffer = 'GridLocalizeRegions() must tbe extended ' // &
+        option%io_buffer = 'GridLocalizeRegions() must be extended ' // &
           'for unstructured region DEFINED_BY_VERTEX_IDS'
         call PrintErrMsg(option)
       case (DEFINED_BY_SIDESET_UGRID)
