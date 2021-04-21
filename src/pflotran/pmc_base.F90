@@ -42,13 +42,14 @@ module PMC_Base_class
   contains
     procedure, public :: Init => PMCBaseInit
     procedure, public :: ReadNumericalMethods => PMCBaseReadNumericalMethods
-    procedure, public :: InitializeRun
+    procedure, public :: InitializeRun => PMCBaseInitializeRun
     procedure, public :: SetWaypointPtr => PMCBaseSetWaypointPtr
     procedure, public :: InputRecord => PMCBaseInputRecord
     procedure, public :: CastToBase => PMCCastToBase
     procedure, public :: SetTimestepper => PMCBaseSetTimestepper
     procedure, public :: SetupSolvers => PMCBaseSetupSolvers
     procedure, public :: RunToTime => PMCBaseRunToTime
+    procedure, public :: PrintHeader => PMCBasePrintHeader
     procedure, public :: StepDT => PMCBaseStepDT
     procedure, public :: Checkpoint => PMCBaseCheckpoint
     procedure, public :: CheckpointBinary => PMCBaseCheckpointBinary
@@ -96,6 +97,7 @@ module PMC_Base_class
 
   public :: PMCBaseCreate, &
             PMCBaseInit, &
+            PMCBaseInitializeRun, &
             PMCBaseInputRecord, &
             PMCBaseSetChildPeerPtr, &
             PMCBaseFinalizeRun, &
@@ -505,7 +507,7 @@ end subroutine PMCBaseSetTimestepper
 
 ! ************************************************************************** !
 
-recursive subroutine InitializeRun(this)
+recursive subroutine PMCBaseInitializeRun(this)
   !
   ! Initializes the time stepping
   !
@@ -542,7 +544,7 @@ recursive subroutine InitializeRun(this)
     call this%peer%InitializeRun()
   endif
 
-end subroutine InitializeRun
+end subroutine PMCBaseInitializeRun
 
 ! ************************************************************************** !
 
@@ -767,6 +769,21 @@ end subroutine PMCBaseRunToTime
 
 ! ************************************************************************** !
 
+subroutine PMCBasePrintHeader(this)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/19/21
+  !
+  implicit none
+
+  class(pmc_base_type) :: this
+
+  call PMBasePrintHeader(this%pm_list)
+
+end subroutine PMCBasePrintHeader
+
+! ************************************************************************** !
+
 subroutine PMCBaseStepDT(this,stop_flag)
   !
   ! Author: Glenn Hammond
@@ -782,6 +799,7 @@ subroutine PMCBaseStepDT(this,stop_flag)
   PetscErrorCode :: ierr
 
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
+  call this%PrintHeader()
   call this%timestepper%StepDT(this%pm_list,stop_flag)
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
   this%cumulative_time = this%cumulative_time + log_end_time - log_start_time

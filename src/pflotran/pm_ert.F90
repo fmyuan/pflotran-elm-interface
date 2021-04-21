@@ -20,6 +20,7 @@ module PM_ERT_class
     class(realization_subsurface_type), pointer :: realization
     class(communicator_type), pointer :: comm1
     type(survey_type), pointer :: survey
+    ! this waypoint list should only hold the survey times
     type(waypoint_list_type), pointer :: waypoint_list
     PetscInt :: linear_iterations_in_step
     PetscLogDouble :: ksp_time
@@ -482,7 +483,6 @@ subroutine PMERTSolve(this,time,ierr)
   PetscErrorCode :: ierr
   KSPConvergedReason :: ksp_reason
 
-  call PMBasePrintHeader(this)
   solve_ierr = 0
   ! Forward solve start
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)

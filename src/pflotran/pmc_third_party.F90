@@ -95,6 +95,7 @@ recursive subroutine PMCThirdPartyRunToTime(this,sync_time,stop_flag)
 
   if (stop_flag == TS_STOP_FAILURE) return
   
+  call this%PrintHeader()
   this%option%io_buffer = trim(this%name)
   call PrintVerboseMsg(this%option)
   

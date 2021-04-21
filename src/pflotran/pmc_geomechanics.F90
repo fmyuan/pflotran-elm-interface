@@ -230,6 +230,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   if (stop_flag == TS_STOP_FAILURE) return
 
+  call this%PrintHeader()
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call PrintVerboseMsg(this%option)
   
