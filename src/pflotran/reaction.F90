@@ -2027,7 +2027,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! once equilibrated, compute sorbed concentrations
   if (reaction%nsorb > 0) then
     if (reaction%neqsorb > 0) then
-      if (option%iflag == 1) then
+      if (reaction%mc_flag == 1) then
         call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
                         reaction%isotherm%multicontinuum_isotherm_rxn,option) 
       else

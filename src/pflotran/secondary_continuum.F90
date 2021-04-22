@@ -652,13 +652,13 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
     endif
 
     !Use multicontinuum sorption
-    option%iflag = 1
+    reaction%mc_flag = 1
     call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                           material_auxvar, &
                           reaction,constraint, &
                           num_iterations, &
                           PETSC_FALSE,option)   
-    option%iflag = 0
+    reaction%mc_flag = 0
     
     rt_sec_transport_vars%updated_conc(:,cell) =  rt_auxvar%pri_molal   
        
