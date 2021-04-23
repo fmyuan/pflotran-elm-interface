@@ -448,9 +448,10 @@ pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
 pm_base_pointer.o : pflotran_constants.o pm_base.o
 pm_ert.o : communicator_base.o discretization.o ert.o ert_aux.o field.o \
            global_aux.o grid.o input_aux.o material_aux.o option.o patch.o \
-           pflotran_constants.o pm_base.o reactive_transport_aux.o \
-           realization_base.o realization_subsurface.o solver.o string.o \
-           survey.o units.o utility.o variables.o waypoint.o
+           pflotran_constants.o pm_base.o reaction_aux.o \
+           reactive_transport_aux.o realization_base.o \
+           realization_subsurface.o solver.o string.o survey.o units.o \
+           utility.o variables.o waypoint.o
 pm_general.o : checkpoint.o convergence.o field.o general.o general_aux.o \
                global.o global_aux.o grid.o input_aux.o material.o option.o \
                patch.o pflotran_constants.o pm_base.o pm_subsurface_flow.o \
@@ -566,7 +567,8 @@ pmc_geomechanics.o : convergence.o geomechanics_discretization.o \
                      solver.o timestepper_base.o timestepper_steady.o
 pmc_geophysics.o : option.o output_aux.o pflotran_constants.o pm_base.o \
                    pm_ert.o pmc_base.o realization_subsurface.o \
-                   timestepper_base.o timestepper_steady.o
+                   timestepper_base.o timestepper_steady.o utility.o \
+                   waypoint.o
 pmc_subsurface.o : convergence.o discretization.o field.o general_aux.o grid.o \
                    material.o material_aux.o option.o pflotran_constants.o \
                    pm_base.o pm_base_pointer.o pm_general.o pm_nwt.o \
