@@ -186,7 +186,6 @@ subroutine PMGeomechForceInitializeTimestep(this)
   call PrintMsg(this%option,'PMGeomechForce%InitializeTimestep()')
 #endif
 
-  call PMBasePrintHeader(this)
   call GeomechanicsForceInitialGuess(this%geomech_realization)
   
 end subroutine PMGeomechForceInitializeTimestep

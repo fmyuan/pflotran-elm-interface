@@ -440,7 +440,6 @@ subroutine OptionInitRealization(option)
   option%air_id = 0
   option%energy_id = 0
 
-
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
       ! which should be set via the command line or the input file, but it

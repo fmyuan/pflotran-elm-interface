@@ -1,8 +1,10 @@
 module PMC_Geophysics_class
 
+  use Option_module
   use PMC_Base_class
   use PM_ERT_class
   use Realization_Subsurface_class
+  use Waypoint_module
 
   use PFLOTRAN_Constants_module
 
@@ -16,8 +18,11 @@ module PMC_Geophysics_class
 
   type, public, extends(pmc_base_type) :: pmc_geophysics_type
     class(realization_subsurface_type), pointer :: realization
+    ! current waypoint in pm list (not time_stepper)
+    type(waypoint_type), pointer :: cur_waypoint
   contains
     procedure, public :: Init => PMCGeophysicsInit
+    procedure, public :: InitializeRun => PMCGeophysicsInitializeRun
     procedure, public :: SetupSolvers => PMCGeophysicsSetupSolvers
     procedure, public :: StepDT => PMCGeophysicsStepDT
     procedure, public :: FinalizeRun => PMCGeophysicsFinalizeRun
@@ -77,6 +82,42 @@ end subroutine PMCGeophysicsInit
 
 ! ************************************************************************** !
 
+recursive subroutine PMCGeophysicsInitializeRun(this)
+  !
+  ! Last chance to initialize/configure before run
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/19/21
+  !
+
+  implicit none
+
+  class(pmc_geophysics_type) :: this
+
+  select type(pm=>this%pm_ptr%pm)
+    class is(pm_ert_type)
+      this%cur_waypoint => pm%waypoint_list%first
+    class default
+      this%option%io_buffer = 'PMCGeophysicsInitializeRun implemented only &
+                              &for ERT geophysics process model.'
+      call PrintErrMsg(this%option)
+  end select
+
+  ! ensure that the first waypoint is not at time zero.
+  if (associated(this%cur_waypoint)) then
+    if (this%cur_waypoint%time < 1.d-40) then
+      this%option%io_buffer = 'Simulating an ERT survey is not possible at &
+        &time zero. Please choose a non-zero time for the first survey.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
+
+  call PMCBaseInitializeRun(this)
+
+end subroutine PMCGeophysicsInitializeRun
+
+! ************************************************************************** !
+
 subroutine PMCGeophysicsSetupSolvers(this)
   !
   ! Author: Glenn Hammond & Piyoosh Jaysaval
@@ -121,6 +162,7 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   use PM_Base_class
   use Timestepper_Steady_class
   use Timestepper_Base_class, only : TS_STOP_FAILURE
+  use Utility_module
 
   implicit none
 
@@ -142,11 +184,37 @@ subroutine PMCGeophysicsStepDT(this,stop_flag)
   if (stop_flag == TS_STOP_FAILURE) return
 
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
+  call this%PrintHeader()
 
   option => this%option
   output_option => this%pm_ptr%pm%output_option
   timestepper => TimestepperSteadyCast(this%timestepper)
   linear_iterations_in_step = 0
+
+  if (associated(this%cur_waypoint)) then
+    if (Equal(this%cur_waypoint%time,timestepper%target_time)) then
+      this%cur_waypoint => this%cur_waypoint%next
+    else
+      if (this%option%print_screen_flag) then
+        write(*, '(/," Time= ",1pe12.5," [",a,"]", &
+              &" Skipping geophysics as this is not a survey time.",/)') &
+           timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+      endif
+      if (this%option%print_file_flag) then
+        write(this%option%fid_out, '(/," Time= ",1pe12.5," [",a,"]", &
+              &" Skipping geophysics as this is not a survey time.",/)') &
+           timestepper%target_time/output_option%tconv,trim(output_option%tunit)
+      endif
+      return
+    endif
+  else
+    if (option%iflowmode /= NULL_MODE .or. option%itranmode /= NULL_MODE) then
+      option%io_buffer = 'SURVEY_TIMES must be listed under &
+        &SUBSURFACE_GEOPHYSICS OPTIONS when geophysics is coupled to flow &
+        &or transport.'
+       call PrintErrMsg(option)
+    endif
+  endif
 
   pm_base => this%pm_ptr%pm
   select type(pm=>this%pm_ptr%pm)

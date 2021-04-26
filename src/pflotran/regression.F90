@@ -3,7 +3,6 @@ module Regression_module
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Output_Aux_module
-  
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -11,7 +10,7 @@ module Regression_module
   private
  
   type, public :: regression_type
-    type(regression_variable_type), pointer :: variable_list
+    type(output_variable_list_type), pointer :: variable_list
     PetscInt, pointer :: natural_cell_ids(:)
     PetscInt :: num_cells_per_process
     PetscInt, pointer :: cells_per_process_natural_ids(:)
@@ -23,13 +22,8 @@ module Regression_module
     type(regression_type), pointer :: next
   end type regression_type
 
-  type, public :: regression_variable_type
-    character(len=MAXSTRINGLENGTH) :: name
-    type(regression_variable_type), pointer :: next
-  end type regression_variable_type
-  
   public :: RegressionRead, &
-            RegressionCreateMapping, &
+            RegressionSetup, &
             RegressionOutput, &
             RegressionDestroy
   
@@ -68,29 +62,6 @@ end function RegressionCreate
 
 ! ************************************************************************** !
 
-function RegressionVariableCreate()
-  ! 
-  ! Creates a regression variable object
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/11/12
-  ! 
-  
-  implicit none
-
-  type(regression_variable_type), pointer :: RegressionVariableCreate
-  
-  type(regression_variable_type), pointer :: regression_variable
-  
-  allocate(regression_variable)
-  regression_variable%name = ''
-  nullify(regression_variable%next)
-  RegressionVariableCreate => regression_variable
-
-end function RegressionVariableCreate
-
-! ************************************************************************** !
-
 subroutine RegressionRead(regression,input,option)
   ! 
   ! Reads in contents of a regression card
@@ -101,6 +72,7 @@ subroutine RegressionRead(regression,input,option)
 
   use Option_module
   use Input_Aux_module
+  use Output_module
   use String_module
   use Utility_module
 
@@ -108,10 +80,10 @@ subroutine RegressionRead(regression,input,option)
   
   type(regression_type), pointer :: regression
   type(input_type), pointer :: input
-  type(option_type) :: option
+  type(option_type), pointer :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word
-  type(regression_variable_type), pointer :: cur_variable, new_variable
+  type(output_variable_type), pointer :: cur_variable, new_variable
   PetscInt :: count, max_cells
   PetscInt, pointer :: int_array(:)
   PetscErrorCode :: ierr
@@ -133,29 +105,12 @@ subroutine RegressionRead(regression,input,option)
     select case(trim(keyword))
     
       case('VARIABLES') 
-        count = 0
-        call InputPushBlock(input,option)
-        do 
-          call InputReadPflotranString(input,option)
-          if (InputCheckExit(input,option)) exit  
-
-          call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'variable','REGRESSION,VARIABLES')
-          call StringToUpper(word)
-          new_variable => RegressionVariableCreate()
-          new_variable%name = word
-          if (.not.associated(regression%variable_list)) then
-            regression%variable_list => new_variable
-          else
-            cur_variable%next => new_variable
-          endif
-          cur_variable => new_variable
-        enddo
-        call InputPopBlock(input,option)
-
+        if (.not.associated(regression%variable_list)) then
+          regression%variable_list => OutputVariableListCreate()
+        endif
+        call OutputVariableRead(input,option,regression%variable_list)
       case('CELLS')
         call InputKeywordDeprecated('CELLS','CELL_IDS',option)
-
       case('CELL_IDS')
         max_cells = 100
         allocate(int_array(max_cells))
@@ -193,6 +148,27 @@ end subroutine RegressionRead
 
 ! ************************************************************************** !
 
+subroutine RegressionSetup(regression,realization)
+  ! 
+  ! Configures variables and mappings for regression testing
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/14/21
+  ! 
+  use Option_module
+  use Realization_Subsurface_class
+
+  implicit none
+
+  type(regression_type), pointer :: regression
+  class(realization_subsurface_type) :: realization
+
+  call RegressionCreateMapping(regression,realization)
+
+end subroutine RegressionSetup
+
+! ************************************************************************** !
+
 subroutine RegressionCreateMapping(regression,realization)
   ! 
   ! Creates mapping between a natural mpi vec and a
@@ -201,8 +177,6 @@ subroutine RegressionCreateMapping(regression,realization)
   ! Author: Glenn Hammond
   ! Date: 10/12/12
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Grid_module
@@ -502,7 +476,6 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   use Option_module
   use Discretization_module
   use Output_module
-  use Output_Aux_module
   use Output_Common_module, only : OutputGetCellCenteredVelocities, &
                                    OutputGetVariableArray
   
@@ -543,11 +516,18 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   
   call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                   global_vec,GLOBAL,option)  
-  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vx)
-  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vy)
-  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vz)
+  call DiscretizationDuplicateVector(realization%discretization, &
+                                     global_vec,global_vec_vx)
+  call DiscretizationDuplicateVector(realization%discretization, &
+                                     global_vec,global_vec_vy)
+  call DiscretizationDuplicateVector(realization%discretization, &
+                                     global_vec,global_vec_vz)
 
-  cur_variable => realization%output_option%output_snap_variable_list%first
+  if (.not.associated(regression%variable_list)) then
+    cur_variable => realization%output_option%output_snap_variable_list%first
+  else
+    cur_variable => regression%variable_list%first
+  endif
   do 
     if (.not.associated(cur_variable)) exit
     
@@ -885,29 +865,6 @@ end subroutine RegressionOutput
 
 ! ************************************************************************** !
 
-recursive subroutine RegressionVariableDestroy(regression_variable)
-  ! 
-  ! Destroys a regression variable object
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/11/12
-  ! 
-
-  implicit none
-  
-  type(regression_variable_type), pointer :: regression_variable
-  
-  if (.not.associated(regression_variable)) return
-  
-  call RegressionVariableDestroy(regression_variable%next)
-
-  deallocate(regression_variable)
-  nullify(regression_variable)
-  
-end subroutine RegressionVariableDestroy
-
-! ************************************************************************** !
-
 subroutine RegressionDestroy(regression)
   ! 
   ! Destroys a regression object
@@ -926,7 +883,7 @@ subroutine RegressionDestroy(regression)
   
   if (.not.associated(regression)) return
   
-  call RegressionVariableDestroy(regression%variable_list)
+  call OutputVariableListDestroy(regression%variable_list)
   call DeallocateArray(regression%natural_cell_ids)
   regression%num_cells_per_process = 0
   call DeallocateArray(regression%cells_per_process_natural_ids)

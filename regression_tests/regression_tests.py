@@ -29,6 +29,7 @@ import textwrap
 import time
 import traceback
 import difflib
+import math
 from collections import OrderedDict
 
 if sys.version_info[0] == 2:
@@ -1295,6 +1296,7 @@ class RegressionTest(object):
                                              testlog)
                                 section_num_minor_fail += report[0]
                                 section_num_major_fail += report[1]
+                                section_num_error += report[2]
                             except Exception as error:
                                 section_status += 1
                                 print("ERROR: {0} : {1}.\n  {2}".format(
@@ -1319,6 +1321,7 @@ class RegressionTest(object):
         """
         num_minor_fail = 0
         num_major_fail = 0
+        num_error = 0
         tol = None
         key = key.lower()
         if (key == self._CONCENTRATION or
@@ -1348,6 +1351,12 @@ class RegressionTest(object):
         tolerance = tol[self._TOL_VALUE]
         min_threshold = tol[self._TOL_MIN_THRESHOLD]
         max_threshold = tol[self._TOL_MAX_THRESHOLD]
+
+        if math.isnan(current) or math.isnan(previous):
+            num_error += 1
+            print("    NAN: {0} : {1} vs {2} (gold)".format(
+                  name, current, previous), file=testlog)
+            return num_minor_fail, num_major_fail, num_error
 
         if tolerance_type == self._ABSOLUTE:
             delta = abs(previous - current)
@@ -1397,7 +1406,7 @@ class RegressionTest(object):
                       name, previous, min_threshold, max_threshold),
                   file=testlog)
 
-        return num_minor_fail, num_major_fail
+        return num_minor_fail, num_major_fail, num_error
 
     def _compare_solution(self, name, previous, current):
         """
