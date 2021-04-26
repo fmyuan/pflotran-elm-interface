@@ -32,8 +32,8 @@ module PM_ERT_class
     PetscReal :: water_conductivity
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor
-    PetscReal, pointer :: species_conductivity_coef(:) ! 
-    character(len=MAXWORDLENGTH), pointer :: species_names(:)
+    PetscReal, pointer :: species_conductivity_coef(:)
+    character(len=MAXSTRINGLENGTH) :: mobility_database
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -112,7 +112,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
 
   nullify(pm_ert%species_conductivity_coef)
-  nullify(pm_ert%species_names)
+  pm_ert%mobility_database = ''
 
 end subroutine PMERTInit
 
@@ -142,7 +142,6 @@ subroutine PMERTReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: internal_units
-  character(len=MAXWORDLENGTH) :: species_names(100)
   PetscReal :: units_conversion
   PetscReal, pointer :: temp_real_array(:)
   PetscInt :: temp_int
@@ -210,25 +209,9 @@ subroutine PMERTReadSimOptionsBlock(this,input)
           call WaypointInsertInList(waypoint,this%waypoint_list)
         enddo
         call DeallocateArray(temp_real_array)
-      case('SPECIES_MOBILITIES')
-        allocate(temp_real_array(100))
-        temp_int = 0
-        do
-          call InputReadPflotranString(input,option)
-          if (InputError(input)) exit
-          if (InputCheckExit(input,option)) exit
-          temp_int = temp_int + 1
-          call InputReadCard(input,option,species_names(temp_int))
-          call InputErrorMsg(input,option,trim(keyword)//' NAME',error_string)
-          call InputReadDouble(input,option,temp_real_array(temp_int))
-          call InputErrorMsg(input,option,trim(keyword)//' VALUE',error_string)
-        enddo
-        allocate(this%species_conductivity_coef(temp_int))
-        allocate(this%species_names(temp_int))
-        this%species_names = species_names(1:temp_int)
-        this%species_conductivity_coef = temp_real_array(1:temp_int)
-        deallocate(temp_real_array)
-        nullify(temp_real_array)
+      case('MOBILITY_DATABASE')
+        call InputReadFilename(input,option,this%mobility_database)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('OUTPUT_ALL_SURVEYS')
         output_all_surveys = PETSC_TRUE
       case default
@@ -257,48 +240,17 @@ subroutine PMERTSetup(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
-  use Reaction_Aux_module
-  use Utility_module
-
   implicit none
 
   class(pm_ert_type) :: this
 
   type(ert_type), pointer :: ert
-  class(reaction_rt_type), pointer :: reaction
-  PetscInt :: i, ispecies
-  PetscReal, allocatable :: temparray(:)
-  PetscReal, parameter :: ELEMENTARY_CHARGE = 1.6022d-19 ! C
-  PetscReal, parameter :: AVOGADRO_NUMBER = 6.02214d23 ! atoms per mol
 
   ! set the communicator
   this%comm1 => this%realization%comm1
   ! setup survey
   this%survey => this%realization%survey
-  reaction => this%realization%patch%reaction
 
-  ! calculate species conductivity coefficients if defined
-  if (associated(this%species_conductivity_coef)) then
-    if (size(this%species_conductivity_coef) /= reaction%naqcomp) then
-      this%option%io_buffer = 'Number of species mobilities under &
-        &ERT OPTIONS must match the number of primary &
-        &aqueous species for reactive transport.'
-      call PrintErrMsg(this%option)
-    endif
-    allocate(temparray(size(this%species_conductivity_coef)))
-    temparray = this%species_conductivity_coef
-    do i = 1, size(this%species_conductivity_coef)
-      ispecies = GetPrimarySpeciesIDFromName(this%species_names(i), &
-                                             reaction,this%option)
-      this%species_conductivity_coef(ispecies) = & ! [m^2-charge-A/V-mol]
-        temparray(i) * &                      ! mobility [m^2/V-s]
-        reaction%primary_spec_Z(ispecies) * & ! [charge/atom]
-        AVOGADRO_NUMBER * &                   ! [atom/mol]
-        ELEMENTARY_CHARGE                     ! [A-s] or [C]
-    enddo
-    deallocate(temparray)
-    call DeallocateArray(this%species_names)
-  endif
 
 end subroutine PMERTSetup
 
@@ -332,19 +284,84 @@ recursive subroutine PMERTInitializeRun(this)
   ! Date: 01/22/21
   !
   use Discretization_module
+  use Input_Aux_module
+  use Reaction_Aux_module
 
   implicit none
 
   class(pm_ert_type) :: this
+
+  type(option_type), pointer :: option
+  type(input_type), pointer :: input
+  class(reaction_rt_type), pointer :: reaction
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: ispecies
+  PetscBool :: flag
+  PetscReal :: tempreal
+  PetscReal, parameter :: ELEMENTARY_CHARGE = 1.6022d-19 ! C
+  PetscReal, parameter :: AVOGADRO_NUMBER = 6.02214d23 ! atoms per mol
+  PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: vec_ptr(:)
+
+  reaction => this%realization%patch%reaction
+  option => this%option
 
   call DiscretizationDuplicateVector(this%realization%discretization, &
                                      this%realization%field%work,this%rhs)
 
   ! Initialize to zeros
   call VecZeroEntries(this%rhs,ierr);CHKERRQ(ierr)
+
+  ! calculate species conductivity coefficients if defined
+  if (len_trim(this%mobility_database) > 0) then
+    if (.not.associated(reaction%primary_spec_Z)) then
+      option%io_buffer = 'The CHEMISTRY block must be include a DATABASE to &
+        &calculate fluid conductivity as a function of species mobilities.'
+      call PrintErrMsg(option)
+    endif
+    input => InputCreate(IUNIT_TEMP,this%mobility_database,option)
+    allocate(this%species_conductivity_coef(reaction%naqcomp))
+    this%species_conductivity_coef = UNINITIALIZED_DOUBLE
+    do
+      call InputReadPflotranString(input,option)
+      if (InputError(input)) exit
+      if (InputCheckExit(input,option)) exit
+      if (len_trim(input%buf) == 0) cycle
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,'MOBILITY SPECIES NAME', &
+                         'MOBILITY_DATABASE')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,'MOBILITY VALUE','MOBILITY_DATABASE')
+      ispecies = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, &
+                                             this%option)
+      if (Initialized(ispecies)) then
+        this%species_conductivity_coef(ispecies) = & ! [m^2-charge-A/V-mol]
+          tempreal * &                               ! mobility [m^2/V-s]
+          abs(reaction%primary_spec_Z(ispecies)) * & ! [charge/atom]
+          AVOGADRO_NUMBER * &                        ! [atom/mol]
+          ELEMENTARY_CHARGE                          ! [A-s] or [C]
+      endif
+    enddo
+    flag = PETSC_FALSE
+    do ispecies = 1, reaction%naqcomp
+      if (Uninitialized(this%species_conductivity_coef(ispecies))) then
+        if (.not.flag) then
+          flag = PETSC_TRUE
+          option%io_buffer = ''
+          call PrintMsg(option)
+        endif
+        option%io_buffer = reaction%primary_species_names(ispecies)
+        call PrintMsg(option)
+      endif
+    enddo
+    if (flag) then
+      option%io_buffer = 'Electrical mobilities for the species above not &
+        &defined in mobility database: ' // trim(this%mobility_database)
+      call PrintErrMsg(option)
+    endif
+    call InputDestroy(input)
+  endif
 
 end subroutine PMERTInitializeRun
 
@@ -1003,7 +1020,6 @@ subroutine PMERTStrip(this)
   call WaypointListDestroy(this%waypoint_list)
 
   call DeallocateArray(this%species_conductivity_coef)
-  call DeallocateArray(this%species_names)
   if (this%rhs /= PETSC_NULL_VEC) then
     call VecDestroy(this%rhs,ierr);CHKERRQ(ierr)
   endif
