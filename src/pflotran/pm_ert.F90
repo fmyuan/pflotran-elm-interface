@@ -483,6 +483,8 @@ subroutine PMERTPreSolve(this)
   PetscErrorCode :: ierr
 
   option => this%option
+  if (option%iflowmode == NULL_MODE .and. option%itranmode == NULL_MODE) return
+
   patch => this%realization%patch
   grid => patch%grid
   reaction => patch%reaction
@@ -506,7 +508,7 @@ subroutine PMERTPreSolve(this)
     sat = global_auxvars(ghosted_id)%sat(1)
     ! compute conductivity
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c,cond)
-    !material_auxvars(ghosted_id)%electrical_conductivity = cond
+    material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
   enddo
 
   if (associated(rt_auxvars)) then
