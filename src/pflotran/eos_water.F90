@@ -22,6 +22,12 @@ module EOS_Water_module
   PetscReal :: exponent_reference_density
   PetscReal :: exponent_reference_pressure
   PetscReal :: exponent_water_compressibility
+
+  ! exponential
+  PetscReal :: temperature_reference_density
+  PetscReal :: temperature_reference_pressure
+  PetscReal :: temperature_water_compressibility
+  PetscReal :: temperature_thermal_expansion
   
   ! planes for planar eos
   type(plane_type) :: water_density_tp_plane
@@ -317,6 +323,16 @@ subroutine EOSWaterVerify(ierr,error_string)
     ierr = 1
   endif
 
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityTemperature) .and. &
+      (Uninitialized(temperature_reference_density) .or. & 
+       Uninitialized(temperature_reference_pressure) .or. &
+       Uninitialized(temperature_water_compressibility) .or. &
+       Uninitialized(temperature_thermal_expansion))) then
+    error_string = trim(error_string) // &
+      ' Temperature parameters incorrect.'
+    ierr = 1
+  endif
+
   if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear) .and. &
       (Uninitialized(linear_reference_density) .or. & 
        Uninitialized(linear_reference_pressure) .or. &
@@ -384,6 +400,12 @@ subroutine EOSWaterSetDensity(keyword,aux)
       exponent_reference_pressure = aux(2)
       exponent_water_compressibility = aux(3)  
       EOSWaterDensityPtr => EOSWaterDensityExponential
+    case('Temperature')
+      temperature_reference_density = aux(1)
+      temperature_reference_pressure = aux(2)
+      temperature_water_compressibility = aux(3)
+      temperature_thermal_expansion = aux(4) 
+      EOSWaterDensityPtr => EOSWaterDensityTemperature
     case('LINEAR')
       linear_reference_density = aux(1)
       linear_reference_pressure = aux(2)
@@ -1863,6 +1885,34 @@ subroutine EOSWaterDensityExponential(t,p,calculate_derivatives, &
   dwt = 0.d0
 
 end subroutine EOSWaterDensityExponential
+
+! ************************************************************************** !
+
+subroutine EOSWaterDensityTemperature(t,p,calculate_derivatives, &
+                                      dw,dwmol,dwp,dwt,ierr,table_idxs)
+  implicit none
+  
+  PetscReal, intent(in) :: t   ! Temperature in centigrade
+  PetscReal, intent(in) :: p   ! Pressure in Pascals
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw,dwmol,dwp,dwt
+  PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+  
+  ! kg/m^3
+  dw = temperature_reference_density*(1.d0 / (exp(temperature_thermal_expansion*&
+       (t-273.15d0)) * exp(temperature_water_compressibility*&
+       (temperature_reference_pressure-p))))
+  dwmol = dw/FMWH2O ! kmol/m^3
+  
+  if (calculate_derivatives) then
+    dwp = dwmol*temperature_water_compressibility !kmol/m^3/Pa
+  else
+    dwp = UNINITIALIZED_DOUBLE
+  endif
+  dwt = 0.d0
+
+end subroutine EOSWaterDensityTemperature
 
 ! ************************************************************************** !
 
@@ -3708,6 +3758,22 @@ subroutine EOSWaterInputRecord()
     write(word1,*) exponent_water_compressibility
     write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
   endif
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityTemperature)) then
+    write(id,'(a29)',advance='no') 'water density: '
+    write(id,'(a)') 'temperature'
+    write(id,'(a29)',advance='no') 'temp. ref. density: '
+    write(word1,*) temperature_reference_density
+    write(id,'(a)') adjustl(trim(word1)) // ' kg/m^3'
+    write(id,'(a29)',advance='no') 'temp. ref. pressure: '
+    write(word1,*) temperature_reference_pressure
+    write(id,'(a)') adjustl(trim(word1)) // ' Pa'
+    write(id,'(a29)',advance='no') 'temp. water compressibility: '
+    write(word1,*) Temperature_water_compressibility
+    write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
+    write(id,'(a29)',advance='no') 'temp. thermal expansion: '
+    write(word1,*) Temperature_thermal_expansion
+    write(id,'(a)') adjustl(trim(word1)) // ' 1/K'
+  endif
   if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear)) then
     write(id,'(a29)',advance='no') 'water density: '
     write(id,'(a)') 'linear'
@@ -3920,6 +3986,8 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
     eos_density_name = 'Constant'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityExponential)) then
     eos_density_name = 'Exponential'
+  else if (associated(EOSWaterDensityPtr,EOSWaterDensityTemperature)) then
+    eos_density_name = 'Temperature'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear)) then
     eos_density_name = 'Linear'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityBRAGFLO)) then
