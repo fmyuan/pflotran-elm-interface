@@ -479,7 +479,7 @@ subroutine PMERTPreSolve(this)
   PetscInt :: species_id
   PetscReal :: a,m,n,cond_w,cond_c,Vc,cond  ! variables for Archie's law
   PetscReal :: por,sat
-  PetscReal :: sigma
+  PetscReal :: cond_sp,cond_w0
   PetscErrorCode :: ierr
 
   option => this%option
@@ -495,6 +495,7 @@ subroutine PMERTPreSolve(this)
   Vc = this%clay_volume_factor
   cond_w = this%water_conductivity
   cond_c = this%clay_conductivity
+  cond_w0 = cond_w
 
   global_auxvars => patch%aux%Global%auxvars
   nullify(rt_auxvars)
@@ -506,30 +507,30 @@ subroutine PMERTPreSolve(this)
   do ghosted_id = 1, grid%ngmax
     por = material_auxvars(ghosted_id)%porosity
     sat = global_auxvars(ghosted_id)%sat(1)
+    if (associated(rt_auxvars)) then
+      if (associated(this%species_conductivity_coef)) then
+        ! assuming that we sum conductivity across species
+        cond_sp = 0.d0
+        do species_id = 1, reaction%naqcomp
+          cond_sp = cond_sp + &                          ! S/m
+          this%species_conductivity_coef(species_id)  * &![m^2-charge-A/V-mol]
+          rt_auxvars(ghosted_id)%pri_molal(species_id)* &![mol/kg water]
+          global_auxvars(ghosted_id)%den_kg(1)           ![kg water/m^3]
+        enddo
+        ! modify fluid conductivity for species contribution
+        cond_w = cond_w0 + cond_sp
+      else
+        species_id = 1
+        !material_auxvars(ghosted_id)%electrical_conductivity = &
+        !  material_auxvars(ghosted_id)%electrical_conductivity * &
+        ! rt_auxvars(ghosted_id)%total(species_id,1)
+        cond_w = cond_w0 * rt_auxvars(ghosted_id)%total(species_id,1)
+      endif
+    endif
     ! compute conductivity
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c,cond)
     material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
   enddo
-
-  if (associated(rt_auxvars)) then
-    do ghosted_id = 1, grid%ngmax
-      if (associated(this%species_conductivity_coef)) then
-          ! assuming that we sum sigma across species
-        sigma = 0.d0
-        do species_id = 1, reaction%naqcomp
-          sigma = sigma + &  ! S/m
-            this%species_conductivity_coef(species_id)* & ![m^2-charge-A/V-mol]
-            rt_auxvars(ghosted_id)%pri_molal(species_id) * &![mol/kg water]
-            global_auxvars(ghosted_id)%den_kg(1)            ![kg water/m^3]
-        enddo
-      else
-        species_id = 1
-        material_auxvars(ghosted_id)%electrical_conductivity = &
-          material_auxvars(ghosted_id)%electrical_conductivity * &
-          rt_auxvars(ghosted_id)%total(species_id,1)
-      endif
-    enddo
-  endif
  
 end subroutine PMERTPreSolve
 
