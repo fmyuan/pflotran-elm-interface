@@ -140,8 +140,8 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   ! Date: 03/19/21
   !
   use Timestepper_Base_class
-
   use Option_module
+  use Utility_module
 
   implicit none
 
@@ -158,6 +158,16 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   do 
     if (.not.associated(this%cur_waypoint)) exit
     if (sync_time >= this%cur_waypoint%time) then
+      if (Equal(sync_time,this%cur_waypoint%time)) then
+        if (this%cur_waypoint%print_snap_output) &
+          snapshot_plot_flag = PETSC_TRUE
+        if (this%cur_waypoint%print_obs_output) &
+          observation_plot_flag = PETSC_TRUE
+        if (this%cur_waypoint%print_msbl_output) &
+          massbal_plot_flag = PETSC_TRUE
+        if (this%cur_waypoint%print_checkpoint) &
+          checkpoint_flag = PETSC_TRUE
+      endif
       this%cur_waypoint => this%cur_waypoint%next
     else
       exit

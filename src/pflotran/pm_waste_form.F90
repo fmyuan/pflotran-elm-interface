@@ -2908,12 +2908,6 @@ subroutine PMWFInitializeTimestep(this)
   option => this%option
   grid => this%realization%patch%grid
   dt = option%tran_dt
-
-  avg_temp_global = UNINITIALIZED_DOUBLE
-  avg_sat_global = UNINITIALIZED_DOUBLE
-
-  call PMBasePrintHeader(this)
-
   ! zero entries from previous time step
   call VecZeroEntries(this%data_mediator%vec,ierr);CHKERRQ(ierr)
 

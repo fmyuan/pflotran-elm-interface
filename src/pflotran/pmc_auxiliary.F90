@@ -86,7 +86,6 @@ recursive subroutine PMCAuxiliaryRunToTime(this,sync_time,stop_flag)
   ! 
 
   use Timestepper_Base_class
-!  use Init_Subsurface_module
   use Option_module
   
   implicit none
@@ -114,6 +113,7 @@ recursive subroutine PMCAuxiliaryRunToTime(this,sync_time,stop_flag)
   local_stop_flag = TS_CONTINUE
   ! if at end of simulation, skip update of material properties
   if (stop_flag /= TS_STOP_END_SIMULATION) then
+    call this%PrintHeader()
     ! must use ierr here due to 32-/64-bit integer issues
     call this%pm_aux%Evaluate(sync_time,ierr)
     local_stop_flag = ierr
