@@ -3619,6 +3619,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
       else if (num_iterations <= 500) then
         scale = 0.001d0
       else
+#if 0
         print *, 'Maximum iterations in RReact: stop: ' // &
                  trim(StringWrite(num_iterations))
         print *, 'Maximum iterations in RReact: residual: ' // &
@@ -3629,6 +3630,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
         if (option%mycommsize > 1) then
           print *, 'Process rank: ' // trim(StringWrite(option%myrank))
         endif
+#endif
         num_iterations_ = num_iterations
         ierror = 1
         return
