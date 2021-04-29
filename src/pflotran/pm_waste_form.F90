@@ -420,7 +420,6 @@ module PM_Waste_Form_class
     type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
-    PetscBool :: dataset_solution
     PetscLogDouble :: cumulative_time
   contains
     procedure, public :: SetRealization => PMWFSetRealization
@@ -851,6 +850,8 @@ function PMWFWasteFormCreate()
   wf%exposure_factor = 1.0d0            ! [-]
   wf%eff_dissolution_rate = UNINITIALIZED_DOUBLE ! kg/sec
   wf%mech_name = ''
+  wf%spacer_mech_name = ''
+  wf%criticality_mech_name = ''
   wf%decay_start_time = 0.d0          ! sec (default value)
   nullify(wf%instantaneous_mass_rate) ! mol-rad/sec
   nullify(wf%cumulative_mass)         ! mol-rad
@@ -870,7 +871,7 @@ function PMWFWasteFormCreate()
   wf%eff_canister_vit_rate = UNINITIALIZED_DOUBLE
   !------- spacer degradation model ------------------
   wf%spacer_degradation_flag = PETSC_FALSE
-  wf%spacer_vitality = 0.d0
+  wf%spacer_vitality = 1.d0
   wf%spacer_vitality_rate = UNINITIALIZED_DOUBLE
  !----------------------------------------------------
  
@@ -906,7 +907,6 @@ function PMWFCreate()
   nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
-  PMWFCreate%dataset_solution = PETSC_FALSE
   PMWFCreate%cumulative_time = 0.d0
   PMWFCreate%name = 'waste form general'
   PMWFCreate%header = 'WASTE FORM (GENERAL)'
@@ -986,10 +986,6 @@ subroutine PMWFReadPMBlock(this,input)
       case('IMPLICIT_SOLUTION')
         this%implicit_solution = PETSC_TRUE
         cycle
-    !-------------------------------------
-      case('DATASET_SOLUTION')
-        this%dataset_solution = PETSC_TRUE
-        cycle
     end select
 
     error_string = 'WASTE_FORM_GENERAL'
@@ -1033,19 +1029,13 @@ subroutine PMWFReadPMBlock(this,input)
         endif
         cur_crit_mech => cur_crit_mech%next
       enddo
-      if (.not.associated(cur_waste_form%criticality_mechanism)) then
-        option%io_buffer = 'WASTE_FORM CRITICALITY MECHANISM ' // &
-                           trim(cur_waste_form%criticality_mech_name) // &
-                           ' not found amoung given mechanism names.'
-        call PrintErrMsg(option)
-      endif
     endif
 
     ! error messaging: ----------------------------------------------
     if (.not.associated(cur_waste_form%mechanism)) then
       option%io_buffer = 'WASTE_FORM MECHANISM ' // &
                          trim(cur_waste_form%mech_name) // &
-                         ' not found amoung given mechanism names.'
+                         ' not found among given mechanism names.'
       call PrintErrMsg(option)
     endif
 
@@ -3095,7 +3085,8 @@ subroutine PMWFInitializeTimestep(this)
     if ((cur_waste_form%volume >= 0.d0) .and. &
         (option%time >= cur_waste_form%decay_start_time)) then !--------------
 
-    if (this%dataset_solution) then
+    if (associated(cur_waste_form%criticality_mechanism) &
+        .and. associated(cur_waste_form%criticality_mechanism%rad_dataset)) then
       !Import radionuclide inventory from external neutronics code calculations
       if (.not.cur_waste_form%breached) then
         do k = 1,num_species
@@ -3398,7 +3389,7 @@ subroutine PMWFSolve(this,time,ierr)
 ! grid: pointer to the grid object
 ! -----------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
-  PetscInt :: i, j, k
+  PetscInt :: i, j, k, m
   PetscInt :: num_species
   PetscInt :: local_id, ghosted_id
   PetscInt :: idof
@@ -3411,6 +3402,7 @@ subroutine PMWFSolve(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
+  type(crit_mechanism_base_type), pointer :: cur_criticality
 ! -----------------------------------------------------------
 
   call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
@@ -3423,9 +3415,14 @@ subroutine PMWFSolve(this,time,ierr)
 
   call VecGetArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-  
+  if (associated(this%criticality_mediator)) then
+    call VecGetArrayF90(this%criticality_mediator%data_mediator%vec, &
+                          heat_source,ierr);CHKERRQ(ierr)
+  endif
+ 
   cur_waste_form => this%waste_form_list
   i = 0
+  m = 0
   do 
     if (.not.associated(cur_waste_form)) exit
     num_species = cur_waste_form%mechanism%num_species  
@@ -3510,14 +3507,32 @@ subroutine PMWFSolve(this,time,ierr)
       cur_waste_form%eff_dissolution_rate = 0.d0
       cur_waste_form%instantaneous_mass_rate = 0.d0
     endif
-    !
-    if (associated(this%criticality_mediator)) then
-      call VecGetArrayF90(this%criticality_mediator%data_mediator%vec, &
-                          heat_source,ierr);CHKERRQ(ierr)
-      call CriticalitySolve(cur_waste_form,heat_source,time,ierr)
-      call VecRestoreArrayF90(this%criticality_mediator%data_mediator%vec, &
-                              heat_source,ierr);CHKERRQ(ierr)
+
+    !---------- Criticality Calculation --------------------------------------
+    if (associated(cur_waste_form%criticality_mechanism)) then
+      cur_criticality => cur_waste_form%criticality_mechanism
+      if (time >= cur_criticality%crit_event%crit_start .and. time < &
+              cur_criticality%crit_event%crit_end .and. &
+              cur_waste_form%spacer_vitality > 0.d0) then
+        cur_criticality%crit_event%crit_flag = PETSC_TRUE
+      else
+        cur_criticality%crit_event%crit_flag = PETSC_FALSE
+      endif
+
+      call CriticalityCalc(cur_criticality,time,ierr)
+
+      do j = 1, cur_waste_form%region%num_cells
+        m = m + 1
+        heat_source(m) = cur_criticality%decay_heat
+        if (cur_criticality%crit_event%crit_flag) then
+          heat_source(m) = heat_source(m) + cur_criticality%crit_heat
+        endif
+        ! Distribute heat source throughout all cells in a waste package
+        heat_source(m) = heat_source(m) * cur_waste_form%scaling_factor(j)
+      enddo
+
     endif
+
     cur_waste_form => cur_waste_form%next
   enddo
  
@@ -3531,7 +3546,11 @@ subroutine PMWFSolve(this,time,ierr)
     write(*,'(a)') '== ' // adjustl(trim(word)) // ' call(s) to FMDM.'
   ! ** END (this can be removed after FMDM profiling is finished) **
   endif
-  
+ 
+  if (associated(this%criticality_mediator)) then 
+    call VecRestoreArrayF90(this%criticality_mediator%data_mediator%vec, &
+                              heat_source,ierr);CHKERRQ(ierr)
+  endif
   call VecRestoreArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   
@@ -5124,7 +5143,7 @@ subroutine PMWFStrip(this)
   enddo
   nullify(this%waste_form_list)
   call PMWFMechanismStrip(this)
-!   call CriticalityStrip(this%criticality_mediator)
+  call CriticalityStrip(this%criticality_mediator)
 
 end subroutine PMWFStrip
 
@@ -5355,8 +5374,8 @@ subroutine CriticalityMechInit(this)
   this%crit_event%crit_end = UNINITIALIZED_DOUBLE
   this%crit_event%crit_flag = PETSC_FALSE
 
-  this%rad_dataset => DatasetAsciiCreate()
-  this%heat_dataset => DatasetAsciiCreate()
+  nullify(this%rad_dataset)
+  nullify(this%heat_dataset)
 
 end subroutine CriticalityMechInit
 
@@ -5504,6 +5523,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               select case(trim(word))
                 case('DATASET')
                   internal_units = 'MW'
+                  new_crit_mech%heat_dataset => DatasetAsciiCreate()
                   call InputReadFilename(input,option,new_crit_mech% &
                           heat_dataset_name)
                   call DatasetAsciiReadFile(new_crit_mech%heat_dataset, &
@@ -5524,6 +5544,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               select case(trim(word))
                 case('DATASET')
                   internal_units = 'g/g'
+                  new_crit_mech%rad_dataset => DatasetAsciiCreate()
                   call InputReadFilename(input,option,new_crit_mech% &
                           rad_dataset_name)
                   call DatasetAsciiReadFile(new_crit_mech%rad_dataset, &
@@ -5607,61 +5628,6 @@ subroutine CriticalityCalc(this,time,ierr)
     this%decay_heat = 0.d0
   endif
 end subroutine CriticalityCalc
-
-! ************************************************************************** !
-
-subroutine CriticalitySolve(waste_form,heat_source,time,ierr)
-
-  !
-  !Author: Michael Nole
-  !Date: 11/05/18
-  !
-
-  use Realization_Subsurface_class
-
-  implicit none
-
-  class(waste_form_base_type), pointer :: waste_form
-  PetscReal, pointer :: heat_source(:)
-  PetscReal :: time
-  PetscErrorCode :: ierr
-
-  PetscInt :: i,j
-  PetscReal, pointer :: scaling_factor(:)
-  PetscReal :: spacer_vitality
-  type(crit_mechanism_base_type), pointer :: cur_criticality
-
-  cur_criticality => waste_form%criticality_mechanism
-  j = 0
-  do
-    if (.not. associated(cur_criticality)) exit
-
-    if (time >= cur_criticality%crit_event%crit_start .and. time < &
-            cur_criticality%crit_event%crit_end .and. &
-            spacer_vitality > 0.d0) then
-      cur_criticality%crit_event%crit_flag = PETSC_TRUE
-    else
-      cur_criticality%crit_event%crit_flag = PETSC_FALSE
-    endif
-
-    call CriticalityCalc(cur_criticality,time,ierr)
-
-    do i = 1, waste_form%region%num_cells
-      j = j + 1
-      heat_source(j) = cur_criticality%decay_heat
-
-      if (cur_criticality%crit_event%crit_flag) then
-        heat_source(j) = heat_source(j) + cur_criticality%crit_heat
-      endif
-
-      ! Distribute heat source throughout all cells in a waste package
-      heat_source(j) = heat_source(j) * waste_form%scaling_factor(j)
-    enddo
-
-    cur_criticality => cur_criticality%next
-  enddo
-
-end subroutine CriticalitySolve
 
 ! ************************************************************************** !
 
