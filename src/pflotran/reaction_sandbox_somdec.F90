@@ -246,13 +246,8 @@ function AbioticFactorsCreate()
 
   allocate(new_factors)
 
-#ifdef ELM_PFLOTRAN
-  new_factors%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLMCN
-  new_factors%moisture_response_function    = MOISTURE_RESPONSE_FUNCTION_CLMCN
-#else
   new_factors%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_OFF
   new_factors%moisture_response_function    = MOISTURE_RESPONSE_FUNCTION_OFF
-#endif
   new_factors%Q10 = 1.5d0
   new_factors%Ea  = 51.7d0    ! J/mol
   new_factors%Ox_response_function          = Ox_RESPONSE_FUNCTION_OFF
@@ -424,7 +419,7 @@ subroutine SomDecRead(this,input,option)
       ! ----- deprecated blocks (changed as below--------------------------------------------------------
       case('TEMPERATURE_RESPONSE_FUNCTION', &
           'MOISTURE_RESPONSE_FUNCTION', &
-          'Ox_RESPONSE_FUNCTION', &
+          'OX_RESPONSE_FUNCTION', &
           'DECOMP_DEPTH_EFOLDING')
          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
                 'xxx_RESPONSE_FUNCTION,' // &
@@ -874,7 +869,7 @@ subroutine SomDecRead_AbioticFactors(abiotic_factors,input,option)
                        TEMPERATURE_RESPONSE_FUNCTION_CLMCN
               case('DLEM')
                   abiotic_factors%temperature_response_function = &
-                       TEMPERATURE_RESPONSE_FUNCTION_Q10
+                       TEMPERATURE_RESPONSE_FUNCTION_DLEM
                   call InputReadDouble(input,option,abiotic_factors%Q10)
                   call InputErrorMsg(input,option,'Q10', 'CHEMISTRY,' // &
                        'REACTION_SANDBOX_SomDec,TEMPERATURE RESPONSE FUNCTION')
@@ -926,7 +921,7 @@ subroutine SomDecRead_AbioticFactors(abiotic_factors,input,option)
 
          enddo
 
-      case('Ox_RESPONSE_FUNCTION')
+      case('OX_RESPONSE_FUNCTION')
          do
            call InputReadPflotranString(input,option)
            if (InputError(input)) exit
@@ -1634,11 +1629,17 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       CHKERRQ(ierr)
     endif
 #else
-    f_w = 1.0d0
+    if((theta>0.d0 .and. theta<1.d0).and. &
+       cur_abioticfactors%moisture_response_function /= MOISTURE_RESPONSE_FUNCTION_OFF) then
+      f_w = GetMoistureResponse(theta, veclocal_id, &
+                                cur_abioticfactors%moisture_response_function)
+    else
+      f_w = 1.0d0
+    endif
 #endif
 
     ! explicitly using DAYCENT's WFPS function, as an abiotic modification to 'f_w'
-    ! (NOTE: this is different from 'Ox_RESPONSE_FUNCTION_MONOD' which specifying an Ox as reactant)
+    ! (NOTE: this is different from 'Ox_RESPONSE_FUNCTION_MONOD', as below, which specifying an Ox as reactant)
     if(cur_abioticfactors%Ox_response_function == Ox_RESPONSE_FUNCTION_WFPS) then
       f_w  = f_w * &
            GetAerobicCondition(saturation, &
@@ -1660,34 +1661,34 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     !-----------
     ! temperature response function
-#ifdef ELM_PFLOTRAN
-    if (option%nflowspec>0) then
-      f_t = GetTemperatureResponse(tc, &
-                                   cur_abioticfactors%temperature_response_function, &
-                                   cur_abioticfactors%Q10)
-
-    else
-      ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
-      call VecGetArrayReadF90(elm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
-      CHKERRQ(ierr)
-      f_t = xfactor_pf_loc(veclocal_id)
-      call VecRestoreArrayReadF90(elm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
-      CHKERRQ(ierr)
-    endif
-
-#else
-
     if (cur_abioticfactors%temperature_response_function == &
         TEMPERATURE_RESPONSE_FUNCTION_ARRHENIUS) then
       f_t = GetTemperatureResponse(tc, &
                                  cur_abioticfactors%temperature_response_function, &
                                  cur_abioticfactors%Ea)
-    else
+    elseif (cur_abioticfactors%temperature_response_function == &
+        TEMPERATURE_RESPONSE_FUNCTION_CLMCN) then
+      f_t = GetTemperatureResponse(tc, &
+                                 cur_abioticfactors%temperature_response_function)
+    elseif (cur_abioticfactors%temperature_response_function == &
+        TEMPERATURE_RESPONSE_FUNCTION_Q10 .or. &
+            cur_abioticfactors%temperature_response_function == &
+        TEMPERATURE_RESPONSE_FUNCTION_DLEM) then
       f_t = GetTemperatureResponse(tc, &
                                  cur_abioticfactors%temperature_response_function, &
                                  cur_abioticfactors%Q10)
-    endif
+    else
+#ifdef ELM_PFLOTRAN
+      ! if NO resp. function , i.e. BGC only coupled with CLM, directly read-in factors from CLM
+      call VecGetArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+      CHKERRQ(ierr)
+      f_t = xfactor_pf_loc(veclocal_id)
+      call VecRestoreArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+      CHKERRQ(ierr)
+#else
+      f_t = 1.0
 #endif
+    endif
 
     !-----------
 #ifdef ELM_PFLOTRAN
@@ -2138,6 +2139,7 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
     if (this%species_id_hr > 0) then               ! for tracking all pool CO2 release
        Residual(ires_hr) = Residual(ires_hr) - this%mineral_c_stoich(irxn) * crate
     endif
+
     ! If tracking Ox, assuming it is equal to those of CO2 (but in opposing sign)
     ! Ox species_name/_id is only available
     ! when 'O2_SPECIES_NAME' is specified in inputs

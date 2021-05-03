@@ -177,9 +177,9 @@ END
 #==================== V-1. output options ===================================
 OUTPUT
   !SCREEN OFF             ! totally shut off screen printing of running information
-  SCREEN PERIODIC 4800
-  !PERIODIC TIME 1800 s   ! this is good for directly comparing two outputs
-  PERIODIC TIMESTEP 17520     ! this is good for checking PF each time-step
+  SCREEN PERIODIC 17520
+  !PERIODIC TIME 1800 s    ! this is good for directly comparing two outputs
+  PERIODIC TIMESTEP 48     ! this is good for checking PF each time-step
   !FORMAT HDF5
   !NO_INITIAL
 END
@@ -414,13 +414,21 @@ noskip
 
     # ELM-CN SOM decomposition sandboxes
     SOMDECOMP
-      #Abiotic_Factors
-      #  TEMPERATURE_RESPONSE_FUNCTION
-      #    Q10 1.5d0
-      #  /
+      Abiotic_Factors
+        TEMPERATURE_RESPONSE_FUNCTION
+          #Q10 1.5d0         # if none, by default, a 't_scalar' passing from CLM
+        /
 
-      #  DECOMP_DEPTH_EFOLDING 0.50d0
-      #/
+        MOISTURE_RESPONSE_FUNCTION
+          #CLM_CN            # if none, by default, a 'w_scalar' passing from CLM
+        /
+
+        Ox_RESPONSE_FUNCTION
+          #WFPS              # if none, by default, a 'o_scalar' passing from CLM
+        /
+
+        DECOMP_DEPTH_EFOLDING 0.50d0
+      /
       
       
       POOLS   ! CN ratio if constant
