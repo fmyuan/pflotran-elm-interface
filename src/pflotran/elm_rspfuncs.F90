@@ -62,7 +62,7 @@ function GetTemperatureResponse(tc, itype, Q10orEA)
   
   PetscInt  :: itype
   PetscReal :: tc
-  PetscReal :: Q10orEA   ! it's upon 'itype'
+  PetscReal,optional :: Q10orEA   ! it's upon 'itype'
   PetscReal :: Ft, tk, Q10, EA
 
   PetscReal, parameter :: one_over_71_02 = 1.408054069d-2
