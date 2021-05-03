@@ -1,0 +1,274 @@
+#Description: 3D Geophysics Electrical Resistivity Tomography  problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+    SUBSURFACE_GEOPHYSICS geophysics
+      MODE ERT
+      OPTIONS
+        WATER_CONDUCTIVITY 0.15d0
+        TRACER_CONDUCTIVITY 0.02d0
+        COMPUTE_JACOBIAN
+        SURVEY_TIMES h 2.7778d-4 6.d0 12.d0 24.d0 # 2.778d-4 ~= 1 second
+        OUTPUT_ALL_SURVEYS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== specified velocity ===============================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 -1.d0 m/d
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS GEOPHYSICS
+  LINEAR_SOLVER
+    SOLVER BCGS
+    PC_TYPE BLOCK_JACOBI
+    ATOL 1.d-12
+  /
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 1
+  CELL_IDS
+    93
+  /
+END
+
+#=========================== Geophysics survey  ================================
+SURVEY
+  FILE_NAME ert.srv
+  FORMAT E4D_SRV
+END  
+
+#=========================== Output options ==-================================
+OUTPUT
+  FORMAT HDF5
+  VARIABLES
+    ELECTRICAL_CONDUCTIVITY
+    ELECTRICAL_POTENTIAL 2
+    ELECTRICAL_JACOBIAN 1
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 4 6
+  BOUNDS
+    0.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer
+  /
+  OUTPUT
+    TOTAL
+    ALL
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  ELECTRICAL_CONDUCTIVITY 1.12d0
+  POROSITY 0.25d0
+  TORTUOSITY 0.5d0
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION top1
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 3.d0
+    5.d0 2.d0 3.d0
+  /
+END
+
+REGION top2
+  FACE TOP
+  COORDINATES
+    0.d0 2.d0 3.d0
+    1.d0 3.d0 3.d0
+  /
+END
+
+REGION top3
+  FACE TOP
+  COORDINATES
+    4.d0 2.d0 3.d0
+    5.d0 3.d0 3.d0
+  /
+END
+
+REGION top4
+  FACE TOP
+  COORDINATES
+    0.d0 3.d0 3.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 4.d0 3.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    5.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION south
+  FACE SOUTH
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 0.d0 3.d0
+  /
+END
+
+REGION north
+  FACE NORTH
+  COORDINATES
+    0.d0 4.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION infiltrometer
+  FACE TOP
+  COORDINATES
+    1.d0 2.d0 3.d0
+    4.d0 3.d0 3.d0
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d0 h
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT initial
+    CONCENTRATIONS
+      Tracer 1.d-7  T
+    /
+  /
+END
+
+TRANSPORT_CONDITION inlet
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT inlet
+    CONCENTRATIONS
+      Tracer 1.d-3  T
+    /
+  /
+END
+
+#=========================== geophyscs conditions =============================
+GEOPHYSICS_CONDITION boundary_potential
+  TYPE DIRICHLET
+END
+
+GEOPHYSICS_CONDITION zero_flux
+  TYPE ZERO_GRADIENT
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION all
+END
+
+BOUNDARY_CONDITION top_bc1
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top1
+END
+
+BOUNDARY_CONDITION top_bc2
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top2
+END
+
+BOUNDARY_CONDITION infiltrometer
+  TRANSPORT_CONDITION inlet
+  GEOPHYSICS_CONDITION zero_flux
+  REGION infiltrometer
+END
+
+BOUNDARY_CONDITION top_bc3
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top3
+END
+
+BOUNDARY_CONDITION top_bc4
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top4
+END
+
+BOUNDARY_CONDITION east_bc
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION east
+END
+
+BOUNDARY_CONDITION west_bc
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION west
+END
+
+BOUNDARY_CONDITION south_bc
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION south
+END
+
+BOUNDARY_CONDITION north_bc
+  TRANSPORT_CONDITION initial
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION north
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

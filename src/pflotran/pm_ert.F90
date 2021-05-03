@@ -30,8 +30,10 @@ module PM_ERT_class
     PetscReal :: cementation_exponent  ! m
     PetscReal :: saturation_exponent   ! n
     PetscReal :: water_conductivity
+    PetscReal :: tracer_conductivity
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor
+    PetscReal :: max_tracer_conc
     PetscReal, pointer :: species_conductivity_coef(:)
     character(len=MAXSTRINGLENGTH) :: mobility_database
   contains
@@ -108,8 +110,10 @@ subroutine PMERTInit(pm_ert)
   pm_ert%cementation_exponent = 1.9d0
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
+  pm_ert%tracer_conductivity = 0.d0
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
+  pm_ert%max_tracer_conc = UNINITIALIZED_DOUBLE
 
   nullify(pm_ert%species_conductivity_coef)
   pm_ert%mobility_database = ''
@@ -185,6 +189,9 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('WATER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%water_conductivity)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('TRACER_CONDUCTIVITY')
+        call InputReadDouble(input,option,this%tracer_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('CLAY_CONDUCTIVITY')
         call InputReadDouble(input,option,this%clay_conductivity)
@@ -283,9 +290,15 @@ recursive subroutine PMERTInitializeRun(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/22/21
   !
+  use Connection_module
+  use Coupler_module
   use Discretization_module
+  use Grid_module
   use Input_Aux_module
+  use Patch_module
   use Reaction_Aux_module
+  use Reactive_Transport_Aux_module
+  use Transport_Constraint_RT_module
 
   implicit none
 
@@ -294,6 +307,15 @@ recursive subroutine PMERTInitializeRun(this)
   type(option_type), pointer :: option
   type(input_type), pointer :: input
   class(reaction_rt_type), pointer :: reaction
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvar
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
+  type(grid_type), pointer :: grid
+  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  type(patch_type), pointer :: patch
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: ispecies
   PetscBool :: flag
@@ -301,10 +323,14 @@ recursive subroutine PMERTInitializeRun(this)
   PetscReal, parameter :: ELEMENTARY_CHARGE = 1.6022d-19 ! C
   PetscReal, parameter :: AVOGADRO_NUMBER = 6.02214d23 ! atoms per mol
   PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: iconn, sum_connection
+  PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
 
 
-  reaction => this%realization%patch%reaction
+  patch => this%realization%patch
+  reaction => patch%reaction
+  grid => patch%grid
   option => this%option
 
   call DiscretizationDuplicateVector(this%realization%discretization, &
@@ -361,6 +387,39 @@ recursive subroutine PMERTInitializeRun(this)
       call PrintErrMsg(option)
     endif
     call InputDestroy(input)
+  else if (associated(patch%aux%RT)) then
+    rt_auxvars => patch%aux%RT%auxvars
+    rt_auxvars_bc => patch%aux%RT%auxvars_bc
+    ispecies = 1
+    do local_id = 1, grid%nlmax  ! For each local node do...
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      this%max_tracer_conc = max(this%max_tracer_conc, &
+                                 rt_auxvars(local_id)%total(ispecies,1))
+    enddo
+    boundary_condition => patch%boundary_condition_list%first
+    sum_connection = 0
+    do
+      if (.not.associated(boundary_condition)) exit
+      cur_connection_set => boundary_condition%connection_set
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+        this%max_tracer_conc = &
+          max(this%max_tracer_conc, &
+              rt_auxvars_bc(sum_connection)%total(ispecies,1))
+      enddo
+      boundary_condition => boundary_condition%next
+    enddo
+    source_sink => patch%source_sink_list%first
+    do
+      if (.not.associated(source_sink)) exit
+      cur_connection_set => source_sink%connection_set
+      rt_auxvar => TranConstraintRTGetAuxVar(source_sink%tran_condition% &
+                                             cur_constraint_coupler)
+      this%max_tracer_conc = max(this%max_tracer_conc, &
+                                 rt_auxvar%total(ispecies,1))
+      source_sink => source_sink%next
+    enddo
   endif
 
 end subroutine PMERTInitializeRun
@@ -480,6 +539,7 @@ subroutine PMERTPreSolve(this)
   PetscReal :: a,m,n,cond_w,cond_c,Vc,cond  ! variables for Archie's law
   PetscReal :: por,sat
   PetscReal :: cond_sp,cond_w0
+  PetscReal :: tracer_scale
   PetscErrorCode :: ierr
 
   option => this%option
@@ -501,6 +561,9 @@ subroutine PMERTPreSolve(this)
   nullify(rt_auxvars)
   if (associated(patch%aux%RT)) then
     rt_auxvars => patch%aux%RT%auxvars
+    if (Initialized(this%max_tracer_conc)) then
+      tracer_scale = this%tracer_conductivity/this%max_tracer_conc
+    endif
   endif
 
   material_auxvars => patch%aux%Material%auxvars
@@ -521,10 +584,8 @@ subroutine PMERTPreSolve(this)
         cond_w = cond_w0 + cond_sp
       else
         species_id = 1
-        !material_auxvars(ghosted_id)%electrical_conductivity = &
-        !  material_auxvars(ghosted_id)%electrical_conductivity * &
-        ! rt_auxvars(ghosted_id)%total(species_id,1)
-        cond_w = cond_w0 * rt_auxvars(ghosted_id)%total(species_id,1)
+        cond_w = cond_w0 + tracer_scale * &
+                           rt_auxvars(ghosted_id)%total(species_id,1)
       endif
     endif
     ! compute conductivity
