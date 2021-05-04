@@ -322,7 +322,7 @@ inlinesurface_aux.o : global_aux.o option.o utility.o
 input_aux.o : option.o pflotran_constants.o string.o units.o
 integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
                   string.o utility.o
-inversion.o : grid.o pflotran_constants.o survey.o utility.o
+inversion.o : grid.o survey.o utility.o
 kdtree.o :
 logging.o : pflotran_constants.o
 lookup_table.o : input_aux.o option.o pflotran_constants.o units.o utility.o

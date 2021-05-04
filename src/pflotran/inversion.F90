@@ -3,8 +3,6 @@ module Inversion_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use PFLOTRAN_Constants_module
-
   implicit none
 
   private
@@ -26,98 +24,116 @@ module Inversion_module
 
 contains 
 
-  ! ************************************************************************** !
+! ************************************************************************** !
 
-    function InversionCreate()
-        !
-        ! Creates inversion type
-        !
-        ! Author: Piyoosh Jaysaval
-        ! Date: 05/03/21
-        !
+function InversionCreate()
+  !
+  ! Creates inversion type
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/03/21
+  !
 
-        implicit none
+  implicit none
       
-        type(inversion_type), pointer :: InversionCreate
-        type(inversion_type), pointer :: inversion
+  type(inversion_type), pointer :: InversionCreate
+  type(inversion_type), pointer :: inversion
 
-        allocate(inversion)
+  allocate(inversion)
 
-        inversion%miniter = UNINITIALIZED_INTEGER
-        inversion%maxiter = UNINITIALIZED_INTEGER
+  ! Default inversion parameters
+  inversion%miniter = 10
+  inversion%maxiter = 50
 
-        inversion%beta = UNINITIALIZED_DOUBLE
-        inversion%min_beta_red = UNINITIALIZED_DOUBLE
-        inversion%mincond = UNINITIALIZED_DOUBLE
-        inversion%maxcond = UNINITIALIZED_DOUBLE
-        inversion%target_chi2 = UNINITIALIZED_DOUBLE
+  inversion%beta = 100.d0
+  inversion%min_beta_red = 0.5d0
+  inversion%mincond = 0.00001d0
+  inversion%maxcond = 10.d0
+  inversion%target_chi2 = 1.d0
 
-        nullify(inversion%p)
-        nullify(inversion%q)
-        nullify(inversion%r)
-        nullify(inversion%s)
+  nullify(inversion%p)
+  nullify(inversion%q)
+  nullify(inversion%r) 
+  nullify(inversion%s)
 
-        InversionCreate => inversion
+  InversionCreate => inversion
 
-    end function InversionCreate
+end function InversionCreate
 
 ! ************************************************************************** !
 
-    subroutine InversionInit(inversion,survey,grid)
-        !
-        ! Initialize inversion object
-        !
-        ! Author: Piyoosh Jaysaval
-        ! Date: 05/03/21
-        !
+subroutine InversionInit(inversion,survey,grid)
+  ! 
+  ! Initialize inversion object 
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/03/21
+  !
 
-        use Survey_module
-        use Grid_module
+  use Survey_module
+  use Grid_module
+       
+  implicit none
       
-        implicit none
-      
-        type(inversion_type) :: inversion
-        type(survey_type) :: survey
-        type(grid_type), pointer :: grid
+  type(inversion_type) :: inversion
+  type(survey_type) :: survey
+  type(grid_type), pointer :: grid
         
-        allocate(inversion%p(grid%nlmax))
-        allocate(inversion%q(survey%num_measurement))
-        allocate(inversion%r(survey%num_measurement))        
-        allocate(inversion%s(grid%nlmax))
+  allocate(inversion%p(grid%nlmax))
+  allocate(inversion%q(survey%num_measurement))
+  allocate(inversion%r(survey%num_measurement))        
+  allocate(inversion%s(grid%nlmax))
 
-        inversion%p = 0.d0
-        inversion%q = 0.d0
-        inversion%r = 0.d0
-        inversion%s = 0.d0
+  inversion%p = 0.d0
+  inversion%q = 0.d0
+  inversion%r = 0.d0
+  inversion%s = 0.d0
 
-    end subroutine InversionInit
+end subroutine InversionInit
 
 ! ************************************************************************** !
 
-    subroutine InversionDestroy(inversion)
-        !
-        ! Deallocates inversion
-        !
-        ! Author: Piyoosh Jaysaval
-        ! Date: 05/03/21
-        !
+subroutine InversionOptionRead(inversion)
+  !
+  ! Read inversion options
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/04/21
+      
+  implicit none
+      
+  type(inversion_type) :: inversion
 
-        use Utility_module, only : DeallocateArray
-      
-        implicit none
-      
-        type(inversion_type), pointer :: inversion
-      
-        if (.not.associated(inversion)) return
+  ! Here we read inversion options from input file
         
-        call DeallocateArray(inversion%p)
-        call DeallocateArray(inversion%q)
-        call DeallocateArray(inversion%r)
-        call DeallocateArray(inversion%s)
+end subroutine InversionOptionRead
 
-        deallocate(inversion)
-        nullify(inversion)
+! ************************************************************************** !
 
-    end subroutine InversionDestroy
+subroutine InversionDestroy(inversion)
+  !
+  ! Deallocates inversion
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/03/21
+  !
+
+  use Utility_module, only : DeallocateArray
+      
+  implicit none
+      
+  type(inversion_type), pointer :: inversion
+      
+  if (.not.associated(inversion)) return
+        
+  call DeallocateArray(inversion%p)
+  call DeallocateArray(inversion%q)
+  call DeallocateArray(inversion%r)
+  call DeallocateArray(inversion%s)
+
+  deallocate(inversion)
+  nullify(inversion)
+
+end subroutine InversionDestroy
 
 end module Inversion_module
