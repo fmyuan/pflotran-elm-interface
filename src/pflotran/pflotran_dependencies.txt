@@ -322,7 +322,7 @@ inlinesurface_aux.o : global_aux.o option.o utility.o
 input_aux.o : option.o pflotran_constants.o string.o units.o
 integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
                   string.o utility.o
-inversion.o : grid.o survey.o utility.o
+inversion.o : grid.o pflotran_constants.o survey.o utility.o
 kdtree.o :
 logging.o : pflotran_constants.o
 lookup_table.o : input_aux.o option.o pflotran_constants.o units.o utility.o
@@ -447,12 +447,12 @@ pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
 pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
             realization_base.o solver.o string.o
 pm_base_pointer.o : pflotran_constants.o pm_base.o
-pm_ert.o : communicator_base.o discretization.o ert.o ert_aux.o field.o \
-           global_aux.o grid.o input_aux.o material_aux.o option.o patch.o \
-           pflotran_constants.o pm_base.o reaction_aux.o \
+pm_ert.o : communicator_base.o connection.o coupler.o discretization.o ert.o \
+           ert_aux.o field.o global_aux.o grid.o input_aux.o material_aux.o \
+           option.o patch.o pflotran_constants.o pm_base.o reaction_aux.o \
            reactive_transport_aux.o realization_base.o \
-           realization_subsurface.o solver.o string.o survey.o units.o \
-           utility.o variables.o waypoint.o
+           realization_subsurface.o solver.o string.o survey.o \
+           transport_constraint_rt.o units.o utility.o variables.o waypoint.o
 pm_general.o : checkpoint.o convergence.o field.o general.o general_aux.o \
                global.o global_aux.o grid.o input_aux.o material.o option.o \
                patch.o pflotran_constants.o pm_base.o pm_subsurface_flow.o \

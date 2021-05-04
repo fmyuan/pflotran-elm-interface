@@ -68,7 +68,6 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
 
   use Option_module
   use Survey_module
-  use PFLOTRAN_Constants_module, only : UNINITIALIZED_DOUBLE
 
   implicit none
 
