@@ -11,21 +11,25 @@ module Inversion_module
   private
     
   type, public :: inversion_type
+    PetscInt :: iteration            ! iteration number
     PetscInt :: miniter,maxiter      ! min/max CGLS iterations
     
     PetscReal :: beta                ! regularization parameter
-    PetscReal :: min_beta_red        ! minimum beta reduction
+    PetscReal :: beta_red_factor     ! beta reduction factor
     PetscReal :: mincond,maxcond     ! min/max conductivity
     PetscReal :: target_chi2         ! target CHI^2 norm
     PetscReal :: current_chi2
     
     ! Cost/objective functions
+    PetscReal :: min_phi_red         ! min change in cost function
     PetscReal :: phi_total_0,phi_total
     PetscReal :: phi_data_0,phi_data
     PetscReal :: phi_model_0,phi_model
 
     PetscBool :: cull_flag           ! flag to ignore data outliers
     PetscReal :: cull_dev            ! data culling cutoff (std. deviation)
+
+    PetscBool :: converg_flag        ! convergence flag
 
     ! arrays for CGLS algorithm
     PetscReal, pointer :: p(:)       ! vector of dim -> num of inv cells
@@ -58,11 +62,13 @@ function InversionCreate()
   inversion%maxiter = 50
 
   inversion%beta = 100.d0
-  inversion%min_beta_red = 0.5d0
+  inversion%beta_red_factor = 0.5d0
   inversion%mincond = 0.00001d0
   inversion%maxcond = 10.d0
   inversion%target_chi2 = 1.d0
+  inversion%min_phi_red = 0.2d0
 
+  inversion%iteration = UNINITIALIZED_INTEGER
   inversion%current_chi2 = UNINITIALIZED_DOUBLE
   inversion%phi_total_0 = UNINITIALIZED_DOUBLE
   inversion%phi_data_0 = UNINITIALIZED_DOUBLE
@@ -73,6 +79,8 @@ function InversionCreate()
 
   inversion%cull_flag = PETSC_FALSE
   inversion%cull_dev = UNINITIALIZED_DOUBLE
+
+  inversion%converg_flag = PETSC_FALSE
 
   nullify(inversion%p)
   nullify(inversion%q)
@@ -132,6 +140,27 @@ end subroutine InversionOptionRead
 
 ! ************************************************************************** !
 
+subroutine InversionCheckConvergence(inversion,survey)
+  !
+  ! Check Inversion convergence
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/05/21
+      
+  implicit none
+  
+  type(inversion_type) :: inversion
+  type(survey_type) :: survey
+
+  inversion%converg_flag = PETSC_FALSE
+  call InversionEvaluateCostFunctions(inversion,survey)
+  if (inversion%current_chi2 <= inversion%target_chi2) &
+                           inversion%converg_flag = PETSC_TRUE
+      
+end subroutine InversionCheckConvergence
+
+! ************************************************************************** !
+
 subroutine InversionEvaluateCostFunctions(inversion,survey)
   !
   ! Evaluates cost functions for inversion
@@ -177,8 +206,43 @@ subroutine InversionEvaluateCostFunctions(inversion,survey)
     
   deallocate(data_vector)
 
+  ! TODO: compute phi_model
+  inversion%phi_total = inversion%phi_data + inversion%phi_model
+
+  if (inversion%iteration == 1) then
+    inversion%phi_data_0 = inversion%phi_data
+    inversion%phi_model_0 = inversion%phi_model
+    inversion%phi_total_0 = inversion%phi_total
+  endif  
+
 end subroutine InversionEvaluateCostFunctions
   
+! ************************************************************************** !
+
+subroutine InversionCheckBeta(inversion)
+  !
+  ! Check Beta if it needs cooling/reduction
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/05/21
+        
+  implicit none
+        
+  type(inversion_type) :: inversion
+
+  if ( abs(inversion%phi_total_0 - inversion%phi_total) <= &
+       inversion%min_phi_red ) then
+    inversion%beta = inversion%beta * inversion%beta_red_factor
+    inversion%phi_model = inversion%beta_red_factor * inversion%phi_model
+  endif
+
+  ! update the cost functions
+  inversion%phi_data_0 = inversion%phi_data
+  inversion%phi_model_0 = inversion%phi_model
+  inversion%phi_total_0 = inversion%phi_total
+
+end subroutine InversionCheckBeta
+
 ! ************************************************************************** !
 
 subroutine InversionDestroy(inversion)
