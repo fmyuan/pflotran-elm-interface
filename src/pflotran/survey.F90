@@ -23,6 +23,7 @@ module Survey_module
     PetscReal, pointer :: dsim(:)               ! Simulated data
     PetscReal, pointer :: dobs(:)               ! Observed data
     PetscReal, pointer :: Wd(:)                 ! data weight
+    PetscInt, pointer :: Wd_cull(:)             ! data culling weight
 
     PetscReal :: apparent_conductivity          ! app cond for an ERT survey
     PetscReal :: average_conductivity           ! avg cond of given cond model
@@ -68,6 +69,7 @@ function SurveyCreate()
   nullify(survey%dsim)
   nullify(survey%dobs)
   nullify(survey%Wd)
+  nullify(survey%Wd_cull)
 
   SurveyCreate => survey
 
@@ -432,6 +434,7 @@ subroutine SurveyDestroy(survey)
   call DeallocateArray(survey%dsim)
   call DeallocateArray(survey%dobs)
   call DeallocateArray(survey%Wd)
+  call DeallocateArray(survey%Wd_cull)
 
   deallocate(survey)
   nullify(survey)
