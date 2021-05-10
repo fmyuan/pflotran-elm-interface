@@ -286,9 +286,9 @@ subroutine RSandboxEvaluate(Residual,Jacobian,compute_derivative,rt_auxvar, &
   cur_reaction => rxn_sandbox_list
   do
     if (.not.associated(cur_reaction)) exit
-      call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
-                                 rt_auxvar,global_auxvar,material_auxvar, &
-                                 reaction,option)
+    call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
+                               rt_auxvar,global_auxvar,material_auxvar, &
+                               reaction,option)
     cur_reaction => cur_reaction%next
   enddo
 
@@ -324,8 +324,8 @@ subroutine RSandboxUpdateKineticState(rt_auxvar,global_auxvar, &
   cur_reaction => rxn_sandbox_list
   do
     if (.not.associated(cur_reaction)) exit
-      call cur_reaction%UpdateKineticState(rt_auxvar,global_auxvar, &
-                                           material_auxvar,reaction,option)
+    call cur_reaction%UpdateKineticState(rt_auxvar,global_auxvar, &
+                                         material_auxvar,reaction,option)
     cur_reaction => cur_reaction%next
   enddo
 
