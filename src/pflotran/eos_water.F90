@@ -24,10 +24,10 @@ module EOS_Water_module
   PetscReal :: exponent_water_compressibility
 
   ! exponential temperature
-  PetscReal :: exptemp_reference_density
-  PetscReal :: exptemp_reference_pressure
-  PetscReal :: exptemp_water_compressibility
-  PetscReal :: exptemp_thermal_expansion
+  PetscReal :: exp_temp_reference_density
+  PetscReal :: exp_temp_reference_pressure
+  PetscReal :: exp_temp_water_compressibility
+  PetscReal :: exp_temp_thermal_expansion
   
   ! planes for planar eos
   type(plane_type) :: water_density_tp_plane
@@ -324,10 +324,10 @@ subroutine EOSWaterVerify(ierr,error_string)
   endif
 
   if (associated(EOSWaterDensityPtr,EOSWaterDensityExpTemp) .and. &
-      (Uninitialized(exptemp_reference_density) .or. & 
-       Uninitialized(exptemp_reference_pressure) .or. &
-       Uninitialized(exptemp_water_compressibility) .or. &
-       Uninitialized(exptemp_thermal_expansion))) then
+      (Uninitialized(exp_temp_reference_density) .or. & 
+       Uninitialized(exp_temp_reference_pressure) .or. &
+       Uninitialized(exp_temp_water_compressibility) .or. &
+       Uninitialized(exp_temp_thermal_expansion))) then
     error_string = trim(error_string) // &
       ' Exponential Temperature parameters incorrect.'
     ierr = 1
@@ -401,10 +401,10 @@ subroutine EOSWaterSetDensity(keyword,aux)
       exponent_water_compressibility = aux(3)  
       EOSWaterDensityPtr => EOSWaterDensityExponential
     case('EXPONENTIAL_TEMPERATURE')
-      exptemp_reference_density = aux(1)
-      exptemp_reference_pressure = aux(2)
-      exptemp_water_compressibility = aux(3)
-      exptemp_thermal_expansion = aux(4) 
+      exp_temp_reference_density = aux(1)
+      exp_temp_reference_pressure = aux(2)
+      exp_temp_water_compressibility = aux(3)
+      exp_temp_thermal_expansion = aux(4) 
       EOSWaterDensityPtr => EOSWaterDensityExpTemp
     case('LINEAR')
       linear_reference_density = aux(1)
@@ -1890,6 +1890,10 @@ end subroutine EOSWaterDensityExponential
 
 subroutine EOSWaterDensityExpTemp(t,p,calculate_derivatives, &
                                   dw,dwmol,dwp,dwt,ierr,table_idxs)
+
+  ! Calculate water as an exponential function of temperature
+  ! and pressure
+  
   implicit none
   
   PetscReal, intent(in) :: t   ! Temperature in centigrade
@@ -1900,13 +1904,13 @@ subroutine EOSWaterDensityExpTemp(t,p,calculate_derivatives, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
   
   ! kg/m^3
-  dw = exptemp_reference_density*(1.d0 / (exp(exptemp_thermal_expansion* &
-       (t - 273.15d0)) * exp(exptemp_water_compressibility* &
-       (exptemp_reference_pressure - p))))
+  dw = exp_temp_reference_density*(1.d0 / (exp(exp_temp_thermal_expansion* &
+       (t - 273.15d0)) * exp(exp_temp_water_compressibility* &
+       (exp_temp_reference_pressure - p))))
   dwmol = dw/FMWH2O ! kmol/m^3
   
   if (calculate_derivatives) then
-    dwp = dwmol*exptemp_water_compressibility !kmol/m^3/Pa
+    dwp = dwmol*exp_temp_water_compressibility !kmol/m^3/Pa
   else
     dwp = UNINITIALIZED_DOUBLE
   endif
@@ -3762,16 +3766,16 @@ subroutine EOSWaterInputRecord()
     write(id,'(a29)',advance='no') 'water density: '
     write(id,'(a)') 'exponential temperature'
     write(id,'(a29)',advance='no') 'temp. ref. density: '
-    write(word1,*) exptemp_reference_density
+    write(word1,*) exp_temp_reference_density
     write(id,'(a)') adjustl(trim(word1)) // ' kg/m^3'
     write(id,'(a29)',advance='no') 'temp. ref. pressure: '
-    write(word1,*) exptemp_reference_pressure
+    write(word1,*) exp_temp_reference_pressure
     write(id,'(a)') adjustl(trim(word1)) // ' Pa'
     write(id,'(a29)',advance='no') 'temp. water compressibility: '
-    write(word1,*) exptemp_water_compressibility
+    write(word1,*) exp_temp_water_compressibility
     write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
     write(id,'(a29)',advance='no') 'temp. thermal expansion: '
-    write(word1,*) exptemp_thermal_expansion
+    write(word1,*) exp_temp_thermal_expansion
     write(id,'(a)') adjustl(trim(word1)) // ' 1/K'
   endif
   if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear)) then
