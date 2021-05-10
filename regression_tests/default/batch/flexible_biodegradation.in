@@ -40,7 +40,7 @@ END
 #=========================== chemistry ========================================
 CHEMISTRY
   REACTION_SANDBOX
-    GMD_2
+    FLEXIBLE_BIODEGRADATION
       AQUEOUS_CONCENTRATION_UNITS MOLARITY
       MAX_SPECIFIC_UTILIZATION_RATE 324.d0 1/h
       AAQ_HALF_SATURATION_CONSTANT 2.d-4
