@@ -417,6 +417,7 @@ module PM_Waste_Form_class
     class(data_mediator_vec_type), pointer :: data_mediator
     class(waste_form_base_type), pointer :: waste_form_list
     class(wf_mechanism_base_type), pointer :: mechanism_list
+    class(spacer_mechanism_base_type), pointer :: spacer_mech_list
     type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
@@ -818,6 +819,39 @@ end function PMWFRadSpeciesCreate
 
 ! ************************************************************************** !
 
+function PMWFSpacerMechCreate()
+!
+! Creates a spacer grid degradation model in the waste form
+!
+! Author: Alex Salazar III
+! Date: 05/06/2021
+
+  implicit none
+
+! LOCAL VARIABLES:
+! ================
+! ----------------------------------------------
+  type(spacer_mechanism_base_type), pointer :: PMWFSpacerMechCreate
+  type(spacer_mechanism_base_type), pointer :: spc
+! ----------------------------------------------
+
+  allocate(spc)
+  nullify(spc%next)
+
+  PMWFSpacerMechCreate%mech_name = ''
+  PMWFSpacerMechCreate%threshold_sat = 0.0d0
+  PMWFSpacerMechCreate%alteration_rate = UNINITIALIZED_DOUBLE
+  PMWFSpacerMechCreate%spacer_mass = UNINITIALIZED_DOUBLE
+  PMWFSpacerMechCreate%spacer_surface_area = UNINITIALIZED_DOUBLE
+  PMWFSpacerMechCreate%spacer_coeff = UNINITIALIZED_DOUBLE
+  PMWFSpacerMechCreate%spacer_activation_energy = UNINITIALIZED_DOUBLE
+  
+  PMWFSpacerMechCreate => spc
+
+end function PMWFSpacerMechCreate
+
+! ************************************************************************** !
+
 function PMWFWasteFormCreate()
   ! 
   ! Creates a waste form and initializes all parameters
@@ -904,6 +938,7 @@ function PMWFCreate()
   nullify(PMWFCreate%data_mediator)
   nullify(PMWFCreate%waste_form_list)
   nullify(PMWFCreate%mechanism_list) 
+  nullify(PMWFCreate%spacer_mech_list) 
   nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
@@ -951,6 +986,7 @@ subroutine PMWFReadPMBlock(this,input)
 ! -------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
   class(wf_mechanism_base_type), pointer :: cur_mechanism
+  class(spacer_mechanism_base_type), pointer :: cur_sp_mech
   class(crit_mechanism_base_type), pointer :: cur_crit_mech
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
@@ -997,6 +1033,10 @@ subroutine PMWFReadPMBlock(this,input)
     if (found) cycle
     
     error_string = 'WASTE_FORM_GENERAL'
+    call PMWFReadSpacerMech(this,input,option,word,error_string,found)
+    if (found) cycle
+    
+    error_string = 'WASTE_FORM_GENERAL'
     call ReadCriticalityMech(this,input,option,word,error_string,found)
     if (found) cycle
    
@@ -1015,6 +1055,18 @@ subroutine PMWFReadPMBlock(this,input)
         exit
       endif
       cur_mechanism => cur_mechanism%next
+    enddo
+
+    ! Assign chosen spacer grid degradation mechanism to each waste form object
+    cur_sp_mech => this%spacer_mech_list
+    do
+      if (.not.associated(cur_sp_mech)) exit
+      if (StringCompare(cur_waste_form%spacer_mech_name, &
+                        cur_sp_mech%mech_name)) then
+        cur_waste_form%spacer_mechanism => cur_sp_mech
+        exit
+      endif
+      cur_sp_mech => cur_sp_mech%next
     enddo
 
     ! Assign chosen criticality mechanism to each waste form object
@@ -2046,9 +2098,17 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
         !-----------------------------    
           case('CRITICALITY_MECHANISM_NAME')
             call InputReadCard(input,option,word)
-            call InputErrorMsg(input,option,'mechanism assignment',error_string)
+            call InputErrorMsg(input,option,'criticality mechanism ' &
+                             //'assignment',error_string)
             call StringToUpper(word)
             new_waste_form%criticality_mech_name = trim(word)
+        !-----------------------------    
+          case('SPACER_MECHANISM_NAME')
+            call InputReadCard(input,option,word)
+            call InputErrorMsg(input,option,'spacer grid degradation ' &
+                            //'mechanism assignment',error_string)
+            call StringToUpper(word)
+            new_waste_form%spacer_mech_name = trim(word)
 
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -2124,6 +2184,193 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   endif
 
 end subroutine PMWFReadWasteForm
+
+! ************************************************************************** !
+
+subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
+  ! 
+  ! Reads input file parameters associated with the spacer grid
+  !   degradation model
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/04/2021
+  !
+  use Input_Aux_module
+  use Option_module
+  use Condition_module, only : ConditionReadValues
+  use Dataset_Ascii_class 
+  use String_module
+  use Units_module
+  use Region_module
+  
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! input (input/output): pointer to input object
+! option (input/output): pointer to option object
+! keyword (input): keyword string
+! error_string (input/output): error message string
+! found (input/output): Boolean helper
+! ----------------------------------------------
+  class(pm_waste_form_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+! ----------------------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! added: Boolean helper
+! num_errors: [-] number of errors during read
+! word: temporary string
+! new_waste_form: pointer to new waste form object
+! cur_waste_form: pointer to current waste form object
+! ----------------------------------------------------------------------
+  PetscBool :: added
+  PetscInt :: num_errors
+  character(len=MAXWORDLENGTH) :: word
+  class(spacer_mechanism_base_type), pointer :: new_sp_mech, cur_sp_mech
+! ----------------------------------------------------------------------
+
+  error_string = trim(error_string) // ',SPACER_DEGRADATION_MODEL'
+  found = PETSC_TRUE
+  added = PETSC_FALSE
+  num_errors = 0
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('SPACER_DEGRADATION_MODEL')
+      allocate(new_sp_mech)
+      new_sp_mech => PMWFSpacerMechCreate()
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+         case('NAME')
+           call InputReadCard(input,option,word)
+           call InputErrorMsg(input,option, &
+                              'spacer grid degradation mechanism assignment', &
+                              error_string)
+           call StringToUpper(word)
+           new_sp_mech%mech_name = trim(word)
+        !-----------------------------
+          case('EXPOSURE_LEVEL')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%threshold_sat)
+            call InputErrorMsg(input,option,'grid spacer exposure &
+                               &saturation limit',error_string)
+        !-----------------------------
+          case('MASS')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%spacer_mass)
+            call InputErrorMsg(input,option,'grid spacer total mass', &
+                               error_string)
+            call InputReadAndConvertUnits(input, new_sp_mech%spacer_mass, &
+                                          'kg','MASS',option)
+        !-----------------------------
+          case('SURFACE_AREA')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%spacer_surface_area)
+            call InputErrorMsg(input,option,'grid spacer total surface &
+                               &area',error_string)
+            call InputReadAndConvertUnits(input, &
+                                          new_sp_mech%spacer_surface_area, &
+                                          'm^2','SURFACE_AREA',option)
+        !-----------------------------
+          case('C')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%spacer_coeff)
+            call InputErrorMsg(input,option,'grid spacer degradation model &
+                               &empirical constant',error_string)
+            call InputReadAndConvertUnits(input, &
+                                          new_sp_mech%spacer_coeff, &
+                                          'kg/m^2-s','C',option)
+        !-----------------------------
+          case('Q')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%spacer_activation_energy)
+            call InputErrorMsg(input,option,'grid spacer degradation model &
+                               activation energy',error_string)
+            call InputReadAndConvertUnits(input, &
+                                          new_sp_mech%spacer_activation_energy,&
+                                          'J/mol','Q',option)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+
+      enddo
+      call InputPopBlock(input,option)
+    
+      
+      ! --------------------------- error messaging ---------------------------
+      if (Uninitialized(new_sp_mech%spacer_mass)) then
+        option%io_buffer = 'ERROR: Total spacer grid mass must be specified &
+                           &for spacer grid degradation model.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_sp_mech%spacer_activation_energy)) then
+        option%io_buffer = 'ERROR: Activation energy must be specified &
+                           &for spacer grid degradation model.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_sp_mech%spacer_coeff)) then
+        option%io_buffer = 'ERROR: Scaling coefficient must be specified &
+                           &for spacer grid degradation model.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_sp_mech%spacer_surface_area)) then
+        option%io_buffer = 'ERROR: Total spacer grid surface area must be &
+                           &specified for spacer grid degradation model.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      
+      if (.not.associated(this%spacer_mech_list)) then
+        this%spacer_mech_list => new_sp_mech
+      else
+        cur_sp_mech => this%spacer_mech_list
+        do
+          if (.not.associated(cur_sp_mech)) exit
+          if (.not.associated(cur_sp_mech%next)) then
+            cur_sp_mech%next => new_sp_mech
+            added = PETSC_TRUE
+          endif
+          if (added) exit
+          cur_sp_mech => cur_sp_mech%next
+        enddo
+      endif
+      nullify(new_sp_mech)
+      
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in ' &
+                    //'the WASTE_FORM_GENERAL,SPACER_DEGRADATION_MODEL ' &
+                    //'block(s). See above.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine PMWFReadSpacerMech
 
 ! ************************************************************************** !
 
@@ -5143,6 +5390,7 @@ subroutine PMWFStrip(this)
   enddo
   nullify(this%waste_form_list)
   call PMWFMechanismStrip(this)
+  call PMWFSpacerMechStrip(this)
   call CriticalityStrip(this%criticality_mediator)
 
 end subroutine PMWFStrip
@@ -5205,6 +5453,47 @@ subroutine PMWFMechanismStrip(this)
   nullify(this%mechanism_list)
 
 end subroutine PMWFMechanismStrip
+
+! ************************************************************************** !
+
+subroutine PMWFSpacerMechStrip(this)
+  ! 
+  ! Strips the spacer grid degradation mechanisms in the waste form
+  !   process model.
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/10/2021
+  !
+  
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
+  class(pm_waste_form_type) :: this
+! ---------------------------------
+  
+! LOCAL VARIABLES:
+! ================
+! cur_mechanism: pointer to current spacer grid degradation mechanism object
+! prev_mechanism: pointer to previous spacer grid degradation mechanism object
+! --------------------------------------------------------
+  class(spacer_mechanism_base_type), pointer :: cur_mechanism
+  class(spacer_mechanism_base_type), pointer :: prev_mechanism
+! --------------------------------------------------------
+
+  cur_mechanism => this%spacer_mech_list
+  do
+    if (.not.associated(cur_mechanism)) exit
+    prev_mechanism => cur_mechanism
+    cur_mechanism => cur_mechanism%next
+    deallocate(prev_mechanism)
+    nullify(prev_mechanism)
+  enddo
+  nullify(this%spacer_mech_list)
+
+end subroutine PMWFSpacerMechStrip
 
 ! ************************************************************************** !
 
