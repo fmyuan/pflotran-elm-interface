@@ -1,4 +1,4 @@
-module Reaction_Sandbox_GMD_1_class
+module Reaction_Sandbox_Biodeg_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -11,7 +11,7 @@ module Reaction_Sandbox_GMD_1_class
   private
   
   type, public, &
-    extends(reaction_sandbox_base_type) :: reaction_sandbox_gmd_1_type
+    extends(reaction_sandbox_base_type) :: reaction_sandbox_biodeg_type
     ! Aqueous species
     PetscInt :: species_Aaq_id
     PetscInt :: species_Baq_id
@@ -20,35 +20,35 @@ module Reaction_Sandbox_GMD_1_class
     ! Immobile species (e.g. biomass)
     PetscInt :: species_Xim_id
   contains
-    procedure, public :: Setup => GMD1Setup
-    procedure, public :: Evaluate => GMD1Evaluate
-  end type reaction_sandbox_gmd_1_type
+    procedure, public :: Setup => BiodegSetup
+    procedure, public :: Evaluate => BiodegEvaluate
+  end type reaction_sandbox_biodeg_type
 
-  public :: GMD1Create, &
-            GMD1Setup
+  public :: BiodegCreate, &
+            BiodegSetup
 
 contains
 
 ! ************************************************************************** !
 
-function GMD1Create()
+function BiodegCreate()
   ! 
-  ! Allocates GMD 1 reaction object.
+  ! Allocates biodegradtion reaction object.
   ! 
   implicit none
   
-  class(reaction_sandbox_gmd_1_type), pointer :: GMD1Create
+  class(reaction_sandbox_biodeg_type), pointer :: BiodegCreate
 
-  allocate(GMD1Create)
-  nullify(GMD1Create%next)  
+  allocate(BiodegCreate)
+  nullify(BiodegCreate%next)  
       
-end function GMD1Create
+end function BiodegCreate
 
 ! ************************************************************************** !
 
-subroutine GMD1Setup(this,reaction,option)
+subroutine BiodegSetup(this,reaction,option)
   ! 
-  ! Sets up the GMD 1 reaction with hardwired parameters
+  ! Sets up the biodegradation reaction with hardwired parameters
   ! 
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
@@ -56,7 +56,7 @@ subroutine GMD1Setup(this,reaction,option)
 
   implicit none
   
-  class(reaction_sandbox_gmd_1_type) :: this
+  class(reaction_sandbox_biodeg_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
@@ -81,15 +81,15 @@ subroutine GMD1Setup(this,reaction,option)
   this%species_Xim_id = &
     GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
       
-end subroutine GMD1Setup
+end subroutine BiodegSetup
 
 ! ************************************************************************** !
 
-subroutine GMD1Evaluate(this,Residual,Jacobian,compute_derivative, &
-                        rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                        option)
+subroutine BiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
+                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                          option)
   ! 
-  ! Evaluates GMD 1 reaction storing residual but no Jacobian
+  ! Evaluates biodegradation reaction storing residual but no Jacobian
   ! 
   use Option_module
   use Reaction_Aux_module
@@ -99,7 +99,7 @@ subroutine GMD1Evaluate(this,Residual,Jacobian,compute_derivative, &
   
   implicit none
   
-  class(reaction_sandbox_gmd_1_type) :: this  
+  class(reaction_sandbox_biodeg_type) :: this  
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -166,6 +166,6 @@ subroutine GMD1Evaluate(this,Residual,Jacobian,compute_derivative, &
   Residual(this%species_Xim_id + reaction%offset_immobile) = &
     Residual(this%species_Xim_id + reaction%offset_immobile) - RateX
   
-end subroutine GMD1Evaluate
+end subroutine BiodegEvaluate
 
-end module Reaction_Sandbox_GMD_1_class
+end module Reaction_Sandbox_Biodeg_class
