@@ -11,32 +11,40 @@ module Inversion_module
   private
     
   type, public :: inversion_type
-    PetscInt :: iteration            ! iteration number
-    PetscInt :: miniter,maxiter      ! min/max CGLS iterations
+    PetscInt :: iteration                ! iteration number
+    PetscInt :: miniter,maxiter          ! min/max CGLS iterations
     
-    PetscReal :: beta                ! regularization parameter
-    PetscReal :: beta_red_factor     ! beta reduction factor
-    PetscReal :: mincond,maxcond     ! min/max conductivity
-    PetscReal :: target_chi2         ! target CHI^2 norm
+    PetscReal :: beta                    ! regularization parameter
+    PetscReal :: beta_red_factor         ! beta reduction factor
+    PetscReal :: mincond,maxcond         ! min/max conductivity
+    PetscReal :: target_chi2             ! target CHI^2 norm
     PetscReal :: current_chi2
     
     ! Cost/objective functions
-    PetscReal :: min_phi_red         ! min change in cost function
+    PetscReal :: min_phi_red             ! min change in cost function
     PetscReal :: phi_total_0,phi_total
     PetscReal :: phi_data_0,phi_data
     PetscReal :: phi_model_0,phi_model
 
-    PetscBool :: cull_flag           ! flag to ignore data outliers
-    PetscReal :: cull_dev            ! data culling cutoff (std. deviation)
+    PetscBool :: cull_flag               ! flag to ignore data outliers
+    PetscReal :: cull_dev                ! data cull cutoff (std deviation)
 
-    PetscBool :: converg_flag        ! convergence flag
+    PetscBool :: converg_flag            ! convergence flag
 
     ! arrays for CGLS algorithm
-    PetscReal, pointer :: p(:)       ! vector of dim -> num of inv cells
-    PetscReal, pointer :: q(:)       ! product of Jacobian with p = Jp
-    PetscReal, pointer :: r(:)       ! vector of dim -> num of measurements
-    PetscReal, pointer :: s(:)       ! product of Jacobian transpose with r
+    PetscReal, pointer :: b(:)           ! vector for CGLS RHS
+    PetscReal, pointer :: p(:)           ! vector of dim -> num of inv cells
+    PetscReal, pointer :: q(:)           ! product of Jacobian with p = Jp
+    PetscReal, pointer :: r(:)           ! vector of dim -> num of measur
+    PetscReal, pointer :: s(:)           ! product Jacobian transpose with r
+    PetscReal, pointer :: del_cond(:)    ! conductivity update vector
   end type inversion_type
+
+  public :: InversionCreate, &
+            InversionRead, &
+            InversionAllocateWorkArrays, &
+            InversionDeallocateWorkArrays, &
+            InversionDestroy
 
 contains 
 
@@ -82,10 +90,12 @@ function InversionCreate()
 
   inversion%converg_flag = PETSC_FALSE
 
+  nullify(inversion%b)
   nullify(inversion%p)
   nullify(inversion%q)
   nullify(inversion%r)
   nullify(inversion%s)
+  nullify(inversion%del_cond)
 
   InversionCreate => inversion
 
@@ -93,7 +103,7 @@ end function InversionCreate
 
 ! ************************************************************************** !
 
-subroutine InversionInit(inversion,survey,grid)
+subroutine InversionAllocateWorkArrays(inversion,survey,grid)
   ! 
   ! Initialize inversion object
   !
@@ -109,34 +119,113 @@ subroutine InversionInit(inversion,survey,grid)
   type(survey_type) :: survey
   type(grid_type), pointer :: grid
         
+  allocate(inversion%b(survey%num_measurement))
   allocate(inversion%p(grid%nlmax))
   allocate(inversion%q(survey%num_measurement))
   allocate(inversion%r(survey%num_measurement))        
   allocate(inversion%s(grid%nlmax))
+  allocate(inversion%del_cond(grid%nlmax))
 
+  inversion%b = 0.d0
   inversion%p = 0.d0
   inversion%q = 0.d0
   inversion%r = 0.d0
   inversion%s = 0.d0
+  inversion%del_cond = 0.d0
 
-end subroutine InversionInit
+end subroutine InversionAllocateWorkArrays
 
 ! ************************************************************************** !
 
-subroutine InversionOptionRead(inversion)
+subroutine InversionDeallocateWorkArrays(inversion)
+  ! 
+  ! Initialize inversion object
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/11/21
+  !
+  
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+      
+  type(inversion_type) :: inversion
+
+  call DeallocateArray(inversion%b)
+  call DeallocateArray(inversion%p)
+  call DeallocateArray(inversion%q)
+  call DeallocateArray(inversion%r)
+  call DeallocateArray(inversion%s)
+  call DeallocateArray(inversion%del_cond)
+
+end subroutine InversionDeallocateWorkArrays
+
+! ************************************************************************** !
+
+subroutine InversionRead(inversion,input,option)
   !
   ! Read inversion options
   !
   ! Author: Piyoosh Jaysaval
   ! Date: 05/04/21
-      
+  
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
   implicit none
       
   type(inversion_type) :: inversion
+  type(input_type), pointer :: input
+  type(option_type) :: option
 
-  ! Here we read inversion options from input file
+  character(len=MAXWORDLENGTH) :: word
+
+  ! we initialize the word to blanks to avoid error reported by valgrind
+  word = ''
+  
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (input%ierr /= 0) exit
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'keyword','INVERSION')
+    call StringToUpper(word)
+    select case(trim(word))
+    case('MIN_ELECTRICAL_CONDUCTIVITY')
+      call InputReadDouble(input,option,inversion%mincond)
+      call InputErrorMsg(input,option,'MIN_ELECTRICAL_CONDUCTIVITY', &
+                           'INVERSION')
+    case('MAX_ELECTRICAL_CONDUCTIVITY')
+      call InputReadDouble(input,option,inversion%maxcond)
+      call InputErrorMsg(input,option,'MAX_ELECTRICAL_CONDUCTIVITY', &
+                           'INVERSION')
+    case('MIN_CGLS_ITERATION')
+      call InputReadInt(input,option,inversion%miniter)
+      call InputErrorMsg(input,option,'MIN_CGLS_ITERATION','INVERSION')
+    case('MAX_CGLS_ITERATION')
+      call InputReadInt(input,option,inversion%maxiter)
+      call InputErrorMsg(input,option,'MAX_CGLS_ITERATION','INVERSION')
+    case('BETA')
+      call InputReadDouble(input,option,inversion%beta)
+      call InputErrorMsg(input,option,'BETA','INVERSION')
+    case('BETA_REDUCTION_FACTOR')
+      call InputReadDouble(input,option,inversion%beta_red_factor)
+      call InputErrorMsg(input,option,'BETA_REDUCTION_FACTOR','INVERSION')
+    case('TARGET_CHI2')
+      call InputReadDouble(input,option,inversion%target_chi2)
+      call InputErrorMsg(input,option,'TARGET_CHI2','INVERSION')
+    case('MIN_COST_REDUCTION')
+      call InputReadDouble(input,option,inversion%min_phi_red)
+      call InputErrorMsg(input,option,'MIN_COST_REDUCTION','INVERSION')          
+    case default
+      call InputKeywordUnrecognized(input,word,'INVERSION',option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
         
-end subroutine InversionOptionRead
+end subroutine InversionRead
 
 ! ************************************************************************** !
 
@@ -179,9 +268,7 @@ subroutine InversionEvaluateCostFunctions(inversion,survey)
 
   ndata = survey%num_measurement
   allocate(data_vector(ndata))
-  if (.not.associated(survey%Wd_cull)) allocate(survey%Wd_cull(ndata))
   data_vector = 0.d0
-  survey%Wd_cull = 1
 
   data_vector = survey%Wd * (survey%dobs - survey%dsim)
     
@@ -261,10 +348,12 @@ subroutine InversionDestroy(inversion)
       
   if (.not.associated(inversion)) return
         
+  call DeallocateArray(inversion%b)
   call DeallocateArray(inversion%p)
   call DeallocateArray(inversion%q)
   call DeallocateArray(inversion%r)
   call DeallocateArray(inversion%s)
+  call DeallocateArray(inversion%del_cond)
 
   deallocate(inversion)
   nullify(inversion)

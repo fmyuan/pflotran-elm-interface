@@ -115,7 +115,7 @@ subroutine SurveyRead(survey,input,option)
       survey%filename = word
     case('FORMAT')
       call InputReadCard(input,option,word)
-      call InputErrorMsg(input,option,'keyword','GRID')
+      call InputErrorMsg(input,option,'FORMAT','SURVEY')
       call StringToUpper(word)
       select case (trim(word))
       case ('E4D_SRV')
@@ -235,6 +235,10 @@ subroutine SurveyReadERT(survey,grid,input,option)
   survey%ipos_electrode = 1
 
   call SurveyGetElectrodeIndexFromPos(survey,grid,option)
+
+  ! TODO: only for inversion
+  allocate(survey%Wd_cull(survey%num_measurement))
+  survey%Wd_cull = 1
 
 end subroutine SurveyReadERT
 

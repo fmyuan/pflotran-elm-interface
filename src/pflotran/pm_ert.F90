@@ -9,6 +9,7 @@ module PM_ERT_class
   use Option_module
   use ERT_Aux_module
   use Survey_module
+  use Inversion_module
   use Waypoint_module
   use PFLOTRAN_Constants_module
 
@@ -20,6 +21,7 @@ module PM_ERT_class
     class(realization_subsurface_type), pointer :: realization
     class(communicator_type), pointer :: comm1
     type(survey_type), pointer :: survey
+    type(inversion_type), pointer :: inversion
     ! this waypoint list should only hold the survey times
     type(waypoint_list_type), pointer :: waypoint_list
     PetscInt :: linear_iterations_in_step
@@ -99,6 +101,7 @@ subroutine PMERTInit(pm_ert)
   nullify(pm_ert%realization)
   nullify(pm_ert%comm1)
   nullify(pm_ert%survey)
+  nullify(pm_ert%inversion)
   pm_ert%waypoint_list => WaypointListCreate()
 
   pm_ert%linear_iterations_in_step = 0
@@ -257,7 +260,10 @@ subroutine PMERTSetup(this)
   this%comm1 => this%realization%comm1
   ! setup survey
   this%survey => this%realization%survey
-
+  ! setup inversion
+  if (associated(this%realization%inversion)) then
+    this%inversion => this%realization%inversion
+  endif
 
 end subroutine PMERTSetup
 
@@ -611,7 +617,6 @@ subroutine PMERTSolve(this,time,ierr)
   use Discretization_module
   use ERT_module
   use String_module
-  use Survey_module
 
   implicit none
 
@@ -743,6 +748,9 @@ subroutine PMERTSolve(this,time,ierr)
   ! Build Jacobian
   if (this%option%geophysics%compute_jacobian) call PMERTBuildJacobian(this)
 
+  !if (this%option%geophysics%compute_jacobian) &
+  !                   call PMERTUpdateElectricalConductivity(this)
+
 end subroutine PMERTSolve
 
 ! ************************************************************************** !
@@ -757,7 +765,6 @@ subroutine PMERTAssembleSimulatedData(this,time)
 
   use Patch_module
   use Grid_module
-  use Survey_module
 
   implicit none
 
@@ -849,7 +856,6 @@ subroutine PMERTBuildJacobian(this)
 
   use Patch_module
   use Grid_module
-  use Survey_module
   use Material_Aux_class
 
   implicit none 
@@ -968,6 +974,277 @@ end subroutine PMERTBuildJacobian
 
 ! ************************************************************************** !
 
+subroutine PMERTUpdateElectricalConductivity(this)
+  !
+  ! Computes conducivity update del_cond and use it update
+  ! previous conductivity as cond_new = cond_prev + del_cond
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/11/21
+  !
+
+  use Patch_module
+  use Grid_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+  
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(survey_type), pointer :: survey  
+  type(inversion_type), pointer :: inversion
+  
+  patch => this%realization%patch
+  grid => patch%grid
+
+  survey => this%survey
+  inversion => this%inversion
+  
+  call InversionAllocateWorkArrays(inversion,survey,grid)
+
+  ! get inversion%del_cond
+  call PMERTCGLSSolve(this)
+
+  ! TODO: Update material_auxvars(:)%electrical_conductivity(1)
+
+  call InversionDeallocateWorkArrays(inversion)
+
+end subroutine PMERTUpdateElectricalConductivity
+
+! ************************************************************************** !
+
+subroutine PMERTCGLSSolve(this)
+  !
+  ! Implements CGLS solver for least sqaure equivalent 
+  !            of the normal equations  
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/07/21
+  !
+ 
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(option_type), pointer :: option
+  type(inversion_type), pointer :: inversion
+
+  PetscInt :: i
+  PetscReal :: alpha,gbeta,gamma,gamma1,delta
+  PetscReal :: norms0,norms,normx,xmax
+  PetscReal :: resNE,resNE_old
+  PetscBool :: exit_info,indefinite
+  PetscErrorCode :: ierr
+
+  PetscReal, parameter :: delta_initer = 1e-3
+  PetscReal, parameter :: initer_conv  = 1e-4
+
+  option => this%option
+  inversion => this%inversion
+
+  inversion%del_cond = 0.0d0
+
+  ! Get RHS vector inversion%b
+  call PMERTCGLSRhs(this)
+
+  inversion%r = inversion%b
+
+  ! get inversion%s = J^tr
+  call PMERTComputeMatVecProductJtr(this)
+  inversion%p = inversion%s
+
+  gamma = dot_product(inversion%s,inversion%s)
+  call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &  
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+  norms0 = sqrt(gamma)
+  xmax = 0.d0
+  normx = 0.d0
+  resNE = 0.d0
+  exit_info = PETSC_FALSE
+  indefinite = PETSC_FALSE
+
+  do i=1,inversion%maxiter
+
+    if (exit_info) exit
+
+    ! get inversion%q = Jp
+    call PMERTComputeMatVecProductJp(this)
+
+    delta = dot_product(inversion%q,inversion%q)
+    call MPI_Allreduce(MPI_IN_PLACE,delta,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+    if (delta < 0) indefinite = PETSC_TRUE
+    if (delta == 0) delta = epsilon(delta)
+
+    alpha = gamma / delta
+
+    inversion%del_cond = inversion%del_cond + alpha * inversion%p
+    inversion%r = inversion%r - alpha * inversion%q
+
+    ! get inversion%s = J^tr
+    call PMERTComputeMatVecProductJtr(this)
+ 
+    norms = norm2(inversion%s)
+    call MPI_Allreduce(MPI_IN_PLACE,norms,ONE_INTEGER_MPI, &  
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+    gamma1 = gamma
+    gamma = norms * norms
+    gbeta = gamma / gamma1
+    inversion%p = inversion%s + gbeta * inversion%p
+
+    normx = norm2(inversion%del_cond)
+    call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &  
+                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+    if (xmax < normx) xmax = normx
+    if ( (norms <= norms0 * initer_conv) .or. (normx * initer_conv >= 1)) &
+                               exit_info = PETSC_TRUE
+
+    resNE_old = resNE
+    resNE = norms / norms0
+
+    if( abs((resNE_old - resNe) /resNE_old) < delta_initer .and. &
+        i > inversion%miniter) exit_info = PETSC_TRUE
+  enddo
+
+end subroutine PMERTCGLSSolve
+
+! ************************************************************************** !
+
+subroutine PMERTCGLSRhs(this)
+  !
+  ! Builds RHS for least-square equation for CGLS solver  
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/11/21
+  !
+ 
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(survey_type), pointer :: survey
+  type(inversion_type), pointer :: inversion
+
+  PetscInt :: idata
+
+  survey => this%survey
+  inversion => this%inversion
+
+  inversion%b = 0.0d0
+
+  do idata=1,survey%num_measurement
+    inversion%b(idata) = survey%Wd(idata) * survey%Wd_cull(idata) * &
+                         ( survey%dobs(idata) - survey%dsim(idata) )
+  enddo
+
+end subroutine PMERTCGLSRhs
+
+! ************************************************************************** !
+
+subroutine PMERTComputeMatVecProductJp(this)
+  !
+  ! Computes product of Jacobian J with a vector p = Jp 
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/06/21
+  !
+
+  use Patch_module
+  use Grid_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(survey_type), pointer :: survey
+  type(inversion_type), pointer :: inversion
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
+
+  PetscInt :: idata
+  PetscInt :: local_id,ghosted_id
+  PetscErrorCode :: ierr
+
+  option => this%option
+  patch => this%realization%patch
+  grid => patch%grid
+  ert_auxvars => patch%aux%ERT%auxvars
+
+  survey => this%survey
+  inversion => this%inversion
+
+  inversion%q = 0.0d0
+
+  do idata=1,survey%num_measurement
+    do local_id=1,grid%nlmax      
+      ghosted_id = grid%nL2G(local_id)         
+      if (patch%imat(ghosted_id) <= 0) cycle
+      inversion%q(idata) = inversion%q(idata) + &
+                           ert_auxvars(ghosted_id)%jacobian(idata) * &
+                           inversion%p(local_id) 
+    enddo
+    
+    call MPI_Allreduce(MPI_IN_PLACE,inversion%q(idata),ONE_INTEGER_MPI, &  
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  enddo
+
+end subroutine PMERTComputeMatVecProductJp
+
+! ************************************************************************** !
+
+subroutine PMERTComputeMatVecProductJtr(this)
+  !
+  ! Computes product of Jacobian J transpose with a vector r = J^t x r  
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/06/21
+  !
+
+  use Patch_module
+  use Grid_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(survey_type), pointer :: survey
+  type(inversion_type), pointer :: inversion
+  type(ert_auxvar_type), pointer :: ert_auxvars(:)
+
+  PetscInt :: idata
+  PetscInt :: local_id,ghosted_id
+
+  option => this%option
+  patch => this%realization%patch
+  grid => patch%grid
+  ert_auxvars => patch%aux%ERT%auxvars
+
+  survey => this%survey
+  inversion => this%inversion
+
+  inversion%s = 0.0d0
+
+  do local_id=1,grid%nlmax      
+    ghosted_id = grid%nL2G(local_id)         
+    if (patch%imat(ghosted_id) <= 0) cycle
+    do idata=1,survey%num_measurement
+      inversion%s(local_id) = inversion%s(local_id) + &
+                              ert_auxvars(ghosted_id)%jacobian(idata) * &
+                              inversion%r(idata) 
+    enddo
+  enddo
+
+end subroutine PMERTComputeMatVecProductJtr
+
+! ************************************************************************** !
+
 function PMERTAcceptSolution(this)
   !
   ! PMERTAcceptSolution:
@@ -1081,6 +1358,7 @@ subroutine PMERTStrip(this)
   nullify(this%realization)
   nullify(this%comm1)
   nullify(this%survey)
+  nullify(this%inversion)
   call WaypointListDestroy(this%waypoint_list)
 
   call DeallocateArray(this%species_conductivity_coef)
