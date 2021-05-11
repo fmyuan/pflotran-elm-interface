@@ -838,13 +838,13 @@ function PMWFSpacerMechCreate()
   allocate(spc)
   nullify(spc%next)
 
-  PMWFSpacerMechCreate%mech_name = ''
-  PMWFSpacerMechCreate%threshold_sat = 0.0d0
-  PMWFSpacerMechCreate%alteration_rate = UNINITIALIZED_DOUBLE
-  PMWFSpacerMechCreate%spacer_mass = UNINITIALIZED_DOUBLE
-  PMWFSpacerMechCreate%spacer_surface_area = UNINITIALIZED_DOUBLE
-  PMWFSpacerMechCreate%spacer_coeff = UNINITIALIZED_DOUBLE
-  PMWFSpacerMechCreate%spacer_activation_energy = UNINITIALIZED_DOUBLE
+  spc%mech_name = ''
+  spc%threshold_sat = 0.0d0
+  spc%alteration_rate = UNINITIALIZED_DOUBLE
+  spc%spacer_mass = UNINITIALIZED_DOUBLE
+  spc%spacer_surface_area = UNINITIALIZED_DOUBLE
+  spc%spacer_coeff = UNINITIALIZED_DOUBLE
+  spc%spacer_activation_energy = UNINITIALIZED_DOUBLE
   
   PMWFSpacerMechCreate => spc
 
@@ -2109,7 +2109,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                             //'mechanism assignment',error_string)
             call StringToUpper(word)
             new_waste_form%spacer_mech_name = trim(word)
-
+            new_waste_form%spacer_degradation_flag = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -2336,6 +2336,14 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
       if (Uninitialized(new_sp_mech%spacer_surface_area)) then
         option%io_buffer = 'ERROR: Total spacer grid surface area must be &
                            &specified for spacer grid degradation model.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (new_sp_mech%threshold_sat > 1.d0 .or. &
+          new_sp_mech%threshold_sat < 0.d0) then
+        option%io_buffer = 'ERROR: Saturation limit for exposure must be ' &
+                         //'between 0 and 1 in the spacer grid degradation ' &
+                         //'model.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
@@ -3050,6 +3058,7 @@ subroutine PMWFInitializeTimestep(this)
   use Patch_module
   use Utility_module
   use Dataset_Ascii_class
+  use String_module
   
   implicit none
   
@@ -3138,6 +3147,9 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal :: t_low, t_high
   PetscReal, pointer :: times(:)
   class(dataset_ascii_type), pointer :: dataset
+  
+  avg_temp_global = UNINITIALIZED_DOUBLE
+  avg_sat_global = UNINITIALIZED_DOUBLE
 
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
@@ -3261,16 +3273,36 @@ subroutine PMWFInitializeTimestep(this)
           do i = 1,cur_waste_form%region%num_cells
             local_id = cur_waste_form%region%cell_ids(i)
             ghosted_id = grid%nL2G(local_id)
-            avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp*&
+            avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp* &
                              cur_waste_form%scaling_factor(i)
           enddo
           call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
                                avg_temp_global)
+          avg_temp_global = avg_temp_global + 273.15d0   ! Kelvin
         endif
 
       call cur_waste_form%spacer_mechanism%Degradation(cur_waste_form, this, &
-                                          avg_sat_global, avg_temp_global, &
-                                          option%dt, ierr)
+                                                       avg_sat_global, &
+                                                       avg_temp_global, &
+                                                       option%dt, ierr)
+    
+    ! ------------------ criticality termination criterion -----------------
+    if (cur_waste_form%spacer_degradation_flag .and. &
+       (cur_waste_form%spacer_vitality <= 1.d-2)) then
+      if (associated(this%criticality_mediator)) then
+        cur_criticality => this%criticality_mediator%crit_mech_list
+        do
+          if (.not. associated(cur_criticality)) exit
+          if (StringCompare(cur_criticality%mech_name, &
+                            cur_waste_form%criticality_mech_name)) then
+            if (option%time < cur_criticality%crit_event%crit_end) then
+              cur_criticality%crit_event%crit_end = option%time
+            endif
+          endif
+          cur_criticality => cur_criticality%next
+        enddo
+      endif
+      cur_waste_form%spacer_degradation_flag = PETSC_FALSE
     endif
 
     !------- instantaneous release ----------------------------------------- 
@@ -5596,14 +5628,12 @@ subroutine SpacerMechBaseDegradation(this,waste_form,pm,sat,temp,dt,ierr)
   class(spacer_mechanism_base_type) :: this
   class(waste_form_base_type) :: waste_form
   class(pm_waste_form_type) :: pm
-  PetscReal :: sat
-  PetscReal :: temp
-  PetscReal :: dt
+  PetscReal, intent(in) :: sat
+  PetscReal, intent(in) :: temp ! Kelvin
+  PetscReal, intent(in) :: dt
   PetscErrorCode :: ierr
 
   PetscReal :: dspv
-
-  temp = temp + 273.15d0   ! Kelvin
 
   ! Spacer vitality rate - apply Arrhenius-type corrosion model [kg/m^2-s]
   waste_form%spacer_vitality_rate = this%spacer_coeff * exp(-1.0d0 * &
