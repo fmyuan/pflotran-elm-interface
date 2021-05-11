@@ -325,6 +325,7 @@ WASTE_FORM_GENERAL
     VOLUME 1.14d0 m^3
     MECHANISM_NAME dsnf01
     CRITICALITY_MECHANISM_NAME crit_01
+    SPACER_MECHANISM_NAME spc_01
     CANISTER_VITALITY_RATE 0.50 1/day
   /
   WASTE_FORM
@@ -360,6 +361,16 @@ WASTE_FORM_GENERAL
       DATASET ./decay_heat.ext
     /
   /
+  
+  SPACER_DEGRADATION_MODEL
+    NAME           spc_01
+    MASS           1.67040D+05 g
+    SURFACE_AREA   2.37309D+04 dm^2
+    EXPOSURE_LEVEL 9.93317D-01
+    C              3.4700D+07  mg/s-dm^2
+    Q              2.2675D+04  cal/mol
+  /
+
   
 
 END_WASTE_FORM_GENERAL
