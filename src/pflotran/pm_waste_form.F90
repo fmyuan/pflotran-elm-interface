@@ -2236,14 +2236,14 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
   class(spacer_mechanism_base_type), pointer :: new_sp_mech, cur_sp_mech
 ! ----------------------------------------------------------------------
 
-  error_string = trim(error_string) // ',SPACER_DEGRADATION_MODEL'
+  error_string = trim(error_string) // ',SPACER_DEGRADATION_MECHANISM'
   found = PETSC_TRUE
   added = PETSC_FALSE
   num_errors = 0
 
   select case(trim(keyword))
   !-------------------------------------
-    case('SPACER_DEGRADATION_MODEL')
+    case('SPACER_DEGRADATION_MECHANISM')
       allocate(new_sp_mech)
       new_sp_mech => PMWFSpacerMechCreate()
       call InputPushBlock(input,option)
@@ -2373,7 +2373,7 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in ' &
-                    //'the WASTE_FORM_GENERAL,SPACER_DEGRADATION_MODEL ' &
+                    //'the WASTE_FORM_GENERAL,SPACER_DEGRADATION_MECHANISM ' &
                     //'block(s). See above.'
     call PrintErrMsg(option)
   endif
