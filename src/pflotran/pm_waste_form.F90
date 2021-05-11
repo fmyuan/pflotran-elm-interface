@@ -3367,53 +3367,44 @@ subroutine PMWFInitializeTimestep(this)
     if (associated(cur_waste_form%criticality_mechanism) &
         .and. associated(cur_waste_form%criticality_mechanism%rad_dataset)) then
       !Import radionuclide inventory from external neutronics code calculations
-      if (.not.cur_waste_form%breached) then
-        do k = 1,num_species
-          cur_waste_form%rad_mass_fraction(k) = 1.d-20
-          cur_waste_form%rad_concentration(k) = &
-            cur_waste_form%rad_mass_fraction(k) / &
-            cwfm%rad_species_list(k)%formula_weight
-        enddo
-      else
-        dataset => cur_waste_form%criticality_mechanism%rad_dataset
-        times => dataset%time_storage%times
-        if (num_species > dataset%dims(1)) then
-          option%io_buffer = 'Number of species in dataset is less than ' // &
-                       'the number specified in Waste Form Process Model.' 
-          call PrintErrMsg(option)
-        elseif (num_species < dataset%dims(1)) then
-          option%io_buffer = 'Number of species in dataset is greater than ' //&
-                         'the number specified in Waste Form Process Model.'
-          call PrintErrMsg(option)
-        endif
-        j=1
-        t_low = times(j)
-        t_high = t_low
-        do
-          if(option%time < times(j)) exit
-          if(j == size(times)) exit
-          t_low = times(j)
-          j = j+1
-          t_high = times(j)
-        enddo
-
-        do k = 1,num_species
-          if (j == size(times) .and. option%time >= times(j)) then
-            cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-1)* &
-                    num_species+k)
-          elseif (j==1) then
-            cur_waste_form%rad_mass_fraction(k) = 1.d-20
-          else 
-            cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-2)* &
-                  num_species+k) + (option%time-t_low)/(t_high-t_low)* &
-                  (dataset%rbuffer((j-2)*num_species+k+num_species)-dataset% &
-                  rbuffer((j-2)*num_species+k))
-         endif
-         cur_waste_form%rad_concentration(k) = &
-            cur_waste_form%rad_mass_fraction(k) / &
-            cwfm%rad_species_list(k)%formula_weight
-        enddo
+      dataset => cur_waste_form%criticality_mechanism%rad_dataset
+      times => dataset%time_storage%times
+      if (num_species > dataset%dims(1)) then
+        option%io_buffer = 'Number of species in dataset is less than ' // &
+                     'the number specified in Waste Form Process Model.' 
+        call PrintErrMsg(option)
+      elseif (num_species < dataset%dims(1)) then
+        option%io_buffer = 'Number of species in dataset is greater than ' //&
+                       'the number specified in Waste Form Process Model.'
+        call PrintErrMsg(option)
       endif
+      j=1
+      t_low = times(j)
+      t_high = t_low
+      do
+        if(option%time < times(j)) exit
+        if(j == size(times)) exit
+        t_low = times(j)
+        j = j+1
+        t_high = times(j)
+      enddo
+
+      do k = 1,num_species
+        if (j == size(times) .and. option%time >= times(j)) then
+          cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-1)* &
+                  num_species+k)
+        elseif (j==1) then
+          cur_waste_form%rad_mass_fraction(k) = 1.d-20
+        else 
+          cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-2)* &
+                num_species+k) + (option%time-t_low)/(t_high-t_low)* &
+                (dataset%rbuffer((j-2)*num_species+k+num_species)-dataset% &
+                rbuffer((j-2)*num_species+k))
+       endif
+       cur_waste_form%rad_concentration(k) = &
+          cur_waste_form%rad_mass_fraction(k) / &
+          cwfm%rad_species_list(k)%formula_weight
+      enddo
       
     elseif (.not.this%implicit_solution) then !-----------------------------------
 

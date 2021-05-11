@@ -480,10 +480,10 @@ subroutine SecondaryRTTimeCut(realization)
     ghosted_id = grid%nL2G(local_id)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
     do comp = 1, ncomp
-      ngcells = rt_sec_transport_vars(local_id)%ncells
+      ngcells = rt_sec_transport_vars(ghosted_id)%ncells
       do cell = 1, ngcells
-        rt_sec_transport_vars(local_id)%updated_conc(comp,cell) = &
-          rt_sec_transport_vars(local_id)%sec_rt_auxvar(cell)%pri_molal(comp)
+        rt_sec_transport_vars(ghosted_id)%updated_conc(comp,cell) = &
+          rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%pri_molal(comp)
       enddo
     enddo
   enddo
@@ -1445,11 +1445,11 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
                     multicontinuum%porosity
 
       call SecondaryRTAuxVarComputeMulti(&
-                                    rt_sec_transport_vars(local_id), &
+                                    rt_sec_transport_vars(ghosted_id), &
                                     reaction, &
                                     option)              
  
-      call SecondaryRTCheckResidual(rt_sec_transport_vars(local_id), &
+      call SecondaryRTCheckResidual(rt_sec_transport_vars(ghosted_id), &
                                     rt_auxvars(ghosted_id), &
                                     global_auxvars(ghosted_id), &
                                     reaction,sec_diffusion_coefficient, &

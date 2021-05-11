@@ -566,7 +566,8 @@ pmc_geomechanics.o : convergence.o geomechanics_discretization.o \
                      solver.o timestepper_base.o timestepper_steady.o
 pmc_geophysics.o : option.o output_aux.o pflotran_constants.o pm_base.o \
                    pm_ert.o pmc_base.o realization_subsurface.o \
-                   timestepper_base.o timestepper_steady.o
+                   timestepper_base.o timestepper_steady.o utility.o \
+                   waypoint.o
 pmc_subsurface.o : convergence.o discretization.o field.o general_aux.o grid.o \
                    material.o material_aux.o option.o pflotran_constants.o \
                    pm_base.o pm_base_pointer.o pm_general.o pm_nwt.o \
@@ -664,15 +665,19 @@ reaction_mineral_aux.o : option.o pflotran_constants.o reaction_database_aux.o \
                          string.o utility.o
 reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      output_aux.o pflotran_constants.o reaction_aux.o \
-                     reaction_sandbox_base.o reaction_sandbox_clm_cn.o \
-                     reaction_sandbox_example.o reaction_sandbox_gas.o \
-                     reaction_sandbox_gmd_1.o reaction_sandbox_gmd_2.o \
+                     reaction_sandbox_base.o reaction_sandbox_biodeg.o \
+                     reaction_sandbox_clm_cn.o reaction_sandbox_example.o \
+                     reaction_sandbox_flexbiodeg.o reaction_sandbox_gas.o \
                      reaction_sandbox_pnnl_cyber.o reaction_sandbox_simple.o \
                      reaction_sandbox_ufd_wp.o reactive_transport_aux.o \
                      string.o utility.o
 reaction_sandbox_base.o : global_aux.o input_aux.o material_aux.o option.o \
                           output_aux.o pflotran_constants.o reaction_aux.o \
                           reactive_transport_aux.o
+reaction_sandbox_biodeg.o : global_aux.o material_aux.o option.o \
+                            pflotran_constants.o reaction_aux.o \
+                            reaction_immobile_aux.o reaction_sandbox_base.o \
+                            reactive_transport_aux.o
 reaction_sandbox_clm_cn.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
@@ -682,19 +687,16 @@ reaction_sandbox_example.o : global_aux.o input_aux.o material_aux.o option.o \
                              pflotran_constants.o reaction_aux.o \
                              reaction_sandbox_base.o reactive_transport_aux.o \
                              string.o units.o
+reaction_sandbox_flexbiodeg.o : global_aux.o input_aux.o material_aux.o \
+                                option.o pflotran_constants.o reaction_aux.o \
+                                reaction_immobile_aux.o \
+                                reaction_sandbox_biodeg.o \
+                                reactive_transport_aux.o string.o utility.o
 reaction_sandbox_gas.o : global_aux.o input_aux.o material_aux.o option.o \
                          pflotran_constants.o reaction_aux.o \
                          reaction_gas_aux.o reaction_immobile_aux.o \
                          reaction_sandbox_base.o reactive_transport_aux.o \
                          string.o units.o
-reaction_sandbox_gmd_1.o : global_aux.o material_aux.o option.o \
-                           pflotran_constants.o reaction_aux.o \
-                           reaction_immobile_aux.o reaction_sandbox_base.o \
-                           reactive_transport_aux.o
-reaction_sandbox_gmd_2.o : global_aux.o input_aux.o material_aux.o option.o \
-                           pflotran_constants.o reaction_aux.o \
-                           reaction_immobile_aux.o reaction_sandbox_gmd_1.o \
-                           reactive_transport_aux.o string.o utility.o
 reaction_sandbox_pnnl_cyber.o : global_aux.o input_aux.o material_aux.o \
                                 option.o output_aux.o pflotran_constants.o \
                                 reaction_aux.o reaction_immobile_aux.o \
@@ -868,7 +870,7 @@ timestepper_base.o : input_aux.o option.o output.o pflotran_constants.o \
                      pm_base.o solver.o string.o units.o waypoint.o
 timestepper_steady.o : convergence.o input_aux.o option.o output.o \
                        output_ekg.o pflotran_constants.o pm_base.o solver.o \
-                       string.o timestepper_BE.o timestepper_base.o
+                       string.o timestepper_BE.o timestepper_base.o utility.o
 transport.o : connection.o global_aux.o material_aux.o matrix_block_aux.o \
               option.o pflotran_constants.o reactive_transport_aux.o
 transport_constraint.o : option.o pflotran_constants.o string.o \
