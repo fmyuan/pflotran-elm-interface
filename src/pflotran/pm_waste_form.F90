@@ -3285,6 +3285,7 @@ subroutine PMWFInitializeTimestep(this)
                                                        avg_sat_global, &
                                                        avg_temp_global, &
                                                        option%dt, ierr)
+    endif
     
     ! ------------------ criticality termination criterion -----------------
     if (cur_waste_form%spacer_degradation_flag .and. &
