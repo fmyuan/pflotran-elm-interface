@@ -5587,28 +5587,6 @@ end subroutine PMWFDestroy
 
 ! ************************************************************************** !
 
-subroutine SpacerMechInit(this)
-  !
-  ! Initializes the base spacer mechanism
-  !
-
-  implicit none
-
-  class(spacer_mechanism_base_type), pointer :: this
-
-  allocate(this)
-
-  this%threshold_sat = 0.d0
-  this%alteration_rate = UNINITIALIZED_DOUBLE
-  this%spacer_mass = UNINITIALIZED_DOUBLE
-  this%spacer_surface_area = UNINITIALIZED_DOUBLE
-  this%spacer_coeff = UNINITIALIZED_DOUBLE
-  this%spacer_activation_energy = UNINITIALIZED_DOUBLE
-
-end subroutine SpacerMechInit
-
-! ************************************************************************** !
-
 subroutine SpacerMechBaseDegradation(this,waste_form,pm,sat,temp,dt,ierr)
   !
   ! Computes spacer degradation using the base mechanism, 
