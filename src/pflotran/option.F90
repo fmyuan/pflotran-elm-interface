@@ -251,8 +251,6 @@ module Option_module
             OptionMaxMinMeanVariance, &
             OptionInitMPI, &
             OptionInitPetsc, &
-            OptionDivvyUpSimulations, &
-            OptionCreateProcessorGroups, &
             OptionBeginTiming, &
             OptionEndTiming, &
             OptionPrintPFLOTRANHeader, &
@@ -1412,96 +1410,6 @@ subroutine OptionEndTiming(option)
   endif
 
 end subroutine OptionEndTiming
-
-! ************************************************************************** !
-
-subroutine OptionDivvyUpSimulations(option,filenames)
-  !
-  ! Divides simulation in to multple simulations with
-  ! multiple input decks
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/06/13
-  !
-
-  implicit none
-
-  type(option_type) :: option
-
-  PetscInt :: i
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
-
-  i = size(filenames)
-  call OptionCreateProcessorGroups(option,i)
-  option%input_filename = filenames(option%mygroup_id)
-  i = index(option%input_filename,'.',PETSC_TRUE)
-  if (i > 1) then
-    i = i-1
-  else
-    ! for some reason len_trim doesn't work on MS Visual Studio in
-    ! this location
-    i = len(trim(option%input_filename))
-  endif
-  option%global_prefix = option%input_filename(1:i)
-  write(string,*) option%mygroup_id
-  option%group_prefix = 'G' // trim(adjustl(string))
-
-end subroutine OptionDivvyUpSimulations
-
-! ************************************************************************** !
-
-subroutine OptionCreateProcessorGroups(option,num_groups)
-  !
-  ! Splits MPI_COMM_WORLD into N separate
-  ! processor groups
-  !
-  ! Author: Glenn Hammond
-  ! Date: 08/11/09
-  !
-
-  implicit none
-
-  type(option_type) :: option
-  PetscInt :: num_groups
-
-  PetscInt :: local_commsize
-  PetscInt :: offset, delta, remainder
-  PetscInt :: igroup
-  PetscMPIInt :: mycolor_mpi, mykey_mpi
-  character(len=MAXWORDLENGTH) :: word
-  PetscErrorCode :: ierr
-
-  if (num_groups > option%global_commsize) then
-    write(word,*) num_groups
-    option%io_buffer = 'The number of process groups (' // adjustl(word)
-    write(word,*) option%global_commsize
-    option%io_buffer = trim(option%io_buffer) // &
-      ') must be equal to or less than the number of processes (' // &
-      adjustl(word)
-    option%io_buffer = trim(option%io_buffer) // ').'
-    call PrintErrMsg(option)
-  endif
-  local_commsize = option%global_commsize / num_groups
-  remainder = option%global_commsize - num_groups * local_commsize
-  offset = 0
-  do igroup = 1, num_groups
-    delta = local_commsize
-    if (igroup < remainder) delta = delta + 1
-    if (option%global_rank >= offset .and. &
-        option%global_rank < offset + delta) exit
-    offset = offset + delta
-  enddo
-  mycolor_mpi = igroup
-  option%mygroup_id = igroup
-  mykey_mpi = option%global_rank - offset
-  call MPI_Comm_split(MPI_COMM_WORLD,mycolor_mpi,mykey_mpi,option%mycomm,ierr)
-  call MPI_Comm_group(option%mycomm,option%mygroup,ierr)
-
-  call MPI_Comm_rank(option%mycomm,option%myrank, ierr)
-  call MPI_Comm_size(option%mycomm,option%mycommsize,ierr)
-
-end subroutine OptionCreateProcessorGroups
 
 ! ************************************************************************** !
 

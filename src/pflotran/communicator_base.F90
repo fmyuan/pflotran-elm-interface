@@ -71,7 +71,9 @@ contains
 
 ! ************************************************************************** !
 
-subroutine CommCreateProcessorGroups(option,num_groups)
+subroutine CommCreateProcessorGroups(global_comm,global_commsize,global_rank, &
+                                     mycomm,mycommsize,myrank, &
+                                     mygroup,mygroup_id,num_groups)
   ! 
   ! Splits MPI_COMM_WORLD into N separate
   ! processor groups
@@ -83,8 +85,14 @@ subroutine CommCreateProcessorGroups(option,num_groups)
   
   implicit none
   
-
-  type(option_type) :: option
+  PetscMPIInt :: global_comm
+  PetscMPIInt :: global_commsize
+  PetscMPIInt :: global_rank
+  PetscMPIInt :: mycomm
+  PetscMPIInt :: mycommsize
+  PetscMPIInt :: myrank
+  PetscMPIInt :: mygroup
+  PetscMPIInt :: mygroup_id
   PetscInt :: num_groups
 
   PetscInt :: local_commsize
@@ -93,26 +101,26 @@ subroutine CommCreateProcessorGroups(option,num_groups)
   PetscMPIInt :: mycolor_mpi, mykey_mpi
   PetscErrorCode :: ierr
 
-  local_commsize = option%global_commsize / num_groups
-  remainder = option%global_commsize - num_groups * local_commsize
+  local_commsize = global_commsize / num_groups
+  remainder = global_commsize - num_groups * local_commsize
   offset = 0
   do igroup = 1, num_groups
     delta = local_commsize
     if (igroup < remainder) delta = delta + 1
-    if (option%global_rank >= offset .and. &
-        option%global_rank < offset + delta) exit
+    if (global_rank >= offset .and. &
+        global_rank < offset + delta) exit
     offset = offset + delta
   enddo
   mycolor_mpi = igroup
-  option%mygroup_id = igroup
-  mykey_mpi = option%global_rank - offset
-  call MPI_Comm_split(MPI_COMM_WORLD,mycolor_mpi,mykey_mpi,option%mycomm,ierr)
-  call MPI_Comm_group(option%mycomm,option%mygroup,ierr)
+  mygroup_id = igroup
+  mykey_mpi = global_rank - offset
+  call MPI_Comm_split(MPI_COMM_WORLD,mycolor_mpi,mykey_mpi,mycomm,ierr)
+  call MPI_Comm_group(mycomm,mygroup,ierr)
 
-  PETSC_COMM_WORLD = option%mycomm
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
-  call MPI_Comm_rank(option%mycomm,option%myrank, ierr)
-  call MPI_Comm_size(option%mycomm,option%mycommsize,ierr)
+!  PETSC_COMM_WORLD = mycomm
+!  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
+  call MPI_Comm_rank(mycomm,myrank, ierr)
+  call MPI_Comm_size(mycomm,mycommsize,ierr)
 
 end subroutine CommCreateProcessorGroups
   

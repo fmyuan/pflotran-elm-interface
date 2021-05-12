@@ -52,6 +52,7 @@ subroutine MultiSimulationInitialize(multisimulation,option)
   ! Date: 02/04/09, 01/06/14
   use Option_module
   use Input_Aux_module
+  use Communicator_Base_module
   
   implicit none
 
@@ -136,7 +137,12 @@ subroutine MultiSimulationInitialize(multisimulation,option)
     call PrintErrMsg(option)
   endif
   
-  call OptionCreateProcessorGroups(option,multisimulation%num_groups)
+  call CommCreateProcessorGroups(option%global_comm,option%global_commsize, &
+                                 option%global_rank, &
+                                 option%mycomm,option%mycommsize, &
+                                 option%myrank, &
+                                 option%mygroup,option%mygroup_id, &
+                                 multisimulation%num_groups)
   
   ! divvy up the realizations
   multisimulation%num_local_realizations = multisimulation%num_realizations / &
