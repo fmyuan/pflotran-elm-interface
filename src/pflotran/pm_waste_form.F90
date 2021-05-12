@@ -26,6 +26,7 @@ module PM_Waste_Form_class
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
+  use Lookup_Table_module
   
   implicit none
 
@@ -452,6 +453,24 @@ module PM_Waste_Form_class
 
 ! -------------------------------------------------------------------
 
+  ! Stores variables for the criticality heat emission lookup table
+  type, public :: crit_heat_type
+    character(len=MAXSTRINGLENGTH) :: file_name
+    PetscInt :: num_start_times
+    PetscInt :: num_values_per_start_time
+    PetscReal :: start_time_datamax
+    PetscReal :: temp_datamax
+    PetscReal :: power_datamax
+    class(lookup_table_general_type), pointer :: lookup_table
+    class(crit_heat_type), pointer :: next
+  contains
+    procedure, public :: Read => CritHeatRead
+    procedure, public :: Evaluate => CritHeatEvaluate
+    procedure, public :: Test => CritHeatTest
+  end type crit_heat_type
+
+! -------------------------------------------------------------------
+
 ! Stores variables relevant to criticality calculations
   type, public :: crit_mechanism_base_type
     character(len=MAXWORDLENGTH) :: mech_name
@@ -467,6 +486,7 @@ module PM_Waste_Form_class
     type(criticality_event_type), pointer :: crit_event
     class(dataset_ascii_type), pointer :: rad_dataset
     class(dataset_ascii_type), pointer :: heat_dataset
+    type(crit_heat_type), pointer :: crit_heat_dataset
     class(crit_mechanism_base_type), pointer :: next
   end type crit_mechanism_base_type
 
@@ -5673,6 +5693,7 @@ subroutine CriticalityMechInit(this)
 
   nullify(this%rad_dataset)
   nullify(this%heat_dataset)
+  nullify(this%crit_heat_dataset)
 
 end subroutine CriticalityMechInit
 
@@ -5799,8 +5820,33 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                           trim(error_string)//',CRIT_END', &
                                           option)
           case('HEAT_OF_CRITICALITY')
-            call InputReadDouble(input,option,new_crit_mech%crit_heat)
-            call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY',error_string)
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              call InputReadCard(input,option,word,PETSC_FALSE)
+              select case(trim(word))
+                case('CONSTANT_HEAT')
+                  internal_units = 'MW'
+                  call InputReadDouble(input,option,new_crit_mech%crit_heat)
+                  call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY, ' &
+                    //'CONSTANT_HEAT',error_string)
+                  call InputReadAndConvertUnits(input,new_crit_mech%crit_heat, &
+                    internal_units,trim(error_string)//',HEAT_OF_CRITICALITY,' &
+                    //' CONSTANT_HEAT',option)
+                case('DATASET')
+                  allocate(new_crit_mech%crit_heat_dataset)
+                  new_crit_mech%crit_heat_dataset => CritHeatCreate()
+                  call InputReadFilename(input,option,new_crit_mech% &
+                                         crit_heat_dataset%file_name)
+                  call new_crit_mech%crit_heat_dataset%Read(new_crit_mech% &
+                                                            crit_heat_dataset% &
+                                                            file_name,option)
+                  
+              end select
+            enddo
+            call InputPopBlock(input,option)
           case('DECAY_HEAT')
             call InputReadCard(input,option,word)
             select case (trim(word))
@@ -6101,6 +6147,213 @@ subroutine CriticalityStrip(this)
 
 
 end subroutine CriticalityStrip
+
+! ************************************************************************** !
+
+subroutine CritHeatRead(this,filename,option)
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/12/2021
+  ! 
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Units_module
+  
+  implicit none
+  
+  class(crit_heat_type) :: this
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(input_type), pointer :: input2
+  PetscInt :: temp_int
+  PetscReal :: time_units_conversion
+  PetscReal :: temp_units_conversion
+  PetscReal :: power_units_conversion
+
+  time_units_conversion = 1.d0
+  temp_units_conversion = 1.d0
+  power_units_conversion = 1.d0
+  
+  if (len_trim(filename) < 1) then
+    option%io_buffer = 'Filename must be specified for CRIT_HEAT lookup table.'
+    call PrintErrMsg(option)
+  endif
+  
+  this%lookup_table => LookupTableCreateGeneral(TWO_INTEGER)
+  error_string = 'CRIT_HEAT lookup table'
+  input2 => InputCreate(IUNIT_TEMP,filename,option)
+  input2%ierr = 0
+  do
+    call InputReadPflotranString(input2,option)
+    if (InputError(input2)) exit
+
+    call InputReadCard(input2,option,keyword)
+    call InputErrorMsg(input2,option,'keyword',error_string)
+    call StringToUpper(keyword)   
+      
+    select case(trim(keyword))
+      case('NUM_START_TIMES') 
+        call InputReadInt(input2,option,this%num_start_times)
+        call InputErrorMsg(input2,option,'number of start times',error_string)
+      case('NUM_VALUES_PER_START_TIME') 
+        call InputReadInt(input2,option,this%num_values_per_start_time)
+        call InputErrorMsg(input2,option,'number of temperatures',error_string)
+      case('TIME_UNITS') 
+        internal_units = 'sec'
+        call InputReadWord(input2,option,word,PETSC_TRUE) 
+        call InputErrorMsg(input2,option,'UNITS','CONDITION')   
+        ! call StringToUpper(word)
+        time_units_conversion = UnitsConvertToInternal(word, &
+                                internal_units,option)
+      case('TEMPERATURE_UNITS') 
+        internal_units = 'C'
+        call InputReadWord(input2,option,word,PETSC_TRUE) 
+        call InputErrorMsg(input2,option,'UNITS','CONDITION')   
+        call StringToUpper(word)
+        temp_units_conversion = UnitsConvertToInternal(word, &
+                                internal_units,option)
+      case('POWER_UNITS') 
+        internal_units = 'MW'
+        call InputReadWord(input2,option,word,PETSC_TRUE) 
+        call InputErrorMsg(input2,option,'UNITS','CONDITION')   
+        ! call StringToUpper(word)
+        power_units_conversion = UnitsConvertToInternal(word, &
+                                 internal_units,option)
+      case('START_TIME')
+        if (Uninitialized(this%num_start_times) .or. &
+            Uninitialized(this%num_values_per_start_time)) then
+          option%io_buffer = 'NUM_START_TIMES and NUM_VALUES_PER_START_TIME ' &
+                           //'must be specified prior to reading the ' &
+                           //'corresponding arrays.'
+          call PrintErrMsg(option)
+        endif
+        this%lookup_table%dims(1) = this%num_start_times
+        this%lookup_table%dims(2) = this%num_values_per_start_time
+        temp_int = this%num_start_times*this%num_values_per_start_time
+        allocate(this%lookup_table%axis1%values(this%num_start_times))
+        allocate(this%lookup_table%axis2%values(temp_int))
+        allocate(this%lookup_table%data(temp_int))
+        string = 'TIME in CRIT_HEAT'
+        call UtilityReadArray(this%lookup_table%axis1%values, &
+                              NEG_ONE_INTEGER,string, &
+                              input2,option)
+        this%lookup_table%axis1%values = this%lookup_table%axis1%values * &
+          time_units_conversion
+      case('TEMPERATURE') 
+        string = 'TEMPERATURE in CRIT_HEAT'
+        call UtilityReadArray(this%lookup_table%axis2%values, &
+                              NEG_ONE_INTEGER, &
+                              string,input2,option)
+        this%lookup_table%axis2%values = this%lookup_table%axis2%values * &
+          temp_units_conversion
+      case('POWER') 
+        string = 'POWER in CRIT_HEAT'
+        call UtilityReadArray(this%lookup_table%data, &
+                              NEG_ONE_INTEGER, &
+                              string,input2,option)
+        this%lookup_table%data = this%lookup_table%data * power_units_conversion
+     case default
+        error_string = trim(error_string) // ': ' // filename
+        call InputKeywordUnrecognized(input2,keyword,error_string,option)
+    end select
+  enddo
+  call InputDestroy(input2)
+  
+  if (size(this%lookup_table%axis1%values) /= this%num_start_times) then
+    option%io_buffer = 'Number of start times does not match NUM_START_TIMES.'
+    call PrintErrMsg(option)
+  endif  
+  if (size(this%lookup_table%axis2%values) /= &
+      this%num_start_times*this%num_values_per_start_time) then
+    option%io_buffer = 'Number of temperatures does not match ' &
+                     //'NUM_START_TIMES * NUM_VALUES_PER_START_TIME.'
+    call PrintErrMsg(option)
+  endif
+  if (size(this%lookup_table%data) /= &
+      this%num_start_times*this%num_values_per_start_time) then
+    option%io_buffer = 'Number of criticality power outputs does not match ' &
+                     //'NUM_START_TIMES * NUM_VALUES_PER_START_TIME.'
+    call PrintErrMsg(option)
+  endif
+
+  ! set limits
+  this%start_time_datamax = maxval(this%lookup_table%axis1%values)
+  this%temp_datamax = maxval(this%lookup_table%axis2%values)
+  this%power_datamax = maxval(this%lookup_table%data)
+
+end subroutine CritHeatRead
+
+! ************************************************************************** !
+
+function CritHeatEvaluate(this,start_time,temperature)
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/12/2021
+  !
+  
+  implicit none
+  
+  class(crit_heat_type) :: this
+  PetscReal :: start_time
+  PetscReal :: temperature
+  
+  PetscReal :: CritHeatEvaluate
+  
+  CritHeatEvaluate = this%lookup_table%Sample(start_time,temperature)
+  
+end function CritHeatEvaluate
+
+! ************************************************************************** !
+
+subroutine CritHeatTest(this,start_time,temperature)
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/12/2021
+  !
+  
+  implicit none
+  
+  class(crit_heat_type) :: this
+  PetscReal :: start_time
+  PetscReal :: temperature
+  
+  print *, start_time, temperature, this%Evaluate(start_time,temperature)
+  
+end subroutine CritHeatTest
+
+! ************************************************************************** !
+
+function CritHeatCreate()
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/12/2021
+  ! 
+
+  implicit none
+  
+  class(crit_heat_type), pointer :: CritHeatCreate
+  class(crit_heat_type), pointer :: ch
+  
+  allocate(ch)
+  nullify(ch%next)
+  nullify(ch%lookup_table)
+  
+  ch%file_name = ''
+  ch%num_start_times = UNINITIALIZED_INTEGER
+  ch%num_values_per_start_time = UNINITIALIZED_INTEGER
+  ch%start_time_datamax = UNINITIALIZED_DOUBLE
+  ch%temp_datamax = UNINITIALIZED_DOUBLE
+  ch%power_datamax = UNINITIALIZED_DOUBLE
+
+  CritHeatCreate => ch
+
+end function CritHeatCreate
 
 ! ************************************************************************** !
 
