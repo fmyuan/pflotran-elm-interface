@@ -4747,8 +4747,9 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! Checkpoints data associated with the waste form process model
   ! into the "canister_properties" dataset for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
-  ! cumulative mass released (5:2:end) .
+  ! spacer grid vitality (4),
+  ! radionuclide mass fraction (5:2:end-1), 
+  ! cumulative mass released (6:2:end) .
 
   !
   ! Author: Michael Nole
@@ -4789,7 +4790,7 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   n_wf_local=0
   n_wf_global=0
   
-  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_check_vars=4 !number of scalar wf checkpoint variables
   n_vecs=2 !number of vector wf checkpoint variables (by species)
   
   do 
@@ -4845,6 +4846,7 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
     check_vars(1)=cur_waste_form%canister_vitality
     check_vars(2)=cur_waste_form%volume
     check_vars(3)=cur_waste_form%breach_time
+    check_vars(4)=cur_waste_form%spacer_vitality
     
     do i = 1,num_species
       check_vars(n_vecs*i-1+n_check_vars)=cur_waste_form%rad_mass_fraction(i)
@@ -4901,8 +4903,9 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! Restarts data associated with waste form process model
   ! from the "canister_properties" dataset for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
-  ! cumulative mass released (5:2:end) .
+  ! spacer grid vitality (4),
+  ! radionuclide mass fraction (5:2:end-1), 
+  ! cumulative mass released (6:2:end) .
   ! 
   ! Author: Michael Nole
   ! Date: 10/03/18
@@ -4941,7 +4944,7 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   n_wf_local=0
   n_wf_global=0
   
-  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_check_vars=4 !number of scalar wf checkpoint variables
   n_vecs=2 !number of vector wf checkpoint variables (by species)
   
   do 
@@ -5018,6 +5021,7 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
     cur_waste_form%canister_vitality=local_wf_array(i)
     cur_waste_form%volume=local_wf_array(i+1)
     cur_waste_form%breach_time=local_wf_array(i+2)
+    cur_waste_form%spacer_vitality=local_wf_array(i+3)
     if (cur_waste_form%breach_time<0) then
       cur_waste_form%breached=PETSC_FALSE
     else
@@ -5047,8 +5051,9 @@ subroutine PMWFCheckpointBinary(this, viewer)
   ! Checkpoints data associated with the waste form process model
   ! into a checkpiont binary file for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
-  ! cumulative mass released (5:2:end) .
+  ! spacer grid vitality (4),
+  ! radionuclide mass fraction (5:2:end-1), 
+  ! cumulative mass released (6:2:end) 
 
   !
   ! Author: Michael Nole
@@ -5090,7 +5095,7 @@ subroutine PMWFCheckpointBinary(this, viewer)
   n_wf_local=0
   n_wf_global=0
   
-  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_check_vars=4 !number of scalar wf checkpoint variables
   n_vecs=2 !number of vector wf checkpoint variables (by species)
   
   do 
@@ -5146,6 +5151,7 @@ subroutine PMWFCheckpointBinary(this, viewer)
     check_vars(1)=cur_waste_form%canister_vitality
     check_vars(2)=cur_waste_form%volume
     check_vars(3)=cur_waste_form%breach_time
+    check_vars(4)=cur_waste_form%spacer_vitality
     
     do i = 1,num_species
       check_vars(n_vecs*i-1+n_check_vars)=cur_waste_form%rad_mass_fraction(i)
@@ -5202,8 +5208,9 @@ subroutine PMWFRestartBinary(this, viewer)
   ! Restarts data associated with waste form process model
   ! from a checkpoint binary file for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
-  ! cumulative mass released (5:2:end) .
+  ! spacer grid vitality (4),
+  ! radionuclide mass fraction (5:2:end-1), 
+  ! cumulative mass released (6:2:end) .
   ! 
   ! Author: Michael Nole
   ! Date: 10/09/18
@@ -5240,7 +5247,7 @@ subroutine PMWFRestartBinary(this, viewer)
   n_wf_local=0
   n_wf_global=0
   
-  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_check_vars=4 !number of scalar wf checkpoint variables
   n_vecs=2 !number of vector wf checkpoint variables (by species)
   
   do 
@@ -5315,6 +5322,7 @@ subroutine PMWFRestartBinary(this, viewer)
     cur_waste_form%canister_vitality=local_wf_array(i)
     cur_waste_form%volume=local_wf_array(i+1)
     cur_waste_form%breach_time=local_wf_array(i+2)
+    cur_waste_form%spacer_vitality=local_wf_array(i+3)
     if (cur_waste_form%breach_time<0) then
       cur_waste_form%breached=PETSC_FALSE
     else
