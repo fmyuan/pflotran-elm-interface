@@ -9,6 +9,20 @@ module Communicator_Base_module
 
   private
 
+  type, public :: comm_type
+    PetscMPIInt :: global_comm
+    PetscMPIInt :: global_rank
+    PetscMPIInt :: global_commsize
+    PetscMPIInt :: global_group
+
+    PetscMPIInt :: mycomm
+    PetscMPIInt :: myrank
+    PetscMPIInt :: mycommsize
+    PetscMPIInt :: mygroup
+
+    PetscMPIInt :: mygroup_id
+  end type comm_type
+
   type, abstract, public :: communicator_type
   contains
     procedure(SetDM), public, deferred :: SetDM 
@@ -64,10 +78,76 @@ module Communicator_Base_module
     end subroutine BaseDestroy
 
   end interface
+
+  interface CommCreate
+    module procedure CommCreate1
+    module procedure CommCreate2
+  end interface
   
-  public :: CommCreateProcessorGroups
+  public :: CommCreate, &
+            CommCreateProcessorGroups
   
 contains
+
+! ************************************************************************** !
+
+function CommCreate1()
+  !
+  ! Creates a comm object that holds global and local communicators, sizes 
+  ! and ranks
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/12/21
+  
+  implicit none
+
+  type(comm_type), pointer :: CommCreate
+
+  allocate(CommCreate)
+  CommCreate%global_comm = 0
+  CommCreate%global_rank = 0
+  CommCreate%global_commsize = 0
+  CommCreate%global_group = 0
+
+  CommCreate%mycomm = 0
+  CommCreate%myrank = 0
+  CommCreate%mycommsize = 0
+  CommCreate%mygroup = 0
+
+  CommCreate%mygroup_id = 0
+
+end function CommCreate1
+
+! ************************************************************************** !
+
+function CommCreate2(orig_comm)
+  !
+  ! Creates a comm object that holds global and local communicators, sizes 
+  ! and ranks
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/12/21
+  
+  implicit none
+
+  type(comm_type) :: orig_comm
+
+  type(comm_type), pointer :: CommCreate
+
+  allocate(CommCreate)
+  CommCreate%global_comm = orig_comm%global_comm
+  CommCreate%global_rank = orig_comm%global_rank
+  CommCreate%global_commsize = orig_comm%global_commsize
+  CommCreate%global_group = orig_comm%global_group
+
+  CommCreate%mycomm = orig_comm%mycomm
+  CommCreate%myrank = orig_comm%myrank
+  CommCreate%mycommsize = orig_comm%mycommsize
+  CommCreate%mygroup = orig_comm%mygroup
+
+  CommCreate%mygroup_id = orig_comm%mygroup_id
+
+end function CommCreate2
 
 ! ************************************************************************** !
 
