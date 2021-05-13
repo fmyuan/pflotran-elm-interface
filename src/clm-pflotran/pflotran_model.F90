@@ -122,6 +122,7 @@ contains
   ! Date: 9/10/2010
   ! 
 
+    use Communicator_Aux_module
     use Option_module
     use Simulation_Base_class
     use Multi_Simulation_module
@@ -147,7 +148,9 @@ contains
     nullify(model%option)
 
     model%option => OptionCreate()
-    call OptionInitMPI(model%option, mpicomm)
+    model%option%comm => CommCreate()
+    call CommInit(model%option%comm)
+    call OptionSetComm(model%option,model%option%comm)
     call FactoryPFLOTRANInitPrePetsc(model%multisimulation, model%option)
 
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
@@ -163,7 +166,6 @@ contains
       call PrintErrMsg(model%option)
     end if
 
-    call OptionInitPetsc(model%option)
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
@@ -2400,6 +2402,7 @@ end subroutine pflotranModelSetICs
     implicit none
 
     type(pflotran_model_type), pointer :: model
+    PetscInt :: iflag
 
     ! FIXME(bja, 2013-07) none of the mapping information appears to
     ! be cleaned up, so we are leaking memory....
@@ -2436,7 +2439,10 @@ end subroutine pflotranModelSetICs
     endif
 
     call FactoryPFLOTRANFinalize(model%option)
+    iflag = model%option%exit_code
+    deallocate(model%option%comm)
     call OptionFinalize(model%option)
+    call exit(iflag)
 
     deallocate(model)
 

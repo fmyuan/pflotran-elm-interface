@@ -298,7 +298,7 @@ mapping.o : input_aux.o option.o pflotran_constants.o string.o
 pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    clm_pflotran_interface_data.o connection.o coupler.o \
                    discretization.o factory_geomechanics.o \
-                   factory_pflotran.o \
+                   factory_pflotran.o communicator_aux.o \
                    factory_subsurface.o \
                    field.o global_aux.o grid.o \
                    grid_unstructured.o grid_unstructured_aux.o \
