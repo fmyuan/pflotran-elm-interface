@@ -3697,6 +3697,8 @@ subroutine PMWFSolve(this,time,ierr)
   PetscReal, pointer :: vec_p(:)  
   PetscReal, pointer :: xx_p(:), heat_source(:)
   PetscReal :: avg_temp_local, avg_temp_global
+  PetscReal :: avg_sw_local, avg_sw_global
+  PetscReal :: avg_rho_w_local, avg_rho_w_global
   PetscInt :: fmdm_count_global, fmdm_count_local
   PetscLogDouble :: log_start_time, log_end_time
   character(len=MAXWORDLENGTH) :: word
@@ -3712,7 +3714,11 @@ subroutine PMWFSolve(this,time,ierr)
   fmdm_count_global = 0
   fmdm_count_local = 0
   avg_temp_local = 0.d0
+  avg_sw_local  = 0.d0
+  avg_rho_w_local = 0.d0
   avg_temp_global = UNINITIALIZED_DOUBLE
+  avg_sw_global  = UNINITIALIZED_DOUBLE
+  avg_rho_w_global = UNINITIALIZED_DOUBLE
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   grid => this%realization%patch%grid
@@ -3825,24 +3831,58 @@ subroutine PMWFSolve(this,time,ierr)
 
       call CriticalityCalc(cur_criticality,time,ierr)
 
+      ! Use heat of criticality lookup table if applicable
       if (associated(cur_criticality%crit_heat_dataset) .and. &
           cur_criticality%crit_event%crit_flag) then
-        if ( .not. Initialized(avg_temp_global)) then
-          do j = 1,cur_waste_form%region%num_cells
-            ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
-            avg_temp_local = avg_temp_local + &  ! Celcius
-              (global_auxvars(ghosted_id)%temp*cur_waste_form%scaling_factor(j))
-          enddo
-          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
-                               avg_temp_global)
-          avg_temp_global = avg_temp_global / size(cur_waste_form%rank_list)
-        endif
+        do j = 1,cur_waste_form%region%num_cells
+          ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
+          avg_temp_local = avg_temp_local + &  ! Celcius
+            (global_auxvars(ghosted_id)%temp*cur_waste_form%scaling_factor(j))
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
+                             avg_temp_global)
+        avg_temp_global = avg_temp_global / size(cur_waste_form%rank_list)
         cur_criticality%temperature = avg_temp_global
         cur_criticality%crit_heat = cur_criticality%crit_heat_dataset% &
           Evaluate(cur_criticality%crit_event%crit_start, &
                    cur_criticality%temperature)
       endif
+      
+      ! Criticality termination - water saturation
+      if (Initialized(cur_criticality%sw) .and. &
+          cur_criticality%crit_event%crit_flag) then
+        do j = 1,cur_waste_form%region%num_cells
+          ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
+          avg_sw_local = avg_sw_local + &  ! Liquid Saturation
+            (global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &
+            cur_waste_form%scaling_factor(j))
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_sw_local, &
+                             avg_sw_global)
+        avg_sw_global = avg_sw_global / size(cur_waste_form%rank_list)
+        if (avg_sw_global < cur_criticality%sw) then
+          cur_criticality%crit_event%crit_flag = PETSC_FALSE
+        endif
+      endif
+      
+      ! Criticality termination - water density
+      if (Initialized(cur_criticality%rho_w) .and. &
+          cur_criticality%crit_event%crit_flag) then
+        do j = 1,cur_waste_form%region%num_cells
+          ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
+          avg_rho_w_local = avg_rho_w_local + &  ! Liquid Density
+            (global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE) * &
+            cur_waste_form%scaling_factor(j))
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_rho_w_local, &
+                             avg_rho_w_global)
+        avg_rho_w_global = avg_rho_w_global / size(cur_waste_form%rank_list)
+        if (avg_rho_w_global < cur_criticality%rho_w) then
+          cur_criticality%crit_event%crit_flag = PETSC_FALSE
+        endif
+      endif
 
+      ! Define heat source
       do j = 1, cur_waste_form%region%num_cells
         m = m + 1
         heat_source(m) = cur_criticality%decay_heat
@@ -5711,9 +5751,9 @@ subroutine CriticalityMechInit(this)
   this%mech_name = ''
   this%decay_heat = 0.d0
   this%crit_heat = 0.d0
-  this%sw = 0.d0
-  this%rho_w = 0.d0
-  this%temperature = 0.d0
+  this%sw = UNINITIALIZED_DOUBLE
+  this%rho_w = UNINITIALIZED_DOUBLE
+  this%temperature = UNINITIALIZED_DOUBLE
   this%k_effective = 0.d0
 
   this%crit_event%name = ''
@@ -5850,6 +5890,16 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                           crit_event%crit_end,'sec', &
                                           trim(error_string)//',CRIT_END', &
                                           option)
+          case('CRITICAL_WATER_SATURATION')
+            call InputReadDouble(input,option,new_crit_mech%sw)
+            call InputErrorMsg(input,option,'CRITICAL WATER SATURATION',&
+              error_string)
+          case('CRITICAL_WATER_DENSITY')
+            call InputReadDouble(input,option,new_crit_mech%rho_w)
+            call InputErrorMsg(input,option,'CRITICAL WATER DENSITY',&
+              error_string)
+            call InputReadAndConvertUnits(input,new_crit_mech%rho_w, &
+              'kg/m^3',trim(error_string)//',CRITICAL WATER DENSITY',option)
           case('HEAT_OF_CRITICALITY')
             call InputPushBlock(input,option)
             do
