@@ -3825,7 +3825,8 @@ subroutine PMWFSolve(this,time,ierr)
 
       call CriticalityCalc(cur_criticality,time,ierr)
 
-      if (associated(cur_criticality%crit_heat_dataset)) then
+      if (associated(cur_criticality%crit_heat_dataset) .and. &
+          cur_criticality%crit_event%crit_flag) then
         if ( .not. Initialized(avg_temp_global)) then
           do j = 1,cur_waste_form%region%num_cells
             ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
@@ -3836,16 +3837,16 @@ subroutine PMWFSolve(this,time,ierr)
                                avg_temp_global)
           avg_temp_global = avg_temp_global / size(cur_waste_form%rank_list)
         endif
+        cur_criticality%temperature = avg_temp_global
+        cur_criticality%crit_heat = cur_criticality%crit_heat_dataset% &
+          Evaluate(cur_criticality%crit_event%crit_start, &
+                   cur_criticality%temperature)
       endif
 
       do j = 1, cur_waste_form%region%num_cells
         m = m + 1
         heat_source(m) = cur_criticality%decay_heat
         if (cur_criticality%crit_event%crit_flag) then
-          if (associated(cur_criticality%crit_heat_dataset)) then
-            cur_criticality%crit_heat = cur_criticality%crit_heat_dataset% &
-              Evaluate(cur_criticality%crit_event%crit_start,avg_temp_global)
-          endif
           heat_source(m) = heat_source(m) + cur_criticality%crit_heat
         endif
         ! Distribute heat source throughout all cells in a waste package
