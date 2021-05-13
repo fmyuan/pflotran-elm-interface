@@ -3,6 +3,7 @@
 !=======================================================================
 program pflotran
 
+  use Communicator_Aux_module
   use Option_module
   use Simulation_Base_class
   use Multi_Simulation_module
@@ -21,13 +22,16 @@ program pflotran
   ! completed.
   type(multi_simulation_type), pointer :: multisimulation
   type(option_type), pointer :: option
+  PetscInt :: iflag
+  PetscErrorCode :: ierr
 
   nullify(simulation)
   nullify(multisimulation)
   option => OptionCreate()
-  call OptionInitMPI(option)
+  option%comm => CommCreate()
+  call CommInit(option%comm)
+  call OptionSetComm(option,option%comm)
   call FactoryPFLOTRANInitPrePetsc(multisimulation,option)
-  call OptionInitPetsc(option)
   if (option%myrank == option%io_rank .and. option%print_to_screen) then
     !call PrintProvenanceToScreen()
   endif
@@ -48,6 +52,10 @@ program pflotran
     if (MultiSimulationDone(multisimulation)) exit
   enddo ! multi-simulation loop
   call FactoryPFLOTRANFinalize(option)
+  iflag = option%exit_code
+  deallocate(option%comm)
   call OptionFinalize(option)
+  call PetscFinalize(ierr);CHKERRQ(ierr)
+  call exit(iflag)
 
 end program pflotran

@@ -5,7 +5,7 @@ module PM_ERT_class
 
   use PM_Base_class
   use Realization_Subsurface_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Option_module
   use ERT_Aux_module
   use Survey_module

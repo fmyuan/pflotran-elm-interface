@@ -1933,7 +1933,7 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
   !
   use Option_module
   use Field_module
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Variables_module, only : POROSITY
 
   implicit none
@@ -1996,7 +1996,7 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
   !
 
   use Option_module
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Variables_module, only : POROSITY
 
   implicit none
@@ -2035,7 +2035,7 @@ subroutine MaterialAuxVarCommunicate(comm,Material,vec_loc,ivar,isubvar)
   ! Date: 01/09/14
   !
 
-  use Communicator_Base_module
+  use Communicator_Base_class
 
   implicit none
 

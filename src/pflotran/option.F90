@@ -9,6 +9,7 @@ module Option_module
   use Option_Flow_module
   use Option_Transport_module
   use Option_Geophysics_module
+  use Communicator_Aux_module
 
   implicit none
 
@@ -19,6 +20,8 @@ module Option_module
     type(flow_option_type), pointer :: flow
     type(transport_option_type), pointer :: transport
     type(geophysics_option_type), pointer :: geophysics
+
+    type(comm_type), pointer :: comm
 
     PetscInt :: id                         ! id of realization
     PetscInt :: exit_code                  ! code passed out of PFLOTRAN
@@ -223,12 +226,8 @@ module Option_module
     module procedure PrintWrnMsg2
   end interface
 
-  interface OptionInitMPI
-    module procedure OptionInitMPI1
-    module procedure OptionInitMPI2
-  end interface
-
   public :: OptionCreate, &
+            OptionSetComm, &
             OptionCheckCommandLine, &
             PrintErrMsg, &
             PrintErrMsgToDev, &
@@ -249,8 +248,6 @@ module Option_module
             OptionInitRealization, &
             OptionMeanVariance, &
             OptionMaxMinMeanVariance, &
-            OptionInitMPI, &
-            OptionInitPetsc, &
             OptionBeginTiming, &
             OptionEndTiming, &
             OptionPrintPFLOTRANHeader, &
@@ -281,6 +278,7 @@ function OptionCreate()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
+  nullify(option%comm)
 
   ! DO NOT initialize members of the option type here.  One must decide
   ! whether the member needs initialization once for all stochastic
@@ -291,6 +289,27 @@ function OptionCreate()
   OptionCreate => option
 
 end function OptionCreate
+
+! ************************************************************************** !
+
+subroutine OptionSetComm(option,comm)
+
+  implicit none
+
+  type(option_type) :: option
+  type(comm_type) :: comm
+
+  option%global_comm     = comm%global_comm
+  option%global_commsize = comm%global_commsize
+  option%global_rank     = comm%global_rank
+  option%global_group    = comm%global_group
+  option%mycomm          = comm%mycomm
+  option%mycommsize      = comm%mycommsize
+  option%myrank          = comm%myrank
+  option%mygroup         = comm%mygroup
+  option%mygroup_id      = comm%mygroup_id
+
+end subroutine OptionSetComm
 
 ! ************************************************************************** !
 
@@ -1226,89 +1245,6 @@ end subroutine OptionMeanVariance
 
 ! ************************************************************************** !
 
-subroutine OptionInitMPI1(option)
-  !
-  ! Initializes base MPI communicator
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/06/13
-  !
-
-  implicit none
-
-  type(option_type) :: option
-
-  PetscErrorCode :: ierr
-
-  call MPI_Init(ierr)
-  call OptionInitMPI2(option,MPI_COMM_WORLD)
-
-end subroutine OptionInitMPI1
-
-! ************************************************************************** !
-
-subroutine OptionInitMPI2(option,communicator)
-  !
-  ! Initializes base MPI communicator
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/06/13
-  !
-
-  implicit none
-
-  type(option_type) :: option
-
-  PetscMPIInt :: communicator
-  PetscErrorCode :: ierr
-
-  option%global_comm = communicator
-  call MPI_Comm_rank(communicator,option%global_rank, ierr)
-  call MPI_Comm_size(communicator,option%global_commsize,ierr)
-  call MPI_Comm_group(communicator,option%global_group,ierr)
-  option%mycomm = option%global_comm
-  option%myrank = option%global_rank
-  option%mycommsize = option%global_commsize
-  option%mygroup = option%global_group
-
-end subroutine OptionInitMPI2
-
-! ************************************************************************** !
-
-subroutine OptionInitPetsc(option)
-  !
-  ! Initialization of PETSc.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/07/13
-  !
-
-  use Logging_module
-
-  implicit none
-
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode :: ierr
-
-  PETSC_COMM_WORLD = option%mycomm
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)    !fmy: tiny memory leak here (don't know why)
-
-  if (option%verbosity > 0) then
-    call PetscLogDefaultBegin(ierr);CHKERRQ(ierr)
-    string = '-log_view'
-    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                  string, ierr);CHKERRQ(ierr)
-  endif
-
-  call OptionBeginTiming(option)
-  call LoggingCreate()
-
-end subroutine OptionInitPetsc
-
-! ************************************************************************** !
-
 subroutine OptionPrintPFLOTRANHeader(option)
   !
   ! Start outer timing.
@@ -1456,11 +1392,7 @@ subroutine OptionFinalize(option)
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             '-objects_left','yes',ierr);CHKERRQ(ierr)
   call MPI_Barrier(option%global_comm,ierr)
-  iflag = option%exit_code
   call OptionDestroy(option)
-  call PetscFinalize(ierr);CHKERRQ(ierr)
-  call MPI_Finalize(ierr)
-  call exit(iflag)
 
 end subroutine OptionFinalize
 
@@ -1481,6 +1413,7 @@ subroutine OptionDestroy(option)
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
+  nullify(option%comm)
 
   ! all the below should be placed somewhere other than option.F90
 

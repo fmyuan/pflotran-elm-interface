@@ -1,4 +1,4 @@
-module Communicator_Base_module
+module Communicator_Base_class
 
 #include "petsc/finclude/petscvec.h"
    use petscvec
@@ -101,20 +101,23 @@ function CommCreate1()
   
   implicit none
 
-  type(comm_type), pointer :: CommCreate
+  type(comm_type), pointer :: comm
+  type(comm_type), pointer :: CommCreate1
 
-  allocate(CommCreate)
-  CommCreate%global_comm = 0
-  CommCreate%global_rank = 0
-  CommCreate%global_commsize = 0
-  CommCreate%global_group = 0
+  allocate(comm)
+  comm%global_comm = 0
+  comm%global_rank = 0
+  comm%global_commsize = 0
+  comm%global_group = 0
 
-  CommCreate%mycomm = 0
-  CommCreate%myrank = 0
-  CommCreate%mycommsize = 0
-  CommCreate%mygroup = 0
+  comm%mycomm = 0
+  comm%myrank = 0
+  comm%mycommsize = 0
+  comm%mygroup = 0
 
-  CommCreate%mygroup_id = 0
+  comm%mygroup_id = 0
+
+  CommCreate1 => comm
 
 end function CommCreate1
 
@@ -132,22 +135,50 @@ function CommCreate2(orig_comm)
 
   type(comm_type) :: orig_comm
 
-  type(comm_type), pointer :: CommCreate
+  type(comm_type), pointer :: newcomm
+  type(comm_type), pointer :: CommCreate2
 
-  allocate(CommCreate)
-  CommCreate%global_comm = orig_comm%global_comm
-  CommCreate%global_rank = orig_comm%global_rank
-  CommCreate%global_commsize = orig_comm%global_commsize
-  CommCreate%global_group = orig_comm%global_group
+  allocate(newcomm)
+  newcomm%global_comm = orig_comm%global_comm
+  newcomm%global_rank = orig_comm%global_rank
+  newcomm%global_commsize = orig_comm%global_commsize
+  newcomm%global_group = orig_comm%global_group
 
-  CommCreate%mycomm = orig_comm%mycomm
-  CommCreate%myrank = orig_comm%myrank
-  CommCreate%mycommsize = orig_comm%mycommsize
-  CommCreate%mygroup = orig_comm%mygroup
+  newcomm%mycomm = orig_comm%mycomm
+  newcomm%myrank = orig_comm%myrank
+  newcomm%mycommsize = orig_comm%mycommsize
+  newcomm%mygroup = orig_comm%mygroup
 
-  CommCreate%mygroup_id = orig_comm%mygroup_id
+  newcomm%mygroup_id = orig_comm%mygroup_id
+
+  CommCreate2 => newcomm
 
 end function CommCreate2
+
+! ************************************************************************** !
+
+subroutine CommInit(comm)
+
+  implicit none
+
+  type(comm_type) :: comm
+
+  PetscMPIInt :: communicator
+  PetscErrorCode :: ierr
+
+  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
+  communicator = PETSC_COMM_WORLD
+
+  comm%global_comm = communicator
+  call MPI_Comm_rank(communicator,comm%global_rank, ierr)
+  call MPI_Comm_size(communicator,comm%global_commsize,ierr)
+  call MPI_Comm_group(communicator,comm%global_group,ierr)
+  comm%mycomm = comm%global_comm
+  comm%myrank = comm%global_rank
+  comm%mycommsize = comm%global_commsize
+  comm%mygroup = comm%global_group
+
+end subroutine CommInit
 
 ! ************************************************************************** !
 
@@ -161,8 +192,6 @@ subroutine CommCreateProcessorGroups(global_comm,global_commsize,global_rank, &
   ! Author: Glenn Hammond
   ! Date: 08/11/09
   ! 
-  use Option_module
-  
   implicit none
   
   PetscMPIInt :: global_comm
@@ -197,11 +226,9 @@ subroutine CommCreateProcessorGroups(global_comm,global_commsize,global_rank, &
   call MPI_Comm_split(MPI_COMM_WORLD,mycolor_mpi,mykey_mpi,mycomm,ierr)
   call MPI_Comm_group(mycomm,mygroup,ierr)
 
-!  PETSC_COMM_WORLD = mycomm
-!  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
   call MPI_Comm_rank(mycomm,myrank, ierr)
   call MPI_Comm_size(mycomm,mycommsize,ierr)
 
 end subroutine CommCreateProcessorGroups
   
-end module Communicator_Base_module
+end module Communicator_Base_class

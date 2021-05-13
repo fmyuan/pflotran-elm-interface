@@ -27,6 +27,7 @@ subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
   use Input_Aux_module
   use Multi_Simulation_module
   use HDF5_Aux_module
+  use Logging_module
 
   implicit none
 
@@ -36,6 +37,7 @@ subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: bool_flag
   PetscBool :: option_found
+  PetscErrorCode :: ierr
 
   ! NOTE: Cannot add anything that requires PETSc in this routine as PETSc
   !       has not yet been initialized.
@@ -50,6 +52,16 @@ subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
     multisimulation => MultiSimulationCreate()
     call MultiSimulationInitialize(multisimulation,option)
   endif
+
+  if (option%verbosity > 0) then
+    call PetscLogDefaultBegin(ierr);CHKERRQ(ierr)
+    string = '-log_view'
+    call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
+                                  string, ierr);CHKERRQ(ierr)
+  endif
+
+  call OptionBeginTiming(option)
+  call LoggingCreate()
 
 end subroutine FactoryPFLOTRANInitPrePetsc
 

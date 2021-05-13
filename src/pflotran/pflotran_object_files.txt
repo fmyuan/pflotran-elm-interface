@@ -136,6 +136,7 @@ chem_obj = \
 
 grid_obj = \
 	${common_src}connection.o \
+	${common_src}communicator_aux.o \
 	${common_src}communicator_base.o \
 	${common_src}communicator_structured.o \
 	${common_src}communicator_unstructured.o \

@@ -29,7 +29,8 @@ co2_sw.o : co2_span_wagner.o co2_span_wagner_spline.o option.o \
            pflotran_constants.o
 co2_sw_rtsafe.o : pflotran_constants.o utility.o
 co2eos.o : pflotran_constants.o utility.o
-communicator_base.o : dm_kludge.o option.o pflotran_constants.o
+communicator_aux.o :
+communicator_base.o : dm_kludge.o pflotran_constants.o
 communicator_structured.o : communicator_base.o dm_kludge.o grid_structured.o \
                             pflotran_constants.o
 communicator_unstructured.o : communicator_base.o dm_kludge.o \
@@ -346,7 +347,8 @@ mphase_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
                saturation_function.o
 mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
                     saturation_function.o
-multisimulation.o : input_aux.o option.o pflotran_constants.o
+multisimulation.o : communicator_base.o input_aux.o option.o \
+                    pflotran_constants.o
 nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  field.o fluid.o global_aux.o grid.o logging.o material.o \
                  material_aux.o nw_transport_aux.o nw_transport_equilibrium.o \
@@ -361,8 +363,8 @@ nw_transport_equilibrium.o : global_aux.o material_aux.o nw_transport_aux.o \
                              transport_constraint_nwt.o
 observation.o : connection.o input_aux.o option.o output_aux.o \
                 pflotran_constants.o region.o string.o
-option.o : logging.o option_flow.o option_geophysics.o option_transport.o \
-           pflotran_constants.o
+option.o : communicator_aux.o logging.o option_flow.o option_geophysics.o \
+           option_transport.o pflotran_constants.o
 option_flow.o : pflotran_constants.o
 option_geophysics.o : pflotran_constants.o
 option_transport.o : pflotran_constants.o
@@ -428,9 +430,9 @@ patch.o : auxiliary.o characteristic_curves.o characteristic_curves_thermal.o \
           transport_constraint.o transport_constraint_base.o \
           transport_constraint_nwt.o transport_constraint_rt.o \
           upwind_direction.o utility.o variables.o wipp_flow_aux.o
-pflotran.o : factory_pflotran.o factory_subsurface.o multisimulation.o \
-             option.o pflotran_constants.o pflotran_provenance.o \
-             simulation_base.o
+pflotran.o : communicator_aux.o factory_pflotran.o factory_subsurface.o \
+             multisimulation.o option.o pflotran_constants.o \
+             pflotran_provenance.o simulation_base.o
 pflotran_constants.o :
 pflotran_derivative.o : eos.o general_derivative.o option.o
 pflotran_provenance.o :
