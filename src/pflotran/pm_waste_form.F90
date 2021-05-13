@@ -3286,7 +3286,8 @@ subroutine PMWFInitializeTimestep(this)
                                avg_sat_global)
         endif
 
-        if (avg_sat_global >= cur_waste_form%spacer_mechanism%threshold_sat) then
+        if (avg_sat_global >= &
+            cur_waste_form%spacer_mechanism%threshold_sat) then
           cur_waste_form%spacer_mechanism%alteration_rate = 1.0d0
         else
           cur_waste_form%spacer_mechanism%alteration_rate = avg_sat_global / &
@@ -3647,6 +3648,8 @@ subroutine PMWFSolve(this,time,ierr)
   use Material_Aux_class
   use Reactive_Transport_Aux_module, only : rt_min_saturation
   use Grid_module
+  use Option_module
+  use Utility_module
   
   implicit none
 
@@ -3693,6 +3696,7 @@ subroutine PMWFSolve(this,time,ierr)
   PetscReal :: inst_diss_molality
   PetscReal, pointer :: vec_p(:)  
   PetscReal, pointer :: xx_p(:), heat_source(:)
+  PetscReal :: avg_temp_local, avg_temp_global
   PetscInt :: fmdm_count_global, fmdm_count_local
   PetscLogDouble :: log_start_time, log_end_time
   character(len=MAXWORDLENGTH) :: word
@@ -3700,12 +3704,15 @@ subroutine PMWFSolve(this,time,ierr)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   type(crit_mechanism_base_type), pointer :: cur_criticality
+  type(option_type), pointer :: option
 ! -----------------------------------------------------------
 
   call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
   
   fmdm_count_global = 0
   fmdm_count_local = 0
+  avg_temp_local = 0.d0
+  avg_temp_global = UNINITIALIZED_DOUBLE
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   grid => this%realization%patch%grid
@@ -3818,10 +3825,27 @@ subroutine PMWFSolve(this,time,ierr)
 
       call CriticalityCalc(cur_criticality,time,ierr)
 
+      if (associated(cur_criticality%crit_heat_dataset)) then
+        if ( .not. Initialized(avg_temp_global)) then
+          do j = 1,cur_waste_form%region%num_cells
+            ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
+            avg_temp_local = avg_temp_local + &  ! Celcius
+              (global_auxvars(ghosted_id)%temp*cur_waste_form%scaling_factor(j))
+          enddo
+          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
+                               avg_temp_global)
+          avg_temp_global = avg_temp_global / size(cur_waste_form%rank_list)
+        endif
+      endif
+
       do j = 1, cur_waste_form%region%num_cells
         m = m + 1
         heat_source(m) = cur_criticality%decay_heat
         if (cur_criticality%crit_event%crit_flag) then
+          if (associated(cur_criticality%crit_heat_dataset)) then
+            cur_criticality%crit_heat = cur_criticality%crit_heat_dataset% &
+              Evaluate(cur_criticality%crit_event%crit_start,avg_temp_global)
+          endif
           heat_source(m) = heat_source(m) + cur_criticality%crit_heat
         endif
         ! Distribute heat source throughout all cells in a waste package
@@ -6186,12 +6210,13 @@ subroutine CritHeatRead(this,filename,option)
   power_units_conversion = 1.d0
   
   if (len_trim(filename) < 1) then
-    option%io_buffer = 'Filename must be specified for CRIT_HEAT lookup table.'
+    option%io_buffer = 'Filename must be specified for heat of criticality ' &
+                     //'lookup table.'
     call PrintErrMsg(option)
   endif
   
   this%lookup_table => LookupTableCreateGeneral(TWO_INTEGER)
-  error_string = 'CRIT_HEAT lookup table'
+  error_string = 'heat of criticality lookup table'
   input2 => InputCreate(IUNIT_TEMP,filename,option)
   input2%ierr = 0
   do
@@ -6208,7 +6233,8 @@ subroutine CritHeatRead(this,filename,option)
         call InputErrorMsg(input2,option,'number of start times',error_string)
       case('NUM_VALUES_PER_START_TIME') 
         call InputReadInt(input2,option,this%num_values_per_start_time)
-        call InputErrorMsg(input2,option,'number of temperatures',error_string)
+        call InputErrorMsg(input2,option,'number of values per start time', &
+                           error_string)
       case('TIME_UNITS') 
         internal_units = 'sec'
         call InputReadWord(input2,option,word,PETSC_TRUE) 
@@ -6242,21 +6268,21 @@ subroutine CritHeatRead(this,filename,option)
         allocate(this%lookup_table%axis1%values(this%num_start_times))
         allocate(this%lookup_table%axis2%values(temp_int))
         allocate(this%lookup_table%data(temp_int))
-        string = 'TIME in CRIT_HEAT'
+        string = 'TIME in heat of criticality lookup table'
         call UtilityReadArray(this%lookup_table%axis1%values, &
                               NEG_ONE_INTEGER,string, &
                               input2,option)
         this%lookup_table%axis1%values = this%lookup_table%axis1%values * &
           time_units_conversion
       case('TEMPERATURE') 
-        string = 'TEMPERATURE in CRIT_HEAT'
+        string = 'TEMPERATURE in heat of criticality lookup table'
         call UtilityReadArray(this%lookup_table%axis2%values, &
                               NEG_ONE_INTEGER, &
                               string,input2,option)
         this%lookup_table%axis2%values = this%lookup_table%axis2%values * &
           temp_units_conversion
       case('POWER') 
-        string = 'POWER in CRIT_HEAT'
+        string = 'POWER in heat of criticality lookup table'
         call UtilityReadArray(this%lookup_table%data, &
                               NEG_ONE_INTEGER, &
                               string,input2,option)
