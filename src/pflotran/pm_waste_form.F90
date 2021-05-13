@@ -1059,6 +1059,12 @@ subroutine PMWFReadPMBlock(this,input)
     error_string = 'WASTE_FORM_GENERAL'
     call ReadCriticalityMech(this,input,option,word,error_string,found)
     if (found) cycle
+    
+    if (.not. found) then
+      option%io_buffer = 'Keyword "' // trim(word) // &
+                         '" not applicable for the waste form process model.'
+      call PrintErrMsg(option)
+    endif
    
   enddo
   call InputPopBlock(input,option)
@@ -3280,7 +3286,7 @@ subroutine PMWFInitializeTimestep(this)
                                avg_sat_global)
         endif
 
-        if (avg_sat_local >= cur_waste_form%spacer_mechanism%threshold_sat) then
+        if (avg_sat_global >= cur_waste_form%spacer_mechanism%threshold_sat) then
           cur_waste_form%spacer_mechanism%alteration_rate = 1.0d0
         else
           cur_waste_form%spacer_mechanism%alteration_rate = avg_sat_global / &
@@ -5843,7 +5849,6 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                   call new_crit_mech%crit_heat_dataset%Read(new_crit_mech% &
                                                             crit_heat_dataset% &
                                                             file_name,option)
-                  
               end select
             enddo
             call InputPopBlock(input,option)
@@ -6208,7 +6213,6 @@ subroutine CritHeatRead(this,filename,option)
         internal_units = 'sec'
         call InputReadWord(input2,option,word,PETSC_TRUE) 
         call InputErrorMsg(input2,option,'UNITS','CONDITION')   
-        ! call StringToUpper(word)
         time_units_conversion = UnitsConvertToInternal(word, &
                                 internal_units,option)
       case('TEMPERATURE_UNITS') 
@@ -6222,7 +6226,6 @@ subroutine CritHeatRead(this,filename,option)
         internal_units = 'MW'
         call InputReadWord(input2,option,word,PETSC_TRUE) 
         call InputErrorMsg(input2,option,'UNITS','CONDITION')   
-        ! call StringToUpper(word)
         power_units_conversion = UnitsConvertToInternal(word, &
                                  internal_units,option)
       case('START_TIME')
