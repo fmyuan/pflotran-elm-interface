@@ -127,9 +127,7 @@ end subroutine CommInit
 
 ! ************************************************************************** !
 
-subroutine CommCreateProcessorGroups(global_comm,global_commsize,global_rank, &
-                                     mycomm,mycommsize,myrank, &
-                                     mygroup,mygroup_id,num_groups)
+subroutine CommCreateProcessorGroups(comm,num_groups)
   ! 
   ! Splits MPI_COMM_WORLD into N separate
   ! processor groups
@@ -139,14 +137,7 @@ subroutine CommCreateProcessorGroups(global_comm,global_commsize,global_rank, &
   ! 
   implicit none
 
-  PetscMPIInt :: global_comm
-  PetscMPIInt :: global_commsize
-  PetscMPIInt :: global_rank
-  PetscMPIInt :: mycomm
-  PetscMPIInt :: mycommsize
-  PetscMPIInt :: myrank
-  PetscMPIInt :: mygroup
-  PetscMPIInt :: mygroup_id
+  type(comm_type) :: comm
   PetscInt :: num_groups
 
   PetscInt :: local_commsize
@@ -155,24 +146,24 @@ subroutine CommCreateProcessorGroups(global_comm,global_commsize,global_rank, &
   PetscMPIInt :: mycolor_mpi, mykey_mpi
   PetscErrorCode :: ierr
 
-  local_commsize = global_commsize / num_groups
-  remainder = global_commsize - num_groups * local_commsize
+  local_commsize = comm%global_commsize / num_groups
+  remainder = comm%global_commsize - num_groups * local_commsize
   offset = 0
   do igroup = 1, num_groups
     delta = local_commsize
     if (igroup < remainder) delta = delta + 1
-    if (global_rank >= offset .and. &
-        global_rank < offset + delta) exit
+    if (comm%global_rank >= offset .and. &
+        comm%global_rank < offset + delta) exit
     offset = offset + delta
   enddo
   mycolor_mpi = igroup
-  mygroup_id = igroup
-  mykey_mpi = global_rank - offset
-  call MPI_Comm_split(global_comm,mycolor_mpi,mykey_mpi,mycomm,ierr)
-  call MPI_Comm_group(mycomm,mygroup,ierr)
+  comm%mygroup_id = igroup
+  mykey_mpi = comm%global_rank - offset
+  call MPI_Comm_split(comm%global_comm,mycolor_mpi,mykey_mpi,comm%mycomm,ierr)
+  call MPI_Comm_group(comm%mycomm,comm%mygroup,ierr)
 
-  call MPI_Comm_rank(mycomm,myrank, ierr)
-  call MPI_Comm_size(mycomm,mycommsize,ierr)
+  call MPI_Comm_rank(comm%mycomm,comm%myrank, ierr)
+  call MPI_Comm_size(comm%mycomm,comm%mycommsize,ierr)
 
 end subroutine CommCreateProcessorGroups
 

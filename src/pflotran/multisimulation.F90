@@ -137,12 +137,8 @@ subroutine MultiSimulationInitialize(multisimulation,option)
     call PrintErrMsg(option)
   endif
   
-  call CommCreateProcessorGroups(option%global_comm,option%global_commsize, &
-                                 option%global_rank, &
-                                 option%mycomm,option%mycommsize, &
-                                 option%myrank, &
-                                 option%mygroup,option%mygroup_id, &
-                                 multisimulation%num_groups)
+  call CommCreateProcessorGroups(option%comm,multisimulation%num_groups)
+  call OptionUpdateFromComm(option)
   
   ! divvy up the realizations
   multisimulation%num_local_realizations = multisimulation%num_realizations / &

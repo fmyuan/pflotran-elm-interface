@@ -228,6 +228,7 @@ module Option_module
 
   public :: OptionCreate, &
             OptionSetComm, &
+            OptionUpdateFromComm, &
             OptionCheckCommandLine, &
             PrintErrMsg, &
             PrintErrMsgToDev, &
@@ -300,17 +301,32 @@ subroutine OptionSetComm(option,comm)
   type(comm_type), pointer :: comm
 
   option%comm => comm
-  option%global_comm     = comm%global_comm
-  option%global_commsize = comm%global_commsize
-  option%global_rank     = comm%global_rank
-  option%global_group    = comm%global_group
-  option%mycomm          = comm%mycomm
-  option%mycommsize      = comm%mycommsize
-  option%myrank          = comm%myrank
-  option%mygroup         = comm%mygroup
-  option%mygroup_id      = comm%mygroup_id
+  call OptionUpdateFromComm(option)
 
 end subroutine OptionSetComm
+
+! ************************************************************************** !
+
+subroutine OptionUpdateFromComm(option)
+
+  ! If the MPI communicator is split, we need to update the values local
+  ! values in option
+
+  implicit none
+
+  type(option_type) :: option
+
+  option%global_comm     = option%comm%global_comm
+  option%global_commsize = option%comm%global_commsize
+  option%global_rank     = option%comm%global_rank
+  option%global_group    = option%comm%global_group
+  option%mycomm          = option%comm%mycomm
+  option%mycommsize      = option%comm%mycommsize
+  option%myrank          = option%comm%myrank
+  option%mygroup         = option%comm%mygroup
+  option%mygroup_id      = option%comm%mygroup_id
+
+end subroutine OptionUpdateFromComm
 
 ! ************************************************************************** !
 
