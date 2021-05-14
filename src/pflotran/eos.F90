@@ -230,7 +230,7 @@ subroutine EOSRead(input,option)
             end select
             call EOSWaterSetSteamEnthalpy(word,temparray)
           case('TEST')
-            if (option%global_rank == 0) then
+            if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,WATER,TEST')
@@ -450,7 +450,7 @@ subroutine EOSRead(input,option)
                                               option)
             end select
           case('TEST')
-            if (option%global_rank == 0) then
+            if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,GAS,TEST')

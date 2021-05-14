@@ -21,7 +21,7 @@ program pflotran
   ! and/or one after another until a specified set of simulations has
   ! completed.
   type(multi_simulation_type), pointer :: multisimulation
-  type(comm_type, pointer :: comm
+  type(comm_type), pointer :: comm
   type(option_type), pointer :: option
   PetscInt :: iflag
   PetscErrorCode :: ierr
@@ -55,7 +55,6 @@ program pflotran
   iflag = option%exit_code
   call OptionFinalize(option)
   call CommDestroy(comm)
-  call PetscFinalize(ierr);CHKERRQ(ierr)
   call exit(iflag)
 
 end program pflotran

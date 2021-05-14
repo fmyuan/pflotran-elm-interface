@@ -147,13 +147,14 @@ subroutine MultiSimulationInitialize(multisimulation,option)
                                          multisimulation%num_local_realizations
   
   ! offset is initialized above after check for '-realization_offset'
-  do i = 1, option%mygroup_id-1
+  do i = 1, option%comm%mygroup_id-1
     delta = multisimulation%num_local_realizations
     if (i < remainder) delta = delta + 1
     offset = offset + delta
   enddo
   
-  if (option%mygroup_id < remainder) multisimulation%num_local_realizations = &
+  if (option%comm%mygroup_id < remainder) &
+    multisimulation%num_local_realizations = &
                                      multisimulation%num_local_realizations + 1
   allocate(multisimulation%realization_ids( &
                                   multisimulation%num_local_realizations))

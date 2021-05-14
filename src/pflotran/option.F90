@@ -26,16 +26,10 @@ module Option_module
     PetscInt :: id                         ! id of realization
     PetscInt :: exit_code                  ! code passed out of PFLOTRAN
                                            ! at end of simulation
-    PetscMPIInt :: global_comm             ! MPI_COMM_WORLD
-    PetscMPIInt :: global_rank             ! rank in MPI_COMM_WORLD
-    PetscMPIInt :: global_commsize         ! size of MPI_COMM_WORLD
-    PetscMPIInt :: global_group            ! id of group for MPI_COMM_WORLD
 
     PetscMPIInt :: mycomm                  ! PETSC_COMM_WORLD
     PetscMPIInt :: myrank                  ! rank in PETSC_COMM_WORLD
     PetscMPIInt :: mycommsize              ! size of PETSC_COMM_WORLD
-    PetscMPIInt :: mygroup                 ! id of group for PETSC_COMM_WORLD
-    PetscMPIInt :: mygroup_id
 
 ! don't place a character string near here.  It causes the Windows Intel compiler
 ! to crash.  Don't know why....
@@ -316,15 +310,9 @@ subroutine OptionUpdateFromComm(option)
 
   type(option_type) :: option
 
-  option%global_comm     = option%comm%global_comm
-  option%global_commsize = option%comm%global_commsize
-  option%global_rank     = option%comm%global_rank
-  option%global_group    = option%comm%global_group
   option%mycomm          = option%comm%mycomm
   option%mycommsize      = option%comm%mycommsize
   option%myrank          = option%comm%myrank
-  option%mygroup         = option%comm%mygroup
-  option%mygroup_id      = option%comm%mygroup_id
 
 end subroutine OptionUpdateFromComm
 
@@ -351,16 +339,9 @@ subroutine OptionInitAll(option)
   option%id = 0
   option%exit_code = 0
 
-  option%global_comm = 0
-  option%global_rank = 0
-  option%global_commsize = 0
-  option%global_group = 0
-
   option%mycomm = 0
   option%myrank = 0
   option%mycommsize = 0
-  option%mygroup = 0
-  option%mygroup_id = 0
 
   option%input_prefix = 'pflotran'
   option%group_prefix = ''
@@ -1408,7 +1389,7 @@ subroutine OptionFinalize(option)
   ! list any PETSc objects that have not been freed - for debugging
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             '-objects_left','yes',ierr);CHKERRQ(ierr)
-  call MPI_Barrier(option%global_comm,ierr)
+  call MPI_Barrier(option%comm%global_comm,ierr)
   call OptionDestroy(option)
 
 end subroutine OptionFinalize

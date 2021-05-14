@@ -9,23 +9,17 @@ module Communicator_Aux_module
   private
 
   type, public :: comm_type
-    PetscMPIInt :: global_comm
-    PetscMPIInt :: global_rank
-    PetscMPIInt :: global_commsize
-    PetscMPIInt :: global_group
+    PetscMPIInt :: global_comm      ! MPI_COMM_WORLD
+    PetscMPIInt :: global_rank      ! rank in MPI_COMM_WORLD
+    PetscMPIInt :: global_commsize  ! size of MPI_COMM_WORLD
+    PetscMPIInt :: global_group     ! id of group in MPI_COMM_WORLD
 
-    PetscMPIInt :: mycomm
-    PetscMPIInt :: myrank
-    PetscMPIInt :: mycommsize
-    PetscMPIInt :: mygroup
-
+    PetscMPIInt :: mycomm           ! PETSC_COMM_WORLD
+    PetscMPIInt :: myrank           ! rank in PETSC_COMM_WORLD
+    PetscMPIInt :: mycommsize       ! size of PETSC_COMM_WORLD
+    PetscMPIInt :: mygroup          ! id of group in PETSC_COMM_WORLD
     PetscMPIInt :: mygroup_id
   end type comm_type
-
-  interface CommCreate
-    module procedure CommCreate1
-    module procedure CommCreate2
-  end interface
 
   public :: CommCreate, &
             CommInit, &
@@ -36,7 +30,7 @@ contains
 
 ! ************************************************************************** !
 
-function CommCreate1()
+function CommCreate()
   !
   ! Creates a comm object that holds global and local communicators, sizes 
   ! and ranks
@@ -47,7 +41,7 @@ function CommCreate1()
   implicit none
 
   type(comm_type), pointer :: comm
-  type(comm_type), pointer :: CommCreate1
+  type(comm_type), pointer :: CommCreate
 
   allocate(comm)
   comm%global_comm = 0
@@ -62,62 +56,29 @@ function CommCreate1()
 
   comm%mygroup_id = 0
 
-  CommCreate1 => comm
+  CommCreate => comm
 
-end function CommCreate1
-
-! ************************************************************************** !
-
-function CommCreate2(orig_comm)
-  !
-  ! Creates a comm object that holds global and local communicators, sizes 
-  ! and ranks
-  !
-  ! Author: Glenn Hammond
-  ! Date: 05/12/21
-  
-  implicit none
-
-  type(comm_type) :: orig_comm
-
-  type(comm_type), pointer :: newcomm
-  type(comm_type), pointer :: CommCreate2
-
-  allocate(newcomm)
-  newcomm%global_comm = orig_comm%global_comm
-  newcomm%global_rank = orig_comm%global_rank
-  newcomm%global_commsize = orig_comm%global_commsize
-  newcomm%global_group = orig_comm%global_group
-
-  newcomm%mycomm = orig_comm%mycomm
-  newcomm%myrank = orig_comm%myrank
-  newcomm%mycommsize = orig_comm%mycommsize
-  newcomm%mygroup = orig_comm%mygroup
-
-  newcomm%mygroup_id = orig_comm%mygroup_id
-
-  CommCreate2 => newcomm
-
-end function CommCreate2
+end function CommCreate
 
 ! ************************************************************************** !
 
-subroutine CommInit(comm)
+subroutine CommInit(comm,communicator)
 
   implicit none
 
   type(comm_type) :: comm
 
-  PetscMPIInt :: communicator
+  PetscMPIInt, optional :: communicator
+
   PetscErrorCode :: ierr
 
+  if (present(communicator)) PETSC_COMM_WORLD = communicator
   call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
-  communicator = PETSC_COMM_WORLD
 
-  comm%global_comm = communicator
-  call MPI_Comm_rank(communicator,comm%global_rank, ierr)
-  call MPI_Comm_size(communicator,comm%global_commsize,ierr)
-  call MPI_Comm_group(communicator,comm%global_group,ierr)
+  comm%global_comm = PETSC_COMM_WORLD
+  call MPI_Comm_rank(comm%global_comm,comm%global_rank, ierr)
+  call MPI_Comm_size(comm%global_comm,comm%global_commsize,ierr)
+  call MPI_Comm_group(comm%global_comm,comm%global_group,ierr)
   comm%mycomm = comm%global_comm
   comm%myrank = comm%global_rank
   comm%mycommsize = comm%global_commsize
@@ -175,8 +136,11 @@ subroutine CommDestroy(comm)
 
   type(comm_type), pointer :: comm
 
+  PetscErrorCode :: ierr
+
   deallocate(comm)
   nullify(comm)
+  call PetscFinalize(ierr);CHKERRQ(ierr)
 
 end subroutine CommDestroy
 

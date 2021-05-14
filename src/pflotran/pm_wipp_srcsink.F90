@@ -2601,7 +2601,8 @@ subroutine PMWSSSetup(this)
       endif
     enddo
     ! create an MPI group and communicator for each waste panel
-    call MPI_Group_incl(option%mygroup,newcomm_size,cur_waste_panel%rank_list, &
+    call MPI_Group_incl(option%comm%mygroup,newcomm_size, &
+                        cur_waste_panel%rank_list, &
                         cur_waste_panel%myMPIgroup,ierr)
     call MPI_Comm_create(option%mycomm,cur_waste_panel%myMPIgroup, &
                          cur_waste_panel%myMPIcomm,ierr)
