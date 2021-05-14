@@ -5484,6 +5484,8 @@ subroutine PMWFInputRecord(this)
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
   ! 
+  ! Modified by Alex Salazar III
+  ! Date: 05/13/2021
   
   implicit none
   
@@ -5505,10 +5507,6 @@ subroutine PMWFInputRecord(this)
   
   write(id,'(a29)',advance='no') 'pm: '
   write(id,'(a)') this%name
-  
-  ! if (associated(this%waste_form_list)) then
-  !   call WasteFormInputRecord(this%waste_form_list);
-  ! endif
   
   if (associated(this%mechanism_list)) then
     call MechanismInputRecord(this%mechanism_list);
@@ -5663,7 +5661,7 @@ subroutine MechanismInputRecord(this)
   do
     if (.not. associated(cur_mech)) exit
 
-    ! BASE VARIABLES
+    ! Base variables
     if (len(trim(adjustl(cur_mech%name))) > 0) then
       write(id,'(a29)',advance='no') 'mechanism name: '
       write(id,'(a)') adjustl(trim(cur_mech%name))
@@ -5733,7 +5731,7 @@ subroutine MechanismInputRecord(this)
       
     endif
     
-    ! SELECT TYPE
+    ! Mechanism types
     select type(cm => cur_mech)
     class is(wf_mechanism_glass_type)
       
@@ -5996,6 +5994,20 @@ subroutine CritMechInputRecord(this)
       write(id,'(a)') adjustl(trim(cur_crit_mech%mech_name))
     endif
     
+    if (associated(cur_crit_mech%crit_event)) then
+      if (Initialized(cur_crit_mech%crit_event%crit_start)) then
+        write(id,'(a29)',advance='no') 'criticality start time: '
+        write(word,'(es12.5)') cur_crit_mech%crit_event%crit_start
+        write(id,'(a)') trim(adjustl(word)) // ' s'
+      endif
+      
+      if (Initialized(cur_crit_mech%crit_event%crit_end)) then
+        write(id,'(a29)',advance='no') 'criticality end time: '
+        write(word,'(es12.5)') cur_crit_mech%crit_event%crit_end
+        write(id,'(a)') trim(adjustl(word)) // ' s'
+      endif
+    endif
+    
     if (associated(cur_crit_mech%crit_heat_dataset)) then
       write(id,'(a29)',advance='no') 'crit. heat lookup table: '
       write(id,'(a)') adjustl(trim(cur_crit_mech%crit_heat_dataset%file_name))
@@ -6006,7 +6018,7 @@ subroutine CritMechInputRecord(this)
     endif
     
     if (cur_crit_mech%sw > 0.0d0) then
-      write(id,'(a29)',advance='no') 'critical saturation level: '
+      write(id,'(a29)',advance='no') 'critical water saturation: '
       write(word,'(es12.5)') cur_crit_mech%sw
       write(id,'(a)') trim(adjustl(word))
     endif
