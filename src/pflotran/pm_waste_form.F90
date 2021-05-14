@@ -6961,7 +6961,7 @@ subroutine CritHeatRead(this,filename,option)
         allocate(this%lookup_table%axis1%values(this%num_start_times))
         allocate(this%lookup_table%axis2%values(temp_int))
         allocate(this%lookup_table%data(temp_int))
-        string = 'TIME in heat of criticality lookup table'
+        string = 'START_TIME in heat of criticality lookup table'
         call UtilityReadArray(this%lookup_table%axis1%values, &
                               NEG_ONE_INTEGER,string, &
                               input2,option)
