@@ -1012,6 +1012,7 @@ subroutine PMWFReadPMBlock(this,input)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+  PetscBool :: assigned
 ! -------------------------------------------------------
 
   option => this%option
@@ -1084,29 +1085,49 @@ subroutine PMWFReadPMBlock(this,input)
     enddo
 
     ! Assign chosen spacer grid degradation mechanism to each waste form object
-    cur_sp_mech => this%spacer_mech_list
-    do
-      if (.not.associated(cur_sp_mech)) exit
-      if (StringCompare(cur_waste_form%spacer_mech_name, &
-                        cur_sp_mech%mech_name)) then
-        cur_waste_form%spacer_mechanism => cur_sp_mech
-        exit
+    if (associated(this%spacer_mech_list)) then
+      cur_sp_mech => this%spacer_mech_list
+      do
+        if (.not.associated(cur_sp_mech)) exit
+        assigned = PETSC_FALSE
+        if (StringCompare(cur_waste_form%spacer_mech_name, &
+                          cur_sp_mech%mech_name)) then
+          cur_waste_form%spacer_mechanism => cur_sp_mech
+          assigned = PETSC_TRUE
+          exit
+        endif
+        cur_sp_mech => cur_sp_mech%next
+      enddo
+      if (.not. assigned) then
+        option%io_buffer = 'Spacer degradation mechanism "' &
+        // trim(cur_waste_form%spacer_mech_name) &
+        //'" specified for waste form not found among the ' &
+        //'available options.'
+        call PrintErrMsg(option)
       endif
-      cur_sp_mech => cur_sp_mech%next
-    enddo
+    endif
 
     ! Assign chosen criticality mechanism to each waste form object
     if (associated(this%criticality_mediator)) then
       cur_crit_mech => this%criticality_mediator%crit_mech_list 
       do
         if (.not. associated(cur_crit_mech)) exit
+        assigned = PETSC_FALSE
         if (StringCompare(cur_waste_form%criticality_mech_name, &
                           cur_crit_mech%mech_name)) then
           cur_waste_form%criticality_mechanism => cur_crit_mech
+          assigned = PETSC_TRUE
           exit
         endif
         cur_crit_mech => cur_crit_mech%next
       enddo
+      if (.not. assigned) then
+        option%io_buffer = 'Criticality mechanism "' &
+        // trim(cur_waste_form%criticality_mech_name) &
+        //'" specified for waste form not found among the ' &
+        //'available options.'
+        call PrintErrMsg(option)
+      endif
     endif
 
     ! error messaging: ----------------------------------------------
@@ -2341,27 +2362,33 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
     
       
       ! --------------------------- error messaging ---------------------------
+      if (len(trim(new_sp_mech%mech_name)) < 1) then
+        option%io_buffer = 'Name must be specified for spacer grid ' &
+                         //'degradation mechanism in order to be associated ' &
+                         //'with a waste form.'
+        call PrintWrnMsg(option)
+      endif
       if (Uninitialized(new_sp_mech%spacer_mass)) then
         option%io_buffer = 'ERROR: Total spacer grid mass must be specified &
-                           &for spacer grid degradation model.'
+                           &for spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       if (Uninitialized(new_sp_mech%spacer_activation_energy)) then
         option%io_buffer = 'ERROR: Activation energy must be specified &
-                           &for spacer grid degradation model.'
+                           &for spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       if (Uninitialized(new_sp_mech%spacer_coeff)) then
         option%io_buffer = 'ERROR: Scaling coefficient must be specified &
-                           &for spacer grid degradation model.'
+                           &for spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       if (Uninitialized(new_sp_mech%spacer_surface_area)) then
         option%io_buffer = 'ERROR: Total spacer grid surface area must be &
-                           &specified for spacer grid degradation model.'
+                           &specified for spacer grid degradation mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
@@ -2369,7 +2396,7 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
           new_sp_mech%threshold_sat < 0.d0) then
         option%io_buffer = 'ERROR: Saturation limit for exposure must be ' &
                          //'between 0 and 1 in the spacer grid degradation ' &
-                         //'model.'
+                         //'mechanism.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
@@ -5848,14 +5875,17 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
   character(len=MAXSTRINGLENGTH) :: error_string,temp_string
 
   PetscBool :: found, added
+  PetscInt :: num_errors
 
   character(len=MAXWORDLENGTH) :: word
   class(crit_mechanism_base_type), pointer :: new_crit_mech, cur_crit_mech
 
-  error_string = trim(error_string) // ',CRITICALITY'
+  error_string = trim(error_string) // ',CRITICALITY_MECH'
   added = PETSC_FALSE
   found = PETSC_TRUE
+  num_errors = 0
   select case(trim(keyword))
+  !-------------------------------------
     case('CRITICALITY_MECH')
       allocate(new_crit_mech)
       new_crit_mech => CriticalityMechCreate()
@@ -5868,12 +5898,14 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case (trim(word))
+        !-------------------------------------
           case('NAME')
             call InputReadCard(input,option,word)
             call InputErrorMsg(input,option, &
                   'criticality mechanism assignment',error_string)
             call StringToUpper(word)
             new_crit_mech%mech_name = trim(word)
+        !-------------------------------------
           case('CRIT_START')
             call InputReadDouble(input,option,new_crit_mech% &
                                  crit_event%crit_start)
@@ -5882,6 +5914,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                  crit_event%crit_start,'sec', &
                                  trim(error_string)//',CRIT_START', &
                                  option)
+        !-------------------------------------
           case('CRIT_END')
             call InputReadDouble(input,option,new_crit_mech% &
                                  crit_event%crit_end)
@@ -5890,16 +5923,19 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                           crit_event%crit_end,'sec', &
                                           trim(error_string)//',CRIT_END', &
                                           option)
+        !-------------------------------------
           case('CRITICAL_WATER_SATURATION')
             call InputReadDouble(input,option,new_crit_mech%sw)
             call InputErrorMsg(input,option,'CRITICAL WATER SATURATION',&
               error_string)
+        !-------------------------------------
           case('CRITICAL_WATER_DENSITY')
             call InputReadDouble(input,option,new_crit_mech%rho_w)
             call InputErrorMsg(input,option,'CRITICAL WATER DENSITY',&
               error_string)
             call InputReadAndConvertUnits(input,new_crit_mech%rho_w, &
               'kg/m^3',trim(error_string)//',CRITICAL WATER DENSITY',option)
+        !-------------------------------------
           case('HEAT_OF_CRITICALITY')
             call InputPushBlock(input,option)
             do
@@ -5908,6 +5944,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               if (InputCheckExit(input,option)) exit
               call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
+              !-------------------------------------
                 case('CONSTANT_HEAT')
                   internal_units = 'MW'
                   call InputReadDouble(input,option,new_crit_mech%crit_heat)
@@ -5916,6 +5953,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                   call InputReadAndConvertUnits(input,new_crit_mech%crit_heat, &
                     internal_units,trim(error_string)//',HEAT_OF_CRITICALITY,' &
                     //' CONSTANT_HEAT',option)
+              !-------------------------------------
                 case('DATASET')
                   allocate(new_crit_mech%crit_heat_dataset)
                   new_crit_mech%crit_heat_dataset => CritHeatCreate()
@@ -5927,6 +5965,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               end select
             enddo
             call InputPopBlock(input,option)
+        !-------------------------------------
           case('DECAY_HEAT')
             call InputReadCard(input,option,word)
             select case (trim(word))
@@ -5957,6 +5996,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               end select
             enddo
             call InputPopBlock(input,option)
+        !-------------------------------------
           case('INVENTORY')
             call InputPushBlock(input,option)
             do
@@ -5978,9 +6018,44 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               end select
             enddo
             call InputPopBlock(input,option)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-------------------------------------
         end select
       enddo
       call InputPopBlock(input,option)
+      
+      ! --------------------------- error messaging ---------------------------
+      if (len(trim(new_crit_mech%mech_name)) < 1) then
+        option%io_buffer = 'Name must be specified for criticality mechanism ' &
+                         //'in order to be associated with a waste form.'
+        call PrintWrnMsg(option)
+      endif
+      
+      if (Uninitialized(new_crit_mech%crit_event%crit_start)) then
+        option%io_buffer = 'ERROR: Criticality start time must be specified ' &
+                         //'for criticality mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      
+      if (Uninitialized(new_crit_mech%crit_event%crit_end)) then
+        option%io_buffer = 'ERROR: Criticality end time must be specified ' &
+                         //'for criticality mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      
+      if (Initialized(new_crit_mech%sw)) then
+        if (new_crit_mech%sw > 1.d0 .or. new_crit_mech%sw < 0.d0) then
+          option%io_buffer = 'ERROR: Critical water saturation must be ' &
+                           //'between 0 and 1 in the criticality mechanism.'
+          call PrintMsg(option)
+          num_errors = num_errors + 1
+        endif
+      endif
+      
       if (.not.associated(pmwf%criticality_mediator)) then
         pmwf%criticality_mediator => CriticalityMediatorCreate()
       endif
@@ -6000,9 +6075,19 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
         enddo
       endif
       nullify(new_crit_mech)
+  !-------------------------------------
     case default
       found = PETSC_FALSE
+  !-------------------------------------    
   end select
+  
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in ' &
+                    //'the WASTE_FORM_GENERAL,CRITICALITY_MECH ' &
+                    //'block(s). See above.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine ReadCriticalityMech
 
