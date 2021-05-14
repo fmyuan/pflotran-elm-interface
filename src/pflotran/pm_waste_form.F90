@@ -1098,7 +1098,8 @@ subroutine PMWFReadPMBlock(this,input)
         endif
         cur_sp_mech => cur_sp_mech%next
       enddo
-      if (.not. assigned) then
+      if (.not. assigned .and. &
+          len(trim(cur_waste_form%spacer_mech_name)) > 1) then
         option%io_buffer = 'Spacer degradation mechanism "' &
         // trim(cur_waste_form%spacer_mech_name) &
         //'" specified for waste form not found among the ' &
@@ -1121,7 +1122,8 @@ subroutine PMWFReadPMBlock(this,input)
         endif
         cur_crit_mech => cur_crit_mech%next
       enddo
-      if (.not. assigned) then
+      if (.not. assigned .and. &
+          len(trim(cur_waste_form%criticality_mech_name)) > 1) then
         option%io_buffer = 'Criticality mechanism "' &
         // trim(cur_waste_form%criticality_mech_name) &
         //'" specified for waste form not found among the ' &
