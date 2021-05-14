@@ -21,16 +21,16 @@ program pflotran
   ! and/or one after another until a specified set of simulations has
   ! completed.
   type(multi_simulation_type), pointer :: multisimulation
+  type(comm_type, pointer :: comm
   type(option_type), pointer :: option
   PetscInt :: iflag
   PetscErrorCode :: ierr
 
-  nullify(simulation)
   nullify(multisimulation)
+  comm => CommCreate()
+  call CommInit(comm)
   option => OptionCreate()
-  option%comm => CommCreate()
-  call CommInit(option%comm)
-  call OptionSetComm(option,option%comm)
+  call OptionSetComm(option,comm)
   call FactoryPFLOTRANInitPrePetsc(multisimulation,option)
   if (option%myrank == option%io_rank .and. option%print_to_screen) then
     !call PrintProvenanceToScreen()
@@ -53,8 +53,8 @@ program pflotran
   enddo ! multi-simulation loop
   call FactoryPFLOTRANFinalize(option)
   iflag = option%exit_code
-  deallocate(option%comm)
   call OptionFinalize(option)
+  call CommDestroy(comm)
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call exit(iflag)
 

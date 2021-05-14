@@ -297,8 +297,9 @@ subroutine OptionSetComm(option,comm)
   implicit none
 
   type(option_type) :: option
-  type(comm_type) :: comm
+  type(comm_type), pointer :: comm
 
+  option%comm => comm
   option%global_comm     = comm%global_comm
   option%global_commsize = comm%global_commsize
   option%global_rank     = comm%global_rank
@@ -1413,6 +1414,7 @@ subroutine OptionDestroy(option)
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
+  ! never destroy the comm as it was created elsewhere
   nullify(option%comm)
 
   ! all the below should be placed somewhere other than option.F90

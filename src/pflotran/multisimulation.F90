@@ -52,7 +52,7 @@ subroutine MultiSimulationInitialize(multisimulation,option)
   ! Date: 02/04/09, 01/06/14
   use Option_module
   use Input_Aux_module
-  use Communicator_Base_class
+  use Communicator_Aux_module
   
   implicit none
 

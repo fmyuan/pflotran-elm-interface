@@ -29,7 +29,8 @@ module Communicator_Aux_module
 
   public :: CommCreate, &
             CommInit, &
-            CommCreateProcessorGroups
+            CommCreateProcessorGroups, &
+            CommDestroy
   
 contains
 
@@ -137,7 +138,7 @@ subroutine CommCreateProcessorGroups(global_comm,global_commsize,global_rank, &
   ! Date: 08/11/09
   ! 
   implicit none
-  
+
   PetscMPIInt :: global_comm
   PetscMPIInt :: global_commsize
   PetscMPIInt :: global_rank
@@ -174,5 +175,18 @@ subroutine CommCreateProcessorGroups(global_comm,global_commsize,global_rank, &
   call MPI_Comm_size(mycomm,mycommsize,ierr)
 
 end subroutine CommCreateProcessorGroups
-  
+
+! ************************************************************************** !
+
+subroutine CommDestroy(comm)
+
+  implicit none
+
+  type(comm_type), pointer :: comm
+
+  deallocate(comm)
+  nullify(comm)
+
+end subroutine CommDestroy
+
 end module Communicator_Aux_module
