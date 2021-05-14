@@ -359,7 +359,8 @@ WASTE_FORM_GENERAL
     CRIT_START 5.d1 d
     CRIT_END 1.d2 d
     HEAT_OF_CRITICALITY
-      CONSTANT_HEAT 5.d-7 MW
+      DATASET crit_heat.txt
+      # CONSTANT_HEAT 5.d-7 MW
     /
     DECAY_HEAT TOTAL
       DATASET ./decay_heat.ext
