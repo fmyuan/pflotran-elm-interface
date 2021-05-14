@@ -5633,15 +5633,17 @@ subroutine PMWFSpacerMechStrip(this)
   class(spacer_mechanism_base_type), pointer :: prev_mechanism
 ! --------------------------------------------------------
 
-  cur_mechanism => this%spacer_mech_list
-  do
-    if (.not.associated(cur_mechanism)) exit
-    prev_mechanism => cur_mechanism
-    cur_mechanism => cur_mechanism%next
-    deallocate(prev_mechanism)
-    nullify(prev_mechanism)
-  enddo
-  nullify(this%spacer_mech_list)
+  if (associated(this%spacer_mech_list)) then
+    cur_mechanism => this%spacer_mech_list
+    do
+      if (.not.associated(cur_mechanism)) exit
+      prev_mechanism => cur_mechanism
+      cur_mechanism => cur_mechanism%next
+      deallocate(prev_mechanism)
+      nullify(prev_mechanism)
+    enddo
+    nullify(this%spacer_mech_list)
+  endif
 
 end subroutine PMWFSpacerMechStrip
 
