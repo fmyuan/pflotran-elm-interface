@@ -205,6 +205,7 @@ program pflotran_rxn
   use Global_Aux_module
   use Material_Aux_class
   use Reaction_Database_module
+  use Communicator_Aux_module
   use Option_module
   use Input_Aux_module
   use String_module
@@ -237,17 +238,17 @@ program pflotran_rxn
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler 
 
   option => OptionCreate()
+  option%comm => CommCreate()
   option%fid_out = OUT_UNIT
 
   call MPI_Init(ierr)
-  option%global_comm = MPI_COMM_WORLD
-  call MPI_Comm_rank(MPI_COMM_WORLD, option%global_rank, ierr)
-  call MPI_Comm_size(MPI_COMM_WORLD, option%global_commsize, ierr)
-  call MPI_Comm_group(MPI_COMM_WORLD, option%global_group, ierr)
-  option%mycomm = option%global_comm
-  option%myrank = option%global_rank
-  option%mycommsize = option%global_commsize
-  option%mygroup = option%global_group
+  option%comm%global_comm = MPI_COMM_WORLD
+  call MPI_Comm_rank(MPI_COMM_WORLD, option%comm%global_rank, ierr)
+  call MPI_Comm_size(MPI_COMM_WORLD, option%comm%global_commsize, ierr)
+  call MPI_Comm_group(MPI_COMM_WORLD, option%comm%global_group, ierr)
+  option%mycomm = option%comm%global_comm
+  option%myrank = option%comm%global_rank
+  option%mycommsize = option%comm%global_commsize
 
   ! check for non-default input filename
   option%input_filename = "pflotran.in"
@@ -332,6 +333,7 @@ program pflotran_rxn
   deallocate(material_auxvars)
   nullify(material_auxvars)
   call InputDestroy(input)
+  call CommDestroy(option%comm)
   call OptionDestroy(option)
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)

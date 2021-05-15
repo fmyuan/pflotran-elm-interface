@@ -39,7 +39,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine HDF5Init(option)
+subroutine HDF5Init()
   ! 
   ! From the HDF5 library documentation:
   !
@@ -53,9 +53,6 @@ subroutine HDF5Init(option)
   ! Author: Glenn Hammond
   ! Date: 07/06/20
   ! 
-  use Option_module
-  
-  type(option_type) :: option
   
   integer :: hdf5_err
 
@@ -714,16 +711,13 @@ end subroutine HDF5OpenFileReadOnly
 
 ! ************************************************************************** !
 
-subroutine HDF5Finalize(option)
+subroutine HDF5Finalize()
   ! 
   ! Closes the HDF5 library interface for Fortran.
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/06/20
   ! 
-  use Option_module
-  
-  type(option_type) :: option
   
   call h5close_f(hdf5_err)
   

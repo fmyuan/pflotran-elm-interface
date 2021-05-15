@@ -43,7 +43,6 @@ subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
   !       has not yet been initialized.
 
   call FactoryPFLOTRANReadCommandLine(option)
-  call HDF5Init(option)
 
   ! initialize stochastic realizations here
   string = '-stochastic'
@@ -61,7 +60,6 @@ subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
   endif
 
   call OptionBeginTiming(option)
-  call LoggingCreate()
 
 end subroutine FactoryPFLOTRANInitPrePetsc
 
@@ -552,8 +550,6 @@ subroutine FactoryPFLOTRANFinalize(option)
 
   type(option_type) :: option
   PetscErrorCode :: ierr
-
-  call HDF5Finalize(option)
 
 end subroutine FactoryPFLOTRANFinalize
 

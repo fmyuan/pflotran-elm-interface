@@ -3,6 +3,7 @@
 # DO NOT place any object files that depend on the discretization within
 # util_obj
 util_obj = \
+	${common_src}communicator_aux.o \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -136,7 +137,6 @@ chem_obj = \
 
 grid_obj = \
 	${common_src}connection.o \
-	${common_src}communicator_aux.o \
 	${common_src}communicator_base.o \
 	${common_src}communicator_structured.o \
 	${common_src}communicator_unstructured.o \
@@ -173,6 +173,11 @@ dataset_obj = \
 	${common_src}dataset_gridded_hdf5.o \
 	${common_src}time_storage.o
 
+inversion_obj = \
+	${common_src}factory_inversion.o \
+	${common_src}inversion_base.o \
+	${common_src}inversion_insite.o
+
 srcsink_obj = \
 	${common_src}srcsink_sandbox.o \
 	${common_src}srcsink_sandbox_base.o \
@@ -205,6 +210,7 @@ misc_obj = \
 	${common_src}data_mediator_vec.o \
 	${common_src}data_mediator_base.o \
 	${common_src}debug.o \
+	${common_src}factory.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \

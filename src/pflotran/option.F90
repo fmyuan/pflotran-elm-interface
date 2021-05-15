@@ -1,8 +1,5 @@
 module Option_module
 
-! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
-
-
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -1383,7 +1380,6 @@ subroutine OptionFinalize(option)
   PetscInt :: iflag
   PetscErrorCode :: ierr
 
-  call LoggingDestroy()
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             '-options_left','no',ierr);CHKERRQ(ierr)
   ! list any PETSc objects that have not been freed - for debugging

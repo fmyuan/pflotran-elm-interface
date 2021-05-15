@@ -22,7 +22,8 @@ module Communicator_Aux_module
   end type comm_type
 
   public :: CommCreate, &
-            CommInit, &
+            CommInitPetsc, &
+            CommPopulate, &
             CommCreateProcessorGroups, &
             CommDestroy
   
@@ -62,20 +63,34 @@ end function CommCreate
 
 ! ************************************************************************** !
 
-subroutine CommInit(comm,communicator)
+subroutine CommInitPetsc(comm,communicator)
 
   implicit none
 
-  type(comm_type) :: comm
-
+  type(comm_type), pointer :: comm
   PetscMPIInt, optional :: communicator
 
   PetscErrorCode :: ierr
 
+  if (.not.associated(comm)) comm => CommCreate()
   if (present(communicator)) PETSC_COMM_WORLD = communicator
   call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
 
   comm%global_comm = PETSC_COMM_WORLD
+  call CommPopulate(comm)
+
+end subroutine CommInitPetsc
+
+! ************************************************************************** !
+
+subroutine CommPopulate(comm)
+
+  implicit none
+
+  type(comm_type) comm
+
+  PetscErrorCode :: ierr
+
   call MPI_Comm_rank(comm%global_comm,comm%global_rank, ierr)
   call MPI_Comm_size(comm%global_comm,comm%global_commsize,ierr)
   call MPI_Comm_group(comm%global_comm,comm%global_group,ierr)
@@ -84,7 +99,7 @@ subroutine CommInit(comm,communicator)
   comm%mycommsize = comm%global_commsize
   comm%mygroup = comm%global_group
 
-end subroutine CommInit
+end subroutine CommPopulate
 
 ! ************************************************************************** !
 
@@ -140,7 +155,6 @@ subroutine CommDestroy(comm)
 
   deallocate(comm)
   nullify(comm)
-  call PetscFinalize(ierr);CHKERRQ(ierr)
 
 end subroutine CommDestroy
 

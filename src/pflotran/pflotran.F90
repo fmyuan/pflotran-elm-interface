@@ -7,6 +7,7 @@ program pflotran
   use Option_module
   use Simulation_Base_class
   use Multi_Simulation_module
+  use Factory_module
   use Factory_PFLOTRAN_module
   use Factory_Subsurface_module
   use PFLOTRAN_Constants_module
@@ -27,8 +28,9 @@ program pflotran
   PetscErrorCode :: ierr
 
   nullify(multisimulation)
-  comm => CommCreate()
-  call CommInit(comm)
+  nullify(comm)
+  call CommInitPetsc(comm)
+  call Initialize()
   option => OptionCreate()
   call OptionSetComm(option,comm)
   call FactoryPFLOTRANInitPrePetsc(multisimulation,option)
@@ -55,6 +57,7 @@ program pflotran
   iflag = option%exit_code
   call OptionFinalize(option)
   call CommDestroy(comm)
+  call Finalize()
   call exit(iflag)
 
 end program pflotran
