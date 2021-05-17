@@ -1073,8 +1073,6 @@ subroutine PMERTCGLSSolve(this)
     call PMERTComputeMatVecProductJp(this)
 
     delta = dot_product(inversion%q,inversion%q)
-    call MPI_Allreduce(MPI_IN_PLACE,delta,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
     if (delta < 0) indefinite = PETSC_TRUE
     if (delta == 0) delta = epsilon(delta)
 
@@ -1086,17 +1084,19 @@ subroutine PMERTCGLSSolve(this)
     ! get inversion%s = J^tr
     call PMERTComputeMatVecProductJtr(this)
  
-    norms = norm2(inversion%s)
-    call MPI_Allreduce(MPI_IN_PLACE,norms,ONE_INTEGER_MPI, &  
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
     gamma1 = gamma
-    gamma = norms * norms
+    gamma = dot_product(inversion%s,inversion%s)
+    call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &  
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+    norms = sqrt(gamma)
     gbeta = gamma / gamma1
     inversion%p = inversion%s + gbeta * inversion%p
 
-    normx = norm2(inversion%del_cond)
+    normx = dot_product(inversion%del_cond,inversion%del_cond)
     call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &  
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+    normx = sqrt(normx)
     if (xmax < normx) xmax = normx
     if ( (norms <= norms0 * initer_conv) .or. (normx * initer_conv >= 1)) &
                                exit_info = PETSC_TRUE
