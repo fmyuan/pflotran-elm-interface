@@ -3210,6 +3210,7 @@ subroutine PMWFInitializeTimestep(this)
 ! -----------------------------------------------------------
   PetscReal :: t_low, t_high
   PetscReal, pointer :: times(:)
+  PetscBool :: dataset_solution
   class(dataset_ascii_type), pointer :: dataset
   
   avg_temp_global = UNINITIALIZED_DOUBLE
@@ -3430,8 +3431,14 @@ subroutine PMWFInitializeTimestep(this)
     if ((cur_waste_form%volume >= 0.d0) .and. &
         (option%time >= cur_waste_form%decay_start_time)) then !--------------
 
-    if (associated(cur_waste_form%criticality_mechanism) &
-        .and. associated(cur_waste_form%criticality_mechanism%rad_dataset)) then
+    dataset_solution = PETSC_FALSE
+    if (associated(cur_waste_form%criticality_mechanism)) then
+      if (associated(cur_waste_form%criticality_mechanism%rad_dataset)) then 
+        dataset_solution = PETSC_TRUE
+      endif 
+    endif
+
+    if (dataset_solution) then
       !Import radionuclide inventory from external neutronics code calculations
       dataset => cur_waste_form%criticality_mechanism%rad_dataset
       times => dataset%time_storage%times
@@ -3471,7 +3478,7 @@ subroutine PMWFInitializeTimestep(this)
           cur_waste_form%rad_mass_fraction(k) / &
           cwfm%rad_species_list(k)%formula_weight
       enddo
-      
+       
     elseif (.not.this%implicit_solution) then !-----------------------------------
 
     ! 3-generation analytical solution derived for multiple parents and
