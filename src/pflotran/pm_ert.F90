@@ -893,6 +893,10 @@ subroutine PMERTBuildJacobian(this)
   material_auxvars => patch%aux%Material%auxvars
   cell_neighbors => grid%cell_neighbors_local_ghosted
 
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'(/," --> Building ERT Jacobian matrix:")') 
+  endif
+
   do idata=1,survey%num_measurement
     
     ! for A and B electrodes
@@ -1044,6 +1048,10 @@ subroutine PMERTCGLSSolve(this)
   inversion => this%inversion
 
   inversion%del_cond = 0.0d0
+
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'(" --> Solving normal equation using CGLS solver:")') 
+  endif
 
   ! Get RHS vector inversion%b
   call PMERTCGLSRhs(this)
