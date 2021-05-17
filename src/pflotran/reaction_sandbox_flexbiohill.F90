@@ -1,9 +1,9 @@
-module Reaction_Sand_Flex_Biodeg_class
+module Reaction_Sand_FlexBioHill_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use Reaction_Sandbox_Biodeg_class
+  use Reaction_Sandbox_BioHill_class
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -11,7 +11,7 @@ module Reaction_Sand_Flex_Biodeg_class
   private
   
   type, public, &
-    extends(reaction_sandbox_biodeg_type) :: reaction_sandbox_flexbiodeg_type
+    extends(reaction_sandbox_biohill_type) :: reaction_sandbox_flexbiohill_type
     PetscReal :: k_max
     PetscReal :: K_Aaq_n
     PetscReal :: K_Baq
@@ -22,43 +22,43 @@ module Reaction_Sand_Flex_Biodeg_class
     PetscBool :: molarity_units
     PetscReal, pointer :: stoich(:)
   contains
-    procedure, public :: ReadInput => FlexBiodegReadInput
-    procedure, public :: Setup => FlexBiodegSetup
-    procedure, public :: Evaluate => FlexBiodegEvaluate
-    procedure, public :: Destroy => FlexBiodegDestroy
-  end type reaction_sandbox_flexbiodeg_type
+    procedure, public :: ReadInput => FlexBioHillReadInput
+    procedure, public :: Setup => FlexBioHillSetup
+    procedure, public :: Evaluate => FlexBioHillEvaluate
+    procedure, public :: Destroy => FlexBioHillDestroy
+  end type reaction_sandbox_flexbiohill_type
 
-  public :: FlexBiodegCreate
+  public :: FlexBioHillCreate
 
 contains
 
 ! ************************************************************************** !
 
-function FlexBiodegCreate()
+function FlexBioHillCreate()
   ! 
   ! Allocates flexible biodegradation reaction object.
   ! 
   implicit none
   
-  class(reaction_sandbox_flexbiodeg_type), pointer :: FlexBiodegCreate
+  class(reaction_sandbox_flexbiohill_type), pointer :: FlexBioHillCreate
 
-  allocate(FlexBiodegCreate)
-  FlexBiodegCreate%k_max = UNINITIALIZED_DOUBLE
-  FlexBiodegCreate%K_Aaq_n = UNINITIALIZED_DOUBLE
-  FlexBiodegCreate%K_Baq = UNINITIALIZED_DOUBLE
-  FlexBiodegCreate%I_Caq = UNINITIALIZED_DOUBLE
-  FlexBiodegCreate%yield = UNINITIALIZED_DOUBLE
-  FlexBiodegCreate%k_decay = UNINITIALIZED_DOUBLE
-  FlexBiodegCreate%n = 1.d0
-  FlexBiodegCreate%molarity_units = PETSC_TRUE
-  nullify(FlexBiodegCreate%stoich)
-  nullify(FlexBiodegCreate%next)  
+  allocate(FlexBioHillCreate)
+  FlexBioHillCreate%k_max = UNINITIALIZED_DOUBLE
+  FlexBioHillCreate%K_Aaq_n = UNINITIALIZED_DOUBLE
+  FlexBioHillCreate%K_Baq = UNINITIALIZED_DOUBLE
+  FlexBioHillCreate%I_Caq = UNINITIALIZED_DOUBLE
+  FlexBioHillCreate%yield = UNINITIALIZED_DOUBLE
+  FlexBioHillCreate%k_decay = UNINITIALIZED_DOUBLE
+  FlexBioHillCreate%n = 1.d0
+  FlexBioHillCreate%molarity_units = PETSC_TRUE
+  nullify(FlexBioHillCreate%stoich)
+  nullify(FlexBioHillCreate%next)  
       
-end function FlexBiodegCreate
+end function FlexBioHillCreate
 
 ! ************************************************************************** !
 
-subroutine FlexBiodegReadInput(this,input,option)
+subroutine FlexBioHillReadInput(this,input,option)
   ! 
   ! Reads flexible biodegradation reaction parameters
   !
@@ -68,7 +68,7 @@ subroutine FlexBiodegReadInput(this,input,option)
 
   implicit none
 
-  class(reaction_sandbox_flexbiodeg_type) :: this
+  class(reaction_sandbox_flexbiohill_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -163,11 +163,11 @@ subroutine FlexBiodegReadInput(this,input,option)
 
   this%K_Aaq_n = K_Aaq**this%n
 
-end subroutine FlexBiodegReadInput
+end subroutine FlexBioHillReadInput
 
 ! ************************************************************************** !
 
-subroutine FlexBiodegSetup(this,reaction,option)
+subroutine FlexBioHillSetup(this,reaction,option)
   ! 
   ! Sets up the flexible biodegradation reaction with hardwired parameters
   ! 
@@ -177,11 +177,11 @@ subroutine FlexBiodegSetup(this,reaction,option)
 
   implicit none
 
-  class(reaction_sandbox_flexbiodeg_type) :: this
+  class(reaction_sandbox_flexbiohill_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  call BiodegSetup(this,reaction,option)
+  call BioHillSetup(this,reaction,option)
   allocate(this%stoich(reaction%ncomp))
   this%stoich = 0.d0
   this%stoich(this%species_Aaq_id) = -1.d0
@@ -190,15 +190,15 @@ subroutine FlexBiodegSetup(this,reaction,option)
   this%stoich(this%species_Daq_id) = 1.d0
   this%stoich(this%species_Xim_id+reaction%offset_immobile) = this%yield
 
-end subroutine FlexBiodegSetup
+end subroutine FlexBioHillSetup
 
 ! ************************************************************************** !
 
-subroutine FlexBiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
-                              rt_auxvar,global_auxvar,material_auxvar, &
-                              reaction,option)
+subroutine FlexBioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
+                               rt_auxvar,global_auxvar,material_auxvar, &
+                               reaction,option)
   ! 
-  ! Evaluates flexible biodegradation reaction storing residual but no Jacobian
+  ! Evaluates flexible biodegradation reaction storing residual and Jacobian
   ! 
   use Option_module
   use Reaction_Aux_module
@@ -208,7 +208,7 @@ subroutine FlexBiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   implicit none
 
-  class(reaction_sandbox_flexbiodeg_type) :: this
+  class(reaction_sandbox_flexbiohill_type) :: this
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -281,11 +281,11 @@ subroutine FlexBiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
       Jacobian(Xim_offset,Xim_offset) + this%k_decay * volume
   endif
 
-end subroutine FlexBiodegEvaluate
+end subroutine FlexBioHillEvaluate
 
 ! ************************************************************************** !
 
-subroutine FlexBiodegDestroy(this)
+subroutine FlexBioHillDestroy(this)
   !
   ! Deallocates dynamic memory
   !
@@ -293,10 +293,10 @@ subroutine FlexBiodegDestroy(this)
 
   implicit none
 
-  class(reaction_sandbox_flexbiodeg_type) :: this
+  class(reaction_sandbox_flexbiohill_type) :: this
 
   call DeallocateArray(this%stoich)
 
-end subroutine FlexBiodegDestroy
+end subroutine FlexBioHillDestroy
 
-end module Reaction_Sand_Flex_Biodeg_class
+end module Reaction_Sand_FlexBioHill_class

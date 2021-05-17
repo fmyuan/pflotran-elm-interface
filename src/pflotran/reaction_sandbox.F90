@@ -10,8 +10,8 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Simple_class
   use Reaction_Sandbox_Cyber_class
   use Reaction_Sandbox_Gas_class
-  use Reaction_Sandbox_Biodeg_class
-  use Reaction_Sand_Flex_Biodeg_class
+  use Reaction_Sandbox_BioHill_class
+  use Reaction_Sand_FlexBioHill_class
 
   ! Add new reacton sandbox classes here.
   
@@ -168,10 +168,10 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => CyberCreate()
       case('GAS')
         new_sandbox => GasCreate()
-      case('BIODEGRADATION')
-        new_sandbox => BiodegCreate()
-      case('FLEXIBLE_BIODEGRADATION')
-        new_sandbox => FlexBiodegCreate()
+      case('BIODEGRADATION_HILL')
+        new_sandbox => BioHillCreate()
+      case('FLEXIBLE_BIODEGRADATION_HILL')
+        new_sandbox => FlexBioHillCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)

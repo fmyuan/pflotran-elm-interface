@@ -16,7 +16,7 @@ import math
 import pflotran as pft
 
 if len(sys.argv) < 2:
-    print("Please enter gmd_1-obs-0.pft or gmd_1-obs-0.pft at the commandline. I.e. \n\n  python %s gmd_1-obs-0.pft\n\nor\n\n  python %s gmd_2-obs-0.pft\n"%(sys.argv[0],sys.argv[0]))
+    print("\nPlease use one of the following commands:\n\n  python %s biodegradation-obs-0.pft\n  python %s biodegradation_hill-obs-0.pft\n  python %s flexible_biodegradation_hill-obs-0.pft\n"%(sys.argv[0],sys.argv[0],sys.argv[0]))
     sys.exit(0)
 
 observation_filename = sys.argv[1]
@@ -49,9 +49,6 @@ def plot_aqueous(plt,filename,scale_string):
   plt.xlabel('Time [d]')
   plt.ylabel('Aqueous Concentration [M]')
 
-  #plt.xlim(0.,1.)
-  #plt.ylim(0.,1.)
-  #plt.grid(True)
   plt.yscale(scale_string)
 
   maxval = -1.e20
@@ -113,7 +110,6 @@ def plot_immobile(plt,filename,scale_string):
   legend.get_frame().set_fill(False)
   legend.draw_frame(False)
 
-
 aq_labels = []
 aq_labels.append('Aaq')
 aq_labels.append('Baq')
@@ -139,7 +135,6 @@ im_colors.append('darkorange')
 im_colors.append('navy')
 
 f = plt.figure(figsize=(16,6))
-f.suptitle("Reaction Sandbox GMD",fontsize=16)
 
 #linear scale
 plt.subplot(1,2,1)
@@ -153,10 +148,9 @@ plt.subplot(1,2,2)
 plt.title('Time History - Log Scale')
 scale_string = 'log'
 plot_aqueous(plt,observation_filename,scale_string)
-#plot_immobile(plt,observation_filename,scale_string)
 
 f.subplots_adjust(hspace=0.2,wspace=0.40,
-                  bottom=.12,top=.85,
+                  bottom=.12,top=.92,
                   left=.08,right=.92)
 
 plt.show()

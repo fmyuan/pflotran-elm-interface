@@ -29,9 +29,11 @@ CONSTRAINT initial
     Baq  5.d-4   F
     Caq  1.d-10  F
     Daq  1.d-10  F
+    Eaq  1.d-10  F
   /
   IMMOBILE     # [mol/m^3 bulk]
     Xim  1.d-4
+    Yim  1.d-10
   /
 END
 
@@ -40,43 +42,36 @@ CHEMISTRY
   PRIMARY_SPECIES
     Aaq
     Baq
+    Eaq
     Caq
     Daq
   /
   IMMOBILE_SPECIES
+    Yim
     Xim
   /
-  MICROBIAL_REACTION
-    REACTION Aaq + 0.25 Baq <-> 0.33 Caq + Daq
-    RATE_CONSTANT 9.d-2
-    MONOD
-      SPECIES_NAME Aaq
-      HALF_SATURATION_CONSTANT 2.d-4
-    /
-    MONOD
-      SPECIES_NAME Baq
-      HALF_SATURATION_CONSTANT 1.25d-5
-    /
-    INHIBITION
-      SPECIES_NAME Caq
-      TYPE MONOD
-      INHIBITION_CONSTANT 2.5d-4
-    /
-    BIOMASS
-      SPECIES_NAME Xim
+  REACTION_SANDBOX
+    FLEXIBLE_BIODEGRADATION_HILL
+      AQUEOUS_CONCENTRATION_UNITS MOLARITY
+      MAX_SPECIFIC_UTILIZATION_RATE 324.d0 1/h
+      AAQ_HALF_SATURATION_CONSTANT 2.d-4
+      BAQ_HALF_SATURATION_CONSTANT 1.25d-5
+      CAQ_MONOD_INHIBITION_CONSTANT 2.5d-4
       YIELD 1.d-4
+      BIOMASS_DECAY_RATE_CONSTANT 1.d-6
+      HILL_EXPONENT 1.2d0
     /
-  /
-  IMMOBILE_DECAY_REACTION
-    SPECIES_NAME Xim
-    RATE_CONSTANT 1.d-6
   /
   DATABASE ../../../database/simple_rxn_database.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
     FREE_ION
-    ALL
+    Aaq
+    Baq
+    Caq
+    Daq
+    Xim
   /
 END
 
@@ -84,7 +79,6 @@ END
 NUMERICAL_METHODS TRANSPORT
 
   NEWTON_SOLVER
-    NUMERICAL_JACOBIAN
   /
 
   LINEAR_SOLVER
