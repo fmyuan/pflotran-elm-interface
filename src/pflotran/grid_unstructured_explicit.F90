@@ -18,7 +18,8 @@ module Grid_Unstructured_Explicit_module
             UGridExplicitSetCellCentroids, &
             UGridExplicitComputeVolumes, &
             UGridExplicitSetBoundaryConnect, &
-            UGridExplicitSetConnections
+            UGridExplicitSetConnections, &
+            UGridExplicitGetClosestCellFromPoint
 
 contains
 
@@ -1938,5 +1939,64 @@ function UGridExplicitSetConnections(explicit_grid,cell_ids,connection_type, &
   UGridExplicitSetConnections => connections
 
 end function UGridExplicitSetConnections
+
+! ************************************************************************** !
+
+subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit, &
+                                                nG2L,option,icell, &
+                                                cell_distance)
+
+  ! 
+  ! Returns the cell which its center is the closest for point x,y,z
+  ! 
+  ! Author: Moise Rousseau
+  ! Date: 04/12/21
+  ! 
+  use Option_module
+  use Geometry_module  
+
+  implicit none
+  
+  PetscReal :: x, y, z
+  PetscInt :: icell
+  PetscReal :: cell_distance
+  type(unstructured_explicit_type) :: grid_explicit
+  PetscInt, pointer :: nG2L(:)
+  type(option_type) :: option
+  
+  type(point3d_type) :: pt_test
+  type(point3d_type) :: pt_champion
+  PetscReal :: min_distance, distance
+  PetscInt :: ghosted_id, local_id, champion
+  
+  !initiate
+  min_distance = MAX_DOUBLE
+  !looking for champion
+  do ghosted_id = 1, size(grid_explicit%cell_volumes)
+    local_id = nG2L(ghosted_id)
+    if (local_id <= 0) cycle
+    pt_test = grid_explicit%cell_centroids(ghosted_id)
+    distance = (pt_test%x-x)**2 + (pt_test%y-y)**2 + (pt_test%z-z)**2
+    if (distance < min_distance) then
+      champion = local_id
+      min_distance = distance
+      pt_champion = pt_test
+      cycle
+    endif
+    if (distance == min_distance) then 
+      if ((pt_test%x < pt_champion%x) .or. &
+         (pt_test%x == pt_champion%x .and. pt_test%y < pt_champion%y) .or. &
+         (pt_test%x == pt_champion%x .and. pt_test%y == pt_champion%y .and. &
+         pt_test%z < pt_champion%z)) then
+        champion = local_id
+        pt_champion = pt_test
+      endif
+    endif
+  enddo
+  
+  icell = champion
+  cell_distance = min_distance
+  
+end subroutine UGridExplicitGetClosestCellFromPoint
 
 end module Grid_Unstructured_Explicit_module

@@ -143,7 +143,7 @@ function SolverCreate()
   solver%newton_rtol = PETSC_DEFAULT_REAL
   solver%newton_stol = PETSC_DEFAULT_REAL
   solver%newton_dtol = PETSC_DEFAULT_REAL
-  solver%max_norm = 1.d20     ! set to a large value
+  solver%max_norm = MAX_DOUBLE    ! set to a large value
   solver%newton_inf_res_tol = UNINITIALIZED_DOUBLE
   solver%newton_inf_upd_tol = UNINITIALIZED_DOUBLE
   solver%newton_inf_rel_update_tol = UNINITIALIZED_DOUBLE
@@ -1710,7 +1710,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             write(word,*) zero_pivot_tol
             ! In parallel, some processes will not have a zero pivot and
             ! will report zero as the error.  We must skip these processes.
-            zero_pivot = 1.d20
+            zero_pivot = MAX_DOUBLE
             ! note that this is not the global pc reason
             select case(pc_failed_reason)
               case(PC_FACTOR_STRUCT_ZEROPIVOT,PC_FACTOR_NUMERIC_ZEROPIVOT)

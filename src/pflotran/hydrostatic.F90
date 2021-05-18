@@ -82,8 +82,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   
   condition => coupler%flow_condition
 
-  datum_dataset_rmax = -1.d20
-  datum_dataset_rmin = 1.d20
+  datum_dataset_rmax = -MAX_DOUBLE
+  datum_dataset_rmin = MAX_DOUBLE
   
   xm_nacl = option%m_nacl * FMWNACL
   xm_nacl = xm_nacl /(1.d3 + xm_nacl)
