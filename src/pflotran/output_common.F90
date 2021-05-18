@@ -1059,13 +1059,13 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
           idx = (local_id_dn-1)*offset + (dof-1)*MAX_FACE_PER_CELL + iface_dn + 1
 
-          vx(dof,iface_dn,local_id_dn) = -vel_vector(1)
-          vy(dof,iface_dn,local_id_dn) = -vel_vector(2)
-          vz(dof,iface_dn,local_id_dn) = -vel_vector(3)
+          vx(dof,iface_dn,local_id_dn) = vel_vector(1)
+          vy(dof,iface_dn,local_id_dn) = vel_vector(2)
+          vz(dof,iface_dn,local_id_dn) = vel_vector(3)
 
-          vx_ptr(idx) = -vel_vector(1)
-          vy_ptr(idx) = -vel_vector(2)
-          vz_ptr(idx) = -vel_vector(3)
+          vx_ptr(idx) = vel_vector(1)
+          vy_ptr(idx) = vel_vector(2)
+          vz_ptr(idx) = vel_vector(3)
 
         endif
 
@@ -1104,13 +1104,13 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
         idx = (local_id_dn-1)*offset + (dof-1)*MAX_FACE_PER_CELL + iface_dn + 1
 
-        vx(dof,iface_dn,local_id_dn) = -vel_vector(1)
-        vy(dof,iface_dn,local_id_dn) = -vel_vector(2)
-        vz(dof,iface_dn,local_id_dn) = -vel_vector(3)
+        vx(dof,iface_dn,local_id_dn) = vel_vector(1)
+        vy(dof,iface_dn,local_id_dn) = vel_vector(2)
+        vz(dof,iface_dn,local_id_dn) = vel_vector(3)
 
-        vx_ptr(idx) = -vel_vector(1)
-        vy_ptr(idx) = -vel_vector(2)
-        vz_ptr(idx) = -vel_vector(3)
+        vx_ptr(idx) = vel_vector(1)
+        vy_ptr(idx) = vel_vector(2)
+        vz_ptr(idx) = vel_vector(3)
 
       enddo ! dof-loop
 
@@ -1363,8 +1363,8 @@ subroutine OutputGetFaceFlowrateUGrid(realization_base)
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
       face_id = cur_connection_set%face_id(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-      local_id_dn = grid%nG2L(ghosted_id_dn)
+      local_id_dn = cur_connection_set%id_dn(iconn)
+      ghosted_id_dn = grid%nL2G(local_id_dn)
       do iface_dn = 1,MAX_FACE_PER_CELL
         if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
       enddo
@@ -1711,7 +1711,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   PetscInt :: sum_connection, count
   Vec :: vec_proc
   PetscInt :: idof
-  PetscInt :: icap_up, icap_dn
+  PetscInt :: icc_up, icc_dn
   PetscReal :: sir_up, sir_dn
   PetscReal, parameter :: eps = 1.D-8
   PetscReal :: upweight
@@ -1740,8 +1740,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_up = grid%nG2L(ghosted_id_up)
       local_id_dn = grid%nG2L(ghosted_id_dn) 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
       if (option%myrank == int(vec_proc_ptr(sum_connection))) then
         count = count + 1
 

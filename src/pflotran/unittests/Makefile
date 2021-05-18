@@ -19,12 +19,14 @@ TEST_OBJS = $(TEST_SRCS:.pf=$(OBJ_EXT))
 # their dependancies)! Probably need a more complex .o dependancy
 # setup like the main makefile...
 PFLOTRAN_OBJS = \
-        $(EXE_DIR)/characteristic_curves.o \
-        $(EXE_DIR)/characteristic_curves_base.o \
-        $(EXE_DIR)/characteristic_curves_common.o \
-        $(EXE_DIR)/characteristic_curves_owg.o \
-        $(EXE_DIR)/characteristic_curves_wipp.o \
-	$(EXE_DIR)/characteristic_curves_table.o \
+	$(EXE_DIR)/characteristic_curves.o \
+	$(EXE_DIR)/characteristic_curves_base.o \
+	$(EXE_DIR)/characteristic_curves_common.o \
+	$(EXE_DIR)/characteristic_curves_wipp.o \
+	$(EXE_DIR)/characteristic_curves_thermal.o \
+	$(EXE_DIR)/dataset_ascii.o \
+	$(EXE_DIR)/dataset_base.o \
+	$(EXE_DIR)/time_storage.o \
 	$(EXE_DIR)/eos_database.o \
 	$(EXE_DIR)/eos_gas.o \
 	$(EXE_DIR)/eos_water.o \
@@ -36,6 +38,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/option.o \
 	$(EXE_DIR)/option_flow.o \
 	$(EXE_DIR)/option_transport.o \
+	$(EXE_DIR)/option_geophysics.o \
 	$(EXE_DIR)/pflotran_constants.o \
 	$(EXE_DIR)/saturation_function.o \
 	$(EXE_DIR)/string.o \
@@ -91,5 +94,5 @@ clean-pfunit :
 	./build-pfunit.sh -c $(FC) -d $(PFUNIT_DIR) -n
 
 # uncomment the PRECIOUS rule to keep the intermediate F90 files
-#.PRECIOUS : %.F90
+.PRECIOUS : %.F90
 

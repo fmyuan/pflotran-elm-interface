@@ -21,7 +21,8 @@ module Reaction_Mineral_module
             MineralProcessConstraint, &
             RKineticMineral, &
             RMineralSaturationIndex, &
-            MineralUpdateTempDepCoefs
+            MineralUpdateTempDepCoefs, &
+            MineralUpdateSpecSurfaceArea
             
 contains
 
@@ -222,10 +223,14 @@ subroutine MineralReadKinetics(mineral,input,option)
               call InputReadDouble(input,option,tstrxn%armor_pwr)
               call InputErrorMsg(input,option,'armor_pwr',error_string)
             case('ARMOR_CRIT_VOL_FRAC')
-                    ! read critical volume fraction
               call InputReadDouble(input,option,tstrxn%armor_crit_vol_frac)
               call InputErrorMsg(input,option,'armor_crit_vol_frac',error_string)
-
+            case('SPECIFIC_SURFACE_AREA_EPSILON')
+              call InputReadDouble(input,option,tstrxn%surf_area_epsilon)
+              call InputErrorMsg(input,option,word,error_string)
+            case('VOLUME_FRACTION_EPSILON')
+              call InputReadDouble(input,option,tstrxn%vol_frac_epsilon)
+              call InputErrorMsg(input,option,word,error_string)
             case('PREFACTOR')
               error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR'
               prefactor => TransitionStatePrefactorCreate()
@@ -596,7 +601,7 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
       endif
       if (mineral_rxn%molar_volume < 1.d-16 .or. &
           Equal(mineral_rxn%molar_volume,500.d0)) then
-        option%io_buffer = 'Zeroor undefined molar volume for mineral "' // & 
+        option%io_buffer = 'Zero or undefined molar volume for mineral "' // & 
           trim(mineral_rxn%name) // '" prevents specifying mineral specific &
           &surface area per mass mineral in constraint "' // &
           trim(constraint_name) // '".'
@@ -1333,5 +1338,100 @@ subroutine MineralUpdateTempDepCoefs(temp,pres,mineral,use_geothermal_hpt, &
   endif
   
 end subroutine MineralUpdateTempDepCoefs
+
+! ************************************************************************** !
+
+subroutine MineralUpdateSpecSurfaceArea(reaction,rt_auxvar,material_auxvar, &
+                                        porosity0,option)
+  ! 
+  ! Updates mineral specific surface area 
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/04/21
+  ! 
+  use Material_Aux_class
+  use Option_module
+
+  implicit none
+
+  class(reaction_rt_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  PetscReal :: porosity0
+  type(option_type) :: option
+
+  type(mineral_type), pointer :: mineral
+  PetscInt :: imnrl
+  PetscInt :: imnrl1
+  PetscInt :: imnrl_armor
+  PetscReal :: porosity_scale
+  PetscReal :: volfrac_scale
+  PetscReal :: mnrl_volfrac0
+  PetscReal :: mnrl_volfrac
+
+  mineral => reaction%mineral
+
+  do imnrl = 1, mineral%nkinmnrl
+
+    porosity_scale = 1.d0
+    if (reaction%update_mnrl_surf_with_porosity) then
+      porosity_scale = &
+        ((1.d0-material_auxvar%porosity_base) / &
+         (1.d0-porosity0))** &
+         mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
+    endif
+
+    volfrac_scale = 1.d0
+    mnrl_volfrac0 = max(rt_auxvar%mnrl_volfrac0(imnrl), &
+                        mineral%kinmnrl_vol_frac_epsilon(imnrl))
+    mnrl_volfrac = max(rt_auxvar%mnrl_volfrac(imnrl), &
+                       mineral%kinmnrl_vol_frac_epsilon(imnrl))
+    if (mnrl_volfrac0 > 0.d0) then
+      volfrac_scale = (mnrl_volfrac/mnrl_volfrac0)** &
+                      mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+    endif
+
+    rt_auxvar%mnrl_area(imnrl) = &
+        max(rt_auxvar%mnrl_area0(imnrl), &
+            mineral%kinmnrl_surf_area_epsilon(imnrl)) * &
+        porosity_scale*volfrac_scale
+
+    if (reaction%update_armor_mineral_surface .and. &
+        mineral%kinmnrl_armor_crit_vol_frac(imnrl) > 0.d0) then
+      imnrl_armor = imnrl
+      do imnrl1 = 1, mineral%nkinmnrl
+        if (mineral%kinmnrl_armor_min_names(imnrl) == &
+            mineral%kinmnrl_names(imnrl1)) then
+          imnrl_armor = imnrl1
+          exit
+        endif
+      enddo
+
+      ! check for negative surface area armoring correction
+      if (mineral%kinmnrl_armor_crit_vol_frac(imnrl) > &
+          rt_auxvar%mnrl_volfrac(imnrl_armor)) then
+
+        if (reaction%update_armor_mineral_surface_flag == 0) then 
+          ! surface unarmored
+          rt_auxvar%mnrl_area(imnrl) = &
+            rt_auxvar%mnrl_area(imnrl) * &
+            ((mineral%kinmnrl_armor_crit_vol_frac(imnrl) &
+            - rt_auxvar%mnrl_volfrac(imnrl_armor))/ &
+            mineral%kinmnrl_armor_crit_vol_frac(imnrl))** &
+            mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+        else
+          rt_auxvar%mnrl_area(imnrl) = &
+            rt_auxvar%mnrl_area0(imnrl)
+          reaction%update_armor_mineral_surface_flag = 0
+        endif
+      else
+        rt_auxvar%mnrl_area(imnrl) = 0.d0
+        reaction%update_armor_mineral_surface_flag = 1 ! surface armored
+      endif
+    endif
+
+  enddo
+  
+end subroutine MineralUpdateSpecSurfaceArea
 
 end module Reaction_Mineral_module

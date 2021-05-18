@@ -224,12 +224,12 @@ subroutine ImmobileProcessConstraint(immobile,constraint_name, &
                 '" not found among immobile species.'
       call PrintErrMsg(option)
     else
-      immobile_name(iimmobile) = constraint%names(iimmobile)
-      constraint_conc(iimmobile) = &
+      immobile_name(jimmobile) = constraint%names(iimmobile)
+      constraint_conc(jimmobile) = &
         constraint%constraint_conc(iimmobile)
-      constraint_aux_string(iimmobile) = &
+      constraint_aux_string(jimmobile) = &
         constraint%constraint_aux_string(iimmobile)
-      external_dataset(iimmobile) = constraint%external_dataset(iimmobile)
+      external_dataset(jimmobile) = constraint%external_dataset(iimmobile)
     endif  
   enddo
   constraint%names = immobile_name

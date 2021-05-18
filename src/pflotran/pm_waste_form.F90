@@ -22,6 +22,7 @@ module PM_Waste_Form_class
   use Dataset_Ascii_class
   use Region_module
   use Checkpoint_module
+  use Kdtree_module
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -31,6 +32,7 @@ module PM_Waste_Form_class
   private
 
   PetscBool, public :: bypass_warning_message = PETSC_FALSE
+  PetscBool, public :: FMDM_surrogate_knnr = PETSC_FALSE
 
 ! OBJECT rad_species_type:
 ! ========================
@@ -103,7 +105,7 @@ module PM_Waste_Form_class
     PetscReal :: vitality_rate_trunc
     PetscReal :: canister_material_constant
     PetscReal :: matrix_density                
-    PetscReal :: specific_surface_area         
+    PetscReal :: specific_surface_area
     character(len=MAXWORDLENGTH) :: name
     class(wf_mechanism_base_type), pointer :: next
   contains
@@ -244,7 +246,7 @@ module PM_Waste_Form_class
 ! ---------------------------------------------------------------------------
 ! Description:  Defines the dissolution behavior of uranium dioxide high
 ! level nuclear waste through coupling to a single-layer feed-forward
-! artificial neural network SURROGATE APPROXIMATION
+! artificial neural network or k nearest neighbors SURROGATE APPROXIMATION
 ! of an external model called the Fuel Matrix Degradation Model (FMDM). This 
 ! object extends the base mechanism object.
 ! ---------------------------------------------------------------------------
@@ -272,10 +274,22 @@ module PM_Waste_Form_class
     PetscInt :: iO2
     PetscInt :: iFe_2p
     PetscInt :: iH2
-    PetscReal, pointer :: outer_weights(:)
-    PetscReal, pointer :: inner_weights(:,:)
-    PetscReal, pointer :: scaler_means(:)
-    PetscReal, pointer :: scaler_variances(:)
+    ! ANN parameters
+    PetscReal :: input_hidden1_weights(6,64)
+    PetscReal :: input_hidden1_bias(64)
+    PetscReal :: hidden1_hidden2_weights(64,64)
+    PetscReal :: hidden1_hidden2_bias(64)
+    PetscReal :: hidden2_output_weights(64)
+    PetscReal :: hidden2_output_bias
+    PetscReal :: scaler_offsets(6)
+    PetscReal :: scaler_scales(6)
+    ! kNNr variables
+    PetscInt :: num_nearest_neighbor
+    type(kdtree), pointer :: tree
+    PetscReal, pointer :: knnr_array(:,:)
+    PetscInt :: num_qoi 
+    PetscReal, pointer :: table_data(:,:)
+    PetscReal :: knnr_eps 
   contains
     procedure, public :: Dissolution => WFMechFMDMSurrogateDissolution
   end type wf_mechanism_fmdm_surrogate_type
@@ -361,14 +375,21 @@ module PM_Waste_Form_class
     PetscReal, pointer :: rad_concentration(:)      
     PetscReal, pointer :: inst_release_amount(:)    
     PetscBool :: canister_degradation_flag
+    PetscBool :: spacer_degradation_flag
     PetscReal :: canister_vitality                     
     PetscReal :: canister_vitality_rate
     PetscReal :: eff_canister_vit_rate
+    PetscReal :: spacer_vitality
+    PetscReal :: spacer_vitality_rate
     PetscReal :: breach_time                           
     PetscBool :: breached
     PetscReal :: decay_start_time                      
     character(len=MAXWORDLENGTH) :: mech_name
+    character(len=MAXWORDLENGTH) :: spacer_mech_name
+    character(len=MAXWORDLENGTH) :: criticality_mech_name
     class(wf_mechanism_base_type), pointer :: mechanism
+    class(spacer_mechanism_base_type), pointer :: spacer_mechanism
+    class(crit_mechanism_base_type), pointer :: criticality_mechanism
     class(waste_form_base_type), pointer :: next
     
   end type waste_form_base_type
@@ -399,7 +420,6 @@ module PM_Waste_Form_class
     type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
-    PetscBool :: dataset_solution
     PetscLogDouble :: cumulative_time
   contains
     procedure, public :: SetRealization => PMWFSetRealization
@@ -418,10 +438,21 @@ module PM_Waste_Form_class
     procedure, public :: Destroy => PMWFDestroy
   end type pm_waste_form_type
 
+! -----------------------------------------------------
+
+  ! Stores information regarding the criticality event
+  type, public :: criticality_event_type
+    character(len=MAXWORDLENGTH) :: name
+    PetscBool :: steady_state
+    PetscReal :: crit_start
+    PetscReal :: crit_end
+    PetscBool :: crit_flag
+  end type criticality_event_type
+
 ! -------------------------------------------------------------------
 
 ! Stores variables relevant to criticality calculations
-  type, public :: criticality_mechanism_type
+  type, public :: crit_mechanism_base_type
     character(len=MAXWORDLENGTH) :: mech_name
     character(len=MAXSTRINGLENGTH) :: rad_dataset_name
     character(len=MAXSTRINGLENGTH) :: heat_dataset_name
@@ -432,41 +463,34 @@ module PM_Waste_Form_class
     PetscReal :: temperature
     PetscReal :: k_effective
     PetscInt :: heat_source_cond
+    type(criticality_event_type), pointer :: crit_event
     class(dataset_ascii_type), pointer :: rad_dataset
     class(dataset_ascii_type), pointer :: heat_dataset
-    type(criticality_mechanism_type), pointer :: next
-  end type criticality_mechanism_type
-
-! -----------------------------------------------------
-
-  ! Stores information regarding the criticality event
-  type, public :: criticality_event_type
-    character(len=MAXWORDLENGTH) :: mech_name
-    PetscBool :: steady_state
-    PetscReal :: crit_start
-    PetscReal :: crit_end
-    PetscBool :: crit_flag
-  end type criticality_event_type
-
-! -----------------------------------------------------
-
-  ! Criticality process model object. Includes relevant variables for 
-  ! criticality consequence calculations.
-  type, public :: criticality_type
-    type(criticality_event_type), pointer :: crit_event
-    type(criticality_mechanism_type), pointer :: crit_mech
-    type(region_type), pointer :: region
-    type(criticality_type), pointer :: next
-  end type criticality_type
+    class(crit_mechanism_base_type), pointer :: next
+  end type crit_mechanism_base_type
 
 ! -----------------------------------------------------
 
   type, public :: criticality_mediator_type
-    type(criticality_type), pointer :: criticality_list
-    type(criticality_mechanism_type), pointer :: crit_mech_list
+    class(crit_mechanism_base_type), pointer :: crit_mech_list
     class(data_mediator_vec_type), pointer :: data_mediator
     PetscInt :: total_num_cells
   end type criticality_mediator_type
+
+! -----------------------------------------------------
+
+  type, public :: spacer_mechanism_base_type
+    character(len=MAXWORDLENGTH) :: mech_name
+    PetscReal :: threshold_sat ! threshold saturation for asm. exposure to water
+    PetscReal :: alteration_rate  ! saturation-based factor for altering rate
+    PetscReal :: spacer_mass  ! total mass of grid spacers
+    PetscReal :: spacer_surface_area ! total surface area of grid spacers
+    PetscReal :: spacer_coeff  ! empirical coefficient of Arrhenius term
+    PetscReal :: spacer_activation_energy  ! activation energy
+    class(spacer_mechanism_base_type), pointer :: next
+  contains
+    procedure, public :: Degradation => SpacerMechBaseDegradation
+  end type spacer_mechanism_base_type
 
 ! -----------------------------------------------------
   
@@ -478,15 +502,7 @@ module PM_Waste_Form_class
             PMWFMechanismCustomCreate, &
             PMWFMechanismFMDMCreate, &
             PMWFMechanismFMDMSurrogateCreate, &
-            PMWFRadSpeciesCreate, &
-            CriticalityMediatorCreate, &
-            CriticalityMechCreate, &
-            CriticalityCreate, &
-            ReadCriticalityMech, &
-            CriticalityCalc, &
-            CriticalityInitializeRun, &
-            AssignCritMech, &
-            CriticalitySolve
+            PMWFRadSpeciesCreate
   
 contains
 
@@ -683,7 +699,7 @@ end function PMWFMechanismFMDMCreate
 
 ! ************************************************************************** !
 
-function PMWFMechanismFMDMSurrogateCreate()
+function PMWFMechanismFMDMSurrogateCreate(option)
   ! 
   ! Creates the FMDM surrogate waste form mechanism package
   ! 
@@ -691,6 +707,8 @@ function PMWFMechanismFMDMSurrogateCreate()
   ! Date: 03/05/2019
 
   implicit none
+
+  type(option_type) :: option
 
 ! LOCAL VARIABLES:
 ! ================
@@ -727,25 +745,12 @@ function PMWFMechanismFMDMSurrogateCreate()
   surrfmdm%mapping_surrfmdm = [surrfmdm%iO2,surrfmdm%iCO3_2n, &
                                surrfmdm%iH2,surrfmdm%iFe_2p]
 
-  allocate(surrfmdm%outer_weights(101))
-  open(IUNIT_TEMP,file="ann_surrogate/outer_weights.txt")
-  read(IUNIT_TEMP,*) surrfmdm%outer_weights
-  close(IUNIT_TEMP)
-
-  allocate(surrfmdm%inner_weights(7,100))
-  open(IUNIT_TEMP,file="ann_surrogate/inner_weights.txt")
-  read(IUNIT_TEMP,*) surrfmdm%inner_weights
-  close(IUNIT_TEMP)
-
-  allocate(surrfmdm%scaler_means(6))
-  open(IUNIT_TEMP,file="ann_surrogate/means.txt")
-  read(IUNIT_TEMP,*) surrfmdm%scaler_means
-  close(IUNIT_TEMP)
-
-  allocate(surrfmdm%scaler_variances(6))
-  open(IUNIT_TEMP,file="ann_surrogate/vars.txt")
-  read(IUNIT_TEMP,*) surrfmdm%scaler_variances
-  close(IUNIT_TEMP)
+  if (FMDM_surrogate_knnr) then
+    surrfmdm%knnr_eps = tiny (0.0d0)
+    call KnnrInit(surrfmdm,option)
+  else
+    call ANNReadH5File(surrfmdm,option)
+  endif
 
   PMWFMechanismFMDMSurrogateCreate => surrfmdm
 
@@ -845,6 +850,8 @@ function PMWFWasteFormCreate()
   wf%exposure_factor = 1.0d0            ! [-]
   wf%eff_dissolution_rate = UNINITIALIZED_DOUBLE ! kg/sec
   wf%mech_name = ''
+  wf%spacer_mech_name = ''
+  wf%criticality_mech_name = ''
   wf%decay_start_time = 0.d0          ! sec (default value)
   nullify(wf%instantaneous_mass_rate) ! mol-rad/sec
   nullify(wf%cumulative_mass)         ! mol-rad
@@ -852,6 +859,8 @@ function PMWFWasteFormCreate()
   nullify(wf%rad_concentration)       ! mol-rad/g-matrix
   nullify(wf%inst_release_amount)     ! mol-rad/g-matrix
   nullify(wf%mechanism)
+  nullify(wf%spacer_mechanism)
+  nullify(wf%criticality_mechanism)
   nullify(wf%next)
  !------- canister degradation model -----------------
   wf%canister_degradation_flag = PETSC_FALSE
@@ -860,6 +869,10 @@ function PMWFWasteFormCreate()
   wf%canister_vitality = 0.d0
   wf%canister_vitality_rate = UNINITIALIZED_DOUBLE
   wf%eff_canister_vit_rate = UNINITIALIZED_DOUBLE
+  !------- spacer degradation model ------------------
+  wf%spacer_degradation_flag = PETSC_FALSE
+  wf%spacer_vitality = 1.d0
+  wf%spacer_vitality_rate = UNINITIALIZED_DOUBLE
  !----------------------------------------------------
  
  PMWFWasteFormCreate => wf
@@ -894,7 +907,6 @@ function PMWFCreate()
   nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
-  PMWFCreate%dataset_solution = PETSC_FALSE
   PMWFCreate%cumulative_time = 0.d0
   PMWFCreate%name = 'waste form general'
   PMWFCreate%header = 'WASTE FORM (GENERAL)'
@@ -939,6 +951,7 @@ subroutine PMWFReadPMBlock(this,input)
 ! -------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
   class(wf_mechanism_base_type), pointer :: cur_mechanism
+  class(crit_mechanism_base_type), pointer :: cur_crit_mech
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
@@ -973,10 +986,6 @@ subroutine PMWFReadPMBlock(this,input)
       case('IMPLICIT_SOLUTION')
         this%implicit_solution = PETSC_TRUE
         cycle
-    !-------------------------------------
-      case('DATASET_SOLUTION')
-        this%dataset_solution = PETSC_TRUE
-        cycle
     end select
 
     error_string = 'WASTE_FORM_GENERAL'
@@ -988,17 +997,11 @@ subroutine PMWFReadPMBlock(this,input)
     if (found) cycle
     
     error_string = 'WASTE_FORM_GENERAL'
-    call ReadCriticalityMech(this%criticality_mediator,input,option, &
-                             word,error_string,found)
+    call ReadCriticalityMech(this,input,option,word,error_string,found)
     if (found) cycle
    
   enddo
   call InputPopBlock(input,option)
-  
-  ! Assign chosen mechanism to each criticality object
-  if (associated(this%criticality_mediator)) then
-    call AssignCritMech(this%criticality_mediator)
-  endif
   
   ! Assign chosen mechanism to each waste form
   cur_waste_form => this%waste_form_list
@@ -1013,14 +1016,29 @@ subroutine PMWFReadPMBlock(this,input)
       endif
       cur_mechanism => cur_mechanism%next
     enddo
+
+    ! Assign chosen criticality mechanism to each waste form object
+    if (associated(this%criticality_mediator)) then
+      cur_crit_mech => this%criticality_mediator%crit_mech_list 
+      do
+        if (.not. associated(cur_crit_mech)) exit
+        if (StringCompare(cur_waste_form%criticality_mech_name, &
+                          cur_crit_mech%mech_name)) then
+          cur_waste_form%criticality_mechanism => cur_crit_mech
+          exit
+        endif
+        cur_crit_mech => cur_crit_mech%next
+      enddo
+    endif
+
     ! error messaging: ----------------------------------------------
     if (.not.associated(cur_waste_form%mechanism)) then
       option%io_buffer = 'WASTE_FORM MECHANISM ' // &
                          trim(cur_waste_form%mech_name) // &
-                         ' not found amoung given mechanism names.'
+                         ' not found among given mechanism names.'
       call PrintErrMsg(option)
     endif
-    
+
     if (.not.cur_waste_form%mechanism%canister_degradation_model) then
       ! canister vitality specified, but can.deg. model is off:
       if (initialized(cur_waste_form%canister_vitality_rate)) then
@@ -1170,6 +1188,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   PetscInt :: k, j
   PetscReal :: double
   PetscInt :: integer
+  PetscErrorCode :: ierr
+  PetscLogDouble :: log_start_time, log_end_time
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',MECHANISM'
@@ -1223,7 +1243,19 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         case('FMDM_SURROGATE')
           error_string = trim(error_string) // ' FMDM_SURROGATE'
           allocate(new_mechanism)
-          new_mechanism => PMWFMechanismFMDMSurrogateCreate()
+          call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+          new_mechanism => PMWFMechanismFMDMSurrogateCreate(option)
+          call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+          this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
+      !---------------------------------
+        case('FMDM_SURROGATE_KNNR')
+          FMDM_surrogate_knnr = PETSC_TRUE
+          error_string = trim(error_string) // ' FMDM_SURROGATE_KNNR'
+          allocate(new_mechanism)
+          call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+          new_mechanism => PMWFMechanismFMDMSurrogateCreate(option)
+          call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+          this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
       !---------------------------------
         case('CUSTOM')
           error_string = trim(error_string) // ' CUSTOM'
@@ -1542,7 +1574,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 call InputErrorMsg(input,option,'DECAY_TIME', &
                                    error_string)
                 call InputReadAndConvertUnits(input, &
-                  new_mechanism%decay_time,'day','DECAY_TIME', &
+                  new_mechanism%decay_time,'year','DECAY_TIME', &
                   option)
               class default
                 option%io_buffer = 'ERROR: DECAY_TIME cannot be &
@@ -1551,6 +1583,34 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 num_errors = num_errors + 1
             end select
         !--------------------------
+          case('NEAREST_NEIGHBOR')
+            select type(new_mechanism)
+              type is(wf_mechanism_fmdm_surrogate_type)
+               call InputReadInt(input,option, &
+                     new_mechanism%num_nearest_neighbor)
+                call InputErrorMsg(input,option,'NEAREST_NEIGHBOR', &
+                                   error_string)
+              class default
+                option%io_buffer = 'ERROR: NEAREST_NEIGHBOR cannot be &
+                                   &specified for ' // trim(error_string)
+                call PrintMsg(option)
+                num_errors = num_errors + 1
+             end select
+        !--------------------------
+          case('KNNR_EPS')
+            select type(new_mechanism)
+              type is(wf_mechanism_fmdm_surrogate_type)
+               call InputReadDouble(input,option, &
+                     new_mechanism%knnr_eps)
+                call InputErrorMsg(input,option,'KNNR_EPS', &
+                                   error_string)
+              class default
+                option%io_buffer = 'ERROR: KNNR_EPS cannot be &
+                                   &specified for ' // trim(error_string)
+                call PrintMsg(option)
+                num_errors = num_errors + 1
+             end select
+        !--------------------------     
           case('SPECIES')
             do
               call InputReadPflotranString(input,option)
@@ -1910,7 +1970,6 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
   class(waste_form_base_type), pointer :: new_waste_form, cur_waste_form
-  type(criticality_type), pointer :: cur_criticality, new_criticality
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',WASTE_FORM'
@@ -1985,57 +2044,12 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                  new_waste_form%decay_start_time,'sec',trim(error_string)// &
                  ',DECAY_START_TIME',option)
         !-----------------------------    
-          case('CRITICALITY')
-            new_criticality => CriticalityCreate()
-            call InputPushBlock(input,option)
-            do
-              call InputReadPflotranString(input, option)
-              if (InputError(input)) exit
-              if (InputCheckExit(input,option)) exit
-              call InputReadCard(input,option,word)
-              call InputErrorMsg(input,option,'keyword',error_string)
-              call StringToUpper(word)
-              select case (trim(word))
-                case('MECH_NAME')
-                  call InputReadCard(input,option,word)
-                  call InputErrorMsg(input,option,'criticality mechanism assignment', &
-                                     error_string)
-                  call StringToUpper(word)
-                  new_criticality%crit_event%mech_name= trim(word)
-                case('CRIT_START')
-                  call InputReadDouble(input,option,new_criticality% &
-                                       crit_event%crit_start)
-                  call InputErrorMsg(input,option,'CRIT_START',error_string)
-                  call InputReadAndConvertUnits(input,new_criticality% &
-                           crit_event%crit_start,'sec', &
-                           trim(error_string)//',CRIT_START', &
-                           option)
-                case('CRIT_END')
-                  call InputReadDouble(input,option,new_criticality% &
-                                       crit_event%crit_end)
-                  call InputErrorMsg(input,option,'CRIT_END',error_string)
-                  call InputReadAndConvertUnits(input,new_criticality% &
-                           crit_event%crit_end,'sec', &
-                           trim(error_string)//',CRIT_END', &
-                           option)
-                case default
-                  call InputKeywordUnrecognized(input,word,error_string,option)
-              end select
-            enddo      
-            call InputPopBlock(input,option)
-            if (.not. associated(this%criticality_mediator)) then
-              this%criticality_mediator => CriticalityMediatorCreate()
-              this%criticality_mediator%criticality_list => new_criticality
-            else
-              cur_criticality => this%criticality_mediator%criticality_list
-              do
-                if (.not. associated(cur_criticality)) exit
-                if (.not. associated(cur_criticality%next)) then
-                  cur_criticality%next => new_criticality
-                endif
-                cur_criticality => cur_criticality%next
-              enddo
-            endif
+          case('CRITICALITY_MECHANISM_NAME')
+            call InputReadCard(input,option,word)
+            call InputErrorMsg(input,option,'mechanism assignment',error_string)
+            call StringToUpper(word)
+            new_waste_form%criticality_mech_name = trim(word)
+
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -2156,7 +2170,6 @@ subroutine PMWFAssociateRegion(this,region_list)
   type(region_type), pointer :: cur_region
   type(region_type), pointer :: new_region
   class(waste_form_base_type), pointer :: cur_waste_form
-  type(criticality_type), pointer :: cur_criticality
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   character(len=MAXWORDLENGTH) :: word1, word2
@@ -2171,11 +2184,6 @@ subroutine PMWFAssociateRegion(this,region_list)
   coordinate_counter = 0
   
   cur_waste_form => this%waste_form_list
-  if (associated(this%criticality_mediator)) then
-    cur_criticality => this%criticality_mediator%criticality_list
-  else
-    nullify(cur_criticality)
-  endif
   
   do
     if (.not.associated(cur_waste_form)) exit
@@ -2211,11 +2219,6 @@ subroutine PMWFAssociateRegion(this,region_list)
                           trim(adjustl(word2))
         cur_waste_form%region => new_region
         
-        if (associated(cur_criticality)) then
-          cur_criticality%region => new_region
-          cur_criticality => cur_criticality%next
-        endif
-        
         allocate(cur_waste_form%scaling_factor(1))
         cur_waste_form%scaling_factor(1) = 1.d0
       endif
@@ -2225,11 +2228,6 @@ subroutine PMWFAssociateRegion(this,region_list)
         if (.not.associated(cur_region)) exit
         if (StringCompare(cur_region%name,cur_waste_form%region_name)) then
           cur_waste_form%region => cur_region
-          
-          if (associated(cur_criticality)) then
-            cur_criticality%region => cur_region
-            cur_criticality => cur_criticality%next
-          endif
           
           exit
         endif
@@ -2244,19 +2242,6 @@ subroutine PMWFAssociateRegion(this,region_list)
     !
     cur_waste_form => cur_waste_form%next
   enddo
-  
-  if (associated(this%criticality_mediator)) then
-    cur_criticality => this%criticality_mediator%criticality_list
-    do
-      if (.not.associated(cur_criticality)) exit
-      if (.not.associated(cur_criticality%region)) then
-        nullify(this%criticality_mediator%criticality_list)
-        exit
-      endif
-      cur_criticality => cur_criticality%next
-    enddo
-  endif
-  
   
 end subroutine PMWFAssociateRegion
   
@@ -2521,7 +2506,7 @@ subroutine PMWFSetup(this)
         species_name = 'O2(aq)'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iO2) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
-        species_name = 'HCO3-'
+        species_name = 'CO3--'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iCO3_2n) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
         species_name = 'H2(aq)'
@@ -2534,7 +2519,7 @@ subroutine PMWFSetup(this)
         species_name = 'O2(aq)'
         cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iO2) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
-        species_name = 'HCO3-'
+        species_name = 'CO3--'
         cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iCO3_2n) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
         species_name = 'H2(aq)'
@@ -2679,28 +2664,72 @@ end subroutine PMWFSetup
   PetscInt :: num_species
   PetscInt :: size_of_vec
   PetscInt :: i, j, k
-  PetscInt, allocatable :: species_indices_in_residual(:)
+  PetscInt, allocatable :: species_indices_in_residual(:), &
+                           energy_indices_in_residual(:)
   PetscErrorCode :: ierr
 ! -------------------------------------------------------
-  
-  if (this%option%restart_flag .and. .not.this%skip_restart) then
-      ! need to verify whether this is needed anymore
-      call PMWFSetup(this)
-  endif
   
   if (this%print_mass_balance) then
     call PMWFOutputHeader(this)
     call PMWFOutput(this)
   endif
 
-  ! set up heat transfer
-  
-  if (associated(this%criticality_mediator)) then
-    call CriticalityInitializeRun(this%criticality_mediator,this%realization, &
-                                  this%option)
-  endif
+  !---------------- set up heat transfer (criticality) ---------------!
 
-  ! set up mass transfer
+  if (associated(this%criticality_mediator)) then
+    call RealizCreateFlowMassTransferVec(this%realization)
+    this%criticality_mediator%data_mediator => DataMediatorVecCreate()
+    call this%criticality_mediator%data_mediator%AddToList(this%realization% &
+                                                        flow_data_mediator_list)
+    size_of_vec = 0
+    cur_waste_form => this%waste_form_list
+    do
+      if (.not.associated(cur_waste_form)) exit
+      if (associated(cur_waste_form%criticality_mechanism)) then
+        size_of_vec = size_of_vec + cur_waste_form%region%num_cells
+      endif
+      cur_waste_form => cur_waste_form%next
+    enddo
+
+    call VecCreateSeq(PETSC_COMM_SELF, size_of_vec,this%criticality_mediator% &
+                      data_mediator%vec,ierr);CHKERRQ(ierr)
+    call VecSetFromOptions(this%criticality_mediator%data_mediator%vec, &
+                           ierr); CHKERRQ(ierr)
+
+    cur_waste_form => this%waste_form_list
+    allocate(energy_indices_in_residual(size_of_vec))
+    j = 0
+    do
+      if (.not. associated(cur_waste_form)) exit
+      if (associated(cur_waste_form%criticality_mechanism)) then
+        do i = 1, cur_waste_form%region%num_cells
+          j = j + 1
+          energy_indices_in_residual(j) = cur_waste_form%region% &
+                                          cell_ids(i) * this%option%nflowdof - 1
+        enddo
+      endif
+      cur_waste_form => cur_waste_form%next
+    enddo
+    energy_indices_in_residual(:) = energy_indices_in_residual(:) + &
+            this%realization%patch%grid%global_offset*this%option%nflowdof
+
+    this%criticality_mediator%total_num_cells = j
+
+    call ISCreateGeneral(this%option%mycomm,size_of_vec, &
+                         energy_indices_in_residual, &
+                         PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
+    call VecScatterCreate(this%criticality_mediator%data_mediator%vec, &
+                         PETSC_NULL_IS,this%realization%field%flow_r, is, &
+                          this%criticality_mediator%data_mediator%scatter_ctx, &
+                          ierr); CHKERRQ(ierr)
+    if (allocated(energy_indices_in_residual)) then
+        deallocate(energy_indices_in_residual)
+    endif
+
+    call ISDestroy(is,ierr);CHKERRQ(ierr)
+  endif
+  !------------- set up mass transfer ----------------------!
+
   call RealizCreateTranMassTransferVec(this%realization)
   this%data_mediator => DataMediatorVecCreate()
   call this%data_mediator%AddToList(this%realization%tran_data_mediator_list)
@@ -2833,10 +2862,11 @@ subroutine PMWFInitializeTimestep(this)
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(criticality_type), pointer :: cur_criticality
+  type(crit_mechanism_base_type), pointer :: cur_criticality
   PetscReal :: dV
   PetscReal :: dt
   PetscReal :: avg_temp_local, avg_temp_global
+  PetscReal :: avg_sat_local, avg_sat_global
   PetscInt :: local_id, ghosted_id
   PetscInt :: idof
   PetscInt :: i, k, p, g, d, f, j
@@ -2860,6 +2890,7 @@ subroutine PMWFInitializeTimestep(this)
 ! -----------------------------------------------------------
   PetscReal :: t_low, t_high
   PetscReal, pointer :: times(:)
+  PetscBool :: dataset_solution
   class(dataset_ascii_type), pointer :: dataset
 
   global_auxvars => this%realization%patch%aux%Global%auxvars
@@ -2868,11 +2899,13 @@ subroutine PMWFInitializeTimestep(this)
   option => this%option
   grid => this%realization%patch%grid
   dt = option%tran_dt
-  
-  call PMBasePrintHeader(this)
-
   ! zero entries from previous time step
   call VecZeroEntries(this%data_mediator%vec,ierr);CHKERRQ(ierr)
+
+  if (associated(this%criticality_mediator)) then
+    call VecZeroEntries(this%criticality_mediator%data_mediator%vec, &
+                        ierr);CHKERRQ(ierr)
+  endif
 
   cur_waste_form => this%waste_form_list
   do 
@@ -2950,6 +2983,50 @@ subroutine PMWFInitializeTimestep(this)
       endif
     endif
 
+    !----------------- spacer degradation function -------------------------
+    if (cur_waste_form%spacer_degradation_flag .and. &
+       (cur_waste_form%spacer_vitality > 1.d-2) .and. &
+       cur_waste_form%breached) then
+
+        ! Get average saturation
+        if (.not. Initialized(avg_sat_global)) then
+          avg_sat_local = 0.d0
+          do i = 1,cur_waste_form%region%num_cells
+            local_id = cur_waste_form%region%cell_ids(i)
+            ghosted_id = grid%nL2G(local_id)
+            avg_sat_local = avg_sat_local + &
+                            global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &
+                            cur_waste_form%scaling_factor(i)
+          enddo
+          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_sat_local, &
+                               avg_sat_global)
+        endif
+
+        if (avg_sat_local >= cur_waste_form%spacer_mechanism%threshold_sat) then
+          cur_waste_form%spacer_mechanism%alteration_rate = 1.0d0
+        else
+          cur_waste_form%spacer_mechanism%alteration_rate = avg_sat_global / &
+            cur_waste_form%spacer_mechanism%threshold_sat
+        endif
+
+        ! Get average temperature
+        if ( .not. Initialized(avg_temp_global)) then
+          avg_temp_local = 0.d0
+          do i = 1,cur_waste_form%region%num_cells
+            local_id = cur_waste_form%region%cell_ids(i)
+            ghosted_id = grid%nL2G(local_id)
+            avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp*&
+                             cur_waste_form%scaling_factor(i)
+          enddo
+          call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
+                               avg_temp_global)
+        endif
+
+      call cur_waste_form%spacer_mechanism%Degradation(cur_waste_form, this, &
+                                          avg_sat_global, avg_temp_global, &
+                                          option%dt, ierr)
+    endif
+
     !------- instantaneous release ----------------------------------------- 
     if ((.not.cur_waste_form%breached .and. &
          cur_waste_form%canister_vitality < 1.d-3) .or. &
@@ -3009,58 +3086,54 @@ subroutine PMWFInitializeTimestep(this)
     if ((cur_waste_form%volume >= 0.d0) .and. &
         (option%time >= cur_waste_form%decay_start_time)) then !--------------
 
-    if (this%dataset_solution) then
+    dataset_solution = PETSC_FALSE
+    if (associated(cur_waste_form%criticality_mechanism)) then
+      if (associated(cur_waste_form%criticality_mechanism%rad_dataset)) then 
+        dataset_solution = PETSC_TRUE
+      endif 
+    endif
+
+    if (dataset_solution) then
       !Import radionuclide inventory from external neutronics code calculations
-      if (.not.cur_waste_form%breached) then
-        do k = 1,num_species
-          cur_waste_form%rad_mass_fraction(k) = 1.d-20
-          cur_waste_form%rad_concentration(k) = &
-            cur_waste_form%rad_mass_fraction(k) / &
-            cwfm%rad_species_list(k)%formula_weight
-        enddo
-      else
-        cur_criticality => this%criticality_mediator%criticality_list 
-        dataset => cur_criticality%crit_mech%rad_dataset
-        times => dataset%time_storage%times
-        if (num_species > dataset%dims(1)) then
-          option%io_buffer = 'Number of species in dataset is less than ' // &
-                       'the number specified in Waste Form Process Model.' 
-          call PrintErrMsg(option)
-        elseif (num_species < dataset%dims(1)) then
-          option%io_buffer = 'Number of species in dataset is greater than ' //&
-                         'the number specified in Waste Form Process Model.'
-          call PrintErrMsg(option)
-        endif
-        j=1
-        t_low = times(j)
-        t_high = t_low
-        do
-          if(option%time < times(j)) exit
-          if(j == size(times)) exit
-          t_low = times(j)
-          j = j+1
-          t_high = times(j)
-        enddo
-
-        do k = 1,num_species
-          if (j == size(times) .and. option%time >= times(j)) then
-            cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-1)* &
-                    num_species+k)
-          elseif (j==1) then
-            cur_waste_form%rad_mass_fraction(k) = 1.d-20
-          else 
-            cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-2)* &
-                  num_species+k) + (option%time-t_low)/(t_high-t_low)* &
-                  (dataset%rbuffer((j-2)*num_species+k+num_species)-dataset% &
-                  rbuffer((j-2)*num_species+k))
-         endif
-         cur_waste_form%rad_concentration(k) = &
-            cur_waste_form%rad_mass_fraction(k) / &
-            cwfm%rad_species_list(k)%formula_weight
-
-        enddo
+      dataset => cur_waste_form%criticality_mechanism%rad_dataset
+      times => dataset%time_storage%times
+      if (num_species > dataset%dims(1)) then
+        option%io_buffer = 'Number of species in dataset is less than ' // &
+                     'the number specified in Waste Form Process Model.' 
+        call PrintErrMsg(option)
+      elseif (num_species < dataset%dims(1)) then
+        option%io_buffer = 'Number of species in dataset is greater than ' //&
+                       'the number specified in Waste Form Process Model.'
+        call PrintErrMsg(option)
       endif
-      
+      j=1
+      t_low = times(j)
+      t_high = t_low
+      do
+        if(option%time < times(j)) exit
+        if(j == size(times)) exit
+        t_low = times(j)
+        j = j+1
+        t_high = times(j)
+      enddo
+
+      do k = 1,num_species
+        if (j == size(times) .and. option%time >= times(j)) then
+          cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-1)* &
+                  num_species+k)
+        elseif (j==1) then
+          cur_waste_form%rad_mass_fraction(k) = 1.d-20
+        else 
+          cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-2)* &
+                num_species+k) + (option%time-t_low)/(t_high-t_low)* &
+                (dataset%rbuffer((j-2)*num_species+k+num_species)-dataset% &
+                rbuffer((j-2)*num_species+k))
+       endif
+       cur_waste_form%rad_concentration(k) = &
+          cur_waste_form%rad_mass_fraction(k) / &
+          cwfm%rad_species_list(k)%formula_weight
+      enddo
+       
     elseif (.not.this%implicit_solution) then !-----------------------------------
 
     ! 3-generation analytical solution derived for multiple parents and
@@ -3314,19 +3387,20 @@ subroutine PMWFSolve(this,time,ierr)
 ! grid: pointer to the grid object
 ! -----------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
-  PetscInt :: i, j, k
+  PetscInt :: i, j, k, m
   PetscInt :: num_species
   PetscInt :: local_id, ghosted_id
   PetscInt :: idof
   PetscReal :: inst_diss_molality
   PetscReal, pointer :: vec_p(:)  
-  PetscReal, pointer :: xx_p(:)
+  PetscReal, pointer :: xx_p(:), heat_source(:)
   PetscInt :: fmdm_count_global, fmdm_count_local
   PetscLogDouble :: log_start_time, log_end_time
   character(len=MAXWORDLENGTH) :: word
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
+  type(crit_mechanism_base_type), pointer :: cur_criticality
 ! -----------------------------------------------------------
 
   call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
@@ -3339,9 +3413,14 @@ subroutine PMWFSolve(this,time,ierr)
 
   call VecGetArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-  
+  if (associated(this%criticality_mediator)) then
+    call VecGetArrayF90(this%criticality_mediator%data_mediator%vec, &
+                          heat_source,ierr);CHKERRQ(ierr)
+  endif
+ 
   cur_waste_form => this%waste_form_list
   i = 0
+  m = 0
   do 
     if (.not.associated(cur_waste_form)) exit
     num_species = cur_waste_form%mechanism%num_species  
@@ -3426,11 +3505,32 @@ subroutine PMWFSolve(this,time,ierr)
       cur_waste_form%eff_dissolution_rate = 0.d0
       cur_waste_form%instantaneous_mass_rate = 0.d0
     endif
-    !
-    if (associated(this%criticality_mediator)) then
-      call CriticalitySolve(this%criticality_mediator,this%realization,time, &
-                            cur_waste_form%scaling_factor,ierr)
+
+    !---------- Criticality Calculation --------------------------------------
+    if (associated(cur_waste_form%criticality_mechanism)) then
+      cur_criticality => cur_waste_form%criticality_mechanism
+      if (time >= cur_criticality%crit_event%crit_start .and. time < &
+              cur_criticality%crit_event%crit_end .and. &
+              cur_waste_form%spacer_vitality > 0.d0) then
+        cur_criticality%crit_event%crit_flag = PETSC_TRUE
+      else
+        cur_criticality%crit_event%crit_flag = PETSC_FALSE
+      endif
+
+      call CriticalityCalc(cur_criticality,time,ierr)
+
+      do j = 1, cur_waste_form%region%num_cells
+        m = m + 1
+        heat_source(m) = cur_criticality%decay_heat
+        if (cur_criticality%crit_event%crit_flag) then
+          heat_source(m) = heat_source(m) + cur_criticality%crit_heat
+        endif
+        ! Distribute heat source throughout all cells in a waste package
+        heat_source(m) = heat_source(m) * cur_waste_form%scaling_factor(j)
+      enddo
+
     endif
+
     cur_waste_form => cur_waste_form%next
   enddo
  
@@ -3444,7 +3544,11 @@ subroutine PMWFSolve(this,time,ierr)
     write(*,'(a)') '== ' // adjustl(trim(word)) // ' call(s) to FMDM.'
   ! ** END (this can be removed after FMDM profiling is finished) **
   endif
-  
+ 
+  if (associated(this%criticality_mediator)) then 
+    call VecRestoreArrayF90(this%criticality_mediator%data_mediator%vec, &
+                              heat_source,ierr);CHKERRQ(ierr)
+  endif
   call VecRestoreArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   
@@ -3966,11 +4070,11 @@ subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
   call CalcParallelSUM(option,waste_form%rank_list,avg_temp_local, &
                        avg_temp_global)
 
-  call AMP_surrogate_step(this%burnup, time, avg_temp_global, &
-                          this%concentration, this%decay_time, &
-                          this%outer_weights, &
-                          this%inner_weights, this%scaler_means, &
-                          this%scaler_variances, this%dissolution_rate)
+  if (FMDM_surrogate_knnr) then
+    call KnnrQuery(this, time, avg_temp_global)
+  else
+    call AMP_ann_surrogate_step(this, time, avg_temp_global)
+  endif
 
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
@@ -5037,7 +5141,7 @@ subroutine PMWFStrip(this)
   enddo
   nullify(this%waste_form_list)
   call PMWFMechanismStrip(this)
-!   call CriticalityStrip(this%criticality_mediator)
+  call CriticalityStrip(this%criticality_mediator)
 
 end subroutine PMWFStrip
 
@@ -5087,10 +5191,11 @@ subroutine PMWFMechanismStrip(this)
         call DeallocateArray(prev_mechanism%concentration)
         call DeallocateArray(prev_mechanism%mapping_surrfmdm)
         call DeallocateArray(prev_mechanism%mapping_surrfmdm_to_pflotran)
-        call DeallocateArray(prev_mechanism%outer_weights)
-        call DeallocateArray(prev_mechanism%inner_weights)
-        call DeallocateArray(prev_mechanism%scaler_means)
-        call DeallocateArray(prev_mechanism%scaler_variances)
+        if (FMDM_surrogate_knnr) then
+          call DeallocateArray(prev_mechanism%knnr_array)
+          call DeallocateArray(prev_mechanism%table_data)
+          call KdtreeDestroy(prev_mechanism%tree)
+        endif
     end select
     deallocate(prev_mechanism)
     nullify(prev_mechanism)
@@ -5143,6 +5248,8 @@ subroutine PMWFDestroy(this)
   ! Author: Glenn Hammond
   ! Date: 08/26/15
 
+  use String_module
+  
   implicit none
   
 ! INPUT ARGUMENTS:
@@ -5153,9 +5260,11 @@ subroutine PMWFDestroy(this)
 ! ---------------------------------
   character(len=MAXWORDLENGTH) :: word
 
-  write(word,'(f12.1)') this%cumulative_time
-  
-  write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+  if (OptionPrintToScreen(this%option)) then
+    word = StringWrite('(es12.4)',this%cumulative_time)
+    write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+  endif
+
   call PMBaseDestroy(this)
   call PMWFStrip(this)
   
@@ -5163,34 +5272,79 @@ end subroutine PMWFDestroy
 
 ! ************************************************************************** !
 
-subroutine CriticalityInit(this)
-  ! 
-  ! Author: Michael Nole
-  ! Date: 11/01/18
+subroutine SpacerMechInit(this)
+  !
+  ! Initializes the base spacer mechanism
+  !
 
   implicit none
 
-  type(criticality_type), pointer :: this
+  class(spacer_mechanism_base_type), pointer :: this
 
   allocate(this)
-  allocate(this%crit_event)
-  allocate(this%crit_mech)
-  nullify(this%region)
-  nullify(this%next)
 
-  this%crit_event%steady_state = PETSC_FALSE
-  this%crit_event%crit_flag = PETSC_FALSE
-  this%crit_event%crit_start = 0.d0
-  this%crit_event%crit_end = 0.d0
+  this%threshold_sat = 0.d0
+  this%alteration_rate = UNINITIALIZED_DOUBLE
+  this%spacer_mass = UNINITIALIZED_DOUBLE
+  this%spacer_surface_area = UNINITIALIZED_DOUBLE
+  this%spacer_coeff = UNINITIALIZED_DOUBLE
+  this%spacer_activation_energy = UNINITIALIZED_DOUBLE
 
+end subroutine SpacerMechInit
 
+! ************************************************************************** !
 
-end subroutine CriticalityInit
+subroutine SpacerMechBaseDegradation(this,waste_form,pm,sat,temp,dt,ierr)
+  !
+  ! Computes spacer degradation using the base mechanism, 
+  ! an Arrhenius relationship.
+  !
+
+  implicit none
+
+  class(spacer_mechanism_base_type) :: this
+  class(waste_form_base_type) :: waste_form
+  class(pm_waste_form_type) :: pm
+  PetscReal :: sat
+  PetscReal :: temp
+  PetscReal :: dt
+  PetscErrorCode :: ierr
+
+  PetscReal :: dspv
+
+  temp = temp + 273.15d0   ! Kelvin
+
+  ! Spacer vitality rate - apply Arrhenius-type corrosion model [kg/m^2-s]
+  waste_form%spacer_vitality_rate = this%spacer_coeff * exp(-1.0d0 * &
+                                    this%spacer_activation_energy / &
+                                    (IDEAL_GAS_CONSTANT * temp))
+
+  ! Modify rate with total surface area and saturation factor [kg/s] 
+  waste_form%spacer_vitality_rate = waste_form%spacer_vitality_rate* &
+                                    this%spacer_surface_area* &
+                                    this%alteration_rate
+
+  ! Change in spacer vitality [kg/kg]
+  dspv = (1.0d0 / this%spacer_mass) * waste_form%spacer_vitality_rate * dt
+
+  ! Spacer vitality [kg/kg]
+  waste_form%spacer_vitality = waste_form%spacer_vitality - dspv
+
+  ! Ensure value between 0 and 1
+  if (waste_form%spacer_vitality > 1.0d0) then
+    waste_form%spacer_vitality = 1.0d0
+  elseif (waste_form%spacer_vitality < 0.0d0) then
+    waste_form%spacer_vitality = 0.0d0
+  endif
+
+end subroutine SpacerMechBaseDegradation
 
 ! ************************************************************************** !
 
 subroutine CriticalityMechInit(this)
   ! 
+  ! Initializes the base criticality mechanism.
+  !
   ! Author: Michael Nole
   ! Date: 11/01/18
 
@@ -5198,11 +5352,13 @@ subroutine CriticalityMechInit(this)
 
   implicit none
 
-  type(criticality_mechanism_type), pointer :: this
+  class(crit_mechanism_base_type), pointer :: this
 
   allocate(this)
+  allocate(this%crit_event)
   nullify(this%next)
 
+  this%mech_name = ''
   this%decay_heat = 0.d0
   this%crit_heat = 0.d0
   this%sw = 0.d0
@@ -5210,8 +5366,14 @@ subroutine CriticalityMechInit(this)
   this%temperature = 0.d0
   this%k_effective = 0.d0
 
-  this%rad_dataset => DatasetAsciiCreate()
-  this%heat_dataset => DatasetAsciiCreate()
+  this%crit_event%name = ''
+  this%crit_event%steady_state = PETSC_FALSE
+  this%crit_event%crit_start = UNINITIALIZED_DOUBLE
+  this%crit_event%crit_end = UNINITIALIZED_DOUBLE
+  this%crit_event%crit_flag = PETSC_FALSE
+
+  nullify(this%rad_dataset)
+  nullify(this%heat_dataset)
 
 end subroutine CriticalityMechInit
 
@@ -5227,9 +5389,8 @@ subroutine CriticalityMediatorInit(this)
   type(criticality_mediator_type), pointer :: this
 
   nullify(this%data_mediator)
-  nullify(this%criticality_list)
   nullify(this%crit_mech_list)
-
+  this%total_num_cells = 0
 
 end subroutine CriticalityMediatorInit
 
@@ -5256,26 +5417,6 @@ end function CriticalityMediatorCreate
 
 ! ************************************************************************** !
   
-function CriticalityCreate()
-
-  ! 
-  ! Author: Michael Nole
-  ! Date: 11/01/18
-
-  implicit none
-
-  type(criticality_type), pointer :: CriticalityCreate
-  type(criticality_type), pointer :: crit
-
-  allocate(crit)
-  call CriticalityInit(crit)
-
-  CriticalityCreate => crit
-
-end function CriticalityCreate
-
-! ************************************************************************** !
-
 function CriticalityMechCreate()
 
   ! 
@@ -5284,8 +5425,8 @@ function CriticalityMechCreate()
 
   implicit none
 
-  type(criticality_mechanism_type), pointer :: CriticalityMechCreate
-  type(criticality_mechanism_type), pointer :: crit
+  class(crit_mechanism_base_type), pointer :: CriticalityMechCreate
+  class(crit_mechanism_base_type), pointer :: crit
 
   allocate(crit)
   call CriticalityMechInit(crit)
@@ -5296,7 +5437,7 @@ end function CriticalityMechCreate
 
 ! ************************************************************************** !
 
-subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
+subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
 
   ! 
   ! Author: Michael Nole
@@ -5309,18 +5450,19 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
 
   implicit none
 
-  type(criticality_mediator_type), pointer :: this
+  class(pm_waste_form_type) :: pmwf
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: keyword, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string,temp_string
 
-  PetscBool :: found
+  PetscBool :: found, added
 
   character(len=MAXWORDLENGTH) :: word
-  type(criticality_mechanism_type), pointer :: new_crit_mech, cur_crit_mech
+  class(crit_mechanism_base_type), pointer :: new_crit_mech, cur_crit_mech
 
   error_string = trim(error_string) // ',CRITICALITY'
+  added = PETSC_FALSE
   found = PETSC_TRUE
   select case(trim(keyword))
     case('CRITICALITY_MECH')
@@ -5341,6 +5483,22 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
                   'criticality mechanism assignment',error_string)
             call StringToUpper(word)
             new_crit_mech%mech_name = trim(word)
+          case('CRIT_START')
+            call InputReadDouble(input,option,new_crit_mech% &
+                                 crit_event%crit_start)
+            call InputErrorMsg(input,option,'CRIT_START',error_string)
+            call InputReadAndConvertUnits(input,new_crit_mech% &
+                                 crit_event%crit_start,'sec', &
+                                 trim(error_string)//',CRIT_START', &
+                                 option)
+          case('CRIT_END')
+            call InputReadDouble(input,option,new_crit_mech% &
+                                 crit_event%crit_end)
+            call InputErrorMsg(input,option,'CRIT_END',error_string)
+            call InputReadAndConvertUnits(input,new_crit_mech% &
+                                          crit_event%crit_end,'sec', &
+                                          trim(error_string)//',CRIT_END', &
+                                          option)
           case('HEAT_OF_CRITICALITY')
             call InputReadDouble(input,option,new_crit_mech%crit_heat)
             call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY',error_string)
@@ -5363,6 +5521,7 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
               select case(trim(word))
                 case('DATASET')
                   internal_units = 'MW'
+                  new_crit_mech%heat_dataset => DatasetAsciiCreate()
                   call InputReadFilename(input,option,new_crit_mech% &
                           heat_dataset_name)
                   call DatasetAsciiReadFile(new_crit_mech%heat_dataset, &
@@ -5383,6 +5542,7 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
               select case(trim(word))
                 case('DATASET')
                   internal_units = 'g/g'
+                  new_crit_mech%rad_dataset => DatasetAsciiCreate()
                   call InputReadFilename(input,option,new_crit_mech% &
                           rad_dataset_name)
                   call DatasetAsciiReadFile(new_crit_mech%rad_dataset, &
@@ -5396,19 +5556,25 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
         end select
       enddo
       call InputPopBlock(input,option)
-      if (.not. associated(this%crit_mech_list)) then
-        this%crit_mech_list => new_crit_mech
+      if (.not.associated(pmwf%criticality_mediator)) then
+        pmwf%criticality_mediator => CriticalityMediatorCreate()
+      endif
+
+      if (.not. associated(pmwf%criticality_mediator%crit_mech_list)) then
+        pmwf%criticality_mediator%crit_mech_list => new_crit_mech
       else
-        cur_crit_mech => this%crit_mech_list
+        cur_crit_mech => pmwf%criticality_mediator%crit_mech_list
         do
           if (.not. associated(cur_crit_mech)) exit
           if (.not. associated(cur_crit_mech%next)) then
-            cur_crit_mech => new_crit_mech
+            cur_crit_mech%next => new_crit_mech
+            added = PETSC_TRUE
           endif
+          if (added) exit
           cur_crit_mech => cur_crit_mech%next
         enddo
       endif
-      nullify(cur_crit_mech)
+      nullify(new_crit_mech)
     case default
       found = PETSC_FALSE
   end select
@@ -5425,7 +5591,7 @@ subroutine CriticalityCalc(this,time,ierr)
 
   implicit none
 
-  type(criticality_mechanism_type) :: this
+  class(crit_mechanism_base_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
 
@@ -5460,165 +5626,6 @@ subroutine CriticalityCalc(this,time,ierr)
     this%decay_heat = 0.d0
   endif
 end subroutine CriticalityCalc
-
-! ************************************************************************** !
-
-subroutine CriticalityInitializeRun(this, realization, option)
-
-  ! Author: Michael Nole
-  ! Date: 11/01/18
-
-  use Realization_Subsurface_class
-  use Realization_Base_class
-  use Option_module
-
-  implicit none
-
-  type(criticality_mediator_type), pointer :: this
-  class(realization_subsurface_type), pointer :: realization
-  type(option_type), pointer :: option
-
-  type(criticality_type), pointer :: cur_criticality
-  PetscInt :: vec_size, i, j
-  PetscInt, allocatable :: energy_indices_in_residual(:)
-  PetscErrorCode :: ierr
-  IS :: is
-
-  call RealizCreateFlowMassTransferVec(realization)
-  this%data_mediator => DataMediatorVecCreate()
-  call this%data_mediator%AddToList(realization%flow_data_mediator_list)
-
-  cur_criticality => this%criticality_list
-  vec_size = 0
-
-  do
-    if (.not. associated(cur_criticality)) exit
-    vec_size = vec_size + cur_criticality%region%num_cells
-    cur_criticality => cur_criticality%next
-  enddo
-
-  call VecCreateSeq(PETSC_COMM_SELF, vec_size,this%data_mediator%vec, &
-                    ierr);CHKERRQ(ierr)
-  call VecSetFromOptions(this%data_mediator%vec,ierr); CHKERRQ(ierr)
-
-  cur_criticality => this%criticality_list
-  allocate(energy_indices_in_residual(vec_size))
-  j = 0
-  do
-    if (.not. associated(cur_criticality)) exit
-      do i = 1, cur_criticality%region%num_cells
-        j = j + 1
-        energy_indices_in_residual(j) = cur_criticality%region% &
-                                        cell_ids(i) * option%nflowdof - 1
-      enddo
-    cur_criticality => cur_criticality%next
-  enddo
-  energy_indices_in_residual(:) = energy_indices_in_residual(:) + &
-      realization%patch%grid%global_offset*option%nflowdof
-
-  this%total_num_cells = j
-
-  call ISCreateGeneral(option%mycomm,vec_size, &
-                       energy_indices_in_residual, &
-                       PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
-  call VecScatterCreate(this%data_mediator%vec,PETSC_NULL_IS, &
-                        realization%field%flow_r, is, &
-                        this%data_mediator%scatter_ctx, ierr); CHKERRQ(ierr)
-  if (allocated(energy_indices_in_residual)) then
-      deallocate(energy_indices_in_residual)
-  endif
-
-  call ISDestroy(is,ierr);CHKERRQ(ierr)
-
-end subroutine CriticalityInitializeRun
-
-! ************************************************************************** !
-
-subroutine AssignCritMech(this)
-
-  use String_module
-
-  implicit none
-
-  type(criticality_mediator_type), pointer :: this
-
-  type(criticality_mechanism_type), pointer :: cur_mechanism
-  type(criticality_type), pointer :: cur_criticality
-
-  cur_criticality => this%criticality_list
-  do
-    if(.not. associated(cur_criticality)) exit
-    cur_mechanism => this%crit_mech_list
-    do
-      if (.not. associated(cur_mechanism)) exit
-      if (StringCompare(cur_criticality%crit_event%mech_name, &
-          cur_mechanism%mech_name)) then
-        cur_criticality%crit_mech => cur_mechanism
-        exit
-      endif
-    enddo
-    cur_criticality => cur_criticality%next
-  enddo
-
-end subroutine AssignCritMech
-
-! ************************************************************************** !
-
-subroutine CriticalitySolve(this,realization,time,scaling_factor,ierr)
-  !
-  !Author: Michael Nole
-  !Date: 11/05/18
-  !
-  use Realization_Subsurface_class
-
-  implicit none
-
-  type(criticality_mediator_type), pointer :: this
-  class(realization_subsurface_type), pointer :: realization
-  PetscReal :: time
-  PetscReal, pointer :: scaling_factor(:)
-  PetscErrorCode :: ierr
-
-  PetscInt :: i,j
-  type(criticality_type), pointer :: cur_criticality
-  PetscReal, pointer :: heat_source(:)
-
-  call VecGetArrayF90(this%data_mediator%vec,heat_source, &
-                      ierr);CHKERRQ(ierr)
-
-  cur_criticality => this%criticality_list
-  j = 0
-  do
-    if (.not. associated(cur_criticality)) exit
-
-    if (time >= cur_criticality%crit_event%crit_start .and. time < &
-            cur_criticality%crit_event%crit_end) then
-      cur_criticality%crit_event%crit_flag = PETSC_TRUE
-    else
-      cur_criticality%crit_event%crit_flag = PETSC_FALSE
-    endif
-
-    call CriticalityCalc(cur_criticality%crit_mech,time,ierr)
-
-    do i = 1, cur_criticality%region%num_cells
-      j = j + 1
-      heat_source(j) = cur_criticality%crit_mech%decay_heat
-
-      if (cur_criticality%crit_event%crit_flag) then
-        heat_source(j) = heat_source(j) + cur_criticality%crit_mech%crit_heat
-      endif
-
-      ! Distribute heat source throughout all cells in a waste package
-      heat_source(j) = heat_source(j) * scaling_factor(j)
-    enddo
-
-    cur_criticality => cur_criticality%next
-  enddo
-
-  call VecRestoreArrayF90(this%data_mediator%vec,heat_source, &
-                          ierr);CHKERRQ(ierr)
-
-end subroutine CriticalitySolve
 
 ! ************************************************************************** !
 
@@ -5798,45 +5805,29 @@ end subroutine CriticalityStrip
 
 ! ************************************************************************** !
 
-subroutine AMP_surrogate_step (burnup, sTme, current_temp_C, &
-                               conc, decay_time, &
-                               outer_weights, inner_weights, &
-                               scaler_means, scaler_variances, &
-                               fuelDisRate)
+function relu(x)
+! Rectified linear unit
   implicit none
-  PetscReal, intent(in) :: sTme
-  PetscReal, intent(in) :: burnup
-  PetscReal, intent(in) :: current_temp_C 
-  PetscReal, intent(in) :: decay_time
-  ! four environmental concentrations
-  PetscReal, intent(in) :: conc(:)
-  ! ANN weights
-  PetscReal, intent(in) :: outer_weights(:)
-  PetscReal, intent(in) :: inner_weights(:,:)
-  ! standardization scaler parameters
-  PetscReal, intent(in) :: scaler_means(:)
-  PetscReal, intent(in) :: scaler_variances(:)
-  ! output
-  PetscReal, intent(out) :: fuelDisRate ! g/m2/yr
-  
-  ! local variables
-  PetscReal :: yTme
+  PetscReal :: relu
+  PetscReal, intent(in) :: x
+  if (x >= 0.0d0) then
+    relu = x
+  else
+    relu = 0.0d0
+  endif
+end function relu
+
+! ************************************************************************** !
+
+function dose_rate(years_time, decay_time, burnup)
+! Computes the dose rate at the fuel surface
+  implicit none
+  PetscReal :: dose_rate
+  PetscReal, intent(in) :: years_time, decay_time, burnup
   PetscReal :: f1, f2, f3, f4, f5
-  PetscReal :: AOF, rad0a, rad0
-  PetscReal :: node_sum
-  PetscInt :: i
-  PetscInt :: N ! number of nodes in ANN
-  ! features
-  PetscReal, dimension(6) :: f
-  ! hidden layer nodes values
-  PetscReal, dimension(100) :: h
-  ! constants
-  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+  PetscReal :: AOF, rad0a
 
-  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
-
-  ! calculate dose rate at the fuel surface (rad0)
-  AOF = yTme + decay_time
+  AOF = years_time + decay_time
 
   f2 = log(AOF)
   f1 = f2**2.0d0
@@ -5847,35 +5838,537 @@ subroutine AMP_surrogate_step (burnup, sTme, current_temp_C, &
   rad0a = -206.0634818750711d0   - 0.7631591788870090d0*f1 &
         + 20.97112373957833d0*f2 + 678.8463343193430d0*f3 &
         - 506.7149017370657d0*f4 + 0.1555448893425319d0*f5
-  rad0 = max(exp(rad0a),5.0d-3)
+  dose_rate = max(exp(rad0a),5.0d-3)
+end function dose_rate
+
+! ************************************************************************** !
+subroutine AMP_ann_surrogate_step(this, sTme, current_temp_C)
+  
+  implicit none
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  PetscReal, intent(in) :: sTme
+  PetscReal, intent(in) :: current_temp_C 
+  ! constants
+  PetscInt, parameter :: num_features = 6 ! number of inputs to ANN
+  PetscInt, parameter :: N = 64 ! number of nodes per hidden layer
+  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+  
+  ! local variables
+  PetscReal :: yTme
+  PetscInt :: i
+  ! features
+  PetscReal :: f(6)
+  ! hidden layer nodes values
+  PetscReal :: h1(64), h2(64)
+
+  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
   ! features
   f(1) = current_temp_C + 273.15d0
+  f(2) = log10(this%concentration(1)) ! Env_CO3_2n
+  f(3) = log10(this%concentration(2)) ! Env_O2
+  f(4) = log10(this%concentration(3)) ! Env_Fe_2p
+  f(5) = log10(this%concentration(4)) ! Env_H2
+  f(6) = log10(dose_rate(yTme,this%decay_time,this%burnup))
+
+  ! standardize
+  do i = 1,num_features
+    f(i) = (f(i) - this%scaler_offsets(i))/this%scaler_scales(i)
+  enddo
+
+  ! Input - Hidden Layer 1
+  do i = 1,N
+    h1(i) = relu(dot_product(f, this%input_hidden1_weights(:,i)) &
+          + this%input_hidden1_bias(i))
+  enddo
+
+  ! Hidden Layer 1 - Hidden Layer 2
+  do i = 1,N
+    h2(i) = relu(dot_product(h1, this%hidden1_hidden2_weights(:,i)) &
+          + this%hidden1_hidden2_bias(i))
+  enddo
+
+  ! Hidden Layer 2 - Output
+  this%dissolution_rate = 10**(dot_product(h2, this%hidden2_output_weights) &
+                        + this%hidden2_output_bias)*UO2_molar_mass
+
+end subroutine AMP_ann_surrogate_step
+
+! ************************************************************************** !
+
+subroutine ANNReadH5File(this, option)
+
+  use hdf5
+  use HDF5_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  
+  character(len=MAXSTRINGLENGTH) :: h5_name = 'fmdm_ann_coeffs.h5'
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: group_name = '/'
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+
+  integer(HID_T) :: prop_id
+  integer(HID_T) :: file_id
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+
+  integer(HSIZE_T), allocatable :: dims_h5(:)
+
+  PetscMPIInt :: hdf5_err
+ 
+  call h5open_f(hdf5_err)
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
+  call HDF5GroupOpen(file_id,group_name,group_id,option)
+
+  dataset_name = 'input_hidden1_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_weights, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'input_hidden1_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%input_hidden1_bias,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden1_hidden2_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_weights, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden1_hidden2_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%hidden1_hidden2_bias, dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden2_output_weights'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_weights,dims_h5, &
+                   hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'hidden2_output_bias'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%hidden2_output_bias,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'scaler_offsets'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_offsets,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  dataset_name = 'scaler_scales'
+  call ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id, &
+       dims_h5)
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,this%scaler_scales,dims_h5, &
+                 hdf5_err)
+  call h5dclose_f(dataset_id,hdf5_err)
+  deallocate(dims_h5)
+
+  call h5gclose_f(group_id,hdf5_err)
+  call h5fclose_f(file_id,hdf5_err)
+  call h5pclose_f(prop_id,hdf5_err)
+
+end subroutine ANNReadH5File
+
+! ************************************************************************** !
+
+subroutine ANNGetH5DatasetInfo(group_id,option,h5_name,dataset_name,dataset_id,&
+                               dims_h5)
+ 
+  use hdf5
+  
+  implicit none
+
+  type(option_type) :: option
+  
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
+
+  PetscInt :: i
+  PetscInt :: ndims_h5
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: h5_name
+  PetscMPIInt :: hdf5_err
+
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  endif
+ 
+  call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+  call h5sget_simple_extent_ndims_f(file_space_id,ndims_h5,hdf5_err)
+
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  
+  call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
+
+  deallocate(max_dims_h5)
+
+end subroutine ANNGetH5DatasetInfo
+
+! ************************************************************************** !
+
+subroutine KnnrInit(this,option)
+  
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  PetscInt :: i_n, i_d, d
+  PetscInt :: data_array_shape(2)
+
+  call KnnrReadH5File(this, option)
+
+  data_array_shape = shape(this%table_data)
+  ! Quantities of Interest (QoI) is not part of the search query of the search query.
+  this%num_qoi = data_array_shape(1)-1
+  d = data_array_shape(2)
+
+  allocate(this%knnr_array(this%num_qoi,d))
+
+  do i_d = 1, this%num_qoi
+    this%knnr_array(i_d,:) = this%table_data(i_d,:)
+  end do
+ 
+  this%tree => KdtreeCreate()
+
+  call KdtreeConstruct(this%tree,this%knnr_array,sort=PETSC_FALSE,rearrange=PETSC_FALSE)  
+
+end subroutine KnnrInit
+
+! ************************************************************************** !
+
+subroutine KnnrQuery(this,sTme,current_temp_C)
+
+  implicit none
+
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+
+  PetscReal :: current_temp_C
+  PetscReal :: decay_time 
+  PetscReal, allocatable :: conc(:)
+  PetscReal :: burnup 
+  PetscReal :: sTme
+  PetscInt :: nn 
+
+  PetscReal :: fuelDisRate 
+
+  ! features
+  PetscReal :: f(6)
+  PetscReal :: yTme
+
+  PetscReal :: qoi_ave
+  PetscReal, parameter :: UO2_molar_mass = 270.0d0 !g/mol
+      
+  type(kdtree_result), allocatable :: knnr_results(:)
+
+  decay_time = this%decay_time
+  conc = this%concentration
+  burnup = this%burnup
+  nn = this%num_nearest_neighbor
+ 
+  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR  
+
+  f(1) = log10(current_temp_C + 273.15d0)
   f(2) = log10(conc(1)) ! Env_CO3_2n
   f(3) = log10(conc(2)) ! Env_O2
   f(4) = log10(conc(3)) ! Env_Fe_2p
   f(5) = log10(conc(4)) ! Env_H2
-  f(6) = log10(rad0)
+  f(6) = log10(dose_rate(yTme,decay_time,burnup))
 
-  ! standardize
-  do i = 1,6
-    f(i) = (f(i) - scaler_means(i))/sqrt(scaler_variances(i))
-  enddo
+  allocate(knnr_results(nn))
 
-  N = 100 ! 100 nodes
+  call kdtreeNNearest(tp=this%tree,qv=f,nn=nn,results=knnr_results)
 
-  do i = 1,N
-    node_sum = dot_product(f, inner_weights(1:6,i)) + inner_weights(7,i)
-    if (node_sum < 0.0d0) then
-      node_sum = 0.0d0
+  call KnnrInverseDistance(knnr_results,nn,this%table_data,this%num_qoi,this%knnr_eps,qoi_ave)
+
+  this%dissolution_rate = (qoi_ave) * UO2_molar_mass !convert units
+
+end subroutine KnnrQuery
+
+! ************************************************************************** !
+
+subroutine KnnrReadH5File(this, option)
+
+  use hdf5
+  use HDF5_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  
+  character(len=MAXSTRINGLENGTH) :: h5_name = 'FMDM_knnr_data.h5'
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: group_name = '/'
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+
+  integer(HID_T) :: prop_id
+  integer(HID_T) :: file_id
+  integer(HID_T) :: parent_id
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
+
+  PetscInt :: ndims_h5
+  
+  PetscMPIInt :: hdf5_err
+ 
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+ 
+  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
+
+  call h5pclose_f(prop_id,hdf5_err)
+
+  !hdf5groupopen
+  call HDF5GroupOpen(file_id,group_name,group_id,option)
+
+  !Get Nearest Neighbors
+  call KnnrGetNearestNeighbors(this,group_id,h5_name,option)
+
+  !Read features
+  dataset_name = 'Temp'
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+ 
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  endif
+ 
+  ! get dataspace ID
+  call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+ 
+  call h5sget_simple_extent_ndims_f(file_space_id,ndims_h5,hdf5_err)
+
+  allocate(dims_h5(ndims_h5))
+  allocate(max_dims_h5(ndims_h5))
+  
+  call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
+
+  allocate(this%table_data(7,dims_h5(1)))
+
+
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(1,:), dims_h5, &
+                   hdf5_err)
+
+  call h5dclose_f(dataset_id,hdf5_err)
+
+  dataset_name = 'Env_CO3_2n'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,2)
+  dataset_name = 'Env_O2'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,3)
+  dataset_name = 'Env_Fe_2p'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,4)
+  dataset_name = 'Env_H2'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,5)
+  dataset_name = 'Dose Rate d0'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,6)
+  dataset_name = 'UO2 Surface Flux'
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,7)
+
+  deallocate(dims_h5)
+  deallocate(max_dims_h5)
+
+  
+  call h5gclose_f(group_id,hdf5_err)
+  call h5fclose_f(file_id,hdf5_err)
+
+  this%table_data(1,:) = log10(this%table_data(1,:))
+  this%table_data(2,:) = log10(this%table_data(2,:))
+  this%table_data(3,:) = log10(this%table_data(3,:))
+  this%table_data(4,:) = log10(this%table_data(4,:))
+  this%table_data(5,:) = log10(this%table_data(5,:))
+  this%table_data(6,:) = log10(this%table_data(6,:))
+
+end subroutine KnnrReadH5File
+
+! ************************************************************************** !
+
+subroutine KnnrGetNearestNeighbors(this,group_id,h5_name,option)
+
+  use hdf5
+
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T) :: dims_h5(1) = 1
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: h5_name
+  PetscMPIInt :: hdf5_err
+
+  dataset_name = 'Nearest Neighbors Num'
+
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  else
+     call h5dread_f(dataset_id,H5T_NATIVE_INTEGER, this%num_nearest_neighbor, dims_h5, &
+       hdf5_err)
+ 
+     call h5dclose_f(dataset_id,hdf5_err)
+  endif
+     
+end subroutine KnnrGetNearestNeighbors    
+  
+! ************************************************************************** !
+
+subroutine KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,i)
+
+  use hdf5
+  
+  implicit none
+
+  type(option_type) :: option
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  
+  integer(HID_T) :: group_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+
+  integer(HSIZE_T),allocatable :: dims_h5(:)
+
+  PetscInt :: i
+
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: h5_name
+  PetscMPIInt :: hdf5_err
+
+  call h5dopen_f(group_id,dataset_name,dataset_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "' // trim(dataset_name) // '" not found in HDF5 file "' // &
+    trim(h5_name) // '".'
+    call PrintErrMsg(option)
+  endif
+ 
+  ! get dataspace ID
+  call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+
+  call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(i,:), dims_h5, &
+       hdf5_err)
+  
+  call h5dclose_f(dataset_id,hdf5_err)
+
+
+end subroutine KnnrReadH5Dataset
+
+! ************************************************************************** !
+
+subroutine KnnrInverseDistance(knnr_results,nn,table_data,n,eps,qoi_ave)
+
+  implicit none
+
+  PetscReal :: qoi_i, qoi_sum, qoi_ave, qoi_weights, weight, dis
+ 
+  type(kdtree_result), allocatable :: knnr_results(:)
+  PetscReal :: eps, table_data(:,:)
+  PetscInt :: n
+
+  type(kdtree_result) :: knnr_qoi
+  PetscInt :: i_d,nn
+
+  qoi_weights = 0.0
+  qoi_sum = 0.0
+
+  do i_d = 1,nn
+    knnr_qoi = knnr_results(i_d)
+
+    qoi_i = log10(table_data(n+1,knnr_qoi%idx))
+
+    dis = knnr_qoi%dis
+
+    if (abs(dis) <= eps) then
+      qoi_weights = 1.0
+      qoi_sum = qoi_i
+
+      exit
+    elseif (KnnrIsInfinite(abs(1/dis))) then
+      qoi_weights = 1.0
+      qoi_sum = qoi_i
+         
+      exit
+    else 
+
+       weight = 1 / dis
+
+       qoi_sum = qoi_sum + qoi_i * weight
+
+       qoi_weights = qoi_weights + weight
+
     endif
-    h(i) = node_sum
+
   enddo
+ 
+  qoi_ave = qoi_sum/qoi_weights
+  qoi_ave = 10**(qoi_ave)
+  
+end subroutine KnnrInverseDistance
 
-  fuelDisRate= 10**(dot_product(h,outer_weights(1:N)) + &
-                          outer_weights(101))*UO2_molar_mass
+! ************************************************************************** !
 
-end subroutine AMP_surrogate_step
+function KnnrIsInfinite(value1)
+
+  implicit none
+
+  PetscBool :: KnnrIsInfinite
+  PetscReal :: value1
+  PetscReal :: infinity
+
+  KnnrIsInfinite = PETSC_FALSE
+    
+  infinity = huge(0.0d0)
+ 
+  if (value1 >= infinity) then
+    KnnrIsInfinite = PETSC_TRUE
+  endif
+ 
+end function KnnrIsInfinite
 
 ! ************************************************************************** !
 

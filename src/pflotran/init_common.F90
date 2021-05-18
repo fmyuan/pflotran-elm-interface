@@ -12,7 +12,6 @@ module Init_Common_module
             InitCommonReadRegionFiles, &
             InitCommonReadVelocityField, &
             InitCommonVerifyAllCouplers, &
-            setSurfaceFlowMode, &
             InitCommonAddOutputWaypoints
 
 contains
@@ -84,37 +83,6 @@ subroutine InitReadInputFilenames(option,filenames)
   call InputDestroy(input)
 
 end subroutine InitReadInputFilenames
-
-! ************************************************************************** !
-
-subroutine setSurfaceFlowMode(option)
-  ! 
-  ! Sets the flow mode for surface (richards, th, etc.)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 07/30/14
-  ! 
-
-  use Option_module
-  use String_module
-
-  implicit none 
-
-  type(option_type) :: option
-  
-  select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      option%nsurfflowdof = ONE_INTEGER
-    case(TH_MODE,TH_TS_MODE)
-      option%nsurfflowdof = TWO_INTEGER
-    case default
-      write(option%io_buffer,*) option%iflowmode
-      option%io_buffer = 'Flow Mode ' // &
-        trim(option%io_buffer) // ' not recognized in setSurfaceFlowMode().'
-      call PrintErrMsg(option)
-  end select
-  
-end subroutine setSurfaceFlowMode
 
 ! ************************************************************************** !
 

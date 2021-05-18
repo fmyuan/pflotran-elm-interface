@@ -16,6 +16,11 @@ SUBSURFACE
 #=========================== numerical methods ================================
 NUMERICAL_METHODS TRANSPORT
 
+  NEWTON_SOLVER
+    # Uncomment to debug reactions
+    #NUMERICAL_JACOBIAN
+  /
+
   LINEAR_SOLVER
     SOLVER DIRECT
   /
@@ -36,8 +41,6 @@ SPECIFIED_VELOCITY
 END
 
 #=========================== chemistry ========================================
-# Uncomment to debug reactions
-#NUMERICAL_JACOBIAN_RXN
 CHEMISTRY
   PRIMARY_SPECIES
     A1

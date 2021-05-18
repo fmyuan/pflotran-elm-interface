@@ -3,6 +3,7 @@ module Patch_module
 #include "petsc/finclude/petscvec.h"
   use petscvec
 
+  use PFLOTRAN_Constants_module
   use Option_module
   use Grid_module
   use Coupler_module
@@ -17,19 +18,14 @@ module Patch_module
   use Material_module
   use Field_module
   use Saturation_Function_module
+  use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_module
-  use Surface_Field_module
-  use Surface_Material_module
-  use Surface_Auxiliary_module
-
   use Auxiliary_module
-
-  use PFLOTRAN_Constants_module
 
   use General_Aux_module
   use Hydrate_Aux_module
   use TH_Aux_module
-  
+
   implicit none
 
   private
@@ -42,7 +38,8 @@ module Patch_module
     ! go in the auxiliary data stucture for that mode
     PetscInt, pointer :: imat(:)
     PetscInt, pointer :: imat_internal_to_external(:)
-    PetscInt, pointer :: sat_func_id(:)
+    PetscInt, pointer :: cc_id(:)    ! characteristic curves id
+    PetscInt, pointer :: cct_id(:)   ! thermal characteristic curves id
 
     PetscReal, pointer :: internal_velocities(:,:)
     PetscReal, pointer :: boundary_velocities(:,:)
@@ -57,9 +54,6 @@ module Patch_module
     PetscReal, pointer :: internal_tran_fluxes(:,:)
     PetscReal, pointer :: boundary_tran_fluxes(:,:)
     PetscReal, pointer :: ss_tran_fluxes(:,:)
-
-    ! for TH surface/subsurface
-    PetscReal, pointer :: boundary_energy_flux(:,:)
 
     ! for upwind direction in multiphase flow
     PetscInt, pointer :: flow_upwind_direction(:,:)
@@ -79,6 +73,8 @@ module Patch_module
     type(saturation_function_ptr_type), pointer :: saturation_function_array(:)
     class(characteristic_curves_type), pointer :: characteristic_curves
     type(characteristic_curves_ptr_type), pointer :: characteristic_curves_array(:)
+    class(cc_thermal_type), pointer :: characteristic_curves_thermal
+    type(cc_thermal_ptr_type), pointer :: char_curves_thermal_array(:)
 
     type(strata_list_type), pointer :: strata_list
     type(observation_list_type), pointer :: observation_list
@@ -94,13 +90,6 @@ module Patch_module
     type(auxiliary_type) :: aux
 
     type(patch_type), pointer :: next
-
-    PetscInt :: surf_or_subsurf_flag  ! Flag to identify if the current patch
-                                      ! is a surface or subsurface (default)
-    type(surface_material_property_type), pointer :: surf_material_properties
-    type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
-    type(surface_field_type), pointer :: surf_field
-    type(surface_auxiliary_type) :: surf_aux
 
   end type patch_type
 
@@ -145,6 +134,7 @@ module Patch_module
             PatchGetCompMassInRegion, &
             PatchGetWaterMassInRegion, &
             PatchGetCompMassInRegionAssign, &
+            PatchUpdateCouplerSaturation, &
             PatchSetupUpwindDirection
 
 contains
@@ -168,10 +158,10 @@ function PatchCreate()
   allocate(patch)
 
   patch%id = 0
-  patch%surf_or_subsurf_flag = SUBSURFACE
   nullify(patch%imat)
   nullify(patch%imat_internal_to_external)
-  nullify(patch%sat_func_id)
+  nullify(patch%cc_id)
+  nullify(patch%cct_id)
   nullify(patch%internal_velocities)
   nullify(patch%boundary_velocities)
   nullify(patch%internal_tran_coefs)
@@ -183,7 +173,6 @@ function PatchCreate()
   nullify(patch%ss_flow_fluxes)
   nullify(patch%ss_tran_fluxes)
   nullify(patch%ss_flow_vol_fluxes)
-  nullify(patch%boundary_energy_flux)
 
   nullify(patch%flow_upwind_direction)
   nullify(patch%flow_upwind_direction_bc)
@@ -206,6 +195,8 @@ function PatchCreate()
   nullify(patch%saturation_function_array)
   nullify(patch%characteristic_curves)
   nullify(patch%characteristic_curves_array)
+  nullify(patch%characteristic_curves_thermal)
+  nullify(patch%char_curves_thermal_array)
 
   allocate(patch%observation_list)
   call ObservationInitList(patch%observation_list)
@@ -223,11 +214,6 @@ function PatchCreate()
   nullify(patch%reaction_nw)
 
   nullify(patch%next)
-
-  nullify(patch%surf_material_properties)
-  nullify(patch%surf_material_property_array)
-  nullify(patch%surf_field)
-  call SurfaceAuxInit(patch%surf_aux)
 
   PatchCreate => patch
 
@@ -353,7 +339,7 @@ end subroutine PatchLocalizeRegions
 ! ************************************************************************** !
 
 subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
-                                option)
+                                geophysics_conditions, option)
 
   !
   ! Assigns conditions and regions to couplers
@@ -373,6 +359,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   type(patch_type) :: patch
   type(condition_list_type) :: flow_conditions
   type(tran_condition_list_type) :: transport_conditions
+  type(geop_condition_list_type) :: geophysics_conditions
   type(option_type) :: option
 
   type(coupler_type), pointer :: coupler
@@ -445,6 +432,26 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
         endif
       else
         option%io_buffer = 'A TRANSPORT_CONDITION must be specified in &
+                           &BOUNDARY_CONDITION: ' // trim(coupler%name) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    ! pointer to geophysics condition
+    if (option%ngeopdof > 0) then
+      if (len_trim(coupler%geop_condition_name) > 0) then
+        coupler%geop_condition => &
+          GeopConditionGetPtrFromList(coupler%geop_condition_name, &
+                                      geophysics_conditions)
+        if (.not.associated(coupler%geop_condition)) then
+           option%io_buffer = 'Geophysics condition "' // &
+                   trim(coupler%geop_condition_name) // &
+                   '" in boundary condition "' // &
+                   trim(coupler%name) // &
+                   '" not found in geophysics condition list'
+          call PrintErrMsg(option)
+        endif
+      else
+        option%io_buffer = 'A GEOPHYSICS_CONDITION must be specified in &
                            &BOUNDARY_CONDITION: ' // trim(coupler%name) // '.'
         call PrintErrMsg(option)
       endif
@@ -553,16 +560,6 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
               temp_int = 1
             endif
           endif
-          if (associated(coupler%flow_condition%toil_ims)) then
-            if (associated(coupler%flow_condition%toil_ims%rate)) then
-              temp_int = 1
-            endif
-          end if
-          if (associated(coupler%flow_condition%towg)) then
-            if (associated(coupler%flow_condition%towg%rate)) then
-              temp_int = 1
-            endif
-          end if
           if (temp_int == 0) then
             option%io_buffer = 'FLOW_CONDITIONs associated with &
               &SOURCE_SINKs must have a RATE or WELL expression within them.'
@@ -617,32 +614,15 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
       endif
       if (strata%active) then
         ! pointer to material
-        ! gb: Depending on a surface/subsurface patch, use corresponding
-        !     material properties
-        if (patch%surf_or_subsurf_flag == SUBSURFACE) then
-          strata%material_property => &
-            MaterialPropGetPtrFromArray(strata%material_property_name, &
-                                        patch%material_property_array)
-          if (.not.associated(strata%material_property)) then
-            option%io_buffer = 'Material "' // &
-                              trim(strata%material_property_name) // &
-                              '" not found in material list'
-            call PrintErrMsg(option)
-          endif
+        strata%material_property => &
+          MaterialPropGetPtrFromArray(strata%material_property_name, &
+                                      patch%material_property_array)
+        if (.not.associated(strata%material_property)) then
+          option%io_buffer = 'Material "' // &
+                            trim(strata%material_property_name) // &
+                            '" not found in material list'
+          call PrintErrMsg(option)
         endif
-
-        if (patch%surf_or_subsurf_flag == SURFACE) then
-          strata%surf_material_property => &
-            SurfaceMaterialPropGetPtrFromArray(strata%material_property_name, &
-                                            patch%surf_material_property_array)
-          if (.not.associated(strata%surf_material_property)) then
-            option%io_buffer = 'Material "' // &
-                              trim(strata%material_property_name) // &
-                              '" not found in material list'
-            call PrintErrMsg(option)
-          endif
-        endif
-
       endif
     else
       nullify(strata%region)
@@ -668,7 +648,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     if (.not.associated(observation)) exit
     next_observation => observation%next
     select case(observation%itype)
-      case(OBSERVATION_SCALAR)
+      case(OBSERVATION_SCALAR,OBSERVATION_AGGREGATE)
         ! pointer to region
         observation%region => RegionGetPtrFromList(observation%linkage_name, &
                                                     patch%region_list)
@@ -689,7 +669,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
             &model domain.'
           call PrintErrMsg(option)
         endif
-        if (observation%region%num_cells == 0) then
+        if (observation%region%num_cells == 0 .and. observation%itype == &
+            OBSERVATION_SCALAR) then
           ! remove the observation object
           call ObservationRemoveFromList(observation,patch%observation_list)
         endif
@@ -737,8 +718,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 
   ! flow
   if (option%nflowdof > 0) then
-    if (option%flow%store_fluxes .or. &
-        (patch%surf_or_subsurf_flag == SURFACE)) then
+    if (option%flow%store_fluxes) then
       allocate(patch%internal_flow_fluxes(option%nflowdof,temp_int))
       patch%internal_flow_fluxes = 0.d0
     endif
@@ -762,16 +742,9 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     patch%boundary_velocities = 0.d0
     ! flow
     if (option%nflowdof > 0) then
-      if (option%flow%store_fluxes .or. &
-          (patch%surf_or_subsurf_flag == SURFACE)) then
+      if (option%flow%store_fluxes) then
         allocate(patch%boundary_flow_fluxes(option%nflowdof,temp_int))
         patch%boundary_flow_fluxes = 0.d0
-      endif
-      ! surface/subsurface storage
-      if (option%iflowmode == TH_MODE .or. &
-          option%iflowmode == TH_TS_MODE) then
-        allocate(patch%boundary_energy_flux(2,temp_int))
-        patch%boundary_energy_flux = 0.d0
       endif
     endif
     ! transport
@@ -866,9 +839,6 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Transport_Constraint_module
   use General_Aux_module
   use WIPP_Flow_Aux_module
-  !use TOilIms_Aux_module
-  use PM_TOilIms_Aux_module
-  use PM_TOWG_Aux_module
 
   implicit none
 
@@ -906,8 +876,6 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               associated(coupler%flow_condition%concentration) .or. &
               associated(coupler%flow_condition%saturation) .or. &
               associated(coupler%flow_condition%temperature) .or. &
-              associated(coupler%flow_condition%toil_ims) .or. &
-              associated(coupler%flow_condition%towg) .or. &
               associated(coupler%flow_condition%general) .or. &
               associated(coupler%flow_condition%hydrate)) then
 
@@ -942,7 +910,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
-              case(MPH_MODE, IMS_MODE, FLASH2_MODE, MIS_MODE)
+              case(MPH_MODE)
                 allocate(coupler%flow_aux_real_var(option%nflowdof, &
                                                    num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
@@ -983,25 +951,6 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
-              case(TOIL_IMS_MODE)
-                allocate(coupler%flow_aux_mapping(TOIL_IMS_MAX_INDEX))
-                allocate(coupler%flow_bc_type(THREE_INTEGER))
-                allocate(coupler%flow_aux_real_var(option%nflowdof, &
-                                                   num_connections))
-                coupler%flow_aux_mapping = 0
-                coupler%flow_bc_type = 0
-                coupler%flow_aux_real_var = 0.d0
-              case(TOWG_MODE)
-                allocate(coupler%flow_aux_mapping(TOWG_MAX_INDEX))
-                allocate(coupler%flow_bc_type(option%nflowdof))
-                allocate(coupler%flow_aux_real_var(option%nflowdof, &
-                                                   num_connections))
-                allocate(coupler%flow_aux_int_var(1,num_connections))
-                coupler%flow_aux_mapping = 0
-                coupler%flow_bc_type = 0
-                coupler%flow_aux_real_var = 0.d0
-                coupler%flow_aux_int_var = 0
-
               case default
                 option%io_buffer = 'Failed allocation for flow condition "' // &
                   trim(coupler%flow_condition%name)
@@ -1030,7 +979,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                   case(TH_MODE,TH_TS_MODE)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
-                  case(MPH_MODE,FLASH2_MODE,MIS_MODE,IMS_MODE)
+                  case(MPH_MODE)
                     ! do nothing
                   case default
                     string = GetSubConditionName(coupler%flow_condition%rate%itype)
@@ -1054,25 +1003,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                   coupler%flow_aux_real_var = 0.d0
               end select
             endif
-          ! source/sinks for toil_ims
-          else if (associated(coupler%flow_condition%toil_ims)) then
-            if (associated(coupler%flow_condition%toil_ims%rate)) then
-              select case(coupler%flow_condition%toil_ims%rate%itype)
-                case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-                  allocate(coupler%flow_aux_real_var(1,num_connections))
-                  coupler%flow_aux_real_var = 0.d0
-              end select
-            endif
-          ! source/sinks for towg
-          else if (associated(coupler%flow_condition%towg)) then
-            if (associated(coupler%flow_condition%towg%rate)) then
-              select case(coupler%flow_condition%towg%rate%itype)
-                case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-                  allocate(coupler%flow_aux_real_var(1,num_connections))
-                  coupler%flow_aux_real_var = 0.d0
-              end select
-            endif
-          endif ! associated(coupler%flow_condition%towg)
+          endif
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)
@@ -1159,7 +1090,6 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -1197,20 +1127,10 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
             call PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
           case(MPH_MODE)
             call PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
-          case(IMS_MODE)
-            call PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
-          case(FLASH2_MODE)
-            call PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
           case(TH_MODE,TH_TS_MODE)
             call PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
-          case(MIS_MODE)
-            call PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
           case(RICHARDS_MODE, RICHARDS_TS_MODE)
             call PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
-          case(TOIL_IMS_MODE)
-            call PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
-          case(TOWG_MODE)
-            call PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
         end select
       endif
     endif
@@ -1295,6 +1215,8 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,dataset, &
                                                  real_count)
+              coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = &
+                DIRICHLET_BC
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
@@ -1331,6 +1253,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,dataset, &
                                                  real_count)
+              coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
@@ -1467,7 +1390,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
   use EOS_Water_module
   use Utility_module
 
@@ -1504,7 +1426,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscInt :: dof_count_local(3)
   PetscInt :: dof_count_global(3)
   PetscReal, parameter :: min_two_phase_gas_pressure = 3.d3
-  
+
   num_connections = coupler%connection_set%num_connections
 
   flow_condition => coupler%flow_condition
@@ -1514,7 +1436,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   dof2 = PETSC_FALSE
   dof3 = PETSC_FALSE
   real_count = 0
-  
+
   ! mapping of flow_aux_mapping to the flow_aux_real_var array:
   if (associated(coupler%flow_aux_mapping)) then
     ! liquid and gas pressure are set to 1st dof index
@@ -1548,15 +1470,15 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           else if (gas_sat < 0.5d0) then
             coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
               LIQUID_STATE
-          else 
+          else
             coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
               GAS_STATE
           endif
         class is(dataset_gridded_hdf5_type)
           ! If the gas pressure dataset is defined, we must ensure that its
-          ! minimum pressure is greater than min_two_phase_gas_pressure. 
-          ! Otherwise, a zero gas pressure may be incorrectly used within 
-          ! an interpolation of gas pressure for a two phase cell mixed 
+          ! minimum pressure is greater than min_two_phase_gas_pressure.
+          ! Otherwise, a zero gas pressure may be incorrectly used within
+          ! an interpolation of gas pressure for a two phase cell mixed
           ! with a single phase liquid cell
           if (associated(general%gas_pressure)) then
             dummy_real = &
@@ -1578,7 +1500,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
             else
               coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = GAS_STATE
-            endif                                       
+            endif
           enddo
         class default
           call PrintMsg(option,'general%gas_saturation%dataset,MULTI_STATE')
@@ -1588,7 +1510,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     case(TWO_PHASE_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         TWO_PHASE_STATE
-        ! no need to loop in the next do loop if its all the same state, which 
+        ! no need to loop in the next do loop if its all the same state, which
         ! you know from flow_condition%iphase
     case(LIQUID_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
@@ -1636,7 +1558,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           ANY_STATE
       endif
   end select
-  
+
   ! loop over each connection in the coupler and check its state
   ! set the flow_aux_mapping, flow_aux_real_var, etc on a connection
   ! basis rather than in coupler chunks
@@ -1662,7 +1584,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   'GENERAL_MODE two phase state gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(general%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -1722,7 +1644,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             ! ---> see code that just prints error
             coupler%flow_bc_type(1) = HYDROSTATIC_BC
             coupler%flow_bc_type(2:3) = DIRICHLET_BC
-          else 
+          else
           ! liquid pressure; 1st dof --------------------- !
             select case(general%liquid_pressure%itype)
               case(DIRICHLET_BC)
@@ -1916,7 +1838,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
       end select
     enddo
   endif
-  
+
   select case(flow_condition%iphase)
     case(MULTI_STATE)
     case(TWO_PHASE_STATE)
@@ -1963,7 +1885,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   GENERAL_AIR_PRESSURE_INDEX),iconn) = &
                     gas_pressure - p_sat ! air pressure
             endif
-            call patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))% &
+            call patch%characteristic_curves_array(patch%cc_id(ghosted_id))% &
                    ptr%saturation_function%Saturation(p_cap,s_liq, &
                    dummy_real,option)
             ! %flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) set to 3 in hydrostatic
@@ -2053,14 +1975,14 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
   if (dof_count_global(3) > 0) dof3 = PETSC_TRUE
-  ! need to check if these dofs are true on any process, because the 
-  ! boundary condition might be split up on 2 or more processes  
+  ! need to check if these dofs are true on any process, because the
+  ! boundary condition might be split up on 2 or more processes
   if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
     if (coupler%itype .ne. SRC_SINK_COUPLER_TYPE) then
       option%io_buffer = 'Error with GENERAL_MODE phase boundary condition: &
                           &Missing dof.'
       call PrintErrMsg(option)
-    endif 
+    endif
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsG
@@ -2079,7 +2001,6 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
   use EOS_Water_module
   use Utility_module
 
@@ -2148,7 +2069,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
     coupler%flow_aux_mapping(HYDRATE_AIR_PRESSURE_INDEX) = 3
     coupler%flow_aux_mapping(HYDRATE_GAS_FLUX_INDEX) = 3
     coupler%flow_aux_mapping(HYDRATE_HYD_SATURATION_INDEX) = 3
-    
+
   endif
 
   select case(flow_condition%iphase)
@@ -2170,9 +2091,9 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           endif
         class is(dataset_gridded_hdf5_type)
           ! If the gas pressure dataset is defined, we must ensure that its
-          ! minimum pressure is greater than min_two_phase_gas_pressure. 
-          ! Otherwise, a zero gas pressure may be incorrectly used within 
-          ! an interpolation of gas pressure for a two phase cell mixed 
+          ! minimum pressure is greater than min_two_phase_gas_pressure.
+          ! Otherwise, a zero gas pressure may be incorrectly used within
+          ! an interpolation of gas pressure for a two phase cell mixed
           ! with a single phase liquid cell
           if (associated(hydrate%gas_pressure)) then
             dummy_real = &
@@ -2250,7 +2171,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
     case(GA_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
         GA_STATE
-        ! no need to loop in the next do loop if its all the same state, which 
+        ! no need to loop in the next do loop if its all the same state, which
         ! you know from flow_condition%iphase
     case(HG_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
@@ -2599,7 +2520,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE GA-State gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2648,7 +2569,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                     'HYDRATE MODE HA-state gas pressure ',string)
                 call PrintErrMsg(option)
             end select
-            ! temperature; 2nd dof ------------------------- !  
+            ! temperature; 2nd dof ------------------------- !
             select case(hydrate%temperature%itype)
               case(DIRICHLET_BC)
                 call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2744,7 +2665,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE GI-State gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2791,7 +2712,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE AI-State gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2839,7 +2760,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE HGA-State gas saturation ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2887,7 +2808,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE HAI-State gas pressure ',string)
               call PrintErrMsg(option)
           end select
-          ! ice saturation; 2nd dof ------------------------- !  
+          ! ice saturation; 2nd dof ------------------------- !
           select case(hydrate%ice_saturation%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2935,7 +2856,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE HGI-State ice saturation ',string)
               call PrintErrMsg(option)
           end select
-          ! temperature; 2nd dof ------------------------- !  
+          ! temperature; 2nd dof ------------------------- !
           select case(hydrate%temperature%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -2983,7 +2904,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                   'HYDRATE MODE QUAD-State liquid saturation ',string)
               call PrintErrMsg(option)
           end select
-          ! ice satuation; 2nd dof ------------------------- !  
+          ! ice satuation; 2nd dof ------------------------- !
           select case(hydrate%ice_saturation%itype)
             case(DIRICHLET_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
@@ -3111,8 +3032,8 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   if (dof_count_global(1) > 0) dof1 = PETSC_TRUE
   if (dof_count_global(2) > 0) dof2 = PETSC_TRUE
   if (dof_count_global(3) > 0) dof3 = PETSC_TRUE
-  ! need to check if these dofs are true on any process, because the 
-  ! boundary condition might be split up on 2 or more processes  
+  ! need to check if these dofs are true on any process, because the
+  ! boundary condition might be split up on 2 or more processes
   if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
     if (coupler%itype .ne. SRC_SINK_COUPLER_TYPE) then
       option%io_buffer = 'Error with HYDRATE_MODE phase boundary condition: &
@@ -3122,628 +3043,6 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsH
-! ************************************************************************** !
-
-subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
-  !
-  ! Updates flow auxiliary variables associated
-  ! with a coupler for TOIL_IMS_MODE
-  ! only ascii database option currenlty available
-  !
-  ! Author: Paolo Orsini
-  ! Date: 09/09/15
-  !
-
-  use Option_module
-  use Condition_module
-  use Hydrostatic_module
-  use HydrostaticMultiPhase_module
-  use Saturation_module
-
-  !use TOilIms_Aux_module
-  use PM_TOilIms_Aux_module
-
-  use Grid_module
-  use Dataset_Common_HDF5_class
-  use Dataset_Gridded_HDF5_class
-  use Dataset_Ascii_class
-  use Dataset_module
-
-  implicit none
-
-  type(patch_type) :: patch
-  type(coupler_type), pointer :: coupler
-  type(option_type) :: option
-
-  type(flow_condition_type), pointer :: flow_condition
-  character(len=MAXSTRINGLENGTH) :: string
-  !type(tran_condition_type), pointer :: tran_condition
-
-  type(flow_toil_ims_condition_type), pointer :: toil_ims
-
-  PetscBool :: dof1, dof2, dof3
-
-  PetscErrorCode :: ierr
-
-  PetscInt :: idof, num_connections
-  PetscInt :: iconn, local_id, ghosted_id
-  ! use to map flow_aux_map to the flow_aux_real_var array
-  PetscInt :: real_count
-
-  num_connections = coupler%connection_set%num_connections
-
-  flow_condition => coupler%flow_condition
-
-  toil_ims => flow_condition%toil_ims
-  dof1 = PETSC_FALSE
-  dof2 = PETSC_FALSE
-  dof3 = PETSC_FALSE
-
-  real_count = 0
-
-  if ( associated(toil_ims%pressure) ) then
-    ! pressure is either hydrostatic or dirichlet
-    if (toil_ims%pressure%itype == HYDROSTATIC_BC) then
-      dof2 = PETSC_TRUE
-      call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
-                   patch%characteristic_curves_array,patch%sat_func_id, &
-                   patch%imat)
-      coupler%flow_bc_type(TOIL_IMS_OIL_EQUATION_INDEX) = HYDROSTATIC_BC
-      coupler%flow_bc_type(TOIL_IMS_LIQUID_EQUATION_INDEX) = HYDROSTATIC_BC
-      coupler%flow_bc_type(TOIL_IMS_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-      dof1 = PETSC_TRUE
-      dof3 = PETSC_TRUE
-    else
-      real_count = real_count + 1
-      select case(toil_ims%pressure%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOIL_IMS_PRESSURE_INDEX) = real_count
-          coupler%flow_bc_type(TOIL_IMS_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-          select type(selector => toil_ims%pressure%dataset)
-            class is(dataset_ascii_type)
-              coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                selector%rarray(1)
-              dof1 = PETSC_TRUE
-            class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerGridDataset(coupler,option, &
-                                                 patch%grid,selector, &
-                                                 real_count)
-              dof1 = PETSC_TRUE
-            class is(dataset_common_hdf5_type)
-              ! skip cell indexed datasets used in initial conditions
-            class default
-              call PrintMsg(option,'toil_ims%pressure%itype,DIRICHLET_BC')
-              call DatasetUnknownClass(selector,option, &
-                                       'PatchUpdateCouplerAuxVarsTOI')
-          end select
-        !case(CONDUCTANCE_BC) !not implemented yet
-        !case(HYDROSTATIC_SEEPAGE_BC) !not implemented yet
-        case default
-          string = &
-            GetSubConditionName(toil_ims%pressure%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'toi_ims pressure',string)
-          call PrintErrMsg(option)
-      end select
-
-      real_count = real_count + 1
-      select case(toil_ims%saturation%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOIL_IMS_OIL_SATURATION_INDEX) = real_count
-          coupler%flow_bc_type(TOIL_IMS_OIL_EQUATION_INDEX) = DIRICHLET_BC
-          select type(selector => toil_ims%saturation%dataset)
-            class is(dataset_ascii_type)
-              coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                selector%rarray(1)
-              dof2 = PETSC_TRUE
-            class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerGridDataset(coupler,option, &
-                                                 patch%grid,selector, &
-                                                 real_count)
-              dof2 = PETSC_TRUE
-            class is(dataset_common_hdf5_type)
-              ! skip cell indexed datasets used in initial conditions
-            class default
-              call PrintMsg(option,'toil_ims%saturation%itype,DIRICHLET_BC')
-              call DatasetUnknownClass(selector,option, &
-                                       'PatchUpdateCouplerAuxVarsTOI')
-          end select
-        case default
-          string = &
-            GetSubConditionName(toil_ims%saturation%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'toi_ims saturation',string)
-          call PrintErrMsg(option)
-      end select
-
-      real_count = real_count + 1
-      select case(toil_ims%temperature%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOIL_IMS_TEMPERATURE_INDEX) = real_count
-          coupler%flow_bc_type(TOIL_IMS_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-          select type(selector => toil_ims%temperature%dataset)
-            class is(dataset_ascii_type)
-              coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                selector%rarray(1)
-              dof3 = PETSC_TRUE
-            class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerGridDataset(coupler,option, &
-                                                 patch%grid,selector, &
-                                                 real_count)
-              dof3 = PETSC_TRUE
-            class is(dataset_common_hdf5_type)
-              ! skip cell indexed datasets used in initial conditions
-            class default
-              call PrintMsg(option,'toil_ims%temperature%itype,DIRICHLET_BC')
-              call DatasetUnknownClass(selector,option, &
-                                       'PatchUpdateCouplerAuxVarsTOI')
-          end select
-        ! to add here therma gradient option
-        case default
-          string = &
-            GetSubConditionName(toil_ims%temperature%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'toi_ims temperature',string)
-          call PrintErrMsg(option)
-      end select
-
-    end if ! end else branch for pressure /= HYDROSTATIC_BC
-  end if !if associated pressure
-
-  if (associated(toil_ims%liquid_flux)) then
-    coupler%flow_bc_type(TOIL_IMS_LIQUID_EQUATION_INDEX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(TOIL_IMS_LIQUID_FLUX_INDEX) = real_count
-    coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      toil_ims%liquid_flux%dataset%rarray(1)
-    dof1 = PETSC_TRUE
-  endif
-  if (associated(toil_ims%oil_flux)) then
-    coupler%flow_bc_type(TOIL_IMS_OIL_EQUATION_INDEX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(TOIL_IMS_OIL_FLUX_INDEX) = real_count
-    coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      toil_ims%oil_flux%dataset%rarray(1)
-    dof2 = PETSC_TRUE
-  endif
-  if (associated(toil_ims%energy_flux)) then
-    coupler%flow_bc_type(TOIL_IMS_ENERGY_EQUATION_INDEX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(TOIL_IMS_ENERGY_FLUX_INDEX) = real_count
-    coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      toil_ims%energy_flux%dataset%rarray(1)
-    dof3 = PETSC_TRUE
-  endif
-
-  if (associated(toil_ims%rate)) then
-    select case(toil_ims%rate%itype)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler,toil_ims%rate%isubtype,option)
-    end select
-  endif
-
-  ! if not all primary variables updated for toil_ims, it returns an error
-  !if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
-  !  option%io_buffer = 'Error with themal oil phase boundary condition'
-  !endif
-
-end subroutine PatchUpdateCouplerAuxVarsTOI
-
-! ************************************************************************** !
-
-subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
-  !
-  ! Updates flow auxiliary variables associated
-  ! with a coupler for TOWG_MODE
-  !
-  ! Author: Paolo Orsini
-  ! Date: 10/25/16
-  !
-
-  use Option_module
-  use Condition_module
-  use HydrostaticMultiPhase_module
-  use Saturation_module
-  !use EOS_Water_module
-
-  use PM_TOWG_Aux_module
-  use Grid_module
-  use Dataset_Common_HDF5_class
-  use Dataset_Gridded_HDF5_class
-  use Dataset_Ascii_class
-  use Dataset_module
-
-  implicit none
-
-  type(patch_type) :: patch
-  type(coupler_type), pointer :: coupler
-  type(option_type) :: option
-
-  type(flow_condition_type), pointer :: flow_condition
-  type(flow_towg_condition_type), pointer :: towg
-  PetscBool :: dof1, dof2, dof3, dof_solv, dof_temp
-  PetscReal :: bubble_point,soil,sgas,pressure
-  character(len=MAXSTRINGLENGTH) :: string
-
-  PetscInt :: num_connections
-  PetscInt :: state
-  ! use to map flow_aux_map to the flow_aux_real_var array
-  PetscInt :: real_count
-  PetscReal, parameter :: eps_oil   = 1.0d-6
-  PetscReal, parameter :: eps_gas   = 1.0d-6
-
-  num_connections = coupler%connection_set%num_connections
-
-  flow_condition => coupler%flow_condition
-
-  towg => flow_condition%towg
-  dof1 = PETSC_FALSE
-  dof2 = PETSC_FALSE
-  dof3 = PETSC_FALSE
-  dof_solv = PETSC_FALSE
-  dof_temp = PETSC_FALSE
-
-  real_count = 0
-  select case(flow_condition%iphase)
-
-    case(TOWG_ANY_STATE)
-      !includes: rate, hydrostatic and flux conditions
-      if (associated(coupler%flow_aux_int_var)) then ! not used with rate
-        coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = TOWG_ANY_STATE
-        real_count = real_count + 1
-        select case(towg%oil_pressure%itype)
-          case(DIRICHLET_BC)
-            coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = real_count
-            coupler%flow_aux_real_var(real_count,1:num_connections) = &
-              towg%oil_pressure%dataset%rarray(1)
-            dof1 = PETSC_TRUE
-            coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = DIRICHLET_BC
-          case(HYDROSTATIC_BC)
-            call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
-                         patch%characteristic_curves_array,patch%sat_func_id, &
-                         patch%imat)
-            dof1 = PETSC_TRUE
-            dof2 = PETSC_TRUE
-            dof3 = PETSC_TRUE
-            dof_temp = PETSC_TRUE
-            coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = HYDROSTATIC_BC
-            coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = HYDROSTATIC_BC
-            coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = HYDROSTATIC_BC
-            coupler%flow_bc_type(towg_energy_eq_idx) = DIRICHLET_BC
-            if (option%iflow_sub_mode == TOWG_SOLVENT_TL) then
-              dof_solv = PETSC_TRUE
-              coupler%flow_bc_type(TOWG_SOLV_SATURATION_INDEX) = DIRICHLET_BC
-            end if
-          case default
-            string = GetSubConditionName(towg%oil_pressure%itype)
-            option%io_buffer = &
-              FlowConditionUnknownItype(coupler%flow_condition, &
-                'TOWG three phase state oil pressure',string)
-            call PrintErrMsg(option)
-        end select
-        if ( towg%oil_pressure%itype /= HYDROSTATIC_BC) then
-          !in three-phase flow, oil saturation is the second dof
-          real_count = real_count + 1
-          select case(towg%oil_saturation%itype)
-            case(DIRICHLET_BC)
-              coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = real_count
-              coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                 towg%oil_saturation%dataset%rarray(1)
-              dof2 = PETSC_TRUE
-              coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(towg%oil_saturation%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'TOWG three phase state oil saturation',string)
-              call PrintErrMsg(option)
-          end select
-          !in three-phase flow, gas saturation or bubble point is the third dof
-          real_count = real_count + 1
-          select case(towg%gas_saturation%itype)
-            case(DIRICHLET_BC)
-            ! Extract gas and bubble point for this dof (and set bubble point and state if required)
-              coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = real_count
-              soil=towg%oil_saturation%dataset%rarray(1)
-              sgas=towg%gas_saturation%dataset%rarray(1)
-              if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
-                 .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
-                pressure    =towg%oil_pressure%dataset%rarray(1)
-                bubble_point=towg%bubble_point%dataset%rarray(1)
-  ! Put cells into saturated or undersaturated state (one or other in this case)
-                state       =TOWG_THREE_PHASE_STATE
-                if( (sgas<eps_gas) .and. (bubble_point<pressure) .and. (soil>eps_oil) ) state=TOWG_LIQ_OIL_STATE
-                if( state==TOWG_THREE_PHASE_STATE ) then
-                  coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
-                else
-                  coupler%flow_aux_real_var(real_count,1:num_connections) = bubble_point
-                endif
-                coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = state
-              else
-                coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
-              endif
-              dof3 = PETSC_TRUE
-              coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = DIRICHLET_BC
-            case default
-              string = &
-                GetSubConditionName(towg%gas_saturation%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'TOWG three phase state gas saturation',string)
-              call PrintErrMsg(option)
-          end select
-        end if !end if not hydrostatic  
-      endif
-
-    case(TOWG_THREE_PHASE_STATE)
-      coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = TOWG_THREE_PHASE_STATE
-      real_count = real_count + 1
-      select case(towg%oil_pressure%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            towg%oil_pressure%dataset%rarray(1)
-          dof1 = PETSC_TRUE
-          coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(towg%oil_pressure%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'TOWG three phase state oil pressure',string)
-          call PrintErrMsg(option)
-      end select
-      !in three-phase flow, oil saturation is the second dof
-      real_count = real_count + 1
-      select case(towg%oil_saturation%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-             towg%oil_saturation%dataset%rarray(1)
-          dof2 = PETSC_TRUE
-          coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(towg%oil_saturation%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'TOWG three phase state oil saturation',string)
-          call PrintErrMsg(option)
-      end select
-      !in three-phase flow, gas saturation or bubble point is the third dof
-      real_count = real_count + 1
-      select case(towg%gas_saturation%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = real_count
-! Extract gas saturation
-          sgas=towg%gas_saturation%dataset%rarray(1)
-          coupler%flow_aux_real_var(real_count,1:num_connections) = sgas
-          dof3 = PETSC_TRUE
-          coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(towg%gas_saturation%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'TOWG three phase state gas saturation',string)
-          call PrintErrMsg(option)
-      end select
-
-    case(TOWG_LIQ_OIL_STATE)
-      coupler%flow_aux_int_var(TOWG_STATE_INDEX,1:num_connections) = TOWG_LIQ_OIL_STATE
-      real_count = real_count + 1
-      select case(towg%oil_pressure%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-            towg%oil_pressure%dataset%rarray(1)
-          dof1 = PETSC_TRUE
-          coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(towg%oil_pressure%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'TOWG three phase state oil pressure',string)
-          call PrintErrMsg(option)
-      end select
-      !in three-phase flow, oil saturation is the second dof
-      real_count = real_count + 1
-      select case(towg%oil_saturation%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = real_count
-          coupler%flow_aux_real_var(real_count,1:num_connections) = &
-             towg%oil_saturation%dataset%rarray(1)
-          dof2 = PETSC_TRUE
-          coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(towg%oil_saturation%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'TOWG three phase state oil saturation',string)
-          call PrintErrMsg(option)
-      end select 
-      !in three-phase flow, gas saturation or bubble point is the third dof
-      real_count = real_count + 1
-      select case(towg%bubble_point%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = real_count
-! Extract bubble point
-          if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
-             .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
-            bubble_point=towg%bubble_point%dataset%rarray(1)
-            coupler%flow_aux_real_var(real_count,1:num_connections) = bubble_point
-          else
-            option%io_buffer = 'Bubble point input only for BLACK OIL and SOLVENT mode'
-            call PrintErrMsg(option)
-          endif
-          dof3 = PETSC_TRUE
-          coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(towg%gas_saturation%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'TOWG three phase state bubble point',string)
-          call PrintErrMsg(option)
-      end select 
-
-    case(TOWG_LIQ_GAS_STATE)
-     !not yet implemented
-
-
-  end select !end select phase state
-
-  !solvent (if defined): same BC/IC whatever is the phase state
-  if (associated(towg%solvent_saturation)) then
-    real_count = real_count + 1
-    select case(towg%solvent_saturation%itype)
-      case(DIRICHLET_BC)
-        if (towg%oil_pressure%itype == HYDROSTATIC_BC) then
-          option%io_buffer = 'Solvent saturation cannot be asssigned ' // &
-                'when using hydrostatic equilibration, Ss = 0 is assumed'
-          call PrintErrMsg(option)
-        end if
-        coupler%flow_aux_mapping(TOWG_SOLV_SATURATION_INDEX) = real_count
-        select type(selector =>towg%solvent_saturation%dataset)
-          class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(real_count,1:num_connections) = &
-              selector%rarray(1)
-            dof_solv = PETSC_TRUE
-          class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerGridDataset(coupler,option, &
-                                               patch%grid,selector, &
-                                               real_count)
-            dof_solv = PETSC_TRUE
-          class is(dataset_common_hdf5_type)
-            ! skip cell indexed datasets used in initial conditions
-          class default
-            call PrintMsg(option,'towg%solvent_saturation%itype,DIRICHLET_BC')
-            call DatasetUnknownClass(selector,option, &
-                                     'PatchUpdateCouplerAuxVarsTOWG')
-        end select
-        coupler%flow_bc_type(TOWG_SOLV_EQ_IDX) = DIRICHLET_BC
-      case default
-        string = &
-          GetSubConditionName(towg%solvent_saturation%itype)
-        option%io_buffer = &
-          FlowConditionUnknownItype(coupler%flow_condition, &
-            'towg solvent saturation',string)
-        call PrintErrMsg(option)
-    end select
-  endif
-
-  !if hydrostatic equilibration, temperature assigned in HydrostaticMPUpdateCoupler
-  if ( towg%oil_pressure%itype /= HYDROSTATIC_BC) then
-    !temperature (if defined): same BC/IC whatever is the phase state
-    if (associated(towg%temperature)) then
-      real_count = real_count + 1
-      select case(towg%temperature%itype)
-        case(DIRICHLET_BC)
-          coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = real_count
-          select type(selector =>towg%temperature%dataset)
-            class is(dataset_ascii_type)
-              coupler%flow_aux_real_var(real_count,1:num_connections) = &
-                selector%rarray(1)
-              dof_temp = PETSC_TRUE
-            class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerGridDataset(coupler,option, &
-                                                 patch%grid,selector, &
-                                                 real_count)
-              dof_temp = PETSC_TRUE
-            class is(dataset_common_hdf5_type)
-              ! skip cell indexed datasets used in initial conditions
-            class default
-              call PrintMsg(option,'towg%temperature%itype,DIRICHLET_BC')
-              call DatasetUnknownClass(selector,option, &
-                                       'PatchUpdateCouplerAuxVarsTOWG')
-          end select
-          coupler%flow_bc_type(towg_energy_eq_idx) = DIRICHLET_BC
-        case default
-          string = &
-            GetSubConditionName(towg%temperature%itype)
-          option%io_buffer = &
-            FlowConditionUnknownItype(coupler%flow_condition, &
-              'towg temperature',string)
-          call PrintErrMsg(option)
-      end select
-    endif
-  end if
-
-  if (associated(towg%liquid_flux)) then
-    coupler%flow_bc_type(TOWG_LIQ_EQ_IDX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(TOWG_LIQUID_FLUX_INDEX) = real_count
-    coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      towg%liquid_flux%dataset%rarray(1)
-    dof1 = PETSC_TRUE
-  endif
-  if (associated(towg%oil_flux)) then
-    coupler%flow_bc_type(TOWG_OIL_EQ_IDX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(TOWG_OIL_FLUX_INDEX) = real_count
-    coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      towg%oil_flux%dataset%rarray(1)
-    dof2 = PETSC_TRUE
-  endif
-  if (associated(towg%gas_flux)) then
-    coupler%flow_bc_type(TOWG_GAS_EQ_IDX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(TOWG_GAS_FLUX_INDEX) = real_count
-    coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      towg%gas_flux%dataset%rarray(1)
-    dof3 = PETSC_TRUE
-  endif
-  if (associated(towg%solvent_flux)) then
-    coupler%flow_bc_type(TOWG_SOLV_EQ_IDX) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(TOWG_SOLV_FLUX_INDEX) = real_count
-    coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      towg%solvent_flux%dataset%rarray(1)
-    dof_solv = PETSC_TRUE
-  endif
-  if (associated(towg%energy_flux)) then
-    coupler%flow_bc_type(towg_energy_eq_idx) = NEUMANN_BC
-    real_count = real_count + 1
-    coupler%flow_aux_mapping(TOWG_ENERGY_FLUX_INDEX) = real_count
-    coupler%flow_aux_real_var(real_count,1:num_connections) = &
-      towg%energy_flux%dataset%rarray(1)
-    dof_temp = PETSC_TRUE
-  endif
-
-  if (associated(towg%rate)) then
-    select case(towg%rate%itype)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler,towg%rate%isubtype,option)
-    end select
-  endif
-
-  !PO todo: for hydrostatic BC - add checks withing the Hydrostaic functions
-  if ( (flow_condition%iphase /= TOWG_ANY_STATE) .or. &
-       ( (flow_condition%iphase == TOWG_ANY_STATE) .and. &
-         (.not.associated(towg%rate)) &
-       ) &
-     ) then
-    !check if all coupler aux var for isothermal three phase have been updated
-    if ( (.not.dof1).or.(.not.dof2).or.(.not.dof3) ) then
-      option%io_buffer = 'Error with TOWG istothermal phase boundary condition'
-      call PrintErrMsg(option)
-    endif
-    if ( (.not.towg_isothermal).and.(.not.dof_temp) ) then
-      option%io_buffer = 'Error with TOWG-thermal energy boundary condition'
-      call PrintErrMsg(option)
-    endif
-    if ( (towg_miscibility_model == TOWG_SOLVENT_TL) .and. (.not.dof_solv)  ) then
-      option%io_buffer = 'Error with TOWG_SOLVENT_TL solvent boundary condition'
-      call PrintErrMsg(option)
-    endif
-  end if
-
-end subroutine PatchUpdateCouplerAuxVarsTOWG
 
 ! ************************************************************************** !
 
@@ -3759,7 +3058,6 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -3839,215 +3137,12 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
-                                 patch%sat_func_id)
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsMPH
-
-! ************************************************************************** !
-
-subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
-  !
-  ! Updates flow auxiliary variables associated
-  ! with a coupler for IMS_MODE
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/26/07
-  !
-
-  use Option_module
-  use Condition_module
-  use Hydrostatic_module
-  use Saturation_module
-
-
-  use General_Aux_module
-  use Grid_module
-  use Dataset_Common_HDF5_class
-  use Dataset_Gridded_HDF5_class
-
-  implicit none
-
-  type(patch_type) :: patch
-  type(coupler_type), pointer :: coupler
-  type(option_type) :: option
-
-  type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(flow_general_condition_type), pointer :: general
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
-
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
-
-  num_connections = coupler%connection_set%num_connections
-
-  flow_condition => coupler%flow_condition
-
-  if (associated(flow_condition%pressure)) then
-    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-                flow_condition%iphase
-    select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MPH_PRESSURE_DOF,1:num_connections) = &
-                flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
- !  case(SATURATION_BC)
-    end select
-    select case(flow_condition%temperature%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-           (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
-           flow_condition%temperature%itype /= DIRICHLET_BC)) then
-          coupler%flow_aux_real_var(MPH_TEMPERATURE_DOF,1:num_connections) = &
-                  flow_condition%temperature%dataset%rarray(1)
-        endif
-    end select
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
-        if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-           (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
-           flow_condition%concentration%itype /= DIRICHLET_BC)) then
-          coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,1:num_connections) = &
-                  flow_condition%concentration%dataset%rarray(1)
-        endif
-    end select
-  else
-    select case(flow_condition%temperature%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MPH_TEMPERATURE_DOF,1:num_connections) = &
-                  flow_condition%temperature%dataset%rarray(1)
-    end select
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
-         coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,1:num_connections) = &
-                  flow_condition%concentration%dataset%rarray(1)
-    end select
-  endif
-  if (associated(flow_condition%rate)) then
-    select case(flow_condition%rate%itype)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
-                                  option)
-    end select
-  endif
-  if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
-                                 patch%sat_func_id)
-  endif
-
-end subroutine PatchUpdateCouplerAuxVarsIMS
-
-! ************************************************************************** !
-
-subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
-  !
-  ! Updates flow auxiliary variables associated
-  ! with a coupler for FLASH2_MODE
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/26/07
-  !
-
-  use Option_module
-  use Condition_module
-  use Hydrostatic_module
-  use Saturation_module
-
-
-  use Grid_module
-  use Dataset_Common_HDF5_class
-  use Dataset_Gridded_HDF5_class
-
-  implicit none
-
-  type(patch_type) :: patch
-  type(coupler_type), pointer :: coupler
-  type(option_type) :: option
-
-  type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(flow_general_condition_type), pointer :: general
-  class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
-
-  PetscInt :: idof, num_connections,sum_connection
-  PetscInt :: iconn, local_id, ghosted_id
-
-  num_connections = coupler%connection_set%num_connections
-
-  flow_condition => coupler%flow_condition
-
-  if (associated(flow_condition%pressure)) then
-    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-                flow_condition%iphase
-    select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MPH_PRESSURE_DOF,1:num_connections) = &
-                flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
- !  case(SATURATION_BC)
-    end select
-    select case(flow_condition%temperature%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-           (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
-           flow_condition%temperature%itype /= DIRICHLET_BC)) then
-          coupler%flow_aux_real_var(MPH_TEMPERATURE_DOF,1:num_connections) = &
-                  flow_condition%temperature%dataset%rarray(1)
-        endif
-    end select
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
-        if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-           (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
-           flow_condition%concentration%itype /= DIRICHLET_BC)) then
-          coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,1:num_connections) = &
-                  flow_condition%concentration%dataset%rarray(1)
-        endif
-    end select
-  else
-    select case(flow_condition%temperature%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        coupler%flow_aux_real_var(MPH_TEMPERATURE_DOF,1:num_connections) = &
-                  flow_condition%temperature%dataset%rarray(1)
-    end select
-    select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
-         coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,1:num_connections) = &
-                  flow_condition%concentration%dataset%rarray(1)
-    end select
-  endif
-  if (associated(flow_condition%rate)) then
-    select case(flow_condition%rate%itype)
-      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
-                                  option)
-    end select
-  endif
-  if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
-                                 patch%sat_func_id)
-  endif
-
-end subroutine PatchUpdateCouplerAuxVarsFLASH2
 
 ! ************************************************************************** !
 
@@ -4063,7 +3158,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4141,9 +3235,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           coupler%flow_aux_real_var(TH_CONDUCTANCE_DOF,1:num_connections) = &
             flow_condition%pressure%aux_real(1)
         endif
-      case(HET_SURF_HYDROSTATIC_SEEPAGE_BC)
-        ! Do nothing, since this BC type is only used for coupling of
-        ! surface-subsurface model
       case default
         string = &
           GetSubConditionName(flow_condition%pressure%itype)
@@ -4318,9 +3409,9 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
-                                 patch%sat_func_id)
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
+                                 patch%cc_id)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsTH
@@ -4339,7 +3430,6 @@ subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4417,7 +3507,6 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Option_module
   use Condition_module
   use Hydrostatic_module
-  use Saturation_module
 
 
   use Grid_module
@@ -4492,9 +3581,9 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-    call SaturationUpdateCoupler(coupler,option,patch%grid, &
-                                 patch%saturation_function_array, &
-                                 patch%sat_func_id)
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
+                                 patch%cc_id)
   endif
   if (associated(flow_condition%rate)) then
     select case(flow_condition%rate%itype)
@@ -4544,7 +3633,7 @@ subroutine PatchGetCouplerValueFromDataset(coupler,option,grid,dataset,iconn, &
   PetscReal :: y
   PetscReal :: z
   PetscReal :: dist(-1:3)
-  
+
   select type(dataset)
     class is(dataset_ascii_type)
       value = dataset%rarray(1)
@@ -4620,6 +3709,66 @@ end subroutine PatchUpdateCouplerGridDataset
 
 ! ************************************************************************** !
 
+subroutine PatchUpdateCouplerSaturation(coupler,option,grid,cc_array,cc_id)
+  !
+  ! Computes the pressures for a saturation
+  ! initial/boundary condition
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/07/11
+  !
+  ! Author: Heeho Park
+  ! Modified Date: 10/05/20
+  !
+
+  use Option_module
+  use Condition_module
+  use Connection_module
+
+  implicit none
+
+  type(coupler_type) :: coupler
+  type(option_type) :: option
+  type(grid_type) :: grid
+  type(characteristic_curves_ptr_type), intent(in) :: cc_array(:)
+  class(characteristic_curves_type), pointer :: cc_ptr
+
+  PetscInt :: cc_id(:)
+  PetscInt :: local_id, ghosted_id, iconn
+  PetscReal :: saturation
+  PetscReal :: capillary_pressure
+  PetscReal :: dpc_dsat
+  PetscReal :: liquid_pressure
+
+  type(flow_condition_type), pointer :: condition
+
+  type(connection_set_type), pointer :: cur_connection_set
+
+  condition => coupler%flow_condition
+
+  if (option%iflowmode /= RICHARDS_MODE) then
+    option%io_buffer = 'PatchUpdateCouplerSaturation is not set up for this flow mode.'
+    call PrintErrMsg(option)
+  endif
+
+  ! in this case, the saturation is stored within concentration dataset
+  saturation = condition%saturation%dataset%rarray(1)
+
+  do iconn = 1, coupler%connection_set%num_connections
+    local_id = coupler%connection_set%id_dn(iconn)
+    ghosted_id = grid%nL2G(local_id)
+    cc_ptr => cc_array(cc_id(ghosted_id))%ptr
+
+    call cc_ptr%saturation_function%CapillaryPressure(saturation,&
+                                           capillary_pressure,dpc_dsat,option)
+    liquid_pressure = option%flow%reference_pressure - capillary_pressure
+    coupler%flow_aux_real_var(1,iconn) = liquid_pressure
+  enddo
+
+end subroutine PatchUpdateCouplerSaturation
+
+! ************************************************************************** !
+
 subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   !
   ! Scales select source/sinks based on perms*volume
@@ -4637,7 +3786,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   use Condition_module
   use Grid_module
   use Material_Aux_class
-  use Variables_module, only : PERMEABILITY_X
+  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
 
@@ -4728,7 +3877,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           neighbor_ghosted_id = ghosted_neighbors(icount)
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
-                                       PERMEABILITY_X) * &
+                                       PERMEABILITY_Y) * &
                 grid%structured_grid%dx(neighbor_ghosted_id)* &
                 grid%structured_grid%dz(neighbor_ghosted_id)
         enddo
@@ -4738,7 +3887,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           neighbor_ghosted_id = ghosted_neighbors(icount)
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
-                                       PERMEABILITY_X) * &
+                                       PERMEABILITY_Z) * &
                 grid%structured_grid%dx(neighbor_ghosted_id)* &
                 grid%structured_grid%dy(neighbor_ghosted_id)
         enddo
@@ -4767,10 +3916,10 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       !geh: This is a scaling factor that is stored that would be applied to
       !     all phases.
       case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,H_MODE,TH_MODE,TH_TS_MODE, &
-           TOIL_IMS_MODE,WF_MODE)
+           WF_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
-      case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
+      case(MPH_MODE)
         option%io_buffer = 'PatchScaleSourceSink not set up for flow mode'
         call PrintErrMsg(option)
     end select
@@ -5102,7 +4251,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
 
   allocate(material_auxvar)
   call MaterialAuxVarInit(material_auxvar,option)
-  material_auxvar%porosity = option%reference_porosity
+  material_auxvar%porosity = option%flow%reference_porosity
 
   select type(r=>reaction_base)
     class is(reaction_rt_type)
@@ -5140,13 +4289,13 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
                 ! otherwise, we don't know which pressure to use at this point,
                 ! but we need to re-equilibrate at each cell
                 cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
-                global_auxvar%pres = option%reference_pressure
+                global_auxvar%pres = option%flow%reference_pressure
             end select
           else
-            global_auxvar%pres = option%reference_pressure
+            global_auxvar%pres = option%flow%reference_pressure
           endif
         else
-          global_auxvar%pres = option%reference_pressure
+          global_auxvar%pres = option%flow%reference_pressure
         endif
         if (associated(cur_coupler%flow_condition%temperature)) then
           if (associated(cur_coupler%flow_condition%temperature%dataset)) then
@@ -5155,16 +4304,16 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
               class is(dataset_ascii_type)
                 global_auxvar%temp = dataset%rarray(1)
               class default
-                ! otherwise, we don't know which temperature to use at this 
+                ! otherwise, we don't know which temperature to use at this
                 ! point, but we need to re-equilibrate at each cell
                 cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
-                global_auxvar%temp = option%reference_temperature
+                global_auxvar%temp = option%flow%reference_temperature
             end select
           else
-            global_auxvar%temp = option%reference_temperature
+            global_auxvar%temp = option%flow%reference_temperature
           endif
         else
-          global_auxvar%temp = option%reference_temperature
+          global_auxvar%temp = option%flow%reference_temperature
         endif
 
         call EOSWaterDensity(global_auxvar%temp, &
@@ -5172,17 +4321,17 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
                              global_auxvar%den_kg(1), &
                              dum1,ierr)
       else
-        global_auxvar%pres = option%reference_pressure
-        global_auxvar%temp = option%reference_temperature
+        global_auxvar%pres = option%flow%reference_pressure
+        global_auxvar%temp = option%flow%reference_temperature
         global_auxvar%den_kg(option%liquid_phase) = &
-          option%reference_density(option%liquid_phase)
+          option%flow%reference_density(option%liquid_phase)
       endif
-      global_auxvar%sat = option%reference_saturation
+      global_auxvar%sat = option%flow%reference_saturation
 
       if (option%transport%nphase > 1) then
         ! gas phase not considered explicitly on flow side
         global_auxvar%den_kg(option%gas_phase) = &
-          option%reference_density(option%gas_phase)
+          option%flow%reference_density(option%gas_phase)
         global_auxvar%sat(option%gas_phase) = &
           1.d0 - global_auxvar%sat(option%liquid_phase)
       endif
@@ -5205,8 +4354,8 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
       end select
       ! update CO2 mole fraction for CO2 modes
       select case(option%iflowmode)
-      ! TODO(jenn) Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.
-        case(MPH_MODE,FLASH2_MODE)
+      ! TODO(jenn) Add error message saying you can't use NW Transport with MPH_MODE, etc. Here is not the best place, do it some where sooner in the set up.
+        case(MPH_MODE)
           if ( (cur_coupler%flow_condition%iphase == 1) .and. &
                (associated(reaction)) ) then
             dum1 = RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
@@ -5311,8 +4460,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Option_module
   use Field_module
 
-  use Immis_Aux_module
-  use Miscible_Aux_module
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
@@ -5370,11 +4517,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
-         MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
-         OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
-         SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
-         SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY )
+         MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -5406,7 +4549,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             call PatchUnsupportedVariable('TH','for gas phase',option)
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
-              if (th_use_freezing) then
+              if (option%flow%th_freezing) then
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas
               else
@@ -5415,7 +4558,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               endif
             enddo
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%flow%th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice
@@ -5425,7 +4568,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                                       &without freezing option TH')
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%flow%th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice*FMWH2O
@@ -5522,110 +4665,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             enddo
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
-        end select
-      else if (associated(patch%aux%Flash2)) then
-
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-            enddo
-          case(TEMPERATURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%temp
-            enddo
-          case(LIQUID_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
-            enddo
-          case(LIQUID_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(1)
-            enddo
-          case(LIQUID_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
-            enddo
-          case(GAS_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(2)
-            enddo
-          case(GAS_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(2)
-            enddo
-          case(GAS_MOLE_FRACTION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Flash2%auxvars(grid%nL2G(local_id))%&
-                    auxvar_elem(0)%xmol(2+isubvar)
-            enddo
-          case(GAS_ENERGY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(2)
-            enddo
-          case(GAS_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(2)
-            enddo
-          case(GAS_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(2)
-            enddo
-          case(GAS_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%den_kg(2)
-            enddo
-          case(GAS_DENSITY_MOL)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%den(2)
-            enddo
-          case(SC_FUGA_COEFF)
-            if (.not.associated(patch%aux%Global% &
-                auxvars(1)%fugacoeff) .and. &
-                OptionPrintToScreen(option))then
-               print *,'ERROR: fugacoeff not allocated for ', &
-                     option%iflowmode, 1
-            endif
-            do local_id=1,grid%nlmax
-             vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%fugacoeff(1)
-            enddo
-          case(LIQUID_MOLE_FRACTION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%xmol(isubvar)
-            enddo
-          case(LIQUID_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(1)
-            enddo
-          case(LIQUID_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(1)
-            enddo
-          case(LIQUID_ENERGY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Flash2% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(1)
-            enddo
-          case default
-            call PatchUnsupportedVariable('FLASH2',ivar,option)
         end select
 
       else if (associated(patch%aux%Mphase)) then
@@ -5740,118 +4779,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             enddo
           case default
             call PatchUnsupportedVariable('MPHASE',ivar,option)
-        end select
-
-      else if (associated(patch%aux%Miscible)) then
-
-        select case(ivar)
-
-          case(MAXIMUM_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-            enddo
-          case(LIQUID_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
-            enddo
-          case(LIQUID_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
-            enddo
-          case(LIQUID_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Miscible% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(1)
-            enddo
-          case(LIQUID_MOLE_FRACTION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Miscible% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%xmol(isubvar)
-            enddo
-          case default
-            call PatchUnsupportedVariable('MISCIBLE',ivar,option)
-        end select
-
-      else if (associated(patch%aux%immis)) then
-
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-            enddo
-          case(TEMPERATURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%temp
-            enddo
-          case(LIQUID_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%pres(1)
-            enddo
-          case(LIQUID_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%sat(1)
-            enddo
-          case(LIQUID_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%den_kg(1)
-            enddo
-          case(LIQUID_ENERGY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(1)
-            enddo
-          case(LIQUID_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(1)
-            enddo
-          case(LIQUID_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(1)
-            enddo
-          case(GAS_PRESSURE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%pres(2)
-            enddo
-          case(GAS_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%sat(2)
-            enddo
-          case(GAS_ENERGY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(2)
-            enddo
-          case(GAS_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%den_kg(2)
-            enddo
-          case(GAS_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%vis(2)
-            enddo
-          case(GAS_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Immis% &
-                auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(2)
-            enddo
-          case default
-            call PatchUnsupportedVariable('IMMISCIBLE',ivar,option)
         end select
 
       else if (associated(patch%aux%General)) then
@@ -6415,330 +5342,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case default
             call PatchUnsupportedVariable('WIPP_FLOW',ivar,option)
         end select
-
-      !new auvar data structure
-      !else if (associated(patch%aux%TOil_ims)) then
-      else if (associated(patch%aux%TOil_ims)) then
-
-        select case(ivar)
-          case(TEMPERATURE)
-            do local_id=1,grid%nlmax
-               vec_ptr(local_id) = patch%aux%TOil_ims% &
-                 auxvars(ZERO_INTEGER,grid%nL2G(local_id))%temp
-            enddo
-          case(MAXIMUM_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                  maxval(patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                           pres(option%liquid_phase:option%oil_phase))
-            enddo
-          case(LIQUID_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                 patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%liquid_phase)
-            enddo
-          case(OIL_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%oil_phase)
-            enddo
-          case(CAPILLARY_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                   pc(option%liquid_phase)
-                  !pres(option%capillary_pressure_id)
-            enddo
-          case(LIQUID_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%sat(option%liquid_phase)
-            enddo
-          case(LIQUID_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den_kg(option%liquid_phase)
-            enddo
-          case(LIQUID_DENSITY_MOL)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den(option%liquid_phase)
-            enddo
-          case(LIQUID_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                    grid%nL2G(local_id))%U(option%liquid_phase)
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%U(option%liquid_phase) * &
-                    patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%den(option%liquid_phase)
-              enddo
-            endif
-          case(LIQUID_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%mobility(option%liquid_phase)
-            enddo
-          case(LIQUID_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%viscosity(option%liquid_phase)
-            enddo
-          case(OIL_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%sat(option%oil_phase)
-            enddo
-          case(OIL_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                    grid%nL2G(local_id))%U(option%oil_phase)
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%U(option%oil_phase) * &
-                    patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%den(option%oil_phase)
-              enddo
-            endif
-          case(OIL_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den_kg(option%oil_phase)
-            enddo
-          case(OIL_DENSITY_MOL)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den(option%oil_phase)
-            enddo
-          case(OIL_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%mobility(option%oil_phase)
-            enddo
-          case(OIL_VISCOSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%viscosity(option%oil_phase)
-            enddo
-          case default
-            call PatchUnsupportedVariable('TOIL_IMS',ivar,option)
-        end select
-
-      else if (associated(patch%aux%TOWG)) then
-
-        select case(ivar)
-          case(TEMPERATURE)
-            do local_id=1,grid%nlmax
-               vec_ptr(local_id) = patch%aux%TOWG% &
-                 auxvars(ZERO_INTEGER,grid%nL2G(local_id))%temp
-            enddo
-          case(MAXIMUM_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                  maxval(patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                           pres(option%liquid_phase:option%gas_phase))
-            enddo
-          case(LIQUID_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                 patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%liquid_phase)
-            enddo
-          case(OIL_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%oil_phase)
-            enddo
-          case(GAS_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%gas_phase)
-            enddo
-          case(CAPILLARY_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pc(option%liquid_phase)
-            enddo
-          case(CAPILLARY_PRESSURE_OGC)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pc(option%oil_phase)
-            enddo
-          case(LIQUID_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%sat(option%liquid_phase)
-            enddo
-          case(LIQUID_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den_kg(option%liquid_phase)
-            enddo
-          case(LIQUID_DENSITY_MOL)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den(option%liquid_phase)
-            enddo
-          case(LIQUID_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                    grid%nL2G(local_id))%U(option%liquid_phase)
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%U(option%liquid_phase) * &
-                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%den(option%liquid_phase)
-              enddo
-            endif
-          case(LIQUID_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%mobility(option%liquid_phase)
-            enddo
-          case(OIL_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%sat(option%oil_phase)
-            enddo
-          case(OIL_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                    grid%nL2G(local_id))%U(option%oil_phase)
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%U(option%oil_phase) * &
-                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%den(option%oil_phase)
-              enddo
-            endif
-          case(OIL_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den_kg(option%oil_phase)
-            enddo
-          case(OIL_DENSITY_MOL)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den(option%oil_phase)
-            enddo
-          case(OIL_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%mobility(option%oil_phase)
-            enddo
-          case(GAS_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%sat(option%gas_phase)
-            enddo
-          case(GAS_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                    grid%nL2G(local_id))%U(option%gas_phase)
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%U(option%gas_phase) * &
-                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%den(option%gas_phase)
-              enddo
-            endif
-          case(GAS_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den_kg(option%gas_phase)
-            enddo
-          case(GAS_DENSITY_MOL)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den(option%gas_phase)
-            enddo
-          case(GAS_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%mobility(option%gas_phase)
-            enddo
-          case(SOLVENT_PRESSURE)
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%solvent_phase)
-            enddo
-          case(SOLVENT_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%sat(option%solvent_phase)
-            enddo
-          case(SOLVENT_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                    grid%nL2G(local_id))%U(option%solvent_phase)
-              enddo
-            else
-              do local_id=1,grid%nlmax
-                vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%U(option%solvent_phase) * &
-                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      grid%nL2G(local_id))%den(option%solvent_phase)
-              enddo
-            endif
-          case(SOLVENT_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den_kg(option%solvent_phase)
-            enddo
-          case(SOLVENT_DENSITY_MOL)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%den(option%solvent_phase)
-            enddo
-          case(SOLVENT_MOBILITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%mobility(option%solvent_phase)
-            enddo
-          case(BUBBLE_POINT)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%bo%bubble_point
-            enddo
-          case default
-            call PatchUnsupportedVariable('TOWG',ivar,option)
-        end select
-
       endif
 
     ! NUCLEAR_WASTE_TRANSPORT:
@@ -6791,8 +5394,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             endif
           enddo
       end select
-    
-    
+
+
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY,TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_RATE,MINERAL_VOLUME_FRACTION,MINERAL_SATURATION_INDEX, &
@@ -7216,7 +5819,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         SOIL_REFERENCE_PRESSURE)
+         SOIL_REFERENCE_PRESSURE,ELECTRICAL_CONDUCTIVITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)),ivar)
@@ -7324,6 +5927,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           endif
         endif
       enddo
+    case(ELECTRICAL_POTENTIAL)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
+      enddo
+    case(ELECTRICAL_JACOBIAN)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
+      enddo      
     case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
@@ -7335,7 +5948,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
     case(SALINITY)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
-          patch%Aux%Global%auxvars(grid%nL2G(local_id))%m_nacl(ONE_INTEGER)
+          patch%aux%Global%auxvars(grid%nL2G(local_id))%m_nacl(ONE_INTEGER)
       enddo
     case(RESIDUAL)
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -7353,6 +5966,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%z(grid%nL2G(local_id))
       enddo
+    case(K_ORTHOGONALITY_ERROR)
+      if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+        call PatchGetKOrthogonalityError(grid, material_auxvars, vec_ptr)
+        !vec_ptr(:) = UNINITIALIZED_DOUBLE
+      endif
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -7381,7 +5999,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
-  use Miscible_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_Mineral_module
   use Reaction_module
@@ -7393,7 +6010,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                  GAS_STATE, LIQUID_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use Material_Aux_class
-  use PM_TOWG_Aux_module, only: towg_miscibility_model
 
   implicit none
 
@@ -7446,11 +6062,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
-         LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
-         OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
-         OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
-         SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
-         SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY)
+         LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -7469,7 +6081,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call PatchUnsupportedVariable('TH','GAS_MOLE_FRACTION',option)
           case(GAS_SATURATION)
-            if (th_use_freezing) then
+            if (option%flow%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
             else
               value = 0.d0
@@ -7477,11 +6089,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(CAPILLARY_PRESSURE)
             value = patch%aux%TH%auxvars(ghosted_id)%pc
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%flow%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%flow%th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%den_ice*FMWH2O
             endif
           case(LIQUID_MOLE_FRACTION)
@@ -7530,49 +6142,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                     patch%aux%Richards%auxvars(ghosted_id)%kvr
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
-        end select
-      else if (associated(patch%aux%Flash2)) then
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-          case(TEMPERATURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%temp
-          case(LIQUID_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
-          case(LIQUID_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
-          case(LIQUID_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
-          case(LIQUID_VISCOSITY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%vis(1)
-          case(LIQUID_MOBILITY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%kvr(1)
-          case(GAS_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(2)
-          case(GAS_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(2)
-          case(GAS_MOLE_FRACTION)
-            value = patch%aux%Flash2%auxvars(ghosted_id)% &
-                      auxvar_elem(0)%xmol(2+isubvar)
-          case(GAS_ENERGY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%u(2)
-          case(GAS_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(2)
-          case(GAS_DENSITY_MOL)
-            value = patch%aux%Global%auxvars(ghosted_id)%den(2)
-          case(GAS_VISCOSITY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%vis(2)
-          case(GAS_MOBILITY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%kvr(2)
-          case(SC_FUGA_COEFF)
-            value = patch%aux%Global%auxvars(ghosted_id)%fugacoeff(1)
-          case(LIQUID_MOLE_FRACTION)
-            value = patch%aux%Flash2%auxvars(ghosted_id)% &
-                      auxvar_elem(0)%xmol(isubvar)
-          case(LIQUID_ENERGY)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%u(1)
-          case default
-            call PatchUnsupportedVariable('FLASH2',ivar,option)
         end select
       else if (associated(patch%aux%Mphase)) then
         select case(ivar)
@@ -7627,57 +6196,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
           case default
             call PatchUnsupportedVariable('MPHASE',ivar,option)
-        end select
-      else if (associated(patch%aux%Immis)) then
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-          case(TEMPERATURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%temp
-          case(LIQUID_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
-          case(GAS_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(2)
-          case(LIQUID_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
-          case(LIQUID_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
-          case(LIQUID_ENERGY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%u(1)
-          case(LIQUID_VISCOSITY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%vis(1)
-          case(LIQUID_MOBILITY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%kvr(1)
-          case(GAS_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(2)
-          case(GAS_ENERGY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%u(2)
-          case(GAS_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(2)
-          case(GAS_DENSITY_MOL)
-            value = patch%aux%Global%auxvars(ghosted_id)%den(2)
-          case(GAS_VISCOSITY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%vis(2)
-          case(GAS_MOBILITY)
-            value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%kvr(2)
-          case default
-            call PatchUnsupportedVariable('IMMISCIBLE',ivar,option)
-        end select
-      else if (associated(patch%aux%Miscible)) then
-        select case(ivar)
-          case(MAXIMUM_PRESSURE)
-            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
-          case(LIQUID_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
-          case(LIQUID_DENSITY)
-            value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
-          case(LIQUID_VISCOSITY)
-            value = patch%aux%Miscible%auxvars(ghosted_id)%auxvar_elem(0)%vis(1)
-          case(LIQUID_MOLE_FRACTION)
-            value = patch%aux%Miscible%auxvars(ghosted_id)% &
-                      auxvar_elem(0)%xmol(isubvar)
-          case default
-            call PatchUnsupportedVariable('MISCIBLE',ivar,option)
         end select
       else if (associated(patch%aux%General)) then
         select case(ivar)
@@ -8030,231 +6548,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case default
             call PatchUnsupportedVariable('WIPP_FLOW',ivar,option)
         end select
-
-      else if (associated(patch%aux%TOil_ims)) then
-
-        select case(ivar)
-          case(TEMPERATURE)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)%temp
-          case(MAXIMUM_PRESSURE)
-            value = maxval(patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-               ghosted_id)%pres(option%liquid_phase:option%oil_phase))
-          case(LIQUID_PRESSURE)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      pres(option%liquid_phase)
-          case(OIL_PRESSURE)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      pres(option%oil_phase)
-          case(CAPILLARY_PRESSURE)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      pres(option%capillary_pressure_id)
-          case(LIQUID_SATURATION)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      sat(option%liquid_phase)
-          case(LIQUID_DENSITY)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      den_kg(option%liquid_phase)
-          case(LIQUID_DENSITY_MOL)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                     den(option%liquid_phase)
-          case(LIQUID_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                        U(option%liquid_phase)
-            else
-              value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      U(option%liquid_phase) * &
-                      patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      den(option%liquid_phase)
-            end if
-          case(LIQUID_MOBILITY)
-              value = &
-                patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  mobility(option%liquid_phase)
-          case(LIQUID_VISCOSITY)
-              value = &
-                patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  viscosity(option%liquid_phase)
-          case(OIL_SATURATION)
-              value = &
-                patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  sat(option%oil_phase)
-          case(OIL_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                        U(option%oil_phase)
-            else
-              value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      U(option%oil_phase) * &
-                      patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      den(option%oil_phase)
-            endif
-          case(OIL_DENSITY)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    den_kg(option%oil_phase)
-          case(OIL_DENSITY_MOL)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    den(option%oil_phase)
-          case(OIL_MOBILITY)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    mobility(option%oil_phase)
-          case(OIL_VISCOSITY)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    viscosity(option%oil_phase)
-          case default
-            call PatchUnsupportedVariable('TOIL_IMS',ivar,option)
-        end select
-
-      else if (associated(patch%aux%TOWG)) then
-
-        select case(ivar)
-          case(TEMPERATURE)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)%temp
-          case(MAXIMUM_PRESSURE)
-            value = maxval(patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                           pres(option%liquid_phase:option%gas_phase))
-          case(LIQUID_PRESSURE)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%liquid_phase)
-          case(OIL_PRESSURE)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%oil_phase)
-          case(GAS_PRESSURE)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%gas_phase)
-          case(CAPILLARY_PRESSURE)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pc(option%liquid_phase)
-          case(CAPILLARY_PRESSURE_OGC)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pc(option%oil_phase)
-          case(LIQUID_SATURATION)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  sat(option%liquid_phase)
-          case(LIQUID_DENSITY)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  den_kg(option%liquid_phase)
-          case(LIQUID_DENSITY_MOL)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  den(option%liquid_phase)
-          case(LIQUID_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                  U(option%liquid_phase)
-            else
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      ghosted_id)%U(option%liquid_phase) * &
-                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      ghosted_id)%den(option%liquid_phase)
-            endif
-          case(LIQUID_MOBILITY)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    mobility(option%liquid_phase)
-          case(OIL_SATURATION)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    sat(option%oil_phase)
-          case(OIL_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    U(option%oil_phase)
-            else
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      ghosted_id)%U(option%oil_phase) * &
-                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      ghosted_id)%den(option%oil_phase)
-            endif
-          case(OIL_DENSITY)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    den_kg(option%oil_phase)
-          case(OIL_DENSITY_MOL)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    den(option%oil_phase)
-          case(OIL_MOBILITY)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    mobility(option%oil_phase)
-          case(GAS_SATURATION)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    sat(option%gas_phase)
-          case(GAS_ENERGY)
-            if (isubvar == ZERO_INTEGER) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      U(option%gas_phase)
-            else
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      ghosted_id)%U(option%gas_phase) * &
-                    patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                      ghosted_id)%den(option%gas_phase)
-            endif
-          case(GAS_DENSITY)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    den_kg(option%gas_phase)
-          case(GAS_DENSITY_MOL)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    den(option%gas_phase)
-          case(GAS_MOBILITY)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    mobility(option%gas_phase)
-          case(BUBBLE_POINT)
-            if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
-               .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      bo%bubble_point
-            else
-              value=0.0
-            endif
-          case(SOLVENT_PRESSURE)
-            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      pres(option%solvent_phase)
-            else
-              value=0.0d0
-            endif
-          case(SOLVENT_SATURATION)
-            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      sat(option%solvent_phase)
-            else
-              value=0.0d0
-            endif
-          case(SOLVENT_ENERGY)
-            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-              if (isubvar == ZERO_INTEGER) then
-                value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                        U(option%solvent_phase)
-              else
-                value = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                        ghosted_id)%U(option%solvent_phase) * &
-                      patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                        ghosted_id)%den(option%solvent_phase)
-              endif
-            else
-              value=0.0d0
-            endif
-          case(SOLVENT_DENSITY)
-            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      den_kg(option%solvent_phase)
-            else
-              value=0.0d0
-            endif
-          case(SOLVENT_DENSITY_MOL)
-            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      den(option%solvent_phase)
-            else
-              value=0.0d0
-            endif
-          case(SOLVENT_MOBILITY)
-            if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-              value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      mobility(option%solvent_phase)
-            else
-              value=0.0d0
-            endif
-          case default
-            call PatchUnsupportedVariable('TOWG',ivar,option)
-        end select
-
       endif
 
     ! NUCLEAR_WASTE_TRANSPORT:
@@ -8276,7 +6569,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
            ((value < 1.d-99) .and. (value > 0.d0)) ) then
         value = 1.d-99
       endif
-          
+
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY, TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_VOLUME_FRACTION,MINERAL_RATE,MINERAL_SATURATION_INDEX, &
@@ -8531,7 +6824,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
     case(STATE,PHASE)
       value = patch%aux%Global%auxvars(ghosted_id)%istate
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
-         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
+         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE, &
+         ELECTRICAL_CONDUCTIVITY)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
@@ -8599,6 +6893,10 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = 1.d0
         endif
       endif
+    case(ELECTRICAL_POTENTIAL)
+      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
+    case(ELECTRICAL_JACOBIAN)
+      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)
     case(NATURAL_ID)
@@ -8626,7 +6924,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                       patch%aux%Global%auxvars(ghosted_id),&
                                       reaction,option)
     case(SALINITY)
-      value = patch%Aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
+      value = patch%aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
     case(RESIDUAL)
       local_id = grid%nG2L(ghosted_id)
       call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -8750,7 +7048,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
             call PrintErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
-            if (th_use_freezing) then
+            if (option%flow%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas = &
@@ -8763,7 +7061,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               endif
             endif
           case(ICE_SATURATION)
-            if (th_use_freezing) then
+            if (option%flow%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice = &
@@ -8776,7 +7074,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               endif
             endif
           case(ICE_DENSITY)
-            if (th_use_freezing) then
+            if (option%flow%th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice = &
@@ -8870,177 +7168,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
                 patch%aux%Richards%auxvars(ghosted_id)%kvr = vec_ptr(ghosted_id)
-              enddo
-            endif
-        end select
-      else if (associated(patch%aux%Flash2)) then
-        select case(ivar)
-          case(TEMPERATURE)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%temp = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%temp = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_PRESSURE)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%pres = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%pres = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%sat(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%sat(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_DENSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%den(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%den(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_VISCOSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%vis(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%vis(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_MOBILITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%kvr(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%kvr(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%sat(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%sat(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_MOLE_FRACTION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%xmol(2+isubvar) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%xmol(2+isubvar) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_ENERGY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%u(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%u(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_DENSITY, GAS_DENSITY_MOL)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%den(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%den(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_VISCOSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%vis(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%vis(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_MOBILITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%kvr(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%kvr(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_MOLE_FRACTION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%xmol(isubvar) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%xmol(isubvar) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_ENERGY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Flash2%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%u(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Flash2%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%u(1) = vec_ptr(ghosted_id)
               enddo
             endif
         end select
@@ -9199,93 +7326,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
                 patch%aux%Mphase%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%u(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-        end select
-      else if (associated(patch%aux%Immis)) then
-        select case(ivar)
-          case(TEMPERATURE)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%temp = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%temp = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_PRESSURE)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%pres = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%pres = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%sat(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%sat(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_DENSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%den(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%den(1) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%sat(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%sat(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(GAS_ENERGY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%u(2) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
-                  auxvar_elem(0)%u(2) = vec_ptr(ghosted_id)
-              enddo
-            endif
-          case(LIQUID_ENERGY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%Immis%auxvars(grid%nL2G(local_id))% &
-                  auxvar_elem(0)%u(1) = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%Immis%auxvars(ghosted_id)% &
                   auxvar_elem(0)%u(1) = vec_ptr(ghosted_id)
               enddo
             endif
@@ -9485,7 +7525,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             enddo
         end select
       endif
-      
+
     ! NUCLEAR_WASTE_TRANSPORT:
     case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC, &
          MNRL_VOLUME_FRACTION)
@@ -9506,7 +7546,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
           call PrintErrMsg(option,'Setting of MNRL_VOLUME_FRACTION at grid &
                            &cell not yet supported.')
       end select
-      
+
     case(PRIMARY_MOLALITY,TOTAL_MOLARITY,MINERAL_VOLUME_FRACTION, &
          PRIMARY_ACTIVITY_COEF,SECONDARY_ACTIVITY_COEF,IMMOBILE_SPECIES, &
          GAS_CONCENTRATION,REACTION_AUXILIARY,MINERAL_SURFACE_AREA)
@@ -9628,7 +7668,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         case(COLLOID_IMMOBILE)
           call PrintErrMsg(option,'Setting of immobile colloid concentration at grid cell not supported.')
       end select
-    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY,ELECTRICAL_CONDUCTIVITY)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &
@@ -9668,6 +7708,16 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       else if (vec_format == LOCAL) then
         patch%imat(1:grid%ngmax) = int(vec_ptr(1:grid%ngmax))
       endif
+    case(ELECTRICAL_POTENTIAL)
+      do local_id=1,grid%nlmax
+        patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) = &
+          vec_ptr(local_id)
+      enddo
+    case(ELECTRICAL_JACOBIAN)
+      do local_id=1,grid%nlmax
+        patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar) = &
+          vec_ptr(local_id)
+      enddo      
     case(PROCESS_ID)
       call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
@@ -9719,7 +7769,8 @@ end subroutine PatchCountCells
 
 ! ************************************************************************** !
 
-subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
+subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1, &
+                                      max_pore_velocity)
   !
   ! Calculates largest time step to preserves a
   ! CFL # of 1 in a patch
@@ -9740,6 +7791,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   type(patch_type) :: patch
   type(option_type) :: option
   PetscReal :: max_dt_cfl_1
+  PetscReal :: max_pore_velocity
 
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -9755,7 +7807,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iphase
-
+  PetscReal :: tempreal(2)
   PetscReal :: dt_cfl_1
   PetscErrorCode :: ierr
 
@@ -9765,6 +7817,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   grid => patch%grid
 
   max_dt_cfl_1 = 1.d20
+  max_pore_velocity = 0.d0
 
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -9798,12 +7851,13 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
         v_darcy = patch%internal_velocities(iphase,sum_connection)
         v_pore_max = v_darcy / por_sat_min
         v_pore_ave = v_darcy / por_sat_ave
-        !geh: I use v_por_max to ensure that we limit the cfl based on the
+        !geh: I use v_pore_max to ensure that we limit the cfl based on the
         !     highest velocity through the face.  If porosity*saturation
         !     varies, the pore water velocity will be highest on the side
         !     of the face with the smalled value of porosity*saturation.
         dt_cfl_1 = distance / dabs(v_pore_max)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
+        max_pore_velocity = max(v_pore_max,max_pore_velocity)
       enddo
     enddo
     cur_connection_set => cur_connection_set%next
@@ -9822,16 +7876,27 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
       !geh: since on boundary, dist must be scaled by 2.d0
       distance = 2.d0*cur_connection_set%dist(0,iconn)
       do iphase = 1, option%nphase
+        ! the _ave variable is being reused. it is actually, max
         por_sat_ave = material_auxvars(ghosted_id_dn)%porosity* &
                       global_auxvars(ghosted_id_dn)%sat(iphase)
         v_darcy = patch%boundary_velocities(iphase,sum_connection)
         v_pore_ave = v_darcy / por_sat_ave
         dt_cfl_1 = distance / dabs(v_pore_ave)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
+        max_pore_velocity = max(v_pore_ave,max_pore_velocity)
       enddo
     enddo
     boundary_condition => boundary_condition%next
   enddo
+
+  tempreal(1) = max_dt_cfl_1
+  tempreal(2) = -max_pore_velocity
+  call MPI_Allreduce(MPI_IN_PLACE,tempreal,TWO_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MIN, &
+                     option%mycomm,ierr)
+
+  max_dt_cfl_1 = tempreal(1)
+  max_pore_velocity = -tempreal(2)
 
 end subroutine PatchCalculateCFL1Timestep
 
@@ -9911,7 +7976,7 @@ end subroutine
 
 ! ************************************************************************** !
 
-subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
+subroutine PatchGetVariable2(patch,option,output_option,vec, &
                              ivar,isubvar,isubvar2)
   !
   ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
@@ -9923,7 +7988,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   use Grid_module
   use Option_module
   use Output_Aux_module
-  use Surface_Field_module
   use Variables_module
 
   implicit none
@@ -9931,7 +7995,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   type(option_type), pointer :: option
   !class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
-  type(surface_field_type), pointer :: surf_field
   type(patch_type), pointer :: patch
   Vec :: vec
   PetscInt :: ivar
@@ -9955,14 +8018,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   iphase = 1
 
   select case(ivar)
-    case(SURFACE_LIQUID_HEAD)
-      do local_id=1,grid%nlmax
-        vec_ptr(local_id) = patch%surf_aux%SurfaceGlobal%auxvars(grid%nL2G(local_id))%head(1)
-      enddo
-    case(SURFACE_LIQUID_TEMPERATURE)
-      do local_id=1,grid%nlmax
-        vec_ptr(local_id) = patch%surf_aux%SurfaceGlobal%auxvars(grid%nL2G(local_id))%temp
-      enddo
     case(MATERIAL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
@@ -10087,6 +8142,138 @@ end subroutine PatchGetCellCenteredVelocities
 
 ! ************************************************************************** !
 
+subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
+  !
+  ! Calculates the K orthogonality error at all cells in a patch
+  ! Error from https://www.onepetro.org/conference-paper/SPE-37998-MS
+  ! Work only for unstructured implicit grid type
+  !
+  ! Author: Moise Rousseau
+  ! Date: 06/28/20
+
+  use Option_module
+  use Connection_module
+  use Geometry_module
+  use Material_Aux_class
+  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
+                               PERMEABILITY_Z, PERMEABILITY_XY, &
+                               PERMEABILITY_XZ, PERMEABILITY_YZ
+  use Utility_module, only : DotProduct, CrossProduct
+  !use Grid_Unstructured_Aux_module
+
+  implicit none
+
+  type(grid_type), pointer :: grid
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscReal, pointer :: error(:)
+  class (connection_set_type), pointer :: cur_connection_set
+
+  PetscInt :: cell_id, face_id, i, iconn
+  PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
+  PetscReal :: v1(3),v2(3),normal(3), num(3), den(3)
+  PetscReal :: face_error, normal_magnitude
+  type(point3d_type) :: point1, point2, point3
+  PetscReal, allocatable :: array_normal(:), array_error(:)
+  PetscErrorCode :: ierr
+  PetscReal :: kx, kxy, kxz, ky, kyz, kz
+
+  type(option_type) :: option
+
+  !unstructured_grid => patch%grid%unstructured_grid
+  cur_connection_set => grid%internal_connection_set_list%first
+
+  allocate(array_normal(grid%nlmax))
+  allocate(array_error(grid%nlmax))
+  array_normal(:) = 0.0
+  array_error(:) = 0.0
+
+  do iconn = 1, cur_connection_set%num_connections
+    ! For each face we need face normal and the vecteur between the two center
+    ! shared by the face
+    face_id = cur_connection_set%face_id(iconn)
+
+    ! Normal computation
+    point1 = grid%unstructured_grid%vertices( &
+                          grid%unstructured_grid%face_to_vertex(1,face_id))
+    point2 = grid%unstructured_grid%vertices( &
+                          grid%unstructured_grid%face_to_vertex(2,face_id))
+    point3 = grid%unstructured_grid%vertices( &
+                          grid%unstructured_grid%face_to_vertex(3,face_id))
+    v1(1) = point1%x-point2%x
+    v1(2) = point1%y-point2%y
+    v1(3) = point1%z-point2%z
+    v2(1) = point1%x-point3%x
+    v2(2) = point1%y-point3%y
+    v2(3) = point1%z-point3%z
+    normal = CrossProduct(v1,v2)
+    normal_magnitude = sqrt(DotProduct(normal,normal))
+    normal = normal / normal_magnitude * grid%unstructured_grid%face_area(face_id)
+
+    !Cell ids from both side of the face
+    ghosted_id_up = cur_connection_set%id_up(iconn)
+    ghosted_id_dn = cur_connection_set%id_dn(iconn)
+    local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+    local_id_dn = grid%nG2L(ghosted_id_dn) ! = zero for ghost nodes
+
+    ! Error for upwind cell
+    if (local_id_up > 0) then
+      ! get permeability
+      kx = MaterialAuxVarGetValue(material_auxvars(local_id_up),PERMEABILITY_X)
+      ky = MaterialAuxVarGetValue(material_auxvars(local_id_up),PERMEABILITY_Y)
+      kz = MaterialAuxVarGetValue(material_auxvars(local_id_up),PERMEABILITY_Z)
+      kxy = MaterialAuxVarGetValue(material_auxvars(local_id_up),PERMEABILITY_XY)
+      kxz = MaterialAuxVarGetValue(material_auxvars(local_id_up),PERMEABILITY_XZ)
+      kyz = MaterialAuxVarGetValue(material_auxvars(local_id_up),PERMEABILITY_YZ)
+      ! error computation
+      ! denominator
+      den = 0.0
+      den(1) = normal(1)*kx + normal(2)*kxy + normal(3)*kxz
+      den(2) = normal(1)*kxy + normal(2)*ky + normal(3)*kyz
+      den(3) = normal(1)*kxz + normal(2)*kyz + normal(3)*kz
+      ! numerator
+      num = den - DotProduct(den,cur_connection_set%dist(1:3,iconn)) * &
+                                      cur_connection_set%dist(1:3,iconn)
+      ! face error
+      array_error(local_id_up) = array_error(local_id_up) + sqrt(DotProduct(num,num))
+      array_normal(local_id_up) = array_normal(local_id_up) + &
+                                      sqrt(DotProduct(den,den))
+    endif
+
+    if (local_id_dn > 0) then
+      ! get permeability
+      kx = MaterialAuxVarGetValue(material_auxvars(local_id_dn),PERMEABILITY_X)
+      ky = MaterialAuxVarGetValue(material_auxvars(local_id_dn),PERMEABILITY_Y)
+      kz = MaterialAuxVarGetValue(material_auxvars(local_id_dn),PERMEABILITY_Z)
+      kxy = MaterialAuxVarGetValue(material_auxvars(local_id_dn),PERMEABILITY_XY)
+      kxz = MaterialAuxVarGetValue(material_auxvars(local_id_dn),PERMEABILITY_XZ)
+      kyz = MaterialAuxVarGetValue(material_auxvars(local_id_dn),PERMEABILITY_YZ)
+      ! error computation
+      ! denominator
+      den = 0.0
+      den(1) = normal(1)*kx + normal(2)*kxy + normal(3)*kxz
+      den(2) = normal(1)*kxy + normal(2)*ky + normal(3)*kyz
+      den(3) = normal(1)*kxz + normal(2)*kyz + normal(3)*kz
+      ! numerator
+      num = den - DotProduct(den,cur_connection_set%dist(1:3,iconn)) * &
+                                      cur_connection_set%dist(1:3,iconn)
+      ! face error
+      array_error(local_id_dn) = array_error(local_id_dn) + sqrt(DotProduct(num,num))
+      array_normal(local_id_dn) = array_normal(local_id_dn) + &
+                                      sqrt(DotProduct(den,den))
+    endif
+  enddo
+  !Compute final error
+  do i = 1, grid%nlmax
+    error(i) = array_error(i) / array_normal(i)
+  enddo
+
+  deallocate(array_normal)
+  deallocate(array_error)
+
+end subroutine PatchGetKOrthogonalityError
+
+! ************************************************************************** !
+
 subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   !
   !
@@ -10104,7 +8291,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   use Connection_module
   use Coupler_module
   use Grid_Unstructured_Cell_module, only : MAX_VERT_PER_FACE
-  
+
 
   implicit none
 
@@ -10141,7 +8328,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscReal :: v1(3), v2(3), cp(3)
   PetscReal :: x, y, z
   PetscReal :: coord(3)
-  PetscReal :: unit_direction(3) 
+  PetscReal :: unit_direction(3)
   PetscReal, parameter :: absolute_tolerance = 1.d-10
   PetscReal, parameter :: relative_tolerance = 1.d-6
   PetscBool :: found
@@ -10214,7 +8401,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         if (OptionPrintToScreen(option)) write(*,*) 'pt2: ', &
           polygon(2)%x, polygon(2)%y, polygon(2)%z
         option%io_buffer = 'An integral flux polygon defined by 2 points must &
-          & be a plane.' 
+          & be a plane.'
         call PrintErrMsg(option)
       endif
     endif
@@ -10261,7 +8448,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
     allocate(yet_to_be_found(num_to_be_found))
     yet_to_be_found = PETSC_TRUE
   endif
-  
+
   if (associated(by_cell_ids)) then
     error_string = 'cell ids match the an actual face between these cells'
     num_to_be_found = size(by_cell_ids,2)
@@ -10275,7 +8462,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   ipass = 1
   nullify(boundary_condition)
   nullify(cur_connection_set)
-  do 
+  do
     select case(ipass)
       case(1) ! internal connections
         cur_connection_set => grid%internal_connection_set_list%first
@@ -10300,7 +8487,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         sum_connection = sum_connection + 1
         magnitude = cur_connection_set%dist(0,iconn)
         unit_direction(:) = &
-          cur_connection_set%dist(X_DIRECTION:Z_DIRECTION,iconn) 
+          cur_connection_set%dist(X_DIRECTION:Z_DIRECTION,iconn)
         select case(ipass)
           case(1) ! internal connections
             ghosted_id_up = cur_connection_set%id_up(iconn)
@@ -10342,7 +8529,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
                                      unit_direction(Y_DIRECTION)
             z = grid%z(ghosted_id) - fraction_upwind * magnitude * &
                                      unit_direction(Z_DIRECTION)
-        end select 
+        end select
         found = PETSC_FALSE
         same_direction = PETSC_TRUE
         if (associated(plane)) then
@@ -10668,9 +8855,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
                                     global_total_mass)
   !
   ! Calculates the total mass (aqueous, sorbed, and precipitated) in a region
-  ! in units of mol.
+  ! in units of kg. [modified to kg from mol by Heeho]
   !
-  ! Author: Jenn Frederick
+  ! Author: Jenn Frederick, Heeho Park
   ! Date: 04/25/2016
   !
   use Global_Aux_module
@@ -10724,10 +8911,18 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       sorb_species_mass = 0.d0
       ! aqueous species; units [mol/L-water]*[m^3-water]*[1000L/m^3-water]=[mol]
       aq_species_mass = rt_auxvars(ghosted_id)%total(j,LIQUID_PHASE) * &
-                        m3_water * 1.0d3
+                        m3_water * 1.0d3     
+      if (reaction%print_total_mass_kg) then
+        ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
+        aq_species_mass = aq_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
+      endif
       if (associated(rt_auxvars(ghosted_id)%total_sorb_eq)) then
         ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
         sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
+        if (reaction%print_total_mass_kg) then
+          ! sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
+          sorb_species_mass = sorb_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
+        endif
       else
         sorb_species_mass = 0.d0
       endif
@@ -10740,6 +8935,11 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! precip. species; units [m^3-mnrl/m^3-bulk]*[m^3-bulk]/[m^3-mnrl/mol-mnrl]=[mol]
       ppt_species_mass = rt_auxvars(ghosted_id)%mnrl_volfrac(m) * m3_bulk / &
                          reaction%mineral%kinmnrl_molar_vol(m)
+      if (reaction%print_total_mass_kg) then
+        ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
+        ppt_species_mass = ppt_species_mass * reaction%mineral%kinmnrl_molar_wt(j) * &
+                           1.0d-3
+      endif
       local_total_mass = local_total_mass + ppt_species_mass
     enddo
   enddo ! Cell loop
@@ -10757,7 +8957,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   !
   ! Calculates the water mass in a region in kg
   !
-  ! Author: Satish Karra
+  ! Author: Satish Karra, Heeho Park
   ! Date: 09/20/2016
   !
   use Global_Aux_module
@@ -10792,10 +8992,10 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
     ghosted_id = patch%grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     m3_water = material_auxvars(ghosted_id)%porosity * &         ! [-]
-               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
+               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water %]
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     kg_water = m3_water*global_auxvars(ghosted_id)% &            ! [m^3-water]
-               den(LIQUID_PHASE)                                 ! [kg/m^3-water]
+               den_kg(LIQUID_PHASE)                              ! [kg/m^3-water]
     local_water_mass = local_water_mass + kg_water
   enddo ! Cell loop
 
@@ -11005,7 +9205,7 @@ subroutine PatchUnsupportedVariable1(process_name,variable_name,ivar,option)
   ! Prints an error message when an unsupported output variable is requested.
   !
   ! Author: Glenn Hammond
-  ! Date: 04/22/19 
+  ! Date: 04/22/19
 
   implicit none
 
@@ -11050,7 +9250,7 @@ end subroutine PatchUnsupportedVariable1
 subroutine PatchUnsupportedVariable2(process_name,ivar,option)
   !
   ! Author: Glenn Hammond
-  ! Date: 04/22/19 
+  ! Date: 04/22/19
 
   implicit none
 
@@ -11067,7 +9267,7 @@ end subroutine PatchUnsupportedVariable2
 subroutine PatchUnsupportedVariable3(process_name,variable_name,option)
   !
   ! Author: Glenn Hammond
-  ! Date: 04/22/19 
+  ! Date: 04/22/19
 
   implicit none
 
@@ -11085,7 +9285,7 @@ end subroutine PatchUnsupportedVariable3
 subroutine PatchUnsupportedVariable4(ivar,option)
   !
   ! Author: Glenn Hammond
-  ! Date: 04/22/19 
+  ! Date: 04/22/19
 
   implicit none
 
@@ -11152,7 +9352,8 @@ subroutine PatchDestroy(patch)
 
   call DeallocateArray(patch%imat)
   call DeallocateArray(patch%imat_internal_to_external)
-  call DeallocateArray(patch%sat_func_id)
+  call DeallocateArray(patch%cc_id)
+  call DeallocateArray(patch%cct_id)
   call DeallocateArray(patch%internal_velocities)
   call DeallocateArray(patch%boundary_velocities)
   call DeallocateArray(patch%internal_tran_coefs)
@@ -11164,8 +9365,6 @@ subroutine PatchDestroy(patch)
   call DeallocateArray(patch%boundary_tran_fluxes)
   call DeallocateArray(patch%ss_tran_fluxes)
   call DeallocateArray(patch%ss_flow_vol_fluxes)
-
-  call DeallocateArray(patch%boundary_energy_flux)
 
   call DeallocateArray(patch%flow_upwind_direction)
   call DeallocateArray(patch%flow_upwind_direction_bc)
@@ -11187,11 +9386,10 @@ subroutine PatchDestroy(patch)
   ! Since this linked list will be destroyed by realization, just nullify here
   nullify(patch%characteristic_curves)
 
-  nullify(patch%surf_field)
-  if (associated(patch%surf_material_property_array)) &
-    deallocate(patch%surf_material_property_array)
-  nullify(patch%surf_material_property_array)
-  nullify(patch%surf_material_properties)
+  if (associated(patch%char_curves_thermal_array)) &
+       deallocate(patch%char_curves_thermal_array)
+  nullify(patch%char_curves_thermal_array)
+  nullify(patch%characteristic_curves_thermal)
 
   ! solely nullify grid since destroyed in discretization
   nullify(patch%grid)
@@ -11205,7 +9403,6 @@ subroutine PatchDestroy(patch)
   call StrataDestroyList(patch%strata_list)
 
   call AuxDestroy(patch%aux)
-  call SurfaceAuxDestroy(patch%surf_aux)
 
   ! these are solely pointers, must not destroy.
   nullify(patch%reaction_base)

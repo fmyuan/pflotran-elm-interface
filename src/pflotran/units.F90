@@ -15,7 +15,7 @@ contains
 
 ! ************************************************************************** !
 
-function UnitsConvertToInternal(units,internal_units,option)
+function UnitsConvertToInternal(units,internal_units,option,ierr)
   ! 
   ! Converts given units to pflotran internal units
   ! 
@@ -31,6 +31,7 @@ function UnitsConvertToInternal(units,internal_units,option)
   character(len=*) :: units
   character(len=MAXWORDLENGTH) :: internal_units
   type(option_type) :: option
+  PetscErrorCode, optional :: ierr
 
   character(len=MAXSTRINGLENGTH) :: units_buff
   character(len=MAXSTRINGLENGTH) :: internal_units_buff1
@@ -72,8 +73,13 @@ function UnitsConvertToInternal(units,internal_units,option)
   enddo
   
   if (.not.successful) then
-    option%io_buffer = error_msg
-    call PrintErrMsg(option)
+    if (present(ierr)) then
+      ierr = -1
+      return
+    else
+      option%io_buffer = error_msg
+      call PrintErrMsg(option)
+    endif
   endif
 
   UnitsConvertToInternal = conversion_factor

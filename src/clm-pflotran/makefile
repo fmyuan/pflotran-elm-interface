@@ -227,7 +227,7 @@ lib_pflotran_obj = \
 	$(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(grid_obj) \
 	$(relations_obj) $(properties_obj) $(dataset_obj) $(srcsink_obj) \
-	$(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) $(well_obj) \
+	$(io_obj) $(misc_obj) $(solver_obj) $(well_obj) $(geophysics_obj) \
 	$(deriv_obj)
 
 pflotran_interface_test_obj = ${pflotran_src}pflotran_interface_main.o
@@ -299,16 +299,16 @@ pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    clm_pflotran_interface_data.o connection.o coupler.o \
                    discretization.o factory_geomechanics.o \
                    factory_pflotran.o \
-                   factory_subsurface.o factory_surface.o \
-                   factory_surfsubsurface.o field.o global_aux.o grid.o \
+                   factory_subsurface.o \
+                   field.o global_aux.o grid.o \
                    grid_unstructured.o grid_unstructured_aux.o \
                    grid_unstructured_cell.o input_aux.o logging.o mapping.o \
                    material.o multisimulation.o option.o patch.o \
                    pflotran_constants.o realization_base.o \
-                   realization_subsurface.o realization_surface.o richards.o \
+                   realization_subsurface.o richards.o \
                    richards_aux.o saturation_function.o simulation_base.o \
-                   simulation_subsurface.o simulation_surface.o \
-                   simulation_surfsubsurface.o string.o surface_global_aux.o \
+                   simulation_subsurface.o \
+                   string.o \
                    th.o th_aux.o timestepper_base.o units.o utility.o \
                    variables.o waypoint.o
 

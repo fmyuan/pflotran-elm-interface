@@ -68,6 +68,11 @@ module Grid_module
 
     PetscInt, pointer :: hash(:,:,:)
     PetscInt :: num_hash_bins
+    ! this is just a pointer to structured or unstructured version
+    PetscInt, pointer :: cell_neighbors_local_ghosted(:,:)
+                            ! (0,local_id) = number of neighbors for local_id
+                            ! (iface=1:N,local_id) = ghosted_ids of neighbors
+                            ! ghosted neighbors have negative ghost_ids
 
     type(grid_structured_type), pointer :: structured_grid
     type(grid_unstructured_type), pointer :: unstructured_grid
@@ -109,7 +114,8 @@ module Grid_module
             GridMapCellsInPolVol, &
             GridGetLocalIDFromCoordinate, &
             GridRestrictRegionalConnect, &
-            GridPrintExtents
+            GridPrintExtents, &
+            GridSetupCellNeighbors
   
 contains
 
@@ -166,6 +172,7 @@ function GridCreate()
   grid%ngmax = 0
   grid%global_offset = 0
 
+  nullify(grid%cell_neighbors_local_ghosted)
   nullify(grid%hash)
   grid%num_hash_bins = 1000
 
@@ -653,12 +660,12 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           case (STRUCTURED_GRID)
             call GridLocalizeRegionsFromCellIDs(grid,region,option)
           case default
-            option%io_buffer = 'GridLocalizeRegions() must tbe extended ' // &
+            option%io_buffer = 'GridLocalizeRegions() must be extended ' // &
             'for unstructured region DEFINED_BY_CELL_AND_FACE_IDS'
             call PrintErrMsg(option)
         end select
       case (DEFINED_BY_VERTEX_IDS)
-        option%io_buffer = 'GridLocalizeRegions() must tbe extended ' // &
+        option%io_buffer = 'GridLocalizeRegions() must be extended ' // &
           'for unstructured region DEFINED_BY_VERTEX_IDS'
         call PrintErrMsg(option)
       case (DEFINED_BY_SIDESET_UGRID)
@@ -1412,17 +1419,17 @@ subroutine GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
                                    stencil_width_k,x_count,y_count, &
                                    z_count, &
                                    ghosted_neighbors,option)
-  ! 
-  ! GridGetNeighbors: Returns an array of neighboring cells
-  ! 
+  !
+  !  Returns an array of neighboring cells
+  !
   ! Author: Glenn Hammond
   ! Date: 01/28/11
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(grid_type) :: grid
   type(option_type) :: option
   PetscInt :: ghosted_id
@@ -1458,13 +1465,11 @@ subroutine GridGetGhostedNeighborsWithCorners(grid,ghosted_id,stencil_type, &
                                    stencil_width_k,icount, &
                                    ghosted_neighbors,option)
   ! 
-  ! GridGetNeighborsWithCorners: Returns an array of neighboring cells along with corner
-  ! cells
+  ! Returns an array of neighboring cells along with corner cells
   ! 
   ! Author: Satish Karra, LANL
   ! Date: 02/19/12
   ! 
-
   use Option_module
 
   implicit none
@@ -1478,7 +1483,7 @@ subroutine GridGetGhostedNeighborsWithCorners(grid,ghosted_id,stencil_type, &
   PetscInt :: stencil_width_k
   PetscInt :: icount
   PetscInt :: ghosted_neighbors(*)
-  
+
   select case(grid%itype)
     case(STRUCTURED_GRID)
       call StructGridGetGhostedNeighborsCorners(grid%structured_grid, &
@@ -1498,6 +1503,124 @@ end subroutine GridGetGhostedNeighborsWithCorners
 
 ! ************************************************************************** !
 
+subroutine GridSetupCellNeighbors(grid,option)
+  !
+  ! Sets up arrays that map local cells to their ghosted neighbors
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/05/21
+  !
+  use Option_module
+
+  implicit none
+
+  type(grid_type) :: grid
+  type(option_type) :: option
+
+  if (associated(grid%cell_neighbors_local_ghosted)) return
+
+  select case(grid%itype)
+    case(STRUCTURED_GRID)
+      call StructGridPopulateCellNeighbors(grid%structured_grid,option)
+      grid%cell_neighbors_local_ghosted => &
+        grid%structured_grid%cell_neighbors_local_ghosted
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
+        POLYHEDRA_UNSTRUCTURED_GRID)
+      grid%cell_neighbors_local_ghosted => &
+        grid%unstructured_grid%cell_neighbors_local_ghosted
+  end select
+
+  call GridCheckCellNeighbors(grid,option)
+
+end subroutine GridSetupCellNeighbors
+
+! ************************************************************************** !
+
+subroutine GridCheckCellNeighbors(grid,option)
+  !
+  ! GridSetupCellNeighbors: Sets up arrays that map local cells to their
+  ! ghosted neighbors
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/05/21
+  !
+  use Option_module
+
+  implicit none
+
+  type(grid_type) :: grid
+  type(option_type) :: option
+
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt, allocatable :: check(:,:)
+  PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt :: i, iconn
+
+  allocate(check(0:size(grid%cell_neighbors_local_ghosted,1)-1, &
+                 size(grid%cell_neighbors_local_ghosted,2)))
+  check = 0
+
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+      local_id_up = grid%nG2L(ghosted_id_up)
+      local_id_dn = grid%nG2L(ghosted_id_dn)
+      if (local_id_up > 0) then
+        do i = 1, grid%cell_neighbors_local_ghosted(0,local_id_up)
+          if (abs(grid%cell_neighbors_local_ghosted(i,local_id_up)) == &
+              ghosted_id_dn) then
+            check(0,local_id_up) = check(0,local_id_up)+1
+            if (local_id_dn > 0) then
+              check(i,local_id_up) = ghosted_id_dn
+            else ! negative id for ghosted
+              check(i,local_id_up) = -ghosted_id_dn
+            endif
+            exit
+          endif
+        enddo
+      endif
+      if (local_id_dn > 0) then
+        do i = 1, grid%cell_neighbors_local_ghosted(0,local_id_dn)
+          if (abs(grid%cell_neighbors_local_ghosted(i,local_id_dn)) == &
+              ghosted_id_up) then
+            check(0,local_id_dn) = check(0,local_id_dn)+1
+            if (local_id_up > 0) then
+              check(i,local_id_dn) = ghosted_id_up
+            else ! negative id for ghosted
+              check(i,local_id_dn) = -ghosted_id_up
+            endif
+            exit
+          endif
+        enddo
+      endif
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+
+  if (maxval(abs(grid%cell_neighbors_local_ghosted-check)) > 0) then
+    ! do i = 1, grid%nlmax
+    !   print *, grid%cell_neighbors_local_ghosted(:,i)
+    !   print *, check(:,i)
+    !   print *, '--'
+    ! enddo
+    option%exit_code = EXIT_FAILURE
+    option%io_buffer = 'Error mapping neighboring cells.  Please send &
+     &your input files to pflotran-dev@googlegroups.com'
+    call PrintErrMsgByRank(option)
+  endif
+
+  deallocate(check)
+
+end subroutine GridCheckCellNeighbors
+
+! ************************************************************************** !
+
 subroutine GridDestroy(grid)
   ! 
   ! Deallocates a grid
@@ -1506,15 +1629,15 @@ subroutine GridDestroy(grid)
   ! Date: 11/01/07
   ! 
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
-  
+
   type(grid_type), pointer :: grid
   PetscErrorCode :: ierr
   PetscInt :: ghosted_id
-    
+
   if (.not.associated(grid)) return
-      
+
   call DeallocateArray(grid%nL2G)
   call DeallocateArray(grid%nG2L)
   call DeallocateArray(grid%nG2A)
@@ -1522,12 +1645,16 @@ subroutine GridDestroy(grid)
   call DeallocateArray(grid%x)
   call DeallocateArray(grid%y)
   call DeallocateArray(grid%z)
-  
+
+  ! cell_neighbors_local_ghosted is deallocated under structured or
+  ! unstructured
+  nullify(grid%cell_neighbors_local_ghosted)
+
   if (associated(grid%hash)) call GridDestroyHashTable(grid)
-  
-  call UGridDestroy(grid%unstructured_grid)    
+
+  call UGridDestroy(grid%unstructured_grid)
   call StructGridDestroy(grid%structured_grid)
-                                           
+
   call ConnectionDestroyList(grid%internal_connection_set_list)
 
   if (associated(grid)) deallocate(grid)
@@ -1575,7 +1702,7 @@ function GridIndexToCellID(vec,index,grid,vec_type)
   
   call MPI_Allreduce(cell_id,GridIndexToCellID,ONE_INTEGER_MPI,MPIU_INTEGER, &
                      MPI_MAX,PETSC_COMM_WORLD,ierr)
-                     
+
 end function GridIndexToCellID
 
 ! ************************************************************************** !

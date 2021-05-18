@@ -456,18 +456,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
 
-  if (option%linerept) then
-    nnl = num_newton_iterations
-    if( nnl>0 ) then
-      lpernl = num_linear_iterations/nnl
-    else
-      lpernl = 0
-    endif
-    option%nnl      = nnl
-    option%linpernl = lpernl
-    option%nchperst = icut
-  endif
-
   if (option%print_file_flag) then
     write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3, &
@@ -1065,11 +1053,11 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
             this%cumulative_time_step_cuts
     write(string,'(i12)') this%cumulative_wasted_linear_iterations
 
-    write(*,'(a)') trim(this%name) // ' TS BE Wasted Linear Iterations = ' // &
-         trim(adjustl(string))
+    write(*,'(x,a)') trim(this%name) // &
+      ' TS BE Wasted Linear Iterations = ' // trim(adjustl(string))
     write(string,'(i12)') this%cumulative_wasted_newton_iterations
-    write(*,'(a)') trim(this%name) // ' TS BE Wasted Newton Iterations = ' // &
-      trim(adjustl(string))
+    write(*,'(x,a)') trim(this%name) // &
+      ' TS BE Wasted Newton Iterations = ' // trim(adjustl(string))
 
     write(string,'(f12.1)') this%cumulative_solver_time
     write(*,'(x,a)') trim(this%name) // ' TS BE SNES time = ' // &

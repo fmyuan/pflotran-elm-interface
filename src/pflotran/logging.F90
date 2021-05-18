@@ -1,7 +1,7 @@
 module Logging_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -16,16 +16,16 @@ module Logging_module
   PetscInt, parameter, public :: OUTPUT_STAGE = 3
   PetscInt, parameter, public :: FINAL_STAGE = 4
 
-  type, public :: logging_type 
-  
+  type, public :: logging_type
+
     PetscInt :: stage_count
     PetscLogStage :: stage(10)
-    
+
     PetscClassId :: class_pflotran
-    
+
     PetscLogEvent :: event_init
     PetscLogEvent :: event_setup
-   
+
     PetscLogEvent :: event_create_iogroups
 
     PetscLogEvent :: event_restart
@@ -33,6 +33,7 @@ module Logging_module
 
     PetscLogEvent :: event_flow_condition_read
     PetscLogEvent :: event_tran_condition_read
+    PetscLogEvent :: event_geop_condition_read
     PetscLogEvent :: event_tran_constraint_read
     PetscLogEvent :: event_flow_condition_read_values
 
@@ -47,8 +48,8 @@ module Logging_module
     PetscLogEvent :: event_read_int_array_hdf5
     PetscLogEvent :: event_write_real_array_hdf5
     PetscLogEvent :: event_write_int_array_hdf5
-    PetscLogEvent :: event_read_array_hdf5    
-    PetscLogEvent :: event_read_xyz_dataset_hdf5    
+    PetscLogEvent :: event_read_array_hdf5
+    PetscLogEvent :: event_read_xyz_dataset_hdf5
     PetscLogEvent :: event_write_struct_dataset_hdf5
     PetscLogEvent :: event_region_read_hdf5
     PetscLogEvent :: event_region_read_ascii
@@ -70,6 +71,7 @@ module Logging_module
     PetscLogEvent :: event_output_get_cell_vel
     PetscLogEvent :: event_output_vec_tecplot
     PetscLogEvent :: event_output_observation
+    PetscLogEvent :: event_output_observation_agg
     PetscLogEvent :: event_output_coordinates_hdf5
     PetscLogEvent :: event_output_hydrograph
     PetscLogEvent :: event_output_secondary_tecplot
@@ -78,7 +80,7 @@ module Logging_module
     PetscLogEvent :: event_r_jacobian
     PetscLogEvent :: event_r_auxvars
     PetscLogEvent :: event_r_auxvars_bc
-    
+
     PetscLogEvent :: event_rt_residual
     PetscLogEvent :: event_rt_jacobian
 
@@ -96,19 +98,19 @@ module Logging_module
     PetscLogEvent :: event_rt_react
     PetscLogEvent :: event_rt_auxvars
     PetscLogEvent :: event_rt_auxvars_bc
-    
+
     PetscLogEvent :: event_nwt_residual
     PetscLogEvent :: event_nwt_jacobian
     PetscLogEvent :: event_nwt_auxvars
-    
+
     PetscLogEvent :: event_mass_balance
 
     PetscBool :: allow_new_stages
 
   end type logging_type
-  
+
   type(logging_type), pointer, public :: logging
-  
+
   public :: LoggingCreate, &
             LoggingCreateStage, &
             LoggingSetupComplete, &
@@ -119,23 +121,23 @@ contains
 ! ************************************************************************** !
 
 subroutine LoggingCreate()
-  ! 
+  !
   ! Allocates and initializes a new logging object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
-  ! 
+  !
 
   implicit none
-  
+
   PetscErrorCode :: ierr
-  
+
   allocate(logging)
 
   logging%allow_new_stages = PETSC_TRUE
   logging%stage_count = FINAL_STAGE
-  
-  call PetscLogStageRegister('Init Stage',  & 
+
+  call PetscLogStageRegister('Init Stage',  &
                              logging%stage(INIT_STAGE),ierr);CHKERRQ(ierr)
   call PetscLogStageRegister('Time Step Stage', &
                              logging%stage(TS_STAGE),ierr);CHKERRQ(ierr)
@@ -143,7 +145,7 @@ subroutine LoggingCreate()
                              logging%stage(OUTPUT_STAGE),ierr);CHKERRQ(ierr)
   call PetscLogStageRegister('Finalization Stage', &
                              logging%stage(FINAL_STAGE),ierr);CHKERRQ(ierr)
-                             
+
 !!  call PetscCookieRegister('PFLOTRAN',logging%class_pflotran,ierr)
   call PetscClassIdRegister('PFLOTRAN',logging%class_pflotran, &
                             ierr);CHKERRQ(ierr)
@@ -173,6 +175,10 @@ subroutine LoggingCreate()
   call PetscLogEventRegister('TranCondRead', &
                              logging%class_pflotran, &
                              logging%event_tran_condition_read, &
+                             ierr);CHKERRQ(ierr)
+  call PetscLogEventRegister('GeopCondRead', &
+                             logging%class_pflotran, &
+                             logging%event_geop_condition_read, &
                              ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('TranConstraintRd', &
                              logging%class_pflotran, &
@@ -378,7 +384,7 @@ subroutine LoggingCreate()
   call PetscLogEventRegister('RTAuxVarsBC', &
                              logging%class_pflotran, &
                              logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
-                             
+
   call PetscLogEventRegister('NWTResidual', &
                              logging%class_pflotran, &
                              logging%event_nwt_residual,ierr);CHKERRQ(ierr)
@@ -387,8 +393,8 @@ subroutine LoggingCreate()
                              logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('NWTAuxVars', &
                              logging%class_pflotran, &
-                             logging%event_nwt_auxvars,ierr);CHKERRQ(ierr)                             
-                             
+                             logging%event_nwt_auxvars,ierr);CHKERRQ(ierr)
+
   call PetscLogEventRegister('MassBalance', &
                              logging%class_pflotran, &
                              logging%event_mass_balance,ierr);CHKERRQ(ierr)
@@ -398,18 +404,18 @@ end subroutine LoggingCreate
 ! ************************************************************************** !
 
 subroutine LoggingCreateStage(stage_name,stage_id)
-  ! 
+  !
   ! Creates a new custom stage
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/07
-  ! 
+  !
 
   implicit none
-  
+
   character(len=MAXSTRINGLENGTH) :: stage_name
   PetscInt :: stage_id
-  
+
   character(len=MAXSTRINGLENGTH) :: full_stage_name
   character(len=MAXSTRINGLENGTH) :: temp_stage_name
   character(len=MAXWORDLENGTH) :: word
@@ -420,7 +426,7 @@ subroutine LoggingCreateStage(stage_name,stage_id)
   ! this conditional prevents duplicate stages that can be generated during
   ! multirealization simulations.
   if (.not. logging%allow_new_stages) return
-  
+
   logging%stage_count = logging%stage_count + 1
   full_stage_name = trim(stage_name) // ' Stage'
   !TODO(geh): fix after PETSc fixes bug in implementation.  PetscLogStageGetId
@@ -444,44 +450,44 @@ subroutine LoggingCreateStage(stage_name,stage_id)
   enddo
 #endif
   call PetscLogStageRegister(full_stage_name,stage_id,ierr);CHKERRQ(ierr)
-  
+
   stage_id = logging%stage_count
-  
+
 end subroutine LoggingCreateStage
-  
+
 ! ************************************************************************** !
 
 subroutine LoggingSetupComplete()
-  ! 
+  !
   ! Sets flag that indicates that setup is complete.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/30/14
-  ! 
+  !
 
   implicit none
 
   logging%allow_new_stages = PETSC_FALSE
-  
+
 end subroutine LoggingSetupComplete
 
 ! ************************************************************************** !
 
 subroutine LoggingDestroy()
-  ! 
+  !
   ! Deallocates a logging object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/07
-  ! 
+  !
 
   implicit none
-  
+
   ! all kinds of stuff needs to be added here.
-  
+
   deallocate(logging)
   nullify(logging)
-  
+
 end subroutine LoggingDestroy
 
 end module Logging_module

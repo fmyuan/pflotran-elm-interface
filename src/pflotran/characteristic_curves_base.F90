@@ -48,9 +48,9 @@ module Characteristic_Curves_Base_module
   contains
     procedure, public :: Init => RPFBaseInit
     procedure, public :: Verify => RPFBaseVerify
-    procedure, public :: Test => RPF_Base_Test
+    procedure, public :: Test => RPFBaseTest
     procedure, public :: SetupPolynomials => RPFBaseSetupPolynomials
-    procedure, public :: RelativePermeability => RPF_Base_RelPerm
+    procedure, public :: RelativePermeability => RPFBaseRelPerm
   end type rel_perm_func_base_type
   
   public :: PolynomialCreate, &
@@ -62,8 +62,8 @@ module Characteristic_Curves_Base_module
             SFBaseSaturation, &
             RPFBaseInit, &
             RPFBaseVerify, &
-            RPF_Base_Test, &
-            RPF_Base_RelPerm, &
+            RPFBaseTest, &
+            RPFBaseRelPerm, &
             SaturationFunctionDestroy, &
             PermeabilityFunctionDestroy
 
@@ -369,7 +369,7 @@ end subroutine SFBaseTest
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-subroutine RPF_Base_RelPerm(this,liquid_saturation,relative_permeability, &
+subroutine RPFBaseRelPerm(this,liquid_saturation,relative_permeability, &
                             dkr_sat,option)
   use Option_module
 
@@ -381,14 +381,14 @@ subroutine RPF_Base_RelPerm(this,liquid_saturation,relative_permeability, &
   PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
-  option%io_buffer = 'RPF_Base_RelPerm must be extended.'
+  option%io_buffer = 'RPFBaseRelPerm must be extended.'
   call PrintErrMsg(option)
   
-end subroutine RPF_Base_RelPerm
+end subroutine RPFBaseRelPerm
 
 ! ************************************************************************** !
 
-subroutine RPF_Base_Test(this,cc_name,phase,option)
+subroutine RPFBaseTest(this,cc_name,phase,option)
 
   use Option_module
 
@@ -422,7 +422,7 @@ subroutine RPF_Base_Test(this,cc_name,phase,option)
                                 + liquid_saturation(i)*perturbation
     call this%RelativePermeability(liquid_saturation_pert(i),kr_pert(i), &
                                    dummy_real(i),option)
-    if( i>1 ) then
+    if (i > 1) then
       dkr_dsat_numerical(i) = (kr_pert(i) - kr(i))/ &
                               (liquid_saturation(i)*perturbation)
     else
@@ -443,7 +443,7 @@ subroutine RPF_Base_Test(this,cc_name,phase,option)
   enddo
   close(86)
 
-end subroutine RPF_Base_Test
+end subroutine RPFBaseTest
 
 ! ************************************************************************** !
 

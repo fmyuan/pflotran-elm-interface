@@ -1,0 +1,10 @@
+2  number of electrodes
+1  2.5 2.0 0.0 1      e_ind, x, y, z, surface electrode  values for electrode 1
+2  3.5 1.0 0.0 1      e_ind, x, y, z, surface electrode  values for electrode 2
+
+
+1  number of measurements
+1 1 0 2 0 1.0   0.01     m_ind a b m n v_obs v_std
+
+
+

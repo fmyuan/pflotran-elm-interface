@@ -157,7 +157,7 @@ subroutine PMTHReadSimOptionsBlock(this,input)
     
     select case(trim(keyword))
       case('FREEZING')
-        th_use_freezing = PETSC_TRUE
+        option%flow%th_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing
@@ -362,10 +362,6 @@ subroutine PMTHInitializeTimestep(this)
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
   ! update porosity
-  call this%comm1%LocalToLocal(this%realization%field%icap_loc, &
-                               this%realization%field%icap_loc)
-  call this%comm1%LocalToLocal(this%realization%field%ithrm_loc, &
-                               this%realization%field%ithrm_loc)
 
   call THInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
@@ -633,7 +629,7 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   if (Initialized(this%pressure_dampening_factor)) then
     ! P^p+1 = P^p - dP^p
-    P_R = option%reference_pressure
+    P_R = option%flow%reference_pressure
     scale = this%pressure_dampening_factor
 
     call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -994,7 +990,7 @@ subroutine PMTHUpdateSolution(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THUpdateSolution, THUpdateSurfaceBC
+  use TH_module, only : THUpdateSolution
 
   implicit none
   
@@ -1002,8 +998,6 @@ subroutine PMTHUpdateSolution(this)
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call THUpdateSolution(this%realization)
-  if (this%option%surf_flow_on) &
-    call THUpdateSurfaceBC(this%realization)
 
 end subroutine PMTHUpdateSolution     
 

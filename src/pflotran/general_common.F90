@@ -5,7 +5,7 @@ module General_Common_module
 
   use PFLOTRAN_Constants_module
   use petscsys
-
+  
   implicit none
   
   private 
@@ -28,9 +28,8 @@ module General_Common_module
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24
-
-
+  PetscReal, parameter :: floweps   = 1.d-24  
+  
   public :: GeneralAccumulation, &
             GeneralFlux, &
             GeneralBCFlux, &
@@ -46,7 +45,7 @@ module General_Common_module
 contains
 
 ! ************************************************************************** !
-
+    
 subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,Res,Jac, &
                                analytical_derivatives,debug_cell)
@@ -404,10 +403,10 @@ end subroutine GeneralAccumulation
 
 subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                        material_auxvar_up, &
-                       thermal_conductivity_up, &
+                       thermal_cc_up, &
                        gen_auxvar_dn,global_auxvar_dn, &
                        material_auxvar_dn, &
-                       thermal_conductivity_dn, &
+                       thermal_cc_dn, &                       
                        area, dist, upwind_direction_, &
                        general_parameter, &
                        option,v_darcy,Res,Jup,Jdn, &
@@ -427,6 +426,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
+  use Characteristic_Curves_Thermal_module
+  use Utility_module
   
   implicit none
   
@@ -439,8 +440,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
-  PetscReal :: thermal_conductivity_dn(2)
-  PetscReal :: thermal_conductivity_up(2)
+  class(cc_thermal_type) :: thermal_cc_up, thermal_cc_dn
   PetscReal :: Res(option%nflowdof)
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -466,7 +466,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: delta_X_whatever
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
-  PetscReal :: mobility, q
+  PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux
   PetscReal :: stpd_up, stpd_dn
   PetscReal :: sat_up, sat_dn, den_up, den_dn
@@ -508,8 +508,13 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   
   ! Conduction
   PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
+  PetscReal :: dkeff_up_dTup, dkeff_dn_dTdn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
+  PetscReal :: dheat_flux_ddelta_temp_up, dheat_flux_ddelta_temp_dn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
+
+  !Non darcy
+  PetscReal :: K, I, grad
   
   ! DELETE
   
@@ -607,17 +612,20 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
       uH = gen_auxvar_up%H(iphase)
+      kr= gen_auxvar_up%kr(iphase)
     else
       dn_scale = 1.d0
       mobility = gen_auxvar_dn%mobility(iphase)
       xmol(:) = gen_auxvar_dn%xmol(:,iphase)
       uH = gen_auxvar_dn%H(iphase)
+      kr=gen_auxvar_dn%kr(iphase)
     endif      
 
     if (mobility > floweps ) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
                                           global_auxvar_dn%istate, &
@@ -632,6 +640,14 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       tot_mole_flux = q*density_ave
       tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
                                        mobility * area * density_ave
+
+      !Taken from (Liu, 2014)
+      if (general_non_darcy_flow) then
+        call GeneralNonDarcyCorrection(delta_pressure,density_kg_ave, &
+          dist_up,dist_dn,perm_ave_over_dist(iphase),kr,mobility,density_ave, &
+          area,v_darcy(iphase),tot_mole_flux_ddel_pressure,q,tot_mole_flux)
+      endif
+      
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
@@ -1056,17 +1072,20 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
       uH = gen_auxvar_up%H(iphase)
+      kr=gen_auxvar_up%kr(iphase)
     else
       dn_scale = 1.d0
       mobility = gen_auxvar_dn%mobility(iphase)
       xmol(:) = gen_auxvar_dn%xmol(:,iphase)
       uH = gen_auxvar_dn%H(iphase)
+      kr=gen_auxvar_dn%kr(iphase)
     endif      
 
     if (mobility > floweps) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+      
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
                                           global_auxvar_dn%istate, &
@@ -1080,7 +1099,15 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       !                             density_ave[kmol phase/m^3 phase]        
       tot_mole_flux = q*density_ave
       tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
-                                       mobility * area * density_ave      
+                                      mobility * area * density_ave
+
+      !Taken from (Liu, 2014)
+      if (general_non_darcy_flow) then
+        call GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,dist_up, &
+             dist_dn,perm_ave_over_dist(iphase),kr,mobility, &
+             density_ave,area,v_darcy(iphase),tot_mole_flux_ddel_pressure, &
+             q,tot_mole_flux)
+      endif
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
@@ -2330,35 +2357,25 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
 #ifdef CONDUCTION
   ! add heat conduction flux
-  ! based on Somerton et al., 1974:
-  ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
-  ! 1 = dry
-  ! 2 = wet
   sat_up = gen_auxvar_up%sat(option%liquid_phase)
   sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
-  
-  if (sat_up > 0.d0) then
-    tempreal = sqrt(sat_up) * &
-           (thermal_conductivity_up(2) - thermal_conductivity_up(1))
-    k_eff_up = thermal_conductivity_up(1) + tempreal
-    dkeff_up_dsatlup = 0.5d0 * tempreal / sat_up
-  else
-    k_eff_up = thermal_conductivity_up(1)
-    dkeff_up_dsatlup = 0.d0
-  endif
 
-  if (sat_dn > 0.d0) then
-    tempreal = sqrt(sat_dn) * &
-           (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
-    k_eff_dn = thermal_conductivity_dn(1) + tempreal
-    dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
-  else
-    k_eff_dn = thermal_conductivity_dn(1)
-    dkeff_dn_dsatldn = 0.d0
-  endif
+  ! derive wet and dry conductivities with anisotropy tensor and direction
+  call thermal_cc_up%thermal_conductivity_function% &
+       TCondTensorToScalar(dist,option)
   
+  call thermal_cc_dn%thermal_conductivity_function% &
+       TCondTensorToScalar(dist,option)
+  
+  ! thermal conductivity a function of temperature and liquid saturation
+  call thermal_cc_up%thermal_conductivity_function%CalculateTCond(sat_up, &
+       gen_auxvar_up%temp,k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
+  
+  call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
+       gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
+
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
-    tempreal = k_eff_up*dist_dn+k_eff_dn*dist_up
+    tempreal = k_eff_up*dist_dn + k_eff_dn*dist_up
     k_eff_ave = k_eff_up*k_eff_dn/tempreal
     dkeff_ave_dkeffup = (k_eff_dn-k_eff_ave*dist_dn)/tempreal
     dkeff_ave_dkeffdn = (k_eff_up-k_eff_ave*dist_up)/tempreal
@@ -2372,10 +2389,23 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   ! delta_temp = K
   ! area = m^2
   ! heat_flux = k_eff * delta_temp * area = J/s
+  ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
+
   delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
   dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
   heat_flux = dheat_flux_ddelta_temp * delta_temp
   dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
+
+! MAN: Kris changes
+!  delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
+!  dheat_flux_ddelta_temp_up = (dkeff_up_dTup * delta_temp - k_eff_ave) &
+!                               * 1.d-6 * area
+!  dheat_flux_ddelta_temp_dn = (dkeff_dn_dTdn * delta_temp + k_eff_ave) &
+!                               * 1.d-6 * area
+!  heat_flux = area * k_eff_ave * delta_temp * 1.d-6
+!  dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
+! MAN: end Kris changes
+
   ! MJ/s or MW
   Res(energy_id) = Res(energy_id) + heat_flux
   
@@ -2387,6 +2417,11 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
+ 
+        ! MAN: Kris changes
+        !Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
+        !
+
         Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
                      
       case(TWO_PHASE_STATE)
@@ -2396,15 +2431,26 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                     dkeff_up_dsatlup * (-1.d0) ! satl -> satg
         ! derivative energy wrt temperature
         ! positive for upwind
+
+        ! MAN: Kris change
+        !Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
+        ! MAN: end Kris change
+
         Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
+
     end select
     select case(global_auxvar_dn%istate)
       case(LIQUID_STATE,GAS_STATE)
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
+
+        ! MAN: Kris change
+        !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
+        ! MAN: end Kris change
+
         Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
-                     
+            
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
         ! derivative energy wrt gas saturation
@@ -2412,7 +2458,13 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                     dkeff_dn_dsatldn * (-1.d0) ! satl -> satg
         ! derivative energy wrt temperature
         ! positive for upwind
+
+        ! MAN: Kris change
+        !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
+        ! MAN: end Kris change
+
         Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
+
     end select
     Jup = Jup + Jcup
     Jdn = Jdn + Jcdn  
@@ -2428,7 +2480,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          gen_auxvar_up,global_auxvar_up, &
                          gen_auxvar_dn,global_auxvar_dn, &
                          material_auxvar_dn, &
-                         thermal_conductivity_dn, &
+                         thermal_cc_dn, &
                          area,dist,upwind_direction_, &
                          general_parameter, &
                          option,v_darcy,Res,J, &
@@ -2447,7 +2499,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
-
+  use Characteristic_Curves_Thermal_module
+  use Utility_module
+  
   implicit none
   
   type(option_type) :: option
@@ -2463,7 +2517,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   type(general_parameter_type) :: general_parameter
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: Res(1:option%nflowdof)
-  PetscReal :: thermal_conductivity_dn(2)
+  class(cc_thermal_type) :: thermal_cc_dn
   PetscReal :: J(3,3)
   PetscBool :: analytical_derivatives
   PetscBool :: update_upwind_direction_
@@ -2481,7 +2535,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dist_gravity
   PetscReal :: delta_pressure, delta_xmol, delta_temp
   PetscReal :: gravity_term
-  PetscReal :: mobility, q 
+  PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux
   PetscReal :: sat_dn, perm_dn, den_dn
   PetscReal :: temp_ave, stpd_ave_over_dist, pres_ave
@@ -2529,7 +2583,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: perm3(3)
   
   ! Conduction
-  PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
+  PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn, dkeff_dn_dTdn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
   
@@ -2538,6 +2592,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Jl(3,3)
   PetscReal :: Jg(3,3)
   PetscReal :: Jc(3,3)
+
+  !Non darcy
+  PetscReal :: K, I, grad
   
   PetscInt :: idof
   
@@ -2635,7 +2692,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               gen_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
+                option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               option%io_buffer = 'HYDROSTATIC_CONDUCTANCE_BC and &
@@ -2656,16 +2713,19 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
+          kr=gen_auxvar_up%kr(iphase)
         else
           dn_scale = 1.d0        
           mobility = gen_auxvar_dn%mobility(iphase)
           xmol(:) = gen_auxvar_dn%xmol(:,iphase)
           uH = gen_auxvar_dn%H(iphase)
+          kr=gen_auxvar_dn%kr(iphase)
         endif      
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
         v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+      
         ! only need average density if velocity > 0.
         density_ave = GeneralAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
@@ -2676,6 +2736,13 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                             ddensity_ave_dden_dn)    
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+
+        !Taken from (Liu, 2014)
+        if (general_non_darcy_flow) then
+          call GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
+               dist(0),perm_ave_over_dist,kr,mobility,v_darcy(iphase), &
+               dv_darcy_ddelta_pressure,dv_darcy_dmobility)
+        endif
       endif
     case(NEUMANN_BC)
       xmol_bool = 0.d0
@@ -2977,7 +3044,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               gen_auxvar_up%pres(iphase) - &
-                option%reference_pressure < eps) then
+                option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
               ddelta_pressure_dpdn = 0.d0
@@ -2998,16 +3065,19 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
+          kr=gen_auxvar_up%kr(iphase)
         else
           dn_scale = 1.d0        
           mobility = gen_auxvar_dn%mobility(iphase)
           xmol(:) = gen_auxvar_dn%xmol(:,iphase)
           uH = gen_auxvar_dn%H(iphase)
+          kr=gen_auxvar_dn%kr(iphase)
         endif  
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
         v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+
         ! only need average density if velocity > 0.
         density_ave = GeneralAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
@@ -3018,6 +3088,13 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                             ddensity_ave_dden_dn)    
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+
+        !Taken from (Liu, 2014)
+        if (general_non_darcy_flow) then
+          call GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave, &
+               dist(0),perm_ave_over_dist,kr,mobility,v_darcy(iphase), &
+               dv_darcy_ddelta_pressure,dv_darcy_dmobility)
+        endif
       endif
     case(NEUMANN_BC)
       xmol_bool = 0.d0
@@ -3757,18 +3834,14 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
 #ifdef CONDUCTION
   ! add heat conduction flux
-  ! based on Somerton et al., 1974:
-  ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
-  ! 1 = dry
-  ! 2 = wet
   heat_flux = 0.d0
   select case (ibndtype(GENERAL_ENERGY_EQUATION_INDEX))
     case (DIRICHLET_BC)
       sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
-      tempreal = sqrt(sat_dn) * &
-               (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
-      k_eff_dn = thermal_conductivity_dn(1) + tempreal
-      dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
+      call thermal_cc_dn%thermal_conductivity_function% &
+           TCondTensorToScalar(dist,option)
+      call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
+           gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
       dkeff_ave_dkeffdn = 1.d0 / dist(0)
       k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn
@@ -3780,6 +3853,11 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
       dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
       heat_flux = dheat_flux_ddelta_temp * delta_temp
+      ! AS3 Kris changes
+      ! dheat_flux_ddelta_temp = (dkeff_dn_dTdn * delta_temp - k_eff_ave) &
+      !      * area * 1.d-6 ! J/s -> MJ/s
+      ! heat_flux = area * k_eff_ave * delta_temp * 1.d-6
+      ! AS3 end Kris changes
       dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
@@ -3804,6 +3882,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! derivative energy wrt temperature
         ! positive for upwind
         Jc(3,3) = -1.d0 * dheat_flux_ddelta_temp
+        ! AS3 Kris changes
+        ! Jc(3,3) = dheat_flux_ddelta_temp
+        ! AS3 end Kris changes
                      
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
@@ -3813,6 +3894,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! derivative energy wrt temperature
         ! positive for upwind
         Jc(3,3) = -1.d0 * dheat_flux_ddelta_temp
+        ! AS3 Kris changes
+        ! Jc(3,3) = dheat_flux_ddelta_temp
+        ! AS3 end Kris changes
     end select
     J = J + Jc
   endif
@@ -3850,7 +3934,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   type(global_auxvar_type) :: global_auxvar,global_auxvar_ss
   class(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux(option%nphase)
-  type(characteristic_curves_type) :: characteristic_curves
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
   PetscReal :: scale
   PetscReal :: Res(option%nflowdof)
@@ -4307,10 +4391,10 @@ end subroutine GeneralAccumDerivative
 
 subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                                  material_auxvar_up, &
-                                 thermal_conductivity_up, &
+                                 thermal_cc_up, & 
                                  gen_auxvar_dn,global_auxvar_dn, &
                                  material_auxvar_dn, &
-                                 thermal_conductivity_dn, &
+                                 thermal_cc_dn, &
                                  area, dist, upwind_direction_, &
                                  general_parameter, &
                                  option,Jup,Jdn)
@@ -4324,6 +4408,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   use Option_module
   use Material_Aux_class
   use Upwind_Direction_module, only : count_upwind_direction_flip
+  use Characteristic_Curves_Thermal_module
   
   implicit none
   
@@ -4331,12 +4416,11 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: thermal_conductivity_dn(2)
-  PetscReal :: thermal_conductivity_up(2)
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
+  class(cc_thermal_type) :: thermal_cc_up, thermal_cc_dn
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   PetscReal :: Janal_up(option%nflowdof,option%nflowdof)
@@ -4354,10 +4438,10 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   option%iflag = -2
   call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                    material_auxvar_up, &
-                   thermal_conductivity_up, &
+                   thermal_cc_up, &
                    gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                    material_auxvar_dn, &
-                   thermal_conductivity_dn, &
+                   thermal_cc_dn, &
                    area,dist,upwind_direction_, &
                    general_parameter, &
                    option,v_darcy,res,Janal_up,Janal_dn,&
@@ -4375,10 +4459,10 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
     do idof = 1, option%nflowdof
       call GeneralFlux(gen_auxvar_up(idof),global_auxvar_up, &
                        material_auxvar_up, &
-                       thermal_conductivity_up, &
+                       thermal_cc_up, &
                        gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
-                       thermal_conductivity_dn, &
+                       thermal_cc_dn, &
                        area,dist,upwind_direction_, &
                        general_parameter, &
                        option,v_darcy,res_pert,Jdummy,Jdummy, &
@@ -4398,10 +4482,10 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
     do idof = 1, option%nflowdof
       call GeneralFlux(gen_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                        material_auxvar_up, &
-                       thermal_conductivity_up, &
+                       thermal_cc_up, &
                        gen_auxvar_dn(idof),global_auxvar_dn, &
                        material_auxvar_dn, &
-                       thermal_conductivity_dn, &
+                       thermal_cc_dn, &
                        area,dist,upwind_direction_, &
                        general_parameter, &
                        option,v_darcy,res_pert,Jdummy,Jdummy, &
@@ -4441,7 +4525,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    global_auxvar_up, &
                                    gen_auxvar_dn,global_auxvar_dn, &
                                    material_auxvar_dn, &
-                                   thermal_conductivity_dn, &
+                                   thermal_cc_dn, &
                                    area,dist,upwind_direction_, &
                                    general_parameter, &
                                    option,Jdn)
@@ -4456,6 +4540,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   use Option_module 
   use Material_Aux_class
   use Upwind_Direction_module, only : count_upwind_direction_flip
+  use Characteristic_Curves_Thermal_module
   
   implicit none
 
@@ -4466,7 +4551,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   type(general_auxvar_type) :: gen_auxvar_up, gen_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
-  PetscReal :: thermal_conductivity_dn(2)
+  class(cc_thermal_type) :: thermal_cc_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
@@ -4486,7 +4571,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                      gen_auxvar_up,global_auxvar_up, &
                      gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                      material_auxvar_dn, &
-                     thermal_conductivity_dn, &
+                     thermal_cc_dn, &
                      area,dist,upwind_direction_, &
                      general_parameter, &
                      option,v_darcy,res,Jdum, &
@@ -4505,7 +4590,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          gen_auxvar_up,global_auxvar_up, &
                          gen_auxvar_dn(idof),global_auxvar_dn, &
                          material_auxvar_dn, &
-                         thermal_conductivity_dn, &
+                         thermal_cc_dn, &
                          area,dist,upwind_direction_, &
                          general_parameter, &
                          option,v_darcy,res_pert,Jdum, &
@@ -4558,7 +4643,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   type(coupler_type), pointer :: source_sink
   type(general_auxvar_type) :: gen_auxvar(0:), gen_auxvar_ss(0:1)
   type(global_auxvar_type) :: global_auxvar, global_auxvar_ss
-  type(characteristic_curves_type) :: characteristic_curves
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
   class(material_auxvar_type) :: material_auxvar
   PetscReal :: scale
@@ -5296,5 +5381,84 @@ subroutine GeneralDiffJacobian(string,numerical_jacobian,analytical_jacobian, &
 #endif  
   
 end subroutine GeneralDiffJacobian
+
+! ************************************************************************** !
+
+subroutine GeneralNonDarcyCorrection(delta_pressure,density_kg_ave,dist_up, &
+                                     dist_dn,perm_ave_over_dist,kr,mobility, &
+                                     density_ave,area,v_darcy, &
+                                     tot_mole_flux_ddel_pressure,q,tot_mole_flux)
+
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: delta_pressure, density_kg_ave, density_ave
+  PetscReal :: mobility, kr, perm_ave_over_dist, area
+  PetscReal :: dist_up, dist_dn
+  
+  PetscReal :: v_darcy,tot_mole_flux_ddel_pressure,q,tot_mole_flux
+
+  PetscReal :: K, I, grad
+
+  grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist_up+dist_dn))
+  I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
+  K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
+  ! expm1() to avoid cancelation
+  ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
+  v_darcy = K*(grad + I*expm1(-grad/I))
+  if (delta_pressure<0) then
+    v_darcy = -1.d0*v_darcy
+  endif
+
+  ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
+  q = v_darcy * area  
+  ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
+  !                             density_ave[kmol phase/m^3 phase]        
+  tot_mole_flux = q*density_ave
+        
+  tot_mole_flux_ddel_pressure = area*density_ave* &
+    (K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn)))* &
+    (-expm1(-grad/I))
+
+end subroutine GeneralNonDarcyCorrection
+
+! ************************************************************************** !
+
+subroutine GeneralNonDarcyCorrectionBC(delta_pressure,density_kg_ave,dist, &
+                                       perm_ave_over_dist,kr,mobility,v_darcy, &
+                                       dv_darcy_ddelta_pressure,dv_darcy_dmobility)
+
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: delta_pressure, density_kg_ave
+  PetscReal :: mobility, kr, perm_ave_over_dist
+  PetscReal :: dist
+  
+  PetscReal :: v_darcy,dv_darcy_ddelta_pressure,dv_darcy_dmobility
+
+  PetscReal :: K, I, grad
+  
+  grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist))
+  I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
+  K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
+  ! expm1() to avoid cancelation
+  ! v_darcy(iphase) = K*(grad-I*(1.d0-exp(-(grad)/I)))
+  v_darcy = K*(grad + I*expm1(-grad/I))
+  if (delta_pressure<0) then
+    v_darcy =-1.d0*v_darcy
+  endif
+
+  dv_darcy_ddelta_pressure = K/(density_kg_ave*EARTH_GRAVITY* &
+    dist)*(-expm1(-grad/I))
+  ! expm1() to avoid cancelation
+  ! dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
+  !  EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
+  dv_darcy_dmobility = perm_ave_over_dist*density_kg_ave* &
+    EARTH_GRAVITY*(grad + I*expm1(-grad/I))
+
+end subroutine GeneralNonDarcyCorrectionBC
 
 end module General_Common_module

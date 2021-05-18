@@ -155,8 +155,6 @@ subroutine MultiSimulationInitialize(multisimulation,option)
                                      multisimulation%num_local_realizations + 1
   allocate(multisimulation%realization_ids( &
                                   multisimulation%num_local_realizations))
-print *, 'here'
-  print *, size(multisimulation%realization_ids)
   multisimulation%realization_ids = 0
   do i = 1, multisimulation%num_local_realizations
     multisimulation%realization_ids(i) = offset + i

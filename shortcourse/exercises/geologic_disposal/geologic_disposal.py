@@ -28,7 +28,7 @@ def make_subplots(nrow, ncol, nplots, filenames, columns, name, titles):
     plt.ylim(1.e-22,1.e-9)
     plt.grid(True)
 
-    for icol in range(iplot*len(columns)/nplots,iplot*len(columns)/nplots+len(columns)/nplots):
+    for icol in range(iplot*len(columns)//nplots,iplot*len(columns)//nplots+len(columns)//nplots):
       ifile = icol
       data = pft.Dataset(filenames[ifile],1,columns[icol])
       string = name[icol]

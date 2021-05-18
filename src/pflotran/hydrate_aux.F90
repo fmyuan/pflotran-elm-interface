@@ -30,6 +30,9 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_force_iteration = PETSC_FALSE
   PetscBool, public :: hydrate_state_changed = PETSC_FALSE
 
+  !Salinity
+  PetscReal, public :: hydrate_xmol_nacl = 0.d0
+
   PetscBool, public :: hyd_chk_max_dpl_liq_state_only = PETSC_FALSE
   PetscBool, public :: hydrate_high_temp_ts_cut = PETSC_FALSE
 
@@ -123,10 +126,10 @@ module Hydrate_Aux_module
   PetscReal, parameter :: HYDRATE_DENSITY_KG = 920.d0 !kg/m^3
   PetscReal, parameter :: HYDRATE_DENSITY = 52.15551276d0 !mol/L
   PetscReal, parameter :: MW_CH4 = 16.04d0
-  PetscReal, parameter :: MW_H20 = 18.01d0
+  PetscReal, parameter :: MW_H2O = 18.01d0
 
   PetscReal, parameter, public :: MOL_RATIO_METH = 0.14285714285d0
-  PetscReal, parameter :: MOL_RATIO_H20 = 1.d0 - MOL_RATIO_METH
+  PetscReal, parameter :: MOL_RATIO_H2O = 1.d0 - MOL_RATIO_METH
 
   PetscReal, parameter :: TQD = 1.d-2 !0.d0 !1.0d-2 !Quad point temperature (C)
 
@@ -140,6 +143,7 @@ module Hydrate_Aux_module
   PetscInt, public :: hydrate_perm_scaling_function = 0
   PetscInt, public :: hydrate_phase_boundary = 1
   PetscInt, public :: hydrate_henrys_constant = 1
+  PetscInt, public :: hydrate_tcond = 2
   PetscBool, public :: hydrate_perm_scaling = PETSC_FALSE
   PetscBool, public :: hydrate_eff_sat_scaling = PETSC_FALSE
   PetscBool, public :: hydrate_with_gibbs_thomson = PETSC_FALSE
@@ -674,6 +678,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   hyd_auxvar%xmol = 0.d0
   hyd_auxvar%effective_porosity = 0.d0
   hyd_auxvar%mobility = 0.d0
+  hyd_auxvar%kr = 0.d0
 
 #if 0
   if (option%iflag >= HYDRATE_UPDATE_FOR_ACCUM) then
@@ -685,7 +690,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   endif
 #endif
 
-  hyd_auxvar%xmol(wid,hid) = MOL_RATIO_H20
+  hyd_auxvar%xmol(wid,hid) = MOL_RATIO_H2O
   hyd_auxvar%xmol(acid,hid) = MOL_RATIO_METH
   hyd_auxvar%den(hid) = HYDRATE_DENSITY
   hyd_auxvar%den_kg(hid) = HYDRATE_DENSITY_KG
@@ -926,8 +931,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = 0.d0
       hyd_auxvar%sat(iid) = 0.d0
 
-      call HydratePE(hyd_auxvar%temp, 0.d0, PE_hyd, dP, characteristic_curves, &
-                     material_auxvar,option)
+      call HydratePE(hyd_auxvar%temp, hyd_auxvar%sat(hid), PE_hyd, dP, &
+                     characteristic_curves, material_auxvar,option)
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
 
       if (hydrate_adjust_ghsz_solubility) then
@@ -1038,7 +1043,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         dTf = 0.d0
       endif
       
-      hyd_auxvar%temp = TQD+dTf
+      hyd_auxvar%temp = TQD-dTf
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                           hyd_auxvar%pres(spid),ierr)
@@ -1156,7 +1161,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         dTf = 0.d0
       endif
 
-      hyd_auxvar%temp = TQD+dTf
+      hyd_auxvar%temp = TQD-dTf
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
           characteristic_curves, material_auxvar,option)
@@ -1234,7 +1239,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call GibbsThomsonFreezing(1.d0-hyd_auxvar%sat(iid),6017.1d0, &
               ICE_DENSITY,TQD,dTf,characteristic_curves, material_auxvar,option)
 
-      hyd_auxvar%temp = TQD+dTf
+      hyd_auxvar%temp = TQD-dTf
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                     hyd_auxvar%pres(spid),ierr)
@@ -1319,7 +1324,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       !  endif
       !endif
 
-      hyd_auxvar%temp = TQD + dTf
+      hyd_auxvar%temp = TQD - dTf
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP, &
           characteristic_curves, material_auxvar, option)
       hyd_auxvar%pres(apid) = PE_hyd
@@ -1469,8 +1474,13 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   endif
 
   if (hydrate_eff_sat_scaling) then
-    liq_sat_eff = hyd_auxvar%sat(lid) / (hyd_auxvar%sat(lid)+hyd_auxvar%sat(gid)) 
-    gas_sat_eff = 1.d0 - liq_sat_eff
+    if (hyd_auxvar%sat(lid) > 0.d0 .or. hyd_auxvar%sat(gid) > 0.d0) then
+      liq_sat_eff = hyd_auxvar%sat(lid) / (hyd_auxvar%sat(lid)+hyd_auxvar%sat(gid)) 
+      gas_sat_eff = 1.d0 - liq_sat_eff
+    else
+      liq_sat_eff = 0.d0
+      gas_sat_eff = 0.d0
+    endif
   else
     liq_sat_eff = hyd_auxvar%sat(lid)
     gas_sat_eff = hyd_auxvar%sat(gid)
@@ -1495,7 +1505,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       krg = 1.d0
     else
       call characteristic_curves%gas_rel_perm_function% &
-           RelativePermeability(1.d0 - gas_sat_eff,krg,dkrg_dsatl,option)
+           RelativePermeability(liq_sat_eff,krg,dkrg_dsatl,option)
       krg = max(0.d0,krg)
     endif
     call EOSGasViscosity(hyd_auxvar%temp,hyd_auxvar%pres(apid), &
@@ -1597,7 +1607,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
   PetscReal :: ga_epsilon, ha_epsilon
   PetscReal :: x(option%nflowdof)
-  PetscReal :: PE_hyd, dP, K_H, Tf_ice, dTf, h_sat_eff, i_sat_eff
+  PetscReal :: PE_hyd, dP, K_H, Tf_ice, dTf, dTfs, h_sat_eff, i_sat_eff 
   PetscReal :: K_H_tilde, K_H_tilde_hyd
   PetscInt :: apid, cpid, vpid, spid
   PetscInt :: gid, lid, hid, iid, acid, wid
@@ -1665,8 +1675,17 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   else
     dTf = 0.d0
   endif
+
+  if (hydrate_xmol_nacl > 0.d0) then
+    call HydrateSalinityOffset(hydrate_xmol_nacl,dTfs)
+  else
+    dTfs = 0.d0
+  endif
+
+  dTf = dTf - dTfs
   
-  Tf_ice = TQD + dTf
+
+  Tf_ice = TQD - dTf
   !Update State
 
   old_state = global_auxvar%istate
@@ -3447,7 +3466,7 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
   PetscReal, pointer :: sat(:)
 
   PetscReal :: keff
-  PetscReal :: k_h20,k_ch4,k_hyd,k_ice
+  PetscReal :: k_h2o,k_ch4,k_hyd,k_ice
   PetscInt :: lid, gid, hid, iid
 
   lid = 1
@@ -3455,13 +3474,24 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
   hid = 3
   iid = 4
 
-  k_h20 = 0.49d0 !W/m-K
+  k_h2o = 0.59d0 !W/m-K
   k_ch4 = 30.d-3 !W/m-K
-  k_hyd = 0.49d0 !W/m-K
-  k_ice = 2.d0   !W/m-K
+  k_hyd = 0.58d0 !W/m-K
+  k_ice = 2.2d0   !W/m-K
 
-  keff = kdry + phi * (sat(lid)*kwet + sat(hid)*k_hyd + sat(iid) * k_ice &
-          + sat(gid)*k_ch4)
+
+  select case(hydrate_tcond)
+    case(0)
+      keff = sqrt(sat(lid)) * (kwet - kdry)
+    case(1)
+      ! IGHCC2 function (seems odd if phi = 1 and sat(lid) = 1)
+      keff = kdry + phi * (sat(lid)*kwet + sat(hid)*k_hyd + sat(iid) * k_ice &
+             + sat(gid)*k_ch4)
+    case(2) ! Default function
+      keff = kdry + phi * (sat(lid)*k_h2o + sat(hid)*k_hyd + &
+             sat(iid)*k_ice + sat(gid)*k_ch4)
+  end select
+
 
 end subroutine HydrateCompositeThermalCond
 
@@ -3492,14 +3522,22 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
-  PetscReal :: T_temp, dTf
+  PetscReal :: T_temp, dTf, dTfs, xmol
 
   if (hydrate_with_gibbs_thomson) then
-    call GibbsThomsonFreezing(1.d0-sat, 54734.d0, HYDRATE_DENSITY, T, dTf, &
-          characteristic_curves, material_auxvar, option)
+    call GibbsThomsonFreezing(1.d0-sat-hydrate_phase_chng_epsilon, &
+                              54734.d0, HYDRATE_DENSITY, T, dTf, &
+                              characteristic_curves, material_auxvar, option)
   else
     dTf = 0.d0
   endif
+
+  if (hydrate_xmol_nacl > 0.d0) then
+    call HydrateSalinityOffset(hydrate_xmol_nacl,dTfs)
+  else
+    dTfs = 0.d0
+  endif
+  dTf = dTf - dTfs
 
   T_temp = T + 273.15d0 + dTf
   dP = 0.d0
@@ -3507,8 +3545,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   if (T < TQD) then
     select case(hydrate_phase_boundary)
       case(1)
-        !Kamath, 1984. The reason this is default is because it is
-        !              invertible.
+        !Kamath, 1984
         PE = exp(1.4717d1-1.88679d3/T_temp)*1.d-3
       case(2)
         !Moridis, 2003
@@ -3516,6 +3553,9 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
              - 7.27291427030502d-3 * T_temp**2 + 3.85413985900724d-5 * &
              T_temp**3 - 1.03669656828834d-7 * T_temp**4 + &
              1.09882180475307d-10 * T_temp**5)
+      case(3)
+        !Moridis, 2003 simple
+        PE = exp(0.0334940999*T_temp - 8.1938174346)
     end select
   else
     select case(hydrate_phase_boundary)
@@ -3538,6 +3578,13 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
                0.0767559117787059 * (T_temp-dTf)**3 - &
                1.30465829788791d-4 * (T_temp-dTf)**4 + 8.86065316687571d-8 * &
                (T_temp-dTf)**5)
+          dP = dP * 1.d6
+        endif
+      case(3)
+        !Moridis, 2003 simple
+        PE = exp(0.1100383278*T_temp - 29.1133440975)
+        if (hydrate_adjust_ghsz_solubility) then
+          dP = PE - exp(0.1100383278*(T_temp-dTf) - 29.1133440975)
           dP = dP * 1.d6
         endif
     end select
@@ -3647,12 +3694,12 @@ subroutine HydrateGHSZSolubilityCorrection(T,P,dP,K_H)
   PetscReal :: T3
 
 
-  ! Inverting the Moridis equation
+  ! Inverting the phase boundary
   if (T > TQD) then
     select case (hydrate_phase_boundary)
       case(1)
         !Kamath
-        T3 = -8.533d3/(log((P-dP)/1.d6*1.d3)-3.898d1)
+        T3 = -8.533d3/(log((P-dP)*1.d-6*1.d3)-3.898d1)
       case(2)
         !Moridis
         !Lower-order
@@ -3660,12 +3707,23 @@ subroutine HydrateGHSZSolubilityCorrection(T,P,dP,K_H)
 
         !Higher-order
         !logP = log((P-dP)*1.d-6)
-        !T3 = -1.09874018d-2*logP**6 + 1.73301550d-1*logP**5 - &
-        !     9.67897401d-1*logP**4 + 2.34919362d0*logP**3  - &
-        !     2.77146625d0*logP**2 + 1.13889445d1*logP + 2.63495959d2
+        !T3 = -0.0109874018d0*logP**6 + 0.17330155005d0*logP**5 &
+        !     - 0.9678974011d0*logP**4 + 2.3491936188d0*logP**3 &
+        !     - 2.7714662486d0*logP**2 + 11.3889445128d0*logP + 263.4959590135d0
 
+
+      case(3)
+        !Moridis, 2003 simple
+        logP = log((P-dP)*1.d-6)
+        T3 = (logP + 29.1133440975)/0.1100383278
     end select
   else
+    select case (hydrate_phase_boundary)
+      case(1)
+        T3 = -1.88679d3/(log((P-dP)*1.d-6*1.d3) - 1.4717d1)
+      case(3)
+        T3 = (log((P-dP)*1.d-6) + 8.1938174346)/0.0334940999
+    end select
     T3 = T + 273.15d0
   endif
 
@@ -3779,12 +3837,39 @@ subroutine EOSHydrateEnthalpy(T,H)
   !H = H / (Nhyd+1.d0) 
 
   !Constant Cp
-  Cph = 1620.d0*(MW_H20*Nhyd + MW_CH4)/1.d3
+  Cph = 1620.d0*(MW_H2O*Nhyd + MW_CH4)/1.d3
   H = Cph * (T-TQD) + Hh0 / (Nhyd + 1.d0)
   H = H / 1.d3
 
 end subroutine EOSHydrateEnthalpy
 
 ! ************************************************************************** !
+
+subroutine HydrateSalinityOffset(xmol,dTd)
+
+  !
+  ! This ties salinity to the subcooling required to precipitate
+  ! hydrate in pores, similar to the GibbsThomsonFreezing subroutine
+  ! Based on the TOUGH method of PE-salinity behavior, using reference
+  ! parameters from Dickens and Quinby-Hunt, 1997
+  !
+  ! Author: David Fukuyama
+  ! Date: 5/1/2020
+  !
+
+  use Characteristic_Curves_module
+  use Material_Aux_class
+
+  implicit none
+
+  PetscReal, intent(in) :: xmol
+  PetscReal, intent(out) :: dTd
+
+  PetscReal :: dTr = -0.37d0
+  PetscReal :: xmol_ref = 0.03311d0
+
+  dTd = dTr * log(1-xmol)/log(1-xmol_ref)
+
+end subroutine HydrateSalinityOffset
 
 end module Hydrate_Aux_module

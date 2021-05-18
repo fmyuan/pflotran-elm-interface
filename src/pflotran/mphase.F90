@@ -196,29 +196,30 @@ subroutine MphaseSetupPatch(realization)
     allocate(mphase_sec_heat_vars(grid%nlmax))
   
     do local_id = 1, grid%nlmax
-  
+       
+      ghosted_id = grid%nL2G(local_id)
     ! Assuming the same secondary continuum for all regions (need to make it an array)
     ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
-        patch%material_property_array(1)%ptr%secondary_continuum_name, &
-        patch%material_property_array(1)%ptr%secondary_continuum_length, &
-        patch%material_property_array(1)%ptr%secondary_continuum_matrix_block_size, &
-        patch%material_property_array(1)%ptr%secondary_continuum_fracture_spacing, &
-        patch%material_property_array(1)%ptr%secondary_continuum_radius, &
-        patch%material_property_array(1)%ptr%secondary_continuum_area, &
+        patch%material_property_array(1)%ptr%multicontinuum%name, &
+        patch%material_property_array(1)%ptr%multicontinuum%length, &
+        patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
+        patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
+        patch%material_property_array(1)%ptr%multicontinuum%radius, &
+        patch%material_property_array(1)%ptr%multicontinuum%area, &
         option)
         
       mphase_sec_heat_vars(local_id)%ncells = &
-        patch%material_property_array(1)%ptr%secondary_continuum_ncells
+        patch%material_property_array(1)%ptr%multicontinuum%ncells
       mphase_sec_heat_vars(local_id)%aperture = &
-        patch%material_property_array(1)%ptr%secondary_continuum_aperture
+        patch%material_property_array(1)%ptr%multicontinuum%aperture
       mphase_sec_heat_vars(local_id)%epsilon = &
-        patch%material_property_array(1)%ptr%secondary_continuum_epsilon
+        patch%aux%Material%auxvars(ghosted_id)%epsilon
       mphase_sec_heat_vars(local_id)%log_spacing = &
-        patch%material_property_array(1)%ptr%secondary_continuum_log_spacing
+        patch%material_property_array(1)%ptr%multicontinuum%log_spacing
       mphase_sec_heat_vars(local_id)%outer_spacing = &
-        patch%material_property_array(1)%ptr%secondary_continuum_outer_spacing
+        patch%material_property_array(1)%ptr%multicontinuum%outer_spacing
         
 
       allocate(mphase_sec_heat_vars(local_id)%area(mphase_sec_heat_vars(local_id)%ncells))
@@ -244,16 +245,16 @@ subroutine MphaseSetupPatch(realization)
       mphase_sec_heat_vars(local_id)%interfacial_area = area_per_vol* &
           (1.d0 - mphase_sec_heat_vars(local_id)%epsilon)* &
           patch%material_property_array(1)%ptr% &
-          secondary_continuum_area_scaling
+          multicontinuum%area_scaling
 
 
     ! Setting the initial values of all secondary node temperatures same as primary node 
     ! temperatures (with initial dirichlet BC only) -- sk 06/26/12
       allocate(mphase_sec_heat_vars(local_id)%sec_temp(mphase_sec_heat_vars(local_id)%ncells))
       
-      if (option%set_secondary_init_temp) then
+      if (option%flow%set_secondary_init_temp) then
         mphase_sec_heat_vars(local_id)%sec_temp = &
-          patch%material_property_array(1)%ptr%secondary_continuum_init_temp
+          patch%material_property_array(1)%ptr%multicontinuum%init_temp
       else
         mphase_sec_heat_vars(local_id)%sec_temp = &
         initial_condition%flow_condition%temperature%dataset%rarray(1)
@@ -383,7 +384,6 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   type(grid_type), pointer :: grid
   type(mphase_auxvar_type), pointer :: mphase_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  PetscReal, pointer :: icap_loc_p(:)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id
@@ -400,8 +400,6 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   mphase_auxvars => patch%aux%MPhase%auxvars
   material_auxvars => patch%aux%Material%auxvars
   
-  call VecGetArrayF90(field%icap_loc,icap_loc_p, ierr);CHKERRQ(ierr)
-
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
 
@@ -421,7 +419,7 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
       enddo
 
       pckr_sir(iphase) = &
-        patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr%sr(iphase)
+        patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr%sr(iphase)
 
       if (iphase == 1 .and. &
         mphase_auxvars(ghosted_id)%auxvar_elem(0)%sat(iphase) <= pckr_sir(iphase)) then
@@ -445,8 +443,6 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
     enddo
   enddo
 
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p, ierr);CHKERRQ(ierr)
-  
 end subroutine MphaseComputeMassBalancePatch
 
 ! ************************************************************************** !
@@ -901,10 +897,11 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
   PetscInt :: iphase
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscErrorCode :: ierr
   PetscReal :: xphi, ynacl, mnacl
+  PetscInt :: icc
   
   option => realization%option
   patch => realization%patch
@@ -920,7 +917,6 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -931,15 +927,16 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
     iphase = global_auxvars(ghosted_id)%istate
-    if (.not. associated(patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr))then
-      print *, 'error!!! saturation function not allocated', ghosted_id,icap_loc_p(ghosted_id)
+    icc = patch%cc_id(ghosted_id)
+    if (.not. associated(patch%saturation_function_array(icc)%ptr))then
+      print *, 'error!!! saturation function not allocated', ghosted_id, icc 
     endif
    
     call MphaseAuxVarCompute_NINC(xx_loc_p(istart:iend), &
         auxvars(ghosted_id)%auxvar_elem(0),&
         global_auxvars(ghosted_id), &
         iphase, &
-        patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+        patch%saturation_function_array(icc)%ptr, &
         realization%fluid_properties,option,xphi)
 !   update global variables
     if (associated(global_auxvars)) then
@@ -1018,7 +1015,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
   
       call MphaseAuxVarCompute_NINC(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0), &
           global_auxvars_bc(sum_connection),iphase, &
-          patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+          patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
           realization%fluid_properties, option, xphi)
     
       if (associated(global_auxvars_bc)) then
@@ -1074,9 +1071,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
     source_sink => source_sink%next
   enddo
 
-
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
   
   patch%aux%Mphase%auxvars_up_to_date = PETSC_TRUE
 
@@ -1191,7 +1186,6 @@ subroutine MphaseUpdateSolutionPatch(realization)
   ! secondary continuum variables
   PetscReal :: sec_dencpr
   PetscErrorCode :: ierr
-  PetscReal, pointer :: ithrm_loc_p(:)
 
   patch => realization%patch
   grid => patch%grid
@@ -1213,8 +1207,6 @@ subroutine MphaseUpdateSolutionPatch(realization)
 
   if (option%use_mc) then
  
-    call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
-  
   ! Secondary continuum contribution (Added by SK 06/26/2012)
   ! only one secondary continuum for now for each primary continuum node
     do local_id = 1, grid%nlmax  ! For each local node do...
@@ -1225,17 +1217,15 @@ subroutine MphaseUpdateSolutionPatch(realization)
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
     
-      sec_dencpr = mphase_parameter%dencpr(int(ithrm_loc_p(ghosted_id))) ! secondary rho*c_p same as primary for now
+      sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now
 
       call MphaseSecHeatAuxVarCompute(mphase_sec_heat_vars(local_id), &
                         auxvars(ghosted_id)%auxvar_elem(0), &
                         global_auxvars(ghosted_id), &
-                        mphase_parameter%ckwet(int(ithrm_loc_p(ghosted_id))), &
+                        mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
                         sec_dencpr, &
                         option)
     enddo   
-    
-    call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
     
   endif  
 
@@ -1303,8 +1293,8 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)  
   
   PetscInt :: ghosted_id, local_id, istart, iend !, iphase
-  PetscReal, pointer :: xx_p(:), icap_loc_p(:)
-  PetscReal, pointer :: ithrm_loc_p(:), accum_p(:)
+  PetscReal, pointer :: xx_p(:)
+  PetscReal, pointer :: accum_p(:)
                           
   PetscErrorCode :: ierr
   PetscReal :: vol_frac_prim
@@ -1324,9 +1314,6 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   material_auxvars => patch%aux%Material%auxvars
       
   call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
-
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
   vol_frac_prim = 1.d0
@@ -1350,14 +1337,12 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id)%porosity, &
                               material_auxvars(ghosted_id)%volume, &
-                              mphase_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                              mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &
                               option,ZERO_INTEGER,vol_frac_prim, &
                               accum_p(istart:iend))
   enddo
 
   call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -2122,7 +2107,6 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
   ! Communication -----------------------------------------
   ! These 3 must be called before MphaseUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
   call GlobalUpdateState(realization)
 
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
@@ -2143,8 +2127,6 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
                                   field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                PERMEABILITY_Z,ZERO_INTEGER)
-  
-  call DiscretizationLocalToLocal(discretization,field%ithrm_loc,field%ithrm_loc,ONEDOF)
   
   call MphaseResidualPatch(snes,xx,r,realization,ierr)
 
@@ -2516,10 +2498,8 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
 
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-
   PetscInt :: iphase
-  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscInt :: icc_up, icc_dn, icct_up, icct_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: dd, f_up, f_dn, ff
   PetscReal :: perm_up, perm_dn
@@ -2602,9 +2582,6 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
  
 ! call VecGetArrayF90(field%flow_yy,yy_p,ierr)
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
- 
 
   vol_frac_prim = 1.d0
   
@@ -2621,7 +2598,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
     ghosted_id = ng
     call MphaseAuxVarCompute_Ninc(xx_loc_p(istart:iend),auxvars(ng)%auxvar_elem(0), &
       global_auxvars(ng), iphase, &
-      patch%saturation_function_array(int(icap_loc_p(ng)))%ptr, &
+      patch%saturation_function_array(patch%cc_id(ng))%ptr, &
       realization%fluid_properties,option,xphi)
 
 #if 1
@@ -2687,7 +2664,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       end select
       call MphaseAuxVarCompute_Winc(xx_loc_p(istart:iend),mphase%delx(:,ng),&
             auxvars(ng)%auxvar_elem(1:option%nflowdof),global_auxvars(ng),iphase,&
-            patch%saturation_function_array(int(icap_loc_p(ng)))%ptr,&
+            patch%saturation_function_array(patch%cc_id(ng))%ptr,&
             realization%fluid_properties,option)
     endif
   enddo
@@ -2717,7 +2694,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
                             global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id)%porosity, &
                             material_auxvars(ghosted_id)%volume, &
-                            mphase_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                            mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &
                             option,ONE_INTEGER,vol_frac_prim,Res) 
     r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
 
@@ -2739,12 +2716,12 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
     
-      sec_dencpr = mphase_parameter%dencpr(int(ithrm_loc_p(ghosted_id))) ! secondary rho*c_p same as primary for now   
+      sec_dencpr = mphase_parameter%dencpr(patch%cct_id(ghosted_id)) ! secondary rho*c_p same as primary for now   
     
       call MphaseSecondaryHeat(mphase_sec_heat_vars(local_id), &
                         auxvars(ghosted_id)%auxvar_elem(0), &
                         global_auxvars(ghosted_id), &
-                        mphase_parameter%ckwet(int(ithrm_loc_p(ghosted_id))), &
+                        mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
                         sec_dencpr, &
                         option,res_sec_heat) 
       r_p(iend) = r_p(iend) - res_sec_heat*option%flow_dt* &
@@ -2876,8 +2853,8 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = mphase_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = mphase_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
       call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
@@ -2889,7 +2866,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
 
-      icap_dn = int(icap_loc_p(ghosted_id))  
+      icc_dn = patch%cc_id(ghosted_id)
 ! Then need fill up increments for BCs
       do idof =1, option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
@@ -2919,7 +2896,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
  
       call MphaseAuxVarCompute_Ninc(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0),&
             global_auxvars_bc(sum_connection), iphase,&
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr,&
+            patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr,&
             realization%fluid_properties, option, xphi)
 
 #if 1
@@ -2946,7 +2923,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
          auxvars(ghosted_id)%auxvar_elem(0), &
          material_auxvars(ghosted_id)%porosity, &
          material_auxvars(ghosted_id)%tortuosity, &
-         mphase_parameter%sir(:,icap_dn), &
+         mphase_parameter%sir(:,icc_dn), &
          cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
          cur_connection_set%area(iconn), &
          distance_gravity,option, &
@@ -3018,24 +2995,24 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
                             cur_connection_set%dist(:,iconn),perm_dn)
 
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
    
-      D_up = mphase_parameter%ckwet(ithrm_up)
-      D_dn = mphase_parameter%ckwet(ithrm_dn)
+      D_up = mphase_parameter%ckwet(icct_up)
+      D_dn = mphase_parameter%ckwet(icct_dn)
 
 
       call MphaseFlux(auxvars(ghosted_id_up)%auxvar_elem(0), &
           material_auxvars(ghosted_id_up)%porosity, &
           material_auxvars(ghosted_id_up)%tortuosity, &
-          mphase_parameter%sir(:,icap_up), &
+          mphase_parameter%sir(:,icc_up), &
           dd_up,perm_up,D_up, &
           auxvars(ghosted_id_dn)%auxvar_elem(0), &
           material_auxvars(ghosted_id_dn)%porosity, &
           material_auxvars(ghosted_id_dn)%tortuosity, &
-          mphase_parameter%sir(:,icap_dn), &
+          mphase_parameter%sir(:,icc_dn), &
           dd_dn,perm_dn,D_dn, &
           cur_connection_set%area(iconn),distance_gravity, &
           upweight,option,v_darcy,vol_frac_prim,Res)
@@ -3113,8 +3090,6 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 ! call VecRestoreArrayF90(field%flow_yy, yy_p, ierr)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
   if (realization%debug%vecview_residual) then
     string = 'MPHresidual'
@@ -3233,12 +3208,11 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
-  PetscInt :: ithrm_up, ithrm_dn, i, j
+  PetscInt :: icct_up, icct_dn, i, j
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
-  PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
+  PetscInt :: iphas,iphas_up,iphas_dn,icc_up,icc_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
   PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
@@ -3337,9 +3311,6 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
  ! print *,'*********** In Jacobian ********************** '
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-
   ResInc = 0.D0
   vol_frac_prim = 1.d0
  
@@ -3353,7 +3324,6 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     endif
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    icap = int(icap_loc_p(ghosted_id))
      
     if (option%use_mc) then
       vol_frac_prim = sec_heat_vars(local_id)%epsilon
@@ -3364,7 +3334,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
              global_auxvars(ghosted_id), &
              material_auxvars(ghosted_id)%porosity, &
              material_auxvars(ghosted_id)%volume, &
-             mphase_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+             mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &
              option,ONE_INTEGER,vol_frac_prim,res) 
       ResInc(local_id,:,nvar) = ResInc(local_id,:,nvar) + Res(:)
     enddo
@@ -3467,8 +3437,8 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = mphase_parameter%ckwet(ithrm_dn)
+      icct_dn = patch%cct_id(ghosted_id)
+      D_dn = mphase_parameter%ckwet(icct_dn)
       
  
       ! for now, just assume diagonal tensor
@@ -3480,7 +3450,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       distance_gravity = cur_connection_set%dist(0,iconn) * &
                          dot_product(option%gravity, &
                                      cur_connection_set%dist(1:3,iconn))
-      icap_dn = int(icap_loc_p(ghosted_id))
+      icc_dn = patch%cc_id(ghosted_id)
 
 ! Then need fill up increments for BCs
       delxbc = 0.D0;
@@ -3514,12 +3484,12 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       if (boundary_condition%flow_condition%itype(MPH_PRESSURE_DOF) /= NEUMANN_BC) then
         call MphaseAuxVarCompute_Ninc(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0), &
            global_auxvars_bc(sum_connection),iphasebc,&
-           patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+           patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
            realization%fluid_properties,option)
         call MphaseAuxVarCompute_Winc(xxbc,delxbc,&
            auxvars_bc(sum_connection)%auxvar_elem(1:option%nflowdof),&
            global_auxvars_bc(sum_connection),iphasebc, &
-           patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+           patch%saturation_function_array(patch%cc_id(ghosted_id))%ptr, &
            realization%fluid_properties,option)
     
         do nvar=1,option%nflowdof
@@ -3529,7 +3499,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
             auxvars(ghosted_id)%auxvar_elem(nvar), &
             material_auxvars(ghosted_id)%porosity, &
             material_auxvars(ghosted_id)%tortuosity, &
-            mphase_parameter%sir(:,icap_dn), &
+            mphase_parameter%sir(:,icc_dn), &
             cur_connection_set%dist(0,iconn),perm_dn,D_dn, &
             cur_connection_set%area(iconn), &
             distance_gravity,option, &
@@ -3577,8 +3547,8 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     if (option%use_mc) then
 
       call MphaseSecondaryHeatJacobian(sec_heat_vars(local_id), &
-                        mphase_parameter%ckwet(int(ithrm_loc_p(ghosted_id))), &
-                        mphase_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                        mphase_parameter%ckwet(patch%cct_id(ghosted_id)), &
+                        mphase_parameter%dencpr(patch%cct_id(ghosted_id)), &
                         option,jac_sec_heat)
  ! sk - option%flow_dt cancels out with option%flow_dt in the denominator for the term below                                      
       Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
@@ -3650,25 +3620,24 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       iphas_up = global_auxvars(ghosted_id_up)%istate
       iphas_dn = global_auxvars(ghosted_id_dn)%istate
 
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      D_up = mphase_parameter%ckwet(ithrm_up)
-      D_dn = mphase_parameter%ckwet(ithrm_dn)
+      icct_up = patch%cct_id(ghosted_id_up)
+      icct_dn = patch%cct_id(ghosted_id_dn)
+      D_up = mphase_parameter%ckwet(icct_up)
+      D_dn = mphase_parameter%ckwet(icct_dn)
     
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
-
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
       
       do nvar = 1, option%nflowdof 
         call MphaseFlux(auxvars(ghosted_id_up)%auxvar_elem(nvar), &
                          material_auxvars(ghosted_id_up)%porosity, &
                          material_auxvars(ghosted_id_up)%tortuosity, &
-                         mphase_parameter%sir(:,icap_up), &
+                         mphase_parameter%sir(:,icc_up), &
                          dd_up,perm_up,D_up, &
                          auxvars(ghosted_id_dn)%auxvar_elem(0), &
                          material_auxvars(ghosted_id_dn)%porosity, &
                          material_auxvars(ghosted_id_dn)%tortuosity, &
-                         mphase_parameter%sir(:,icap_dn), &
+                         mphase_parameter%sir(:,icc_dn), &
                          dd_dn,perm_dn,D_dn, &
                          cur_connection_set%area(iconn), &
                          distance_gravity, &
@@ -3680,12 +3649,12 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
         call MphaseFlux(auxvars(ghosted_id_up)%auxvar_elem(0), &
                          material_auxvars(ghosted_id_up)%porosity, &
                          material_auxvars(ghosted_id_up)%tortuosity, &
-                         mphase_parameter%sir(:,icap_up), &
+                         mphase_parameter%sir(:,icc_up), &
                          dd_up,perm_up,D_up, &
                          auxvars(ghosted_id_dn)%auxvar_elem(nvar), &
                          material_auxvars(ghosted_id_dn)%porosity,&
                          material_auxvars(ghosted_id_dn)%tortuosity, &
-                         mphase_parameter%sir(:,icap_dn), &
+                         mphase_parameter%sir(:,icc_dn), &
                          dd_dn,perm_dn,D_dn, &
                          cur_connection_set%area(iconn),distance_gravity, &
                          upweight, option, vv_darcy, vol_frac_prim, Res)
@@ -3754,8 +3723,6 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
    
-  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
  !print *,'end jac'
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)

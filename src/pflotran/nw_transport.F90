@@ -509,8 +509,7 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   
   !-------aqueous concentration (equilibrium)
   if (.not.dry_out) then
-    nwt_auxvar%aqueous_eq_conc(:) = (nwt_auxvar%total_bulk_conc(:)/(sat*por))* &
-                                    (1.d0/(1.d0+(ele_kd(:)/(sat*por))))
+    nwt_auxvar%aqueous_eq_conc(:) = (nwt_auxvar%total_bulk_conc(:)/(sat*por))
   else
     nwt_auxvar%aqueous_eq_conc(:) = 0.d0
   endif
@@ -671,7 +670,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   
 #if 1
   !== Accumulation Terms ======================================
-  if (.not.option%steady_state) then
+  if (.not.option%transport%steady_state) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials
@@ -1442,7 +1441,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   
 #if 1
   !== Accumulation Terms ======================================
-  if (.not.option%steady_state) then
+  if (.not.option%transport%steady_state) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials

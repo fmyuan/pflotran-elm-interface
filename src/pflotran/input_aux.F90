@@ -11,7 +11,7 @@ module Input_Aux_module
   private
 
 
-  type, public :: input_type 
+  type, public :: input_type
     PetscInt :: fid
     PetscInt :: line_number
     PetscErrorCode :: ierr
@@ -41,66 +41,66 @@ module Input_Aux_module
     module procedure InputCreate2
     module procedure InputCreate3
   end interface
-  
+
   interface InputReadWord
     module procedure InputReadWord1
     module procedure InputReadWord2
   end interface
-  
+
   interface InputReadNChars
     module procedure InputReadNChars1
     module procedure InputReadNChars2
   end interface
-  
+
   interface InputReadInt
     module procedure InputReadInt1
     module procedure InputReadInt2
 #if defined(PETSC_USE_64BIT_INDICES) && (PETSC_SIZEOF_MPI_FINT * PETSC_BITS_PER_BYTE != 64)
     ! If PetscInt and PetscMPIInt have different sizes (occurs for some builds
-    ! with 64 bit indices), then we need to have additional routines for the 
-    ! InputReadInt() generic subroutine.  (We use the above check instead of 
+    ! with 64 bit indices), then we need to have additional routines for the
+    ! InputReadInt() generic subroutine.  (We use the above check instead of
     ! directly checking to see if PetscInt and PetscMPIInt have the same size
-    ! because the size of PetscInt is not included in the 
+    ! because the size of PetscInt is not included in the
     ! $PETSC_DIR/$PETSC_ARCH/include/petscconf.h file.) If the two types have
     ! the same size, then these additional routines for type PetscMPIInt must
-    ! *not* be defined, because then the interface becomes ambiguous, since 
+    ! *not* be defined, because then the interface becomes ambiguous, since
     ! Fortran doesn't know the difference between PetscInt and PetscMPIInt if
     ! they are identically sized integers.  --RTM
     module procedure InputReadInt3
     module procedure InputReadInt4
 #endif
   end interface
-  
+
   interface InputReadDouble
     module procedure InputReadDouble1
     module procedure InputReadDouble2
   end interface
-  
+
   interface InputReadNDoubles
     module procedure InputReadNDoubles1
     module procedure InputReadNDoubles2
   end interface
-  
+
   interface InputError
     module procedure InputError1
     module procedure InputError2
   end interface
-  
+
   interface InputErrorMsg
     module procedure InputErrorMsg1
     module procedure InputErrorMsg2
   end interface
-  
+
   interface InputDefaultMsg
     module procedure InputDefaultMsg1
     module procedure InputDefaultMsg2
   end interface
-  
+
   interface InputReadStringErrorMsg
     module procedure InputReadStringErrorMsg1
     module procedure InputReadStringErrorMsg2
   end interface
-  
+
   interface InputFindStringInFile
     module procedure InputFindStringInFile1
     module procedure InputFindStringInFile2
@@ -111,7 +111,7 @@ module Input_Aux_module
     module procedure InputKeywordUnrecognized1
     module procedure InputKeywordUnrecognized2
   end interface
-  
+
   interface InputPushBlock
     module procedure InputPushBlock1
     module procedure InputPushBlock2
@@ -143,42 +143,43 @@ module Input_Aux_module
             InputCloseNestedFiles, &
             InputReadFileDirNamePrefix, &
             UnitReadAndConversionFactor, &
-            InputReadFilename, & 
+            InputReadFilename, &
             InputReadCard, &
             InputPushCard, &
             InputPushBlock, &
             InputPopBlock, &
-            InputKeywordDeprecated
+            InputKeywordDeprecated, &
+            InputCheckKeywordBlockCount
 
 contains
 
 ! ************************************************************************** !
 
 function InputCreate1(fid,path,filename,option)
-  ! 
+  !
   ! Allocates and initializes a new Input object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   PetscInt :: fid
   character(len=*) :: path
   character(len=*) :: filename
   type(option_type) :: option
-  
+
   type(input_type), pointer :: InputCreate1
-  PetscInt :: istatus  
-  PetscInt :: islash  
+  PetscInt :: istatus
+  PetscInt :: islash
   character(len=MAXSTRINGLENGTH) :: local_path
   character(len=MAXSTRINGLENGTH) :: full_path
   type(input_type), pointer :: input
   PetscBool, parameter :: back = PETSC_TRUE
-  
+
   allocate(input)
   input%fid = fid
   input%line_number = 0
@@ -192,7 +193,7 @@ function InputCreate1(fid,path,filename,option)
   input%force_units = PETSC_FALSE
   nullify(input%parent)
 
-  
+
   ! split the filename into a path and filename
                               ! backwards search
   islash = index(filename,'/',back)
@@ -218,70 +219,70 @@ function InputCreate1(fid,path,filename,option)
     option%io_buffer = 'File: "' // trim(full_path) // '" not found.'
     call PrintErrMsg(option)
   endif
-  
+
   InputCreate1 => input
-  
+
 end function InputCreate1
 
 ! ************************************************************************** !
 
 function InputCreate2(fid,filename,option)
-  ! 
+  !
   ! Allocates and initializes a new Input object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   PetscInt :: fid
   character(len=*) :: filename
   type(option_type) :: option
-  
+
   type(input_type), pointer :: InputCreate2
   character(len=MAXWORDLENGTH) :: word
 
   word = ''
   InputCreate2 => InputCreate1(fid,word,filename,option)
-  
+
 end function InputCreate2
 
 ! ************************************************************************** !
 
 function InputCreate3(input,filename,option)
-  ! 
+  !
   ! Allocates and initializes a new input object without a path
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/28/17
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(input_type), pointer :: input ! note that this is the old input object
   character(len=MAXSTRINGLENGTH) :: filename
   type(option_type) :: option
-  
+
   type(input_type), pointer :: InputCreate3
 
   InputCreate3 => InputCreate1(input%fid + 1,input%path,filename,option)
-  
+
 end function InputCreate3
 
 ! ************************************************************************** !
 
 subroutine InputDefaultMsg1(input,option,buffer)
-  ! 
+  !
   ! If ierr /= 0, informs user that default value will be used.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -299,12 +300,12 @@ end subroutine InputDefaultMsg1
 ! ************************************************************************** !
 
 subroutine InputDefaultMsg2(input,option)
-  ! 
+  !
   ! If ierr /= 0, informs user that default value will be used.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -323,12 +324,12 @@ end subroutine InputDefaultMsg2
 ! ************************************************************************** !
 
 subroutine InputErrorMsg1(input,option,buffer1,buffer2)
-  ! 
+  !
   ! If ierr /= 0, If ierr /= 0, informs user of error and stops.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -347,12 +348,12 @@ end subroutine InputErrorMsg1
 ! ************************************************************************** !
 
 subroutine InputErrorMsg2(input,option)
-  ! 
+  !
   ! InputErrorMsg: If ierr /= 0, If ierr /= 0, informs user of error and stops.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -371,12 +372,12 @@ end subroutine InputErrorMsg2
 ! ************************************************************************** !
 
 subroutine InputReadStringErrorMsg1(input, option, buffer)
-  ! 
+  !
   ! If ierr /= 0, informs user of error and stops.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -394,12 +395,12 @@ end subroutine InputReadStringErrorMsg1
 ! ************************************************************************** !
 
 subroutine InputReadStringErrorMsg2(input, option)
-  ! 
+  !
   ! If ierr /= 0, informs user of error and stops.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -418,12 +419,12 @@ end subroutine InputReadStringErrorMsg2
 ! ************************************************************************** !
 
 subroutine InputFindStringErrorMsg(input, option, string)
-  ! 
+  !
   ! If ierr /= 0, informs user of error and stops.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -443,12 +444,12 @@ end subroutine InputFindStringErrorMsg
 ! ************************************************************************** !
 
 subroutine InputReadInt1(input, option, int)
-  ! 
+  !
   ! reads and removes an integer value from a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -463,10 +464,10 @@ subroutine InputReadInt1(input, option, int)
   if (associated(dbase)) then
     call InputParseDbaseForInt(input%buf,int,found,input%ierr)
   endif
-  
+
   if (.not.found) then
     call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
-  
+
     if (.not.InputError(input)) then
       read(word,*,iostat=input%ierr) int
     endif
@@ -477,12 +478,12 @@ end subroutine InputReadInt1
 ! ************************************************************************** !
 
 subroutine InputReadInt2(string, option, int, ierr)
-  ! 
+  !
   ! reads and removes an integer value from a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -500,10 +501,10 @@ subroutine InputReadInt2(string, option, int, ierr)
   if (associated(dbase)) then
     call InputParseDbaseForInt(string,int,found,ierr)
   endif
-  
+
   if (.not.found) then
     call InputReadWord(string,word,PETSC_TRUE,ierr)
-  
+
     if (.not.InputError(ierr)) then
       read(word,*,iostat=ierr) int
     endif
@@ -516,15 +517,15 @@ end subroutine InputReadInt2
 ! ************************************************************************** !
 
 subroutine InputReadInt3(input, option, int)
-  ! 
+  !
   ! InputReadInt3() and InputReadInt4() must only be defined if PetscInt and
   ! PetscMPIInt differ in size.  See notes above in the interface definition.
   ! --RTM
   ! reads and removes an integer value from a string
   ! authors: Glenn Hammond, Richard Mills
-  ! 
+  !
   ! Date: 2/3/2012
-  ! 
+  !
 
   implicit none
 
@@ -535,7 +536,7 @@ subroutine InputReadInt3(input, option, int)
   character(len=MAXWORDLENGTH) :: word
 
   call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
-  
+
   if (.not.InputError(input)) then
     read(word,*,iostat=input%ierr) int
   endif
@@ -545,12 +546,12 @@ end subroutine InputReadInt3
 ! ************************************************************************** !
 
 subroutine InputReadInt4(string, option, int, ierr)
-  ! 
+  !
   ! reads and removes an integer value from a string
   ! authors: Glenn Hammond, Richard Mills
-  ! 
+  !
   ! Date: 2/3/2012
-  ! 
+  !
 
   implicit none
 
@@ -563,7 +564,7 @@ subroutine InputReadInt4(string, option, int, ierr)
 
   ierr = 0
   call InputReadWord(string,word,PETSC_TRUE,ierr)
-  
+
   if (.not.InputError(ierr)) then
     read(word,*,iostat=ierr) int
   endif
@@ -577,12 +578,12 @@ end subroutine InputReadInt4
 ! ************************************************************************** !
 
 subroutine InputReadDouble1(input, option, double)
-  ! 
+  !
   ! reads and removes a real value from a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -597,10 +598,10 @@ subroutine InputReadDouble1(input, option, double)
   if (associated(dbase)) then
     call InputParseDbaseForDouble(input%buf,double,found,input%ierr)
   endif
-  
+
   if (.not.found) then
     call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
-  
+
     if (.not.InputError(input)) then
       read(word,*,iostat=input%ierr) double
     endif
@@ -611,12 +612,12 @@ end subroutine InputReadDouble1
 ! ************************************************************************** !
 
 subroutine InputReadDouble2(string, option, double, ierr)
-  ! 
+  !
   ! reads and removes a real value from a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -629,15 +630,15 @@ subroutine InputReadDouble2(string, option, double, ierr)
   PetscBool :: found
 
   ierr = 0
-  
+
   found = PETSC_FALSE
   if (associated(dbase)) then
     call InputParseDbaseForDouble(string,double,found,ierr)
   endif
-  
+
   if (.not.found) then
     call InputReadWord(string,word,PETSC_TRUE,ierr)
-  
+
     if (.not.InputError(ierr)) then
       read(word,*,iostat=ierr) double
     endif
@@ -648,12 +649,12 @@ end subroutine InputReadDouble2
 ! ************************************************************************** !
 
 subroutine InputReadNDoubles1(input, option, double, n)
-  ! 
+  !
   ! reads and removes "n" real value from a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/29/11
-  ! 
+  !
 
   implicit none
 
@@ -674,12 +675,12 @@ end subroutine InputReadNDoubles1
 ! ************************************************************************** !
 
 subroutine InputReadNDoubles2(string, option, double, n, ierr)
-  ! 
+  !
   ! reads and removes "n" real values from a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/29/11
-  ! 
+  !
 
   implicit none
 
@@ -701,19 +702,19 @@ end subroutine InputReadNDoubles2
 ! ************************************************************************** !
 
 subroutine InputReadPflotranString(input, option)
-  ! 
+  !
   ! Reads a string (strlen characters long) from a
   ! file while avoiding commented or skipped lines.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   PetscErrorCode :: ierr
   PetscInt :: flag
 
@@ -725,9 +726,9 @@ subroutine InputReadPflotranString(input, option)
     call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
                    option%mycomm,ierr)
     input%ierr = flag
-    if (.not.InputError(input)) then  
+    if (.not.InputError(input)) then
       call MPI_Bcast(input%buf,MAXSTRINGLENGTH,MPI_CHARACTER, &
-                     option%io_rank,option%mycomm,ierr)      
+                     option%io_rank,option%mycomm,ierr)
     endif
   else
     call InputReadPflotranStringSlave(input, option)
@@ -738,16 +739,16 @@ end subroutine InputReadPflotranString
 ! ************************************************************************** !
 
 subroutine InputReadPflotranStringSlave(input, option)
-  ! 
+  !
   ! Reads a string (strlen characters long) from a
   ! file while avoiding commented or skipped lines.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   use String_module
-  
+
   implicit none
 
   type(input_type), pointer :: input
@@ -764,7 +765,7 @@ subroutine InputReadPflotranStringSlave(input, option)
 !     word(i:i) = ' '
 !  enddo
   word = ''
-  
+
   do
     input%line_number = input%line_number + 1
     read(input%fid,'(a)',iostat=input%ierr) input%buf
@@ -784,7 +785,7 @@ subroutine InputReadPflotranStringSlave(input, option)
     tempstring = input%buf
     call InputReadWord(tempstring,word,PETSC_TRUE,input%ierr)
     call StringToUpper(word)
-    
+
     if (word(1:13) == 'EXTERNAL_FILE') then
       call InputPushCard(input,word,option)
       ! have to strip the card 'EXTERNAL_FILE' from the buffer
@@ -794,12 +795,12 @@ subroutine InputReadPflotranStringSlave(input, option)
       cycle
     else if (word(1:4) == 'SKIP') then
       call InputPushCard(input,word,option)
-      ! to avoid keywords that start with SKIP 
+      ! to avoid keywords that start with SKIP
       if (len_trim(word) > 4) then
         exit
       endif
       skip_count = 1
-      do 
+      do
         input%line_number = input%line_number + 1
         read(input%fid,'(a)',iostat=input%ierr) tempstring
         if (InputError(input)) then
@@ -826,7 +827,7 @@ subroutine InputReadPflotranStringSlave(input, option)
       exit
     endif
   enddo
-  
+
   ! Check for comment midway along a string
   if (.not.InputError(input)) then
     tempstring = input%buf
@@ -845,12 +846,12 @@ end subroutine InputReadPflotranStringSlave
 ! ************************************************************************** !
 
 subroutine InputReadCard(input, option, word, push_to_log)
-  ! 
+  !
   ! Reads a keyword from the input deck, providing the option of logging
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/20/19
-  ! 
+  !
 
   implicit none
 
@@ -858,11 +859,11 @@ subroutine InputReadCard(input, option, word, push_to_log)
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
   PetscBool, optional :: push_to_log
-  
+
   if (InputError(input)) return
-  
+
   call InputReadWord(input,option,word,PETSC_TRUE)
-  
+
   if (present(push_to_log)) then
     call InputPushCard(input,word,option)
   else
@@ -874,16 +875,16 @@ end subroutine InputReadCard
 ! ************************************************************************** !
 
 subroutine InputPrintKeywordLog(input,option,print_error)
-  ! 
+  !
   ! Prints the current strings stored by keyword logging.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/25/19
-  ! 
+  !
   type(input_type) :: input
   type(option_type) :: option
   PetscBool, optional :: print_error
- 
+
   character(len=MAXWORDLENGTH) :: word
 
   if (option%keyword_logging) then
@@ -931,13 +932,13 @@ end subroutine InputPrintKeywordLog
 ! ************************************************************************** !
 
 subroutine InputPushCard(input,card,option)
-  ! 
-  ! Sometimes cards are optional and cannot be registered at the time of 
-  ! being read. This routines allows  
-  ! 
+  !
+  ! Sometimes cards are optional and cannot be registered at the time of
+  ! being read. This routines allows
+  !
   ! Author: Glenn Hammond
   ! Date: 09/20/19
-  ! 
+  !
 
   implicit none
 
@@ -946,7 +947,7 @@ subroutine InputPushCard(input,card,option)
   character(len=*) :: card
 
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   if (.not.option%keyword_logging) return
   if (InputError(input)) return
 
@@ -974,12 +975,12 @@ end subroutine InputPushCard
 ! ************************************************************************** !
 
 subroutine InputPushBlock1(input,option)
-  ! 
-  ! Fill in  
-  ! 
+  !
+  ! Fill in
+  !
   ! Author: Glenn Hammond
   ! Date: 09/23/19
-  ! 
+  !
 
   implicit none
 
@@ -993,30 +994,30 @@ end subroutine InputPushBlock1
 ! ************************************************************************** !
 
 subroutine InputPushBlock2(input,block_name,option)
-  ! 
-  ! Fill in  
-  ! 
+  !
+  ! Fill in
+  !
   ! Author: Glenn Hammond
   ! Date: 09/23/19
-  ! 
+  !
 
   implicit none
 
   type(input_type) :: input
   type(option_type) :: option
   character(len=*) :: block_name
-  
+
   character(len=MAXSTRINGLENGTH) :: string
 
   if (.not.option%keyword_logging) return
-  
+
   if (len_trim(block_name) > 0) then
     string = block_name
   else
     string = option%keyword_buf
     option%keyword_buf = ''
   endif
-  
+
   if (len_trim(option%keyword_log) > 0) then
     string = trim(option%keyword_log) // ',' // trim(string)
   endif
@@ -1033,20 +1034,20 @@ end subroutine InputPushBlock2
 ! ************************************************************************** !
 
 subroutine InputPopBlock(input,option)
-  ! 
-  ! Fill in  
-  ! 
+  !
+  ! Fill in
+  !
   ! Author: Glenn Hammond
   ! Date: 09/23/19
-  ! 
+  !
 
   implicit none
 
   type(input_type) :: input
   type(option_type) :: option
-  
+
   PetscInt :: i
-  
+
   if (.not.option%keyword_logging) return
 
   option%keyword_buf = ''
@@ -1065,12 +1066,12 @@ end subroutine InputPopBlock
 ! ************************************************************************** !
 
 subroutine InputReadWord1(input, option, word, return_blank_error)
-  ! 
+  !
   ! reads and removes a word (consecutive characters) from a string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -1078,9 +1079,9 @@ subroutine InputReadWord1(input, option, word, return_blank_error)
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
   PetscBool :: return_blank_error
-  
+
   if (InputError(input)) return
-  
+
   call InputReadWord2(input%buf, word, return_blank_error, input%ierr)
 
 end subroutine InputReadWord1
@@ -1088,13 +1089,13 @@ end subroutine InputReadWord1
 ! ************************************************************************** !
 
 subroutine InputReadWord2(string, word, return_blank_error, ierr)
-  ! 
+  !
   ! reads and removes a word (consecutive characters) from a
   ! string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08
-  ! 
+  !
 
   implicit none
 
@@ -1102,7 +1103,7 @@ subroutine InputReadWord2(string, word, return_blank_error, ierr)
   character(len=*) :: word
   PetscBool :: return_blank_error
   PetscErrorCode :: ierr
-  
+
   PetscInt :: i, begins, ends, length
   character(len=1), parameter :: tab = achar(9), backslash = achar(92)
 
@@ -1119,7 +1120,7 @@ subroutine InputReadWord2(string, word, return_blank_error, ierr)
   ! enddo
 
   length = len_trim(string)
-  
+
   if (length == 0) then
     if (return_blank_error) then
       ierr = 1
@@ -1133,7 +1134,7 @@ subroutine InputReadWord2(string, word, return_blank_error, ierr)
     ! Remove leading blanks and tabs
     i=1
     do while((string(i:i) == ' ' .or. string(i:i) == ',' .or. &
-             string(i:i) == tab) .and. i <= length) 
+             string(i:i) == tab) .and. i <= length)
       i=i+1
     enddo
 
@@ -1145,7 +1146,7 @@ subroutine InputReadWord2(string, word, return_blank_error, ierr)
       endif
       return
     endif
-    
+
     begins=i
 
     ! Count # of continuous characters (no blanks, commas, etc. in between)
@@ -1172,20 +1173,20 @@ end subroutine InputReadWord2
 ! ************************************************************************** !
 
 subroutine InputReadCardDbaseCompatible(input, option, word)
-  ! 
+  !
   ! reads a word and checks whether there is an entry in the Dbase with which
   ! to swap
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/22/16
-  ! 
+  !
 
   implicit none
 
   type(input_type) :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
-  
+
   PetscBool :: found
 
   if (InputError(input)) return
@@ -1194,25 +1195,25 @@ subroutine InputReadCardDbaseCompatible(input, option, word)
   if (associated(dbase)) then
     call InputParseDbaseForWord(input%buf,word,found,input%ierr)
   endif
-  
+
   if (.not.found) then
     call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
   endif
 
   call InputPushCard(input,word,option)
-  
+
 end subroutine InputReadCardDbaseCompatible
 
 ! ************************************************************************** !
 
 subroutine InputReadNChars1(input, option, chars, n, return_blank_error)
-  ! 
+  !
   ! reads and removes a specified number of characters from a
   ! string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/02/00
-  ! 
+  !
 
   implicit none
 
@@ -1220,33 +1221,33 @@ subroutine InputReadNChars1(input, option, chars, n, return_blank_error)
   type(option_type) :: option
   PetscBool :: return_blank_error ! Return an error for a blank line
                                    ! Therefore, a blank line is not acceptable.
-  
+
   PetscInt :: n, begins, ends
   character(len=n) :: chars
 
   if (InputError(input)) return
 
   call InputReadNChars2(input%buf, chars, n, return_blank_error, input%ierr)
-  
+
 end subroutine InputReadNChars1
 
 ! ************************************************************************** !
 
 subroutine InputReadNChars2(string, chars, n, return_blank_error, ierr)
-  ! 
+  !
   ! reads and removes a specified number of characters from a
   ! string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/02/00
-  ! 
+  !
 
   implicit none
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: return_blank_error ! Return an error for a blank line
                                    ! Therefore, a blank line is not acceptable.
-  
+
   PetscInt :: i, n, begins, ends
   character(len=n) :: chars
   PetscErrorCode :: ierr
@@ -1270,7 +1271,7 @@ subroutine InputReadNChars2(string, chars, n, return_blank_error, ierr)
 
     ! Remove leading blanks and tabs
     i=1
-    do while(string(i:i) == ' ' .or. string(i:i) == tab) 
+    do while(string(i:i) == ' ' .or. string(i:i) == tab)
       i=i+1
     enddo
 
@@ -1302,12 +1303,12 @@ end subroutine InputReadNChars2
 ! ************************************************************************** !
 
 subroutine InputReadFilename(input, option, filename)
-  ! 
+  !
   ! Reads in a filename and prepends the input object path if applicable.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/31/18
-  ! 
+  !
   implicit none
 
   type(input_type) :: input
@@ -1330,13 +1331,13 @@ end subroutine InputReadFilename
 ! ************************************************************************** !
 
 subroutine InputReadQuotedWord(input, option, word, return_blank_error)
-  ! 
+  !
   ! reads and removes a word from a string, that is
   ! delimited by "'".
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/07/00
-  ! 
+  !
 
   implicit none
 
@@ -1355,7 +1356,7 @@ subroutine InputReadQuotedWord(input, option, word, return_blank_error)
   ! Initialize character string to blank.
   len_trim_word = len_trim(word)
   word(1:len_trim_word) = repeat(' ',len_trim_word)
-  
+
   if (len_trim(input%buf) == 0) then
     if (return_blank_error) then
       input%ierr = 1
@@ -1364,11 +1365,11 @@ subroutine InputReadQuotedWord(input, option, word, return_blank_error)
     endif
     return
   else
-    input%ierr = 0  
-    
+    input%ierr = 0
+
     ! Remove leading blanks and tabs
     i=1
-    do while(input%buf(i:i) == ' ' .or. input%buf(i:i) == tab) 
+    do while(input%buf(i:i) == ' ' .or. input%buf(i:i) == tab)
       i=i+1
     enddo
 
@@ -1410,12 +1411,12 @@ end subroutine InputReadQuotedWord
 ! ************************************************************************** !
 
 subroutine InputReadPath(string, word, return_blank_error, ierr)
-  ! 
+  !
   ! reads and removes a words from a path
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/14/10
-  ! 
+  !
 
   implicit none
 
@@ -1423,7 +1424,7 @@ subroutine InputReadPath(string, word, return_blank_error, ierr)
   character(len=*) :: word
   PetscBool :: return_blank_error
   PetscErrorCode :: ierr
-  
+
   PetscInt :: i, begins, ends, len_trim_word
   character(len=1), parameter :: slash = achar(47), backslash = achar(92)
 
@@ -1434,7 +1435,7 @@ subroutine InputReadPath(string, word, return_blank_error, ierr)
   word(1:len_trim_word) = repeat(' ',len_trim_word)
 
   ierr = len_trim(string)
-  
+
   if (ierr == 0) then
     if (return_blank_error) then
       ierr = 1
@@ -1447,7 +1448,7 @@ subroutine InputReadPath(string, word, return_blank_error, ierr)
 
     ! Remove leading blanks and tabs
     i=1
-    do while(string(i:i) == ' ' .and. string(i:i) == slash) 
+    do while(string(i:i) == ' ' .and. string(i:i) == slash)
       i=i+1
     enddo
 
@@ -1470,18 +1471,18 @@ subroutine InputReadPath(string, word, return_blank_error, ierr)
     string = string(ends+1:)
 
   endif
-  
+
 end subroutine InputReadPath
 
 ! ************************************************************************** !
 
 subroutine InputReadFileDirNamePrefix(prefix,name_prefix,directory)
-  ! 
+  !
   ! Reads in file_name_prefix and file_directory given the full file_prefix
   !
   ! Author: Paolo Orsini
   ! Date: 08/10/17
-  ! 
+  !
 
   use String_module
 
@@ -1503,8 +1504,8 @@ subroutine InputReadFileDirNamePrefix(prefix,name_prefix,directory)
 
   directory = ''
   if ( size(strings) > 1 ) then
-    do i_dir = 1, size(strings) - 1 
-      if ( i_dir == (size(strings) - 1) ) then 
+    do i_dir = 1, size(strings) - 1
+      if ( i_dir == (size(strings) - 1) ) then
         directory = adjustl(trim(directory)) // adjustl(trim(strings(i_dir)))
       else
         directory = adjustl(trim(directory)) &
@@ -1518,14 +1519,14 @@ end subroutine InputReadFileDirNamePrefix
 ! ************************************************************************** !
 
 subroutine InputFindStringInFile1(input, option, string)
-  ! 
+  !
   ! Rewinds file and finds the first occurrence of
   ! 'string'.  Note that the line must start with 'string'
   ! in order to match and that line is NOT returned
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/07/07
-  ! 
+  !
 
   use String_module
 
@@ -1534,23 +1535,23 @@ subroutine InputFindStringInFile1(input, option, string)
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   call InputFindStringInFile2(input, option, string, PETSC_TRUE)
-  
+
 end subroutine InputFindStringInFile1
 
 ! ************************************************************************** !
 
 subroutine InputFindStringInFile2(input, option, string, print_warning)
-  ! 
+  !
   ! Rewinds file and finds the first occurrence of
   ! 'string'.  Note that the line must start with 'string'
   ! in order to match and that line is NOT returned
   ! This version of the overload can cope with a section that is not present
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/07/07
-  ! 
+  !
 
   use String_module
 
@@ -1563,9 +1564,9 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
   PetscBool :: found
 
   found = PETSC_FALSE
-  
+
   call InputFindStringInFile3(input, option, string, print_warning,found)
-  
+
 end subroutine InputFindStringInFile2
 
 ! ************************************************************************** !
@@ -1642,15 +1643,15 @@ end subroutine InputFindStringInFile3
 ! ************************************************************************** !
 
 subroutine InputSkipToEND(input,option,string)
-  ! 
+  !
   ! Skips to keyword END
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/07
-  ! 
+  !
 
   implicit none
-  
+
   type(input_type), pointer :: input
   type(option_type) :: option
   character(len=*) :: string
@@ -1667,23 +1668,23 @@ end subroutine InputSkipToEND
 ! ************************************************************************** !
 
 function InputCheckExit(input,option)
-  ! 
+  !
   ! Checks whether an end character (.,/,'END') has been found
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/14/08
-  ! 
+  !
 
   use String_module
-  
+
   implicit none
 
   type(input_type) :: input
-  type(option_type) :: option  
+  type(option_type) :: option
 
   PetscInt :: i
   character(len=1) :: tab
-  
+
   PetscBool :: InputCheckExit
 
   ! We must remove leading blanks and tabs. --RTM
@@ -1712,17 +1713,17 @@ end function InputCheckExit
 ! ************************************************************************** !
 
 function InputError1(input)
-  ! 
+  !
   ! Returns true if an error has occurred
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/10/08
-  ! 
+  !
 
   implicit none
 
   type(input_type) :: input
-  
+
   PetscBool :: InputError1
 
   if (input%ierr == 0) then
@@ -1736,17 +1737,17 @@ end function InputError1
 ! ************************************************************************** !
 
 function InputError2(ierr)
-  ! 
+  !
   ! Returns true if an error has occurred
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/10/08
-  ! 
+  !
 
   implicit none
 
   PetscErrorCode :: ierr
-  
+
   PetscBool :: InputError2
 
   if (ierr == 0) then
@@ -1759,14 +1760,54 @@ end function InputError2
 
 ! ************************************************************************** !
 
-subroutine InputGetCommandLineInt(string,int_value,found,option)
-  ! 
+subroutine InputGetCommandLineIndex(string,found,index)
+  !
   ! Returns integer value associated with a command
   ! line argument
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/05/09
-  ! 
+  !
+
+  use String_module
+  use Option_module
+
+  implicit none
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: found
+  PetscInt :: index
+
+  PetscInt :: iarg, narg
+  character(len=MAXSTRINGLENGTH) :: string2
+
+  narg = getCommandLineArgumentCount()
+  string = adjustl(string)
+  found = PETSC_FALSE
+  index = -1
+  do iarg = 1, narg
+    call getCommandLineArgument(iarg,string2)
+    if (StringCompare(string,string2)) then
+      found = PETSC_TRUE
+      if (iarg+1 <= narg) then
+        index = iarg+1
+      endif
+      exit
+    endif
+  enddo
+
+end subroutine InputGetCommandLineIndex
+
+! ************************************************************************** !
+
+subroutine InputGetCommandLineInt(string,int_value,found,option)
+  !
+  ! Returns integer value associated with a command
+  ! line argument
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/05/09
+  !
 
   use String_module
   use Option_module
@@ -1778,50 +1819,43 @@ subroutine InputGetCommandLineInt(string,int_value,found,option)
   PetscBool :: found
   PetscInt :: int_value
 
-  PetscInt :: iarg, narg
+  PetscInt :: index
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
-  
+
   ierr = 0
   ! do not initialize int_value, as it may already have a value
-  found = PETSC_FALSE
-  narg = getCommandLineArgumentCount()
-  string = adjustl(string)
-  do iarg = 1, narg
-    call getCommandLineArgument(iarg,string2)
-    if (StringCompare(string,string2)) then
-      found = PETSC_TRUE
-      if (iarg+1 <= narg) then
-        call getCommandLineArgument(iarg+1,string2)
-        call InputReadInt(string2,option,int_value,ierr)
-      else
-        ierr = 1
-      endif
-      if (InputError(ierr)) then
-        option%io_buffer = 'Integer argument for command line argument "' // &
-                           trim(adjustl(string)) // '" not found.'
-        call PrintErrMsg(option)
-      endif
-      exit
+  call InputGetCommandLineIndex(string,found,index)
+  if (found) then
+    if (index > 0) then
+      call getCommandLineArgument(index,string2)
+      call InputReadInt(string2,option,int_value,ierr)
+    else
+      ierr = 1
     endif
-  enddo
-  
+    if (InputError(ierr)) then
+      option%io_buffer = 'Integer argument for command line argument "' // &
+                         trim(adjustl(string)) // '" not found.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
 end subroutine InputGetCommandLineInt
 
 ! ************************************************************************** !
 
 subroutine InputGetCommandLineReal(string,double_value,found,option)
-  ! 
+  !
   ! Returns real*8 value associated with a command
   ! line argument
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/05/09
-  ! 
+  !
 
   use String_module
   use Option_module
-  
+
   implicit none
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1829,50 +1863,43 @@ subroutine InputGetCommandLineReal(string,double_value,found,option)
   PetscBool :: found
   PetscReal :: double_value
 
-  PetscInt :: iarg, narg
+  PetscInt :: index
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
-  
+
   ierr = 0
-  ! do not initialize int_value, as it may already have a value
-  found = PETSC_FALSE
-  narg = getCommandLineArgumentCount()
-  string = adjustl(string)
-  do iarg = 1, narg
-    call getCommandLineArgument(iarg,string2)
-    if (StringCompare(string,string2)) then
-      found = PETSC_TRUE
-      if (iarg+1 <= narg) then
-        call getCommandLineArgument(iarg+1,string2)
-        call InputReadDouble(string2,option,double_value,ierr)
-      else
-        ierr = 1
-      endif
-      if (InputError(ierr)) then
-        option%io_buffer = 'Real argument for command line argument "' // &
-                           trim(adjustl(string)) // '" not found.'
-        call PrintErrMsg(option)
-      endif
-      exit
+  ! do not initialize double_value, as it may already have a value
+  call InputGetCommandLineIndex(string,found,index)
+  if (found) then
+    if (index > 0) then
+      call getCommandLineArgument(index,string2)
+      call InputReadDouble(string2,option,double_value,ierr)
+    else
+      ierr = 1
     endif
-  enddo
-  
+    if (InputError(ierr)) then
+      option%io_buffer = 'Real argument for command line argument "' // &
+                         trim(adjustl(string)) // '" not found.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
 end subroutine InputGetCommandLineReal
 
 ! ************************************************************************** !
 
 subroutine InputGetCommandLineString(string,string_value,found,option)
-  ! 
+  !
   ! Returns a string associated with a command
   ! line argument
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/05/09
-  ! 
+  !
 
   use String_module
   use Option_module
-  
+
   implicit none
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1880,59 +1907,52 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
   PetscBool :: found
   character(len=MAXSTRINGLENGTH) :: string_value
 
-  PetscInt :: iarg, narg
+  PetscInt :: index
   character(len=MAXSTRINGLENGTH) :: string2
   PetscErrorCode :: ierr
-  
+
   ierr = 0
-  ! do not initialize int_value, as it may already have a value
-  found = PETSC_FALSE
-  narg = getCommandLineArgumentCount()
-  string = adjustl(string)
-  do iarg = 1, narg
-    call getCommandLineArgument(iarg,string2)
-    if (StringCompare(string,string2)) then
-      found = PETSC_TRUE
-      if (iarg+1 <= narg) then
-        call getCommandLineArgument(iarg+1,string2)
-        call InputReadNChars(string2,string_value,MAXSTRINGLENGTH, &
-                             PETSC_TRUE,ierr)
-        if (string_value(1:1) == '-') then
-          ! no argument exists
-          option%io_buffer = 'String argument (' // &
-                             trim(adjustl(string_value)) // & 
-                             ') for command line argument "' // &
-                             trim(adjustl(string)) // '" not recognized.'
-          call PrintErrMsg(option)
-        endif
-      else
-        ierr = 1
-      endif
-      if (InputError(ierr)) then
-        option%io_buffer = 'String argument for command line argument "' // &
-                           trim(adjustl(string)) // '" not found.'
+  ! do not initialize double_value, as it may already have a value
+  call InputGetCommandLineIndex(string,found,index)
+  if (found) then
+    if (index > 0) then
+      call getCommandLineArgument(index,string2)
+      call InputReadNChars(string2,string_value,MAXSTRINGLENGTH, &
+                           PETSC_TRUE,ierr)
+      if (string_value(1:1) == '-') then
+        ! no argument exists
+        option%io_buffer = 'String argument (' // &
+                            trim(adjustl(string_value)) // &
+                            ') for command line argument "' // &
+                            trim(adjustl(string)) // '" not recognized.'
         call PrintErrMsg(option)
       endif
-      exit
+    else
+      ierr = 1
     endif
-  enddo
-  
+    if (InputError(ierr)) then
+      option%io_buffer = 'String argument for command line argument "' // &
+                         trim(adjustl(string)) // '" not found.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
 end subroutine InputGetCommandLineString
 
 ! ************************************************************************** !
 
 subroutine InputGetCommandLineTruth(string,truth_value,found,option)
-  ! 
+  !
   ! Returns logical associated with a command
   ! line argument
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/05/09
-  ! 
+  !
 
   use String_module
   use Option_module
-  
+
   implicit none
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1940,68 +1960,62 @@ subroutine InputGetCommandLineTruth(string,truth_value,found,option)
   PetscBool :: found
   PetscBool :: truth_value
 
-  PetscInt :: iarg, narg
+  PetscInt :: index
   character(len=MAXSTRINGLENGTH) :: string2
   character(len=MAXWORDLENGTH) :: word
   PetscErrorCode :: ierr
-  
+
   ierr = 0
-  ! do not initialize int_value, as it may already have a value
-  found = PETSC_FALSE
-  narg = getCommandLineArgumentCount()
-  string = adjustl(string)
-  do iarg = 1, narg
-    call getCommandLineArgument(iarg,string2)
-    if (StringCompare(string,string2)) then
-      found = PETSC_TRUE
-      if (iarg+1 <= narg) then
-        call getCommandLineArgument(iarg+1,string2)
-        call InputReadWord(string2,word,PETSC_TRUE,ierr)
-      else
-        ! check if no argument exists, which is valid and means 'true'
-        truth_value = PETSC_TRUE
-        exit
-      endif    
-      if (word(1:1) == '-') then
-        ! no argument exists, which is valid and means 'true'
-        truth_value = PETSC_TRUE
-        exit
-      endif
-      call StringToUpper(word)
-      select case(trim(word))
-        case('YES','TRUE','1','ON')
-          truth_value = PETSC_TRUE
-        case('NO','FALSE','0','OFF')
-          truth_value = PETSC_FALSE
-        case default
-          option%io_buffer = 'Truth argument for command line argument "' // &
-                             trim(adjustl(string)) // '" not recognized.'
-          call PrintErrMsg(option)
-      end select
+  ! do not initialize double_value, as it may already have a value
+  call InputGetCommandLineIndex(string,found,index)
+  if (found) then
+    if (index > 0) then
+      call getCommandLineArgument(index,string2)
+      call InputReadWord(string2,word,PETSC_TRUE,ierr)
+    else
+      ! check if no argument exists, which is valid and means 'true'
+      truth_value = PETSC_TRUE
+      return
     endif
-  enddo
-  
+    if (word(1:1) == '-') then
+      ! no argument exists, which is valid and means 'true'
+      truth_value = PETSC_TRUE
+      return
+    endif
+    call StringToUpper(word)
+    select case(trim(word))
+      case('YES','TRUE','1','ON')
+        truth_value = PETSC_TRUE
+      case('NO','FALSE','0','OFF')
+        truth_value = PETSC_FALSE
+      case default
+        option%io_buffer = 'Truth argument for command line argument "' // &
+                            trim(adjustl(string)) // '" not recognized.'
+        call PrintErrMsg(option)
+    end select
+  endif
+
 end subroutine InputGetCommandLineTruth
 
 ! ************************************************************************** !
 
 function getCommandLineArgumentCount()
-  ! 
+  !
   ! Returns the number of command line arguments
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/05/10
-  ! 
+  !
 
   implicit none
-  
+
   integer :: iargc
-  
+
   PetscInt :: getCommandLineArgumentCount
-  
+
   ! initialize to zero
   getCommandLineArgumentCount = 0
-  
+
 #if defined(PETSC_HAVE_FORTRAN_GET_COMMAND_ARGUMENT)
   getCommandLineArgumentCount = command_argument_count()
 #elif defined(PETSC_HAVE_GETARG)
@@ -2013,15 +2027,15 @@ end function getCommandLineArgumentCount
 ! ************************************************************************** !
 
 subroutine getCommandLineArgument(i,arg)
-  ! 
+  !
   ! Returns the ith command line argument
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/05/10
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: i
   character(len=*) :: arg
 
@@ -2039,12 +2053,12 @@ end subroutine getCommandLineArgument
 ! ************************************************************************** !
 
 subroutine InputReadFilenames(option,filenames)
-  ! 
+  !
   ! Reads filenames for multi-simulation runs
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/11/09
-  ! 
+  !
 
   use Option_module
 
@@ -2060,7 +2074,7 @@ subroutine InputReadFilenames(option,filenames)
   input => InputCreate(IN_UNIT,option%input_filename,option)
 
   string = "FILENAMES"
-  call InputFindStringInFile(input,option,string) 
+  call InputFindStringInFile(input,option,string)
 
   card_found = PETSC_FALSE
   if (InputError(input)) then
@@ -2070,30 +2084,30 @@ subroutine InputReadFilenames(option,filenames)
   else
     card_found = PETSC_TRUE
   endif
-    
-  filename_count = 0     
+
+  filename_count = 0
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
     call InputReadFilename(input,option,filename)
     filename_count = filename_count + 1
   enddo
-  
+
   allocate(filenames(filename_count))
   filenames = ''
   call InputRewind(input)
 
   if (card_found) then
     string = "FILENAMES"
-    call InputFindStringInFile(input,option,string) 
+    call InputFindStringInFile(input,option,string)
   endif
-  
-  filename_count = 0     
+
+  filename_count = 0
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
     call InputReadFilename(input,option,filename)
     filename_count = filename_count + 1
     filenames(filename_count) = filename
@@ -2110,7 +2124,7 @@ function InputGetLineCount(input,option)
   use String_module
 
   implicit none
-  
+
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -2147,7 +2161,7 @@ function InputGetLineCount(input,option)
       call InputReadWord(input,option,word,PETSC_TRUE)
       ! push a new input file to stack
       call InputPushExternalFile(input,option)
-    endif 
+    endif
 #else
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -2166,7 +2180,7 @@ subroutine InputReadToBuffer(input, buffer, option)
   use String_module
 
   implicit none
-  
+
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: buffer(:)
   type(option_type) :: option
@@ -2202,7 +2216,7 @@ subroutine InputReadToBuffer(input, buffer, option)
       call InputReadWord(input,option,word,PETSC_TRUE)
       ! push a new input file to stack
       call InputPushExternalFile(input,option)
-    endif 
+    endif
 #else
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -2216,17 +2230,17 @@ end subroutine InputReadToBuffer
 ! ************************************************************************** !
 
 subroutine InputReadASCIIDbase(filename,option)
-  ! 
+  !
   ! Read in an ASCII database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   character(len=*) :: filename
   type(option_type) :: option
 
@@ -2241,9 +2255,9 @@ subroutine InputReadASCIIDbase(filename,option)
   PetscInt :: value_type
   PetscInt :: num_values_in_dataset
   PetscInt :: num_words, num_ints, num_reals
-  
+
   input => InputCreate(IUNIT_TEMP,filename,option)
-  
+
   icount = 0
   num_values_in_dataset = 0
   num_ints = 0
@@ -2300,7 +2314,7 @@ subroutine InputReadASCIIDbase(filename,option)
   endif
   allocate(words(num_values_in_dataset))
   words = ''
-  
+
   call InputRewind(input)
   allocate(dbase)
   nullify(dbase%icard)
@@ -2381,24 +2395,24 @@ subroutine InputReadASCIIDbase(filename,option)
     endif
   enddo
   deallocate(words)
-  
+
   call InputDestroy(input)
-  
+
 end subroutine InputReadASCIIDbase
 
 ! ************************************************************************** !
 
 subroutine InputParseDbaseForInt(buffer,value,found,ierr)
-  ! 
+  !
   ! Parses database for an integer value
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXSTRINGLENGTH) :: buffer
   PetscInt :: value
   PetscBool :: found
@@ -2407,7 +2421,7 @@ subroutine InputParseDbaseForInt(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer_save
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: dbase_keyword = 'DBASE_VALUE'
-  
+
   buffer_save = buffer
   found = PETSC_FALSE
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
@@ -2420,22 +2434,22 @@ subroutine InputParseDbaseForInt(buffer,value,found,ierr)
   else
     buffer = buffer_save
   endif
-  
+
 end subroutine InputParseDbaseForInt
 
 ! ************************************************************************** !
 
 subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
-  ! 
+  !
   ! Parses database for an double precision value
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXSTRINGLENGTH) :: buffer
   PetscReal :: value
   PetscBool :: found
@@ -2444,7 +2458,7 @@ subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer_save
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: dbase_keyword = 'DBASE_VALUE'
-  
+
   buffer_save = buffer
   found = PETSC_FALSE
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
@@ -2457,22 +2471,22 @@ subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
   else
     buffer = buffer_save
   endif
-  
+
 end subroutine InputParseDbaseForDouble
 
 ! ************************************************************************** !
 
 subroutine InputParseDbaseForWord(buffer,value,found,ierr)
-  ! 
+  !
   ! Parses database for a word
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/22/16
-  ! 
+  !
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXSTRINGLENGTH) :: buffer
   character(len=MAXWORDLENGTH) :: value
   PetscBool :: found
@@ -2481,7 +2495,7 @@ subroutine InputParseDbaseForWord(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer_save
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: dbase_keyword = 'DBASE_VALUE'
-  
+
   buffer_save = buffer
   found = PETSC_FALSE
   call InputReadWord(buffer,word,PETSC_TRUE,ierr)
@@ -2494,33 +2508,33 @@ subroutine InputParseDbaseForWord(buffer,value,found,ierr)
   else
     buffer = buffer_save
   endif
-  
+
 end subroutine InputParseDbaseForWord
 
 ! ************************************************************************** !
 
 subroutine DbaseLookupInt(keyword,value,ierr)
-  ! 
+  !
   ! Looks up double precision value in database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   PetscInt :: value
   PetscErrorCode :: ierr
-  
+
   PetscInt :: i
   PetscBool :: found
 
   ierr = 0
-  
+
   call StringToUpper(keyword)
-  
+
   found = PETSC_FALSE
   if (associated(dbase%icard)) then
     do i = 1, size(dbase%icard)
@@ -2531,37 +2545,37 @@ subroutine DbaseLookupInt(keyword,value,ierr)
       endif
     enddo
   endif
-  
+
   if (.not.found) then
     ierr = 1
   endif
-  
+
 end subroutine DbaseLookupInt
 
 ! ************************************************************************** !
 
 subroutine DbaseLookupDouble(keyword,value,ierr)
-  ! 
+  !
   ! Looks up double precision value in database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   PetscReal :: value
   PetscErrorCode :: ierr
-  
+
   PetscInt :: i
   PetscBool :: found
 
   ierr = 0
-  
+
   call StringToUpper(keyword)
-  
+
   found = PETSC_FALSE
   if (associated(dbase%rcard)) then
     do i = 1, size(dbase%rcard)
@@ -2572,37 +2586,37 @@ subroutine DbaseLookupDouble(keyword,value,ierr)
       endif
     enddo
   endif
-  
+
   if (.not.found) then
     ierr = 1
   endif
-  
+
 end subroutine DbaseLookupDouble
 
 ! ************************************************************************** !
 
 subroutine DbaseLookupWord(keyword,value,ierr)
-  ! 
+  !
   ! Looks up double precision value in database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use String_module
-  
+
   implicit none
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: value
   PetscErrorCode :: ierr
-  
+
   PetscInt :: i
   PetscBool :: found
 
   ierr = 0
-  
+
   call StringToUpper(keyword)
-  
+
   found = PETSC_FALSE
   if (associated(dbase%ccard)) then
     do i = 1, size(dbase%ccard)
@@ -2613,26 +2627,26 @@ subroutine DbaseLookupWord(keyword,value,ierr)
       endif
     enddo
   endif
-  
+
   if (.not.found) then
     ierr = 1
   endif
-  
+
 end subroutine DbaseLookupWord
 
 ! ************************************************************************** !
 
 subroutine InputKeywordUnrecognized1(input,keyword,string,option)
-  ! 
+  !
   ! Looks up double precision value in database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   type(input_type) :: input
   character(len=*) :: keyword
   character(len=*) :: string
@@ -2640,30 +2654,30 @@ subroutine InputKeywordUnrecognized1(input,keyword,string,option)
 
   character(len=1) :: null_string
 
-  null_string = '' 
+  null_string = ''
   call InputKeywordUnrecognized2(input,keyword,string,null_string,option)
-  
+
 end subroutine InputKeywordUnrecognized1
 
 ! ************************************************************************** !
 
 subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
-  ! 
+  !
   ! Looks up double precision value in database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   type(input_type) :: input
   character(len=*) :: keyword
   character(len=*) :: string
   character(len=*) :: string2
   type(option_type) :: option
-  
+
   call InputPrintKeywordLog(input,option,PETSC_TRUE)
   option%io_buffer = 'Keyword "' // &
                      trim(keyword) // &
@@ -2674,49 +2688,49 @@ subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
                      trim(string2) // '.'
   endif
   call PrintErrMsg(option)
-  
+
 end subroutine InputKeywordUnrecognized2
 
 ! ************************************************************************** !
 
 subroutine InputKeywordDeprecated(old_keyword,new_keyword,option)
-  ! 
+  !
   ! Prints an error message indicated that an keyword has been deprecated
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/16/20
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   character(len=*) :: old_keyword
   character(len=*) :: new_keyword
   type(option_type) :: option
-  
+
   option%io_buffer = 'Keyword "' // trim(adjustl(old_keyword)) // &
     '" has been deprecated. Please use "' // trim(adjustl(new_keyword)) // &
     '" instead.'
   call PrintErrMsg(option)
-  
+
 end subroutine InputKeywordDeprecated
 
 ! ************************************************************************** !
 
 subroutine InputCheckMandatoryUnits(input,option)
-  ! 
+  !
   ! Looks up double precision value in database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   type(input_type) :: input
   type(option_type) :: option
-  
+
   if (input%force_units) then
     call InputPrintKeywordLog(input,option,PETSC_TRUE)
     option%io_buffer = 'Missing units'
@@ -2727,24 +2741,24 @@ subroutine InputCheckMandatoryUnits(input,option)
     endif
     call PrintErrMsg(option)
   endif
-  
+
 end subroutine InputCheckMandatoryUnits
 
 ! ************************************************************************** !
 
 subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
                                     keyword_string,option)
-  ! 
+  !
   ! Reads units if they exist and returns the units conversion factor.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/26/16
-  ! 
+  !
   use Option_module
   use Units_module
-  
+
   implicit none
-  
+
   type(input_type) :: input
   PetscReal :: double_value
   character(len=*) :: internal_units
@@ -2770,25 +2784,25 @@ subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
     string = trim(keyword_string) // ' units'
     call InputDefaultMsg(input,option,string)
   endif
-  
+
 end subroutine InputReadAndConvertUnits
 
 ! ************************************************************************** !
 
 function UnitReadAndConversionFactor(input,internal_units, &
                                      keyword_string,option)
-  ! 
+  !
   ! Reads units if they exist and returns the units conversion factor.
   ! If force_unit == true throws an error if units are not present
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 07/27/17
-  ! 
+  !
   use Option_module
   use Units_module
-  
+
   implicit none
- 
+
   type(input_type) :: input
   character(len=*) :: internal_units
   character(len=*) :: keyword_string
@@ -2818,31 +2832,31 @@ function UnitReadAndConversionFactor(input,internal_units, &
     call InputDefaultMsg(input,option,string)
     UnitReadAndConversionFactor = 1.0d0
   endif
-  
+
 end function UnitReadAndConversionFactor
 
 ! ************************************************************************** !
 
 subroutine InputPushExternalFile(input,option)
-  ! 
+  !
   ! Looks up double precision value in database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
+  !
   use Option_module
-  
+
   implicit none
-  
+
   type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
   type(input_type), pointer :: input_child
-  
+
   call InputReadFilename(input,option,string)
   call InputErrorMsg(input,option,'filename','EXTERNAL_FILE')
-  input_child => InputCreate(input,string,option) 
+  input_child => InputCreate(input,string,option)
   input_child%parent => input
   input => input_child
 
@@ -2851,20 +2865,20 @@ end subroutine InputPushExternalFile
 ! ************************************************************************** !
 
 function InputPopExternalFile(input)
-  ! 
+  !
   ! Looks up double precision value in database
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/19/14
-  ! 
-  
+  !
+
   implicit none
-  
+
   type(input_type), pointer :: input
 
   PetscBool :: InputPopExternalFile
   type(input_type), pointer :: input_parent
-  
+
   InputPopExternalFile = PETSC_FALSE
   if (associated(input%parent)) then
     input_parent => input%parent
@@ -2879,12 +2893,12 @@ end function InputPopExternalFile
 ! ************************************************************************** !
 
 subroutine InputCloseNestedFiles(input)
-  ! 
+  !
   ! Closes all files opened through the EXTERNAL_FILE cards.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/27/17
-  ! 
+  !
   implicit none
 
   type(input_type), pointer :: input
@@ -2905,13 +2919,13 @@ end subroutine InputCloseNestedFiles
 ! ************************************************************************** !
 
 subroutine InputRewind(input)
-  ! 
-  ! Rewinds the input deck taking into count the EXTERNAL_FILE card 
+  !
+  ! Rewinds the input deck taking into count the EXTERNAL_FILE card
   ! capability.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/27/17
-  ! 
+  !
   implicit none
 
   type(input_type), pointer :: input
@@ -2924,18 +2938,44 @@ end subroutine InputRewind
 
 ! ************************************************************************** !
 
-subroutine InputDbaseDestroy()
+subroutine InputCheckKeywordBlockCount(option)
   ! 
-  ! Destroys the input dbase and members
+  ! Checks to ensure that the number of entered blocks due to nesting of 
+  ! keyword blocks in the input file is zero at the end of reading.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 08/20/14
+  ! Date: 02/17/21
   ! 
+  use Option_module
 
   implicit none
-  
+
+  type(option_type) :: option
+
+  if (option%keyword_block_count /= 0) then
+    write(option%io_buffer,*) option%keyword_block_count
+    option%io_buffer = 'Non-zero input block count (' // &
+      trim(adjustl(option%io_buffer)) // '). Please email this message &
+      &and your input deck to pflotran-dev@googlegroups.com'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine InputCheckKeywordBlockCount
+
+! ************************************************************************** !
+
+subroutine InputDbaseDestroy()
+  !
+  ! Destroys the input dbase and members
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/20/14
+  !
+
+  implicit none
+
   if (associated(dbase)) then
-    ! due to circular dependencies, cannot use Utilty_module::DeallocateArray 
+    ! due to circular dependencies, cannot use Utilty_module::DeallocateArray
     if (associated(dbase%icard)) deallocate(dbase%icard)
     nullify(dbase%icard)
     if (associated(dbase%rcard)) deallocate(dbase%rcard)
@@ -2951,58 +2991,58 @@ subroutine InputDbaseDestroy()
     deallocate(dbase)
     nullify(dbase)
   endif
-  
+
 end subroutine InputDbaseDestroy
 
 ! ************************************************************************** !
 
 subroutine InputDestroySingleLevel(input)
-  ! 
+  !
   ! Deallocates a single input object within a linked list of nested
   ! input objects.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 09/27/17
-  ! 
+  !
 
   implicit none
-  
+
   type(input_type), pointer :: input
-  
+
   if (input%fid /= 0) close(input%fid)
   input%fid = 0
   input%line_number = 0
   deallocate(input)
   nullify(input)
-  
+
 end subroutine InputDestroySingleLevel
 
 ! ************************************************************************** !
 
 recursive subroutine InputDestroy(input)
-  ! 
-  ! Deallocates all input objects, included those in a nestd linked list 
+  !
+  ! Deallocates all input objects, included those in a nestd linked list
   ! created due to the EXTERNAL_FILE capability.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/10/08, 09/27/17
-  ! 
+  !
 
   implicit none
-  
+
   type(input_type), pointer :: input
 
   ! destroy any parents first
   if (associated(input%parent)) then
     call InputDestroy(input%parent)
   endif
-  
+
   if (input%fid /= 0) close(input%fid)
   input%fid = 0
   input%line_number = 0
   deallocate(input)
   nullify(input)
-  
+
 end subroutine InputDestroy
 
 end module Input_Aux_module

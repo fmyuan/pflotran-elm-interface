@@ -406,8 +406,6 @@ subroutine PMNWTInitializeTimestep(this)
     
   this%option%tran_dt = this%option%dt
 
-  call PMBasePrintHeader(this)
-  
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! NWTInitializeTimestep and NWTTimeCut (which calls NWTInitializeTimestep)

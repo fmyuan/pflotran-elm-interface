@@ -64,6 +64,7 @@ subroutine HydrateSetup(realization)
   PetscInt :: i, idof, count, ndof
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
@@ -86,12 +87,12 @@ subroutine HydrateSetup(realization)
   
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil heat capacity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
-    call PrintMsg(option)
+    call PrintMsgByRank(option)
     error_found = PETSC_TRUE
   endif
   
@@ -105,33 +106,36 @@ subroutine HydrateSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'ERROR: Non-initialized tortuosity.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'ERROR: Non-initialized soil particle density.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       flag(5) = 1
     endif
   enddo
   
-  if (error_found .or. maxval(flag) > 0) then
+  error_found = error_found .or. (maxval(flag) > 0)
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (error_found) then
     option%io_buffer = 'Material property errors found in HydrateSetup.'
     call PrintErrMsg(option)
   endif
@@ -711,7 +715,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
                        patch%characteristic_curves_array( &
-                         patch%sat_func_id(ghosted_id))%ptr, &
+                         patch%cc_id(ghosted_id))%ptr, &
                        natural_id, &
                        option)
     if (update_state) then
@@ -720,7 +724,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                     global_auxvars(ghosted_id), &
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
-                                      patch%sat_func_id(ghosted_id))%ptr, &
+                                      patch%cc_id(ghosted_id))%ptr, &
                                     natural_id, option)
     endif
   enddo
@@ -872,7 +876,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                  patch%cc_id(ghosted_id))%ptr, &
                                 natural_id, &
                                 option)
       ! update state and update aux var; this could result in two update to
@@ -881,7 +885,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                     global_auxvars_bc(sum_connection), &
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
-                                      patch%sat_func_id(ghosted_id))%ptr, &
+                                      patch%cc_id(ghosted_id))%ptr, &
                                     natural_id,option)
     enddo
     boundary_condition => boundary_condition%next
@@ -998,7 +1002,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                 global_auxvar_ss, &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                patch%sat_func_id(source_sink%region% &
+                                patch%cc_id(source_sink%region% &
                                 cell_ids(1)))%ptr, &
                                 source_sink%region%cell_ids(1), &
                                 option)
@@ -1084,13 +1088,13 @@ subroutine HydrateUpdateFixedAccum(realization)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               patch%characteristic_curves_array( &
-                                patch%sat_func_id(ghosted_id))%ptr, &
+                                patch%cc_id(ghosted_id))%ptr, &
                               natural_id, &
                               option)
     call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id),patch%grid% &
-                             z(ghosted_id),maxval(grid%z), &
+                             z(ghosted_id),grid%z_max_global, &
                              hydrate_parameter,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
@@ -1177,7 +1181,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
-  PetscInt :: icap_up, icap_dn
+  PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal :: Jac_dummy(realization%option%nflowdof, &
                          realization%option%nflowdof)
@@ -1293,8 +1297,8 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
       imat_dn = patch%imat(ghosted_id_dn) 
       if (imat_up <= 0 .or. imat_dn <= 0) cycle
 
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
 
       call HydrateFlux(hyd_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
@@ -1358,7 +1362,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call HydrateBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
@@ -1540,7 +1544,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: norm
   PetscViewer :: viewer
 
-  PetscInt :: icap_up,icap_dn
+  PetscInt :: icc_up,icc_dn
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
   PetscInt :: local_id, ghosted_id, natural_id
@@ -1610,7 +1614,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                  patch%cc_id(ghosted_id))%ptr, &
                                 natural_id,option)
     enddo
   endif
@@ -1624,7 +1628,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
     call HydrateAccumDerivative(hyd_auxvars(:,ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
-                              grid%z(ghosted_id),maxval(grid%z), &
+                              grid%z(ghosted_id),grid%z_max_global, &
                               hydrate_parameter, &
                               material_parameter%soil_heat_capacity(imat), &
                               option,Jup) 
@@ -1663,8 +1667,8 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
    
-      icap_up = patch%sat_func_id(ghosted_id_up)
-      icap_dn = patch%sat_func_id(ghosted_id_dn)
+      icc_up = patch%cc_id(ghosted_id_up)
+      icc_dn = patch%cc_id(ghosted_id_dn)
                               
       call HydrateFluxDerivative(hyd_auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
@@ -1730,7 +1734,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
         stop
       endif
 
-      icap_dn = patch%sat_func_id(ghosted_id)
+      icc_dn = patch%cc_id(ghosted_id)
 
       call HydrateBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &

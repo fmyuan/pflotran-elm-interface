@@ -61,11 +61,15 @@ module Grid_Unstructured_Aux_module
     PetscInt, pointer :: face_to_vertex(:,:)
     PetscInt, pointer :: cell_to_face_ghosted(:,:)
     PetscInt, pointer :: vertex_ids_natural(:)
-    PetscInt, pointer :: cell_neighbors_local_ghosted(:,:) ! local neighbors
+    PetscInt, pointer :: cell_neighbors_local_ghosted(:,:) ! see comment below 
+                            ! (0,local_id) = number of neighbors for local_id
+                            ! (iface=1:N,local_id) = ghosted_ids of neighbors
+                            ! ghosted neighbors have negative ghost_ids
     type(point3d_type), pointer :: vertices(:)
     type(point3d_type), pointer :: face_centroid(:)
     PetscReal, pointer :: face_area(:)
     PetscInt, pointer :: nat_ids_of_other_grid(:)
+    PetscBool :: project_face_area_along_normal
   end type grid_unstructured_type
   
   type, public :: unstructured_explicit_type
@@ -83,7 +87,7 @@ module Grid_Unstructured_Aux_module
     PetscInt :: output_mesh_type  ! Current options: VERTEX_CENTRED (default), CELL_CENTRED
     PetscInt, pointer :: cell_vertices(:,:)   
     type(point3d_type), pointer :: vertex_coordinates(:)
-    character(len=MAXWORDLENGTH) :: domain_filename
+    character(len=MAXSTRINGLENGTH) :: domain_filename
   end type unstructured_explicit_type
 
   type, public :: unstructured_polyhedra_type
@@ -275,6 +279,7 @@ function UGridCreate()
   nullify(unstructured_grid%nat_ids_of_other_grid)
 
   unstructured_grid%upwind_fraction_method = UGRID_UPWIND_FRACTION_PT_PROJ
+  unstructured_grid%project_face_area_along_normal = PETSC_TRUE
 
   UGridCreate => unstructured_grid
   

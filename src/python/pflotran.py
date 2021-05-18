@@ -1,6 +1,10 @@
 # pflotran.py
 import numpy as np
 import sys
+import re
+
+# this regular expression fixes: 9.99-100 -> 9.99e-100
+swap = re.compile(r'(?P<pre>[0-9]+\.[0-9]*)(?P<post>-[0-9]{3})')
 
 class FileType:
   NULL = -1
@@ -121,23 +125,22 @@ class Dataset:
           self.variables.append(variable)
           self.var_dict[variable] = i
       elif line.strip().startswith('ZONE'):
-        w = line.strip().split(',')
-        zone_name = w[0].split('=')[1]
-        self.title = zone_name.strip('"')
-        for i in range(len(w)):
-          if w[i].strip().startswith('DATAPACKING'):
-            s = w[i].split('=')[1]
-            if s.endswith('POINT'):
-              self.filetype = FileType.TECPLOT_POINT
-            elif s.endswith('BLOCK'):
-              self.filetype = FileType.TECPLOT_BLOCK
-            else:
-              print('Datapacking method undefined')
-              exit(0)
+        zone_dict = {}
+        for entry in line.lstrip('ZONE').strip().split(','):
+          w2 = entry.split('=',1)
+          zone_dict[w2[0].strip()] = w2[1].strip()
+        self.title = zone_dict['T'].strip('"')
+        if zone_dict['DATAPACKING'] == 'POINT':
+          self.filetype = FileType.TECPLOT_POINT
+        elif zone_dict['DATAPACKING'] == 'BLOCK':
+          self.filetype = FileType.TECPLOT_BLOCK
+        else:
+          print('Datapacking method undefined')
+          exit(0)
         if self.filetype == FileType.TECPLOT_BLOCK:
-          nx = int(w[1].split("=")[1])-1
-          ny = int(w[2].split("=")[1])-1
-          nz = int(w[3].split("=")[1])-1
+          nx = int(zone_dict['I'])-1
+          ny = int(zone_dict['J'])-1
+          nz = int(zone_dict['K'])-1
           if nz > 1:
             print('Tecplot BLOCK format is only supported for 2D problems in X-Y.')
             sys.exit()
@@ -154,7 +157,7 @@ class Dataset:
     for line in self.f:
       w = line.split()
       for i in range(len(w)):
-        temp_array[count] = float(w[i])
+        temp_array[count] = self.read_float(w[i])
         count += 1
       if count >= n:
         break
@@ -165,7 +168,7 @@ class Dataset:
     for line in self.f:
       w = line.split()
       for i in range(len(w)):
-        temp_array[count] = float(w[i])
+        temp_array[count] = self.read_float(w[i])
         count += 1
       if count >= n:
         break
@@ -176,7 +179,7 @@ class Dataset:
     for line in self.f:
       w = line.split()
       for i in range(len(w)):
-        temp_array[count] = float(w[i])
+        temp_array[count] = self.read_float(w[i])
         count += 1
       if count >= n:
         break
@@ -198,8 +201,8 @@ class Dataset:
         array2.resize(size)
       w = line.split()
       # xcol and ycol are 1-based
-      array1[count] = float(w[xcol])
-      array2[count] = float(w[ycol])
+      array1[count] = self.read_float(w[xcol])
+      array2[count] = self.read_float(w[ycol])
       count += 1
     array1.resize(count)
     array2.resize(count)
@@ -230,7 +233,7 @@ class Dataset:
     for line in self.f:
       w = line.split()
       for i in range(len(w)):
-        array[count] = float(w[i])
+        array[count] = self.read_float(w[i])
         count += 1
         if count >= n:
           break
@@ -240,3 +243,9 @@ class Dataset:
     self.dictionary['z'] = len(self.arrays)
     self.arrays.append(array)
     
+  def read_float(self,string):
+    try:
+      f = float(string)
+    except:
+      f = float(swap.sub('\g<pre>E\g<post>',string))
+    return f

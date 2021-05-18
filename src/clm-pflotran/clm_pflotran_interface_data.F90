@@ -74,8 +74,6 @@ module clm_pflotran_interface_data
   !       Note: CLM decomposes the domain across processors in a horizontal.
   !       Thus, nlclm_2dsub = nlclm_srf across all processors. Thus, there is
   !       no need for 'gflux_surf_clm'
-  !
-  Vec :: gflux_surf_pf   ! seq vec
 
   ! (iv) Saturation
   Vec :: sat_clm    ! seq vec
@@ -193,7 +191,6 @@ contains
     
     clm_pf_idata%gflux_subsurf_clm = PETSC_NULL_VEC
     clm_pf_idata%gflux_subsurf_pf = PETSC_NULL_VEC
-    clm_pf_idata%gflux_surf_pf = PETSC_NULL_VEC
 
     clm_pf_idata%sat_clm = PETSC_NULL_VEC
     clm_pf_idata%sat_pf = PETSC_NULL_VEC
@@ -270,11 +267,9 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%qflx_pf,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%gflux_subsurf_pf,ierr)
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%gflux_surf_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_temp_pf,ierr)
     call VecSet(clm_pf_idata%gflux_subsurf_pf,0.d0,ierr)
-    call VecSet(clm_pf_idata%gflux_surf_pf,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_pf,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_temp_pf,0.d0,ierr)
 
@@ -299,10 +294,6 @@ contains
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%bsw2_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%thetares2_pf,ierr)
 
-    ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
-    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_srf,PETSC_DECIDE,clm_pf_idata%h2osfc_pf,ierr)
-    call VecSet(clm_pf_idata%h2osfc_pf,0.d0,ierr)
-
     ! Create Seq. Vectors for CLM
     ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%sat_clm,ierr)
@@ -319,10 +310,6 @@ contains
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%watsat2_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%bsw2_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%thetares2_clm,ierr)
-
-    ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dsub,clm_pf_idata%h2osfc_clm,ierr)
-    call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
@@ -380,7 +367,6 @@ contains
     
     if(clm_pf_idata%gflux_subsurf_clm /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_subsurf_clm,ierr)
     if(clm_pf_idata%gflux_subsurf_pf  /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
-    if(clm_pf_idata%gflux_surf_pf     /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%gflux_surf_pf,ierr)
 
     if(clm_pf_idata%sat_clm           /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sat_clm,ierr)
     if(clm_pf_idata%sat_pf            /= PETSC_NULL_VEC) call VecDestroy(clm_pf_idata%sat_pf,ierr)
