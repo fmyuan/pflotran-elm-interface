@@ -129,6 +129,7 @@ contains
     use Factory_PFLOTRAN_module
     use Factory_Subsurface_module, only : FactorySubsurfaceInitialize
     use Factory_Geomechanics_module
+    use Factory_module
 
     implicit none
 
@@ -140,6 +141,7 @@ contains
     type(pflotran_model_type), pointer :: pflotranModelCreate
 
     type(pflotran_model_type),      pointer :: model
+    PetscErrorCode :: ierr
 
     allocate(model)
 
@@ -148,9 +150,6 @@ contains
     nullify(model%option)
 
     model%option => OptionCreate()
-    model%option%comm => CommCreate()
-    call CommInit(model%option%comm)
-    call OptionSetComm(model%option,model%option%comm)
     call FactoryPFLOTRANInitPrePetsc(model%multisimulation, model%option)
 
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
@@ -166,6 +165,9 @@ contains
       call PrintErrMsg(model%option)
     end if
 
+    call CommInitPetsc(model%option%comm,mpicomm)
+    call OptionSetComm(model%option,model%option%comm)
+    call Initialize()
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
@@ -2398,11 +2400,14 @@ end subroutine pflotranModelSetICs
     use Factory_PFLOTRAN_module, only : FactoryPFLOTRANFinalize
     use Option_module, only : OptionFinalize
     use Mapping_module, only : MappingDestroy
+    use Communicator_Aux_module
+    use Factory_module
 
     implicit none
 
     type(pflotran_model_type), pointer :: model
     PetscInt :: iflag
+    type(comm_type), pointer :: comm
 
     ! FIXME(bja, 2013-07) none of the mapping information appears to
     ! be cleaned up, so we are leaking memory....
@@ -2440,11 +2445,13 @@ end subroutine pflotranModelSetICs
 
     call FactoryPFLOTRANFinalize(model%option)
     iflag = model%option%exit_code
-    deallocate(model%option%comm)
+    call CommDestroy(model%option%comm)
     call OptionFinalize(model%option)
+    deallocate(model)
+    nullify(model)
+    call Finalize()
     call exit(iflag)
 
-    deallocate(model)
 
   end subroutine pflotranModelDestroy
   

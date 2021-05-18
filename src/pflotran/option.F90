@@ -1377,15 +1377,6 @@ subroutine OptionFinalize(option)
 
   type(option_type), pointer :: option
 
-  PetscInt :: iflag
-  PetscErrorCode :: ierr
-
-  call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
-                            '-options_left','no',ierr);CHKERRQ(ierr)
-  ! list any PETSc objects that have not been freed - for debugging
-  call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
-                            '-objects_left','yes',ierr);CHKERRQ(ierr)
-  call MPI_Barrier(option%comm%global_comm,ierr)
   call OptionDestroy(option)
 
 end subroutine OptionFinalize
