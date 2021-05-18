@@ -374,8 +374,8 @@ WASTE_FORM_GENERAL
     MASS           1.67040D+05 g
     SURFACE_AREA   2.37309D+04 dm^2
     EXPOSURE_LEVEL 9.93317D-01
-    C              3.4700D+07  mg/s-dm^2
-    Q              2.2675D+04  cal/mol
+    C              3.47000D+07 mg/s-dm^2
+    Q              2.26750D+04 cal/mol
   /
 
 END_WASTE_FORM_GENERAL
