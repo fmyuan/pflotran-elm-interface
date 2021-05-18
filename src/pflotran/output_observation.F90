@@ -1917,10 +1917,10 @@ subroutine ObservationAggComputeMetric(realization_base,aggregate,region,option)
   if (region%num_cells == 0) then
     select case(aggregate%metric)
       case(OBSERVATION_AGGREGATE_MAX)
-        aggregate%metric_value = -1.d20
+        aggregate%metric_value = -MAX_DOUBLE
         aggregate%local_id = 0
       case(OBSERVATION_AGGREGATE_MIN)
-        aggregate%metric_value = 1.d20
+        aggregate%metric_value = MAX_DOUBLE
         aggregate%local_id = 0
     end select
   else
