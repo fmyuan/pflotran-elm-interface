@@ -123,21 +123,22 @@ function bioTH_Create()
 end function bioTH_Create
 
 ! ************************************************************************** !
-SUBROUTINE bioTH_Read(this,input,option)
+subroutine bioTH_Read(this,input,option)
   ! 
   ! Reads input deck for reaction sandbox parameters
   ! 
   ! Author: Edwin Saavedra C.
-  ! Date: 10/01/2020
-  ! 
+  ! Date: 10/01/2020 - created
+  !       05/18/2020 - fixed formatting
+  !
 
-  USE Option_module
-  USE String_module
-  USE Input_Aux_module
-  USE Utility_module
-  USE Units_module, ONLY : UnitsConvertToInternal
+  use Option_module
+  use String_module
+  use Input_Aux_module
+  use Utility_module
+  use Units_module, only : UnitsConvertToInternal
   
-  IMPLICIT NONE
+  implicit none
 
   class(reaction_sandbox_bioTH_type) :: this
   type(input_type), pointer :: input
@@ -145,397 +146,400 @@ SUBROUTINE bioTH_Read(this,input,option)
 
   character(len=MAXWORDLENGTH) :: word, internal_units
 
-  CALL InputPushBlock(input,option)
-  DO 
-    CALL InputReadPflotranString(input,option)
-    IF (InputError(input)) EXIT
-    IF (InputCheckExit(input,option)) EXIT
+  call InputPushBlock(input,option)
+  do 
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
 
-    CALL InputReadCard(input,option,word)
-    CALL InputErrorMsg(input,option,'keyword', &
-                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
-    CALL StringToUpper(word)   
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'keyword', &
+           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
+    call StringToUpper(word)   
 
-    SELECT CASE(trim(word))
-      CASE('PARTICLE_NAME_AQ')
+    select case(trim(word))
+      case('PARTICLE_NAME_AQ')
         ! Bioparticle name while in suspension
-        CALL InputReadWord(input,option,this%name_aqueous,PETSC_TRUE)
-        CALL InputErrorMsg(input,option,'name_aqueous', &
-                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,NAMEAQ')
+        call InputReadWord(input,option,this%name_aqueous,PETSC_TRUE)
+        call InputErrorMsg(input,option,'PARTICLE_NAME_AQ', &
+               'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
       
-      CASE('PARTICLE_NAME_IM')
+      case('PARTICLE_NAME_IM')
         ! Bioparticle name while immobilized
-        CALL InputReadWord(input,option,this%name_immobile,PETSC_TRUE)  
-        CALL InputErrorMsg(input,option,'name_immobile', &
-                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,NAMEIM')
+        call InputReadWord(input,option,this%name_immobile,PETSC_TRUE)  
+        call InputErrorMsg(input,option,'PARTICLE_NAME_IM', &
+               'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
     
-      CASE('DECAY_AQUEOUS')
+      case('DECAY_AQUEOUS')
         ! Decay rate while in the aqueous phase
-        CALL InputReadWord(input,option,word,PETSC_TRUE)
-        CALL InputErrorMsg(input,option,'Which Aqueous decay', &
-                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQUEOUS')
-        SELECT CASE(trim(word))
-          CASE('CONSTANT')
-            CALL InputPushBlock(input,option)
-            DO
-              CALL InputReadPflotranString(input,option)
-              IF (InputError(input)) exit
-              IF (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'DECAY_AQUEOUS', &
+               'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
+        select case(trim(word))
+          case('CONSTANT')
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
               
-              CALL InputReadCard(input,option,word)
-              CALL InputErrorMsg(input,option,'LINE66', &
-                                 'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
-              CALL StringToUpper(word) 
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'CONSTANT', &
+                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQUEOUS')
+              call StringToUpper(word) 
 
-              SELECT CASE(trim(word))
-                CASE('VALUE')
+              select case(trim(word))
+                case('VALUE')
                 ! Read the double precision rate constant
-                  CALL InputReadDouble(input,option,this%decay_aqueous)
-                  CALL InputErrorMsg(input,option,'decay_aqueous', &
-                               'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,decayAq')
+                  call InputReadDouble(input,option,this%decay_aqueous)
+                  call InputErrorMsg(input,option,'VALUE', &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_AQUEOUS,CONSTANT')
                   ! Read the units
-                  CALL InputReadWord(input,option,word,PETSC_TRUE)
-                  IF (InputError(input)) then
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  if (InputError(input)) then
                   ! If units do not exist, assume default units of 1/s which are the
                   ! standard internal PFLOTRAN units for this rate constant.
-                    input%err_buf = 'REACTION_SANDBOX,BIOPARTICLE,RATE CONSTANT UNITS'
-                    CALL InputDefaultMsg(input,option)
-                  ELSE
+                    input%err_buf = 'REACTION_SANDBOX,BIOPARTICLE,&
+                                     &DECAY_AQUEOUS,RATE CONSTANT UNITS'
+                    call InputDefaultMsg(input,option)
+                  else
                     ! If units exist, convert to internal units of 1/s
                     internal_units = 'unitless/sec'
                     this%decay_aqueous = this%decay_aqueous * &
                       UnitsConvertToInternal(word,internal_units,option)
-                  ENDIF
-                CASE DEFAULT
-                  CALL InputKeywordUnrecognized(input,word, &
-                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE',option)
-              END SELECT
-            END DO
-            CALL InputPopBlock(input,option)
+                  endif
+                case default
+                  call InputKeywordUnrecognized(input,word, &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_AQUEOUS,CONSTANT',option)
+              end select
+            end do
+            call InputPopBlock(input,option)
 
-          CASE('TEMPERATURE_MODEL')
-            CALL InputPushBlock(input,option)
-            DO
-              CALL InputReadPflotranString(input,option)
-              IF (InputError(input)) exit
-              IF (InputCheckExit(input,option)) exit
+          case('TEMPERATURE_MODEL')
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
               
-              CALL InputReadCard(input,option,word)
-              CALL InputErrorMsg(input,option,'LINE105', &
-                                 'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
-              CALL StringToUpper(word) 
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'TEMPERATURE_MODEL', &
+                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQUEOUS')
+              call StringToUpper(word) 
 
-              SELECT CASE(trim(word))
-                CASE('TREF')
+              select case(trim(word))
+                case('TREF')
                 ! Reference temperature (Probably 4°C)
-                  CALL InputReadDouble(input,option,this%Tref_aqueous)
-                  CALL InputErrorMsg(input,option,'TrefAq', &
-                        'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQ_MODEL,TREF')
-          
-                CASE('ZT')
+                  call InputReadDouble(input,option,this%Tref_aqueous)
+                  call InputErrorMsg(input,option,'TREF',&
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_AQUEOUS,TEMPERATURE_MODEL')        
+                case('ZT')
                 ! Model parameter zT  
-                  CALL InputReadDouble(input,option,this%zT_aqueous)
-                  CALL InputErrorMsg(input,option,'decay_aqueous_zT', &
-                              'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQ_MODEL,ZT')
-
-                CASE('N')
+                  call InputReadDouble(input,option,this%zT_aqueous)
+                  call InputErrorMsg(input,option,'ZT', &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_AQUEOUS,TEMPERATURE_MODEL')
+                case('N')
                   ! Model parameter n (Probably 1.0 or 2.0 )  
                   call InputReadDouble(input,option,this%nAq_aqueous)
-                  call InputErrorMsg(input,option,'decay_aqueous_nAq', &
-                                'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLEDECAY_AQ_MODEL,N')
-
-                CASE('LOGDREF')
+                  call InputErrorMsg(input,option,'N', &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_AQUEOUS,TEMPERATURE_MODEL')
+                case('LOGDREF')
                 ! D reference value (Probably 2.3) 
-                  CALL InputReadDouble(input,option,this%logDref_aqueous)
-                  CALL InputErrorMsg(input,option,'decay_aqueous_logDref', &
-                              'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLEDECAY_AQ_MODEL,LOGDREF')
+                  call InputReadDouble(input,option,this%logDref_aqueous)
+                  call InputErrorMsg(input,option,'LOGDREF', &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_AQUEOUS,TEMPERATURE_MODEL')
+                case default
+                  call InputKeywordUnrecognized(input,word, &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_AQUEOUS,TEMPERATURE_MODEL',option)
+              end select
+            end do
+            call InputPopBlock(input,option)
 
-                ! Something else
-                CASE DEFAULT
-                  CALL InputKeywordUnrecognized(input,word, &
-                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQ_MODEL',option)
-              END SELECT
-            END DO
-            CALL InputPopBlock(input,option)
-
-          CASE DEFAULT
-            CALL InputKeywordUnrecognized(input,word, &
-                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,CASEhere',option)
-        END SELECT
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQUEOUS', &
+                    option)
+        end select
       
-      CASE('DECAY_ADSORBED')
-        ! Decay rate while in the aqueous phase
-        CALL InputReadWord(input,option,word,PETSC_TRUE)
-        CALL InputErrorMsg(input,option,'Which Aqueous decay', &
-                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQUEOUS')
-        SELECT CASE(trim(word))
-          CASE('CONSTANT')
-            CALL InputPushBlock(input,option)
-            DO
-              CALL InputReadPflotranString(input,option)
-              IF (InputError(input)) exit
-              IF (InputCheckExit(input,option)) exit
-              
-              CALL InputReadCard(input,option,word)
-              CALL InputErrorMsg(input,option,'LINE173', &
-                                 'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
-              CALL StringToUpper(word) 
+      case('DECAY_ADSORBED')
+        ! Decay rate while in the immobile phase
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'DECAY_ADSORBED', &
+               'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
+        select case(trim(word))
+          case('CONSTANT')
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit             
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'CONSTANT', &
+                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADSORBED')
+              call StringToUpper(word) 
 
-              SELECT CASE(trim(word))
-                CASE('VALUE')
+              select case(trim(word))
+                case('VALUE')
                 ! Read the double precision rate constant
-                  CALL InputReadDouble(input,option,this%decay_adsorbed)
-                  CALL InputErrorMsg(input,option,'decay_adsorbed', &
-                               'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,decayAq')
-                  
+                  call InputReadDouble(input,option,this%decay_adsorbed)
+                  call InputErrorMsg(input,option,'VALUE', &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_ADSORBED,CONSTANT')
                   ! Read the units
-                  CALL InputReadWord(input,option,word,PETSC_TRUE)
-                  IF (InputError(input)) then
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  if (InputError(input)) then
                   ! If units do not exist, assume default units of 1/s which are the
                   ! standard internal PFLOTRAN units for this rate constant.
-                    input%err_buf = 'REACTION_SANDBOX,BIOPARTICLE,RATE CONSTANT UNITS'
-                    CALL InputDefaultMsg(input,option)
-                  ELSE
+                    input%err_buf = 'REACTION_SANDBOX,BIOPARTICLE,&
+                                    &DECAY_ADSORBED,CONSTANT,VALUE,&
+                                    &RATE CONSTANT UNITS'
+                    call InputDefaultMsg(input,option)
+                  else
                     ! If units exist, convert to internal units of 1/s
                     internal_units = 'unitless/sec'
                     this%decay_adsorbed = this%decay_adsorbed * &
                       UnitsConvertToInternal(word,internal_units,option)
-                  ENDIF
-                CASE DEFAULT
-                  CALL InputKeywordUnrecognized(input,word, &
-                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE',option)
-              END SELECT
-            END DO
-            CALL InputPopBlock(input,option)
+                  endif
+                case default
+                  call InputKeywordUnrecognized(input,word, &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_ADSORBED,CONSTANT',option)
+              end select
+            end do
+            call InputPopBlock(input,option)
 
-          CASE('TEMPERATURE_MODEL')
-            CALL InputPushBlock(input,option)
-            DO
-              CALL InputReadPflotranString(input,option)
-              IF (InputError(input)) exit
-              IF (InputCheckExit(input,option)) exit
+          case('TEMPERATURE_MODEL')
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
               
-              CALL InputReadCard(input,option,word)
-              CALL InputErrorMsg(input,option,'LINE105', &
-                                 'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
-              CALL StringToUpper(word) 
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'TEMPERATURE_MODEL', &
+                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADSORBED')
+              call StringToUpper(word) 
 
-              SELECT CASE(trim(word))
-                CASE('TREF')
-                ! Reference temperature (Probably 4°C)
-                  CALL InputReadDouble(input,option,this%Tref_adsorbed)
-                  CALL InputErrorMsg(input,option,'TrefAds', &
-                        'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQ_MODEL,TREF')
-          
-                CASE('ZT')
-                ! Model parameter zT  
-                  CALL InputReadDouble(input,option,this%zT_adsorbed)
-                  CALL InputErrorMsg(input,option,'decay_adsorb_zT', &
-                              'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_AQ_MODEL,ZT')
-
-                CASE('N')
-                  ! Model parameter n (Probably 2.0)  
+              select case(trim(word))
+                case('TREF')
+                  call InputReadDouble(input,option,this%Tref_adsorbed)
+                  call InputErrorMsg(input,option,'TREF',&
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL')                
+                case('ZT')
+                  call InputReadDouble(input,option,this%zT_adsorbed)
+                  call InputErrorMsg(input,option,'ZT', &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL')      
+                case('N')
                   call InputReadDouble(input,option,this%nAq_adsorbed)
-                  call InputErrorMsg(input,option,'decay_ads_nAq', &
-                                'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLEDECAY_AQ_MODEL,N')
+                  call InputErrorMsg(input,option,'N', &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL')      
 
-                CASE('LOGDREF')
-                ! D reference value (Probably 2.3) 
-                  CALL InputReadDouble(input,option,this%logDref_adsorbed)
-                  CALL InputErrorMsg(input,option,'decay_ads_logDref', &
-                              'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLEDECAY_AQ_MODEL,LOGDREF')
+                case('LOGDREF')
+                  call InputReadDouble(input,option,this%logDref_adsorbed)
+                  call InputErrorMsg(input,option,'LOGDREF', &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL')      
+                case default
+                  call InputKeywordUnrecognized(input,word, &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_ADSORBED,TEMPERATURE_MODEL',option)
+              end select
+            end do
+            call InputPopBlock(input,option)
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                   'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADSORBED', &
+                   option)
+        end select
 
-                ! Something else
-                CASE DEFAULT
-                  CALL InputKeywordUnrecognized(input,word, &
-                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADS_MODEL',option)
-              END SELECT
-            END DO
-            CALL InputPopBlock(input,option)
-            
-          CASE DEFAULT
-            CALL InputKeywordUnrecognized(input,word, &
-                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,CASEhere2',option)
-        END SELECT
-
-      CASE('RATE_ATTACHMENT')
+      case('RATE_ATTACHMENT')
         ! Decay rate while in the aqueous phase
-        CALL InputReadWord(input,option,word,PETSC_TRUE)
-        CALL InputErrorMsg(input,option,'RATE_ATTACHMENT?', &
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'RATE_ATTACHMENT', &
+               'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
+        select case(trim(word))
+          case('CONSTANT')
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'CONSTANT', &
                            'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
                            &,RATE_ATTACHMENT')
-        SELECT CASE(trim(word))
-          CASE('CONSTANT')
-            CALL InputPushBlock(input,option)
-            DO
-              CALL InputReadPflotranString(input,option)
-              IF (InputError(input)) exit
-              IF (InputCheckExit(input,option)) exit
-              
-              CALL InputReadCard(input,option,word)
-              CALL InputErrorMsg(input,option,'CONSTANT?', &
-                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
-                           &,RATE_ATTACHMENT,CONSTANT')
-              CALL StringToUpper(word) 
+              call StringToUpper(word) 
 
-              SELECT CASE(trim(word))
-                CASE('VALUE')
+              select case(trim(word))
+                case('VALUE')
                 ! Read the double precision rate constant
-                  CALL InputReadDouble(input,option,this%rate_attachment)
-                  CALL InputErrorMsg(input,option,'VALUE?', &
+                  call InputReadDouble(input,option,this%rate_attachment)
+                  call InputErrorMsg(input,option,'VALUE', &
                            'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
-                           &,RATE_ATTACHMENT,CONSTANT,VALUE')                  
+                           &,RATE_ATTACHMENT,CONSTANT')                  
                   ! Read the units
-                  CALL InputReadWord(input,option,word,PETSC_TRUE)
-                  IF (InputError(input)) then
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  if (InputError(input)) then
                   ! If units do not exist, assume default units of 1/s which are the
                   ! standard internal PFLOTRAN units for this rate constant.
                     input%err_buf = 'RATE CONSTANT UNITS assumed as 1/s'
-                    CALL InputDefaultMsg(input,option)
-                  ELSE
+                    call InputDefaultMsg(input,option)
+                  else
                     ! If units exist, convert to internal units of 1/s
                     internal_units = 'unitless/sec'
                     this%rate_attachment = this%rate_attachment * &
                       UnitsConvertToInternal(word,internal_units,option)
-                  ENDIF
-                CASE DEFAULT
-                  CALL InputKeywordUnrecognized(input,word, &
-                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE',option)
-              END SELECT
-            END DO
-            CALL InputPopBlock(input,option)
+                  endif
+                case default
+                  call InputKeywordUnrecognized(input,word, &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &RATE_ATTACHMENT',option)
+              end select
+            end do
+            call InputPopBlock(input,option)
 
-          CASE('FILTRATION_MODEL')
-            CALL InputPushBlock(input,option)
-            DO
-              CALL InputReadPflotranString(input,option)
-              IF (InputError(input)) exit
-              IF (InputCheckExit(input,option)) exit
+          case('FILTRATION_MODEL')
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
               
-              CALL InputReadCard(input,option,word)
-              CALL InputErrorMsg(input,option,'FILTRATION_MODEL?', &
-                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
-                           &,FILTRATION_MODEL')
-              CALL StringToUpper(word) 
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'FILTRATION_MODEL', &
+                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
+              call StringToUpper(word) 
 
-              SELECT CASE(trim(word))
-                CASE('DIAMETER_COLLECTOR')
+              select case(trim(word))
+                case('DIAMETER_COLLECTOR')
                 ! Diameter of the collector, i.e., soil grain size [m]
-                  CALL InputReadDouble(input,option,this%diam_collector)
-                  CALL InputErrorMsg(input,option,'DIAMETER_COLLECTOR?', &
+                  call InputReadDouble(input,option,this%diam_collector)
+                  call InputErrorMsg(input,option,'DIAMETER_COLLECTOR', &
                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE, &
-                         &FILTRATION_MODEL,DIAMETER_COLLECTOR')
+                         &FILTRATION_MODEL')
           
-                CASE('DIAMETER_PARTICLE')
+                case('DIAMETER_PARTICLE')
                 ! Diameter of the bioparticle [m]
-                  CALL InputReadDouble(input,option,this%diam_particle)
-                  CALL InputErrorMsg(input,option,'DIAMETER_PARTICLE?', &
+                  call InputReadDouble(input,option,this%diam_particle)
+                  call InputErrorMsg(input,option,'DIAMETER_PARTICLE', &
                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE, &
-                         &FILTRATION_MODEL,DIAMETER_PARTICLE')
+                         &FILTRATION_MODEL')
                 
-                CASE('HAMAKER_CONSTANT')
+                case('HAMAKER_CONSTANT')
                 ! Hamaker constant particle-soil pair [Joules]
-                  CALL InputReadDouble(input,option,this%hamaker_constant)
-                  CALL InputErrorMsg(input,option,'HAMAKER_CONSTANT?', &
+                  call InputReadDouble(input,option,this%hamaker_constant)
+                  call InputErrorMsg(input,option,'HAMAKER_CONSTANT', &
                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE, &
-                         &FILTRATION_MODEL,HAMAKER_CONSTANT')
+                         &FILTRATION_MODEL')
 
-                CASE('DENSITY_PARTICLE')
+                case('DENSITY_PARTICLE')
                 ! Density of the bioparticles [kg/m3]
-                  CALL InputReadDouble(input,option,this%density_particle)
-                  CALL InputErrorMsg(input,option,'DENSITY_PARTICLE?', &
+                  call InputReadDouble(input,option,this%density_particle)
+                  call InputErrorMsg(input,option,'DENSITY_PARTICLE', &
                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE, &
-                         &FILTRATION_MODEL,DENSITY_PARTICLE')
+                         &FILTRATION_MODEL')
 
-                CASE('ALPHA_EFFICIENCY')
+                case('ALPHA_EFFICIENCY')
                 ! Collision/attachment efficiency [-]
-                  CALL InputReadDouble(input,option,this%alpha_efficiency)
-                  CALL InputErrorMsg(input,option,'DENSITY_PARTICLE?', &
+                  call InputReadDouble(input,option,this%alpha_efficiency)
+                  call InputErrorMsg(input,option,'ALPHA_EFFICIENCY', &
                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE, &
-                         &FILTRATION_MODEL,ALPHA_EFFICIENCY')
+                         &FILTRATION_MODEL')
 
-                CASE('DEBUG')
+                case('DEBUG')
                 ! Print stuff on screen
                   print *, "Will debug -> print CFT stuff: " 
                   this%debug_option = .True. ! Edwin debugging 
 
                 ! Something else
-                CASE DEFAULT
-                  CALL InputKeywordUnrecognized(input,word, &
-                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADS_MODEL',option)
-              END SELECT
-            END DO
-            CALL InputPopBlock(input,option)
+                case default
+                  call InputKeywordUnrecognized(input,word, &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &DECAY_ADSORBED,FILTRATION_MODEL',option)
+              end select
+            end do
+            call InputPopBlock(input,option)
             
-          CASE DEFAULT
-            CALL InputKeywordUnrecognized(input,word, &
-                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,',option)
-        END SELECT
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                   'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DECAY_ADSORBED', &
+                   option)
+        end select
 
       ! Detachment rate
-      CASE('RATE_DETACHMENT')
+      case('RATE_DETACHMENT')
         ! Decay rate while in the aqueous phase
-        CALL InputReadWord(input,option,word,PETSC_TRUE)
-        CALL InputErrorMsg(input,option,'RATE_DETACHMENT?', &
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'RATE_DETACHMENT', &
+               'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE')
+        select case(trim(word))
+          case('CONSTANT')
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'CONSTANT', &
                            'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
                            &,RATE_DETACHMENT')
-        SELECT CASE(trim(word))
-          CASE('CONSTANT')
-            CALL InputPushBlock(input,option)
-            DO
-              CALL InputReadPflotranString(input,option)
-              IF (InputError(input)) exit
-              IF (InputCheckExit(input,option)) exit
-              
-              CALL InputReadCard(input,option,word)
-              CALL InputErrorMsg(input,option,'CONSTANT?', &
-                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
-                           &,RATE_ATTACHMENT,CONSTANT')
-              CALL StringToUpper(word) 
+              call StringToUpper(word) 
 
-              SELECT CASE(trim(word))
-                CASE('VALUE')
+              select case(trim(word))
+                case('VALUE')
                 ! Read the double precision rate constant
-                  CALL InputReadDouble(input,option,this%rate_detachment)
-                  CALL InputErrorMsg(input,option,'VALUE?', &
-                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE&
-                           &,RATE_ATTACHMENT,CONSTANT,VALUE')                  
+                  call InputReadDouble(input,option,this%rate_detachment)
+                  call InputErrorMsg(input,option,'VALUE', &
+                           'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                            &RATE_DETACHMENT,CONSTANT')                  
                   ! Read the units
-                  CALL InputReadWord(input,option,word,PETSC_TRUE)
-                  IF (InputError(input)) then
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  if (InputError(input)) then
                   ! If units do not exist, assume default units of 1/s which are the
                   ! standard internal PFLOTRAN units for this rate constant.
                     input%err_buf = 'RATE CONSTANT UNITS assumed as 1/s'
-                    CALL InputDefaultMsg(input,option)
-                  ELSE
+                    call InputDefaultMsg(input,option)
+                  else
                     ! If units exist, convert to internal units of 1/s
                     internal_units = 'unitless/sec'
                     this%rate_detachment = this%rate_detachment * &
                       UnitsConvertToInternal(word,internal_units,option)
-                  ENDIF
-                CASE DEFAULT
-                  CALL InputKeywordUnrecognized(input,word, &
-                          'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE',option)
-              END SELECT
-            END DO
-            CALL InputPopBlock(input,option)
+                  endif
+                case default
+                  call InputKeywordUnrecognized(input,word, &
+                         'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,&
+                         &RATE_DETACHMENT',option)
+              end select
+            end do
+            call InputPopBlock(input,option)
 
-          CASE DEFAULT
-            CALL InputKeywordUnrecognized(input,word, &
-                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE,DETACHMENT',option)
-        END SELECT     
-      CASE DEFAULT
-        CALL InputKeywordUnrecognized(input,word, &
-                     'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE',option)
-    END SELECT
-  END DO
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                    'CHEMISTRY,REACTION_SANDBOX,BIOPARTICLE',option)
+        end select     
+      case default
+        call InputKeywordUnrecognized(input,word, &
+                     'CHEMISTRY,REACTION_SANDBOX,',option)
+    end select
+  end do
   
-  CALL InputPopBlock(input,option)
+  call InputPopBlock(input,option)
 
-END SUBROUTINE bioTH_Read
+end subroutine bioTH_Read
 
 ! ************************************************************************** !
-
 subroutine bioTH_Setup(this,reaction,option)
   ! 
   ! Sets up the kinetic attachment/dettachment reactions
@@ -562,6 +566,7 @@ subroutine bioTH_Setup(this,reaction,option)
 
 end subroutine bioTH_Setup
 
+! ************************************************************************** !
 subroutine bioTH_React(this,Residual,Jacobian,compute_derivative, &
                         rt_auxvar,global_auxvar,material_auxvar, &
                         reaction, option)
@@ -569,9 +574,10 @@ subroutine bioTH_React(this,Residual,Jacobian,compute_derivative, &
   ! Evaluates reaction
   ! 
   ! Author: Edwin
-  ! Date: 04/09/2020
-  ! 
-  
+  ! Date: 04/09/2020 - created
+  !       05/18/2021 - remove truncate concentrations
+  !
+
   use Option_module
   use String_module
   use Reaction_Aux_module, only : reaction_rt_type
@@ -806,20 +812,20 @@ subroutine bioTH_React(this,Residual,Jacobian,compute_derivative, &
       print *, "--------------------"
     endif
 
-  ELSE
+  else
     ! A constant rate of attachment
     katt = this%rate_attachment
-  END IF
+  end if
 
 !!!!!!!!!!!!!!!!!!!
 ! Detachment rate 
 !!!!!!!!!!!!!!!!!!!
-  IF (this%rate_detachment < 0.d0) THEN
+  if (this%rate_detachment < 0.d0) then
     kdet = 0.0
-  ELSE
+  else
     ! A constant rate of attachment
     kdet = this%rate_detachment
-  END IF
+  end if
 
   RateAtt = 0.0
   RateDet = 0.0
@@ -841,31 +847,31 @@ subroutine bioTH_React(this,Residual,Jacobian,compute_derivative, &
   Rate = decayIm * Vim * volume
   RateDecayIm = - Rate 
 
-! Thin non.elegant block just tries to
+! This awful block just tries to
 ! avoid concentrations below 1E-50
-! (Is this avoided with TRUNCATE_CONCENTRATION ?)
-  IF ( Vaq > 0.0 ) THEN
-    IF ( Vim > 0.0 ) THEN
-      !Do nothing
-    ELSE IF ( Vim <= 0.0 ) THEN
-      Vim = 1.0d-50
-      RateDet = 0.0
-      RateDecayIm = 0.0     
-    END IF
-  ELSE IF ( Vaq <= 0.0 ) THEN
-    IF ( Vim > 0.0 ) THEN
-      Vaq = 1.0d-50
-      RateAtt = 0.0
-      RateDecayAq = 0.0
-    ELSE IF ( Vim <= 0.0 ) THEN
-      Vim = 1.0d-50
-      Vaq = 1.0d-50
-      RateAtt = 0.0
-      RateDet = 0.0
-      RateDecayAq = 0.0
-      RateDecayIm = 0.0
-    END IF
-  END IF
+! (Is this avoided with TRUNCATE_CONCENTRATION ?) > sure it does 
+  ! if ( Vaq > 0.0 ) then
+  !   if ( Vim > 0.0 ) then
+  !     !Do nothing
+  !   else if ( Vim <= 0.0 ) then
+  !     Vim = 1.0d-50
+  !     RateDet = 0.0
+  !     RateDecayIm = 0.0     
+  !   end if
+  ! else if ( Vaq <= 0.0 ) then
+  !   if ( Vim > 0.0 ) then
+  !     Vaq = 1.0d-50
+  !     RateAtt = 0.0
+  !     RateDecayAq = 0.0
+  !   else if ( Vim <= 0.0 ) then
+  !     Vim = 1.0d-50
+  !     Vaq = 1.0d-50
+  !     RateAtt = 0.0
+  !     RateDet = 0.0
+  !     RateDecayAq = 0.0
+  !     RateDecayIm = 0.0
+  !   end if
+  ! end if
   
   ! The actual calculation:
 
@@ -888,13 +894,14 @@ subroutine bioTH_React(this,Residual,Jacobian,compute_derivative, &
 
 end subroutine bioTH_React
 
+! ************************************************************************** !
 subroutine bioTH_Destroy(this)
   ! 
   ! Destroys allocatable or pointer objects created in this
   ! module
   ! 
-  ! Author: John Doe
-  ! Date: 00/00/00
+  ! Author: Edwin S
+  ! Date: 10/01/2020
   ! 
 
   implicit none
