@@ -156,4 +156,6 @@ module Variables_module
   PetscInt, parameter, public :: ELECTRICAL_POTENTIAL    = 127
   PetscInt, parameter, public :: ELECTRICAL_JACOBIAN     = 128
 
+  PetscInt, parameter, public :: EPSILON = 129
+
 end module Variables_module

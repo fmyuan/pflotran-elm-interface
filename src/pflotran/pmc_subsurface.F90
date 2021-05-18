@@ -10,7 +10,7 @@ module PMC_Subsurface_class
 
   implicit none
 
-  
+
   private
 
   type, public, extends(pmc_base_type) :: pmc_subsurface_type
@@ -20,55 +20,56 @@ module PMC_Subsurface_class
     procedure, public :: SetupSolvers => PMCSubsurfaceSetupSolvers
     procedure, public :: GetAuxData => PMCSubsurfaceGetAuxData
     procedure, public :: SetAuxData => PMCSubsurfaceSetAuxData
+    procedure, public :: FinalizeRun => PMCSubsurfaceFinalizeRun
     procedure, public :: Destroy => PMCSubsurfaceDestroy
   end type pmc_subsurface_type
-  
+
   public :: PMCSubsurfaceCreate, &
             PMCSubsurfaceInit, &
             PMCSubsurfaceStrip
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMCSubsurfaceCreate()
-  ! 
+  !
   ! Allocates and initializes a new process_model_coupler
   ! object.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pmc_subsurface_type), pointer :: PMCSubsurfaceCreate
-  
+
   class(pmc_subsurface_type), pointer :: pmc
 
   allocate(pmc)
   call pmc%Init()
-  
-  PMCSubsurfaceCreate => pmc  
-  
+
+  PMCSubsurfaceCreate => pmc
+
 end function PMCSubsurfaceCreate
 
 ! ************************************************************************** !
 
 subroutine PMCSubsurfaceInit(this)
-  ! 
+  !
   ! Initializes a new process model coupler object.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/10/13
-  ! 
+  !
   ! for some reason, Intel with VS want this explicitly specified.
   use PMC_Base_class, only : PMCBaseInit
-  
+
   implicit none
-  
+
   class(pmc_subsurface_type) :: this
-  
+
   call PMCBaseInit(this)
   this%name = 'PMCSubsurface'
   nullify(this%realization)
@@ -78,10 +79,10 @@ end subroutine PMCSubsurfaceInit
 ! ************************************************************************** !
 
 subroutine PMCSubsurfaceSetupSolvers(this)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 06/22/18
-  ! 
+  !
   use Option_module
   use Timestepper_BE_class
   use Timestepper_TS_class
@@ -112,10 +113,10 @@ end subroutine PMCSubsurfaceSetupSolvers
 ! ************************************************************************** !
 
 subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/18/13
-  ! 
+  !
   use Convergence_module
   use Discretization_module
   use Realization_Subsurface_class
@@ -145,8 +146,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
   class(realization_subsurface_type), pointer :: realization
-  SNESLineSearch :: linesearch  
-  character(len=MAXSTRINGLENGTH) :: string  
+  SNESLineSearch :: linesearch
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: add_pre_check, check_update, check_post_convergence
   PetscInt :: itranmode
   PetscInt :: transport_coupling
@@ -155,7 +156,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
   option => this%option
   solver => this%timestepper%solver
-  
+
   check_update = PETSC_FALSE
   itranmode = NULL_MODE
   transport_coupling = UNINITIALIZED_INTEGER
@@ -184,28 +185,28 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
             write(*,'(" mode = TH: p, T")')
           case(RICHARDS_MODE)
             write(*,'(" mode = Richards: p")')
-          case(G_MODE) 
+          case(G_MODE)
             write(*,'(" mode = General: p, sg/X, T")')
           case(H_MODE)
             write(*,'(" mode = Hydrate: p, sg/sh/si/X, T")')
-          case(WF_MODE) 
+          case(WF_MODE)
             write(*,'(" mode = WIPP Flow: p, sg")')
         end select
       endif
-      
+     
       call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
       call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
 
 ! ----- Set up the J and Jpre matrices -----
 ! 1) If neither J_mat_type or Jpre_mat_type are specified, set to default.
-! 2) If only one of J_mat_type and Jpre_mat_type are specified, then default 
+! 2) If only one of J_mat_type and Jpre_mat_type are specified, then default
 !    to setting the other to the same value (except for MATMFFD case).
-! 3) Once J_mat_type and Jpre_mat_type are set appropriately, then 
+! 3) Once J_mat_type and Jpre_mat_type are set appropriately, then
 !    * If J_mat_type == Jpre_mat_type, then set solver%J = solver%Jpre
-!    * Otherwise 
+!    * Otherwise
 !      - Create different matrices for each.
-!      - Inside Jacobian routines, will need to check for 
+!      - Inside Jacobian routines, will need to check for
 !        solver%J != solver%Jpre, and populate two matrices if so.
 
       if (Uninitialized(solver%Jpre_mat_type) .and. &
@@ -256,7 +257,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                        solver%galerkin_mg_levels_z, &
                        option)
       endif
-    
+
       if (solver%J_mat_type == MATMFFD) then
         call MatCreateSNESMF(solver%snes,solver%J,ierr);CHKERRQ(ierr)
       endif
@@ -265,7 +266,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
                                   ierr);CHKERRQ(ierr)
-      ! Have PETSc do a SNES_View() at the end of each solve if 
+      ! Have PETSc do a SNES_View() at the end of each solve if
       ! verbosity > 0.
       if (option%verbosity >= 2) then
         string = '-flow_snes_view'
@@ -273,13 +274,13 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                       ierr);CHKERRQ(ierr)
       endif
 
-      ! If we are using a structured grid, set the corresponding flow 
-      ! DA as the DA for the PCEXOTIC preconditioner, in case we 
-      ! choose to use it. The PCSetDA() call is ignored if the 
-      ! PCEXOTIC preconditioner is no used.  We need to put this call 
-      ! after SolverCreateSNES() so that KSPSetFromOptions() will 
-      ! already have been called.  I also note that this 
-      ! preconditioner is intended only for the flow 
+      ! If we are using a structured grid, set the corresponding flow
+      ! DA as the DA for the PCEXOTIC preconditioner, in case we
+      ! choose to use it. The PCSetDA() call is ignored if the
+      ! PCEXOTIC preconditioner is no used.  We need to put this call
+      ! after SolverCreateSNES() so that KSPSetFromOptions() will
+      ! already have been called.  I also note that this
+      ! preconditioner is intended only for the flow
       ! solver.  --RTM
       if (pm%realization%discretization%itype == STRUCTURED_GRID) then
         call PCSetDM(solver%pc, &
@@ -308,7 +309,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         !geh: it is possible that the other side has not been set
         pm%check_post_convergence = PETSC_TRUE
       endif
-                                  
+
       add_pre_check = PETSC_FALSE
       select type(pm)
         class is(pm_richards_type)
@@ -367,12 +368,12 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         write(*,'(" mode = Nuclear Waste Transport")')
       endif
   end select
-  
+
   if (itranmode == RT_MODE .or. itranmode == NWT_MODE) then
     call PrintMsg(option,"  Beginning setup of TRAN SNES ")
     call SNESSetOptionsPrefix(solver%snes, "tran_",ierr);CHKERRQ(ierr)
     call SolverCheckCommandLine(solver)
-    
+
     if (transport_coupling == GLOBAL_IMPLICIT) then
       if (Uninitialized(solver%Jpre_mat_type) .and. &
           Uninitialized(solver%J_mat_type)) then
@@ -432,16 +433,16 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         call MatCreateSNESMF(solver%snes,solver%J, &
                              ierr);CHKERRQ(ierr)
       endif
-      
-      ! this could be changed in the future if there is a way to 
-      ! ensure that the linesearch update does not perturb 
+
+      ! this could be changed in the future if there is a way to
+      ! ensure that the linesearch update does not perturb
       ! concentrations negative.
       call SNESGetLineSearch(solver%snes, linesearch, &
                              ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
                                   ierr);CHKERRQ(ierr)
-      
-      ! Have PETSc do a SNES_View() at the end of each solve if 
+
+      ! Have PETSc do a SNES_View() at the end of each solve if
       ! verbosity > 0.
       if (option%verbosity >= 2) then
         string = '-tran_snes_view'
@@ -474,9 +475,9 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                      ierr);CHKERRQ(ierr)
     endif
     call PrintMsg(option,"  Finished setting up TRAN SNES ")
-      
+
   endif
-      
+
 
   call SNESSetFunction(solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
@@ -496,10 +497,10 @@ end subroutine PMCSubsurfaceSetupSolvers_TimestepperBE
 ! ************************************************************************** !
 
 subroutine PMCSubsurfaceSetupSolvers_TS(this)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 06/20/2018
-  ! 
+  !
   use Convergence_module
   use Discretization_module
   use Option_module
@@ -518,7 +519,7 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
 
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
-  SNESLineSearch :: linesearch  
+  SNESLineSearch :: linesearch
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: add_pre_check
   PetscErrorCode :: ierr
@@ -614,10 +615,10 @@ end subroutine PMCSubsurfaceSetupSolvers_TS
 ! ************************************************************************** !
 
 subroutine PMCSubsurfaceGetAuxData(this)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 10/24/13
-  ! 
+  !
 
   implicit none
 
@@ -626,7 +627,7 @@ subroutine PMCSubsurfaceGetAuxData(this)
   !TODO(geh): create a class for get/set and add it to a dynamic linked list
   !           based on the process models involved. there is no need to
   !           extend this class just to override this function as there
-  !           may be more than one PM for which to apply get/set. the 
+  !           may be more than one PM for which to apply get/set. the
   !           proposed accomplishes the task.
   if (this%option%ngeomechdof > 0) call PMCSubsurfaceGetAuxDataFromGeomech(this)
 
@@ -635,10 +636,10 @@ end subroutine PMCSubsurfaceGetAuxData
 ! ************************************************************************** !
 
 subroutine PMCSubsurfaceSetAuxData(this)
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 10/24/13
-  ! 
+  !
 
   implicit none
 
@@ -708,7 +709,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
             ghosted_id = subsurf_grid%nL2G(local_id)
             work_loc_p(ghosted_id) = sim_por_p(local_id)
           enddo
-            
+
           call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
                                   ierr);CHKERRQ(ierr)
           call VecRestoreArrayF90(subsurf_field%work_loc,work_loc_p,  &
@@ -763,7 +764,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscScalar, pointer :: sub_por_loc_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
   PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
-  
+
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: pres_dof
@@ -839,14 +840,14 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
                               ierr);CHKERRQ(ierr)
 
           ghosted_id = subsurf_grid%nL2G(1)
-          
+
           do local_id = 1, subsurf_grid%nlmax
             ghosted_id = subsurf_grid%nL2G(local_id)
             sim_por0_p(local_id) = &
-              material_auxvars(ghosted_id)%porosity ! Set here.  
+              material_auxvars(ghosted_id)%porosity ! Set here.
             ! assuming isotropic perm
             sim_perm0_p(local_id) = &
-              material_auxvars(ghosted_id)%permeability(perm_xx_index) 
+              material_auxvars(ghosted_id)%permeability(perm_xx_index)
           enddo
           call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
                                   ierr);CHKERRQ(ierr)
@@ -861,43 +862,47 @@ end subroutine PMCSubsurfaceSetAuxDataForGeomech
 ! ************************************************************************** !
 
 recursive subroutine PMCSubsurfaceFinalizeRun(this)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/18/13
-  ! 
+  !
 
   use Option_module
-  
+
+  ! needed for Intel compilers
+  use PMC_Base_class, only : PMCBaseFinalizeRun
+
   implicit none
-  
+
   class(pmc_subsurface_type) :: this
-  
+
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCSubsurface%FinalizeRun()')
 #endif
-  
+
   nullify(this%realization)
-  
+  call PMCBaseFinalizeRun(this)
+
 end subroutine PMCSubsurfaceFinalizeRun
 
 ! ************************************************************************** !
 
 subroutine CPRWorkersCreate(pm, solver, option)
-  ! 
+  !
   ! create all the worker/storage matrices/vectors that will be needed for the
   ! cpr preconditioner
   !
   ! Author: Daniel Stone
   ! Date: Oct 2017 - March 2018
-  ! 
+  !
 
   use PM_Subsurface_Flow_class
   use Solver_module
   use Option_module
   use Discretization_module
-  
+
   implicit none
 
   class(pm_subsurface_flow_type) :: pm
@@ -923,7 +928,7 @@ subroutine CPRWorkersCreate(pm, solver, option)
                                   GLOBAL, option)
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%T3r, &
-                                  GLOBAL, option)                                  
+                                  GLOBAL, option)
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%r2, &
                                   GLOBAL, option)
@@ -954,9 +959,9 @@ subroutine PMCSubsurfaceStrip(this)
   !
   ! Author: Glenn Hammond
   ! Date: 01/13/14
-  
+
   implicit none
-  
+
   class(pmc_subsurface_type) :: this
 
   call PMCBaseStrip(this)
@@ -967,19 +972,19 @@ end subroutine PMCSubsurfaceStrip
 ! ************************************************************************** !
 
 recursive subroutine PMCSubsurfaceDestroy(this)
-  ! 
+  !
   ! ProcessModelCouplerDestroy: Deallocates a process_model_coupler object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   class(pmc_subsurface_type) :: this
-  
+
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCSubsurface%Destroy()')
 #endif
@@ -989,19 +994,19 @@ recursive subroutine PMCSubsurfaceDestroy(this)
     ! destroy does not currently destroy; it strips
     deallocate(this%child)
     nullify(this%child)
-  endif 
-  
+  endif
+
   if (associated(this%peer)) then
     call this%peer%Destroy()
     ! destroy does not currently destroy; it strips
     deallocate(this%peer)
     nullify(this%peer)
   endif
-  
+
   call PMCSubsurfaceStrip(this)
-  
+
 end subroutine PMCSubsurfaceDestroy
 
 ! ************************************************************************** !
-  
+
 end module PMC_Subsurface_class

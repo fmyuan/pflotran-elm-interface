@@ -298,6 +298,7 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   use PMC_Subsurface_class
   use Timestepper_TS_class
   use Timestepper_BE_class
+  use Timestepper_Steady_class
   use PM_TH_TS_class
   use PM_Richards_TS_class
   use Realization_Subsurface_class
@@ -327,14 +328,19 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   pmc_subsurface%realization => realization
 
   ! add time integrator
-  select type(pm_flow)
-    class is(pm_richards_ts_type)
-      pmc_subsurface%timestepper => TimestepperTSCreate()
-    class is(pm_th_ts_type)
-      pmc_subsurface%timestepper => TimestepperTSCreate()
-    class default
-      pmc_subsurface%timestepper => TimestepperBECreate()
-  end select
+  if (pm_flow%steady_state) then
+    option%flow%steady_state = PETSC_TRUE
+    pmc_subsurface%timestepper => TimestepperSteadyCreate()
+  else
+    select type(pm_flow)
+      class is(pm_richards_ts_type)
+        pmc_subsurface%timestepper => TimestepperTSCreate()
+      class is(pm_th_ts_type)
+        pmc_subsurface%timestepper => TimestepperTSCreate()
+      class default
+        pmc_subsurface%timestepper => TimestepperBECreate()
+    end select
+  endif
   pmc_subsurface%timestepper%name = 'FLOW'
 
   ! add solver
@@ -369,6 +375,7 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   use PMC_Subsurface_OSRT_class
   use Timestepper_BE_class
   use Timestepper_KSP_class
+  use Timestepper_Steady_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -406,17 +413,21 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   pmc_subsurface%realization => realization
 
   ! add time integrator
-  pmc_subsurface%timestepper => TimestepperBECreate()
-  select type(pm=>pm_base)
-    class is(pm_rt_type)
-      if (pm%operator_split) then
-        pmc_subsurface%timestepper => TimestepperKSPCreate()
-      else
+  if (pm_base%steady_state) then
+    option%transport%steady_state = PETSC_TRUE
+    pmc_subsurface%timestepper => TimestepperSteadyCreate()
+  else
+    select type(pm=>pm_base)
+      class is(pm_rt_type)
+        if (pm%operator_split) then
+          pmc_subsurface%timestepper => TimestepperKSPCreate()
+        else
+          pmc_subsurface%timestepper => TimestepperBECreate()
+        endif
+      class is(pm_nwt_type)
         pmc_subsurface%timestepper => TimestepperBECreate()
-      endif
-    class is(pm_nwt_type)
-      pmc_subsurface%timestepper => TimestepperBECreate()
-  end select
+    end select
+  endif
   pmc_subsurface%timestepper%name = 'TRAN'
 
   ! add solver
@@ -652,9 +663,8 @@ end subroutine AddPMCUDFBiosphere
 
 ! ************************************************************************** !
 
-subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,option)
-
-  !
+subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name, &
+                                      realization,option)
   ! Adds a Geophysics PMC
   !
   ! Author: Piyoosh Jaysaval
@@ -669,6 +679,7 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,op
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
+  use Waypoint_module
 
   implicit none
 
@@ -686,16 +697,18 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,op
   call pmc_geophysics%SetName(pmc_name)
   call pmc_geophysics%SetOption(option)
   call pmc_geophysics%SetCheckpointOption(simulation%checkpoint_option)
-  call pmc_geophysics%SetWaypointList(simulation%waypoint_list_subsurface)
 
   pmc_geophysics%pm_list => pm_base
   pmc_geophysics%pm_ptr%pm => pm_base
   pmc_geophysics%realization => realization
 
   ! add time integrator
-  select type(pm_base)
+  select type(pm=>pm_base)
     class is(pm_ert_type)
       pmc_geophysics%timestepper => TimestepperSteadyCreate()
+      call WaypointListCopyAndMerge(simulation%waypoint_list_subsurface, &
+                                    pm%waypoint_list,option)
+      call pmc_geophysics%SetWaypointList(pm%waypoint_list)
     class default
       pmc_geophysics%timestepper => TimestepperSteadyCreate()
   end select
@@ -710,7 +723,11 @@ subroutine AddPMCSubsurfaceGeophysics(simulation,pm_base,pmc_name,realization,op
   string = trim(pm_base%name)
   call LoggingCreateStage(string,pmc_geophysics%stage)
   simulation%geop_process_model_coupler => pmc_geophysics
-  simulation%process_model_coupler_list => simulation%geop_process_model_coupler
+  if (associated(simulation%process_model_coupler_list)) then
+    simulation%process_model_coupler_list%peer => pmc_geophysics
+  else
+    simulation%process_model_coupler_list => pmc_geophysics
+  endif
 
 end subroutine AddPMCSubsurfaceGeophysics
 
@@ -1501,7 +1518,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   call OutputVariableAppendDefaults(realization%output_option% &
                                       output_snap_variable_list,option)
 
-  call RegressionCreateMapping(simulation%regression,realization)
+  call RegressionSetup(simulation%regression,realization)
 ! end from old Init()
 
   call DiscretizationPrintInfo(realization%discretization, &
@@ -1775,12 +1792,10 @@ subroutine SubsurfaceSetupRealization(simulation)
     call PrintMsg(option,"  Finished setting up TRAN Realization ")
   endif
   call RealizationPrintCouplers(realization)
-  if (.not.option%steady_state) then
-    ! add waypoints associated with boundary conditions, source/sinks etc. to list
-    call RealizationAddWaypointsToList(realization, &
-                                       simulation%waypoint_list_subsurface)
-    ! fill in holes in waypoint data
-  endif
+  ! add waypoints associated with boundary conditions, source/sinks etc. to list
+  call RealizationAddWaypointsToList(realization, &
+                                     simulation%waypoint_list_subsurface)
+  ! fill in holes in waypoint data
   if (option%ngeopdof > 0) then
     ! Read geophysics survey file
     call RealizationReadGeopSurveyFile(realization)
@@ -1842,15 +1857,12 @@ subroutine SetupWaypointList(simulation)
   call CheckpointPeriodicTimeWaypoints(simulation%checkpoint_option, &
                                        simulation%waypoint_list_subsurface, &
                                        option)
-  ! clean up waypoints
-  if (.not.option%steady_state) then
-   ! fill in holes in waypoint data
-    call WaypointListFillIn(simulation%waypoint_list_subsurface,option)
-    call WaypointListRemoveExtraWaypnts(simulation%waypoint_list_subsurface, &
-                                        option)
-    call WaypointListFindDuplicateTimes(simulation%waypoint_list_subsurface, &
-                                        option)
-  endif
+ ! fill in holes in waypoint data
+  call WaypointListFillIn(simulation%waypoint_list_subsurface,option)
+  call WaypointListRemoveExtraWaypnts(simulation%waypoint_list_subsurface, &
+                                      option)
+  call WaypointListFindDuplicateTimes(simulation%waypoint_list_subsurface, &
+                                      option)
 
   ! debugging output
   if (realization%debug%print_waypoints) then
@@ -2165,6 +2177,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use PM_Base_class
   use PM_RT_class
   use PM_NWT_class
+  use Timestepper_Base_class
   use Timestepper_KSP_class
   use Timestepper_BE_class
   use Timestepper_Steady_class
@@ -2789,7 +2802,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           case('FLOW')
             if (associated(simulation%flow_process_model_coupler)) then
               call simulation%flow_process_model_coupler% &
-                     ReadNumericalMethods(input)
+                     ReadNumericalMethods(input,word)
             else
               option%io_buffer = 'A SUBSURFACE_FLOW process model must &
                 &be defined to read NUMERICAL_METHODS for FLOW.'
@@ -2798,7 +2811,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           case('TRAN','TRANSPORT')
             if (associated(simulation%tran_process_model_coupler)) then
               call simulation%tran_process_model_coupler% &
-                     ReadNumericalMethods(input)
+                     ReadNumericalMethods(input,word)
             else
               option%io_buffer = 'A SUBSURFACE_TRANSPORT process model must &
                 &be defined to read NUMERICAL_METHODS for TRANSPORT.'
@@ -2807,7 +2820,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           case('GEOPHYSICS','GEOP')
             if (associated(simulation%geop_process_model_coupler)) then
               call simulation%geop_process_model_coupler% &
-                     ReadNumericalMethods(input)
+                     ReadNumericalMethods(input,word)
             else
               option%io_buffer = 'A SUBSURFACE_GEOPHYSICS process model must &
                 &be defined to read NUMERICAL_METHODS for GEOPHYSICS.'
@@ -2926,7 +2939,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
       case ('MATERIAL_PROPERTY')
 
-        material_property => MaterialPropertyCreate()
+        material_property => MaterialPropertyCreate(option)
         call InputReadWord(input,option,material_property%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','MATERIAL_PROPERTY')
         option%io_buffer = '  Name :: ' // trim(material_property%name)
@@ -3536,7 +3549,9 @@ subroutine SubsurfaceReadInput(simulation,input)
               output_option%tunit = trim(word)
               output_option%tconv = temp_real2
             case('STEADY_STATE')
-              option%steady_state = PETSC_TRUE
+              option%io_buffer = 'STEADY_STATE no longer supported under &
+                &TIME card. Please enter under process model OPTIONS.'
+              call PrintErrMsg(option)
             case('FINAL_TIME')
               call InputReadDouble(input,option,temp_real)
               call InputErrorMsg(input,option,'Final Time','TIME')
@@ -3786,43 +3801,23 @@ subroutine SubsurfaceReadInput(simulation,input)
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
       case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE,H_MODE)
-        if (option%steady_state) then
+        if (option%flow%steady_state) then
           option%io_buffer = 'Steady state solution is not supported with &
             &the current flow mode.'
           call PrintErrMsg(option)
         endif
     end select
-    if (option%steady_state) then
-      !geh: This is a workaround for the Intel compiler which thinks that
-      !     fts and/or flow_timestepper is not a pointer when passed within
-      !     the select type statment.  This is too convoluted; it needs to
-      !     be refactored!
-      select type(fts=>simulation%flow_process_model_coupler%timestepper)
-        class is(timestepper_BE_type)
-          temp_timestepper => TimestepperSteadyCreateFromBE(fts)
-        class is(timestepper_base_type)
-          temp_timestepper =>  TimestepperSteadyCreateFromBase(fts)
-      end select
-      call simulation%flow_process_model_coupler%timestepper%Destroy()
-      deallocate(simulation%flow_process_model_coupler%timestepper)
-      simulation%flow_process_model_coupler%timestepper => temp_timestepper
-      nullify(temp_timestepper)
-    endif
   endif
   if (associated(simulation%tran_process_model_coupler)) then
-    if (option%steady_state) then
-      select type(tts=>simulation%tran_process_model_coupler%timestepper)
-        class is(timestepper_BE_type)
-          temp_timestepper => TimestepperSteadyCreateFromBE(tts)
-        class is(timestepper_base_type)
-          temp_timestepper =>  TimestepperSteadyCreateFromBase(tts)
-      end select
-      call simulation%tran_process_model_coupler%timestepper%Destroy()
-      deallocate(simulation%tran_process_model_coupler%timestepper)
-      simulation%tran_process_model_coupler%timestepper => temp_timestepper
-      nullify(temp_timestepper)
-    endif
-  endif
+    select case(option%itranmode)
+      case(NULL_MODE)
+        if (option%transport%steady_state) then
+          option%io_buffer = 'Steady state solution is not supported with &
+                             &the current transport mode.'
+          call PrintErrMsg(option)
+        endif
+  end select
+endif
 
   ! must come after setup of timestepper steady above. otherwise, the
   ! destruction of the waypoint lists will fail with to pointer to the

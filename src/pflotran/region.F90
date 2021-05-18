@@ -689,7 +689,11 @@ subroutine RegionReadFromFileId(region,input,option)
     temp_int_array(count) = temp_int
   enddo
 
-  if (count == 1) then
+  if (count == 0) then
+     option%io_buffer = 'ERROR while reading the region "' // &
+          trim(region%name) // '" from file (zero entries in first row)'
+     call PrintErrMsg(option)
+  else if (count == 1) then
     !
     ! Input data contains only cell ids
     !

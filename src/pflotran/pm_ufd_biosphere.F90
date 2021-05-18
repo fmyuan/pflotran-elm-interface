@@ -1322,12 +1322,9 @@ subroutine PMUFDBInitializeTimestep(this)
 
   class(pm_ufd_biosphere_type) :: this
   
-  call PMBasePrintHeader(this)
-  
   if (this%option%time >= this%output_start_time) then
     call PMUFDBOutput(this)
   endif
-
   
 end subroutine PMUFDBInitializeTimestep
 

@@ -987,8 +987,6 @@ subroutine PMUFDDecayInitializeTimestep(this)
   class(pm_ufd_decay_type) :: this
 ! --------------------------------
 
-  call PMBasePrintHeader(this)
-
 end subroutine PMUFDDecayInitializeTimestep
 
 ! ************************************************************************** !

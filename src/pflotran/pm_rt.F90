@@ -486,8 +486,6 @@ subroutine PMRTInitializeTimestep(this)
  
   this%option%tran_dt = this%option%dt
 
-  call PMBasePrintHeader(this)
-
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)
@@ -1411,7 +1409,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
     if (option%use_mc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
-                   secondary_continuum_ncells
+                   multicontinuum%ncells
         do i = 1, realization%reaction%naqcomp
           call SecondaryRTGetVariable(realization,global_vec, &
                                     SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
@@ -1595,7 +1593,7 @@ subroutine PMRTRestartBinary(this,viewer)
 
   if (option%use_mc) then
     do mc_i = 1, patch%material_property_array(1)%ptr% &
-                 secondary_continuum_ncells
+                 multicontinuum%ncells
       do i = 1, realization%reaction%naqcomp
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call SecondaryRTSetVariable(realization, global_vec, GLOBAL, &
@@ -1837,7 +1835,7 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
     if (option%use_mc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
-                   secondary_continuum_ncells
+                   multicontinuum%ncells
         do i = 1, realization%reaction%naqcomp
           call SecondaryRTGetVariable(realization,global_vec, &
                                       SECONDARY_CONTINUUM_UPDATED_CONC, i, mc_i)
@@ -2100,7 +2098,7 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
     if (option%use_mc) then
       ! Add multicontinuum variables
       do mc_i = 1, patch%material_property_array(1)%ptr% &
-                   secondary_continuum_ncells
+                   multicontinuum%ncells
         do i = 1, realization%reaction%naqcomp
           write(dataset_name,"(i0,a,i0)") i, "_", mc_i
           dataset_name = "MC_Primary_Variable_" // trim(dataset_name)

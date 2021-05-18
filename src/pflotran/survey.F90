@@ -272,7 +272,7 @@ end subroutine SurveyGetElectrodeIndexFromPos
 
 ! ************************************************************************** !
 
-subroutine SurveyWriteERT(survey)
+subroutine SurveyWriteERT(survey,time_suffix,option)
   !
   ! writes simulated ERT data in a .srv file with
   ! filename = prefix(survey%filename)//-simulated.srv
@@ -280,22 +280,25 @@ subroutine SurveyWriteERT(survey)
   ! Author: Piyoosh Jaysaval
   ! Date: 02/08/21
   !
+  use Option_module
 
   implicit none
 
   type(survey_type), pointer :: survey
+  character(len=MAXWORDLENGTH) :: time_suffix
+  type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: filename
-  character(len=MAXWORDLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXWORDLENGTH) :: word
   PetscInt :: iprefix,i
   PetscInt :: fid
 
-  iprefix = index(survey%filename,".") - 1
-  filename = survey%filename(1:iprefix)//"-simulated.srv"
+  filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+             '-ert-' // trim(time_suffix) // '.srv'
   fid = IUNIT_TEMP
   open(fid,file=filename,status='replace',action='write')
-  write(string,*) survey%num_electrode
-  write(fid,'(a)',advance='no') trim(adjustl(string))
+  write(word,*) survey%num_electrode
+  write(fid,'(a)',advance='no') trim(adjustl(word))
   write(fid,'(15x,a)',advance="yes") "number of electrodes"
   do i=1,survey%num_electrode
      write(fid,"(i10,3f15.5,i10)") i,survey%pos_electrode(1:3,i), &
@@ -303,8 +306,8 @@ subroutine SurveyWriteERT(survey)
   end do
 
   write(fid,*)
-  write(string,*) survey%num_measurement
-  write(fid,'(a)',advance='no') trim(adjustl(string))
+  write(word,*) survey%num_measurement
+  write(fid,'(a)',advance='no') trim(adjustl(word))
   write(fid,'(15x,a)',advance="yes") "number of measurements"
   do i=1,survey%num_measurement
     write(fid,"(i10,4i10,2es15.5)") i,survey%config(1:4,i), &

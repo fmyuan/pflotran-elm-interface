@@ -195,6 +195,8 @@ subroutine IsothermRead(isotherm,input,option)
       endif
       option%io_buffer = 'Isotherm KD units must be consistent throughout &
         &input file: ' // trim(word) // ' vs ' // trim(word2)
+    else
+      isotherm%ikd_units = ikd_units
     endif
       
     ! add to list
@@ -261,10 +263,10 @@ subroutine IsothermConvertKDUnits(kd,kd_units,ikd_units,option)
         option%io_buffer = 'Unrecognized kd_units: ' // trim(kd_units)
         call PrintErrMsg(option)
       else
-        ikd_units = KD_UNIT_KG_M3_BULK
+        ikd_units = KD_UNIT_MLW_GSOIL
       endif
     else
-      ikd_units = KD_UNIT_MLW_GSOIL
+      ikd_units = KD_UNIT_KG_M3_BULK
     endif
   endif
 

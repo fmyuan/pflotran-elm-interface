@@ -332,6 +332,7 @@ module Reaction_Aux_module
 
     PetscBool :: use_sandbox
     PetscInt :: nauxiliary
+    PetscInt :: mc_flag
     
  end type reaction_rt_type
 
@@ -583,6 +584,7 @@ function ReactionCreate()
 
   reaction%use_sandbox = PETSC_FALSE
   reaction%nauxiliary = 0
+  reaction%mc_flag = 0
 
   ReactionCreate => reaction
   

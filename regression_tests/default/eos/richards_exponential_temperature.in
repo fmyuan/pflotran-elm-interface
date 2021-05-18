@@ -1,13 +1,10 @@
-# 1D steady flow using STEADY_STATE keyword under OUTPUT
+#Description: Unit test problem for testing EOS
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE RICHARDS
-      OPTIONS
-        STEADY_STATE
-      /
     /
   /
 END
@@ -17,15 +14,15 @@ SUBSURFACE
 #=========================== numerical methods ================================
 NUMERICAL_METHODS FLOW
 
-  NEWTON_SOLVER
-    MAXIMUM_NUMBER_OF_ITERATIONS 20
+  LINEAR_SOLVER
+    SOLVER DIRECT
   /
 
 END
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 4
+  CELLS_PER_PROCESS 1
 END
 
 #=========================== flow mode ========================================
@@ -35,12 +32,16 @@ END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
-  ORIGIN 0.d0 0.d0 0.d0
-  NXYZ 100 1 1 
+  NXYZ 1 1 1
   BOUNDS
     0.d0 0.d0 0.d0
-    100.d0 1.d0 1.d0
+    1.d0 1.d0 1.d0
   /
+END
+
+#=========================== EOS ==============================================
+EOS WATER
+  DENSITY EXPONENTIAL_PRESSURE_TEMPERATURE 997.16d0 101325.d0 1.d-8 2.d-4
 END
 
 #=========================== fluid properties =================================
@@ -51,60 +52,45 @@ END
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
-  POROSITY 0.1d0
-  TORTUOSITY 1.d0
-  CHARACTERISTIC_CURVES default
+  POROSITY 0.25d0
   PERMEABILITY
     PERM_ISO 1.d-12
   /
+  CHARACTERISTIC_CURVES default
 END
 
 #=========================== characteristic curves ============================
 CHARACTERISTIC_CURVES default
-  SATURATION_FUNCTION VAN_GENUCHTEN
-    M 0.5d0
-    ALPHA  1.d-4
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    MAX_CAPILLARY_PRESSURE 1.d8
-  /
-  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
-    M 0.5d0
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-  /
+  DEFAULT
 END
 
 #=========================== output options ===================================
 OUTPUT
-  FORMAT TECPLOT POINT
-#  FORMAT HDF5
-#  VELOCITY_AT_CENTER
+  VARIABLES
+    LIQUID_PRESSURE
+    LIQUID_SATURATION
+    LIQUID_DENSITY
+    LIQUID_MOBILITY
+  /
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 1 y
-  INITIAL_TIMESTEP_SIZE 1.d0 h
-  MAXIMUM_TIMESTEP_SIZE 1.d0 y
+  FINAL_TIME 1.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-3 d
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
 END
 
 #=========================== regions ==========================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
-    100.d0 1.d0 1.d0
+    1.d0 1.d0 1.d0
   /
 END
 
-REGION east 
-  FACE EAST 
-  COORDINATES
-    100.d0 0.d0 0.d0
-    100.d0 1.d0 1.d0
-  /
-END
-
-REGION west 
-  FACE WEST 
+REGION west
+  FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
@@ -114,16 +100,10 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET 
+    PRESSURE HYDROSTATIC
   /
-  PRESSURE 101325.d0
-END
-
-FLOW_CONDITION west 
-  TYPE
-    PRESSURE DIRICHLET 
-  /
-  PRESSURE 201325.d0
+  DATUM 0.d0 0.d0 35.d0
+  PRESSURE 101325.d0 ! Pa
 END
 
 #=========================== condition couplers ===============================
@@ -133,21 +113,16 @@ INITIAL_CONDITION
   REGION all
 END
 
-# east boundary condition
-BOUNDARY_CONDITION east 
+# west boundary condition
+BOUNDARY_CONDITION west
   FLOW_CONDITION initial
-  REGION east 
-END
-
-BOUNDARY_CONDITION west 
-  FLOW_CONDITION  west
-  REGION west 
+  REGION west
 END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  REGION all
   MATERIAL soil1
+  REGION all
 END
 
 END_SUBSURFACE

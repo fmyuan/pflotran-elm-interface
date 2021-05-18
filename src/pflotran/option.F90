@@ -167,7 +167,6 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: output_dir
     !PO end
 
-    PetscBool :: steady_state
     PetscBool :: use_matrix_buffer
     PetscBool :: force_newton_iteration
     PetscBool :: use_upwinding
@@ -441,7 +440,6 @@ subroutine OptionInitRealization(option)
   option%air_id = 0
   option%energy_id = 0
 
-
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
       ! which should be set via the command line or the input file, but it
@@ -499,8 +497,6 @@ subroutine OptionInitRealization(option)
 
   option%initialize_flow_filename = ''
   option%initialize_transport_filename = ''
-
-  option%steady_state = PETSC_FALSE
 
   option%itable = 0
   option%co2eos = EOS_SPAN_WAGNER

@@ -18,10 +18,16 @@ module EOS_Water_module
   PetscReal :: constant_steam_enthalpy
   PetscReal :: surface_density_kg
 
-  ! exponential
-  PetscReal :: exponent_reference_density
-  PetscReal :: exponent_reference_pressure
-  PetscReal :: exponent_water_compressibility
+  ! exponential pressure
+  PetscReal :: exp_p_reference_density
+  PetscReal :: exp_p_reference_pressure
+  PetscReal :: exp_p_water_compressibility
+
+  ! exponential pressure temperature
+  PetscReal :: exp_pt_reference_density
+  PetscReal :: exp_pt_reference_pressure
+  PetscReal :: exp_pt_water_compressibility
+  PetscReal :: exp_pt_thermal_expansion
   
   ! planes for planar eos
   type(plane_type) :: water_density_tp_plane
@@ -254,9 +260,13 @@ subroutine EOSWaterInit()
   constant_steam_density = UNINITIALIZED_DOUBLE
   constant_steam_enthalpy = UNINITIALIZED_DOUBLE
   surface_density_kg = UNINITIALIZED_DOUBLE
-  exponent_reference_density = UNINITIALIZED_DOUBLE
-  exponent_reference_pressure = UNINITIALIZED_DOUBLE
-  exponent_water_compressibility = UNINITIALIZED_DOUBLE
+  exp_p_reference_density = UNINITIALIZED_DOUBLE
+  exp_p_reference_pressure = UNINITIALIZED_DOUBLE
+  exp_p_water_compressibility = UNINITIALIZED_DOUBLE
+  exp_pt_reference_density = UNINITIALIZED_DOUBLE
+  exp_pt_reference_pressure = UNINITIALIZED_DOUBLE
+  exp_pt_water_compressibility = UNINITIALIZED_DOUBLE
+  exp_pt_thermal_expansion = UNINITIALIZED_DOUBLE
   quadratic_reference_density = UNINITIALIZED_DOUBLE
   quadratic_reference_pressure = UNINITIALIZED_DOUBLE
   quadratic_wat_compressibility = UNINITIALIZED_DOUBLE
@@ -308,12 +318,22 @@ subroutine EOSWaterVerify(ierr,error_string)
     ierr = 1
   endif
   
-  if (associated(EOSWaterDensityPtr,EOSWaterDensityExponential) .and. &
-      (Uninitialized(exponent_reference_density) .or. & 
-       Uninitialized(exponent_reference_pressure) .or. &
-       Uninitialized(exponent_water_compressibility))) then
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityExpPressure) .and. &
+      (Uninitialized(exp_p_reference_density) .or. & 
+       Uninitialized(exp_p_reference_pressure) .or. &
+       Uninitialized(exp_p_water_compressibility))) then
     error_string = trim(error_string) // &
       ' Exponential parameters incorrect.'
+    ierr = 1
+  endif
+
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityExpPressureTemp) .and. &
+      (Uninitialized(exp_pt_reference_density) .or. & 
+       Uninitialized(exp_pt_reference_pressure) .or. &
+       Uninitialized(exp_pt_water_compressibility) .or. &
+       Uninitialized(exp_pt_thermal_expansion))) then
+    error_string = trim(error_string) // &
+      ' Exponential Temperature parameters incorrect.'
     ierr = 1
   endif
 
@@ -327,9 +347,9 @@ subroutine EOSWaterVerify(ierr,error_string)
   endif
  
   if (associated(EOSWaterDensityPtr,EOSWaterDensityBRAGFLO) .and. &
-      (Uninitialized(exponent_reference_density) .or. & 
-       Uninitialized(exponent_reference_pressure) .or. &
-       Uninitialized(exponent_water_compressibility))) then
+      (Uninitialized(exp_p_reference_density) .or. & 
+       Uninitialized(exp_p_reference_pressure) .or. &
+       Uninitialized(exp_p_water_compressibility))) then
     error_string = trim(error_string) // &
       ' BRAGFLO parameters incorrect.'
     ierr = 1
@@ -379,20 +399,26 @@ subroutine EOSWaterSetDensity(keyword,aux)
       EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
     case('IF97')
       EOSWaterDensityPtr => EOSWaterDensityIF97
-    case('EXPONENTIAL')
-      exponent_reference_density = aux(1)
-      exponent_reference_pressure = aux(2)
-      exponent_water_compressibility = aux(3)  
-      EOSWaterDensityPtr => EOSWaterDensityExponential
+    case('EXPONENTIAL','EXPONENTIAL_PRESSURE')
+      exp_p_reference_density = aux(1)
+      exp_p_reference_pressure = aux(2)
+      exp_p_water_compressibility = aux(3)  
+      EOSWaterDensityPtr => EOSWaterDensityExpPressure
+    case('EXPONENTIAL_PRESSURE_TEMPERATURE')
+      exp_pt_reference_density = aux(1)
+      exp_pt_reference_pressure = aux(2)
+      exp_pt_water_compressibility = aux(3)
+      exp_pt_thermal_expansion = aux(4) 
+      EOSWaterDensityPtr => EOSWaterDensityExpPressureTemp
     case('LINEAR')
       linear_reference_density = aux(1)
       linear_reference_pressure = aux(2)
       linear_water_compressibility = aux(3)
       EOSWaterDensityPtr => EOSWaterDensityLinear
     case('BRAGFLO')
-      exponent_reference_density = aux(1)
-      exponent_reference_pressure = aux(2)
-      exponent_water_compressibility = aux(3)  
+      exp_p_reference_density = aux(1)
+      exp_p_reference_pressure = aux(2)
+      exp_p_water_compressibility = aux(3)  
       EOSWaterDensityPtr => EOSWaterDensityBRAGFLO
     case('QUADRATIC')
       if (Initialized(aux(1))) then
@@ -1839,7 +1865,7 @@ end subroutine EOSWaterEnthalpyConstant
 
 ! ************************************************************************** !
 
-subroutine EOSWaterDensityExponential(t,p,calculate_derivatives, &
+subroutine EOSWaterDensityExpPressure(t,p,calculate_derivatives, &
                                       dw,dwmol,dwp,dwt,ierr,table_idxs)
   implicit none
   
@@ -1851,18 +1877,50 @@ subroutine EOSWaterDensityExponential(t,p,calculate_derivatives, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
   
   ! kg/m^3
-  dw = exponent_reference_density*exp(exponent_water_compressibility* &
-                                     (p-exponent_reference_pressure))
+  dw = exp_p_reference_density*exp(exp_p_water_compressibility* &
+                                     (p-exp_p_reference_pressure))
   dwmol = dw/FMWH2O ! kmol/m^3
   
   if (calculate_derivatives) then
-    dwp = dwmol*exponent_water_compressibility !kmol/m^3/Pa
+    dwp = dwmol*exp_p_water_compressibility !kmol/m^3/Pa
   else
     dwp = UNINITIALIZED_DOUBLE
   endif
   dwt = 0.d0
 
-end subroutine EOSWaterDensityExponential
+end subroutine EOSWaterDensityExpPressure
+
+! ************************************************************************** !
+
+subroutine EOSWaterDensityExpPressureTemp(t,p,calculate_derivatives, &
+                                          dw,dwmol,dwp,dwt,ierr,table_idxs)
+
+  ! Calculate water as an exponential function of temperature
+  ! and pressure
+  
+  implicit none
+  
+  PetscReal, intent(in) :: t   ! Temperature in centigrade
+  PetscReal, intent(in) :: p   ! Pressure in Pascals
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw,dwmol,dwp,dwt
+  PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+  
+  ! kg/m^3
+  dw = exp_pt_reference_density*(1.d0 / (exp(exp_pt_thermal_expansion* &
+       (t - 273.15d0)) * exp(exp_pt_water_compressibility* &
+       (exp_pt_reference_pressure - p))))
+  dwmol = dw/FMWH2O ! kmol/m^3
+  
+  if (calculate_derivatives) then
+    dwp = dwmol*exp_pt_water_compressibility !kmol/m^3/Pa
+  else
+    dwp = UNINITIALIZED_DOUBLE
+  endif
+  dwt = 0.d0
+
+end subroutine EOSWaterDensityExpPressureTemp
 
 ! ************************************************************************** !
 
@@ -1923,9 +1981,9 @@ subroutine EOSWaterDensityBRAGFLO(t,p,calculate_derivatives, &
   
   ! kg/m^3
   p_adjust = max(p,0.d0)
-  dw = exponent_reference_density* &
-         exp(min(80.d0,exponent_water_compressibility* &
-                       (p_adjust-exponent_reference_pressure)))
+  dw = exp_p_reference_density* &
+         exp(min(80.d0,exp_p_water_compressibility* &
+                       (p_adjust-exp_p_reference_pressure)))
   
   dwmol = dw/FMWH2O ! kmol/m^3
   
@@ -3695,18 +3753,34 @@ subroutine EOSWaterInputRecord()
     write(word1,*) constant_density
     write(id,'(a)') 'constant, ' // adjustl(trim(word1)) // ' kg/m^3'
   endif
-  if (associated(EOSWaterDensityPtr,EOSWaterDensityExponential)) then
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityExpPressure)) then
     write(id,'(a29)',advance='no') 'water density: '
     write(id,'(a)') 'exponential'
     write(id,'(a29)',advance='no') 'exp. ref. density: '
-    write(word1,*) exponent_reference_density
+    write(word1,*) exp_p_reference_density
     write(id,'(a)') adjustl(trim(word1)) // ' kg/m^3'
     write(id,'(a29)',advance='no') 'exp. ref. pressure: '
-    write(word1,*) exponent_reference_pressure
+    write(word1,*) exp_p_reference_pressure
     write(id,'(a)') adjustl(trim(word1)) // ' Pa'
     write(id,'(a29)',advance='no') 'exp. water compressibility: '
-    write(word1,*) exponent_water_compressibility
+    write(word1,*) exp_p_water_compressibility
     write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
+  endif
+  if (associated(EOSWaterDensityPtr,EOSWaterDensityExpPressureTemp)) then
+    write(id,'(a29)',advance='no') 'water density: '
+    write(id,'(a)') 'exponential temperature'
+    write(id,'(a29)',advance='no') 'temp. ref. density: '
+    write(word1,*) exp_pt_reference_density
+    write(id,'(a)') adjustl(trim(word1)) // ' kg/m^3'
+    write(id,'(a29)',advance='no') 'temp. ref. pressure: '
+    write(word1,*) exp_pt_reference_pressure
+    write(id,'(a)') adjustl(trim(word1)) // ' Pa'
+    write(id,'(a29)',advance='no') 'temp. water compressibility: '
+    write(word1,*) exp_pt_water_compressibility
+    write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
+    write(id,'(a29)',advance='no') 'temp. thermal expansion: '
+    write(word1,*) exp_pt_thermal_expansion
+    write(id,'(a)') adjustl(trim(word1)) // ' 1/K'
   endif
   if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear)) then
     write(id,'(a29)',advance='no') 'water density: '
@@ -3725,13 +3799,13 @@ subroutine EOSWaterInputRecord()
     write(id,'(a29)',advance='no') 'water density: '
     write(id,'(a)') 'BRAGFLO'
     write(id,'(a29)',advance='no') 'exp. ref. density: '
-    write(word1,*) exponent_reference_density
+    write(word1,*) exp_p_reference_density
     write(id,'(a)') adjustl(trim(word1)) // ' kg/m^3'
     write(id,'(a29)',advance='no') 'exp. ref. pressure: '
-    write(word1,*) exponent_reference_pressure
+    write(word1,*) exp_p_reference_pressure
     write(id,'(a)') adjustl(trim(word1)) // ' Pa'
     write(id,'(a29)',advance='no') 'exp. water compressibility: '
-    write(word1,*) exponent_water_compressibility
+    write(word1,*) exp_p_water_compressibility
     write(id,'(a)') adjustl(trim(word1)) // ' 1/Pa'
   endif
   if (associated(EOSWaterDensityPtr,EOSWaterDensityIFC67)) then
@@ -3918,8 +3992,10 @@ subroutine EOSWaterTest(temp_low,temp_high,pres_low,pres_high, &
   ! density
   if (associated(EOSWaterDensityPtr,EOSWaterDensityConstant)) then
     eos_density_name = 'Constant'
-  else if (associated(EOSWaterDensityPtr,EOSWaterDensityExponential)) then
-    eos_density_name = 'Exponential'
+  else if (associated(EOSWaterDensityPtr,EOSWaterDensityExpPressure)) then
+    eos_density_name = 'Exponential Pressure'
+  else if (associated(EOSWaterDensityPtr,EOSWaterDensityExpPressureTemp)) then
+    eos_density_name = 'Exponential Pressure Temperature'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityLinear)) then
     eos_density_name = 'Linear'
   else if (associated(EOSWaterDensityPtr,EOSWaterDensityBRAGFLO)) then

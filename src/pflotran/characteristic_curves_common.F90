@@ -2113,6 +2113,7 @@ subroutine RPFMualemVGLiqRelPerm(this,liquid_saturation, &
     if (Se > this%poly%low) then
       call CubicPolynomialEvaluate(this%poly%coefficients, &
                                    Se,relative_permeability,dkr_Se)
+      dkr_sat = dkr_Se / (1.d0-this%Sr)
       return
     endif
   endif
@@ -3328,6 +3329,7 @@ subroutine RPFBurdineVGLiqRelPerm(this,liquid_saturation, &
     if (Se > this%poly%low) then
       call CubicPolynomialEvaluate(this%poly%coefficients, &
                                    Se,relative_permeability,dkr_Se)
+      dkr_sat = dkr_Se / (1.d0 - this%Sr)
       return
     endif
   endif
