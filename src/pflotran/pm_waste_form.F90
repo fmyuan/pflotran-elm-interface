@@ -1090,7 +1090,7 @@ subroutine PMWFReadPMBlock(this,input)
     if (associated(this%spacer_mech_list)) then
       cur_sp_mech => this%spacer_mech_list
       do
-        if (.not.associated(cur_sp_mech)) exit
+        if (.not. associated(cur_sp_mech)) exit
         assigned = PETSC_FALSE
         if (StringCompare(cur_waste_form%spacer_mech_name, &
                           cur_sp_mech%mech_name)) then
@@ -1101,7 +1101,7 @@ subroutine PMWFReadPMBlock(this,input)
         cur_sp_mech => cur_sp_mech%next
       enddo
       if (.not. assigned .and. &
-          len(trim(cur_waste_form%spacer_mech_name)) > 1) then
+          len_trim(cur_waste_form%spacer_mech_name) > 1) then
         option%io_buffer = 'Spacer degradation mechanism "' &
         // trim(cur_waste_form%spacer_mech_name) &
         //'" specified for waste form not found among the ' &
@@ -1125,7 +1125,7 @@ subroutine PMWFReadPMBlock(this,input)
         cur_crit_mech => cur_crit_mech%next
       enddo
       if (.not. assigned .and. &
-          len(trim(cur_waste_form%criticality_mech_name)) > 1) then
+          len_trim(cur_waste_form%criticality_mech_name) > 1) then
         option%io_buffer = 'Criticality mechanism "' &
         // trim(cur_waste_form%criticality_mech_name) &
         //'" specified for waste form not found among the ' &
@@ -2185,14 +2185,14 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
         num_errors = num_errors + 1
       endif
       if (Uninitialized(new_waste_form%coordinate%z) .and. &
-          (len(trim(new_waste_form%region_name)) == 0)) then
+          (len_trim(new_waste_form%region_name) == 0)) then
         option%io_buffer = 'ERROR: Either COORDINATE or REGION must be &
                            &specified for all waste forms.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       if (Initialized(new_waste_form%coordinate%z) .and. &
-          (len(trim(new_waste_form%region_name)) > 0)) then
+          (len_trim(new_waste_form%region_name) > 0)) then
         option%io_buffer = 'ERROR: Either COORDINATE or REGION must be &
                            &specified for all waste forms, but not both.'
         call PrintMsg(option)
@@ -2373,7 +2373,7 @@ subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
     
       
       ! --------------------------- error messaging ---------------------------
-      if (len(trim(new_sp_mech%mech_name)) < 1) then
+      if (len_trim(new_sp_mech%mech_name) < 1) then
         option%io_buffer = 'Name must be specified for spacer grid ' &
                          //'degradation mechanism in order to be associated ' &
                          //'with a waste form.'
@@ -5562,7 +5562,7 @@ subroutine WasteFormInputRecord(this)
   do
     if (.not. associated(cur_waste_form)) exit
     
-    if (len(trim(adjustl(cur_waste_form%region_name))) > 0) then
+    if (len_trim(adjustl(cur_waste_form%region_name)) > 0) then
       write(id,'(a29)',advance='no') 'region: '
       write(id,'(a)') cur_waste_form%region_name
     endif
@@ -5597,17 +5597,17 @@ subroutine WasteFormInputRecord(this)
       write(id,'(a)') trim(adjustl(word)) // ' m^3'
     endif
     
-    if (len(trim(adjustl(cur_waste_form%mech_name))) > 0) then
+    if (len_trim(adjustl(cur_waste_form%mech_name)) > 0) then
       write(id,'(a29)',advance='no') 'mechanism: '
       write(id,'(a)') cur_waste_form%mech_name
     endif
     
-    if (len(trim(adjustl(cur_waste_form%spacer_mech_name))) > 0) then
+    if (len_trim(adjustl(cur_waste_form%spacer_mech_name)) > 0) then
       write(id,'(a29)',advance='no') 'spacer mechanism: '
       write(id,'(a)') cur_waste_form%spacer_mech_name
     endif
     
-    if (len(trim(adjustl(cur_waste_form%criticality_mech_name))) > 0) then
+    if (len_trim(adjustl(cur_waste_form%criticality_mech_name)) > 0) then
       write(id,'(a29)',advance='no') 'criticality mechanism: '
       write(id,'(a)') cur_waste_form%criticality_mech_name
     endif
@@ -5669,9 +5669,9 @@ subroutine MechanismInputRecord(this)
     if (.not. associated(cur_mech)) exit
 
     ! Base variables
-    if (len(trim(adjustl(cur_mech%name))) > 0) then
+    if (len_trim(adjustl(cur_mech%name)) > 0) then
       write(id,'(a29)',advance='no') 'mechanism name: '
-      write(id,'(a)') adjustl(trim(cur_mech%name))
+      write(id,'(a)') trim(adjustl(cur_mech%name))
     endif
     
     if (Initialized(cur_mech%specific_surface_area)) then
@@ -5924,9 +5924,9 @@ subroutine SpacerMechInputRecord(this)
   do
     if (.not.associated(cur_sp_mech)) exit
     
-    if (len(adjustl(trim(cur_sp_mech%mech_name))) > 0) then
+    if (len_trim(adjustl(cur_sp_mech%mech_name)) > 0) then
       write(id,'(a29)',advance='no') 'spacer mechanism name: '
-      write(id,'(a)') adjustl(trim(cur_sp_mech%mech_name))
+      write(id,'(a)') trim(adjustl(cur_sp_mech%mech_name))
     endif
     
     if (Initialized(cur_sp_mech%spacer_mass)) then
@@ -5996,9 +5996,9 @@ subroutine CritMechInputRecord(this)
   do
     if (.not.associated(cur_crit_mech)) exit
 
-    if (len(adjustl(trim(cur_crit_mech%mech_name))) > 0) then
+    if (len_trim(adjustl(cur_crit_mech%mech_name)) > 0) then
       write(id,'(a29)',advance='no') 'criticality mechanism name: '
-      write(id,'(a)') adjustl(trim(cur_crit_mech%mech_name))
+      write(id,'(a)') trim(adjustl(cur_crit_mech%mech_name))
     endif
     
     if (associated(cur_crit_mech%crit_event)) then
@@ -6017,7 +6017,7 @@ subroutine CritMechInputRecord(this)
     
     if (associated(cur_crit_mech%crit_heat_dataset)) then
       write(id,'(a29)',advance='no') 'crit. heat lookup table: '
-      write(id,'(a)') adjustl(trim(cur_crit_mech%crit_heat_dataset%file_name))
+      write(id,'(a)') trim(adjustl(cur_crit_mech%crit_heat_dataset%file_name))
     elseif (cur_crit_mech%crit_heat > 0.0d0) then
       write(id,'(a29)',advance='no') 'heat of criticality: '
       write(word,'(es12.5)') cur_crit_mech%crit_heat
@@ -6036,9 +6036,9 @@ subroutine CritMechInputRecord(this)
       write(id,'(a)') trim(adjustl(word)) // ' kg/m^3'
     endif
     
-    if (len(adjustl(trim(cur_crit_mech%heat_dataset_name))) > 0) then
+    if (len_trim(adjustl(cur_crit_mech%heat_dataset_name)) > 0) then
       write(id,'(a29)',advance='no') 'decay heat dataset: '
-      write(id,'(a)') adjustl(trim(cur_crit_mech%heat_dataset_name))
+      write(id,'(a)') trim(adjustl(cur_crit_mech%heat_dataset_name))
     endif
     
     if (.not. cur_crit_mech%heat_source_cond == 0) then
@@ -6047,9 +6047,9 @@ subroutine CritMechInputRecord(this)
       write(id,'(a)') trim(adjustl(word))
     endif
 
-    if (len(adjustl(trim(cur_crit_mech%rad_dataset_name))) > 0) then 
+    if (len_trim(adjustl(cur_crit_mech%rad_dataset_name)) > 0) then 
       write(id,'(a29)',advance='no') 'inventory dataset: '
-      write(id,'(a)') adjustl(trim(cur_crit_mech%rad_dataset_name))
+      write(id,'(a)') trim(adjustl(cur_crit_mech%rad_dataset_name))
     endif
 
     write(id,'(a29)') '---------------------------: '
@@ -6591,7 +6591,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
       
       ! --------------------------- error messaging ---------------------------
-      if (len(trim(new_crit_mech%mech_name)) < 1) then
+      if (len_trim(new_crit_mech%mech_name) < 1) then
         option%io_buffer = 'Name must be specified for criticality mechanism ' &
                          //'in order to be associated with a waste form.'
         call PrintWrnMsg(option)

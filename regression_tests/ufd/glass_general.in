@@ -378,8 +378,6 @@ WASTE_FORM_GENERAL
     Q              2.2675D+04  cal/mol
   /
 
-  
-
 END_WASTE_FORM_GENERAL
 
 #=========================== ufd decay ========================================
