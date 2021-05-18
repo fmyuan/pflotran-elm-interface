@@ -6620,6 +6620,19 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
         endif
       endif
       
+      if (associated(new_crit_mech%crit_heat_dataset)) then
+        if (Initialized(new_crit_mech%crit_event%crit_start)) then
+          if (new_crit_mech%crit_event%crit_start > &
+              new_crit_mech%crit_heat_dataset%start_time_datamax) then
+            option%io_buffer = 'ERROR: Criticality start time exceeds ' &
+                             //'maximum value in heat of criticality lookup ' &
+                             //'table.'
+            call PrintMsg(option)
+            num_errors = num_errors + 1
+          endif
+        endif
+      endif
+      
       if (.not.associated(pmwf%criticality_mediator)) then
         pmwf%criticality_mediator => CriticalityMediatorCreate()
       endif
