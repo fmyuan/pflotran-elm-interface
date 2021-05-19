@@ -466,7 +466,6 @@ module PM_Waste_Form_class
   contains
     procedure, public :: Read => CritHeatRead
     procedure, public :: Evaluate => CritHeatEvaluate
-    procedure, public :: Test => CritHeatTest
   end type crit_heat_type
 
 ! -------------------------------------------------------------------
@@ -3881,7 +3880,7 @@ subroutine PMWFSolve(this,time,ierr)
           cur_criticality%crit_event%crit_flag) then
         do j = 1,cur_waste_form%region%num_cells
           ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
-          avg_temp_local = avg_temp_local + &  ! Celcius
+          avg_temp_local = avg_temp_local + &  ! Celsius
             (global_auxvars(ghosted_id)%temp*cur_waste_form%scaling_factor(j))
         enddo
         call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
@@ -4071,7 +4070,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   avg_temp_local = 0.d0
   do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
-    avg_temp_local = avg_temp_local + &  ! Celcius
+    avg_temp_local = avg_temp_local + &  ! Celsius
                (global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i))
   enddo
   call CalcParallelSUM(pm%option,waste_form%rank_list,avg_temp_local, &
@@ -4342,7 +4341,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   avg_temp_local = 0.d0
   do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
-    avg_temp_local = avg_temp_local + &  ! Celcius
+    avg_temp_local = avg_temp_local + &  ! Celsius
                global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
   enddo
   call CalcParallelSUM(option,waste_form%rank_list,avg_temp_local, &
@@ -4473,7 +4472,7 @@ subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
   avg_temp_local = 0.d0
   do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
-    avg_temp_local = avg_temp_local + &  ! Celcius
+    avg_temp_local = avg_temp_local + &  ! Celsius
                global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
   enddo
   call CalcParallelSUM(option,waste_form%rank_list,avg_temp_local, &
@@ -7050,24 +7049,6 @@ function CritHeatEvaluate(this,start_time,temperature)
   CritHeatEvaluate = this%lookup_table%Sample(start_time,temperature)
   
 end function CritHeatEvaluate
-
-! ************************************************************************** !
-
-subroutine CritHeatTest(this,start_time,temperature)
-  ! 
-  ! Author: Alex Salazar III
-  ! Date: 05/12/2021
-  !
-  
-  implicit none
-  
-  class(crit_heat_type) :: this
-  PetscReal :: start_time
-  PetscReal :: temperature
-  
-  print *, start_time, temperature, this%Evaluate(start_time,temperature)
-  
-end subroutine CritHeatTest
 
 ! ************************************************************************** !
 
