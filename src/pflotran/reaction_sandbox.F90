@@ -372,6 +372,7 @@ subroutine RSandboxDestroy2(local_sandbox_list)
     deallocate(cur_sandbox)
     cur_sandbox => prev_sandbox
   enddo  
+  nullify(local_sandbox_list)
 
 end subroutine RSandboxDestroy2
 
