@@ -3349,7 +3349,7 @@ subroutine PMWFInitializeTimestep(this)
       call cur_waste_form%spacer_mechanism%Degradation(cur_waste_form, this, &
                                                        avg_sat_global, &
                                                        avg_temp_global, &
-                                                       option%dt, ierr)
+                                                       dt, ierr)
     endif
     
     ! ------------------ criticality termination criterion -----------------
