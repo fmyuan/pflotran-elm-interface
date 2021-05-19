@@ -692,51 +692,53 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
                              time_level)
   
   ! darcy velocity (start)
+  if (option%flow%store_darcy_vel) then 
+    
+    !Create vectors of approapriate size
+    discretization => realization%discretization
+    call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
+                                    option)
+    call DiscretizationDuplicateVector(discretization,global_vec,vec_x)
+    call DiscretizationDuplicateVector(discretization,global_vec,vec_y)
+    call DiscretizationDuplicateVector(discretization,global_vec,vec_z)
+    call DiscretizationDuplicateVector(discretization,global_vec,vec_calc)
+    call OutputGetCellCenteredVelocities(realization,vec_x,vec_y,vec_z,LIQUID_PHASE)
 
-  !Create vectors of approapriate size
-  discretization => realization%discretization
-  call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
-                                  option)
-  call DiscretizationDuplicateVector(discretization,global_vec,vec_x)
-  call DiscretizationDuplicateVector(discretization,global_vec,vec_y)
-  call DiscretizationDuplicateVector(discretization,global_vec,vec_z)
-  call DiscretizationDuplicateVector(discretization,global_vec,vec_calc)
-  call OutputGetCellCenteredVelocities(realization,vec_x,vec_y,vec_z,LIQUID_PHASE)
+    ! open the vectors 
+    call VecGetArrayF90(vec_x, vec_x_ptr,ierr)
+    call VecGetArrayF90(vec_y, vec_y_ptr,ierr)
+    call VecGetArrayF90(vec_z, vec_z_ptr,ierr)
+    call VecGetArrayF90(vec_calc, vec_calc_ptr,ierr)
 
-  ! open the vectors 
-  call VecGetArrayF90(vec_x, vec_x_ptr,ierr)
-  call VecGetArrayF90(vec_y, vec_y_ptr,ierr)
-  call VecGetArrayF90(vec_z, vec_z_ptr,ierr)
-  call VecGetArrayF90(vec_calc, vec_calc_ptr,ierr)
+    ! the local size of the velocity vector
+    ! local size = the number of cells calculated on the processor
+    call VecGetLocalSize(vec_x, ghosted_id_max, ierr)
 
-  ! the local size of the velocity vector
-  ! local size = the number of cells calculated on the processor
-  call VecGetLocalSize(vec_x, ghosted_id_max, ierr)
+    ! for each local(!) calculation calculate the velocity and store it
+    do ghosted_id=1, ghosted_id_max
+      vec_calc_ptr(ghosted_id) = sqrt(vec_x_ptr(ghosted_id)**2+vec_y_ptr(ghosted_id)**2+vec_z_ptr(ghosted_id)**2)/ &
+                                realization%output_option%tconv
+    enddo
 
-  ! for each local(!) calculation calculate the velocity and store it
-  do ghosted_id=1, ghosted_id_max
-    vec_calc_ptr(ghosted_id) = sqrt(vec_x_ptr(ghosted_id)**2+vec_y_ptr(ghosted_id)**2+vec_z_ptr(ghosted_id)**2)/ &
-                              realization%output_option%tconv
-  enddo
+    ! close the vectors
+    call VecRestoreArrayF90(vec_calc,vec_calc_ptr,ierr)
+    call VecRestoreArrayF90(vec_x,vec_x_ptr,ierr)
+    call VecRestoreArrayF90(vec_y,vec_y_ptr,ierr)
+    call VecRestoreArrayF90(vec_z,vec_z_ptr,ierr)
 
-  ! close the vectors
-  call VecRestoreArrayF90(vec_calc,vec_calc_ptr,ierr)
-  call VecRestoreArrayF90(vec_x,vec_x_ptr,ierr)
-  call VecRestoreArrayF90(vec_y,vec_y_ptr,ierr)
-  call VecRestoreArrayF90(vec_z,vec_z_ptr,ierr)
+    ! Set the auxvar variable for the DARCY_VELOCITY
+    call realization%comm1%GlobalToLocal(vec_calc,field%work_loc)
+    call GlobalSetAuxVarVecLoc(realization,field%work_loc,DARCY_VELOCITY, &
+                              time_level)
 
-  ! Set the auxvar variable for the DARCY_VELOCITY
-  call realization%comm1%GlobalToLocal(vec_calc,field%work_loc)
-  call GlobalSetAuxVarVecLoc(realization,field%work_loc,DARCY_VELOCITY, &
-                            time_level)
+    ! Destroy all vectors which were used for calculations
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(vec_x,ierr);CHKERRQ(ierr)
+    call VecDestroy(vec_y,ierr);CHKERRQ(ierr)
+    call VecDestroy(vec_z,ierr);CHKERRQ(ierr) 
+    call VecDestroy(vec_calc,ierr);CHKERRQ(ierr) 
 
-  ! Destroy all vectors which were used for calculations
-  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(vec_x,ierr);CHKERRQ(ierr)
-  call VecDestroy(vec_y,ierr);CHKERRQ(ierr)
-  call VecDestroy(vec_z,ierr);CHKERRQ(ierr) 
-  call VecDestroy(vec_calc,ierr);CHKERRQ(ierr) 
-
+  end if
   ! darcy velocity (end)
   
   select case(option%iflowmode)

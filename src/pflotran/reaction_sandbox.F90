@@ -187,7 +187,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     else
       cur_sandbox => local_sandbox_list
       do
-       if (.not.associated(cur_sandbox%next)) exit
+        if (.not.associated(cur_sandbox%next)) exit
         cur_sandbox => cur_sandbox%next
       enddo
       cur_sandbox%next => new_sandbox
