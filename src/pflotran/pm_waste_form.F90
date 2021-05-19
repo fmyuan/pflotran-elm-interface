@@ -6508,14 +6508,14 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
               !-------------------------------------
-                case('CONSTANT_HEAT')
+                case('CONSTANT_POWER')
                   internal_units = 'MW'
                   call InputReadDouble(input,option,new_crit_mech%crit_heat)
                   call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY, ' &
-                    //'CONSTANT_HEAT',error_string)
+                    //'CONSTANT_POWER',error_string)
                   call InputReadAndConvertUnits(input,new_crit_mech%crit_heat, &
                     internal_units,trim(error_string)//',HEAT_OF_CRITICALITY,' &
-                    //' CONSTANT_HEAT',option)
+                    //' CONSTANT_POWER',option)
               !-------------------------------------
                 case('DATASET')
                   allocate(new_crit_mech%crit_heat_dataset)
