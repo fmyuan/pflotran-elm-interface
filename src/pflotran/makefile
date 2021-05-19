@@ -253,6 +253,10 @@ pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 pflotran : $(pflotran_obj)
 	${FLINKER} -o pflotran $(pflotran_obj) ${PETSC_LIB} ${LIBS} 
 
+# PFLOTRAN inversionexecutable
+pflotran_inverse : $(pflotran_base_obj) $(inversion_obj) ${pflotran_src}pflotran_inverse.o
+	${FLINKER} -o pflotran_inverse $(pflotran_base_obj) $(inversion_obj) ${pflotran_src}pflotran_inverse.o ${PETSC_LIB} ${LIBS} 
+
 # PFLOTRAN as a library
 libpflotran.a : $(pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(pflotran_obj)
@@ -307,6 +311,19 @@ utest : pflotran
 rtest : pflotran
 	@if [ -d $(regression_test_dir) ]; then \
 		$(MAKE) --directory=$(regression_test_dir) PFLOTRAN=${PWD}/pflotran test; \
+	fi
+
+# developer level regression testing
+test_inverse : utest_inverse rtest_inverse
+
+utest_inverse : pflotran_inverse
+	@if [ -d $(unit_test_dir) ]; then \
+		$(MAKE) --directory=$(unit_test_dir) EXE_DIR=${PWD} test; \
+	fi
+
+rtest_inverse : pflotran_inverse
+	@if [ -d $(regression_test_dir) ]; then \
+		$(MAKE) --directory=$(regression_test_dir) PFLOTRAN=${PWD}/pflotran_inverse test; \
 	fi
 
 clean-tests : FORCE
