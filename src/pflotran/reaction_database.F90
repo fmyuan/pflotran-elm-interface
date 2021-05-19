@@ -2375,9 +2375,9 @@ subroutine BasisInit(reaction,option)
     if (maxval(mineral%kinmnrl_rate_limiter) > 0.d0 .and. &
         associated(mineral%kinmnrl_affinity_power)) then
       do ikinmnrl = 1, mineral%nkinmnrl
-        if (Equal(mineral%kinmnrl_affinity_power(ikinmnrl),1.d0)) then
+        if (.not.Equal(mineral%kinmnrl_affinity_power(ikinmnrl),1.d0)) then
           option%io_buffer = 'Mineral rate limiters cannot be used when &
-            &a beta (power) for any affinity factors is equal to one.'
+            &AFFINITY_POWER for any mineral is not equal to one.'
           call PrintErrMsg(option)
         endif
       enddo
