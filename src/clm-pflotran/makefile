@@ -299,7 +299,7 @@ pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    clm_pflotran_interface_data.o connection.o coupler.o \
                    discretization.o factory_geomechanics.o \
                    factory_pflotran.o communicator_aux.o \
-                   factory_subsurface.o \
+                   factory_subsurface.o factory.o \
                    field.o global_aux.o grid.o \
                    grid_unstructured.o grid_unstructured_aux.o \
                    grid_unstructured_cell.o input_aux.o logging.o mapping.o \
