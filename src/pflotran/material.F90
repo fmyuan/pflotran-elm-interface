@@ -15,7 +15,7 @@ module Material_module
 
   private
 
-  PetscInt, public :: UNMAPPED_MATERIAL_ID = -888
+  PetscInt, parameter, public :: UNMAPPED_MATERIAL_ID = -888
 
   type, public :: material_property_type
     PetscInt :: external_id
@@ -1435,14 +1435,18 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   type(option_type) :: option
 
   PetscInt :: i
-  PetscInt :: icount = 0
-  PetscInt :: num_soil_compress_func = 0
-  PetscInt :: num_soil_compress = 0
-  PetscInt :: num_soil_ref_press = 0
+  PetscInt :: icount
+  PetscInt :: num_soil_compress_func
+  PetscInt :: num_soil_compress
+  PetscInt :: num_soil_ref_press
   PetscInt :: num_material_properties
 
   procedure(MaterialCompressSoilDummy), pointer :: &
     MaterialCompressSoilPtrTmp
+
+  num_soil_compress_func = 0
+  num_soil_compress = 0
+  num_soil_ref_press = 0
 
 !  soil_thermal_conductivity_index = 0
 !  soil_heat_capacity_index = 0
@@ -1455,6 +1459,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   ! on stochastic simulations
   MaterialCompressSoilPtr => null()
 
+  icount = 0
   do i = 1, num_material_properties
     MaterialCompressSoilPtrTmp => null()
     if (len_trim(material_property_ptrs(i)%ptr% &
