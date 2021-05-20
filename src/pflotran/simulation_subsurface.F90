@@ -238,6 +238,10 @@ subroutine SimSubsurfInitializeRun(this)
   call SimulationBaseInputRecordPrint(this)
   call PrintMsg(this%option," ")
   call PrintMsg(this%option,"  Finished Initialization")
+  if (OptionPrintToFile(this%option)) then
+    inquire(this%option%fid_inputrecord,opened=flag)
+    if (flag) close(this%option%fid_inputrecord)
+  endif
   call PetscLogEventEnd(logging%event_init,ierr);CHKERRQ(ierr)
   ! pushed in PFLOTRANInitializePostPetsc()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
