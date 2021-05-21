@@ -38,7 +38,31 @@ module Inversion_module
     PetscReal, pointer :: r(:)           ! vector of dim -> num of measur
     PetscReal, pointer :: s(:)           ! product Jacobian transpose with r
     PetscReal, pointer :: del_cond(:)    ! conductivity update vector
-  end type inversion_type
+  
+    type(constrained_block_type), pointer :: constrained_block
+  
+    end type inversion_type
+
+  type constrained_block_type
+    PetscInt :: num_constrained_block
+    type(constrained_block_par_type), pointer :: constrained_block_list
+  end type constrained_block_type
+
+  type constrained_block_par_type
+    PetscInt :: id
+    character(len=MAXWORDLENGTH) :: name
+    PetscInt :: structure_metric
+    PetscInt :: weighing_function
+    PetscInt :: num_block_link
+    PetscInt, pointer :: block_link(:)
+
+    PetscReal :: aniso_weight(3)
+    PetscReal :: relative_weight
+    PetscReal :: weighing_function_mean
+    PetscReal :: weighing_function_std_dev
+    PetscReal :: reference_conductivity
+    type(constrained_block_par_type), pointer :: next
+  end type constrained_block_par_type
 
   public :: InversionCreate, &
             InversionRead, &
@@ -46,7 +70,7 @@ module Inversion_module
             InversionDeallocateWorkArrays, &
             InversionDestroy
 
-contains 
+contains
 
 ! ************************************************************************** !
 
@@ -97,9 +121,71 @@ function InversionCreate()
   nullify(inversion%s)
   nullify(inversion%del_cond)
 
+  inversion%constrained_block => ConstrainedBlockCreate()
+
   InversionCreate => inversion
 
 end function InversionCreate
+
+! ************************************************************************** !
+
+function ConstrainedBlockCreate()
+  !
+  ! Creates Constrained Block type
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/20/21
+  !
+
+  implicit none
+
+  type(constrained_block_type), pointer :: ConstrainedBlockCreate
+  type(constrained_block_type), pointer :: constrained_block
+
+  allocate(constrained_block)
+
+  constrained_block%num_constrained_block = 0
+  nullify(constrained_block%constrained_block_list)
+
+  ConstrainedBlockCreate => constrained_block
+
+end function ConstrainedBlockCreate
+
+! ************************************************************************** !
+
+function ConstrainedBlockParCreate()
+  !
+  ! Creates Constrained Block Par type
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/20/21
+  !
+
+  implicit none
+
+  type(constrained_block_par_type), pointer :: ConstrainedBlockParCreate
+  type(constrained_block_par_type), pointer :: constrained_block
+
+  allocate(constrained_block)
+  constrained_block%id = 0
+  constrained_block%name = ''
+
+  ! Deafult is set the smoothness constraint
+  constrained_block%structure_metric = 2
+  constrained_block%weighing_function = 1
+  constrained_block%num_block_link = 0
+  nullify(constrained_block%block_link)
+
+  constrained_block%aniso_weight = 1.d0
+  constrained_block%relative_weight = 1.d0
+  constrained_block%weighing_function_mean = 10.d0
+  constrained_block%weighing_function_std_dev = 0.001d0
+  constrained_block%reference_conductivity = 0.d0
+  nullify(constrained_block%next)
+
+  ConstrainedBlockParCreate => constrained_block
+
+end function ConstrainedBlockParCreate
 
 ! ************************************************************************** !
 
@@ -218,7 +304,9 @@ subroutine InversionRead(inversion,input,option)
       call InputErrorMsg(input,option,'TARGET_CHI2','INVERSION')
     case('MIN_COST_REDUCTION')
       call InputReadDouble(input,option,inversion%min_phi_red)
-      call InputErrorMsg(input,option,'MIN_COST_REDUCTION','INVERSION')          
+      call InputErrorMsg(input,option,'MIN_COST_REDUCTION','INVERSION')
+    case('CONSTRAINED_BLOCKS')
+      call ConstrainedBlockRead(inversion%constrained_block,input,option)
     case default
       call InputKeywordUnrecognized(input,word,'INVERSION',option)
     end select
@@ -226,6 +314,143 @@ subroutine InversionRead(inversion,input,option)
   call InputPopBlock(input,option)
         
 end subroutine InversionRead
+
+! ************************************************************************** !
+
+subroutine ConstrainedBlockRead(constrained_block,input,option)
+  !
+  ! Read constrained blocks options
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/21/21
+  
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  type(constrained_block_type) :: constrained_block
+  type(input_type), pointer :: input
+  type(option_type) :: option  
+
+  type(constrained_block_par_type), pointer :: cur_constrained_block
+  type(constrained_block_par_type), pointer :: prev_constrained_block
+
+  nullify(prev_constrained_block)
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+   
+    constrained_block%num_constrained_block = &
+                          constrained_block%num_constrained_block + 1
+
+    cur_constrained_block => ConstrainedBlockParCreate()
+    call InputReadCard(input,option,cur_constrained_block%name)
+    call InputErrorMsg(input,option,'keyword','INVERSION,CONSTRAINED_BLOCKS')
+   
+    call ConstrainedBlockParRead(cur_constrained_block,input,option)
+
+    if (.not.associated(constrained_block%constrained_block_list)) then
+      constrained_block%constrained_block_list => cur_constrained_block
+      cur_constrained_block%id = 1
+    endif
+    if (associated(prev_constrained_block)) then
+      prev_constrained_block%next => cur_constrained_block
+      cur_constrained_block%id = prev_constrained_block%id + 1
+    endif
+    prev_constrained_block => cur_constrained_block
+    nullify(cur_constrained_block)
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine ConstrainedBlockRead
+
+! ************************************************************************** !
+
+subroutine ConstrainedBlockParRead(constrained_block,input,option)
+  !
+  ! Read constrained blocks parameters options
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/21/21
+  
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  type(constrained_block_par_type) :: constrained_block
+  type(input_type), pointer :: input
+  type(option_type) :: option  
+
+  PetscInt :: i,num_block_link
+  character(len=MAXWORDLENGTH) :: word
+
+  word = ''
+
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'keyword','INVERSION,CONSTRAINED_BLOCKS')
+    call StringToUpper(word)
+    select case(trim(word))
+    case('STRUCTURE_METRIC')
+      call InputReadInt(input,option,constrained_block%structure_metric)
+      call InputErrorMsg(input,option,'STRUCTURE_METRIC', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+    case('WEIGHING_FUNCTION')
+      call InputReadInt(input,option,constrained_block%weighing_function)
+      call InputErrorMsg(input,option,'WEIGHING_FUNCTION', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+    case('WEIGHING_FUNCTION_MEAN')
+      call InputReadDouble(input,option,constrained_block%weighing_function_mean)
+      call InputErrorMsg(input,option,'WEIGHING_FUNCTION_MEAN', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+    case('WEIGHING_FUNCTION_STD_DEVIATION')
+      call InputReadDouble(input,option,constrained_block%weighing_function_std_dev)
+      call InputErrorMsg(input,option,'WEIGHING_FUNCTION_STD_DEVIATION', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+    case('BLOCK_LINKS')
+      call InputReadInt(input,option,num_block_link)
+      call InputErrorMsg(input,option,'BLOCK_LINKS', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+      constrained_block%num_block_link = num_block_link
+      allocate(constrained_block%block_link(num_block_link))
+      do i=1,num_block_link                   
+        call InputReadInt(input,option,constrained_block%block_link(i))
+        call InputErrorMsg(input,option,'BLOCK_LINKS', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+      enddo
+    case('ANISOTROPIC_WEIGHTS')
+      do i=1,THREE_INTEGER
+        call InputReadDouble(input,option,constrained_block%aniso_weight(i))
+        call InputErrorMsg(input,option,'ANISOTROPY_WEIGHTS', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+      enddo
+    case('RELATIVE_WEIGHT')
+      call InputReadDouble(input,option,constrained_block%relative_weight)
+      call InputErrorMsg(input,option,'RELATIVE_WEIGHT', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+    case('REFERENCE_CONDUCTIVITY')
+      call InputReadDouble(input,option,constrained_block%reference_conductivity)
+      call InputErrorMsg(input,option,'REFERENCE_CONDUCTIVITY', &
+                         'INVERSION,CONSTRAINED_BLOCKS')
+    case default
+      call InputKeywordUnrecognized(input,word, &
+                                    'INVERSION,CONSTRAINED_BLOCKS',option)
+    end select   
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine ConstrainedBlockParRead
 
 ! ************************************************************************** !
 
@@ -332,6 +557,64 @@ end subroutine InversionCheckBeta
 
 ! ************************************************************************** !
 
+subroutine ConstrainedBlockParDestroy(constrained_block)
+  ! 
+  ! ConstrainedBlockParDestroy: Deallocates a constrained block par object
+  ! 
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/20/21
+  ! 
+
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+
+  type(constrained_block_par_type), pointer :: constrained_block
+
+  if (.not.associated(constrained_block)) return
+
+  call DeallocateArray(constrained_block%block_link)
+
+  deallocate(constrained_block)
+  nullify(constrained_block)
+
+end subroutine ConstrainedBlockParDestroy
+
+! ************************************************************************** !
+
+subroutine ConstrainedBlockDestroy(constrained_block)
+  ! 
+  ! ConstrainedBlockParDestroy: Deallocates a constrained block par object
+  ! 
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/20/21
+  ! 
+
+  implicit none
+
+  type(constrained_block_type), pointer :: constrained_block
+
+  type(constrained_block_par_type), pointer :: cur_constrained_block
+  type(constrained_block_par_type), pointer :: prev_constrained_block
+
+  if (.not.associated(constrained_block)) return
+
+  cur_constrained_block => constrained_block%constrained_block_list
+  do 
+    if (.not.associated(cur_constrained_block)) exit
+    prev_constrained_block => cur_constrained_block
+    cur_constrained_block => cur_constrained_block%next 
+    call ConstrainedBlockParDestroy(prev_constrained_block)
+  enddo
+  nullify(constrained_block%constrained_block_list)
+
+  deallocate(constrained_block)
+  nullify(constrained_block)
+
+end subroutine ConstrainedBlockDestroy
+
+! ************************************************************************** !
+
 subroutine InversionDestroy(inversion)
   !
   ! Deallocates inversion
@@ -354,6 +637,8 @@ subroutine InversionDestroy(inversion)
   call DeallocateArray(inversion%r)
   call DeallocateArray(inversion%s)
   call DeallocateArray(inversion%del_cond)
+
+  call ConstrainedBlockDestroy(inversion%constrained_block)
 
   deallocate(inversion)
   nullify(inversion)
