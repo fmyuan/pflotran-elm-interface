@@ -45,7 +45,19 @@ module Inversion_module
 
   type constrained_block_type
     PetscInt :: num_constrained_block
+    PetscInt :: max_num_block_link
     type(constrained_block_par_type), pointer :: constrained_block_list
+
+    ! arrays
+    character(len=MAXWORDLENGTH), pointer :: material_name(:)
+    PetscInt, pointer :: material_id(:)
+    PetscInt, pointer :: smetric(:,:)
+    PetscInt, pointer :: wf_type(:)
+    
+    PetscReal, pointer :: wf_par(:)
+    PetscReal, pointer :: relative_weight(:)
+    PetscReal, pointer :: aniso_weight(:,:)
+
   end type constrained_block_type
 
   type constrained_block_par_type
@@ -146,6 +158,14 @@ function ConstrainedBlockCreate()
 
   constrained_block%num_constrained_block = 0
   nullify(constrained_block%constrained_block_list)
+
+  nullify(constrained_block%material_name)
+  nullify(constrained_block%material_id)
+  nullify(constrained_block%smetric)
+  nullify(constrained_block%wf_type)
+  nullify(constrained_block%wf_par)
+  nullify(constrained_block%relative_weight)
+  nullify(constrained_block%aniso_weight)
 
   ConstrainedBlockCreate => constrained_block
 
@@ -590,6 +610,8 @@ subroutine ConstrainedBlockDestroy(constrained_block)
   ! Date: 05/20/21
   ! 
 
+  use Utility_module, only : DeallocateArray
+
   implicit none
 
   type(constrained_block_type), pointer :: constrained_block
@@ -607,6 +629,14 @@ subroutine ConstrainedBlockDestroy(constrained_block)
     call ConstrainedBlockParDestroy(prev_constrained_block)
   enddo
   nullify(constrained_block%constrained_block_list)
+
+  call DeallocateArray(constrained_block%material_name)
+  call DeallocateArray(constrained_block%material_id)
+  call DeallocateArray(constrained_block%smetric)
+  call DeallocateArray(constrained_block%wf_type)
+  call DeallocateArray(constrained_block%wf_par)
+  call DeallocateArray(constrained_block%relative_weight)
+  call DeallocateArray(constrained_block%aniso_weight)
 
   deallocate(constrained_block)
   nullify(constrained_block)
