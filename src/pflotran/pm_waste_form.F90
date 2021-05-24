@@ -26,6 +26,7 @@ module PM_Waste_Form_class
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
+  use Lookup_Table_module
   
   implicit none
 
@@ -417,6 +418,7 @@ module PM_Waste_Form_class
     class(data_mediator_vec_type), pointer :: data_mediator
     class(waste_form_base_type), pointer :: waste_form_list
     class(wf_mechanism_base_type), pointer :: mechanism_list
+    class(spacer_mechanism_base_type), pointer :: spacer_mech_list
     type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
@@ -451,6 +453,23 @@ module PM_Waste_Form_class
 
 ! -------------------------------------------------------------------
 
+  ! Stores variables for the criticality heat emission lookup table
+  type, public :: crit_heat_type
+    character(len=MAXSTRINGLENGTH) :: file_name
+    PetscInt :: num_start_times
+    PetscInt :: num_values_per_start_time
+    PetscReal :: start_time_datamax
+    PetscReal :: temp_datamax
+    PetscReal :: power_datamax
+    class(lookup_table_general_type), pointer :: lookup_table
+    class(crit_heat_type), pointer :: next
+  contains
+    procedure, public :: Read => CritHeatRead
+    procedure, public :: Evaluate => CritHeatEvaluate
+  end type crit_heat_type
+
+! -------------------------------------------------------------------
+
 ! Stores variables relevant to criticality calculations
   type, public :: crit_mechanism_base_type
     character(len=MAXWORDLENGTH) :: mech_name
@@ -466,6 +485,7 @@ module PM_Waste_Form_class
     type(criticality_event_type), pointer :: crit_event
     class(dataset_ascii_type), pointer :: rad_dataset
     class(dataset_ascii_type), pointer :: heat_dataset
+    type(crit_heat_type), pointer :: crit_heat_dataset
     class(crit_mechanism_base_type), pointer :: next
   end type crit_mechanism_base_type
 
@@ -818,6 +838,39 @@ end function PMWFRadSpeciesCreate
 
 ! ************************************************************************** !
 
+function PMWFSpacerMechCreate()
+!
+! Creates a spacer grid degradation model in the waste form
+!
+! Author: Alex Salazar III
+! Date: 05/06/2021
+
+  implicit none
+
+! LOCAL VARIABLES:
+! ================
+! ----------------------------------------------
+  type(spacer_mechanism_base_type), pointer :: PMWFSpacerMechCreate
+  type(spacer_mechanism_base_type), pointer :: spc
+! ----------------------------------------------
+
+  allocate(spc)
+  nullify(spc%next)
+
+  spc%mech_name = ''
+  spc%threshold_sat = 0.0d0
+  spc%alteration_rate = UNINITIALIZED_DOUBLE
+  spc%spacer_mass = UNINITIALIZED_DOUBLE
+  spc%spacer_surface_area = UNINITIALIZED_DOUBLE
+  spc%spacer_coeff = UNINITIALIZED_DOUBLE
+  spc%spacer_activation_energy = UNINITIALIZED_DOUBLE
+  
+  PMWFSpacerMechCreate => spc
+
+end function PMWFSpacerMechCreate
+
+! ************************************************************************** !
+
 function PMWFWasteFormCreate()
   ! 
   ! Creates a waste form and initializes all parameters
@@ -904,6 +957,7 @@ function PMWFCreate()
   nullify(PMWFCreate%data_mediator)
   nullify(PMWFCreate%waste_form_list)
   nullify(PMWFCreate%mechanism_list) 
+  nullify(PMWFCreate%spacer_mech_list) 
   nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
@@ -951,11 +1005,15 @@ subroutine PMWFReadPMBlock(this,input)
 ! -------------------------------------------------------
   class(waste_form_base_type), pointer :: cur_waste_form
   class(wf_mechanism_base_type), pointer :: cur_mechanism
+  class(spacer_mechanism_base_type), pointer :: cur_sp_mech
   class(crit_mechanism_base_type), pointer :: cur_crit_mech
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
+  PetscBool :: assigned
+  PetscInt  :: id = INPUT_RECORD_UNIT
+  PetscBool :: is_open
 ! -------------------------------------------------------
 
   option => this%option
@@ -997,8 +1055,18 @@ subroutine PMWFReadPMBlock(this,input)
     if (found) cycle
     
     error_string = 'WASTE_FORM_GENERAL'
+    call PMWFReadSpacerMech(this,input,option,word,error_string,found)
+    if (found) cycle
+    
+    error_string = 'WASTE_FORM_GENERAL'
     call ReadCriticalityMech(this,input,option,word,error_string,found)
     if (found) cycle
+    
+    if (.not. found) then
+      option%io_buffer = 'Keyword "' // trim(word) // &
+                         '" not applicable for the waste form process model.'
+      call PrintErrMsg(option)
+    endif
    
   enddo
   call InputPopBlock(input,option)
@@ -1017,18 +1085,52 @@ subroutine PMWFReadPMBlock(this,input)
       cur_mechanism => cur_mechanism%next
     enddo
 
+    ! Assign chosen spacer grid degradation mechanism to each waste form object
+    if (associated(this%spacer_mech_list)) then
+      cur_sp_mech => this%spacer_mech_list
+      do
+        if (.not. associated(cur_sp_mech)) exit
+        assigned = PETSC_FALSE
+        if (StringCompare(cur_waste_form%spacer_mech_name, &
+                          cur_sp_mech%mech_name)) then
+          cur_waste_form%spacer_mechanism => cur_sp_mech
+          assigned = PETSC_TRUE
+          exit
+        endif
+        cur_sp_mech => cur_sp_mech%next
+      enddo
+      if (.not. assigned .and. &
+          len_trim(cur_waste_form%spacer_mech_name) > 1) then
+        option%io_buffer = 'Spacer degradation mechanism "' &
+        // trim(cur_waste_form%spacer_mech_name) &
+        //'" specified for waste form not found among the ' &
+        //'available options.'
+        call PrintErrMsg(option)
+      endif
+    endif
+
     ! Assign chosen criticality mechanism to each waste form object
     if (associated(this%criticality_mediator)) then
       cur_crit_mech => this%criticality_mediator%crit_mech_list 
       do
         if (.not. associated(cur_crit_mech)) exit
+        assigned = PETSC_FALSE
         if (StringCompare(cur_waste_form%criticality_mech_name, &
                           cur_crit_mech%mech_name)) then
           cur_waste_form%criticality_mechanism => cur_crit_mech
+          assigned = PETSC_TRUE
           exit
         endif
         cur_crit_mech => cur_crit_mech%next
       enddo
+      if (.not. assigned .and. &
+          len_trim(cur_waste_form%criticality_mech_name) > 1) then
+        option%io_buffer = 'Criticality mechanism "' &
+        // trim(cur_waste_form%criticality_mech_name) &
+        //'" specified for waste form not found among the ' &
+        //'available options.'
+        call PrintErrMsg(option)
+      endif
     endif
 
     ! error messaging: ----------------------------------------------
@@ -1129,6 +1231,13 @@ subroutine PMWFReadPMBlock(this,input)
     
     cur_waste_form => cur_waste_form%next
   enddo
+  
+  inquire(id, OPENED=is_open)
+  if (is_open .and. OptionPrintToFile(option)) then
+    if (associated(this%waste_form_list)) then
+      call WasteFormInputRecord(this%waste_form_list)
+    endif
+  endif
     
 end subroutine PMWFReadPMBlock
 
@@ -2046,10 +2155,18 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
         !-----------------------------    
           case('CRITICALITY_MECHANISM_NAME')
             call InputReadCard(input,option,word)
-            call InputErrorMsg(input,option,'mechanism assignment',error_string)
+            call InputErrorMsg(input,option,'criticality mechanism ' &
+                             //'assignment',error_string)
             call StringToUpper(word)
             new_waste_form%criticality_mech_name = trim(word)
-
+        !-----------------------------    
+          case('SPACER_MECHANISM_NAME')
+            call InputReadCard(input,option,word)
+            call InputErrorMsg(input,option,'spacer grid degradation ' &
+                            //'mechanism assignment',error_string)
+            call StringToUpper(word)
+            new_waste_form%spacer_mech_name = trim(word)
+            new_waste_form%spacer_degradation_flag = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -2067,14 +2184,14 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
         num_errors = num_errors + 1
       endif
       if (Uninitialized(new_waste_form%coordinate%z) .and. &
-          (len(trim(new_waste_form%region_name)) == 0)) then
+          (len_trim(new_waste_form%region_name) == 0)) then
         option%io_buffer = 'ERROR: Either COORDINATE or REGION must be &
                            &specified for all waste forms.'
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       if (Initialized(new_waste_form%coordinate%z) .and. &
-          (len(trim(new_waste_form%region_name)) > 0)) then
+          (len_trim(new_waste_form%region_name) > 0)) then
         option%io_buffer = 'ERROR: Either COORDINATE or REGION must be &
                            &specified for all waste forms, but not both.'
         call PrintMsg(option)
@@ -2124,6 +2241,207 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   endif
 
 end subroutine PMWFReadWasteForm
+
+! ************************************************************************** !
+
+subroutine PMWFReadSpacerMech(this,input,option,keyword,error_string,found)
+  ! 
+  ! Reads input file parameters associated with the spacer grid
+  !   degradation model
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/04/2021
+  !
+  use Input_Aux_module
+  use Option_module
+  use Condition_module, only : ConditionReadValues
+  use Dataset_Ascii_class 
+  use String_module
+  use Units_module
+  use Region_module
+  
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! input (input/output): pointer to input object
+! option (input/output): pointer to option object
+! keyword (input): keyword string
+! error_string (input/output): error message string
+! found (input/output): Boolean helper
+! ----------------------------------------------
+  class(pm_waste_form_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+! ----------------------------------------------
+
+! LOCAL VARIABLES:
+! ================
+! added: Boolean helper
+! num_errors: [-] number of errors during read
+! word: temporary string
+! new_waste_form: pointer to new waste form object
+! cur_waste_form: pointer to current waste form object
+! ----------------------------------------------------------------------
+  PetscBool :: added
+  PetscInt :: num_errors
+  character(len=MAXWORDLENGTH) :: word
+  class(spacer_mechanism_base_type), pointer :: new_sp_mech, cur_sp_mech
+! ----------------------------------------------------------------------
+
+  error_string = trim(error_string) // ',SPACER_DEGRADATION_MECHANISM'
+  found = PETSC_TRUE
+  added = PETSC_FALSE
+  num_errors = 0
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('SPACER_DEGRADATION_MECHANISM')
+      allocate(new_sp_mech)
+      new_sp_mech => PMWFSpacerMechCreate()
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+         case('NAME')
+           call InputReadCard(input,option,word)
+           call InputErrorMsg(input,option, &
+                              'spacer grid degradation mechanism assignment', &
+                              error_string)
+           call StringToUpper(word)
+           new_sp_mech%mech_name = trim(word)
+        !-----------------------------
+          case('EXPOSURE_LEVEL')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%threshold_sat)
+            call InputErrorMsg(input,option,'grid spacer exposure &
+                               &saturation limit',error_string)
+        !-----------------------------
+          case('MASS')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%spacer_mass)
+            call InputErrorMsg(input,option,'grid spacer total mass', &
+                               error_string)
+            call InputReadAndConvertUnits(input, new_sp_mech%spacer_mass, &
+                                          'kg','MASS',option)
+        !-----------------------------
+          case('SURFACE_AREA')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%spacer_surface_area)
+            call InputErrorMsg(input,option,'grid spacer total surface &
+                               &area',error_string)
+            call InputReadAndConvertUnits(input, &
+                                          new_sp_mech%spacer_surface_area, &
+                                          'm^2','SURFACE_AREA',option)
+        !-----------------------------
+          case('C')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%spacer_coeff)
+            call InputErrorMsg(input,option,'grid spacer degradation model &
+                               &empirical constant',error_string)
+            call InputReadAndConvertUnits(input, &
+                                          new_sp_mech%spacer_coeff, &
+                                          'kg/m^2-s','C',option)
+        !-----------------------------
+          case('Q')
+            call InputReadDouble(input,option, &
+                                 new_sp_mech%spacer_activation_energy)
+            call InputErrorMsg(input,option,'grid spacer degradation model &
+                               activation energy',error_string)
+            call InputReadAndConvertUnits(input, &
+                                          new_sp_mech%spacer_activation_energy,&
+                                          'J/mol','Q',option)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+
+      enddo
+      call InputPopBlock(input,option)
+    
+      
+      ! --------------------------- error messaging ---------------------------
+      if (len_trim(new_sp_mech%mech_name) < 1) then
+        option%io_buffer = 'Name must be specified for spacer grid ' &
+                         //'degradation mechanism in order to be associated ' &
+                         //'with a waste form.'
+        call PrintWrnMsg(option)
+      endif
+      if (Uninitialized(new_sp_mech%spacer_mass)) then
+        option%io_buffer = 'ERROR: Total spacer grid mass must be specified &
+                           &for spacer grid degradation mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_sp_mech%spacer_activation_energy)) then
+        option%io_buffer = 'ERROR: Activation energy must be specified &
+                           &for spacer grid degradation mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_sp_mech%spacer_coeff)) then
+        option%io_buffer = 'ERROR: Scaling coefficient must be specified &
+                           &for spacer grid degradation mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (Uninitialized(new_sp_mech%spacer_surface_area)) then
+        option%io_buffer = 'ERROR: Total spacer grid surface area must be &
+                           &specified for spacer grid degradation mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (new_sp_mech%threshold_sat > 1.d0 .or. &
+          new_sp_mech%threshold_sat < 0.d0) then
+        option%io_buffer = 'ERROR: Saturation limit for exposure must be ' &
+                         //'between 0 and 1 in the spacer grid degradation ' &
+                         //'mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      
+      if (.not.associated(this%spacer_mech_list)) then
+        this%spacer_mech_list => new_sp_mech
+      else
+        cur_sp_mech => this%spacer_mech_list
+        do
+          if (.not.associated(cur_sp_mech)) exit
+          if (.not.associated(cur_sp_mech%next)) then
+            cur_sp_mech%next => new_sp_mech
+            added = PETSC_TRUE
+          endif
+          if (added) exit
+          cur_sp_mech => cur_sp_mech%next
+        enddo
+      endif
+      nullify(new_sp_mech)
+      
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in ' &
+                    //'the WASTE_FORM_GENERAL,SPACER_DEGRADATION_MECHANISM ' &
+                    //'block(s). See above.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine PMWFReadSpacerMech
 
 ! ************************************************************************** !
 
@@ -2803,6 +3121,7 @@ subroutine PMWFInitializeTimestep(this)
   use Patch_module
   use Utility_module
   use Dataset_Ascii_class
+  use String_module
   
   implicit none
   
@@ -2892,6 +3211,9 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal, pointer :: times(:)
   PetscBool :: dataset_solution
   class(dataset_ascii_type), pointer :: dataset
+  
+  avg_temp_global = UNINITIALIZED_DOUBLE
+  avg_sat_global = UNINITIALIZED_DOUBLE
 
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
@@ -3002,7 +3324,8 @@ subroutine PMWFInitializeTimestep(this)
                                avg_sat_global)
         endif
 
-        if (avg_sat_local >= cur_waste_form%spacer_mechanism%threshold_sat) then
+        if (avg_sat_global >= &
+            cur_waste_form%spacer_mechanism%threshold_sat) then
           cur_waste_form%spacer_mechanism%alteration_rate = 1.0d0
         else
           cur_waste_form%spacer_mechanism%alteration_rate = avg_sat_global / &
@@ -3015,16 +3338,37 @@ subroutine PMWFInitializeTimestep(this)
           do i = 1,cur_waste_form%region%num_cells
             local_id = cur_waste_form%region%cell_ids(i)
             ghosted_id = grid%nL2G(local_id)
-            avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp*&
+            avg_temp_local = avg_temp_local + global_auxvars(ghosted_id)%temp* &
                              cur_waste_form%scaling_factor(i)
           enddo
           call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
                                avg_temp_global)
+          avg_temp_global = avg_temp_global + 273.15d0   ! Kelvin
         endif
 
       call cur_waste_form%spacer_mechanism%Degradation(cur_waste_form, this, &
-                                          avg_sat_global, avg_temp_global, &
-                                          option%dt, ierr)
+                                                       avg_sat_global, &
+                                                       avg_temp_global, &
+                                                       dt, ierr)
+    endif
+    
+    ! ------------------ criticality termination criterion -----------------
+    if (cur_waste_form%spacer_degradation_flag .and. &
+       (cur_waste_form%spacer_vitality <= 1.d-2)) then
+      if (associated(this%criticality_mediator)) then
+        cur_criticality => this%criticality_mediator%crit_mech_list
+        do
+          if (.not. associated(cur_criticality)) exit
+          if (StringCompare(cur_criticality%mech_name, &
+                            cur_waste_form%criticality_mech_name)) then
+            if (option%time < cur_criticality%crit_event%crit_end) then
+              cur_criticality%crit_event%crit_end = option%time
+            endif
+          endif
+          cur_criticality => cur_criticality%next
+        enddo
+      endif
+      cur_waste_form%spacer_degradation_flag = PETSC_FALSE
     endif
 
     !------- instantaneous release ----------------------------------------- 
@@ -3348,6 +3692,8 @@ subroutine PMWFSolve(this,time,ierr)
   use Material_Aux_class
   use Reactive_Transport_Aux_module, only : rt_min_saturation
   use Grid_module
+  use Option_module
+  use Utility_module
   
   implicit none
 
@@ -3394,6 +3740,9 @@ subroutine PMWFSolve(this,time,ierr)
   PetscReal :: inst_diss_molality
   PetscReal, pointer :: vec_p(:)  
   PetscReal, pointer :: xx_p(:), heat_source(:)
+  PetscReal :: avg_temp_local, avg_temp_global
+  PetscReal :: avg_sw_local, avg_sw_global
+  PetscReal :: avg_rho_w_local, avg_rho_w_global
   PetscInt :: fmdm_count_global, fmdm_count_local
   PetscLogDouble :: log_start_time, log_end_time
   character(len=MAXWORDLENGTH) :: word
@@ -3401,12 +3750,19 @@ subroutine PMWFSolve(this,time,ierr)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   type(crit_mechanism_base_type), pointer :: cur_criticality
+  type(option_type), pointer :: option
 ! -----------------------------------------------------------
 
   call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
   
   fmdm_count_global = 0
   fmdm_count_local = 0
+  avg_temp_local = 0.d0
+  avg_sw_local  = 0.d0
+  avg_rho_w_local = 0.d0
+  avg_temp_global = UNINITIALIZED_DOUBLE
+  avg_sw_global  = UNINITIALIZED_DOUBLE
+  avg_rho_w_global = UNINITIALIZED_DOUBLE
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
   grid => this%realization%patch%grid
@@ -3519,6 +3875,58 @@ subroutine PMWFSolve(this,time,ierr)
 
       call CriticalityCalc(cur_criticality,time,ierr)
 
+      ! Use heat of criticality lookup table if applicable
+      if (associated(cur_criticality%crit_heat_dataset) .and. &
+          cur_criticality%crit_event%crit_flag) then
+        do j = 1,cur_waste_form%region%num_cells
+          ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
+          avg_temp_local = avg_temp_local + &  ! Celsius
+            (global_auxvars(ghosted_id)%temp*cur_waste_form%scaling_factor(j))
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_temp_local, &
+                             avg_temp_global)
+        avg_temp_global = avg_temp_global / size(cur_waste_form%rank_list)
+        cur_criticality%temperature = avg_temp_global
+        cur_criticality%crit_heat = cur_criticality%crit_heat_dataset% &
+          Evaluate(cur_criticality%crit_event%crit_start, &
+                   cur_criticality%temperature)
+      endif
+      
+      ! Criticality termination - water saturation
+      if (Initialized(cur_criticality%sw) .and. &
+          cur_criticality%crit_event%crit_flag) then
+        do j = 1,cur_waste_form%region%num_cells
+          ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
+          avg_sw_local = avg_sw_local + &  ! Liquid Saturation
+            (global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &
+            cur_waste_form%scaling_factor(j))
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_sw_local, &
+                             avg_sw_global)
+        avg_sw_global = avg_sw_global / size(cur_waste_form%rank_list)
+        if (avg_sw_global < cur_criticality%sw) then
+          cur_criticality%crit_event%crit_flag = PETSC_FALSE
+        endif
+      endif
+      
+      ! Criticality termination - water density
+      if (Initialized(cur_criticality%rho_w) .and. &
+          cur_criticality%crit_event%crit_flag) then
+        do j = 1,cur_waste_form%region%num_cells
+          ghosted_id = grid%nL2G(cur_waste_form%region%cell_ids(j))
+          avg_rho_w_local = avg_rho_w_local + &  ! Liquid Density
+            (global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE) * &
+            cur_waste_form%scaling_factor(j))
+        enddo
+        call CalcParallelSUM(option,cur_waste_form%rank_list,avg_rho_w_local, &
+                             avg_rho_w_global)
+        avg_rho_w_global = avg_rho_w_global / size(cur_waste_form%rank_list)
+        if (avg_rho_w_global < cur_criticality%rho_w) then
+          cur_criticality%crit_event%crit_flag = PETSC_FALSE
+        endif
+      endif
+
+      ! Define heat source
       do j = 1, cur_waste_form%region%num_cells
         m = m + 1
         heat_source(m) = cur_criticality%decay_heat
@@ -3662,7 +4070,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   avg_temp_local = 0.d0
   do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
-    avg_temp_local = avg_temp_local + &  ! Celcius
+    avg_temp_local = avg_temp_local + &  ! Celsius
                (global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i))
   enddo
   call CalcParallelSUM(pm%option,waste_form%rank_list,avg_temp_local, &
@@ -3933,7 +4341,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   avg_temp_local = 0.d0
   do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
-    avg_temp_local = avg_temp_local + &  ! Celcius
+    avg_temp_local = avg_temp_local + &  ! Celsius
                global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
   enddo
   call CalcParallelSUM(option,waste_form%rank_list,avg_temp_local, &
@@ -4064,7 +4472,7 @@ subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
   avg_temp_local = 0.d0
   do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
-    avg_temp_local = avg_temp_local + &  ! Celcius
+    avg_temp_local = avg_temp_local + &  ! Celsius
                global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
   enddo
   call CalcParallelSUM(option,waste_form%rank_list,avg_temp_local, &
@@ -4474,8 +4882,9 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! Checkpoints data associated with the waste form process model
   ! into the "canister_properties" dataset for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
-  ! cumulative mass released (5:2:end) .
+  ! spacer grid vitality (4),
+  ! radionuclide mass fraction (5:2:end-1), 
+  ! cumulative mass released (6:2:end) .
 
   !
   ! Author: Michael Nole
@@ -4516,7 +4925,7 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   n_wf_local=0
   n_wf_global=0
   
-  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_check_vars=4 !number of scalar wf checkpoint variables
   n_vecs=2 !number of vector wf checkpoint variables (by species)
   
   do 
@@ -4572,6 +4981,7 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
     check_vars(1)=cur_waste_form%canister_vitality
     check_vars(2)=cur_waste_form%volume
     check_vars(3)=cur_waste_form%breach_time
+    check_vars(4)=cur_waste_form%spacer_vitality
     
     do i = 1,num_species
       check_vars(n_vecs*i-1+n_check_vars)=cur_waste_form%rad_mass_fraction(i)
@@ -4628,8 +5038,9 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! Restarts data associated with waste form process model
   ! from the "canister_properties" dataset for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
-  ! cumulative mass released (5:2:end) .
+  ! spacer grid vitality (4),
+  ! radionuclide mass fraction (5:2:end-1), 
+  ! cumulative mass released (6:2:end) .
   ! 
   ! Author: Michael Nole
   ! Date: 10/03/18
@@ -4668,7 +5079,7 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   n_wf_local=0
   n_wf_global=0
   
-  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_check_vars=4 !number of scalar wf checkpoint variables
   n_vecs=2 !number of vector wf checkpoint variables (by species)
   
   do 
@@ -4745,6 +5156,7 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
     cur_waste_form%canister_vitality=local_wf_array(i)
     cur_waste_form%volume=local_wf_array(i+1)
     cur_waste_form%breach_time=local_wf_array(i+2)
+    cur_waste_form%spacer_vitality=local_wf_array(i+3)
     if (cur_waste_form%breach_time<0) then
       cur_waste_form%breached=PETSC_FALSE
     else
@@ -4774,8 +5186,9 @@ subroutine PMWFCheckpointBinary(this, viewer)
   ! Checkpoints data associated with the waste form process model
   ! into a checkpiont binary file for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
-  ! cumulative mass released (5:2:end) .
+  ! spacer grid vitality (4),
+  ! radionuclide mass fraction (5:2:end-1), 
+  ! cumulative mass released (6:2:end) 
 
   !
   ! Author: Michael Nole
@@ -4817,7 +5230,7 @@ subroutine PMWFCheckpointBinary(this, viewer)
   n_wf_local=0
   n_wf_global=0
   
-  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_check_vars=4 !number of scalar wf checkpoint variables
   n_vecs=2 !number of vector wf checkpoint variables (by species)
   
   do 
@@ -4873,6 +5286,7 @@ subroutine PMWFCheckpointBinary(this, viewer)
     check_vars(1)=cur_waste_form%canister_vitality
     check_vars(2)=cur_waste_form%volume
     check_vars(3)=cur_waste_form%breach_time
+    check_vars(4)=cur_waste_form%spacer_vitality
     
     do i = 1,num_species
       check_vars(n_vecs*i-1+n_check_vars)=cur_waste_form%rad_mass_fraction(i)
@@ -4929,8 +5343,9 @@ subroutine PMWFRestartBinary(this, viewer)
   ! Restarts data associated with waste form process model
   ! from a checkpoint binary file for a given wf pm: 
   ! canister vitality (1), canister volume (2), breach time (3),
-  ! radionuclide mass fraction (4:2:end-1), 
-  ! cumulative mass released (5:2:end) .
+  ! spacer grid vitality (4),
+  ! radionuclide mass fraction (5:2:end-1), 
+  ! cumulative mass released (6:2:end) .
   ! 
   ! Author: Michael Nole
   ! Date: 10/09/18
@@ -4967,7 +5382,7 @@ subroutine PMWFRestartBinary(this, viewer)
   n_wf_local=0
   n_wf_global=0
   
-  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_check_vars=4 !number of scalar wf checkpoint variables
   n_vecs=2 !number of vector wf checkpoint variables (by species)
   
   do 
@@ -5042,6 +5457,7 @@ subroutine PMWFRestartBinary(this, viewer)
     cur_waste_form%canister_vitality=local_wf_array(i)
     cur_waste_form%volume=local_wf_array(i+1)
     cur_waste_form%breach_time=local_wf_array(i+2)
+    cur_waste_form%spacer_vitality=local_wf_array(i+3)
     if (cur_waste_form%breach_time<0) then
       cur_waste_form%breached=PETSC_FALSE
     else
@@ -5074,6 +5490,8 @@ subroutine PMWFInputRecord(this)
   ! Author: Jenn Frederick, SNL
   ! Date: 03/21/2016
   ! 
+  ! Modified by Alex Salazar III
+  ! Date: 05/13/2021
   
   implicit none
   
@@ -5095,9 +5513,549 @@ subroutine PMWFInputRecord(this)
   
   write(id,'(a29)',advance='no') 'pm: '
   write(id,'(a)') this%name
+  
+  if (associated(this%mechanism_list)) then
+    call MechanismInputRecord(this%mechanism_list);
+  endif
+  
+  if (associated(this%spacer_mech_list)) then
+    call SpacerMechInputRecord(this%spacer_mech_list)
+  endif
+  
+  if (associated(this%criticality_mediator)) then
+    call CritMechInputRecord(this%criticality_mediator);
+  endif
 
   
 end subroutine PMWFInputRecord
+
+! ************************************************************************** !
+
+subroutine WasteFormInputRecord(this)
+  ! 
+  ! Writes waste form information to the input record file.
+  ! 
+  ! Author: Alex Salazar, SNL
+  ! Date: 10/22/2020
+  ! 
+  implicit none
+  ! INPUT ARGUMENTS:
+  ! ================
+  class(waste_form_base_type), pointer :: this
+  ! ---------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  class(waste_form_base_type), pointer :: cur_waste_form
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: i
+  PetscInt :: id = INPUT_RECORD_UNIT
+  ! ---------------------------------
+  
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+                  &-----------------------'
+  write(id,'(a29)',advance='no') '---------------------------: '
+  write(id,'(a)') 'WASTE FORMS'
+  
+  cur_waste_form => this
+  do
+    if (.not. associated(cur_waste_form)) exit
+    
+    if (len_trim(adjustl(cur_waste_form%region_name)) > 0) then
+      write(id,'(a29)',advance='no') 'region: '
+      write(id,'(a)') cur_waste_form%region_name
+    endif
+    
+    if (Initialized(cur_waste_form%coordinate%x)) then
+      write(id,'(a29)',advance='no') 'x-coordinate: '
+      write(word,'(es12.5)') cur_waste_form%coordinate%x
+      write(id,'(a)') trim(adjustl(word))
+    endif
+    
+    if (Initialized(cur_waste_form%coordinate%y)) then
+      write(id,'(a29)',advance='no') 'y-coordinate: '
+      write(word,'(es12.5)') cur_waste_form%coordinate%y
+      write(id,'(a)') trim(adjustl(word))
+    endif
+    
+    if (Initialized(cur_waste_form%coordinate%z)) then
+      write(id,'(a29)',advance='no') 'z-coordinate: '
+      write(word,'(es12.5)') cur_waste_form%coordinate%z
+      write(id,'(a)') trim(adjustl(word))
+    endif
+    
+    if (Initialized(cur_waste_form%exposure_factor)) then
+      write(id,'(a29)',advance='no') 'exposure_factor: '
+      write(word,'(es12.5)') cur_waste_form%exposure_factor
+      write(id,'(a)') trim(adjustl(word))
+    endif
+    
+    if (Initialized(cur_waste_form%volume)) then
+      write(id,'(a29)',advance='no') 'volume: '
+      write(word,'(es12.5)') cur_waste_form%volume
+      write(id,'(a)') trim(adjustl(word)) // ' m^3'
+    endif
+    
+    if (len_trim(adjustl(cur_waste_form%mech_name)) > 0) then
+      write(id,'(a29)',advance='no') 'mechanism: '
+      write(id,'(a)') cur_waste_form%mech_name
+    endif
+    
+    if (len_trim(adjustl(cur_waste_form%spacer_mech_name)) > 0) then
+      write(id,'(a29)',advance='no') 'spacer mechanism: '
+      write(id,'(a)') cur_waste_form%spacer_mech_name
+    endif
+    
+    if (len_trim(adjustl(cur_waste_form%criticality_mech_name)) > 0) then
+      write(id,'(a29)',advance='no') 'criticality mechanism: '
+      write(id,'(a)') cur_waste_form%criticality_mech_name
+    endif
+    
+    if (Initialized(cur_waste_form%canister_vitality_rate)) then
+      write(id,'(a29)',advance='no') 'canister vitality rate: '
+      write(word,'(es12.5)') cur_waste_form%canister_vitality_rate
+      write(id,'(a)') trim(adjustl(word)) // ' sec^-1'
+    endif
+    
+    if (Initialized(cur_waste_form%breach_time)) then
+      write(id,'(a29)',advance='no') 'canister breach time: '
+      write(word,'(es12.5)') cur_waste_form%breach_time
+      write(id,'(a)') trim(adjustl(word)) // ' sec'
+    endif
+    
+    if (cur_waste_form%decay_start_time > 0.0d0) then
+      write(id,'(a29)',advance='no') 'decay start time: '
+      write(word,'(es12.5)') cur_waste_form%decay_start_time
+      write(id,'(a)') trim(adjustl(word)) // ' sec'
+    endif
+    
+    write(id,'(a29)') '---------------------------: '
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+end subroutine WasteFormInputRecord
+
+! ************************************************************************** !
+
+subroutine MechanismInputRecord(this)
+  ! 
+  ! Writes waste form mechanism information to the input record file.
+  ! 
+  ! Author: Alex Salazar, SNL
+  ! Date: 10/07/2020
+  ! 
+  implicit none
+  ! INPUT ARGUMENTS:
+  ! ================
+  class(wf_mechanism_base_type), pointer :: this
+  ! ---------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  class(wf_mechanism_base_type), pointer :: cur_mech
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: i
+  PetscInt :: id = INPUT_RECORD_UNIT
+  ! ---------------------------------
+
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+                  &-----------------------'
+  write(id,'(a29)',advance='no') '---------------------------: '
+  write(id,'(a)') 'WASTE FORM MECHANISMS'
+
+  cur_mech => this
+  do
+    if (.not. associated(cur_mech)) exit
+
+    ! Base variables
+    if (len_trim(adjustl(cur_mech%name)) > 0) then
+      write(id,'(a29)',advance='no') 'mechanism name: '
+      write(id,'(a)') trim(adjustl(cur_mech%name))
+    endif
+    
+    if (Initialized(cur_mech%specific_surface_area)) then
+      write(id,'(a29)',advance='no') 'specific surface area: '
+      write(word,'(es12.5)') cur_mech%specific_surface_area
+      write(id,'(a)') trim(adjustl(word)) // ' m^2/kg'
+    endif
+    
+    if (Initialized(cur_mech%matrix_density)) then
+      write(id,'(a29)',advance='no') 'matrix density: '
+      write(word,'(es12.5)') cur_mech%matrix_density
+      write(id,'(a)') trim(adjustl(word)) // ' kg/m^3'
+    endif
+    
+    if (.not. cur_mech%seed == 1) then
+      write(id,'(a29)',advance='no') 'random seed: '
+      write(word,'(I12)') cur_mech%seed
+      write(id,'(a)') trim(adjustl(word)) // ' kg/m^3'
+    endif
+    
+    if (cur_mech%num_species > 0) then
+      write(id,'(a29)') 'SPECIES: '
+      do i = 1,cur_mech%num_species
+        write(id,'(a29)',advance='no') ''
+        write(id,'(a12,1X)',advance='no') & 
+          cur_mech%rad_species_list(i)%name
+        write(id,'(es12.5,1X)',advance='no') & 
+          cur_mech%rad_species_list(i)%formula_weight
+        write(id,'(es12.5,1X)',advance='no') & 
+          cur_mech%rad_species_list(i)%decay_constant
+        write(id,'(es12.5,1X)',advance='no') & 
+          cur_mech%rad_species_list(i)%mass_fraction
+        write(id,'(es12.5,1X)',advance='no') & 
+          cur_mech%rad_species_list(i)%inst_release_fraction
+        write(id,'(a12)') cur_mech%rad_species_list(i)%daughter
+      enddo
+    endif
+    
+    if (cur_mech%canister_degradation_model) then
+      
+      if (Initialized(cur_mech%vitality_rate_mean)) then
+        write(id,'(a29)',advance='no') 'mean degradation rate: '
+        write(word,'(es12.5)') cur_mech%vitality_rate_mean 
+        write(id,'(a)') trim(adjustl(word)) // ' log10/yr'
+      endif
+      
+      if (Initialized(cur_mech%vitality_rate_stdev)) then
+        write(id,'(a29)',advance='no') 'stdev degradation rate: '
+        write(word,'(es12.5)') cur_mech%vitality_rate_stdev
+        write(id,'(a)') trim(adjustl(word)) // ' log10/yr'
+      endif
+      
+      if (Initialized(cur_mech%vitality_rate_trunc)) then
+        write(id,'(a29)',advance='no') 'degradation rate truncation: '
+        write(word,'(es12.5)') cur_mech%vitality_rate_trunc
+        write(id,'(a)') trim(adjustl(word)) // ' log10/yr'
+      endif
+      
+      if (Initialized(cur_mech%canister_material_constant)) then
+        write(id,'(a29)',advance='no') 'canister material constant: '
+        write(word,'(es12.5)') cur_mech%canister_material_constant
+        write(id,'(a)') trim(adjustl(word))
+      endif
+      
+    endif
+    
+    ! Mechanism types
+    select type(cm => cur_mech)
+    class is(wf_mechanism_glass_type)
+      
+      if (cm%dissolution_rate > 0.0d0) then
+        write(id,'(a29)',advance='no') 'dissolution rate: '
+        write(word,'(es12.5)') cm%dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' kg/m^2/sec'
+      endif
+      
+      if (Initialized(cm%k0)) then
+        write(id,'(a29)',advance='no') 'K_0 (int. dissolution rate): '
+        write(word,'(es12.5)') cm%k0
+        write(id,'(a)') trim(adjustl(word)) // ' kg/m^2/sec'
+      endif
+      
+      if (Initialized(cm%k_long)) then
+        write(id,'(a29)',advance='no') 'K_LONG (dissolution rate): '
+        write(word,'(es12.5)') cm%k_long
+        write(id,'(a)') trim(adjustl(word)) // ' kg/m^2/sec'
+      endif
+      
+      if (Initialized(cm%nu)) then
+        write(id,'(a29)',advance='no') 'nu (pH dependence): '
+        write(word,'(es12.5)') cm%nu
+        write(id,'(a)') trim(adjustl(word))
+      endif
+      
+      if (Initialized(cm%ea)) then
+        write(id,'(a29)',advance='no') 'effective activation energy: '
+        write(word,'(es12.5)') cm%ea
+        write(id,'(a)') trim(adjustl(word)) // ' J/mol'
+      endif
+      
+      if (Initialized(cm%Q)) then
+        write(id,'(a29)',advance='no') 'Q value: '
+        write(word,'(es12.5)') cm%Q
+        write(id,'(a)') trim(adjustl(word))
+      endif
+      
+      if (Initialized(cm%K)) then
+        write(id,'(a29)',advance='no') 'K (equilibrium constant): '
+        write(word,'(es12.5)') cm%K
+        write(id,'(a)') trim(adjustl(word))
+      endif
+      
+      if (Initialized(cm%V)) then
+        write(id,'(a29)',advance='no') 'V (exponent parameter): '
+        write(word,'(es12.5)') cm%V
+        write(id,'(a)') trim(adjustl(word))
+      endif
+      
+      if (Initialized(cm%pH)) then
+        write(id,'(a29)',advance='no') 'pH: '
+        write(word,'(es12.5)') cm%pH
+        write(id,'(a)') trim(adjustl(word))
+      endif
+      
+    class is(wf_mechanism_dsnf_type)
+      
+      if (Initialized(cm%frac_dissolution_rate)) then
+        write(id,'(a29)',advance='no') 'fractional dissolution rate: '
+        write(word,'(es12.5)') cm%frac_dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' sec^-1'
+      endif
+      
+    class is(wf_mechanism_wipp_type)
+      
+      if (Initialized(cm%frac_dissolution_rate)) then
+        write(id,'(a29)',advance='no') 'fractional dissolution rate: '
+        write(word,'(es12.5)') cm%frac_dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' sec^-1'
+      endif
+      
+    class is(wf_mechanism_fmdm_type)
+      
+      if (Initialized(cm%dissolution_rate)) then
+        write(id,'(a29)',advance='no') 'dissolution rate: '
+        write(word,'(es12.5)') cm%dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' kg/m^2/sec'
+      endif
+      
+      if (Initialized(cm%frac_dissolution_rate)) then
+        write(id,'(a29)',advance='no') 'fractional dissolution rate: '
+        write(word,'(es12.5)') cm%frac_dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' sec^-1'
+      endif
+      
+      if (Initialized(cm%burnup)) then
+        write(id,'(a29)',advance='no') 'burnup: '
+        write(word,'(es12.5)') cm%burnup
+        write(id,'(a)') trim(adjustl(word)) // ' GWd/MTHM'
+      endif
+      
+    class is(wf_mechanism_fmdm_surrogate_type)
+      
+      if (Initialized(cm%dissolution_rate)) then
+        write(id,'(a29)',advance='no') 'dissolution rate: '
+        write(word,'(es12.5)') cm%dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' kg/m^2/sec'
+      endif
+      
+      if (Initialized(cm%frac_dissolution_rate)) then
+        write(id,'(a29)',advance='no') 'fractional dissolution rate: '
+        write(word,'(es12.5)') cm%frac_dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' sec^-1'
+      endif
+      
+      if (Initialized(cm%burnup)) then
+        write(id,'(a29)',advance='no') 'burnup: '
+        write(word,'(es12.5)') cm%burnup
+        write(id,'(a)') trim(adjustl(word)) // ' GWd/MTHM'
+      endif
+      
+      if (Initialized(cm%decay_time)) then
+        write(id,'(a29)',advance='no') 'decay time: '
+        write(word,'(es12.5)') cm%decay_time
+        write(id,'(a)') trim(adjustl(word)) // ' sec'
+      endif
+      
+      if (Initialized(cm%num_nearest_neighbor)) then
+        write(id,'(a29)',advance='no') 'nearest neighbor: '
+        write(word,'(I12)') cm%num_nearest_neighbor
+        write(id,'(a)') trim(adjustl(word))
+      endif
+      
+      if (Initialized(cm%knnr_eps)) then
+        write(id,'(a29)',advance='no') 'KNNR EPS: '
+        write(word,'(es12.5)') cm%knnr_eps
+        write(id,'(a)') trim(adjustl(word))
+      endif
+      
+    class is(wf_mechanism_custom_type)
+      
+      if (Initialized(cm%dissolution_rate)) then
+        write(id,'(a29)',advance='no') 'dissolution rate: '
+        write(word,'(es12.5)') cm%dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' kg/m^2/sec'
+      endif
+      
+      if (Initialized(cm%frac_dissolution_rate)) then
+        write(id,'(a29)',advance='no') 'fractional dissolution rate: '
+        write(word,'(es12.5)') cm%frac_dissolution_rate
+        write(id,'(a)') trim(adjustl(word)) // ' sec^-1'
+      endif
+      
+    end select
+
+    write(id,'(a29)') '---------------------------: '
+    cur_mech => cur_mech%next
+  enddo
+  
+end subroutine MechanismInputRecord
+
+! ************************************************************************** !
+
+subroutine SpacerMechInputRecord(this)
+  ! 
+  ! Writes spacer grid degradation mechanism information to the
+  !   input record file.
+  ! 
+  ! Author: Alex Salazar, SNL
+  ! Date: 05/13/2021
+  ! 
+  implicit none
+  ! INPUT ARGUMENTS:
+  ! ================
+  type(spacer_mechanism_base_type), pointer :: this
+  ! ---------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  class(spacer_mechanism_base_type), pointer :: cur_sp_mech
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id = INPUT_RECORD_UNIT
+  ! ---------------------------------
+
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+                  &-----------------------'
+  write(id,'(a29)',advance='no') '---------------------------: '
+  write(id,'(a)') 'SPACER DEGRADATION MECHANISMS'
+
+  cur_sp_mech => this
+  do
+    if (.not.associated(cur_sp_mech)) exit
+    
+    if (len_trim(adjustl(cur_sp_mech%mech_name)) > 0) then
+      write(id,'(a29)',advance='no') 'spacer mechanism name: '
+      write(id,'(a)') trim(adjustl(cur_sp_mech%mech_name))
+    endif
+    
+    if (Initialized(cur_sp_mech%spacer_mass)) then
+      write(id,'(a29)',advance='no') 'grid spc. tot. mass: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_mass
+      write(id,'(a)') trim(adjustl(word)) // ' kg'
+    endif
+    
+    if (Initialized(cur_sp_mech%spacer_surface_area)) then
+      write(id,'(a29)',advance='no') 'grid spc. tot. surface area: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_surface_area
+      write(id,'(a)') trim(adjustl(word)) // ' m^2'
+    endif
+    
+    if (Initialized(cur_sp_mech%spacer_coeff)) then
+      write(id,'(a29)',advance='no') 'grid spc. mech constant: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_coeff
+      write(id,'(a)') trim(adjustl(word)) // ' kg/m^2-s'
+    endif
+    
+    if (Initialized(cur_sp_mech%spacer_activation_energy)) then
+      write(id,'(a29)',advance='no') 'grid spc. mech act. energy: '
+      write(word,'(es12.5)') cur_sp_mech%spacer_activation_energy
+      write(id,'(a)') trim(adjustl(word)) // ' J/mol'
+    endif
+    
+    if (Initialized(cur_sp_mech%threshold_sat)) then
+      write(id,'(a29)',advance='no') 'threshold saturation: '
+      write(word,'(es12.5)') cur_sp_mech%threshold_sat
+      write(id,'(a)') trim(adjustl(word))
+    endif
+      
+    write(id,'(a29)') '---------------------------: '
+    cur_sp_mech => cur_sp_mech%next
+  enddo
+
+end subroutine SpacerMechInputRecord
+
+! ************************************************************************** !
+
+subroutine CritMechInputRecord(this)
+  ! 
+  ! Writes criticality mechanism information to the input record file.
+  ! 
+  ! Author: Alex Salazar, SNL
+  ! Date: 10/06/2020
+  ! 
+  implicit none
+  ! INPUT ARGUMENTS:
+  ! ================
+  type(criticality_mediator_type), pointer :: this
+  ! ---------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  class(crit_mechanism_base_type), pointer :: cur_crit_mech
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id = INPUT_RECORD_UNIT
+  ! ---------------------------------
+
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+                  &-----------------------'
+  write(id,'(a29)',advance='no') '---------------------------: '
+  write(id,'(a)') 'CRITICALITY MECHANISMS'
+
+  cur_crit_mech => this%crit_mech_list
+  do
+    if (.not.associated(cur_crit_mech)) exit
+
+    if (len_trim(adjustl(cur_crit_mech%mech_name)) > 0) then
+      write(id,'(a29)',advance='no') 'criticality mechanism name: '
+      write(id,'(a)') trim(adjustl(cur_crit_mech%mech_name))
+    endif
+    
+    if (associated(cur_crit_mech%crit_event)) then
+      if (Initialized(cur_crit_mech%crit_event%crit_start)) then
+        write(id,'(a29)',advance='no') 'criticality start time: '
+        write(word,'(es12.5)') cur_crit_mech%crit_event%crit_start
+        write(id,'(a)') trim(adjustl(word)) // ' s'
+      endif
+      
+      if (Initialized(cur_crit_mech%crit_event%crit_end)) then
+        write(id,'(a29)',advance='no') 'criticality end time: '
+        write(word,'(es12.5)') cur_crit_mech%crit_event%crit_end
+        write(id,'(a)') trim(adjustl(word)) // ' s'
+      endif
+    endif
+    
+    if (associated(cur_crit_mech%crit_heat_dataset)) then
+      write(id,'(a29)',advance='no') 'crit. heat lookup table: '
+      write(id,'(a)') trim(adjustl(cur_crit_mech%crit_heat_dataset%file_name))
+    elseif (cur_crit_mech%crit_heat > 0.0d0) then
+      write(id,'(a29)',advance='no') 'heat of criticality: '
+      write(word,'(es12.5)') cur_crit_mech%crit_heat
+      write(id,'(a)') trim(adjustl(word)) // ' MW'
+    endif
+    
+    if (cur_crit_mech%sw > 0.0d0) then
+      write(id,'(a29)',advance='no') 'critical water saturation: '
+      write(word,'(es12.5)') cur_crit_mech%sw
+      write(id,'(a)') trim(adjustl(word))
+    endif
+    
+    if (cur_crit_mech%rho_w > 0.0d0) then
+      write(id,'(a29)',advance='no') 'critical water density: '
+      write(word,'(es12.5)') cur_crit_mech%rho_w
+      write(id,'(a)') trim(adjustl(word)) // ' kg/m^3'
+    endif
+    
+    if (len_trim(adjustl(cur_crit_mech%heat_dataset_name)) > 0) then
+      write(id,'(a29)',advance='no') 'decay heat dataset: '
+      write(id,'(a)') trim(adjustl(cur_crit_mech%heat_dataset_name))
+    endif
+    
+    if (.not. cur_crit_mech%heat_source_cond == 0) then
+      write(id,'(a29)',advance='no') 'decay heat source condition: '
+      write(word,'(I1)') cur_crit_mech%heat_source_cond
+      write(id,'(a)') trim(adjustl(word))
+    endif
+
+    if (len_trim(adjustl(cur_crit_mech%rad_dataset_name)) > 0) then 
+      write(id,'(a29)',advance='no') 'inventory dataset: '
+      write(id,'(a)') trim(adjustl(cur_crit_mech%rad_dataset_name))
+    endif
+
+    write(id,'(a29)') '---------------------------: '
+    cur_crit_mech => cur_crit_mech%next
+  enddo
+
+end subroutine CritMechInputRecord
 
 ! ************************************************************************** !
 
@@ -5141,6 +6099,7 @@ subroutine PMWFStrip(this)
   enddo
   nullify(this%waste_form_list)
   call PMWFMechanismStrip(this)
+  call PMWFSpacerMechStrip(this)
   call CriticalityStrip(this%criticality_mediator)
 
 end subroutine PMWFStrip
@@ -5203,6 +6162,49 @@ subroutine PMWFMechanismStrip(this)
   nullify(this%mechanism_list)
 
 end subroutine PMWFMechanismStrip
+
+! ************************************************************************** !
+
+subroutine PMWFSpacerMechStrip(this)
+  ! 
+  ! Strips the spacer grid degradation mechanisms in the waste form
+  !   process model.
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/10/2021
+  !
+  
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): waste form process model object
+! ---------------------------------
+  class(pm_waste_form_type) :: this
+! ---------------------------------
+  
+! LOCAL VARIABLES:
+! ================
+! cur_mechanism: pointer to current spacer grid degradation mechanism object
+! prev_mechanism: pointer to previous spacer grid degradation mechanism object
+! --------------------------------------------------------
+  class(spacer_mechanism_base_type), pointer :: cur_mechanism
+  class(spacer_mechanism_base_type), pointer :: prev_mechanism
+! --------------------------------------------------------
+
+  if (associated(this%spacer_mech_list)) then
+    cur_mechanism => this%spacer_mech_list
+    do
+      if (.not.associated(cur_mechanism)) exit
+      prev_mechanism => cur_mechanism
+      cur_mechanism => cur_mechanism%next
+      deallocate(prev_mechanism)
+      nullify(prev_mechanism)
+    enddo
+    nullify(this%spacer_mech_list)
+  endif
+
+end subroutine PMWFSpacerMechStrip
 
 ! ************************************************************************** !
 
@@ -5272,28 +6274,6 @@ end subroutine PMWFDestroy
 
 ! ************************************************************************** !
 
-subroutine SpacerMechInit(this)
-  !
-  ! Initializes the base spacer mechanism
-  !
-
-  implicit none
-
-  class(spacer_mechanism_base_type), pointer :: this
-
-  allocate(this)
-
-  this%threshold_sat = 0.d0
-  this%alteration_rate = UNINITIALIZED_DOUBLE
-  this%spacer_mass = UNINITIALIZED_DOUBLE
-  this%spacer_surface_area = UNINITIALIZED_DOUBLE
-  this%spacer_coeff = UNINITIALIZED_DOUBLE
-  this%spacer_activation_energy = UNINITIALIZED_DOUBLE
-
-end subroutine SpacerMechInit
-
-! ************************************************************************** !
-
 subroutine SpacerMechBaseDegradation(this,waste_form,pm,sat,temp,dt,ierr)
   !
   ! Computes spacer degradation using the base mechanism, 
@@ -5305,14 +6285,12 @@ subroutine SpacerMechBaseDegradation(this,waste_form,pm,sat,temp,dt,ierr)
   class(spacer_mechanism_base_type) :: this
   class(waste_form_base_type) :: waste_form
   class(pm_waste_form_type) :: pm
-  PetscReal :: sat
-  PetscReal :: temp
-  PetscReal :: dt
+  PetscReal, intent(in) :: sat
+  PetscReal, intent(in) :: temp ! Kelvin
+  PetscReal, intent(in) :: dt
   PetscErrorCode :: ierr
 
   PetscReal :: dspv
-
-  temp = temp + 273.15d0   ! Kelvin
 
   ! Spacer vitality rate - apply Arrhenius-type corrosion model [kg/m^2-s]
   waste_form%spacer_vitality_rate = this%spacer_coeff * exp(-1.0d0 * &
@@ -5359,11 +6337,13 @@ subroutine CriticalityMechInit(this)
   nullify(this%next)
 
   this%mech_name = ''
+  this%heat_dataset_name = ''
+  this%rad_dataset_name = ''
   this%decay_heat = 0.d0
   this%crit_heat = 0.d0
-  this%sw = 0.d0
-  this%rho_w = 0.d0
-  this%temperature = 0.d0
+  this%sw = UNINITIALIZED_DOUBLE
+  this%rho_w = UNINITIALIZED_DOUBLE
+  this%temperature = UNINITIALIZED_DOUBLE
   this%k_effective = 0.d0
 
   this%crit_event%name = ''
@@ -5374,6 +6354,7 @@ subroutine CriticalityMechInit(this)
 
   nullify(this%rad_dataset)
   nullify(this%heat_dataset)
+  nullify(this%crit_heat_dataset)
 
 end subroutine CriticalityMechInit
 
@@ -5457,14 +6438,17 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
   character(len=MAXSTRINGLENGTH) :: error_string,temp_string
 
   PetscBool :: found, added
+  PetscInt :: num_errors
 
   character(len=MAXWORDLENGTH) :: word
   class(crit_mechanism_base_type), pointer :: new_crit_mech, cur_crit_mech
 
-  error_string = trim(error_string) // ',CRITICALITY'
+  error_string = trim(error_string) // ',CRITICALITY_MECH'
   added = PETSC_FALSE
   found = PETSC_TRUE
+  num_errors = 0
   select case(trim(keyword))
+  !-------------------------------------
     case('CRITICALITY_MECH')
       allocate(new_crit_mech)
       new_crit_mech => CriticalityMechCreate()
@@ -5477,12 +6461,14 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case (trim(word))
+        !-------------------------------------
           case('NAME')
             call InputReadCard(input,option,word)
             call InputErrorMsg(input,option, &
                   'criticality mechanism assignment',error_string)
             call StringToUpper(word)
             new_crit_mech%mech_name = trim(word)
+        !-------------------------------------
           case('CRIT_START')
             call InputReadDouble(input,option,new_crit_mech% &
                                  crit_event%crit_start)
@@ -5491,6 +6477,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                  crit_event%crit_start,'sec', &
                                  trim(error_string)//',CRIT_START', &
                                  option)
+        !-------------------------------------
           case('CRIT_END')
             call InputReadDouble(input,option,new_crit_mech% &
                                  crit_event%crit_end)
@@ -5499,9 +6486,49 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                           crit_event%crit_end,'sec', &
                                           trim(error_string)//',CRIT_END', &
                                           option)
+        !-------------------------------------
+          case('CRITICAL_WATER_SATURATION')
+            call InputReadDouble(input,option,new_crit_mech%sw)
+            call InputErrorMsg(input,option,'CRITICAL WATER SATURATION',&
+              error_string)
+        !-------------------------------------
+          case('CRITICAL_WATER_DENSITY')
+            call InputReadDouble(input,option,new_crit_mech%rho_w)
+            call InputErrorMsg(input,option,'CRITICAL WATER DENSITY',&
+              error_string)
+            call InputReadAndConvertUnits(input,new_crit_mech%rho_w, &
+              'kg/m^3',trim(error_string)//',CRITICAL WATER DENSITY',option)
+        !-------------------------------------
           case('HEAT_OF_CRITICALITY')
-            call InputReadDouble(input,option,new_crit_mech%crit_heat)
-            call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY',error_string)
+            call InputPushBlock(input,option)
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              call InputReadCard(input,option,word,PETSC_FALSE)
+              select case(trim(word))
+              !-------------------------------------
+                case('CONSTANT_POWER')
+                  internal_units = 'MW'
+                  call InputReadDouble(input,option,new_crit_mech%crit_heat)
+                  call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY, ' &
+                    //'CONSTANT_POWER',error_string)
+                  call InputReadAndConvertUnits(input,new_crit_mech%crit_heat, &
+                    internal_units,trim(error_string)//',HEAT_OF_CRITICALITY,' &
+                    //' CONSTANT_POWER',option)
+              !-------------------------------------
+                case('DATASET')
+                  allocate(new_crit_mech%crit_heat_dataset)
+                  new_crit_mech%crit_heat_dataset => CritHeatCreate()
+                  call InputReadFilename(input,option,new_crit_mech% &
+                                         crit_heat_dataset%file_name)
+                  call new_crit_mech%crit_heat_dataset%Read(new_crit_mech% &
+                                                            crit_heat_dataset% &
+                                                            file_name,option)
+              end select
+            enddo
+            call InputPopBlock(input,option)
+        !-------------------------------------
           case('DECAY_HEAT')
             call InputReadCard(input,option,word)
             select case (trim(word))
@@ -5532,6 +6559,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               end select
             enddo
             call InputPopBlock(input,option)
+        !-------------------------------------
           case('INVENTORY')
             call InputPushBlock(input,option)
             do
@@ -5553,9 +6581,57 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               end select
             enddo
             call InputPopBlock(input,option)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-------------------------------------
         end select
       enddo
       call InputPopBlock(input,option)
+      
+      ! --------------------------- error messaging ---------------------------
+      if (len_trim(new_crit_mech%mech_name) < 1) then
+        option%io_buffer = 'Name must be specified for criticality mechanism ' &
+                         //'in order to be associated with a waste form.'
+        call PrintWrnMsg(option)
+      endif
+      
+      if (Uninitialized(new_crit_mech%crit_event%crit_start)) then
+        option%io_buffer = 'ERROR: Criticality start time must be specified ' &
+                         //'for criticality mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      
+      if (Uninitialized(new_crit_mech%crit_event%crit_end)) then
+        option%io_buffer = 'ERROR: Criticality end time must be specified ' &
+                         //'for criticality mechanism.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      
+      if (Initialized(new_crit_mech%sw)) then
+        if (new_crit_mech%sw > 1.d0 .or. new_crit_mech%sw < 0.d0) then
+          option%io_buffer = 'ERROR: Critical water saturation must be ' &
+                           //'between 0 and 1 in the criticality mechanism.'
+          call PrintMsg(option)
+          num_errors = num_errors + 1
+        endif
+      endif
+      
+      if (associated(new_crit_mech%crit_heat_dataset)) then
+        if (Initialized(new_crit_mech%crit_event%crit_start)) then
+          if (new_crit_mech%crit_event%crit_start > &
+              new_crit_mech%crit_heat_dataset%start_time_datamax) then
+            option%io_buffer = 'ERROR: Criticality start time exceeds ' &
+                             //'maximum value in heat of criticality lookup ' &
+                             //'table.'
+            call PrintMsg(option)
+            num_errors = num_errors + 1
+          endif
+        endif
+      endif
+      
       if (.not.associated(pmwf%criticality_mediator)) then
         pmwf%criticality_mediator => CriticalityMediatorCreate()
       endif
@@ -5575,9 +6651,19 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
         enddo
       endif
       nullify(new_crit_mech)
+  !-------------------------------------
     case default
       found = PETSC_FALSE
+  !-------------------------------------    
   end select
+  
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in ' &
+                    //'the WASTE_FORM_GENERAL,CRITICALITY_MECH ' &
+                    //'block(s). See above.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine ReadCriticalityMech
 
@@ -5802,6 +6888,195 @@ subroutine CriticalityStrip(this)
 
 
 end subroutine CriticalityStrip
+
+! ************************************************************************** !
+
+subroutine CritHeatRead(this,filename,option)
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/12/2021
+  ! 
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Units_module
+  
+  implicit none
+  
+  class(crit_heat_type) :: this
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(input_type), pointer :: input2
+  PetscInt :: temp_int
+  PetscReal :: time_units_conversion
+  PetscReal :: temp_units_conversion
+  PetscReal :: power_units_conversion
+
+  time_units_conversion = 1.d0
+  temp_units_conversion = 1.d0
+  power_units_conversion = 1.d0
+  
+  if (len_trim(filename) < 1) then
+    option%io_buffer = 'Filename must be specified for heat of criticality ' &
+                     //'lookup table.'
+    call PrintErrMsg(option)
+  endif
+  
+  this%lookup_table => LookupTableCreateGeneral(TWO_INTEGER)
+  error_string = 'heat of criticality lookup table'
+  input2 => InputCreate(IUNIT_TEMP,filename,option)
+  input2%ierr = 0
+  do
+    call InputReadPflotranString(input2,option)
+    if (InputError(input2)) exit
+
+    call InputReadCard(input2,option,keyword)
+    call InputErrorMsg(input2,option,'keyword',error_string)
+    call StringToUpper(keyword)   
+      
+    select case(trim(keyword))
+      case('NUM_START_TIMES') 
+        call InputReadInt(input2,option,this%num_start_times)
+        call InputErrorMsg(input2,option,'number of start times',error_string)
+      case('NUM_VALUES_PER_START_TIME') 
+        call InputReadInt(input2,option,this%num_values_per_start_time)
+        call InputErrorMsg(input2,option,'number of values per start time', &
+                           error_string)
+      case('TIME_UNITS') 
+        internal_units = 'sec'
+        call InputReadWord(input2,option,word,PETSC_TRUE) 
+        call InputErrorMsg(input2,option,'UNITS','CONDITION')   
+        time_units_conversion = UnitsConvertToInternal(word, &
+                                internal_units,option)
+      case('TEMPERATURE_UNITS') 
+        internal_units = 'C'
+        call InputReadWord(input2,option,word,PETSC_TRUE) 
+        call InputErrorMsg(input2,option,'UNITS','CONDITION')   
+        call StringToUpper(word)
+        temp_units_conversion = UnitsConvertToInternal(word, &
+                                internal_units,option)
+      case('POWER_UNITS') 
+        internal_units = 'MW'
+        call InputReadWord(input2,option,word,PETSC_TRUE) 
+        call InputErrorMsg(input2,option,'UNITS','CONDITION')   
+        power_units_conversion = UnitsConvertToInternal(word, &
+                                 internal_units,option)
+      case('START_TIME')
+        if (Uninitialized(this%num_start_times) .or. &
+            Uninitialized(this%num_values_per_start_time)) then
+          option%io_buffer = 'NUM_START_TIMES and NUM_VALUES_PER_START_TIME ' &
+                           //'must be specified prior to reading the ' &
+                           //'corresponding arrays.'
+          call PrintErrMsg(option)
+        endif
+        this%lookup_table%dims(1) = this%num_start_times
+        this%lookup_table%dims(2) = this%num_values_per_start_time
+        temp_int = this%num_start_times*this%num_values_per_start_time
+        allocate(this%lookup_table%axis1%values(this%num_start_times))
+        allocate(this%lookup_table%axis2%values(temp_int))
+        allocate(this%lookup_table%data(temp_int))
+        string = 'START_TIME in heat of criticality lookup table'
+        call UtilityReadArray(this%lookup_table%axis1%values, &
+                              NEG_ONE_INTEGER,string, &
+                              input2,option)
+        this%lookup_table%axis1%values = this%lookup_table%axis1%values * &
+          time_units_conversion
+      case('TEMPERATURE') 
+        string = 'TEMPERATURE in heat of criticality lookup table'
+        call UtilityReadArray(this%lookup_table%axis2%values, &
+                              NEG_ONE_INTEGER, &
+                              string,input2,option)
+        this%lookup_table%axis2%values = this%lookup_table%axis2%values * &
+          temp_units_conversion
+      case('POWER') 
+        string = 'POWER in heat of criticality lookup table'
+        call UtilityReadArray(this%lookup_table%data, &
+                              NEG_ONE_INTEGER, &
+                              string,input2,option)
+        this%lookup_table%data = this%lookup_table%data * power_units_conversion
+     case default
+        error_string = trim(error_string) // ': ' // filename
+        call InputKeywordUnrecognized(input2,keyword,error_string,option)
+    end select
+  enddo
+  call InputDestroy(input2)
+  
+  if (size(this%lookup_table%axis1%values) /= this%num_start_times) then
+    option%io_buffer = 'Number of start times does not match NUM_START_TIMES.'
+    call PrintErrMsg(option)
+  endif  
+  if (size(this%lookup_table%axis2%values) /= &
+      this%num_start_times*this%num_values_per_start_time) then
+    option%io_buffer = 'Number of temperatures does not match ' &
+                     //'NUM_START_TIMES * NUM_VALUES_PER_START_TIME.'
+    call PrintErrMsg(option)
+  endif
+  if (size(this%lookup_table%data) /= &
+      this%num_start_times*this%num_values_per_start_time) then
+    option%io_buffer = 'Number of criticality power outputs does not match ' &
+                     //'NUM_START_TIMES * NUM_VALUES_PER_START_TIME.'
+    call PrintErrMsg(option)
+  endif
+
+  ! set limits
+  this%start_time_datamax = maxval(this%lookup_table%axis1%values)
+  this%temp_datamax = maxval(this%lookup_table%axis2%values)
+  this%power_datamax = maxval(this%lookup_table%data)
+
+end subroutine CritHeatRead
+
+! ************************************************************************** !
+
+function CritHeatEvaluate(this,start_time,temperature)
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/12/2021
+  !
+  
+  implicit none
+  
+  class(crit_heat_type) :: this
+  PetscReal :: start_time
+  PetscReal :: temperature
+  
+  PetscReal :: CritHeatEvaluate
+  
+  CritHeatEvaluate = this%lookup_table%Sample(start_time,temperature)
+  
+end function CritHeatEvaluate
+
+! ************************************************************************** !
+
+function CritHeatCreate()
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 05/12/2021
+  ! 
+
+  implicit none
+  
+  class(crit_heat_type), pointer :: CritHeatCreate
+  class(crit_heat_type), pointer :: ch
+  
+  allocate(ch)
+  nullify(ch%next)
+  nullify(ch%lookup_table)
+  
+  ch%file_name = ''
+  ch%num_start_times = UNINITIALIZED_INTEGER
+  ch%num_values_per_start_time = UNINITIALIZED_INTEGER
+  ch%start_time_datamax = UNINITIALIZED_DOUBLE
+  ch%temp_datamax = UNINITIALIZED_DOUBLE
+  ch%power_datamax = UNINITIALIZED_DOUBLE
+
+  CritHeatCreate => ch
+
+end function CritHeatCreate
 
 ! ************************************************************************** !
 
