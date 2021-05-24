@@ -13,7 +13,8 @@ module Option_Geophysics_module
   type, public :: geophysics_option_type
 
     PetscInt :: num_electrodes
-    PetscBool :: compute_jacobian  
+    PetscBool :: compute_jacobian
+    PetscBool :: inversion          ! TEMP
 
   end type geophysics_option_type
 
@@ -93,6 +94,7 @@ subroutine OptionGeophysicsInitRealization(option)
 
   option%num_electrodes = UNINITIALIZED_INTEGER
   option%compute_jacobian = PETSC_FALSE
+  option%inversion = PETSC_FALSE
 
 end subroutine OptionGeophysicsInitRealization
 

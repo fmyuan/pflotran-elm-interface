@@ -48,16 +48,17 @@ module Inversion_module
     PetscInt :: max_num_block_link
     type(constrained_block_par_type), pointer :: constrained_block_list
 
-    ! arrays
+    ! arrays from the linked list
     character(len=MAXWORDLENGTH), pointer :: material_name(:)
     PetscInt, pointer :: material_id(:)
-    PetscInt, pointer :: smetric(:,:)
+    PetscInt, pointer :: structure_metric(:)
     PetscInt, pointer :: wf_type(:)
-    
-    PetscReal, pointer :: wf_par(:)
+    PetscInt, pointer :: block_link(:,:)
+    PetscReal, pointer :: wf_mean(:)
+    PetscReal, pointer :: wf_sdev(:)
     PetscReal, pointer :: relative_weight(:)
     PetscReal, pointer :: aniso_weight(:,:)
-
+    PetscReal, pointer :: reference_conductivity(:)
   end type constrained_block_type
 
   type constrained_block_par_type
@@ -78,6 +79,7 @@ module Inversion_module
 
   public :: InversionCreate, &
             InversionRead, &
+            InversionConstrainedArraysFromList, &
             InversionAllocateWorkArrays, &
             InversionDeallocateWorkArrays, &
             InversionDestroy
@@ -161,11 +163,14 @@ function ConstrainedBlockCreate()
 
   nullify(constrained_block%material_name)
   nullify(constrained_block%material_id)
-  nullify(constrained_block%smetric)
+  nullify(constrained_block%structure_metric)
   nullify(constrained_block%wf_type)
-  nullify(constrained_block%wf_par)
+  nullify(constrained_block%block_link)
+  nullify(constrained_block%wf_mean)
+  nullify(constrained_block%wf_sdev)
   nullify(constrained_block%relative_weight)
   nullify(constrained_block%aniso_weight)
+  nullify(constrained_block%reference_conductivity)
 
   ConstrainedBlockCreate => constrained_block
 
@@ -206,6 +211,90 @@ function ConstrainedBlockParCreate()
   ConstrainedBlockParCreate => constrained_block
 
 end function ConstrainedBlockParCreate
+
+! ************************************************************************** !
+
+subroutine InversionConstrainedArraysFromList(inversion)
+  !
+  ! Gets Constrained Block parameter arrays from linked list
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/24/21
+  !
+
+  implicit none
+
+  type(inversion_type) :: inversion
+
+  type(constrained_block_type), pointer :: constrained_block
+
+  type(constrained_block_par_type), pointer :: cur_constrained_block
+
+  PetscInt :: i,iconblock
+  PetscInt :: nconblock
+
+  constrained_block => inversion%constrained_block
+  nconblock = constrained_block%num_constrained_block
+
+
+  if (nconblock > 0) then
+    allocate(constrained_block%material_name(nconblock))
+    constrained_block%material_name = ''
+    allocate(constrained_block%material_id(nconblock))
+    constrained_block%material_id = 0
+    allocate(constrained_block%structure_metric(nconblock))
+    constrained_block%structure_metric = 2
+    allocate(constrained_block%wf_type(nconblock))
+    constrained_block%wf_type = 1
+    allocate(constrained_block%wf_mean(nconblock))
+    constrained_block%wf_mean = 10.d0
+    allocate(constrained_block%wf_sdev(nconblock))
+    constrained_block%wf_sdev = 0.001d0
+    allocate(constrained_block%relative_weight(nconblock))
+    constrained_block%relative_weight = 1.d0
+    allocate(constrained_block%aniso_weight(nconblock,THREE_INTEGER))
+    constrained_block%aniso_weight = 1.d0
+    allocate(constrained_block%reference_conductivity(nconblock))
+    constrained_block%reference_conductivity = 0.d0
+    allocate(constrained_block%block_link(nconblock,&
+             constrained_block%max_num_block_link+1))
+    constrained_block%block_link = 0
+
+    cur_constrained_block => constrained_block%constrained_block_list
+    iconblock = 1
+    do
+      if (.not. associated(cur_constrained_block)) exit
+      constrained_block%material_name(iconblock) = cur_constrained_block%name
+      ! TODO: get correspoding material id
+      constrained_block%material_id(iconblock) = iconblock
+      constrained_block%structure_metric(iconblock) = &
+                        cur_constrained_block%structure_metric
+      constrained_block%wf_type(iconblock) = &
+                        cur_constrained_block%weighing_function
+      constrained_block%wf_mean(iconblock) = &
+                        cur_constrained_block%weighing_function_mean
+      constrained_block%wf_sdev(iconblock) = &
+                        cur_constrained_block%weighing_function_std_dev
+      constrained_block%relative_weight(iconblock) = &
+                        cur_constrained_block%relative_weight
+      constrained_block%aniso_weight(iconblock,:) = &
+                        cur_constrained_block%aniso_weight
+      constrained_block%reference_conductivity(iconblock) = &
+                        cur_constrained_block%reference_conductivity
+      constrained_block%block_link(iconblock,ONE_INTEGER) = &
+                        cur_constrained_block%num_block_link
+      do i=1,cur_constrained_block%num_block_link
+        constrained_block%block_link(iconblock,i+1) = &
+                        cur_constrained_block%block_link(i)
+      enddo
+
+      cur_constrained_block => cur_constrained_block%next
+      iconblock = iconblock + 1
+
+    enddo
+  endif
+
+end subroutine InversionConstrainedArraysFromList
 
 ! ************************************************************************** !
 
@@ -359,6 +448,7 @@ subroutine ConstrainedBlockRead(constrained_block,input,option)
 
   nullify(prev_constrained_block)
   call InputPushBlock(input,option)
+  constrained_block%max_num_block_link = 0
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -372,6 +462,10 @@ subroutine ConstrainedBlockRead(constrained_block,input,option)
     call InputErrorMsg(input,option,'keyword','INVERSION,CONSTRAINED_BLOCKS')
    
     call ConstrainedBlockParRead(cur_constrained_block,input,option)
+    if (constrained_block%max_num_block_link < &
+        cur_constrained_block%num_block_link) &
+        constrained_block%max_num_block_link = &
+        cur_constrained_block%num_block_link
 
     if (.not.associated(constrained_block%constrained_block_list)) then
       constrained_block%constrained_block_list => cur_constrained_block
@@ -632,11 +726,14 @@ subroutine ConstrainedBlockDestroy(constrained_block)
 
   call DeallocateArray(constrained_block%material_name)
   call DeallocateArray(constrained_block%material_id)
-  call DeallocateArray(constrained_block%smetric)
+  call DeallocateArray(constrained_block%structure_metric)
   call DeallocateArray(constrained_block%wf_type)
-  call DeallocateArray(constrained_block%wf_par)
+  call DeallocateArray(constrained_block%block_link)
+  call DeallocateArray(constrained_block%wf_mean)
+  call DeallocateArray(constrained_block%wf_sdev)
   call DeallocateArray(constrained_block%relative_weight)
   call DeallocateArray(constrained_block%aniso_weight)
+  call DeallocateArray(constrained_block%reference_conductivity)
 
   deallocate(constrained_block)
   nullify(constrained_block)

@@ -181,6 +181,9 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       ! Add various options for ERT if needed here
       case('COMPUTE_JACOBIAN')
         option%geophysics%compute_jacobian = PETSC_TRUE
+      case('INVERSION')
+        option%geophysics%inversion = PETSC_TRUE
+        option%geophysics%compute_jacobian = PETSC_TRUE
       case('TORTUOSITY_CONSTANT')
         call InputReadDouble(input,option,this%tortuosity_constant)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -426,6 +429,16 @@ recursive subroutine PMERTInitializeRun(this)
                                  rt_auxvar%total(ispecies,1))
       source_sink => source_sink%next
     enddo
+  endif
+
+  if (option%geophysics%inversion) then
+    if (.not.associated(this%inversion)) then
+      option%io_buffer = 'There should be an INVERSION card in input file &
+                          &if process model ERT has INVERSION option.'
+      call PrintErrMsg(option)
+    else
+      call InversionConstrainedArraysFromList(this%inversion)
+    endif
   endif
 
 end subroutine PMERTInitializeRun
@@ -748,8 +761,9 @@ subroutine PMERTSolve(this,time,ierr)
   ! Build Jacobian
   if (this%option%geophysics%compute_jacobian) call PMERTBuildJacobian(this)
 
-  !if (this%option%geophysics%compute_jacobian) &
-  !                   call PMERTUpdateElectricalConductivity(this)
+  ! For inversion
+  if (this%option%geophysics%inversion) &
+                           call PMERTUpdateElectricalConductivity(this)
 
 end subroutine PMERTSolve
 
