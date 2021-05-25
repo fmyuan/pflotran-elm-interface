@@ -6,7 +6,6 @@ module Test_Characteristic_Curves_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
-  use Characteristic_Curves_VG_module
   use Characteristic_Curves_WIPP_module
   use Option_module
 
@@ -77,7 +76,6 @@ contains
 
     class(Test_Characteristic_Curves), intent(inout) :: this
     character(len=MAXSTRINGLENGTH) :: error_string
-    PetscInt :: error
 
     this%option => OptionCreate()
 
@@ -142,8 +140,8 @@ contains
     this%cc_vgm%saturation_function%pcmax = 0.999d8
     select type(sf=>this%cc_vgm%saturation_function)
       class is(sat_func_VG_type)
-        error = sf%set_m(0.527d0)
-        error = sf%set_alpha(5.1054d-5)
+        sf%m = 0.527d0
+        sf%alpha = 5.1054d-5
       class default
         print *, 'not VG type in setUp'
     end select
@@ -151,7 +149,7 @@ contains
     this%cc_vgm%liq_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgm%liq_rel_perm_function)
       class is(rpf_Mualem_VG_liq_type)
-        error = sf%set_m(0.527d0)
+        sf%m = 0.527d0
       class default
         print *, 'not Mualem VG Liq type'
     end select
@@ -159,7 +157,7 @@ contains
     this%cc_vgm%gas_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgm%gas_rel_perm_function)
       class is(rpf_Mualem_VG_gas_type)
-        error = sf%set_m(0.527d0)
+        sf%m = 0.527d0
         sf%Srg = 0.d0
       class default
         print *, 'not Mualem VG Gas type'
@@ -172,7 +170,7 @@ contains
     this%cc_vgb%liq_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgb%liq_rel_perm_function)
       class is(rpf_Burdine_VG_liq_type)
-        error = sf%set_m(0.527d0)
+        sf%m = 0.527d0
       class default
         print *, 'not Burdine VG Liq type'
     end select
@@ -180,7 +178,7 @@ contains
     this%cc_vgb%gas_rel_perm_function%Sr = 0.143d0
     select type(sf=>this%cc_vgb%gas_rel_perm_function)
       class is(rpf_Burdine_VG_gas_type)
-        error = sf%set_m(0.527d0)
+        sf%m = 0.527d0
         sf%Srg = 0.01d0
       class default
         print *, 'not Burdine VG Gas type'
@@ -573,13 +571,13 @@ contains
       write(string,*) i
       string = 'Brooks-Corey-Burdine pressure polynomial coefficient #' // &
                trim(adjustl(string))
-#line 576 "test_characteristic_curves.pf"
+#line 574 "test_characteristic_curves.pf"
   call assertEqual(values(i), this%cc_bcb%saturation_function%pres_poly%coefficients(i), dabs(values(i))*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 576) )
+ & 574) )
   if (anyExceptions()) return
-#line 577 "test_characteristic_curves.pf"
+#line 575 "test_characteristic_curves.pf"
     enddo
 
     ! saturation spline
@@ -589,13 +587,13 @@ contains
       write(string,*) i
       string = 'Brooks-Corey-Burdine saturation spline coefficient #' // &
                trim(adjustl(string))
-#line 586 "test_characteristic_curves.pf"
+#line 584 "test_characteristic_curves.pf"
   call assertEqual(values(i), this%cc_bcb%saturation_function%sat_poly%coefficients(i),  dabs(values(i))*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 586) )
+ & 584) )
   if (anyExceptions()) return
-#line 587 "test_characteristic_curves.pf"
+#line 585 "test_characteristic_curves.pf"
     enddo
 
   end subroutine testSF_BC_SetupPolynomials
@@ -636,43 +634,43 @@ contains
     string = 'Brooks-Corey-Burdine saturation as a function of capillary &
              &pressure below polynomial fit'
     value = 1.d0
-#line 627 "test_characteristic_curves.pf"
+#line 625 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 627) )
+ & 625) )
   if (anyExceptions()) return
-#line 628 "test_characteristic_curves.pf"
+#line 626 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine relative permeability as a function of &
              &capillary pressure below polynomial fit'
     value = 1.d0
-#line 631 "test_characteristic_curves.pf"
+#line 629 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 631) )
+ & 629) )
   if (anyExceptions()) return
-#line 632 "test_characteristic_curves.pf"
+#line 630 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine derivative of saturation as a function &
              &of capillary pressure below polynomial fit'
     value = 0.d0
-#line 635 "test_characteristic_curves.pf"
+#line 633 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 635) )
+ & 633) )
   if (anyExceptions()) return
-#line 636 "test_characteristic_curves.pf"
+#line 634 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine derivative of relative permeability &
              &as a function of pressure below polynomial fit'
     value = 0.d0
-#line 639 "test_characteristic_curves.pf"
+#line 637 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_p, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 639) )
+ & 637) )
   if (anyExceptions()) return
-#line 640 "test_characteristic_curves.pf"
+#line 638 "test_characteristic_curves.pf"
 
     ! saturation = f(capillary_pressure) within the polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
@@ -691,43 +689,43 @@ contains
     string = 'Brooks-Corey-Burdine saturation as a function of capillary &
              &pressure within polynomial fit'
     value = 0.99971176979312304d0
-#line 658 "test_characteristic_curves.pf"
+#line 656 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 658) )
+ & 656) )
   if (anyExceptions()) return
-#line 659 "test_characteristic_curves.pf"
+#line 657 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine relative permeability as a function of &
              &capillary pressure within polynomial fit'
     value = 0.99789158871529349d0
-#line 662 "test_characteristic_curves.pf"
+#line 660 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 662) )
+ & 660) )
   if (anyExceptions()) return
-#line 663 "test_characteristic_curves.pf"
+#line 661 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine derivative of saturation as a function &
              &of capillary pressure within polynomial fit'
     value = 5.6675690490728353d-7
-#line 666 "test_characteristic_curves.pf"
+#line 664 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 666) )
+ & 664) )
   if (anyExceptions()) return
-#line 667 "test_characteristic_curves.pf"
+#line 665 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine derivative of relative permeability &
              &as a function of pressure within polynomial fit'
     value = 4.1422137957785640d-006
-#line 670 "test_characteristic_curves.pf"
+#line 668 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_p, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 670) )
+ & 668) )
   if (anyExceptions()) return
-#line 671 "test_characteristic_curves.pf"
+#line 669 "test_characteristic_curves.pf"
 
     ! saturation = f(capillary_pressure) above the polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
@@ -746,43 +744,43 @@ contains
     string = 'Brooks-Corey-Burdine saturation as a function of capillary &
              &pressure above polynomial fit'
     value = 0.96802592722174041d0
-#line 689 "test_characteristic_curves.pf"
+#line 687 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 689) )
+ & 687) )
   if (anyExceptions()) return
-#line 690 "test_characteristic_curves.pf"
+#line 688 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine relative permeability as a function of &
              &capillary pressure above polynomial fit'
     value = 0.78749164071142996d0
-#line 693 "test_characteristic_curves.pf"
+#line 691 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 693) )
+ & 691) )
   if (anyExceptions()) return
-#line 694 "test_characteristic_curves.pf"
+#line 692 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine derivative of saturation as a function &
              &of capillary pressure above polynomial fit'
     value = 5.0054278424773111d-6
-#line 697 "test_characteristic_curves.pf"
+#line 695 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 697) )
+ & 695) )
   if (anyExceptions()) return
-#line 698 "test_characteristic_curves.pf"
+#line 696 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine derivative of relative permeability &
              &as a function of pressure above polynomial fit'
     value = 3.0060561800889172d-005
-#line 701 "test_characteristic_curves.pf"
+#line 699 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_p, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 701) )
+ & 699) )
   if (anyExceptions()) return
-#line 702 "test_characteristic_curves.pf"
+#line 700 "test_characteristic_curves.pf"
 
   end subroutine testsf_Brooks_Corey
 
@@ -816,23 +814,23 @@ contains
     string = 'Brooks-Corey capillary pressure as a function of &
              &liquid saturation barely within polynomial fit'
     value = 54.068777590990067d0
-#line 735 "test_characteristic_curves.pf"
+#line 733 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 735) )
+ & 733) )
   if (anyExceptions()) return
-#line 736 "test_characteristic_curves.pf"
+#line 734 "test_characteristic_curves.pf"
     string = 'Brooks-Corey derivative of capillary pressure as a function of &
              &liquid saturation barely within polynomial fit'
     value = -7.7231957793806121d6
-#line 739 "test_characteristic_curves.pf"
+#line 737 "test_characteristic_curves.pf"
   call assertEqual(value, dpc_dsatl, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 739) )
+ & 737) )
   if (anyExceptions()) return
-#line 740 "test_characteristic_curves.pf"
+#line 738 "test_characteristic_curves.pf"
 
     ! capillary pressure = f(saturation) slightly within polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
@@ -847,23 +845,23 @@ contains
     string = 'Brooks-Corey capillary pressure as a function of &
              &liquid saturation well within polynomial fit'
     value = 106436.99642977261d0
-#line 754 "test_characteristic_curves.pf"
+#line 752 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 754) )
+ & 752) )
   if (anyExceptions()) return
-#line 755 "test_characteristic_curves.pf"
+#line 753 "test_characteristic_curves.pf"
     string = 'Brooks-Corey derivative of capillary pressure as a function of &
              &liquid saturation well within polynomial fit'
     value = -1.9672548074671443d5
-#line 758 "test_characteristic_curves.pf"
+#line 756 "test_characteristic_curves.pf"
   call assertEqual(value, dpc_dsatl, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 758) )
+ & 756) )
   if (anyExceptions()) return
-#line 759 "test_characteristic_curves.pf"
+#line 757 "test_characteristic_curves.pf"
 
     ! capillary pressure = f(saturation) above polynomial fit
     select type(sf=>this%cc_bcb%saturation_function)
@@ -878,23 +876,23 @@ contains
     string = 'Brooks-Corey capillary pressure as a function of &
              &liquid saturation above within polynomial fit'
     value = 109024.42772683989d0
-#line 773 "test_characteristic_curves.pf"
+#line 771 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 773) )
+ & 771) )
   if (anyExceptions()) return
-#line 774 "test_characteristic_curves.pf"
+#line 772 "test_characteristic_curves.pf"
     string = 'Brooks-Corey derivative of capillary pressure as a function of &
              &liquid saturation above within polynomial fit'
     value = -2.0492439614025093d5
-#line 777 "test_characteristic_curves.pf"
+#line 775 "test_characteristic_curves.pf"
   call assertEqual(value, dpc_dsatl, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 777) )
+ & 775) )
   if (anyExceptions()) return
-#line 778 "test_characteristic_curves.pf"
+#line 776 "test_characteristic_curves.pf"
 
   end subroutine testcp_Brooks_Corey
 
@@ -922,23 +920,23 @@ contains
     string = 'Brooks-Corey-Burdine liquid relative permeability as a &
              &function of liquid saturation'
     value = 3.1991918327000197d-3
-#line 805 "test_characteristic_curves.pf"
+#line 803 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 805) )
+ & 803) )
   if (anyExceptions()) return
-#line 806 "test_characteristic_curves.pf"
+#line 804 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine derivative of liquid relative &
              &permeability as a function of liquid saturation'
     value = 6.2460411971762310d-2
-#line 809 "test_characteristic_curves.pf"
+#line 807 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, 1.d-8, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 809) )
+ & 807) )
   if (anyExceptions()) return
-#line 810 "test_characteristic_curves.pf"
+#line 808 "test_characteristic_curves.pf"
 
     ! gas relative permeability = f(saturation)
     call this%cc_bcb%gas_rel_perm_function% &
@@ -947,23 +945,23 @@ contains
     string = 'Brooks-Corey-Burdine gas relative permeability as a &
              &function of liquid saturation'
     value = 0.38173220142506209d0
-#line 818 "test_characteristic_curves.pf"
+#line 816 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 818) )
+ & 816) )
   if (anyExceptions()) return
-#line 819 "test_characteristic_curves.pf"
+#line 817 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Burdine derivative of gas relative &
              &permeability as a function of liquid saturation'
     value = -1.6412199910843073d0
-#line 822 "test_characteristic_curves.pf"
+#line 820 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, 1.d-8, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 822) )
+ & 820) )
   if (anyExceptions()) return
-#line 823 "test_characteristic_curves.pf"
+#line 821 "test_characteristic_curves.pf"
 
   end subroutine testrpf_BC_Burdine
 
@@ -991,23 +989,23 @@ contains
     string = 'Brooks-Corey-Mualem liquid relative permeability as a &
              &function of liquid saturation'
     value = 5.2242583862629442d-3
-#line 850 "test_characteristic_curves.pf"
+#line 848 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 850) )
+ & 848) )
   if (anyExceptions()) return
-#line 851 "test_characteristic_curves.pf"
+#line 849 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Mualem derivative of liquid relative &
              &permeability as a function of liquid saturation'
     value = 9.3290328326124022d-2
-#line 854 "test_characteristic_curves.pf"
+#line 852 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, 1.d-8, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 854) )
+ & 852) )
   if (anyExceptions()) return
-#line 855 "test_characteristic_curves.pf"
+#line 853 "test_characteristic_curves.pf"
 
     ! gas relative permeability = f(saturation)
     call this%cc_bcm%gas_rel_perm_function% &
@@ -1016,23 +1014,23 @@ contains
     string = 'Brooks-Corey-Mualem gas relative permeability as a &
              &function of liquid saturation'
     value = 0.65126653365343257d0
-#line 863 "test_characteristic_curves.pf"
+#line 861 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 863) )
+ & 861) )
   if (anyExceptions()) return
-#line 864 "test_characteristic_curves.pf"
+#line 862 "test_characteristic_curves.pf"
     string = 'Brooks-Corey-Mualem derivative of gas relative &
              &permeability as a function of liquid saturation'
     value = -1.7243442005604193d0
-#line 867 "test_characteristic_curves.pf"
+#line 865 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, 1.d-8, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 867) )
+ & 865) )
   if (anyExceptions()) return
-#line 868 "test_characteristic_curves.pf"
+#line 866 "test_characteristic_curves.pf"
 
   end subroutine testrpf_BC_Mualem
 
@@ -1067,48 +1065,48 @@ contains
     string = 'van Genuchten-Mualem saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 0.99999995045230206d0
-#line 902 "test_characteristic_curves.pf"
+#line 900 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 902) )
+ & 900) )
   if (anyExceptions()) return
-#line 903 "test_characteristic_curves.pf"
+#line 901 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.99957025105913566d0
-#line 906 "test_characteristic_curves.pf"
+#line 904 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 906) )
+ & 904) )
   if (anyExceptions()) return
-#line 907 "test_characteristic_curves.pf"
+#line 905 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem derivative of saturation as a function &
              &of capillary pressure at low capillary pressure'
     value = 1.0475199529417896d-8
-#line 910 "test_characteristic_curves.pf"
+#line 908 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 910) )
+ & 908) )
   if (anyExceptions()) return
-#line 911 "test_characteristic_curves.pf"
+#line 909 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem derivative of relative permeability &
              &as a function of capillary pressure at low capillary pressure'
     value = 4.7878857031474202d-005
-#line 914 "test_characteristic_curves.pf"
+#line 912 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_p, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 914) )
+ & 912) )
   if (anyExceptions()) return
-#line 915 "test_characteristic_curves.pf"
+#line 913 "test_characteristic_curves.pf"
 
     ! saturation = f(capillary_pressure) at high capillary pressure
     select type(sf=>this%cc_vgm%saturation_function)
       class is(sat_func_VG_type)
-        capillary_pressure = 10.d0/sf%get_alpha()
+        capillary_pressure = 10.d0/sf%alpha
       class default
         print *, 'not vg type in testsf_van_Genuchten'
     end select
@@ -1122,43 +1120,43 @@ contains
     string = 'van Genuchten-Mualem saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.20862404282784081d0
-#line 933 "test_characteristic_curves.pf"
+#line 931 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 933) )
+ & 931) )
   if (anyExceptions()) return
-#line 934 "test_characteristic_curves.pf"
+#line 932 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 4.4900562293186444d-6
-#line 937 "test_characteristic_curves.pf"
+#line 935 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 937) )
+ & 935) )
   if (anyExceptions()) return
-#line 938 "test_characteristic_curves.pf"
+#line 936 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem derivative of saturation as a function &
              &of capillary pressure at high capillary pressure'
     value = 3.7043838142841442d-7
-#line 941 "test_characteristic_curves.pf"
+#line 939 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 941) )
+ & 939) )
   if (anyExceptions()) return
-#line 942 "test_characteristic_curves.pf"
+#line 940 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem derivative of relative permeability &
              &as a function of capillary pressure at high capillary pressure'
     value = 1.0903614584398361d-010
-#line 945 "test_characteristic_curves.pf"
+#line 943 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_p, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 945) )
+ & 943) )
   if (anyExceptions()) return
-#line 946 "test_characteristic_curves.pf"
+#line 944 "test_characteristic_curves.pf"
 
   end subroutine testsf_van_Genuchten
 
@@ -1187,23 +1185,23 @@ contains
     string = 'van Genuchten-Mualem capillary pressure as a function of &
              &saturation'
     value = 38910.985405751228d0
-#line 974 "test_characteristic_curves.pf"
+#line 972 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 974) )
+ & 972) )
   if (anyExceptions()) return
-#line 975 "test_characteristic_curves.pf"
+#line 973 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem derivative of capillary pressure as a &
               &function of saturation'
     value = -1.2074621994359563d5
-#line 978 "test_characteristic_curves.pf"
+#line 976 "test_characteristic_curves.pf"
   call assertEqual(value, dpc_dsatl, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 978) )
+ & 976) )
   if (anyExceptions()) return
-#line 979 "test_characteristic_curves.pf"
+#line 977 "test_characteristic_curves.pf"
 
   end subroutine testcp_van_Genuchten
 
@@ -1231,23 +1229,23 @@ contains
     string = 'van Genuchten-Mualem liquid relative permeability as a &
              &function of liquid saturation'
     value = 7.1160141309814171d-3
-#line 1006 "test_characteristic_curves.pf"
+#line 1004 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1006) )
+ & 1004) )
   if (anyExceptions()) return
-#line 1007 "test_characteristic_curves.pf"
+#line 1005 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem derivative of liquid relative &
              &permeability as a function of liquid saturation'
     value = 8.9580035202641822d-2
-#line 1010 "test_characteristic_curves.pf"
+#line 1008 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1010) )
+ & 1008) )
   if (anyExceptions()) return
-#line 1011 "test_characteristic_curves.pf"
+#line 1009 "test_characteristic_curves.pf"
 
     ! gas relative permeability = f(saturation)
     call this%cc_vgm%gas_rel_perm_function% &
@@ -1256,23 +1254,23 @@ contains
     string = 'van Genuchten-Mualem gas relative permeability as a &
              &function of liquid saturation'
     value = 0.61184154078016839d0
-#line 1019 "test_characteristic_curves.pf"
+#line 1017 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1019) )
+ & 1017) )
   if (anyExceptions()) return
-#line 1020 "test_characteristic_curves.pf"
+#line 1018 "test_characteristic_curves.pf"
     string = 'van Genuchten-Mualem derivative of gas relative &
              &permeability as a function of liquid saturation'
     value = -1.4149310375033495d0
-#line 1023 "test_characteristic_curves.pf"
+#line 1021 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1023) )
+ & 1021) )
   if (anyExceptions()) return
-#line 1024 "test_characteristic_curves.pf"
+#line 1022 "test_characteristic_curves.pf"
 
   end subroutine testrpf_van_Genuchten_Mualem
 
@@ -1300,23 +1298,23 @@ contains
     string = 'van Genuchten-Burdine liquid relative permeability as a &
              &function of liquid saturation'
     value = 1.8220963608953099d-2
-#line 1051 "test_characteristic_curves.pf"
+#line 1049 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1051) )
+ & 1049) )
   if (anyExceptions()) return
-#line 1052 "test_characteristic_curves.pf"
+#line 1050 "test_characteristic_curves.pf"
     string = 'van Genuchten-Burdine derivative of liquid relative &
              &permeability as a function of liquid saturation'
     value = 0.20400586616752553d0
-#line 1055 "test_characteristic_curves.pf"
+#line 1053 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1055) )
+ & 1053) )
   if (anyExceptions()) return
-#line 1056 "test_characteristic_curves.pf"
+#line 1054 "test_characteristic_curves.pf"
 
     ! gas relative permeability = f(saturation)
     call this%cc_vgb%gas_rel_perm_function% &
@@ -1325,23 +1323,23 @@ contains
     string = 'van Genuchten-Burdine gas relative permeability as a &
              &function of liquid saturation'
     value = 0.29870096712333277d0
-#line 1064 "test_characteristic_curves.pf"
+#line 1062 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1064) )
+ & 1062) )
   if (anyExceptions()) return
-#line 1065 "test_characteristic_curves.pf"
+#line 1063 "test_characteristic_curves.pf"
     string = 'van Genuchten-Burdine derivative of gas relative &
              &permeability as a function of liquid saturation'
     value = -1.4207000510364920d0
-#line 1068 "test_characteristic_curves.pf"
+#line 1066 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1068) )
+ & 1066) )
   if (anyExceptions()) return
-#line 1069 "test_characteristic_curves.pf"
+#line 1067 "test_characteristic_curves.pf"
 
   end subroutine testrpf_van_Genuchten_Burdine
 
@@ -1371,23 +1369,23 @@ contains
     string = 'TOUGH2 IRP7 gas relative permeability as a &
              &function of liquid saturation'
     value = 0.27522069402853439d0
-#line 1098 "test_characteristic_curves.pf"
+#line 1096 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1098) )
+ & 1096) )
   if (anyExceptions()) return
-#line 1099 "test_characteristic_curves.pf"
+#line 1097 "test_characteristic_curves.pf"
     string = 'TOUGH2 IRP7 derivative of gas relative permeability as a &
              &function of liquid saturation'
     value = -1.4564360410147879d0
-#line 1102 "test_characteristic_curves.pf"
+#line 1100 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1102) )
+ & 1100) )
   if (anyExceptions()) return
-#line 1103 "test_characteristic_curves.pf"
+#line 1101 "test_characteristic_curves.pf"
   end subroutine testrpf_TOUGH2_IRP7_gas
 
 ! ************************************************************************** !
@@ -1421,43 +1419,43 @@ contains
     string = 'Linear-Mualem saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 1.0001679766584224d0
-#line 1136 "test_characteristic_curves.pf"
+#line 1134 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1136) )
+ & 1134) )
   if (anyExceptions()) return
-#line 1137 "test_characteristic_curves.pf"
+#line 1135 "test_characteristic_curves.pf"
     string = 'Linear-Mualem relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 1.0000000000000000d0
-#line 1140 "test_characteristic_curves.pf"
+#line 1138 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1140) )
+ & 1138) )
   if (anyExceptions()) return
-#line 1141 "test_characteristic_curves.pf"
+#line 1139 "test_characteristic_curves.pf"
     string = 'Linear-Mualem derivative of saturation as a function &
              &of capillary pressure at low capillary pressure'
     value = 8.5802608854958100d-9
-#line 1144 "test_characteristic_curves.pf"
+#line 1142 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1144) )
+ & 1142) )
   if (anyExceptions()) return
-#line 1145 "test_characteristic_curves.pf"
+#line 1143 "test_characteristic_curves.pf"
     string = 'Linear-Mualem derivative of relative permeability as a &
              &function of capillary pressure at low capillary pressure'
     value = 0.d0
-#line 1148 "test_characteristic_curves.pf"
+#line 1146 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_p, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1148) )
+ & 1146) )
   if (anyExceptions()) return
-#line 1149 "test_characteristic_curves.pf"
+#line 1147 "test_characteristic_curves.pf"
 
     ! saturation = f(capillary_pressure) at high capillary pressure
     select type(sf=>this%cc_lm%saturation_function)
@@ -1476,43 +1474,43 @@ contains
     string = 'van Genuchten-Mualem saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.99848743785071759d0
-#line 1167 "test_characteristic_curves.pf"
+#line 1165 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1167) )
+ & 1165) )
   if (anyExceptions()) return
-#line 1168 "test_characteristic_curves.pf"
+#line 1166 "test_characteristic_curves.pf"
     string = 'Linear-Mualem relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.21040639641042236d0
-#line 1171 "test_characteristic_curves.pf"
+#line 1169 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1171) )
+ & 1169) )
   if (anyExceptions()) return
-#line 1172 "test_characteristic_curves.pf"
+#line 1170 "test_characteristic_curves.pf"
     string = 'Linear-Mualem derivative of saturation as a function &
              &of capillary pressure at high capillary pressure'
     value = 8.5802608854958100d-9
-#line 1175 "test_characteristic_curves.pf"
+#line 1173 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1175) )
+ & 1173) )
   if (anyExceptions()) return
-#line 1176 "test_characteristic_curves.pf"
+#line 1174 "test_characteristic_curves.pf"
     string = 'Linear-Mualem derivative of relative permeability as a &
              &function of capillary pressure at high capillary pressure'
     value = 3.7741597839123353d-007
-#line 1179 "test_characteristic_curves.pf"
+#line 1177 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_p, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1179) )
+ & 1177) )
   if (anyExceptions()) return
-#line 1180 "test_characteristic_curves.pf"
+#line 1178 "test_characteristic_curves.pf"
 
   end subroutine testsf_Linear
 
@@ -1541,23 +1539,23 @@ contains
     string = 'Linear capillary pressure as a function of &
              &saturation'
     value = 58292873.507671818d0
-#line 1208 "test_characteristic_curves.pf"
+#line 1206 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1208) )
+ & 1206) )
   if (anyExceptions()) return
-#line 1209 "test_characteristic_curves.pf"
+#line 1207 "test_characteristic_curves.pf"
     string = 'Linear derivative of capillary pressure as a function of &
              &saturation'
     value = -1.1654657280764198d8
-#line 1212 "test_characteristic_curves.pf"
+#line 1210 "test_characteristic_curves.pf"
   call assertEqual(value, dpc_dsatl, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1212) )
+ & 1210) )
   if (anyExceptions()) return
-#line 1213 "test_characteristic_curves.pf"
+#line 1211 "test_characteristic_curves.pf"
 
   end subroutine testcp_Linear
 
@@ -1585,23 +1583,23 @@ contains
     string = 'Linear-Mualem liquid relative permeability as a &
              &function of liquid saturation'
     value = 9.8205932575543323d-4
-#line 1240 "test_characteristic_curves.pf"
+#line 1238 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1240) )
+ & 1238) )
   if (anyExceptions()) return
-#line 1241 "test_characteristic_curves.pf"
+#line 1239 "test_characteristic_curves.pf"
     string = 'Linear-Mualem derivative of liquid relative &
              &permeability as a function of liquid saturation'
     value = 8.6657420154635095d-3
-#line 1244 "test_characteristic_curves.pf"
+#line 1242 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1244) )
+ & 1242) )
   if (anyExceptions()) return
-#line 1245 "test_characteristic_curves.pf"
+#line 1243 "test_characteristic_curves.pf"
 
     ! gas relative permeability = f(saturation)
     call this%cc_lm%gas_rel_perm_function% &
@@ -1610,13 +1608,13 @@ contains
     string = 'Linear-Mualem gas relative permeability as a &
              &function of liquid saturation'
     value = 0.70258636467899827d0
-#line 1253 "test_characteristic_curves.pf"
+#line 1251 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1253) )
+ & 1251) )
   if (anyExceptions()) return
-#line 1254 "test_characteristic_curves.pf"
+#line 1252 "test_characteristic_curves.pf"
 
   end subroutine testrpf_Linear_Mualem
 
@@ -1644,23 +1642,23 @@ contains
     string = 'Linear-Mualem liquid relative permeability as a &
              &function of liquid saturation'
     value = 0.41656942823803966d0
-#line 1281 "test_characteristic_curves.pf"
+#line 1279 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1281) )
+ & 1279) )
   if (anyExceptions()) return
-#line 1282 "test_characteristic_curves.pf"
+#line 1280 "test_characteristic_curves.pf"
     string = 'Linear-Mualem derivative of liquid relative &
              &permeability as a function of liquid saturation'
     value = 1.1668611435239207d0
-#line 1285 "test_characteristic_curves.pf"
+#line 1283 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1285) )
+ & 1283) )
   if (anyExceptions()) return
-#line 1286 "test_characteristic_curves.pf"
+#line 1284 "test_characteristic_curves.pf"
 
     ! gas relative permeability = f(saturation)
     call this%cc_lb%gas_rel_perm_function% &
@@ -1669,23 +1667,23 @@ contains
     string = 'Linear-Mualem gas relative permeability as a &
              &function of liquid saturation'
     value = 0.57851239669421495d0
-#line 1294 "test_characteristic_curves.pf"
+#line 1292 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1294) )
+ & 1292) )
   if (anyExceptions()) return
-#line 1295 "test_characteristic_curves.pf"
+#line 1293 "test_characteristic_curves.pf"
     string = 'Linear-Mualem derivative of liquid relative &
              &permeability as a function of liquid saturation'
     value = -1.1806375442739079d0
-#line 1298 "test_characteristic_curves.pf"
+#line 1296 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1298) )
+ & 1296) )
   if (anyExceptions()) return
-#line 1299 "test_characteristic_curves.pf"
+#line 1297 "test_characteristic_curves.pf"
 
   end subroutine testrpf_Linear_Burdine
 
@@ -1721,43 +1719,43 @@ contains
     string = '3-parameter modified Kosugi saturation as a function of '//&
          &'capillary pressure'
     value = 0.97481347586415668d0
-#line 1334 "test_characteristic_curves.pf"
+#line 1332 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1334) )
+ & 1332) )
   if (anyExceptions()) return
-#line 1335 "test_characteristic_curves.pf"
+#line 1333 "test_characteristic_curves.pf"
     string = '3-parameter modified Kosugi relative permeability as a '//&
          &'function of capillary pressure'
     value = 0.92508223462292838d0
-#line 1338 "test_characteristic_curves.pf"
+#line 1336 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1338) )
+ & 1336) )
   if (anyExceptions()) return
-#line 1339 "test_characteristic_curves.pf"
+#line 1337 "test_characteristic_curves.pf"
     string = '3-parameter modified Kosugi derivative of saturation as '//&
          &'a function of capillary pressure'
     value = 4.7607337955577978D-5
-#line 1342 "test_characteristic_curves.pf"
+#line 1340 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1342) )
+ & 1340) )
   if (anyExceptions()) return
-#line 1343 "test_characteristic_curves.pf"
+#line 1341 "test_characteristic_curves.pf"
     string = '3-parameter modified Kosugi derivative of relative perm as'// &
          &' a function of capillary pressure'
     value = 1.2551629198938072D-4
-#line 1346 "test_characteristic_curves.pf"
+#line 1344 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_p, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1346) )
+ & 1344) )
   if (anyExceptions()) return
-#line 1347 "test_characteristic_curves.pf"
+#line 1345 "test_characteristic_curves.pf"
 
   end subroutine testsf_modified_kosugi_3param
 
@@ -1786,23 +1784,23 @@ contains
     string = '3-parameter modified Kosugi capillary pressure as a '//&
          &'function of saturation'
     value = 17707.010438883957d0
-#line 1375 "test_characteristic_curves.pf"
+#line 1373 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1375) )
+ & 1373) )
   if (anyExceptions()) return
-#line 1376 "test_characteristic_curves.pf"
+#line 1374 "test_characteristic_curves.pf"
     string = '3-parameter modified Kosugi derivative of capillary ' // &
          'pressure as a function of saturation'
     value = -24500.406539923177d0
-#line 1379 "test_characteristic_curves.pf"
+#line 1377 "test_characteristic_curves.pf"
   call assertEqual(value, dpc_dsatl, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1379) )
+ & 1377) )
   if (anyExceptions()) return
-#line 1380 "test_characteristic_curves.pf"
+#line 1378 "test_characteristic_curves.pf"
 
   end subroutine testcp_modified_kosugi_3param
 
@@ -1830,23 +1828,23 @@ contains
     string = '3-parameter modified Kosugi liquid relative permeability'//&
          &' as a function of liquid saturation'
     value = 0.18300229972367688d0
-#line 1407 "test_characteristic_curves.pf"
+#line 1405 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1407) )
+ & 1405) )
   if (anyExceptions()) return
-#line 1408 "test_characteristic_curves.pf"
+#line 1406 "test_characteristic_curves.pf"
     string = '3-parameter modified Kosugi derivative of liquid relative'//&
          &' permeability as a function of liquid saturation'
     value = 0.92477440290277491d0
-#line 1411 "test_characteristic_curves.pf"
+#line 1409 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1411) )
+ & 1409) )
   if (anyExceptions()) return
-#line 1412 "test_characteristic_curves.pf"
+#line 1410 "test_characteristic_curves.pf"
 
     ! gas relative permeability = f(saturation)
     call this%cc_mk3%gas_rel_perm_function% &
@@ -1855,23 +1853,23 @@ contains
     string = '3-parameter modified Kosugi gas relative permeability as'//&
          &' a function of liquid saturation'
     value = 0.35040465818058608d0
-#line 1420 "test_characteristic_curves.pf"
+#line 1418 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1420) )
+ & 1418) )
   if (anyExceptions()) return
-#line 1421 "test_characteristic_curves.pf"
+#line 1419 "test_characteristic_curves.pf"
     string = '3-parameter modified Kosugi derivative of gas relative'//&
          &' permeability as a function of liquid saturation'
     value = -1.2770282015052450d0
-#line 1424 "test_characteristic_curves.pf"
+#line 1422 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1424) )
+ & 1422) )
   if (anyExceptions()) return
-#line 1425 "test_characteristic_curves.pf"
+#line 1423 "test_characteristic_curves.pf"
 
   end subroutine testrpf_modified_kosugi_3param
 
@@ -1900,23 +1898,23 @@ contains
     string = '4-parameter modified Kosugi capillary pressure as a '//&
          &'function of saturation'
     value = 15671.942098006928d0
-#line 1453 "test_characteristic_curves.pf"
+#line 1451 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1453) )
+ & 1451) )
   if (anyExceptions()) return
-#line 1454 "test_characteristic_curves.pf"
+#line 1452 "test_characteristic_curves.pf"
     string = 'r-parameter modified Kosugi derivative of capillary ' // &
          'pressure as a function of saturation'
     value = -19192.362637570313d0
-#line 1457 "test_characteristic_curves.pf"
+#line 1455 "test_characteristic_curves.pf"
   call assertEqual(value, dpc_dsatl, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1457) )
+ & 1455) )
   if (anyExceptions()) return
-#line 1458 "test_characteristic_curves.pf"
+#line 1456 "test_characteristic_curves.pf"
 
   end subroutine testcp_modified_kosugi_4param
 
@@ -1944,23 +1942,23 @@ contains
     string = '4-parameter modified Kosugi liquid relative permeability'//&
          &' as a function of liquid saturation'
     value = 0.18300229972367688d0  ! same as 3-param
-#line 1485 "test_characteristic_curves.pf"
+#line 1483 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1485) )
+ & 1483) )
   if (anyExceptions()) return
-#line 1486 "test_characteristic_curves.pf"
+#line 1484 "test_characteristic_curves.pf"
     string = '4-parameter modified Kosugi derivative of liquid relative'//&
          &' permeability as a function of liquid saturation'
     value = 0.92477440290277491d0  ! same as 3-param
-#line 1489 "test_characteristic_curves.pf"
+#line 1487 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1489) )
+ & 1487) )
   if (anyExceptions()) return
-#line 1490 "test_characteristic_curves.pf"
+#line 1488 "test_characteristic_curves.pf"
 
     ! gas relative permeability = f(saturation)
     call this%cc_mk4%gas_rel_perm_function% &
@@ -1969,23 +1967,23 @@ contains
     string = '4-parameter modified Kosugi gas relative permeability as'//&
          &' a function of liquid saturation'
     value = 0.35040465818058608d0  ! same as 3-param
-#line 1498 "test_characteristic_curves.pf"
+#line 1496 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1498) )
+ & 1496) )
   if (anyExceptions()) return
-#line 1499 "test_characteristic_curves.pf"
+#line 1497 "test_characteristic_curves.pf"
     string = '4-parameter modified Kosugi derivative of gas relative'//&
          &' permeability as a function of liquid saturation'
     value = -1.2770282015052450d0   ! same as 3-param
-#line 1502 "test_characteristic_curves.pf"
+#line 1500 "test_characteristic_curves.pf"
   call assertEqual(value, dkr_sat, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1502) )
+ & 1500) )
   if (anyExceptions()) return
-#line 1503 "test_characteristic_curves.pf"
+#line 1501 "test_characteristic_curves.pf"
 
   end subroutine testrpf_modified_kosugi_4param
 
@@ -2013,22 +2011,22 @@ contains
                                                       dsat_pres,this%option)
     string = 'Constant saturation function liquid saturation'
     value = 0.5d0
-#line 1530 "test_characteristic_curves.pf"
+#line 1528 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1530) )
+ & 1528) )
   if (anyExceptions()) return
-#line 1531 "test_characteristic_curves.pf"
+#line 1529 "test_characteristic_curves.pf"
     string = 'Constant saturation function liquid saturation derivative'
     value = 0.d0
-#line 1533 "test_characteristic_curves.pf"
+#line 1531 "test_characteristic_curves.pf"
   call assertEqual(value, dsat_pres, tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1533) )
+ & 1531) )
   if (anyExceptions()) return
-#line 1534 "test_characteristic_curves.pf"
+#line 1532 "test_characteristic_curves.pf"
 
     ! capillary_pressure = f(saturation)
     liquid_saturation = 0.5d0
@@ -2039,13 +2037,13 @@ contains
                                                       this%option)
     string = 'Constant saturation function capillary pressure'
     value = 1.d5
-#line 1544 "test_characteristic_curves.pf"
+#line 1542 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1544) )
+ & 1542) )
   if (anyExceptions()) return
-#line 1545 "test_characteristic_curves.pf"
+#line 1543 "test_characteristic_curves.pf"
 
   end subroutine testsf_constant
   
@@ -2075,13 +2073,13 @@ contains
     string = 'KRP1 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 211645.56118006655d0
-#line 1574 "test_characteristic_curves.pf"
+#line 1572 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1574) )
+ & 1572) )
   if (anyExceptions()) return
-#line 1575 "test_characteristic_curves.pf"
+#line 1573 "test_characteristic_curves.pf"
     capillary_pressure = 10.d0
     call this%cc_krp1%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -2089,39 +2087,39 @@ contains
     string = 'KRP1 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 0.74556316913866438d0
-#line 1582 "test_characteristic_curves.pf"
+#line 1580 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1582) )
+ & 1580) )
   if (anyExceptions()) return
-#line 1583 "test_characteristic_curves.pf"
+#line 1581 "test_characteristic_curves.pf"
     call this%cc_krp1%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP1 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.10878895018640269d0
-#line 1589 "test_characteristic_curves.pf"
+#line 1587 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1589) )
+ & 1587) )
   if (anyExceptions()) return
-#line 1590 "test_characteristic_curves.pf"
+#line 1588 "test_characteristic_curves.pf"
     call this%cc_krp1%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP1 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 5.9765155008000600d-4
-#line 1596 "test_characteristic_curves.pf"
+#line 1594 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1596) )
+ & 1594) )
   if (anyExceptions()) return
-#line 1597 "test_characteristic_curves.pf"
+#line 1595 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.81
     call this%cc_krp1%saturation_function% &
@@ -2130,13 +2128,13 @@ contains
     string = 'KRP1 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 0.0d0
-#line 1605 "test_characteristic_curves.pf"
+#line 1603 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1605) )
+ & 1603) )
   if (anyExceptions()) return
-#line 1606 "test_characteristic_curves.pf"
+#line 1604 "test_characteristic_curves.pf"
     select type(sf=>this%cc_krp1%saturation_function)
       class is(sat_func_KRP1_type)
         capillary_pressure = 10.d0/sf%alpha
@@ -2147,39 +2145,39 @@ contains
     string = 'KRP1 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.20000256369851988d0
-#line 1616 "test_characteristic_curves.pf"
+#line 1614 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1616) )
+ & 1614) )
   if (anyExceptions()) return
-#line 1617 "test_characteristic_curves.pf"
+#line 1615 "test_characteristic_curves.pf"
     call this%cc_krp1%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP1 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 3.1269006686492169d-22
-#line 1623 "test_characteristic_curves.pf"
+#line 1621 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1623) )
+ & 1621) )
   if (anyExceptions()) return
-#line 1624 "test_characteristic_curves.pf"
+#line 1622 "test_characteristic_curves.pf"
     call this%cc_krp1%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP1 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 1.0d0
-#line 1630 "test_characteristic_curves.pf"
+#line 1628 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1630) )
+ & 1628) )
   if (anyExceptions()) return
-#line 1631 "test_characteristic_curves.pf"
+#line 1629 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP1
   
@@ -2209,13 +2207,13 @@ contains
     string = 'KRP2 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 9990000.0d0
-#line 1660 "test_characteristic_curves.pf"
+#line 1658 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1660) )
+ & 1658) )
   if (anyExceptions()) return
-#line 1661 "test_characteristic_curves.pf"
+#line 1659 "test_characteristic_curves.pf"
     capillary_pressure = 100.d0
     call this%cc_krp2%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -2223,39 +2221,39 @@ contains
     string = 'KRP2 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 1.0d0
-#line 1668 "test_characteristic_curves.pf"
+#line 1666 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1668) )
+ & 1666) )
   if (anyExceptions()) return
-#line 1669 "test_characteristic_curves.pf"
+#line 1667 "test_characteristic_curves.pf"
     call this%cc_krp2%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP2 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 1.0d0
-#line 1675 "test_characteristic_curves.pf"
+#line 1673 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1675) )
+ & 1673) )
   if (anyExceptions()) return
-#line 1676 "test_characteristic_curves.pf"
+#line 1674 "test_characteristic_curves.pf"
     call this%cc_krp2%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP2 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.0d0
-#line 1682 "test_characteristic_curves.pf"
+#line 1680 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1682) )
+ & 1680) )
   if (anyExceptions()) return
-#line 1683 "test_characteristic_curves.pf"
+#line 1681 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.81
     call this%cc_krp2%saturation_function% &
@@ -2264,13 +2262,13 @@ contains
     string = 'KRP2 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 51637.669399930157d0
-#line 1691 "test_characteristic_curves.pf"
+#line 1689 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1691) )
+ & 1689) )
   if (anyExceptions()) return
-#line 1692 "test_characteristic_curves.pf"
+#line 1690 "test_characteristic_curves.pf"
     select type(sf=>this%cc_krp2%saturation_function)
       class is(sat_func_KRP2_type)
         capillary_pressure = 15.d0/sf%alpha
@@ -2280,39 +2278,39 @@ contains
     string = 'KRP2 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.55731947333915333d0
-#line 1701 "test_characteristic_curves.pf"
+#line 1699 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1701) )
+ & 1699) )
   if (anyExceptions()) return
-#line 1702 "test_characteristic_curves.pf"
+#line 1700 "test_characteristic_curves.pf"
     call this%cc_krp2%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP2 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 5.8310805074531403d-4
-#line 1708 "test_characteristic_curves.pf"
+#line 1706 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1708) )
+ & 1706) )
   if (anyExceptions()) return
-#line 1709 "test_characteristic_curves.pf"
+#line 1707 "test_characteristic_curves.pf"
     call this%cc_krp2%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP2 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.24138701885980715d0
-#line 1715 "test_characteristic_curves.pf"
+#line 1713 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1715) )
+ & 1713) )
   if (anyExceptions()) return
-#line 1716 "test_characteristic_curves.pf"
+#line 1714 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP2
   
@@ -2342,52 +2340,52 @@ contains
     string = 'KRP3 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 143937.17953954436d0
-#line 1745 "test_characteristic_curves.pf"
+#line 1743 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1745) )
+ & 1743) )
   if (anyExceptions()) return
-#line 1746 "test_characteristic_curves.pf"
+#line 1744 "test_characteristic_curves.pf"
     capillary_pressure = 10.d0
     call this%cc_krp3%saturation_function%Saturation(capillary_pressure, &
                                    liquid_saturation,dsat_pres,this%option)
     string = 'KRP3 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 1.0d0
-#line 1752 "test_characteristic_curves.pf"
+#line 1750 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1752) )
+ & 1750) )
   if (anyExceptions()) return
-#line 1753 "test_characteristic_curves.pf"
+#line 1751 "test_characteristic_curves.pf"
     call this%cc_krp3%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP3 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 1.0d0
-#line 1759 "test_characteristic_curves.pf"
+#line 1757 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1759) )
+ & 1757) )
   if (anyExceptions()) return
-#line 1760 "test_characteristic_curves.pf"
+#line 1758 "test_characteristic_curves.pf"
     call this%cc_krp3%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP3 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.0d0
-#line 1766 "test_characteristic_curves.pf"
+#line 1764 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1766) )
+ & 1764) )
   if (anyExceptions()) return
-#line 1767 "test_characteristic_curves.pf"
+#line 1765 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.81
     call this%cc_krp3%saturation_function% &
@@ -2396,52 +2394,52 @@ contains
     string = 'KRP3 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 200.0d0
-#line 1775 "test_characteristic_curves.pf"
+#line 1773 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1775) )
+ & 1773) )
   if (anyExceptions()) return
-#line 1776 "test_characteristic_curves.pf"
+#line 1774 "test_characteristic_curves.pf"
     capillary_pressure = 1.d5
     call this%cc_krp3%saturation_function%Saturation(capillary_pressure, &
                                    liquid_saturation,dsat_pres,this%option)
     string = 'KRP3 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.21815720128839766d0
-#line 1782 "test_characteristic_curves.pf"
+#line 1780 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1782) )
+ & 1780) )
   if (anyExceptions()) return
-#line 1783 "test_characteristic_curves.pf"
+#line 1781 "test_characteristic_curves.pf"
     call this%cc_krp3%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP3 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 5.8632915084341688d-9
-#line 1789 "test_characteristic_curves.pf"
+#line 1787 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1789) )
+ & 1787) )
   if (anyExceptions()) return
-#line 1790 "test_characteristic_curves.pf"
+#line 1788 "test_characteristic_curves.pf"
     call this%cc_krp3%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP3 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.78571287226820719d0
-#line 1796 "test_characteristic_curves.pf"
+#line 1794 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1796) )
+ & 1794) )
   if (anyExceptions()) return
-#line 1797 "test_characteristic_curves.pf"
+#line 1795 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP3
   
@@ -2471,52 +2469,52 @@ contains
     string = 'KRP4 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 9990000.0d0
-#line 1826 "test_characteristic_curves.pf"
+#line 1824 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1826) )
+ & 1824) )
   if (anyExceptions()) return
-#line 1827 "test_characteristic_curves.pf"
+#line 1825 "test_characteristic_curves.pf"
     capillary_pressure = 10.d0
     call this%cc_krp4%saturation_function%Saturation(capillary_pressure, &
                                    liquid_saturation,dsat_pres,this%option)
     string = 'KRP4 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 1.0d0
-#line 1833 "test_characteristic_curves.pf"
+#line 1831 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1833) )
+ & 1831) )
   if (anyExceptions()) return
-#line 1834 "test_characteristic_curves.pf"
+#line 1832 "test_characteristic_curves.pf"
     call this%cc_krp4%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP4 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 1.0d0
-#line 1840 "test_characteristic_curves.pf"
+#line 1838 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1840) )
+ & 1838) )
   if (anyExceptions()) return
-#line 1841 "test_characteristic_curves.pf"
+#line 1839 "test_characteristic_curves.pf"
     call this%cc_krp4%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP4 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.0d0
-#line 1847 "test_characteristic_curves.pf"
+#line 1845 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1847) )
+ & 1845) )
   if (anyExceptions()) return
-#line 1848 "test_characteristic_curves.pf"
+#line 1846 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.81
     call this%cc_krp4%saturation_function% &
@@ -2525,52 +2523,52 @@ contains
     string = 'KRP4 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 152.32289193581161d0
-#line 1856 "test_characteristic_curves.pf"
+#line 1854 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1856) )
+ & 1854) )
   if (anyExceptions()) return
-#line 1857 "test_characteristic_curves.pf"
+#line 1855 "test_characteristic_curves.pf"
     capillary_pressure = 1.d5
     call this%cc_krp4%saturation_function%Saturation(capillary_pressure, &
                                    liquid_saturation,dsat_pres,this%option)
     string = 'KRP4 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.21815720128839766d0
-#line 1863 "test_characteristic_curves.pf"
+#line 1861 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1863) )
+ & 1861) )
   if (anyExceptions()) return
-#line 1864 "test_characteristic_curves.pf"
+#line 1862 "test_characteristic_curves.pf"
     call this%cc_krp4%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP4 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 2.8180697920854255d-10
-#line 1870 "test_characteristic_curves.pf"
+#line 1868 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1870) )
+ & 1868) )
   if (anyExceptions()) return
-#line 1871 "test_characteristic_curves.pf"
+#line 1869 "test_characteristic_curves.pf"
     call this%cc_krp4%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP4 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.78571287226820719d0
-#line 1877 "test_characteristic_curves.pf"
+#line 1875 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1877) )
+ & 1875) )
   if (anyExceptions()) return
-#line 1878 "test_characteristic_curves.pf"
+#line 1876 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP4
   
@@ -2600,13 +2598,13 @@ contains
     string = 'KRP5 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 8525093.3809598293d0
-#line 1907 "test_characteristic_curves.pf"
+#line 1905 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1907) )
+ & 1905) )
   if (anyExceptions()) return
-#line 1908 "test_characteristic_curves.pf"
+#line 1906 "test_characteristic_curves.pf"
     capillary_pressure = 50.d0
     call this%cc_krp5%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -2614,39 +2612,39 @@ contains
     string = 'KRP5 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 0.80014642571085304d0
-#line 1915 "test_characteristic_curves.pf"
+#line 1913 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1915) )
+ & 1913) )
   if (anyExceptions()) return
-#line 1916 "test_characteristic_curves.pf"
+#line 1914 "test_characteristic_curves.pf"
     call this%cc_krp5%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP5 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 1.0d0
-#line 1922 "test_characteristic_curves.pf"
+#line 1920 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1922) )
+ & 1920) )
   if (anyExceptions()) return
-#line 1923 "test_characteristic_curves.pf"
+#line 1921 "test_characteristic_curves.pf"
     call this%cc_krp5%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP5 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.0d0
-#line 1929 "test_characteristic_curves.pf"
+#line 1927 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1929) )
+ & 1927) )
   if (anyExceptions()) return
-#line 1930 "test_characteristic_curves.pf"
+#line 1928 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.81
     call this%cc_krp5%saturation_function% &
@@ -2655,13 +2653,13 @@ contains
     string = 'KRP5 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 2000.0d0
-#line 1938 "test_characteristic_curves.pf"
+#line 1936 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1938) )
+ & 1936) )
   if (anyExceptions()) return
-#line 1939 "test_characteristic_curves.pf"
+#line 1937 "test_characteristic_curves.pf"
     capillary_pressure = 8.d5
     call this%cc_krp5%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -2669,39 +2667,39 @@ contains
     string = 'KRP5 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.74007809371245503d0
-#line 1946 "test_characteristic_curves.pf"
+#line 1944 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1946) )
+ & 1944) )
   if (anyExceptions()) return
-#line 1947 "test_characteristic_curves.pf"
+#line 1945 "test_characteristic_curves.pf"
     call this%cc_krp5%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP5 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.92010412494993998d0
-#line 1953 "test_characteristic_curves.pf"
+#line 1951 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1953) )
+ & 1951) )
   if (anyExceptions()) return
-#line 1954 "test_characteristic_curves.pf"
+#line 1952 "test_characteristic_curves.pf"
     call this%cc_krp5%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP5 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 7.9895875050060017d-2
-#line 1960 "test_characteristic_curves.pf"
+#line 1958 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1960) )
+ & 1958) )
   if (anyExceptions()) return
-#line 1961 "test_characteristic_curves.pf"
+#line 1959 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP5
   
@@ -2731,13 +2729,13 @@ contains
     string = 'KRP8 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 390287.05422819848d0
-#line 1990 "test_characteristic_curves.pf"
+#line 1988 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1990) )
+ & 1988) )
   if (anyExceptions()) return
-#line 1991 "test_characteristic_curves.pf"
+#line 1989 "test_characteristic_curves.pf"
     capillary_pressure = 10.d0
     call this%cc_krp8%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -2745,39 +2743,39 @@ contains
     string = 'KRP8 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 0.99813934029313034d0
-#line 1998 "test_characteristic_curves.pf"
+#line 1996 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 1998) )
+ & 1996) )
   if (anyExceptions()) return
-#line 1999 "test_characteristic_curves.pf"
+#line 1997 "test_characteristic_curves.pf"
     call this%cc_krp8%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP8 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.82967396002016347d0
-#line 2005 "test_characteristic_curves.pf"
+#line 2003 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2005) )
+ & 2003) )
   if (anyExceptions()) return
-#line 2006 "test_characteristic_curves.pf"
+#line 2004 "test_characteristic_curves.pf"
     call this%cc_krp8%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP8 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 3.5744473041460765d-4
-#line 2012 "test_characteristic_curves.pf"
+#line 2010 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2012) )
+ & 2010) )
   if (anyExceptions()) return
-#line 2013 "test_characteristic_curves.pf"
+#line 2011 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.81
     call this%cc_krp8%saturation_function% &
@@ -2786,13 +2784,13 @@ contains
     string = 'KRP8 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 11673.176741409796d0
-#line 2021 "test_characteristic_curves.pf"
+#line 2019 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2021) )
+ & 2019) )
   if (anyExceptions()) return
-#line 2022 "test_characteristic_curves.pf"
+#line 2020 "test_characteristic_curves.pf"
     select type(sf=>this%cc_krp8%saturation_function)
       class is(sat_func_KRP8_type)
         capillary_pressure = 15.d0/sf%alpha
@@ -2803,39 +2801,39 @@ contains
     string = 'KRP8 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.10220037076344601d0
-#line 2032 "test_characteristic_curves.pf"
+#line 2030 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2032) )
+ & 2030) )
   if (anyExceptions()) return
-#line 2033 "test_characteristic_curves.pf"
+#line 2031 "test_characteristic_curves.pf"
     call this%cc_krp8%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP8 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 2.4705248145444649d-14
-#line 2039 "test_characteristic_curves.pf"
+#line 2037 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2039) )
+ & 2037) )
   if (anyExceptions()) return
-#line 2040 "test_characteristic_curves.pf"
+#line 2038 "test_characteristic_curves.pf"
     call this%cc_krp8%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP8 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.99877541173464723d0
-#line 2046 "test_characteristic_curves.pf"
+#line 2044 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2046) )
+ & 2044) )
   if (anyExceptions()) return
-#line 2047 "test_characteristic_curves.pf"
+#line 2045 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP8
   
@@ -2865,13 +2863,13 @@ contains
     string = 'KRP9 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 6701.4503478003835d0
-#line 2076 "test_characteristic_curves.pf"
+#line 2074 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2076) )
+ & 2074) )
   if (anyExceptions()) return
-#line 2077 "test_characteristic_curves.pf"
+#line 2075 "test_characteristic_curves.pf"
     capillary_pressure = 50.d0
     call this%cc_krp9%saturation_function%Saturation(capillary_pressure, &
                                                      liquid_saturation, &
@@ -2879,39 +2877,39 @@ contains
     string = 'KRP9 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 0.99999644138299326d0
-#line 2084 "test_characteristic_curves.pf"
+#line 2082 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2084) )
+ & 2082) )
   if (anyExceptions()) return
-#line 2085 "test_characteristic_curves.pf"
+#line 2083 "test_characteristic_curves.pf"
     call this%cc_krp9%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP9 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.99999998839687010d0
-#line 2091 "test_characteristic_curves.pf"
+#line 2089 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2091) )
+ & 2089) )
   if (anyExceptions()) return
-#line 2092 "test_characteristic_curves.pf"
+#line 2090 "test_characteristic_curves.pf"
     call this%cc_krp9%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP9 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 1.1603129901338605d-8
-#line 2098 "test_characteristic_curves.pf"
+#line 2096 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2098) )
+ & 2096) )
   if (anyExceptions()) return
-#line 2099 "test_characteristic_curves.pf"
+#line 2097 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.81
     call this%cc_krp9%saturation_function% &
@@ -2920,13 +2918,13 @@ contains
     string = 'KRP9 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 2294.5062171637132d0
-#line 2107 "test_characteristic_curves.pf"
+#line 2105 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2107) )
+ & 2105) )
   if (anyExceptions()) return
-#line 2108 "test_characteristic_curves.pf"
+#line 2106 "test_characteristic_curves.pf"
     select type(sf=>this%cc_krp9%saturation_function)
       class is(sat_func_KRP9_type)
         capillary_pressure = 8.d5
@@ -2937,39 +2935,39 @@ contains
     string = 'KRP9 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 1.8062138845808708d-7
-#line 2118 "test_characteristic_curves.pf"
+#line 2116 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2118) )
+ & 2116) )
   if (anyExceptions()) return
-#line 2119 "test_characteristic_curves.pf"
+#line 2117 "test_characteristic_curves.pf"
     call this%cc_krp9%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP9 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.d0
-#line 2125 "test_characteristic_curves.pf"
+#line 2123 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2125) )
+ & 2123) )
   if (anyExceptions()) return
-#line 2126 "test_characteristic_curves.pf"
+#line 2124 "test_characteristic_curves.pf"
     call this%cc_krp9%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP9 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 1.d0
-#line 2132 "test_characteristic_curves.pf"
+#line 2130 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2132) )
+ & 2130) )
   if (anyExceptions()) return
-#line 2133 "test_characteristic_curves.pf"
+#line 2131 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP9
   
@@ -2999,13 +2997,13 @@ contains
     string = 'KRP11 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 0.0d0
-#line 2162 "test_characteristic_curves.pf"
+#line 2160 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2162) )
+ & 2160) )
   if (anyExceptions()) return
-#line 2163 "test_characteristic_curves.pf"
+#line 2161 "test_characteristic_curves.pf"
     capillary_pressure = 100.d0
     call this%cc_krp11%saturation_function%Saturation(capillary_pressure, &
                                                       liquid_saturation, &
@@ -3013,39 +3011,39 @@ contains
     string = 'KRP11 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 1.0d0
-#line 2170 "test_characteristic_curves.pf"
+#line 2168 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2170) )
+ & 2168) )
   if (anyExceptions()) return
-#line 2171 "test_characteristic_curves.pf"
+#line 2169 "test_characteristic_curves.pf"
     call this%cc_krp11%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP11 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 1.0d0
-#line 2177 "test_characteristic_curves.pf"
+#line 2175 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2177) )
+ & 2175) )
   if (anyExceptions()) return
-#line 2178 "test_characteristic_curves.pf"
+#line 2176 "test_characteristic_curves.pf"
     call this%cc_krp11%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP11 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.d0
-#line 2184 "test_characteristic_curves.pf"
+#line 2182 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2184) )
+ & 2182) )
   if (anyExceptions()) return
-#line 2185 "test_characteristic_curves.pf"
+#line 2183 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.85
     call this%cc_krp11%saturation_function% &
@@ -3054,13 +3052,13 @@ contains
     string = 'KRP11 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 0.0d0
-#line 2193 "test_characteristic_curves.pf"
+#line 2191 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2193) )
+ & 2191) )
   if (anyExceptions()) return
-#line 2194 "test_characteristic_curves.pf"
+#line 2192 "test_characteristic_curves.pf"
     capillary_pressure = 1.d6
     call this%cc_krp11%saturation_function%Saturation(capillary_pressure, &
                                                       liquid_saturation, &
@@ -3068,39 +3066,39 @@ contains
     string = 'KRP11 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 1.0d0
-#line 2201 "test_characteristic_curves.pf"
+#line 2199 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2201) )
+ & 2199) )
   if (anyExceptions()) return
-#line 2202 "test_characteristic_curves.pf"
+#line 2200 "test_characteristic_curves.pf"
     call this%cc_krp11%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP11 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 1.0d0
-#line 2208 "test_characteristic_curves.pf"
+#line 2206 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2208) )
+ & 2206) )
   if (anyExceptions()) return
-#line 2209 "test_characteristic_curves.pf"
+#line 2207 "test_characteristic_curves.pf"
     call this%cc_krp11%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP11 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.0d0
-#line 2215 "test_characteristic_curves.pf"
+#line 2213 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2215) )
+ & 2213) )
   if (anyExceptions()) return
-#line 2216 "test_characteristic_curves.pf"
+#line 2214 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP11
   
@@ -3130,13 +3128,13 @@ contains
     string = 'KRP12 capillary pressure as a function of saturation &
              &at low liquid saturation'
     value = 35364351.440591194d0
-#line 2245 "test_characteristic_curves.pf"
+#line 2243 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2245) )
+ & 2243) )
   if (anyExceptions()) return
-#line 2246 "test_characteristic_curves.pf"
+#line 2244 "test_characteristic_curves.pf"
     capillary_pressure = 100.d0
     call this%cc_krp12%saturation_function%Saturation(capillary_pressure, &
                                                       liquid_saturation, &
@@ -3144,39 +3142,39 @@ contains
     string = 'KRP12 saturation as a function of capillary &
              &pressure at low capillary pressure'
     value = 1.0d0
-#line 2253 "test_characteristic_curves.pf"
+#line 2251 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2253) )
+ & 2251) )
   if (anyExceptions()) return
-#line 2254 "test_characteristic_curves.pf"
+#line 2252 "test_characteristic_curves.pf"
     call this%cc_krp12%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP12 liquid relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 1.0d0
-#line 2260 "test_characteristic_curves.pf"
+#line 2258 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2260) )
+ & 2258) )
   if (anyExceptions()) return
-#line 2261 "test_characteristic_curves.pf"
+#line 2259 "test_characteristic_curves.pf"
     call this%cc_krp12%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP12 gas relative permeability as a function of &
              &capillary pressure at low capillary pressure'
     value = 0.d0
-#line 2267 "test_characteristic_curves.pf"
+#line 2265 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2267) )
+ & 2265) )
   if (anyExceptions()) return
-#line 2268 "test_characteristic_curves.pf"
+#line 2266 "test_characteristic_curves.pf"
 
     liquid_saturation = 0.85
     call this%cc_krp12%saturation_function% &
@@ -3185,13 +3183,13 @@ contains
     string = 'KRP12 capillary pressure as a function of saturation &
              &at high liquid saturation'
     value = 4547.8850244305122d0
-#line 2276 "test_characteristic_curves.pf"
+#line 2274 "test_characteristic_curves.pf"
   call assertEqual(value, capillary_pressure, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2276) )
+ & 2274) )
   if (anyExceptions()) return
-#line 2277 "test_characteristic_curves.pf"
+#line 2275 "test_characteristic_curves.pf"
     capillary_pressure = 1.d6
     call this%cc_krp12%saturation_function%Saturation(capillary_pressure, &
                                                       liquid_saturation, &
@@ -3199,39 +3197,39 @@ contains
     string = 'KRP12 saturation as a function of capillary &
              &pressure at high capillary pressure'
     value = 0.30276918155781385d0
-#line 2284 "test_characteristic_curves.pf"
+#line 2282 "test_characteristic_curves.pf"
   call assertEqual(value, liquid_saturation, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2284) )
+ & 2282) )
   if (anyExceptions()) return
-#line 2285 "test_characteristic_curves.pf"
+#line 2283 "test_characteristic_curves.pf"
     call this%cc_krp12%liq_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP12 liquid relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 1.3380237859265290d-9
-#line 2291 "test_characteristic_curves.pf"
+#line 2289 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2291) )
+ & 2289) )
   if (anyExceptions()) return
-#line 2292 "test_characteristic_curves.pf"
+#line 2290 "test_characteristic_curves.pf"
     call this%cc_krp12%gas_rel_perm_function% &
          RelativePermeability(liquid_saturation,relative_permeability, &
                               dkr_sat,this%option)
     string = 'KRP12 gas relative permeability as a function of &
              &capillary pressure at high capillary pressure'
     value = 0.53468502607262869d0
-#line 2298 "test_characteristic_curves.pf"
+#line 2296 "test_characteristic_curves.pf"
   call assertEqual(value, relative_permeability, dabs(value)*tolerance, string, &
  & location=SourceLocation( &
  & 'test_characteristic_curves.pf', &
- & 2298) )
+ & 2296) )
   if (anyExceptions()) return
-#line 2299 "test_characteristic_curves.pf"
+#line 2297 "test_characteristic_curves.pf"
 
   end subroutine testsf_KRP12
 
