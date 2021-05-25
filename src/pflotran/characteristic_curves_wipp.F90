@@ -5,7 +5,6 @@ module Characteristic_Curves_WIPP_module
   use PFLOTRAN_Constants_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
-  use Characteristic_Curves_VG_module
 
   implicit none
 
@@ -4039,3 +4038,4 @@ subroutine RPFTOUGH2IRP7GasRelPerm(this,liquid_saturation, &
 end subroutine RPFTOUGH2IRP7GasRelPerm
 
 end module Characteristic_Curves_WIPP_module
+

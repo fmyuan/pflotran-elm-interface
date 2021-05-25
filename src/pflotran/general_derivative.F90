@@ -239,7 +239,6 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_Common_module
-  use Characteristic_Curves_VG_module
   use Material_Aux_class
   use Option_module
   
@@ -256,9 +255,7 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   class(rpf_Mualem_VG_gas_type), pointer :: rpf_gas  
 
   class(kT_power_type), pointer :: tcf
-
-  PetscInt :: error ! Return code
-
+  
   if (.not.associated(general_parameter)) then
     allocate(general_parameter)
     allocate(general_parameter%diffusion_coefficient(2))
@@ -270,15 +267,15 @@ subroutine GeneralDerivativeSetup(general_parameter, &
     sf => SFVGCreate()
     rpf_liq => RPFMualemVGLiqCreate()
     rpf_gas => RPFMualemVGGasCreate()
-    error = sf%set_m(0.5d0)
-    error = sf%set_alpha(1.d-4)
+    sf%m = 0.5d0
+    sf%alpha = 1.d-4
     sf%Sr = 0.d0
     sf%pcmax = 1.d6
     characteristic_curves%saturation_function => sf
-    error = rpf_liq%set_m(0.5d0)
+    rpf_liq%m = 0.5d0
     rpf_liq%Sr = 0.d0
     characteristic_curves%liq_rel_perm_function => rpf_liq
-    error = rpf_gas%set_m(0.5d0)
+    rpf_gas%m = 0.5d0
     rpf_gas%Sr = 0.d0
     rpf_gas%Srg = 1.d-40
     characteristic_curves%gas_rel_perm_function => rpf_gas
@@ -933,3 +930,4 @@ subroutine GeneralDerivativeDestroy(general_parameter, &
 end subroutine GeneralDerivativeDestroy
 
 end module General_Derivative_module
+

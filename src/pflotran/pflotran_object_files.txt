@@ -156,7 +156,7 @@ relations_obj = \
 	${common_src}characteristic_curves_common.o \
 	${common_src}characteristic_curves_wipp.o \
 	${common_src}characteristic_curves_thermal.o \
-	${common_src}characteristic_curves_VG.o \
+	${common_src}characteristic_curves_loop_invariant.o \
 	${common_src}mphase_pckr_mod.o
 
 properties_obj = \

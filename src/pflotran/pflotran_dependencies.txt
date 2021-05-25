@@ -7,7 +7,7 @@ block_solve.o :
 block_tridiag.o : pflotran_constants.o utility.o
 characteristic_curves.o : characteristic_curves_base.o \
                           characteristic_curves_common.o \
-                          characteristic_curves_wipp.o \
+                          characteristic_curves_loop_invariant.o \
                           characteristic_curves_VG.o \
                           dataset_ascii.o \
                           input_aux.o option.o pflotran_constants.o string.o
@@ -23,7 +23,7 @@ characteristic_curves_VG.o : characteristic_curves_base.o \
                              pflotran_constants.o
 characteristic_curves_wipp.o : characteristic_curves_base.o \
                                characteristic_curves_common.o \
-                               characteristic_curves_VG.o \
+                               characteristic_curves_loop_invariant.o \
                                option.o \
                                pflotran_constants.o
 checkpoint.o : discretization.o field.o global.o grid.o hdf5.o hdf5_aux.o \
