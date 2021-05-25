@@ -406,8 +406,6 @@ subroutine PMNWTInitializeTimestep(this)
     
   this%option%tran_dt = this%option%dt
 
-  call PMBasePrintHeader(this)
-  
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! NWTInitializeTimestep and NWTTimeCut (which calls NWTInitializeTimestep)
@@ -783,7 +781,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 #if 0
       min_ratio = 1.d0/maxval(dC_p/C_p)
 #else
-      min_ratio = 1.d20 ! large number
+      min_ratio = MAX_DOUBLE ! large number
       do i = 1, n
         if (C_p(i) <= dC_p(i)) then
           ratio = abs(C_p(i)/dC_p(i))
@@ -918,7 +916,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   if (this%print_ekg) then
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    max_relative_change_by_dof = -1.d20
+    max_relative_change_by_dof = -MAX_DOUBLE
     do local_id = 1, grid%nlmax
       offset = (local_id-1)*option%ntrandof
       do idof = 1, option%ntrandof

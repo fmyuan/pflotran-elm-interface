@@ -480,10 +480,10 @@ subroutine SecondaryRTTimeCut(realization)
     ghosted_id = grid%nL2G(local_id)
     if (realization%patch%imat(ghosted_id) <= 0) cycle
     do comp = 1, ncomp
-      ngcells = rt_sec_transport_vars(local_id)%ncells
+      ngcells = rt_sec_transport_vars(ghosted_id)%ncells
       do cell = 1, ngcells
-        rt_sec_transport_vars(local_id)%updated_conc(comp,cell) = &
-          rt_sec_transport_vars(local_id)%sec_rt_auxvar(cell)%pri_molal(comp)
+        rt_sec_transport_vars(ghosted_id)%updated_conc(comp,cell) = &
+          rt_sec_transport_vars(ghosted_id)%sec_rt_auxvar(cell)%pri_molal(comp)
       enddo
     enddo
   enddo
@@ -519,7 +519,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
   implicit none 
   
   type(sec_transport_type) :: rt_sec_transport_vars
-  type(multicontinuum_property_type), pointer :: multicontinuum
+  type(multicontinuum_property_type) :: multicontinuum
   class(reaction_rt_type), pointer :: reaction
   type(coupler_type), pointer :: initial_condition
   type(option_type), pointer :: option
@@ -652,13 +652,13 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
     endif
 
     !Use multicontinuum sorption
-    option%iflag = 1
+    reaction%mc_flag = 1
     call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                           material_auxvar, &
                           reaction,constraint, &
                           num_iterations, &
                           PETSC_FALSE,option)   
-    option%iflag = 0
+    reaction%mc_flag = 0
     
     rt_sec_transport_vars%updated_conc(:,cell) =  rt_auxvar%pri_molal   
        
@@ -1445,11 +1445,11 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
                     multicontinuum%porosity
 
       call SecondaryRTAuxVarComputeMulti(&
-                                    rt_sec_transport_vars(local_id), &
+                                    rt_sec_transport_vars(ghosted_id), &
                                     reaction, &
                                     option)              
  
-      call SecondaryRTCheckResidual(rt_sec_transport_vars(local_id), &
+      call SecondaryRTCheckResidual(rt_sec_transport_vars(ghosted_id), &
                                     rt_auxvars(ghosted_id), &
                                     global_auxvars(ghosted_id), &
                                     reaction,sec_diffusion_coefficient, &

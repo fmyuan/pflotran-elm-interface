@@ -215,6 +215,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscErrorCode :: ierr
 
   call PetscTime(log_outer_start_time,ierr);CHKERRQ(ierr)
+  call this%PrintHeader()
 
   option => this%option
   realization => this%realization

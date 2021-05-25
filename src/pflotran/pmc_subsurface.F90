@@ -871,6 +871,9 @@ recursive subroutine PMCSubsurfaceFinalizeRun(this)
 
   use Option_module
 
+  ! needed for Intel compilers
+  use PMC_Base_class, only : PMCBaseFinalizeRun
+
   implicit none
 
   class(pmc_subsurface_type) :: this

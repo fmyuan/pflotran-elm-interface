@@ -2734,8 +2734,8 @@ subroutine UGridComputeQuality(unstructured_grid,option)
   PetscErrorCode :: ierr
 
   mean_quality = 0.d0
-  max_quality = -1.d20
-  min_quality = 1.d20
+  max_quality = -MAX_DOUBLE
+  min_quality = MAX_DOUBLE
   
   do local_id = 1, unstructured_grid%nlmax
     ! ghosted_id = local_id on unstructured grids

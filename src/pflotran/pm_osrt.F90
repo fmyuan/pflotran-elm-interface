@@ -135,8 +135,6 @@ subroutine PMOSRTInitializeTimestep(this)
  
   this%option%tran_dt = this%option%dt
 
-  call PMBasePrintHeader(this)
-
   call PMRTWeightFlowParameters(this,TIME_T)
   
   call VecCopy(realization%field%tran_xx,realization%field%tran_yy, &

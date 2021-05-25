@@ -1918,7 +1918,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       rt_auxvar%pri_molal = rt_auxvar%pri_molal*exp(-update)    
     else ! linear update
       ! ensure non-negative concentration
-      min_ratio = 1.d20 ! large number
+      min_ratio = MAX_DOUBLE ! large number
       do icomp = 1, reaction%naqcomp
         if (prev_molal(icomp) <= update(icomp)) then
           ratio = abs(prev_molal(icomp)/update(icomp))
@@ -2027,7 +2027,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! once equilibrated, compute sorbed concentrations
   if (reaction%nsorb > 0) then
     if (reaction%neqsorb > 0) then
-      if (option%iflag == 1) then
+      if (reaction%mc_flag == 1) then
         call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
                         reaction%isotherm%multicontinuum_isotherm_rxn,option) 
       else
@@ -3577,7 +3577,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
       new_solution = prev_solution*exp(-update)    
     else ! linear upage
       ! ensure non-negative concentration
-      min_ratio = 1.d20 ! large number
+      min_ratio = MAX_DOUBLE ! large number
       do icomp = 1, ncomp
         if (prev_solution(icomp) <= update(icomp)) then
           ratio = abs(prev_solution(icomp)/update(icomp))
