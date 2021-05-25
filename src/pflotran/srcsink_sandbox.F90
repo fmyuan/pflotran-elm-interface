@@ -574,6 +574,7 @@ subroutine SSSandboxDestroyList2(local_sandbox_list)
     call SSSandboxDestroy(cur_sandbox)
     cur_sandbox => prev_sandbox
   enddo  
+  nullify(local_sandbox_list)
 
 end subroutine SSSandboxDestroyList2
 
