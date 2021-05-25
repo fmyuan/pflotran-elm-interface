@@ -5,8 +5,8 @@ module Characteristic_Curves_module
   use PFLOTRAN_Constants_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
+  use Characteristic_Curves_loop_invariant_module
   use Characteristic_Curves_WIPP_module
-  use Characteristic_Curves_VG_module
 
   implicit none
 
@@ -478,11 +478,11 @@ function SaturationFunctionRead(saturation_function,input,option) &
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
-            error = sf%set_m(m)
+            sf%m = m
             call InputErrorMsg(input,option,'m',error_string)
           case('ALPHA')
             call InputReadDouble(input,option,alpha)
-            error = sf%set_alpha(alpha)
+            sf%alpha = alpha
             call InputErrorMsg(input,option,'alpha',error_string)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1008,7 +1008,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
-            error = rpf%set_m(m)
+            rpf%m = m
             call InputErrorMsg(input,option,'m',error_string)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1022,7 +1022,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
-            error = rpf%set_m(m)
+            rpf%m = m
             call InputErrorMsg(input,option,'m',error_string)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,Srg)
@@ -1065,7 +1065,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
-            error = rpf%set_m(m)
+            rpf%m = m
             call InputErrorMsg(input,option,'m',error_string)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,rpf%Srg)
@@ -1104,7 +1104,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
-            error = rpf%set_m(m)
+            rpf%m = m
             call InputErrorMsg(input,option,'m',error_string)
           case('LOOP_INVARIANT')
             loop_invariant = PETSC_TRUE
@@ -1118,7 +1118,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         select case(keyword)
           case('M')
             call InputReadDouble(input,option,m)
-            error = rpf%set_m(m)
+            rpf%m = m
             call InputErrorMsg(input,option,'m',error_string)
           case('GAS_RESIDUAL_SATURATION')
             call InputReadDouble(input,option,Srg)
@@ -1963,10 +1963,10 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (sat_func_VG_type)
           write(id,'(a)') 'van Genuchten'
           write(id,'(a29)',advance='no') 'm: '
-          write(word1,*) sf%get_m()
+          write(word1,*) sf%m
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'alpha: '
-          write(word1,*) sf%get_alpha()
+          write(word1,*) sf%alpha
           write(id,'(a)') adjustl(trim(word1))
       !---------------------------------
         class is (sat_func_BC_type)
@@ -2153,7 +2153,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rpf_Mualem_VG_liq_type)
           write(id,'(a)') 'mualem_vg_liq/tough2_irp7_liq'
           write(id,'(a29)',advance='no') 'm: '
-          write(word1,*) rpf%get_m()
+          write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
         class is (rpf_Mualem_BC_liq_type)
@@ -2174,7 +2174,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rpf_Burdine_VG_liq_type)
           write(id,'(a)') 'burdine_vg_liq'
           write(id,'(a29)',advance='no') 'm: '
-          write(word1,*) rpf%get_m()
+          write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
       !------------------------------------
         class is (rpf_Burdine_BC_liq_type)
@@ -2274,7 +2274,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rpf_Mualem_VG_gas_type)
           write(id,'(a)') 'mualem_vg_gas'
           write(id,'(a29)',advance='no') 'm: '
-          write(word1,*) rpf%get_m()
+          write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) rpf%Srg
@@ -2304,7 +2304,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rpf_TOUGH2_IRP7_gas_type)
           write(id,'(a)') 'tough2_irp7_gas'
           write(id,'(a29)',advance='no') 'm: '
-          write(word1,*) rpf%get_m()
+          write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) rpf%Srg
@@ -2313,7 +2313,7 @@ subroutine CharCurvesInputRecord(char_curve_list)
         class is (rpf_Burdine_VG_gas_type)
           write(id,'(a)') 'burdine_vg_gas'
           write(id,'(a29)',advance='no') 'm: '
-          write(word1,*) rpf%get_m()
+          write(word1,*) rpf%m
           write(id,'(a)') adjustl(trim(word1))
           write(id,'(a29)',advance='no') 'gas residual sat.: '
           write(word1,*) rpf%Srg
