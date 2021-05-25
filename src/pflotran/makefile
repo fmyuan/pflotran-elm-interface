@@ -196,7 +196,7 @@ endif
 
 # These flags are supplemental to the PETSc flags
 CFLAGS   =
-FFLAGS   = -fallow-argument-mismatch
+FFLAGS   = 
 CPPFLAGS = ${MYFLAGS}
 FPPFLAGS = ${MYFLAGS}
 
