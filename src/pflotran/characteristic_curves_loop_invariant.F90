@@ -25,40 +25,30 @@ private
 ! Hydraulic ! Conductivity of Unsaturated Soils", Soil Sci Soc Am J
 ! 44(5):892-898. doi: 10.2136/sssaj1980.03615995004400050002x
 !
-! Child classes are used to override parent functions to avoid additional
-! virtual function calls or branching statements in the inner loop.
-! Loop invariant parameters are precalculated upon construction or mutation.
-!
-! As the VG capillary pressure function has an infinite derivative approaching
-! saturation, derivatives above Sl_max are approximated using a backwards finite
-! difference method using machine epsilon.
+! Note: As the VG capillary pressure function has an infinite derivative 
+! approaching saturation, derivatives above Sl_max are approximated using a 
+! backwards finite difference method using machine epsilon.
 !
 ! **************************************************************************** !
 
-PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limit
+PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limita
 
 ! **************************************************************************** !
 !
 ! VG Saturation Function Type Declarations
 !
-! sat_func_base_type        External definition in characteristic_curves_base
+! sat_func_base_type        External base type, quasi-abstract
 ! |
-! |-->sat_func_VG_type      VG base type without loop-invariant parameters
-!     |                            Original constant extension type
+! |-->sat_func_VG_type      External common type, VG constant extension
 !     |
-!     |-->SF_VG_type        VG type with loop-invariant parameters
-!         |                        No          extension type
+!     |-->SF_VG_type        VG type with loop-invariant parameters, no extension
 !         |
-!         |-->SF_VG_extn_type*     Abstract VG type for 0th/1st order extensions
+!         |-->SF_VG_extn_type*     Abstract VG type for extensions
 !             |
 !             |-->SF_VG_cons_type  Constant    extension type
 !             |-->SF_VG_expn_type  Exponential extension type
 !             |-->SF_VG_line_type  Linear      extension type
 !             |-->SF_VG_quad_type  Quadratic   extension type
-!
-! Original VG objects are created by 
-! sat_func_VG_type =>  SFVGCreate()
-! Variables must then be assigned values indivdually
 !
 ! Objects of SF_VG_type are created and initialized with the constructor:
 ! SF_VG_type       => SF_VG_ctor(unsat_ext,alpha,m,Sr,rpf,Pcmax,Sj)
@@ -67,8 +57,22 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 ! scope to child classed in separate modules. 
 !
 ! **************************************************************************** !
+! VG Saturation Function constructors
+! **************************************************************************** !
 
-! VG with Loop-Invariant Parameters and without Unsaturated Extensions
+  public  :: SF_VG_ctor         ! Generic constructor
+  private :: SF_VG_NEVG_ctor, & ! No capped capillary pressure
+             SF_VG_FCPC_ctor, & ! Flat, specified maximum
+             SF_VG_FNOC_ctor, & ! Flat, specified junction
+             SF_VG_ECPC_ctor, & ! Exponential, specified maximum
+             SF_VG_ENOC_ctor, & ! Exponential, specified junction
+             SF_VG_LCPC_ctor, & ! Linear, specified maximum
+             SF_VG_LNOC_ctor, & ! Linear, specified junction
+             SF_VG_QUAD_ctor    ! Quadratic, specified maximum and junction
+
+! **************************************************************************** !
+! Van Genuchten Saturation Function type defintions
+! **************************************************************************** !
   type, public, extends(sat_func_VG_type) :: SF_VG_type
 !   public                           ! Unprotected parameters from parent types
 !     PetscReal :: Sr                ! Base   - Residual saturation
@@ -87,28 +91,28 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
       PetscReal :: d2Sl_dPc2min      ! Finite difference derivative at saturation
       PetscInt  :: rpf               ! Mualem/Burdine model flag TODO add custom
   contains
-    ! Overload unused initialization method
-    procedure, public :: init                   => SF_VG_init
-    ! Common wrapper methods to permit pure methods
-    procedure, public :: CapillaryPressure      => SF_VG_CapillaryPressure
-    procedure, public :: Saturation             => SF_VG_Saturation
-    procedure, public :: D2SatDP2               => SF_VG_D2SatDP2
-    ! Common methods for ordinary VG domain
+! Definition of base type methods
+    procedure, public  :: Init                  => SF_VG_Init
+    procedure, public  :: CapillaryPressure     => SF_VG_CapillaryPressure
+    procedure, public  :: Saturation            => SF_VG_Saturation
+    procedure, public  :: D2SatDP2              => SF_VG_D2SatDP2
+!   procedure, public  :: Verify
+! Common VG methods
     procedure, private :: Configure             => SF_VG_Configure
     procedure, private :: Pc_inline             => SF_VG_Pc_inline
     procedure, private :: Sl_inline             => SF_VG_Sl_inline
     procedure, private :: d2Sl_dPc2_inline      => SF_VG_d2Sl_dPc2_inline
     procedure, private :: Sl_inflection         => SF_VG_Sl_inflection
-    ! No-extension mutator methods
+! No-extension mutator methods
     procedure, private :: Set_alpha             => SF_VG_Set_alpha
     procedure, private :: Set_m                 => SF_VG_Set_m
-    ! Internal no-extension pure methods
+! Internal no-extension pure methods
     procedure, private :: Pc                    => SF_VG_Pc
     procedure, private :: Sl                    => SF_VG_Sl
     procedure, private :: d2Sl_dPc2             => SF_VG_d2Sl_dPc2
   end type
 
-! VG Common 0th/1st-order Unsaturated Extension
+! VG Unsaturated Extension Abstract type
     type, abstract, extends(SF_VG_type) :: SF_VG_extn_type
       private
         PetscReal :: Pj, Sj           ! Piecewise junction point
@@ -121,21 +125,6 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
       procedure(Set_Pcmax), deferred, public    :: Set_Pcmax
       procedure(Set_Sj   ), deferred, public    :: Set_Sj
     end type
-
-    interface
-      function Set_Pcmax(this, Pcmax) result (error)
-        import :: SF_VG_extn_type
-        class(SF_VG_extn_type), intent(inout) :: this
-        PetscReal, intent(in) :: Pcmax
-        PetscInt :: error
-      end function
-      function Set_Sj(this, Sj) result (error)
-        import :: SF_VG_extn_type
-        class(SF_VG_extn_type), intent(inout) :: this
-        PetscReal, intent(in) :: Sj
-        PetscInt :: error
-      end function
-    end interface
 
 ! VG Constant Unsaturated Extension
       type, public, extends(SF_VG_extn_type) :: SF_VG_cons_type
@@ -203,8 +192,30 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
       end type
 
 ! **************************************************************************** !
-!
+! Saturation Function Prototype Block
+! **************************************************************************** !
+
+interface
+  function Set_Pcmax(this, Pcmax) result (error)
+    import :: SF_VG_extn_type
+    class(SF_VG_extn_type), intent(inout) :: this
+    PetscReal, intent(in) :: Pcmax
+    PetscInt :: error
+  end function
+
+! **************************************************************************** !
+
+  function Set_Sj(this, Sj) result (error)
+    import :: SF_VG_extn_type
+    class(SF_VG_extn_type), intent(inout) :: this
+    PetscReal, intent(in) :: Sj
+    PetscInt :: error
+  end function
+end interface
+
+! **************************************************************************** !
 ! VG Relative Permeability Function Type Declarations
+! **************************************************************************** !
 !
 ! rel_perm_func_base_type   External definition in characteristic_curves_base
 ! |
@@ -212,48 +223,106 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 !    |
 !    |-->RPF_VG_liq_type*            Abstract liquid base type
 !    |   |
-!    |   |-->rpf_Mualem_VG_liq_type  Mualem  - van Genuchten liquid
-!    |   |-->RPF_MVG_liq_type        with loop-invariant parameters
-!    |   |
-!    |   |-->rpf_Burdine_VG_liq_type Burdine - van Genuchten liquid
-!    |   |-->RPF_BVG_liq_type        with loop-invariant parameters
+!    |   |-->RPF_MVG_liq_type        Mualem  - van Genuchten - Liquid
+!    |   |-->RPF_BVG_liq_type        Burdine - van Genuchten - Liquid
 !    |
 !    |-->RPF_VG_gas_type*            Abstract gas base type
 !        |
-!        |-->rpf_Mualem_VG_gas_type  Mualem  - van Genuchten gas
-!        |-->RPF_MVG_gas_type        with loop-invariant parameters
-!        |
-!        |-->rpf_Burdine_VG_gas_type Burdine - van Genuchten gas
-!        |-->RPF_BVG_gas_type        with loop-invariant parameters
+!        |-->RPF_MVG_gas_type        Mualem  - van Genuchten - Gas
+!        |-->RPF_BVG_gas_type        Burdine - van Genuchten - Gas
 !
 ! Caution, Sr is unprotected as Fortran will not extend private
 ! scope to child classed in separate modules. The rel_perm_base_type would
 ! need to be modified.
 !
-! Objects of RPF_VG_type are and must be created and initialized with the
-! corresponding constructor or creator and assignment methods.
-!
-! Warning, Sr is unprotected as Fortran will not extend private
-! scope to child classed in separate modules. 
+! Due to Fortran scoping rules, the loop-invariant types do not extend the 
+! loop-variant types. Should loop-invariant replace the original types, the
+! classis() statements throughout the code must be updated.
 !
 ! **************************************************************************** !
+! VG RPF Contructors
+! **************************************************************************** !
+
+! Relative permeability function constructors
+  public :: RPF_MVG_Liq_ctor, &
+            RPF_MVG_Gas_ctor, &
+            RPF_BVG_Liq_ctor, &
+            RPF_BVG_Gas_ctor
 
 type, abstract, extends(rel_perm_func_base_type) :: RPF_VG_type
+! public
+!   PetscReal :: Sr         ! Base   - Residual saturation
   private
     PetscReal :: m, m_rec   ! Van Genuchten m exponent and reciprocal
     PetscReal :: dSe_dSl    ! Effective saturation span reciprocal
 contains
-  ! Common accessor/mutator methods
-  procedure, public :: Get_m                    => RPF_VG_Get_m
-  procedure(Set_m), deferred, public            :: Set_m
-  ! Empty method to overload legacy init, unless overloaded again
-  procedure, public :: init                     => RPF_VG_init
-  ! Empty methods vs deferred binded to avoid new methods for legacy subtypes
-  procedure, private :: Kr                      => RPF_VG_Kr
-  procedure, private :: Kr_inline               => RPF_VG_Kr_inline
-  ! Common wrapper methods to permit pure Kr methods, unless overloaded
-  procedure, public  :: RelativePermeability    => RPF_VG_RelativePermeability
+  ! Overloaded base methods
+  procedure, public :: Init                 => RPF_VG_Init
+  procedure, public :: RelativePermeability => RPF_VG_RelativePermeability
+  ! Public accessor/mutator methods
+  procedure, public                     :: Get_m                => RPF_VG_Get_m
+  procedure(Set_m)  , deferred, public  :: Set_m
+  ! Private deferred methods called by RelativePermeability
+  procedure(Calc_Kr), deferred, private :: Kr
+  procedure(Calc_Kr), deferred, private :: Kr_inline
 end type
+
+! **************************************************************************** !
+
+  type, abstract, extends(RPF_VG_type) :: RPF_VG_liq_type
+    private
+      PetscReal :: dKr_dSl_max ! Finite difference derivative at saturation
+      PetscReal :: Sl_min      ! Unsaturated limit to avoid NaN
+  contains
+    procedure, public  :: Set_m                 => RPF_VG_liq_Set_m
+    procedure, private :: Configure             => RPF_VG_liq_Configure
+    procedure, private :: Kr                    => RPF_VG_liq_Kr
+  end type
+
+! **************************************************************************** !
+
+    type, public, extends(RPF_VG_liq_type) :: RPF_MVG_liq_type
+    contains
+      procedure, private :: Kr_inline           => RPF_MVG_liq_Kr_inline
+    end type
+
+! **************************************************************************** !
+
+    type, public, extends(RPF_VG_liq_type) :: RPF_BVG_liq_type
+    contains
+      procedure, private :: Kr_inline           => RPF_BVG_liq_Kr_inline
+    end type
+
+! **************************************************************************** !
+
+  type, abstract, extends(RPF_VG_type) :: RPF_VG_gas_type
+  private
+    PetscReal :: mx2        ! m times 2
+    PetscReal :: Sgr        ! Gas residual saturation
+    PetscReal :: Sl_max     ! Saturated limit reduced by Sgr
+  contains
+    procedure, public  :: Set_m                  => RPF_VG_gas_Set_m
+    procedure, private :: Configure              => RPF_VG_gas_Configure
+    procedure, private :: Kr                     => RPF_VG_gas_Kr
+  end type
+
+! **************************************************************************** !
+
+    type, public, extends(RPF_VG_gas_type) :: RPF_MVG_gas_type
+    contains
+      procedure, private :: Kr_inline           => RPF_MVG_gas_Kr_inline
+    end type
+
+! **************************************************************************** !
+
+    type, public, extends(RPF_VG_gas_type) :: RPF_BVG_gas_type
+    contains
+      procedure, private :: Kr_inline           => RPF_BVG_gas_Kr_inline
+    end type
+
+! **************************************************************************** !
+! Relative Permeability Function Prototype Block
+! **************************************************************************** !
 
 interface
   function Set_m(this, m) result (error)
@@ -262,99 +331,32 @@ interface
     PetscReal, intent(in) :: m
     PetscInt :: error
   end function
+
+! **************************************************************************** !
+
+  pure subroutine Calc_Kr(this, Sl, Kr, dKr_dSl)
+    import :: RPF_VG_type
+    class(RPF_VG_type), intent(in) :: this
+    PetscReal, intent(in)  :: Sl
+    PetscReal, intent(out) :: Kr, dKr_dSl
+  end subroutine
 end interface
-
-  type, abstract, extends(RPF_VG_type) :: RPF_VG_liq_type
-    private
-      PetscReal :: dKr_dSl_max ! Finite difference derivative at saturation
-      PetscReal :: Sl_min      ! Unsaturated limit to avoid NaN
-  contains
-    procedure, private :: Configure             => RPF_VG_liq_Configure
-    procedure, public  :: Set_m                 => RPF_VG_liq_Set_m
-  end type
-
-    type, public, extends(RPF_VG_liq_type) :: RPF_MVG_liq_type
-    contains
-      procedure, private :: Kr_inline           => RPF_MVG_liq_Kr_inline
-      procedure, private :: Kr                  => RPF_MVG_liq_Kr
-    end type
-
-    type, public, extends(RPF_VG_liq_type) :: RPF_BVG_liq_type
-    contains
-      procedure, private :: Kr_inline           => RPF_BVG_liq_Kr_inline
-      procedure, private :: Kr                  => RPF_BVG_liq_Kr
-    end type
-
-  type, abstract, extends(RPF_VG_type) :: RPF_VG_gas_type
-  private
-    PetscReal :: mx2        ! m times 2
-    PetscReal :: Sgr        ! Gas residual saturation
-    PetscReal :: Sl_max     ! Saturated limit reduced by Sgr
-  contains
-    procedure, private:: Configure              => RPF_VG_gas_Configure
-    procedure, public :: Set_m                  => RPF_VG_gas_Set_m
-  end type
-
-    type, public, extends(RPF_VG_gas_type) :: RPF_MVG_gas_type
-    contains
-      procedure, private :: Kr_inline           => RPF_MVG_gas_Kr_inline
-      procedure, private :: Kr                  => RPF_MVG_gas_Kr
-    end type
-
-    type, public, extends(RPF_VG_gas_type) :: RPF_BVG_gas_type
-    contains
-      procedure, private :: Kr_inline           => RPF_BVG_gas_Kr_inline
-      procedure, private :: Kr                  => RPF_BVG_gas_Kr
-    end type
-
-! **************************************************************************** !
-! Public constuctors and procedures
-! **************************************************************************** !
-
-! Saturation Function constructors
-  public  :: SF_VG_ctor         ! General constructor
-  private :: SF_VG_NEVG_ctor, & ! No capped capillary pressure
-             SF_VG_FCPC_ctor, & ! Flat, specified maximum
-             SF_VG_FNOC_ctor, & ! Flat, specified junction
-             SF_VG_ECPC_ctor, & ! Exponential, specified maximum
-             SF_VG_ENOC_ctor, & ! Exponential, specified junction
-             SF_VG_LCPC_ctor, & ! Linear, specified maximum
-             SF_VG_LNOC_ctor, & ! Linear, specified junction
-             SF_VG_quad_ctor    ! Quadratic, specified maximum and junction
-
-! Legacy RPF creation method
-  public :: RPFMualemVGLiqCreate, &
-            RPFMualemVGGasCreate, &
-            RPFBurdineVGLiqCreate, &
-            RPFBurdineVGGasCreate
-
-! Relative permeability function constructors
-  public :: RPF_MVG_Liq_ctor, &
-            RPF_MVG_Gas_ctor, &
-            RPF_BVG_Liq_ctor, &
-            RPF_BVG_Gas_ctor
-
-! Public VG Relative Permeability method accessed by child class
-  public :: RPFMualemVGLiqRelPerm
 
 contains
 
 ! **************************************************************************** !
-! Loop-invariant VG Saturation Function Methods
+! VG Saturation Function Methods
 ! **************************************************************************** !
 
 function SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Sj) result (new)
- use String_module
  class(SF_VG_type), pointer :: new
- character(len=MAXWORDLENGTH), intent(inout) :: unsat_ext
+ character(*), intent(in) :: unsat_ext
  PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Sj
  PetscInt, intent(in) :: vg_rpf_opt
 
 ! This function returns a the van Genuchten saturation function object using
 ! the correct constructor method
 
-  call StringtoUpper(unsat_ext)
- 
   select case (unsat_ext)
   case ('NONE') ! No extension
     new => SF_VG_NEVG_ctor(alpha,m,Sr,vg_rpf_opt)
@@ -448,6 +450,8 @@ function SF_VG_Configure(this, alpha, m, Sr, rpf) result (error)
     this%m_a2 = m + 2d0
     this%m_nrec = -1d0 / m
     this%rpf = rpf
+
+    ! While the Mualem is more common, the Burdine assumption is also supported
     select case (rpf)
     case (1) ! Mualem
       this%n_rec = 1d0 - m
@@ -515,12 +519,11 @@ pure subroutine SF_VG_d2Sl_dPc2_inline(this, Pc, d2Sl_dPc2)
 
   aPc_n = (this%alpha*Pc)**this%n
   Se_mrtrec = aPc_n + 1d0
-
+  d2Se_mndPc2 =  aPc_n*(this%mn_a1*aPc_n-this%n_m1)/(Se_mrtrec**this%m_a2*Pc**2)
   ! Note, the exponentiation of Se_mrtrec could be reduced if Se is provived
   ! Se_mrtrec**(m+2) == Se_mrtrec**2/Se
   ! As it is not, the terms are combined
 
-  d2Se_mndPc2 =  aPc_n*(this%mn_a1*aPc_n-this%n_m1)/(Se_mrtrec**this%m_a2*Pc**2)
   d2Sl_dPc2 = d2Se_mndPc2 / this%dSe_mndSl
 end subroutine
 
@@ -578,7 +581,7 @@ pure subroutine SF_VG_Pc(this, Sl, Pc, dPc_dSl)
   PetscReal, intent(out)  :: Pc, dPc_dSl
 
   if (Sl <= this%Sr) then               ! Unsaturated limit
-    Pc= huge(Pc)
+    Pc = huge(Pc)
     dPc_dSl = -huge(Pc)
   else if (Sl > Sl_max) then            ! Saturated limit
     Pc= 0d0
@@ -603,7 +606,6 @@ pure subroutine SF_VG_Sl(this, Pc, Sl, dSl_dPc)
   end if
 end subroutine
 
-
 ! **************************************************************************** !
 
 pure subroutine SF_VG_d2Sl_dPc2(this, Pc, d2Sl_dPc2)
@@ -619,7 +621,7 @@ pure subroutine SF_VG_d2Sl_dPc2(this, Pc, d2Sl_dPc2)
 end subroutine
 
 ! **************************************************************************** !
-! 0th/1st-order Extension SF VG Methods
+! SF VG Extension Methods
 ! **************************************************************************** !
 
 function SF_VG_extn_Set_alpha(this,alpha) result (error)
@@ -665,7 +667,7 @@ function SF_VG_extn_Set_m(this,m) result (error)
 end function
 
 ! **************************************************************************** !
-! Child Constant Extension Type
+! VG Constant Extension Type
 ! **************************************************************************** !
 
 function SF_VG_FCPC_ctor(alpha,m,Sr,rpf,Pcmax) result (new)
@@ -746,7 +748,7 @@ pure subroutine SF_VG_cons_Pc(this, Sl, Pc, dPc_dSl)
   PetscReal, intent(out) :: Pc, dPc_dSl
 
   if (Sl < this%Sj) then                ! Unsaturated limit
-    Pc= this%Pcmax
+    Pc = this%Pcmax
     dPc_dSl = 0d0
   else if (Sl > Sl_max) then            ! Saturated limit
     Pc = 0d0
@@ -1300,7 +1302,7 @@ pure function SF_VG_quad_Sl_root(this,Pc) result (Sl)
 end function
 
 ! **************************************************************************** !
-! Common van Genuchten Relative Permeability Methods
+! van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
 pure function RPF_VG_Get_m(this) result (m)
@@ -1310,30 +1312,13 @@ pure function RPF_VG_Get_m(this) result (m)
 end function
 
 ! **************************************************************************** !
-subroutine RPF_VG_init(this)
+
+subroutine RPF_VG_Init(this)
   class(RPF_VG_type) :: this
   ! This method is intentionally left blank.
 end subroutine
 
 ! **************************************************************************** !
-
-pure subroutine RPF_VG_Kr_inline(this, Sl, Kr, dKr_dSl)
-  class(RPF_VG_type), intent(in) :: this
-  PetscReal, intent(in) :: Sl
-  PetscReal, intent(out) :: Kr, dKr_dSl
-  ! This method is intentionally left blank.
-end subroutine
-
-! **************************************************************************** !
-
-pure subroutine RPF_VG_Kr(this, Sl, Kr, dKr_dSl)
-  class(RPF_VG_type), intent(in) :: this
-  PetscReal, intent(in) :: Sl
-  PetscReal, intent(out) :: Kr, dKr_dSl
-  ! This method is intentionally left blank.
-end subroutine
-
-! ****************************************************************************** !
 
 subroutine RPF_VG_RelativePermeability(this, liquid_saturation, &
                                        relative_permeability, dkr_sat, option)
@@ -1385,6 +1370,24 @@ function RPF_VG_liq_Set_m(this, m) result (error)
 end function
 
 ! **************************************************************************** !
+
+pure subroutine RPF_VG_liq_Kr(this, Sl, Kr, dKr_dSl)
+  class(rpf_VG_liq_type), intent(in) :: this
+  PetscReal, intent(in) :: Sl
+  PetscReal, intent(out) :: Kr, dKr_dSl
+
+  if (Sl > Sl_max) then                 ! Saturated limit
+    Kr = 1d0
+    dKr_dSl = this%dKr_dSl_max
+  else if (Sl < this%Sl_min) then       ! Unsaturated limit
+    Kr = 0d0
+    dKr_dSl = 0d0
+  else                                  ! Ordinary domain
+    call this%Kr_inline(Sl, Kr, dKr_dSl)
+  end if
+end subroutine
+
+! **************************************************************************** !
 ! Loop-invariant Liquid Mualem - van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
@@ -1420,24 +1423,6 @@ pure subroutine RPF_MVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
   Kr = sqrt(Se)*f*f
   dKr_dSl = this%dSe_dSl * Kr / Se * &
            (0.5d0 + 2d0*Se_mrt*Se_mrt_comp_m/(f*Se_mrt_comp))
-end subroutine
-
-! **************************************************************************** !
-
-pure subroutine RPF_MVG_liq_Kr(this, Sl, Kr, dKr_dSl)
-  class(rpf_MVG_liq_type), intent(in) :: this
-  PetscReal, intent(in) :: Sl
-  PetscReal, intent(out) :: Kr, dKr_dSl
-
-  if (Sl > Sl_max) then                 ! Saturated limit
-    Kr = 1d0
-    dKr_dSl = this%dKr_dSl_max
-  else if (Sl < this%Sl_min) then       ! Unsaturated limit
-    Kr = 0d0
-    dKr_dSl = 0d0
-  else                                  ! Ordinary domain
-    call this%Kr_inline(Sl, Kr, dKr_dSl)
-  end if
 end subroutine
 
 ! **************************************************************************** !
@@ -1479,24 +1464,6 @@ pure subroutine RPF_BVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
 end subroutine
 
 ! **************************************************************************** !
-
-pure subroutine RPF_BVG_liq_Kr(this,Sl, Kr, dKr_dSl)
-  class(RPF_BVG_liq_type), intent(in) :: this
-  PetscReal, intent(in)   :: Sl
-  PetscReal, intent(out)  :: Kr, dKr_dSl
-
-  if (Sl > Sl_max) then                 ! Saturated limit
-    Kr = 1d0
-    dKr_dSl = this%dKr_dSl_max
-  else if (Sl < this%Sr) then           ! Unsaturated limit
-    Kr = 0d0
-    dKr_dSl = 0d0
-  else                                  ! Ordinary domain
-    call this%Kr_inline(Sl, Kr, dKr_dSl)
-  end if
-end subroutine
-
-! **************************************************************************** !
 ! Abstract Gas van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
@@ -1534,10 +1501,28 @@ function RPF_VG_gas_Set_m(this, m) result (error)
 end function
 
 ! **************************************************************************** !
+
+pure subroutine RPF_VG_gas_Kr(this, Sl, Kr, dKr_dSl)
+  class(RPF_VG_gas_type), intent(in) :: this
+  PetscReal, intent(in) :: Sl
+  PetscReal, intent(out) :: Kr, dKr_dSl
+
+  if (Sl > this%Sl_max) then            ! Saturated limit
+    Kr = 0d0
+    dKr_dSl = 0d0
+  else if (Sl < this%Sr) then           ! Unsaturated limit
+    Kr = 1d0
+    dKr_dSl = 0d0                       ! Cusp at limit
+  else                                  ! Ordinary domain
+    call this%Kr_inline(Sl, Kr, dKr_dSl)
+  end if
+end subroutine
+
+! **************************************************************************** !
 ! Loop-invariant Gas Mualem - van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
-function  RPF_MVG_gas_ctor(m, Sr, Sgr) result (new)
+function RPF_MVG_gas_ctor(m, Sr, Sgr) result (new)
   class(rpf_MVG_gas_type), pointer :: new
   PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
@@ -1571,25 +1556,7 @@ pure subroutine RPF_MVG_gas_Kr_inline(this, Sl, Kr, dKr_dSl)
 end subroutine
 
 ! **************************************************************************** !
-
-pure subroutine RPF_MVG_gas_Kr(this, Sl, Kr, dKr_dSl)
-  class(rpf_MVG_gas_type), intent(in) :: this
-  PetscReal, intent(in) :: Sl
-  PetscReal, intent(out) :: Kr, dKr_dSl
-
-  if (Sl > this%Sl_max) then            ! Saturated limit
-    Kr = 0d0
-    dKr_dSl = 0d0
-  else if (Sl < this%Sr) then           ! Unsaturated limit
-    Kr = 1d0
-    dKr_dSl = 0d0 ! Approaches limit of -0.5d0 * this%dSe_dSl
-  else                                  ! Ordinary domain
-    call this%Kr_inline(Sl, Kr, dKr_dSl)
-  end if
-end subroutine
-
-! **************************************************************************** !
-! Loop-invariant Gas Burdine - van Genuchten Relative Permeability Methods
+! Gas Burdine - van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
 function RPF_BVG_gas_ctor(m, Sr, Sgr) result (new)
@@ -1607,6 +1574,7 @@ function RPF_BVG_gas_ctor(m, Sr, Sgr) result (new)
     nullify(new)
   end if
 end function
+
 ! **************************************************************************** !
 
 pure subroutine RPF_BVG_gas_Kr_inline(this, Sl, Kr, dKr_dSl)
@@ -1627,20 +1595,5 @@ end subroutine
 
 ! **************************************************************************** !
 
-pure subroutine RPF_BVG_gas_Kr(this, Sl, Kr, dKr_dSl)
-  class(RPF_BVG_gas_type), intent(in) :: this
-  PetscReal, intent(in) :: Sl
-  PetscReal, intent(out) :: Kr, dKr_dSl
-
-  if (Sl > this%Sl_max) then            ! Saturated limit
-    Kr = 0d0
-    dKr_dSl = 0d0 ! this%dKr_dSl_max
-  else if (Sl < this%Sr) then           ! Unsaturated limit
-    Kr = 1d0
-    dKr_dSl = 0d0 ! Approaches limit of 2d0 * this%dSe_dSl
-  else                                  ! Ordinary domain
-    call this%Kr_inline(Sl, Kr, dKr_dSl)
-  end if
-end subroutine
-
 end module
+

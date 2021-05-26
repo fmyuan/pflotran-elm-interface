@@ -5,8 +5,8 @@ module Characteristic_Curves_module
   use PFLOTRAN_Constants_module
   use Characteristic_Curves_Base_module
   use Characteristic_Curves_Common_module
-  use Characteristic_Curves_loop_invariant_module
   use Characteristic_Curves_WIPP_module
+  use Characteristic_Curves_loop_invariant_module
 
   implicit none
 
@@ -366,7 +366,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
   character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
-  PetscInt :: error ! Mutator return code
 
   ! Lexicon of compiled parameters
   character(len=MAXWORDLENGTH) :: unsat_ext
@@ -794,6 +793,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
     ! Call constructor
     select type (saturation_function)
     class is (sat_func_VG_type)
+      call StringtoUpper(unsat_ext)
       sf_swap => SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Slj)
     class default
       option%io_buffer = 'Loop-invariant optimizations are not yet &
@@ -878,7 +878,6 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   character(len=MAXSTRINGLENGTH) :: table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
-  PetscInt :: error ! Mutator return code
 
   ! Lexicon for compiled variables
   PetscBool :: loop_invariant
@@ -2462,3 +2461,4 @@ end subroutine CharacteristicCurvesDestroy
 ! ************************************************************************** !
 
 end module Characteristic_Curves_module
+
