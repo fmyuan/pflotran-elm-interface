@@ -710,7 +710,6 @@ end subroutine pflotranModelSetICs
     use Saturation_Function_module
     use Characteristic_Curves_module
     use Characteristic_Curves_Common_module
-    use Characteristic_Curves_VG_module
 
     implicit none
 
@@ -818,8 +817,8 @@ end subroutine pflotranModelSetICs
 
          select type(sf => characteristic_curve%saturation_function)
          class is(sat_func_VG_type)
-            bc_lambda = sf%get_m()
-            bc_alpha  = sf%get_alpha()
+            bc_lambda = sf%m
+            bc_alpha  = sf%alpha
             Sr        = sf%Sr
          class is(sat_func_BC_type)
             bc_lambda = sf%lambda
