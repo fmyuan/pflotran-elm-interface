@@ -794,7 +794,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
     select type (saturation_function)
     class is (sat_func_VG_type)
       call StringtoUpper(unsat_ext)
-      sf_swap => SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Slj)
+      sf_swap => SFVGctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Slj)
     class default
       option%io_buffer = 'Loop-invariant optimizations are not yet &
      & implemented for the designated saturation function type.'
@@ -1526,13 +1526,13 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   if (loop_invariant) then
     select type (permeability_function)
     class is (RPF_mualem_VG_liq_type)
-      rpf_swap => RPF_MVG_liq_ctor(m, Sr)
+      rpf_swap => RPFMVGliqCtor(m, Sr)
     class is (RPF_burdine_VG_liq_type)
-      rpf_swap => RPF_BVG_liq_ctor(m, Sr)
+      rpf_swap => RPFBVGliqCtor(m, Sr)
     class is (RPF_mualem_VG_gas_type)
-      rpf_swap => RPF_MVG_gas_ctor(m, Sr, Srg)
+      rpf_swap => RPFMVGgasCtor(m, Sr, Srg)
     class is (RPF_burdine_VG_gas_type)
-      rpf_swap => RPF_BVG_gas_ctor(m, Sr, Srg)
+      rpf_swap => RPFBVGgasCtor(m, Sr, Srg)
     end select
   end if
 

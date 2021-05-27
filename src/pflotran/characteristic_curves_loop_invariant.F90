@@ -5,7 +5,7 @@ use petscsys ! Necessary for PETSC_TRUE / PETSC_FALSE
 use Characteristic_Curves_Base_module   ! Needed to define base type
 use Characteristic_Curves_Common_module ! Needed to inherent VG type
 use Option_module ! Needed for Verify and unused arguments in Pc and Sl
-use PFLOTRAN_Constants_module ! Needed for overridden keyword "name" in verify
+
 implicit none
 private
 
@@ -60,7 +60,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 ! VG Saturation Function constructors
 ! **************************************************************************** !
 
-  public  :: SF_VG_ctor         ! Generic constructor
+  public  :: SFVGCtor         ! Generic constructor
   private :: SF_VG_NEVG_ctor, & ! No capped capillary pressure
              SF_VG_FCPC_ctor, & ! Flat, specified maximum
              SF_VG_FNOC_ctor, & ! Flat, specified junction
@@ -188,7 +188,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
         procedure, private :: Pc                => SF_VG_quad_Pc
         procedure, private :: Sl                => SF_VG_quad_Sl
         procedure, private :: d2Sl_dPc2         => SF_VG_quad_d2Sl_dPc2
-        procedure, private :: Sl_root           => SF_VG_quad_Sl_root
+        procedure, private :: SlRoot            => SFVGquadSlRoot
       end type
 
 ! **************************************************************************** !
@@ -219,17 +219,17 @@ end interface
 !
 ! rel_perm_func_base_type   External definition in characteristic_curves_base
 ! |
-! |-->RPF_VG_type*                   Abstract base type
+! |-->rpf_VG_type*                   Abstract base type
 !    |
-!    |-->RPF_VG_liq_type*            Abstract liquid base type
+!    |-->rpf_VG_liq_type*            Abstract liquid base type
 !    |   |
-!    |   |-->RPF_MVG_liq_type        Mualem  - van Genuchten - Liquid
-!    |   |-->RPF_BVG_liq_type        Burdine - van Genuchten - Liquid
+!    |   |-->rpf_MVG_liq_type        Mualem  - van Genuchten - Liquid
+!    |   |-->rpf_BVG_liq_type        Burdine - van Genuchten - Liquid
 !    |
-!    |-->RPF_VG_gas_type*            Abstract gas base type
+!    |-->rpf_VG_gas_type*            Abstract gas base type
 !        |
-!        |-->RPF_MVG_gas_type        Mualem  - van Genuchten - Gas
-!        |-->RPF_BVG_gas_type        Burdine - van Genuchten - Gas
+!        |-->rpf_MVG_gas_type        Mualem  - van Genuchten - Gas
+!        |-->rpf_BVG_gas_type        Burdine - van Genuchten - Gas
 !
 ! Caution, Sr is unprotected as Fortran will not extend private
 ! scope to child classed in separate modules. The rel_perm_base_type would
@@ -240,16 +240,19 @@ end interface
 ! classis() statements throughout the code must be updated.
 !
 ! **************************************************************************** !
-! VG RPF Contructors
+! RPF VG Contructors
 ! **************************************************************************** !
 
-! Relative permeability function constructors
-  public :: RPF_MVG_Liq_ctor, &
-            RPF_MVG_Gas_ctor, &
-            RPF_BVG_Liq_ctor, &
-            RPF_BVG_Gas_ctor
+  public :: RPFMVGliqCtor, &
+            RPFMVGgasCtor, &
+            RPFBVGliqCtor, &
+            RPFBVGgasCtor
 
-type, abstract, extends(rel_perm_func_base_type) :: RPF_VG_type
+! **************************************************************************** !
+! RPF type definitions
+! **************************************************************************** !
+
+type, abstract, extends(rel_perm_func_base_type) :: rpf_VG_type
 ! public
 !   PetscReal :: Sr         ! Base   - Residual saturation
   private
@@ -257,67 +260,67 @@ type, abstract, extends(rel_perm_func_base_type) :: RPF_VG_type
     PetscReal :: dSe_dSl    ! Effective saturation span reciprocal
 contains
   ! Overloaded base methods
-  procedure, public :: Init                 => RPF_VG_Init
-  procedure, public :: RelativePermeability => RPF_VG_RelativePermeability
+  procedure, public :: Init                 => RPFVGInit
+  procedure, public :: RelativePermeability => RPFVGRelativePermeability
   ! Public accessor/mutator methods
-  procedure, public                     :: Get_m                => RPF_VG_Get_m
-  procedure(Set_m)  , deferred, public  :: Set_m
+  procedure, private                         :: GetM  => RPFVGGetM
+  procedure(set_m_type)  , deferred, public  :: SetM
   ! Private deferred methods called by RelativePermeability
-  procedure(Calc_Kr), deferred, private :: Kr
-  procedure(Calc_Kr), deferred, private :: Kr_inline
+  procedure(calc_Kr_type), deferred, private :: Kr
+  procedure(calc_Kr_type), deferred, private :: KrInline
 end type
 
 ! **************************************************************************** !
 
-  type, abstract, extends(RPF_VG_type) :: RPF_VG_liq_type
+  type, abstract, extends(rpf_VG_type) :: rpf_VG_liq_type
     private
       PetscReal :: dKr_dSl_max ! Finite difference derivative at saturation
       PetscReal :: Sl_min      ! Unsaturated limit to avoid NaN
   contains
-    procedure, public  :: Set_m                 => RPF_VG_liq_Set_m
-    procedure, private :: Configure             => RPF_VG_liq_Configure
-    procedure, private :: Kr                    => RPF_VG_liq_Kr
+    procedure, public  :: SetM                  => RPFVGliqSetM
+    procedure, private :: Configure             => RPFVGliqConfigure
+    procedure, private :: Kr                    => RPFVGliqKr
   end type
 
 ! **************************************************************************** !
 
-    type, public, extends(RPF_VG_liq_type) :: RPF_MVG_liq_type
+    type, public, extends(rpf_VG_liq_type) :: rpf_MVG_liq_type
     contains
-      procedure, private :: Kr_inline           => RPF_MVG_liq_Kr_inline
+      procedure, private :: KrInline            => RPFMVGliqKrInline
     end type
 
 ! **************************************************************************** !
 
-    type, public, extends(RPF_VG_liq_type) :: RPF_BVG_liq_type
+    type, public, extends(rpf_VG_liq_type) :: rpf_BVG_liq_type
     contains
-      procedure, private :: Kr_inline           => RPF_BVG_liq_Kr_inline
+      procedure, private :: KrInline            => RPFBVGliqKrInline
     end type
 
 ! **************************************************************************** !
 
-  type, abstract, extends(RPF_VG_type) :: RPF_VG_gas_type
+  type, abstract, extends(rpf_VG_type) :: rpf_VG_gas_type
   private
     PetscReal :: mx2        ! m times 2
     PetscReal :: Sgr        ! Gas residual saturation
     PetscReal :: Sl_max     ! Saturated limit reduced by Sgr
   contains
-    procedure, public  :: Set_m                  => RPF_VG_gas_Set_m
-    procedure, private :: Configure              => RPF_VG_gas_Configure
-    procedure, private :: Kr                     => RPF_VG_gas_Kr
+    procedure, public  :: SetM                   => RPFVGgasSetM
+    procedure, private :: Configure              => RPFVGgasConfigure
+    procedure, private :: Kr                     => RPFVGgasKr
   end type
 
 ! **************************************************************************** !
 
-    type, public, extends(RPF_VG_gas_type) :: RPF_MVG_gas_type
+    type, public, extends(rpf_VG_gas_type) :: rpf_MVG_gas_type
     contains
-      procedure, private :: Kr_inline           => RPF_MVG_gas_Kr_inline
+      procedure, private :: KrInline            => RPFMVGgasKrinline
     end type
 
 ! **************************************************************************** !
 
-    type, public, extends(RPF_VG_gas_type) :: RPF_BVG_gas_type
+    type, public, extends(rpf_VG_gas_type) :: rpf_BVG_gas_type
     contains
-      procedure, private :: Kr_inline           => RPF_BVG_gas_Kr_inline
+      procedure, private :: KrInline            => RPFBVGgasKrinline
     end type
 
 ! **************************************************************************** !
@@ -325,18 +328,18 @@ end type
 ! **************************************************************************** !
 
 interface
-  function Set_m(this, m) result (error)
-    import :: RPF_VG_type
-    class(RPF_VG_type), intent(inout) :: this
+  function set_m_type(this, m) result (error)
+    import :: rpf_VG_type
+    class(rpf_VG_type), intent(inout) :: this
     PetscReal, intent(in) :: m
     PetscInt :: error
   end function
 
 ! **************************************************************************** !
 
-  pure subroutine Calc_Kr(this, Sl, Kr, dKr_dSl)
-    import :: RPF_VG_type
-    class(RPF_VG_type), intent(in) :: this
+  pure subroutine calc_Kr_type(this, Sl, Kr, dKr_dSl)
+    import :: rpf_VG_type
+    class(rpf_VG_type), intent(in) :: this
     PetscReal, intent(in)  :: Sl
     PetscReal, intent(out) :: Kr, dKr_dSl
   end subroutine
@@ -348,14 +351,14 @@ contains
 ! VG Saturation Function Methods
 ! **************************************************************************** !
 
-function SF_VG_ctor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Sj) result (new)
+function SFVGCtor(unsat_ext, alpha, m, Sr, vg_rpf_opt, Pcmax, Sj) result (new)
  class(SF_VG_type), pointer :: new
  character(*), intent(in) :: unsat_ext
  PetscReal, intent(in) :: alpha, m, Sr, Pcmax, Sj
  PetscInt, intent(in) :: vg_rpf_opt
 
 ! This function returns a the van Genuchten saturation function object using
-! the correct constructor method
+! the correct extension constructor method
 
   select case (unsat_ext)
   case ('NONE') ! No extension
@@ -1207,9 +1210,9 @@ function SF_VG_quad_Set_quad(this, Pcmax, Sj) result (error)
 
       ! Select the correct branch for inverse solutions
       this%qa_branch = PETSC_TRUE
-      Sl_qa = this%Sl_root(Pj)
+      Sl_qa = this%SlRoot(Pj)
       this%qa_branch = PETSC_FALSE
-      Sl_cq = this%Sl_root(Pj)
+      Sl_cq = this%SlRoot(Pj)
 
       this%qa_branch = (abs(Sl_qa - Sj) < abs(Sl_cq - Sj))
     end if
@@ -1254,7 +1257,7 @@ pure subroutine SF_VG_quad_Sl(this, Pc, Sl, dSl_dPc)
       Sl = 0d0
       dSl_dPc = this%dSl_dPcmax
     else                                ! Quadratic extension
-      Sl = this%Sl_root(Pc)
+      Sl = this%SlRoot(Pc)
       dSl_dPc = 1d0 / (2d0*this%A*Sl + this%B)
     end if
   else                                  ! Ordinary VG domain
@@ -1276,7 +1279,7 @@ pure subroutine SF_VG_quad_d2Sl_dPc2(this, Pc, d2Sl_dPc2)
     if (Pc >= this%Pcmax) then          ! Unsaturated limit
       d2Sl_dPc2 = -1d0 / this%B**3
     else                                ! Quadratic extension
-      Sl = this%Sl_root(Pc)
+      Sl = this%SlRoot(Pc)
       d2Sl_dPc2 = -2d0*this%A / (2d0*this%A*Sl + this%B)**3
     end if
   else                                  ! Ordinary VG domain
@@ -1286,7 +1289,7 @@ end subroutine
 
 ! **************************************************************************** !
 
-pure function SF_VG_quad_Sl_root(this,Pc) result (Sl)
+pure function SFVGquadSlRoot(this,Pc) result (Sl)
   class(SF_VG_quad_type), intent(in) :: this
   PetscReal, intent(in) :: Pc
   PetscReal :: Sl
@@ -1299,43 +1302,43 @@ pure function SF_VG_quad_Sl_root(this,Pc) result (Sl)
   else
     Sl = C/Q
   end if
-end function
+end function SFVGquadSlRoot
 
 ! **************************************************************************** !
 ! van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
-pure function RPF_VG_Get_m(this) result (m)
-  class(RPF_VG_type), intent(in) :: this
+pure function RPFVGGetM(this) result (m)
+  class(rpf_VG_type), intent(in) :: this
   PetscReal :: m
   m = this%m
-end function
+end function RPFVGGetM
 
 ! **************************************************************************** !
 
-subroutine RPF_VG_Init(this)
-  class(RPF_VG_type) :: this
+subroutine RPFVGInit(this)
+  class(rpf_VG_type) :: this
   ! This method is intentionally left blank.
-end subroutine
+end subroutine RPFVGInit
 
 ! **************************************************************************** !
 
-subroutine RPF_VG_RelativePermeability(this, liquid_saturation, &
+subroutine RPFVGRelativePermeability(this, liquid_saturation, &
                                        relative_permeability, dkr_sat, option)
-  class(RPF_VG_type) :: this
+  class(rpf_VG_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability, dkr_sat
   type(option_type), intent(inout) :: option
 
   call this%Kr(liquid_saturation, relative_permeability, dkr_sat)
-end subroutine
+end subroutine RPFVGRelativePermeability
 
 ! **************************************************************************** !
 ! Abstract Liquid van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
-function RPF_VG_liq_Configure(this, m, Sr) result (error)
-  class(RPF_VG_liq_type), intent(inout) :: this
+function RPFVGliqConfigure(this, m, Sr) result (error)
+  class(rpf_VG_liq_type), intent(inout) :: this
   PetscReal, intent(in) :: m, Sr
   PetscInt :: error
   PetscReal :: Kr
@@ -1351,27 +1354,27 @@ function RPF_VG_liq_Configure(this, m, Sr) result (error)
     this%Sr = Sr
     this%dSe_dSl = 1d0 / (1d0 - Sr)
 
-    call this%Kr_inline(Sl_max,Kr,this%dKr_dSl_max)
+    call this%KrInline(Sl_max,Kr,this%dKr_dSl_max)
     this%dKr_dSl_max = (1d0 - Kr) / epsilon(Sl_max)
 
     this%Sl_min = Sr + epsilon(Sr)
 
     this%analytical_derivative_available = PETSC_TRUE
   end if
-end function
+end function RPFVGliqConfigure
 
 ! **************************************************************************** !
 
-function RPF_VG_liq_Set_m(this, m) result (error)
-  class(RPF_VG_liq_type), intent(inout) :: this
+function RPFVGliqSetM(this, m) result (error)
+  class(rpf_VG_liq_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
   error = this%Configure(m, this%Sr)
-end function
+end function RPFVGliqSetM
 
 ! **************************************************************************** !
 
-pure subroutine RPF_VG_liq_Kr(this, Sl, Kr, dKr_dSl)
+pure subroutine RPFVGliqKr(this, Sl, Kr, dKr_dSl)
   class(rpf_VG_liq_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
@@ -1383,16 +1386,16 @@ pure subroutine RPF_VG_liq_Kr(this, Sl, Kr, dKr_dSl)
     Kr = 0d0
     dKr_dSl = 0d0
   else                                  ! Ordinary domain
-    call this%Kr_inline(Sl, Kr, dKr_dSl)
+    call this%KrInline(Sl, Kr, dKr_dSl)
   end if
-end subroutine
+end subroutine RPFVGliqKr
 
 ! **************************************************************************** !
 ! Loop-invariant Liquid Mualem - van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
-function  RPF_MVG_liq_ctor(m, Sr) result (new)
-  class(RPF_MVG_liq_type), pointer :: new
+function RPFMVGliqCtor(m, Sr) result (new)
+  class(rpf_MVG_liq_type), pointer :: new
   PetscReal, intent(in) :: m, Sr
   PetscInt :: error
 
@@ -1404,12 +1407,12 @@ function  RPF_MVG_liq_ctor(m, Sr) result (new)
     deallocate(new)
     nullify(new)
   end if
-end function
+end function RPFMVGliqCtor
 
 ! **************************************************************************** !
 
-pure subroutine RPF_MVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
-  class(RPF_MVG_liq_type), intent(in) :: this
+pure subroutine RPFMVGliqKrInline(this, Sl, Kr, dKr_dSl)
+  class(rpf_MVG_liq_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_mrt, Se_mrt_comp, Se_mrt_comp_m, f
@@ -1423,14 +1426,14 @@ pure subroutine RPF_MVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
   Kr = sqrt(Se)*f*f
   dKr_dSl = this%dSe_dSl * Kr / Se * &
            (0.5d0 + 2d0*Se_mrt*Se_mrt_comp_m/(f*Se_mrt_comp))
-end subroutine
+end subroutine RPFMVGliqKrInline
 
 ! **************************************************************************** !
 ! Loop-invariant Liquid Burdine- van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
-function RPF_BVG_liq_ctor(m, Sr) result (new)
-  class(RPF_BVG_liq_type), pointer :: new
+function RPFBVGliqCtor(m, Sr) result (new)
+  class(rpf_BVG_liq_type), pointer :: new
   PetscReal, intent(in) :: m, Sr
   PetscInt :: error
 
@@ -1443,12 +1446,12 @@ function RPF_BVG_liq_ctor(m, Sr) result (new)
     deallocate(new)
     nullify(new)
   end if
-end function
+end function RPFBVGliqCtor
 
 ! **************************************************************************** !
 
-pure subroutine RPF_BVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
-  class(RPF_BVG_liq_type), intent(in) :: this
+pure subroutine RPFBVGliqKrInline(this, Sl, Kr, dKr_dSl)
+  class(rpf_BVG_liq_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_mrt, Se_mrt_comp, Se_mrt_comp_m, Kr_Se
@@ -1461,14 +1464,14 @@ pure subroutine RPF_BVG_liq_Kr_inline(this, Sl, Kr, dKr_dSl)
 
   Kr = Kr_Se*Se
   dKr_dSl = this%dSe_dSl * (2d0*Kr_Se + Se*Se_mrt*Se_mrt_comp_m/Se_mrt_comp)
-end subroutine
+end subroutine RPFBVGliqKrInline
 
 ! **************************************************************************** !
 ! Abstract Gas van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
-function RPF_VG_gas_Configure(this, m, Sr, Sgr) result (error)
-  class(RPF_VG_gas_type), intent(inout) :: this
+function RPFVGgasConfigure(this, m, Sr, Sgr) result (error)
+  class(rpf_VG_gas_type), intent(inout) :: this
   PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
 
@@ -1489,21 +1492,21 @@ function RPF_VG_gas_Configure(this, m, Sr, Sgr) result (error)
 
     this%analytical_derivative_available = PETSC_TRUE
   end if
-end function
+end function RPFVGgasConfigure
 
 ! **************************************************************************** !
 
-function RPF_VG_gas_Set_m(this, m) result (error)
-  class(RPF_VG_gas_type), intent(inout) :: this
+function RPFVGgasSetM(this, m) result (error)
+  class(rpf_VG_gas_type), intent(inout) :: this
   PetscReal, intent(in) :: m
   PetscInt :: error
   error = this%Configure(m, this%Sr, this%Sgr)
-end function
+end function RPFVGgasSetM
 
 ! **************************************************************************** !
 
-pure subroutine RPF_VG_gas_Kr(this, Sl, Kr, dKr_dSl)
-  class(RPF_VG_gas_type), intent(in) :: this
+pure subroutine RPFVGgasKr(this, Sl, Kr, dKr_dSl)
+  class(rpf_VG_gas_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
 
@@ -1514,15 +1517,15 @@ pure subroutine RPF_VG_gas_Kr(this, Sl, Kr, dKr_dSl)
     Kr = 1d0
     dKr_dSl = 0d0                       ! Cusp at limit
   else                                  ! Ordinary domain
-    call this%Kr_inline(Sl, Kr, dKr_dSl)
+    call this%KrInline(Sl, Kr, dKr_dSl)
   end if
-end subroutine
+end subroutine RPFVGgasKr
 
 ! **************************************************************************** !
 ! Loop-invariant Gas Mualem - van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
-function RPF_MVG_gas_ctor(m, Sr, Sgr) result (new)
+function RPFMVGgasCtor(m, Sr, Sgr) result (new)
   class(rpf_MVG_gas_type), pointer :: new
   PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
@@ -1536,11 +1539,11 @@ function RPF_MVG_gas_ctor(m, Sr, Sgr) result (new)
     deallocate(new)
     nullify(new)
   end if
-end function
+end function RPFMVGgasCtor
 
 ! **************************************************************************** !
 
-pure subroutine RPF_MVG_gas_Kr_inline(this, Sl, Kr, dKr_dSl)
+pure subroutine RPFMVGgasKrInline(this, Sl, Kr, dKr_dSl)
   class(rpf_MVG_gas_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
@@ -1553,14 +1556,14 @@ pure subroutine RPF_MVG_gas_Kr_inline(this, Sl, Kr, dKr_dSl)
 
   Kr = sqrt(Se_comp)*Se_mrt_comp**this%mx2
   dKr_dSl = - this%dSe_dSl * Kr * (0.5d0/Se_comp + 2d0*Se_mrt/(Se*Se_mrt_comp))
-end subroutine
+end subroutine RPFMVGgasKrInline
 
 ! **************************************************************************** !
 ! Gas Burdine - van Genuchten Relative Permeability Methods
 ! **************************************************************************** !
 
-function RPF_BVG_gas_ctor(m, Sr, Sgr) result (new)
-  class(RPF_BVG_gas_type), pointer :: new
+function RPFBVGgasCtor(m, Sr, Sgr) result (new)
+  class(rpf_BVG_gas_type), pointer :: new
   PetscReal, intent(in) :: m, Sr, Sgr
   PetscInt :: error
 
@@ -1573,12 +1576,12 @@ function RPF_BVG_gas_ctor(m, Sr, Sgr) result (new)
     deallocate(new)
     nullify(new)
   end if
-end function
+end function RPFBVGgasCtor
 
 ! **************************************************************************** !
 
-pure subroutine RPF_BVG_gas_Kr_inline(this, Sl, Kr, dKr_dSl)
-  class(RPF_BVG_gas_type), intent(in) :: this
+pure subroutine RPFBVGgasKrInline(this, Sl, Kr, dKr_dSl)
+  class(rpf_BVG_gas_type), intent(in) :: this
   PetscReal, intent(in) :: Sl
   PetscReal, intent(out) :: Kr, dKr_dSl
   PetscReal :: Se, Se_comp, Se_mrt, Se_mrt_comp, Kr_Se_comp
@@ -1591,7 +1594,7 @@ pure subroutine RPF_BVG_gas_Kr_inline(this, Sl, Kr, dKr_dSl)
 
   Kr = Kr_Se_comp*Se_comp
   dKr_dSl = -this%dSe_dSl * (2d0*Kr_Se_comp + Kr*Se_mrt/(Se*Se_mrt_comp))
-end subroutine
+end subroutine RPFBVGgasKrInline
 
 ! **************************************************************************** !
 
