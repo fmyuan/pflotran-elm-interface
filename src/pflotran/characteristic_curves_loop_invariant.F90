@@ -196,7 +196,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 ! Saturation Function Prototype Block
 ! **************************************************************************** !
 
-interface
+abstract interface
   function set_Pcmax_type(this, Pcmax) result (error)
     import :: sf_VG_extn_type
     class(sf_VG_extn_type), intent(inout) :: this
@@ -328,7 +328,7 @@ end type
 ! Relative Permeability Function Prototype Block
 ! **************************************************************************** !
 
-interface
+abstract interface
   function set_m_type(this, m) result (error)
     import :: rpf_VG_type
     class(rpf_VG_type), intent(inout) :: this
