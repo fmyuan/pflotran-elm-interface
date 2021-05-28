@@ -546,7 +546,7 @@ subroutine FactoryPFLOTRANFinalize(option)
   type(option_type) :: option
   PetscErrorCode :: ierr
 
-  call MPI_Barrier(option%comm%global_comm,ierr)
+  call MPI_Barrier(option%driver%comm%global_comm,ierr)
 
 end subroutine FactoryPFLOTRANFinalize
 

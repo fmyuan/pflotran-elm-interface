@@ -421,7 +421,7 @@ subroutine SimSubsurfJumpStart(this)
                        'has been met.  Stopping....'
     call PrintMsg(option)
     call PrintMsg(option,'')
-    option%status = DONE
+    option%driver%status = DONE
     this%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
@@ -447,7 +447,7 @@ subroutine SimSubsurfJumpStart(this)
                        'has been met.  Stopping....'
     call PrintMsg(option)
     call PrintMsg(option,'')
-    option%status = DONE
+    option%driver%status = DONE
     this%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
@@ -462,7 +462,7 @@ subroutine SimSubsurfJumpStart(this)
         'Null flow waypoint list; final time likely equal to start time.&
         &time or simulation time needs to be extended on a restart.'
       call PrintMsg(option)
-      option%status = FAIL
+      option%driver%status = FAIL
       return
     else
       flow_timestepper%dt_max = flow_timestepper%cur_waypoint%dt_max
@@ -474,7 +474,7 @@ subroutine SimSubsurfJumpStart(this)
         'Null transport waypoint list; final time likely equal to start &
         &time or simulation time needs to be extended on a restart.'
       call PrintMsg(option)
-      option%status = FAIL
+      option%driver%status = FAIL
       return
     else
       tran_timestepper%dt_max = tran_timestepper%cur_waypoint%dt_max

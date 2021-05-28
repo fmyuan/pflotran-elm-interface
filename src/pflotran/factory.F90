@@ -30,7 +30,7 @@ subroutine Initialize(driver)
   use Logging_module
   use String_module
 
-  class(driver_type) :: driver
+  class(driver_type), pointer :: driver
 
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
@@ -40,7 +40,7 @@ subroutine Initialize(driver)
   PetscBool :: option_found
 
   option => OptionCreate()
-  call OptionSetComm(option,driver%comm)
+  call OptionSetDriver(option,driver)
 
   ! check for non-default input filename
   driver%input_filename = 'pflotran.in'
@@ -106,7 +106,7 @@ function CreateSimulation(driver)
   PetscBool :: option_found, bool_flag
 
   option => OptionCreate()
-  call OptionSetComm(option,driver%comm)
+  call OptionSetDriver(option,driver)
   input => InputCreate(IN_UNIT,driver%input_filename,option)
   string = 'SIMULATION_TYPE'
   call InputFindStringInFile(input,option,string)

@@ -107,7 +107,7 @@ subroutine SimulationMRInitializeRun(this)
   PetscErrorCode :: ierr
 
   option => OptionCreate()
-  call OptionSetComm(option,this%driver%comm)
+  call OptionSetDriver(option,this%driver)
 
   call SimulationBaseInitializeRun(this)
 
@@ -178,8 +178,8 @@ subroutine SimulationMRInitializeRun(this)
     call PrintErrMsg(option)
   endif
 
-  call CommCreateProcessorGroups(option%comm,this%num_groups)
-  call OptionUpdateFromComm(option)
+  call CommCreateProcessorGroups(option%driver%comm,this%num_groups)
+  call OptionUpdateComm(option)
 
   ! divvy up the realizations
   this%num_local_realizations = this%num_realizations / &
@@ -188,13 +188,13 @@ subroutine SimulationMRInitializeRun(this)
                                          this%num_local_realizations
 
   ! offset is initialized above after check for '-realization_offset'
-  do i = 1, option%comm%mygroup_id-1
+  do i = 1, option%driver%comm%mygroup_id-1
     delta = this%num_local_realizations
     if (i < remainder) delta = delta + 1
     offset = offset + delta
   enddo
 
-  if (option%comm%mygroup_id < remainder) &
+  if (option%driver%comm%mygroup_id < remainder) &
     this%num_local_realizations = this%num_local_realizations + 1
   allocate(this%realization_ids(this%num_local_realizations))
   this%realization_ids = 0
@@ -233,7 +233,7 @@ subroutine SimulationMRExecuteRun(this)
 
   nullify(forward_simulation)
   option => OptionCreate()
-  call OptionSetComm(option,this%driver%comm)
+  call OptionSetDriver(option,this%driver)
   call FactoryPFLOTRANInitPrePetsc(option)
   do
     call SimulationMRIncrement(this,option)

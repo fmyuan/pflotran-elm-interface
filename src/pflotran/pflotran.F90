@@ -31,23 +31,15 @@ program pflotran
   call Initialize(driver)
   simulation => CreateSimulation(driver)
   option => OptionCreate()
-  call OptionSetComm(option,driver%comm)
+  call OptionSetDriver(option,driver)
   call FactoryPFLOTRANInitPrePetsc(option)
-  if (option%myrank == option%io_rank .and. option%print_to_screen) then
-    !call PrintProvenanceToScreen()
+  call FactoryPFLOTRANInitPostPetsc(simulation,driver,option)
+  call simulation%InitializeRun()
+  if (driver%status == PROCEED) then
+    call simulation%ExecuteRun()
   endif
-    call FactoryPFLOTRANInitPostPetsc(simulation,driver,option)
-
-    call simulation%InitializeRun()
-
-    if (option%status == PROCEED) then
-      call simulation%ExecuteRun()
-    endif
-
-    call simulation%FinalizeRun(option)
-    call simulation%Strip()
-    deallocate(simulation)
-    nullify(simulation)
+  call simulation%FinalizeRun(option)
+  call SimulationBaseDestroy(simulation)
   call FactoryPFLOTRANFinalize(option)
   driver%exit_code = option%exit_code
   call OptionFinalize(option)

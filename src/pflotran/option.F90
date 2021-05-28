@@ -3,10 +3,10 @@ module Option_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
+  use Driver_module
   use Option_Flow_module
   use Option_Transport_module
   use Option_Geophysics_module
-  use Communicator_Aux_module
 
   implicit none
 
@@ -18,7 +18,7 @@ module Option_module
     type(transport_option_type), pointer :: transport
     type(geophysics_option_type), pointer :: geophysics
 
-    type(comm_type), pointer :: comm
+    type(driver_type), pointer :: driver
 
     PetscInt :: id                         ! id of realization
     PetscInt :: exit_code                  ! code passed out of PFLOTRAN
@@ -27,9 +27,6 @@ module Option_module
     PetscMPIInt :: mycomm                  ! PETSC_COMM_WORLD
     PetscMPIInt :: myrank                  ! rank in PETSC_COMM_WORLD
     PetscMPIInt :: mycommsize              ! size of PETSC_COMM_WORLD
-
-! don't place a character string near here.  It causes the Windows Intel compiler
-! to crash.  Don't know why....
 
     PetscMPIInt :: io_rank
     PetscMPIInt :: hdf5_read_group_size, hdf5_write_group_size
@@ -212,8 +209,8 @@ module Option_module
   end interface
 
   public :: OptionCreate, &
-            OptionSetComm, &
-            OptionUpdateFromComm, &
+            OptionSetDriver, &
+            OptionUpdateComm, &
             OptionCheckCommandLine, &
             PrintErrMsg, &
             PrintErrMsgToDev, &
@@ -264,7 +261,7 @@ function OptionCreate()
   option%flow => OptionFlowCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
-  nullify(option%comm)
+  nullify(option%driver)
 
   ! DO NOT initialize members of the option type here.  One must decide
   ! whether the member needs initialization once for all stochastic
@@ -278,34 +275,36 @@ end function OptionCreate
 
 ! ************************************************************************** !
 
-subroutine OptionSetComm(option,comm)
+subroutine OptionSetDriver(option,driver)
 
   implicit none
 
   type(option_type) :: option
-  type(comm_type), pointer :: comm
+  type(driver_type), pointer :: driver
 
-  option%comm => comm
-  call OptionUpdateFromComm(option)
+  option%driver =>driver
+  call OptionUpdateComm(option)
 
-end subroutine OptionSetComm
+end subroutine OptionSetDriver
 
 ! ************************************************************************** !
 
-subroutine OptionUpdateFromComm(option)
+subroutine OptionUpdateComm(option)
 
   ! If the MPI communicator is split, we need to update the values local
   ! values in option
 
+  use Communicator_Aux_module
+
   implicit none
 
   type(option_type) :: option
 
-  option%mycomm          = option%comm%mycomm
-  option%mycommsize      = option%comm%mycommsize
-  option%myrank          = option%comm%myrank
+  option%mycomm          = option%driver%comm%mycomm
+  option%mycommsize      = option%driver%comm%mycommsize
+  option%myrank          = option%driver%comm%myrank
 
-end subroutine OptionUpdateFromComm
+end subroutine OptionUpdateComm
 
 ! ************************************************************************** !
 
@@ -1390,8 +1389,8 @@ subroutine OptionDestroy(option)
   call OptionFlowDestroy(option%flow)
   call OptionTransportDestroy(option%transport)
   call OptionGeophysicsDestroy(option%geophysics)
-  ! never destroy the comm as it was created elsewhere
-  nullify(option%comm)
+  ! never destroy the driver as it was created elsewhere
+  nullify(option%driver)
 
   ! all the below should be placed somewhere other than option.F90
 
