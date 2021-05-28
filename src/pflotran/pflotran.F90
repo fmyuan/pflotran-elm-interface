@@ -44,7 +44,7 @@ program pflotran
       call simulation%ExecuteRun()
     endif
 
-    call simulation%FinalizeRun()
+    call simulation%FinalizeRun(option)
     call simulation%Strip()
     deallocate(simulation)
     nullify(simulation)

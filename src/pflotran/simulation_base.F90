@@ -18,11 +18,8 @@ module Simulation_Base_class
 
   type, public :: simulation_base_type
     class(driver_type), pointer :: driver
-    type(option_type), pointer :: option
-    type(waypoint_list_type), pointer :: waypoint_list_outer ! for outer sync loop
     class(timer_type), pointer :: timer
   contains
-    procedure, public :: Init => SimulationBaseInit
     procedure, public :: InitializeRun => SimulationBaseInitializeRun
     procedure, public :: InputRecord => SimulationBaseInputRecord
     procedure, public :: ExecuteRun => SimulationBaseExecuteRun
@@ -45,7 +42,7 @@ contains
 
 ! ************************************************************************** !
 
-function SimulationBaseCreate(driver,option)
+function SimulationBaseCreate(driver)
   !
   ! Allocates and initializes a new simulation object
   !
@@ -60,16 +57,15 @@ function SimulationBaseCreate(driver,option)
   class(simulation_base_type), pointer :: SimulationBaseCreate
 
   class(driver_type), pointer :: driver
-  type(option_type), pointer :: option
 
   allocate(SimulationBaseCreate)
-  call SimulationBaseCreate%Init(driver,option)
+  call SimulationBaseInit(SimulationBaseCreate,driver)
 
 end function SimulationBaseCreate
 
 ! ************************************************************************** !
 
-subroutine SimulationBaseInit(this,driver,option)
+subroutine SimulationBaseInit(this,driver)
   !
   ! Initializes a new simulation object
   !
@@ -83,11 +79,8 @@ subroutine SimulationBaseInit(this,driver,option)
 
   class(simulation_base_type) :: this
   class(driver_type), pointer :: driver
-  type(option_type), pointer :: option
 
   this%driver => driver
-  this%option => option
-  this%waypoint_list_outer => WaypointListCreate()
   this%timer => TimerCreate()
 
 end subroutine SimulationBaseInit
@@ -113,25 +106,28 @@ end subroutine SimulationBaseInitializeRun
 
 ! ************************************************************************** !
 
-subroutine SimulationBaseInputRecordPrint(this)
+subroutine SimulationBaseInputRecordPrint(this,option)
   !
   ! Writes ingested information to the input record file.
   !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
   !
+  use Option_module
+
   implicit none
 
   class(simulation_base_type) :: this
+  type(option_type), pointer :: option
 
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
   PetscBool :: is_open
 
   inquire(id, OPENED=is_open)
-  if (is_open .and. OptionPrintToFile(this%option)) then
+  if (is_open .and. OptionPrintToFile(option)) then
   !----------------------------------------------------------------------------
-    if (OptionPrintToScreen(this%option)) then
+    if (OptionPrintToScreen(option)) then
       write (*,*) 'Printing input record file.'
     endif
 
@@ -156,9 +152,8 @@ subroutine SimulationBaseInputRecord(this)
 
   class(simulation_base_type) :: this
 
-  this%option%io_buffer = 'SimulationBaseInputRecord must be extended for &
-    &each simulation mode.'
-  call PrintErrMsg(this%option)
+  call this%driver%PrintErrMsg('SimulationBaseInputRecord must be extended for &
+    &each simulation mode.')
 
 end subroutine SimulationBaseInputRecord
 
@@ -175,9 +170,8 @@ subroutine SimulationBaseExecuteRun(this)
 
   class(simulation_base_type) :: this
 
-  this%option%io_buffer = 'SimulationExecuteRun must be extended for &
-    &each simulation mode.'
-  call PrintErrMsg(this%option)
+  call this%driver%PrintErrMsg('SimulationExecuteRun must be extended for &
+    &each simulation mode.')
 
 end subroutine SimulationBaseExecuteRun
 
@@ -197,43 +191,43 @@ subroutine SimulationBaseRunToTime(this,target_time)
   class(simulation_base_type) :: this
   PetscReal :: target_time
 
-  this%option%io_buffer = 'SimulationExecuteRun must be extended for &
-    &each simulation mode.'
-  call PrintErrMsg(this%option)
+  call this%driver%PrintErrMsg('SimulationRunToTime must be extended for &
+    &each simulation mode.')
 
 end subroutine SimulationBaseRunToTime
 
 ! ************************************************************************** !
 
-subroutine SimulationBaseFinalizeRun(this)
+subroutine SimulationBaseFinalizeRun(this,option)
   !
   ! Finalizes simulation
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
   !
-
+  use Option_module
 
   implicit none
 
   class(simulation_base_type) :: this
+  type(option_type) :: option
 
   PetscLogDouble :: total_time
 
   call this%timer%Stop()
   total_time = this%timer%GetCumulativeTime()
 
-  if (this%option%myrank == this%option%io_rank) then
+  if (option%myrank == option%io_rank) then
 
-    if (this%option%print_to_screen) then
+    if (option%print_to_screen) then
       write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
         & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
         total_time, &
         total_time/60.d0, &
         total_time/3600.d0
     endif
-    if (this%option%print_to_file) then
-      write(this%option%fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+    if (option%print_to_file) then
+      write(option%fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
         & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
         total_time, &
         total_time/60.d0, &
@@ -257,8 +251,6 @@ subroutine SimulationBaseStrip(this)
   class(simulation_base_type) :: this
 
   nullify(this%driver)
-  nullify(this%option)
-  call WaypointListDestroy(this%waypoint_list_outer)
   call TimerDestroy(this%timer)
 
 end subroutine SimulationBaseStrip

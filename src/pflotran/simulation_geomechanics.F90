@@ -28,7 +28,6 @@ module Simulation_Geomechanics_class
     type(waypoint_list_type), pointer :: waypoint_list_geomechanics
     type(geomechanics_regression_type), pointer :: geomech_regression
   contains
-    procedure, public :: Init => GeomechanicsSimulationInit
     procedure, public :: InitializeRun => GeomechanicsSimulationInitializeRun
     procedure, public :: InputRecord => GeomechanicsSimInputRecord
     procedure, public :: ExecuteRun => GeomechanicsSimulationExecuteRun
@@ -63,7 +62,7 @@ function GeomechanicsSimulationCreate(driver,option)
   print *,'GeomechanicsSimulationCreate'
 
   allocate(GeomechanicsSimulationCreate)
-  call GeomechanicsSimulationCreate%Init(driver,option)
+  call GeomechanicsSimulationInit(GeomechanicsSimulationCreate,driver,option)
 
 end function GeomechanicsSimulationCreate
 
@@ -209,7 +208,7 @@ end subroutine GeomechanicsSimulationExecuteRun
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsSimulationFinalizeRun(this)
+subroutine GeomechanicsSimulationFinalizeRun(this,option)
   ! 
   ! This routine
   ! 
@@ -223,6 +222,8 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
   implicit none
 
   class(simulation_geomechanics_type) :: this
+  type(option_type) :: option
+
   class(timestepper_steady_type), pointer :: geomech_timestepper
 
   call PrintMsg(this%option,'GeomechanicsSimulationFinalizeRun')
@@ -243,7 +244,7 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
                                         geomech_timestepper)
   end select
 
-  call SimSubsurfFinalizeRun(this)
+  call SimSubsurfFinalizeRun(this,option)
 
 end subroutine GeomechanicsSimulationFinalizeRun
 

@@ -20,6 +20,7 @@ module Simulation_Subsurface_class
   private
 
   type, public, extends(simulation_base_type) :: simulation_subsurface_type
+    type(option_type), pointer :: option
     type(checkpoint_option_type), pointer :: checkpoint_option
     type(output_option_type), pointer :: output_option
     PetscInt :: stop_flag
@@ -37,8 +38,8 @@ module Simulation_Subsurface_class
     ! regression object
     type(regression_type), pointer :: regression
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
+    type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
   contains
-    procedure, public :: Init => SimSubsurfInit
     procedure, public :: JumpStart => SimSubsurfJumpStart
     procedure, public :: InitializeRun => SimSubsurfInitializeRun
     procedure, public :: InputRecord => SimSubsurfInputRecord
@@ -84,7 +85,7 @@ function SimSubsurfCreate(driver,option)
 #endif
 
   allocate(SimSubsurfCreate)
-  call SimSubsurfCreate%Init(driver,option)
+  call SimSubsurfInit(SimSubsurfCreate,driver,option)
 
 end function SimSubsurfCreate
 
@@ -114,8 +115,9 @@ subroutine SimSubsurfInit(this,driver,option)
   call PrintMsg(this%option,'SimSubsurfInit()')
 #endif
 
-  call SimulationBaseInit(this,driver,option)
+  call SimulationBaseInit(this,driver)
   call EOSInit()
+  this%option => option
   this%output_option => OutputOptionCreate()
   nullify(this%checkpoint_option)
   nullify(this%process_model_coupler_list)
@@ -128,6 +130,7 @@ subroutine SimSubsurfInit(this,driver,option)
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()
+  this%waypoint_list_outer => WaypointListCreate()
 
 end subroutine SimSubsurfInit
 
@@ -238,7 +241,7 @@ subroutine SimSubsurfInitializeRun(this)
     call this%JumpStart()
   endif
 
-  call SimulationBaseInputRecordPrint(this)
+  call SimulationBaseInputRecordPrint(this,this%option)
   call PrintMsg(this%option," ")
   call PrintMsg(this%option,"  Finished Initialization")
   if (OptionPrintToFile(this%option)) then
@@ -615,7 +618,7 @@ end function SimSubsurfGetFinalWaypointTime
 
 ! ************************************************************************** !
 
-subroutine SimSubsurfFinalizeRun(this)
+subroutine SimSubsurfFinalizeRun(this,option)
   !
   ! Finalizes simulation
   !
@@ -636,6 +639,7 @@ subroutine SimSubsurfFinalizeRun(this)
   implicit none
 
   class(simulation_subsurface_type) :: this
+  type(option_type) :: option
 
   character(MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: cur_process_model_coupler
@@ -694,7 +698,7 @@ subroutine SimSubsurfFinalizeRun(this)
                             flow_timestepper,tran_timestepper)
   end select
 
-  call SimulationBaseFinalizeRun(this)
+  call SimulationBaseFinalizeRun(this,this%option)
 
   ! close output files
   call PetscLogStagePop(ierr);CHKERRQ(ierr)

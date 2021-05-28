@@ -229,8 +229,11 @@ subroutine FactoryPFLOTRANReadSimulationBlk(simulation,driver,option)
     end select
   endif
 
-  call WaypointListMerge(simulation%waypoint_list_outer, &
-                         checkpoint_waypoint_list,option)
+  select type(simulation)
+    class is(simulation_subsurface_type)
+      call WaypointListMerge(simulation%waypoint_list_outer, &
+                             checkpoint_waypoint_list,option)
+  end select
 
   select type(simulation)
     class is(simulation_subsurface_type)

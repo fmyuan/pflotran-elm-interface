@@ -4,6 +4,7 @@ module Simulation_MultiRealization_class
   use petscsys
   use PFLOTRAN_Constants_module
   use Simulation_Base_class
+  use Simulation_Subsurface_class
 
   implicit none
 
@@ -11,7 +12,6 @@ module Simulation_MultiRealization_class
 
   type, public, extends(simulation_base_type) :: &
                                       simulation_multirealization_type
-    class(simulation_base_type), pointer :: forward_simulation
     PetscInt :: num_groups
     PetscInt :: num_realizations
     PetscInt :: num_local_realizations
@@ -71,7 +71,7 @@ subroutine SimulationMRInit(this,driver,option)
   class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
-  call SimulationBaseInit(this,driver,option)
+  call SimulationBaseInit(this,driver)
   this%num_groups = 0
   this%num_realizations = 0
   this%num_local_realizations = 0
@@ -229,21 +229,23 @@ subroutine SimulationMRExecuteRun(this)
   class(simulation_multirealization_type) :: this
 
   type(option_type), pointer :: option
+  class(simulation_base_type), pointer :: forward_simulation
 
+  nullify(forward_simulation)
   option => OptionCreate()
   call OptionSetComm(option,this%driver%comm)
   call FactoryPFLOTRANInitPrePetsc(option)
   do
     call SimulationMRIncrement(this,option)
-    call FactoryPFLOTRANInitPostPetsc(this%forward_simulation,this%driver,option)
-    call this%forward_simulation%InitializeRun()
-    if (this%forward_simulation%option%status == PROCEED) then
-      call this%forward_simulation%ExecuteRun()
+    call FactoryPFLOTRANInitPostPetsc(forward_simulation,this%driver,option)
+    call forward_simulation%InitializeRun()
+    if (option%status == PROCEED) then
+      call forward_simulation%ExecuteRun()
     endif
-    call this%forward_simulation%FinalizeRun()
-    call this%forward_simulation%Strip()
-    deallocate(this%forward_simulation)
-    nullify(this%forward_simulation)
+    call forward_simulation%FinalizeRun(option)
+    call forward_simulation%Strip()
+    deallocate(forward_simulation)
+    nullify(forward_simulation)
     if (this%cur_realization >= this%num_local_realizations) exit
   enddo
   call OptionDestroy(option)
@@ -276,16 +278,19 @@ end subroutine SimulationMRIncrement
 
 ! ************************************************************************** !
 
-subroutine SimulationMRFinalizeRun(this)
+subroutine SimulationMRFinalizeRun(this,option)
   !
   ! Finalizes simulation
   !
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-  class(simulation_multirealization_type) :: this
+  use Option_module
 
-  call SimulationBaseFinalizeRun(this)
+  class(simulation_multirealization_type) :: this
+  type(option_type) :: option
+
+  call SimulationBaseFinalizeRun(this,option)
 
 end subroutine SimulationMRFinalizeRun
 
