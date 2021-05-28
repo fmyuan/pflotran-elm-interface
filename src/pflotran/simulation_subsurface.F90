@@ -62,18 +62,19 @@ contains
 
 ! ************************************************************************** !
 
-function SimSubsurfCreate(option)
+function SimSubsurfCreate(driver,option)
   !
   ! Allocates and initializes a new simulation object
   !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   !
-
+  use Driver_module
   use Option_module
 
   implicit none
 
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
   class(simulation_subsurface_type), pointer :: SimSubsurfCreate
@@ -83,13 +84,13 @@ function SimSubsurfCreate(option)
 #endif
 
   allocate(SimSubsurfCreate)
-  call SimSubsurfCreate%Init(option)
+  call SimSubsurfCreate%Init(driver,option)
 
 end function SimSubsurfCreate
 
 ! ************************************************************************** !
 
-subroutine SimSubsurfInit(this,option)
+subroutine SimSubsurfInit(this,driver,option)
   !
   ! Initializes simulation values
   !
@@ -99,19 +100,21 @@ subroutine SimSubsurfInit(this,option)
   use Timestepper_Base_class, only : TS_CONTINUE
   use Output_Aux_module
   use Waypoint_module
+  use Driver_module
   use Option_module
   use EOS_module
 
   implicit none
 
   class(simulation_subsurface_type) :: this
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
 #ifdef DEBUG
   call PrintMsg(this%option,'SimSubsurfInit()')
 #endif
 
-  call SimulationBaseInit(this,option)
+  call SimulationBaseInit(this,driver,option)
   call EOSInit()
   this%output_option => OutputOptionCreate()
   nullify(this%checkpoint_option)

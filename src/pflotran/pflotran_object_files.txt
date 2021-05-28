@@ -4,6 +4,7 @@
 # util_obj
 util_obj = \
 	${common_src}communicator_aux.o \
+	${common_src}driver.o \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -221,7 +222,6 @@ misc_obj = \
 	${common_src}init_subsurface_transport.o \
 	${common_src}integral_flux.o \
 	${common_src}matrix_buffer.o \
-	${common_src}multisimulation.o \
 	${common_src}observation.o \
 	${common_src}patch.o \
 	${common_src}pmc_auxiliary.o \
@@ -237,6 +237,7 @@ misc_obj = \
 	${common_src}secondary_continuum.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
+	${common_src}simulation_multirealization.o \
 	${common_src}simulation_subsurface.o \
 	${common_src}spline.o \
 	${common_src}strata.o \

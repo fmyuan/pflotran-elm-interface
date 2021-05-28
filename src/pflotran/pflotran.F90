@@ -4,9 +4,9 @@
 program pflotran
 
   use Communicator_Aux_module
+  use Driver_module
   use Option_module
   use Simulation_Base_class
-  use Multi_Simulation_module
   use Factory_module
   use Factory_PFLOTRAN_module
   use Factory_Subsurface_module
@@ -21,25 +21,22 @@ program pflotran
   ! multisimulation enables multiple simulations to be run concurrently
   ! and/or one after another until a specified set of simulations has
   ! completed.
-  type(multi_simulation_type), pointer :: multisimulation
-  type(comm_type), pointer :: comm
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
   PetscInt :: iflag
   PetscErrorCode :: ierr
 
-  nullify(multisimulation)
-  nullify(comm)
-  call CommInitPetsc(comm)
-  call Initialize()
+  driver => DriverCreate()
+  call CommInitPetsc(driver%comm)
+  call Initialize(driver)
+  simulation => CreateSimulation(driver)
   option => OptionCreate()
-  call OptionSetComm(option,comm)
-  call FactoryPFLOTRANInitPrePetsc(multisimulation,option)
+  call OptionSetComm(option,driver%comm)
+  call FactoryPFLOTRANInitPrePetsc(option)
   if (option%myrank == option%io_rank .and. option%print_to_screen) then
     !call PrintProvenanceToScreen()
   endif
-
-  do ! multi-simulation loop
-    call FactoryPFLOTRANInitPostPetsc(simulation,multisimulation,option)
+    call FactoryPFLOTRANInitPostPetsc(simulation,driver,option)
 
     call simulation%InitializeRun()
 
@@ -51,12 +48,11 @@ program pflotran
     call simulation%Strip()
     deallocate(simulation)
     nullify(simulation)
-    if (MultiSimulationDone(multisimulation)) exit
-  enddo ! multi-simulation loop
   call FactoryPFLOTRANFinalize(option)
-  iflag = option%exit_code
+  driver%exit_code = option%exit_code
   call OptionFinalize(option)
-  call CommDestroy(comm)
+  iflag = driver%exit_code
+  call DriverDestroy(driver)
   call Finalize()
   call exit(iflag)
 

@@ -812,18 +812,6 @@ subroutine SubsurfInitCommandLineSettings(option)
   PetscBool :: option_found
   PetscBool :: bool_flag
 
-  string = '-multisimulation'
-  call InputGetCommandLineTruth(string,bool_flag,option_found,option)
-  if (option_found) then
-    option%subsurface_simulation_type = MULTISIMULATION_SIM_TYPE
-  endif
-
-  string = '-stochastic'
-  call InputGetCommandLineTruth(string,bool_flag,option_found,option)
-  if (option_found) then
-    option%subsurface_simulation_type = STOCHASTIC_SIM_TYPE
-  endif
-
 end subroutine SubsurfInitCommandLineSettings
 
 ! ************************************************************************** !

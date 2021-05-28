@@ -16,7 +16,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
+subroutine FactoryPFLOTRANInitPrePetsc(option)
 !
 ! Sets up PFLOTRAN subsurface simulation framework prior to PETSc
 !   initialization
@@ -25,13 +25,11 @@ subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
 !
   use Option_module
   use Input_Aux_module
-  use Multi_Simulation_module
   use HDF5_Aux_module
   use Logging_module
 
   implicit none
 
-  type(multi_simulation_type), pointer :: multisimulation
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -43,14 +41,6 @@ subroutine FactoryPFLOTRANInitPrePetsc(multisimulation,option)
   !       has not yet been initialized.
 
   call FactoryPFLOTRANReadCommandLine(option)
-
-  ! initialize stochastic realizations here
-  string = '-stochastic'
-  call InputGetCommandLineTruth(string,bool_flag,option_found,option)
-  if (option_found) then
-    multisimulation => MultiSimulationCreate()
-    call MultiSimulationInitialize(multisimulation,option)
-  endif
 
   if (option%verbosity > 0) then
     call PetscLogDefaultBegin(ierr);CHKERRQ(ierr)
@@ -65,14 +55,14 @@ end subroutine FactoryPFLOTRANInitPrePetsc
 
 ! ************************************************************************** !
 
-subroutine FactoryPFLOTRANInitPostPetsc(simulation,multisimulation,option)
+subroutine FactoryPFLOTRANInitPostPetsc(simulation,driver,option)
 !
 ! Sets up PFLOTRAN subsurface simulation framework after PETSc initialization
 ! Author: Glenn Hammond
 ! Date: 06/17/13
 !
+  use Driver_module
   use Option_module
-  use Multi_Simulation_module
   use Simulation_Base_class
   use Output_Aux_module
   use Logging_module
@@ -82,13 +72,11 @@ subroutine FactoryPFLOTRANInitPostPetsc(simulation,multisimulation,option)
   implicit none
 
   class(simulation_base_type), pointer :: simulation
-  type(multi_simulation_type), pointer :: multisimulation
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
   character(len=MAXSTRINGLENGTH) :: filename
   PetscErrorCode :: ierr
-
-  call MultiSimulationIncrement(multisimulation,option)
 
   ! popped in SimulationBaseInitializeRun()
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr);CHKERRQ(ierr)
@@ -102,7 +90,7 @@ subroutine FactoryPFLOTRANInitPostPetsc(simulation,multisimulation,option)
   endif
 
   call OptionPrintPFLOTRANHeader(option)
-  call FactoryPFLOTRANReadSimulationBlk(simulation,option)
+  call FactoryPFLOTRANReadSimulationBlk(simulation,driver,option)
   call InputCheckKeywordBlockCount(option)
   ! Must come after simulation is initialized so that proper stages are setup
   ! for process models.  This call sets flag that disables the creation of
@@ -113,12 +101,13 @@ end subroutine FactoryPFLOTRANInitPostPetsc
 
 ! ************************************************************************** !
 
-subroutine FactoryPFLOTRANReadSimulationBlk(simulation,option)
+subroutine FactoryPFLOTRANReadSimulationBlk(simulation,driver,option)
 !
 ! Sets up PFLOTRAN subsurface simulation framework after PETSc initialization
 ! Author: Glenn Hammond
 ! Date: 06/17/13
 !
+  use Driver_module
   use Option_module
   use Input_Aux_module
   use String_module
@@ -139,6 +128,7 @@ subroutine FactoryPFLOTRANReadSimulationBlk(simulation,option)
   implicit none
 
   class(simulation_base_type), pointer :: simulation
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
   type(input_type), pointer :: input
@@ -221,21 +211,23 @@ subroutine FactoryPFLOTRANReadSimulationBlk(simulation,option)
     enddo
   endif
 
-  ! create the simulation objects
-  select case(simulation_type)
-    case('SUBSURFACE')
-      simulation => SimSubsurfCreate(option)
-    case('GEOMECHANICS_SUBSURFACE')
-      simulation => GeomechanicsSimulationCreate(option)
-    case default
-      if (len_trim(simulation_type) == 0) then
-        option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
-          &SUBSURFACE") must be specified within the SIMULATION block.'
-        call PrintErrMsg(option)
-      endif
-      call InputKeywordUnrecognized(input,simulation_type, &
-                     'SIMULATION,SIMULATION_TYPE',option)
-  end select
+  if (.not.associated(simulation)) then
+    ! create the simulation objects
+    select case(simulation_type)
+      case('SUBSURFACE')
+        simulation => SimSubsurfCreate(driver,option)
+      case('GEOMECHANICS_SUBSURFACE')
+        simulation => GeomechanicsSimulationCreate(driver,option)
+      case default
+        if (len_trim(simulation_type) == 0) then
+          option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
+            &SUBSURFACE") must be specified within the SIMULATION block.'
+          call PrintErrMsg(option)
+        endif
+        call InputKeywordUnrecognized(input,simulation_type, &
+                      'SIMULATION,SIMULATION_TYPE',option)
+    end select
+  endif
 
   call WaypointListMerge(simulation%waypoint_list_outer, &
                          checkpoint_waypoint_list,option)

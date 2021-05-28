@@ -169,18 +169,12 @@ module Option_module
     ! Specify secondary continuum solver
     PetscInt :: secondary_continuum_solver     ! Specify secondary continuum solver
 
-    PetscInt :: subsurface_simulation_type
-
     ! when the scaling factor is too small, stop in reactive transport
     PetscReal :: min_allowable_scale
 
     PetscBool :: print_ekg
 
   end type option_type
-
-  PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
-  PetscInt, parameter, public :: MULTISIMULATION_SIM_TYPE = 2
-  PetscInt, parameter, public :: STOCHASTIC_SIM_TYPE = 3
 
   interface PrintMsg
     module procedure PrintMsg1
@@ -371,8 +365,6 @@ subroutine OptionInitAll(option)
   option%use_upwinding = PETSC_TRUE
 
   option%out_of_table = PETSC_FALSE
-
-  option%subsurface_simulation_type = SUBSURFACE_SIM_TYPE
 
   call OptionInitRealization(option)
 
