@@ -49,6 +49,7 @@ module Simulation_Subsurface_class
     procedure, public :: Strip => SimSubsurfStrip
   end type simulation_subsurface_type
 
+
   public :: SimSubsurfCreate, &
             SimSubsurfInit, &
             SimSubsurfCast, &
@@ -152,7 +153,7 @@ function SimSubsurfCast(simulation)
   nullify(SimSubsurfCast)
   select type(simulation)
     class is(simulation_subsurface_type)
-      SimSubsurfCast => simulation
+      SimSubsurfCast=> simulation
   end select
 
 end function SimSubsurfCast
@@ -618,7 +619,7 @@ end function SimSubsurfGetFinalWaypointTime
 
 ! ************************************************************************** !
 
-subroutine SimSubsurfFinalizeRun(this,option)
+subroutine SimSubsurfFinalizeRun(this)
   !
   ! Finalizes simulation
   !
@@ -639,17 +640,12 @@ subroutine SimSubsurfFinalizeRun(this,option)
   implicit none
 
   class(simulation_subsurface_type) :: this
-  type(option_type) :: option
 
   character(MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: cur_process_model_coupler
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_base_type), pointer :: tran_timestepper
   PetscErrorCode :: ierr
-
-#ifdef DEBUG
-  call PrintMsg(this%option,'SimSubsurfFinalizeRun()')
-#endif
 
   if (this%stop_flag /= TS_STOP_END_SIMULATION) then
     select case(this%stop_flag)
@@ -659,7 +655,7 @@ subroutine SimSubsurfFinalizeRun(this,option)
         string = 'Maximum timestep exceeded.  Exiting!'
       case(TS_STOP_FAILURE)
         string = 'Simulation failed.  Exiting!'
-        this%option%exit_code = EXIT_FAILURE
+        this%driver%exit_code = EXIT_FAILURE
       case default
         string = 'Simulation stopped for unknown reason (' // &
                 trim(StringWrite(this%stop_flag)) // ').'
@@ -669,7 +665,7 @@ subroutine SimSubsurfFinalizeRun(this,option)
 
   ! pushed in InitializeRun()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
-  ! popped in OptionFinalize()
+  ! popped in below
   call PetscLogStagePush(logging%stage(FINAL_STAGE),ierr);CHKERRQ(ierr)
 
   if (associated(this%process_model_coupler_list)) then
@@ -698,7 +694,7 @@ subroutine SimSubsurfFinalizeRun(this,option)
                             flow_timestepper,tran_timestepper)
   end select
 
-  call SimulationBaseFinalizeRun(this,this%option)
+  call SimulationBaseFinalizeRun(this)
 
   ! close output files
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
@@ -748,6 +744,7 @@ call this%process_model_coupler_list%Destroy()
   nullify(this%realization)
   call RegressionDestroy(this%regression)
   call WaypointListDestroy(this%waypoint_list_subsurface)
+  call OptionDestroy(this%option)
 
 end subroutine SimSubsurfStrip
 

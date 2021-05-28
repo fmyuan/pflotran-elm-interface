@@ -21,8 +21,6 @@ module Option_module
     type(driver_type), pointer :: driver
 
     PetscInt :: id                         ! id of realization
-    PetscInt :: exit_code                  ! code passed out of PFLOTRAN
-                                           ! at end of simulation
 
     PetscMPIInt :: mycomm                  ! PETSC_COMM_WORLD
     PetscMPIInt :: myrank                  ! rank in PETSC_COMM_WORLD
@@ -234,7 +232,6 @@ module Option_module
             OptionPrintPFLOTRANHeader, &
             OptionSetBlocking, &
             OptionCheckNonBlockingError, &
-            OptionFinalize, &
             OptionDestroy
 
 contains
@@ -325,7 +322,6 @@ subroutine OptionInitAll(option)
   call OptionTransportInitAll(option%transport)
 
   option%id = 0
-  option%exit_code = 0
 
   option%mycomm = 0
   option%myrank = 0
@@ -625,9 +621,9 @@ subroutine PrintErrMsg2(option,string)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
-    select case(option%exit_code)
+    select case(option%driver%exit_code)
       case(EXIT_FAILURE)
-        call exit(option%exit_code)
+        call exit(option%driver%exit_code)
       case default
         call exit(EXIT_USER_ERROR)
     end select
@@ -713,9 +709,9 @@ subroutine PrintErrMsgByRank2(option,string)
     print *
     print *, 'Stopping!'
   endif
-  select case(option%exit_code)
+  select case(option%driver%exit_code)
     case(EXIT_FAILURE)
-      call exit(option%exit_code)
+      call exit(option%driver%exit_code)
     case default
       call exit(EXIT_USER_ERROR)
   end select
@@ -1279,26 +1275,6 @@ subroutine OptionSetBlocking(option,flag)
   option%blocking = flag
 
 end subroutine OptionSetBlocking
-
-! ************************************************************************** !
-
-subroutine OptionFinalize(option)
-  !
-  ! End the simulation.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/07/13
-  !
-
-  use Logging_module
-
-  implicit none
-
-  type(option_type), pointer :: option
-
-  call OptionDestroy(option)
-
-end subroutine OptionFinalize
 
 ! ************************************************************************** !
 

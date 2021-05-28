@@ -208,7 +208,7 @@ end subroutine GeomechanicsSimulationExecuteRun
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsSimulationFinalizeRun(this,option)
+subroutine GeomechanicsSimulationFinalizeRun(this)
   ! 
   ! This routine
   ! 
@@ -222,7 +222,6 @@ subroutine GeomechanicsSimulationFinalizeRun(this,option)
   implicit none
 
   class(simulation_geomechanics_type) :: this
-  type(option_type) :: option
 
   class(timestepper_steady_type), pointer :: geomech_timestepper
 
@@ -244,7 +243,7 @@ subroutine GeomechanicsSimulationFinalizeRun(this,option)
                                         geomech_timestepper)
   end select
 
-  call SimSubsurfFinalizeRun(this,option)
+  call SimSubsurfFinalizeRun(this)
 
 end subroutine GeomechanicsSimulationFinalizeRun
 

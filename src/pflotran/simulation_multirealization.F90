@@ -4,7 +4,6 @@ module Simulation_MultiRealization_class
   use petscsys
   use PFLOTRAN_Constants_module
   use Simulation_Base_class
-  use Simulation_Subsurface_class
 
   implicit none
 
@@ -225,30 +224,29 @@ subroutine SimulationMRExecuteRun(this)
 
   use Option_module
   use Factory_Forward_module
+  use Simulation_Subsurface_class
 
   class(simulation_multirealization_type) :: this
 
   type(option_type), pointer :: option
-  class(simulation_base_type), pointer :: forward_simulation
+  class(simulation_subsurface_type), pointer :: forward_simulation
 
   nullify(forward_simulation)
-  option => OptionCreate()
-  call OptionSetDriver(option,this%driver)
   do
+    option => OptionCreate()
+    call OptionSetDriver(option,this%driver)
     call SimulationMRIncrement(this,option)
     call FactoryForwardInitialize(forward_simulation,option)
     call forward_simulation%InitializeRun()
     if (option%status == PROCEED) then
       call forward_simulation%ExecuteRun()
     endif
-    call forward_simulation%FinalizeRun(option)
+    call forward_simulation%FinalizeRun()
     call forward_simulation%Strip()
     deallocate(forward_simulation)
     nullify(forward_simulation)
-    call FactoryForwardFinalize(option)
     if (this%cur_realization >= this%num_local_realizations) exit
   enddo
-  call OptionDestroy(option)
 
 end subroutine SimulationMRExecuteRun
 
@@ -278,19 +276,16 @@ end subroutine SimulationMRIncrement
 
 ! ************************************************************************** !
 
-subroutine SimulationMRFinalizeRun(this,option)
+subroutine SimulationMRFinalizeRun(this)
   !
   ! Finalizes simulation
   !
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-  use Option_module
-
   class(simulation_multirealization_type) :: this
-  type(option_type) :: option
 
-  call SimulationBaseFinalizeRun(this,option)
+  call SimulationBaseFinalizeRun(this)
 
 end subroutine SimulationMRFinalizeRun
 

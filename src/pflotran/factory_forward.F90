@@ -3,6 +3,7 @@ module Factory_Forward_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
+  use Simulation_Subsurface_class
 
   implicit none
 
@@ -23,7 +24,6 @@ subroutine FactoryForwardInitialize(simulation,option)
 !
   use Driver_module
   use Option_module
-  use Simulation_Base_class
   use Output_Aux_module
   use Logging_module
   use EOS_module
@@ -31,7 +31,7 @@ subroutine FactoryForwardInitialize(simulation,option)
 
   implicit none
 
-  class(simulation_base_type), pointer :: simulation
+  class(simulation_subsurface_type), pointer :: simulation
   type(option_type), pointer :: option
 
   class(driver_type), pointer :: driver
@@ -76,8 +76,6 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
   use Input_Aux_module
   use String_module
 
-  use Simulation_Base_class
-  use Simulation_Subsurface_class
   use Simulation_Geomechanics_class
   use PM_Base_class
   use PMC_Base_class
@@ -91,7 +89,7 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
 
   implicit none
 
-  class(simulation_base_type), pointer :: simulation
+  class(simulation_subsurface_type), pointer :: simulation
   class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
@@ -175,41 +173,32 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
     enddo
   endif
 
-  if (.not.associated(simulation)) then
-    ! create the simulation objects
-    select case(simulation_type)
-      case('SUBSURFACE')
-        simulation => SimSubsurfCreate(driver,option)
-      case('GEOMECHANICS_SUBSURFACE')
-        simulation => GeomechanicsSimulationCreate(driver,option)
-      case default
-        if (len_trim(simulation_type) == 0) then
-          option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
-            &SUBSURFACE") must be specified within the SIMULATION block.'
-          call PrintErrMsg(option)
-        endif
-        call InputKeywordUnrecognized(input,simulation_type, &
-                      'SIMULATION,SIMULATION_TYPE',option)
-    end select
-  endif
-
-  select type(simulation)
-    class is(simulation_subsurface_type)
-      call WaypointListMerge(simulation%waypoint_list_outer, &
-                             checkpoint_waypoint_list,option)
+  ! create the simulation objects
+  select case(simulation_type)
+    case('SUBSURFACE')
+      simulation => SimSubsurfCreate(driver,option)
+    case('GEOMECHANICS_SUBSURFACE')
+      simulation => GeomechanicsSimulationCreate(driver,option)
+    case default
+      if (len_trim(simulation_type) == 0) then
+        option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
+          &SUBSURFACE") must be specified within the SIMULATION block.'
+        call PrintErrMsg(option)
+      endif
+      call InputKeywordUnrecognized(input,simulation_type, &
+                     'SIMULATION,SIMULATION_TYPE',option)
   end select
 
-  select type(simulation)
-    class is(simulation_subsurface_type)
-      simulation%process_model_list => pm_master
-      simulation%checkpoint_option => checkpoint_option
-  end select
+  call WaypointListMerge(simulation%waypoint_list_outer, &
+                         checkpoint_waypoint_list,option)
+  simulation%process_model_list => pm_master
+  simulation%checkpoint_option => checkpoint_option
 
   select type(simulation)
-    class is(simulation_subsurface_type)
-      call FactorySubsurfaceInitialize(simulation)
     class is(simulation_geomechanics_type)
       call FactoryGeomechanicsInitialize(simulation)
+    class is(simulation_subsurface_type)
+      call FactorySubsurfaceInitialize(simulation)
   end select
 
 end subroutine FactoryForwardReadSimulationBlk
@@ -597,7 +586,7 @@ subroutine FactoryForwardReadCommandLine(option)
 
   string = '-successful_exit_code'
   call InputGetCommandLineInt(string,i,option_found,option)
-  if (option_found) option%exit_code = i
+  if (option_found) option%driver%exit_code = i
 
   string = '-keyword_screen_output'
   call InputGetCommandLineTruth(string,option%keyword_logging_screen_output, &

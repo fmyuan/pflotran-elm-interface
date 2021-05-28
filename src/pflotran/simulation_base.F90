@@ -3,7 +3,6 @@ module Simulation_Base_class
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Driver_module
-  use Option_module
   use Output_Aux_module
   use Output_module
   use Simulation_Aux_module
@@ -50,8 +49,6 @@ function SimulationBaseCreate(driver)
   ! Date: 06/11/13
   !
 
-  use Option_module
-
   implicit none
 
   class(simulation_base_type), pointer :: SimulationBaseCreate
@@ -72,7 +69,6 @@ subroutine SimulationBaseInit(this,driver)
   ! Author: Glenn Hammond
   ! Date: 06/11/13
   !
-  use Option_module
   use Waypoint_module
 
   implicit none
@@ -94,8 +90,6 @@ subroutine SimulationBaseInitializeRun(this)
   ! Author: Glenn Hammond
   ! Date: 06/11/13
   !
-  use Option_module
-
   implicit none
 
   class(simulation_base_type) :: this
@@ -184,8 +178,6 @@ subroutine SimulationBaseRunToTime(this,target_time)
   ! Author: Glenn Hammond
   ! Date: 06/11/13
   !
-  use Option_module
-
   implicit none
 
   class(simulation_base_type) :: this
@@ -198,7 +190,7 @@ end subroutine SimulationBaseRunToTime
 
 ! ************************************************************************** !
 
-subroutine SimulationBaseFinalizeRun(this,option)
+subroutine SimulationBaseFinalizeRun(this)
   !
   ! Finalizes simulation
   !
@@ -210,9 +202,12 @@ subroutine SimulationBaseFinalizeRun(this,option)
   implicit none
 
   class(simulation_base_type) :: this
-  type(option_type) :: option
 
+  type(option_type), pointer :: option
   PetscLogDouble :: total_time
+
+  option => OptionCreate()
+  call OptionSetDriver(option,this%driver)
 
   call this%timer%Stop()
   total_time = this%timer%GetCumulativeTime()
@@ -234,6 +229,8 @@ subroutine SimulationBaseFinalizeRun(this,option)
         total_time/3600.d0
     endif
   endif
+
+  call OptionDestroy(option)
 
 end subroutine SimulationBaseFinalizeRun
 

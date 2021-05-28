@@ -158,7 +158,7 @@ subroutine PMBaseReadPMBlock(this,input)
   implicit none
   class(pm_base_type) :: this
   type(input_type), pointer :: input
-  this%option%exit_code = EXIT_FAILURE
+  this%option%driver%exit_code = EXIT_FAILURE
   this%option%io_buffer = 'A member routine PMBaseReadPMBlock must &
              &extend for: ' // trim(this%name)
   call PrintErrMsg(this%option)
@@ -475,7 +475,7 @@ subroutine PMBasePrintErrMsg(this,subroutine_name)
   implicit none
   class(pm_base_type) :: this
   character(len=*) :: subroutine_name
-  this%option%exit_code = EXIT_FAILURE
+  this%option%driver%exit_code = EXIT_FAILURE
   this%option%io_buffer = 'A member routine ' // trim(subroutine_name) // &
          ' must extend for: ' //  trim(this%name)
   call PrintErrMsg(this%option)

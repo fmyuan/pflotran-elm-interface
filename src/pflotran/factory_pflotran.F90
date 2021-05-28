@@ -16,7 +16,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine FactoryPFLOTRANInitialize(driver)
+subroutine FactoryPFLOTRANInitialize(driver,simulation)
   !
   ! Initializes libraries for simulation
   !
@@ -29,8 +29,10 @@ subroutine FactoryPFLOTRANInitialize(driver)
   use Option_module
   use Logging_module
   use String_module
+  use Simulation_Base_class
 
   class(driver_type), pointer :: driver
+  class(simulation_base_type), pointer :: simulation
 
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
@@ -75,6 +77,8 @@ subroutine FactoryPFLOTRANInitialize(driver)
   call LoggingCreate()
   call OptionDestroy(option)
 
+  simulation => FactoryPFLOTRANCreateSimulation(driver)
+
 end subroutine FactoryPFLOTRANInitialize
 
 ! ************************************************************************** !
@@ -90,6 +94,7 @@ function FactoryPFLOTRANCreateSimulation(driver)
   use Driver_module
   use Input_Aux_module
   use Option_module
+  use Factory_Forward_module
   use Simulation_Base_class
   use Simulation_Geomechanics_class
   use Simulation_Subsurface_class
@@ -113,6 +118,7 @@ function FactoryPFLOTRANCreateSimulation(driver)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
   call InputReadWord(input,option,simulation_type,PETSC_TRUE)
+  call InputDestroy(input)
 
   string = '-stochastic'
   call InputGetCommandLineTruth(string,bool_flag,option_found,option)
@@ -121,17 +127,26 @@ function FactoryPFLOTRANCreateSimulation(driver)
   select case(simulation_type)
     case('MULTIREALIZATION')
       simulation => SimulationMRCreate(driver,option)
-    case('SUBSURFACE')
-      simulation => SimSubsurfCreate(driver,option)
-    case('GEOMECHANICS_SUBSURFACE')
-      simulation => GeomechanicsSimulationCreate(driver,option)
+    case('SUBSURFACE','GEOMECHANICS_SUBSURFACE')
+      select case(simulation_type)
+        case('SUBSURFACE')
+          simulation => SimSubsurfCreate(driver,option)
+        case('GEOMECHANICS_SUBSURFACE')
+          simulation => GeomechanicsSimulationCreate(driver,option)
+      end select
     case('INVERSE')
     case default
       call driver%PrintErrMsg('Unrecognized SIMULATION_TYPE ' // &
         trim(simulation_type))
   end select
-  call InputDestroy(input)
-  call OptionDestroy(option)
+
+  select type(simulation)
+    class is(simulation_subsurface_type)
+      call FactoryForwardInitialize(simulation,option)
+    class default
+      ! only destroy option if not a forward simulation
+      call OptionDestroy(option)
+  end select
 
   FactoryPFLOTRANCreateSimulation => simulation
 
