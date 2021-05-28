@@ -1492,7 +1492,7 @@ subroutine PMERTGetInfoAllocateWm(this)
               if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
                 do ilink=1,constrained_block%block_link(iconblock,1)
                   if (constrained_block%block_link(iconblock,ilink+1) == &
-                      patch%imat(ghosted_id)) then
+                      patch%imat(ghosted_id_nbr)) then
                     num_constraints = num_constraints + 1
                     inversion%rblock(num_constraints,1) = ghosted_id
                     inversion%rblock(num_constraints,2) = ghosted_id_nbr
