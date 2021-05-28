@@ -1049,10 +1049,11 @@ subroutine PMERTCGLSSolve(this)
   class(pm_ert_type) :: this
 
   type(option_type), pointer :: option
+  type(survey_type), pointer :: survey
   type(inversion_type), pointer :: inversion
 
-  PetscInt :: i
-  PetscReal :: alpha,gbeta,gamma,gamma1,delta
+  PetscInt :: i,nm,ncons
+  PetscReal :: alpha,gbeta,gamma,gamma1,delta1,delta2,delta
   PetscReal :: norms0,norms,normx,xmax
   PetscReal :: resNE,resNE_old
   PetscBool :: exit_info,indefinite
@@ -1062,6 +1063,7 @@ subroutine PMERTCGLSSolve(this)
   PetscReal, parameter :: initer_conv  = 1e-4
 
   option => this%option
+  survey => this%survey
   inversion => this%inversion
 
   inversion%del_cond = 0.0d0
@@ -1069,6 +1071,9 @@ subroutine PMERTCGLSSolve(this)
   if (OptionPrintToScreen(this%option)) then
     write(*,'(" --> Solving normal equation using CGLS solver:")') 
   endif
+
+  nm = survey%num_measurement
+  ncons = inversion%num_constraints_local
 
   ! Get RHS vector inversion%b
   call PMERTCGLSRhs(this)
@@ -1080,7 +1085,7 @@ subroutine PMERTCGLSSolve(this)
   inversion%p = inversion%s
 
   gamma = dot_product(inversion%s,inversion%s)
-  call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &  
+  call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &
                      MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
 
   norms0 = sqrt(gamma)
@@ -1097,7 +1102,12 @@ subroutine PMERTCGLSSolve(this)
     ! get inversion%q = Jp
     call PMERTComputeMatVecProductJp(this)
 
-    delta = dot_product(inversion%q,inversion%q)
+    delta1 = dot_product(inversion%q(1:nm),inversion%q(1:nm))
+    delta2 = dot_product(inversion%q(nm+1:nm+ncons),inversion%q(nm+1:nm+ncons))
+    call MPI_Allreduce(MPI_IN_PLACE,delta2,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+    delta = delta1 + delta2
+
     if (delta < 0) indefinite = PETSC_TRUE
     if (delta == 0) delta = epsilon(delta)
 
@@ -1111,7 +1121,7 @@ subroutine PMERTCGLSSolve(this)
  
     gamma1 = gamma
     gamma = dot_product(inversion%s,inversion%s)
-    call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &  
+    call MPI_Allreduce(MPI_IN_PLACE,gamma,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
 
     norms = sqrt(gamma)
@@ -1119,7 +1129,7 @@ subroutine PMERTCGLSSolve(this)
     inversion%p = inversion%s + gbeta * inversion%p
 
     normx = dot_product(inversion%del_cond,inversion%del_cond)
-    call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &  
+    call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
     normx = sqrt(normx)
     if (xmax < normx) xmax = normx
