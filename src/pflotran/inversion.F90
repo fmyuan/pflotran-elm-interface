@@ -38,12 +38,17 @@ module Inversion_module
     PetscReal, pointer :: r(:)           ! vector of dim -> num of measur
     PetscReal, pointer :: s(:)           ! product Jacobian transpose with r
     PetscReal, pointer :: del_cond(:)    ! conductivity update vector
+
+    ! For Wm
+    PetscInt :: num_constraints_local    ! Number of constraints
+    PetscInt, pointer :: rblock(:,:)     ! array stores info about reg.
+    PetscReal, pointer :: Wm(:)          ! Regularization matrix
   
     type(constrained_block_type), pointer :: constrained_block
   
     end type inversion_type
 
-  type constrained_block_type
+  type, public :: constrained_block_type
     PetscInt :: num_constrained_block
     PetscInt :: max_num_block_link
     type(constrained_block_par_type), pointer :: constrained_block_list
@@ -67,7 +72,7 @@ module Inversion_module
     PetscInt :: structure_metric
     PetscInt :: weighing_function
     PetscInt :: num_block_link
-    PetscInt, pointer :: block_link(:)
+    character(len=MAXWORDLENGTH), pointer :: block_link(:)
 
     PetscReal :: aniso_weight(3)
     PetscReal :: relative_weight
@@ -115,6 +120,7 @@ function InversionCreate()
   inversion%min_phi_red = 0.2d0
 
   inversion%iteration = UNINITIALIZED_INTEGER
+  inversion%num_constraints_local = UNINITIALIZED_INTEGER
   inversion%current_chi2 = UNINITIALIZED_DOUBLE
   inversion%phi_total_0 = UNINITIALIZED_DOUBLE
   inversion%phi_data_0 = UNINITIALIZED_DOUBLE
@@ -134,6 +140,8 @@ function InversionCreate()
   nullify(inversion%r)
   nullify(inversion%s)
   nullify(inversion%del_cond)
+  nullify(inversion%Wm)
+  nullify(inversion%rblock)
 
   inversion%constrained_block => ConstrainedBlockCreate()
 
@@ -214,7 +222,7 @@ end function ConstrainedBlockParCreate
 
 ! ************************************************************************** !
 
-subroutine InversionConstrainedArraysFromList(inversion)
+subroutine InversionConstrainedArraysFromList(inversion,patch,option)
   !
   ! Gets Constrained Block parameter arrays from linked list
   !
@@ -222,12 +230,18 @@ subroutine InversionConstrainedArraysFromList(inversion)
   ! Date: 05/24/21
   !
 
+  use Option_module
+  use Material_module
+  use Patch_module
+
   implicit none
 
   type(inversion_type) :: inversion
+  type(patch_type) :: patch
+  type(option_type) :: option
 
+  type(material_property_type), pointer :: material_property
   type(constrained_block_type), pointer :: constrained_block
-
   type(constrained_block_par_type), pointer :: cur_constrained_block
 
   PetscInt :: i,iconblock
@@ -265,8 +279,17 @@ subroutine InversionConstrainedArraysFromList(inversion)
     do
       if (.not. associated(cur_constrained_block)) exit
       constrained_block%material_name(iconblock) = cur_constrained_block%name
-      ! TODO: get correspoding material id
-      constrained_block%material_id(iconblock) = iconblock
+      material_property => &
+          MaterialPropGetPtrFromArray(cur_constrained_block%name, &
+                                      patch%material_property_array)
+      if (.not.associated(material_property)) then
+        option%io_buffer = 'Contrained block " &
+                           ' // trim(cur_constrained_block%name) // &
+                           '" not found in material list'
+        call PrintErrMsg(option)
+      endif
+
+      constrained_block%material_id(iconblock) = material_property%internal_id
       constrained_block%structure_metric(iconblock) = &
                         cur_constrained_block%structure_metric
       constrained_block%wf_type(iconblock) = &
@@ -284,8 +307,19 @@ subroutine InversionConstrainedArraysFromList(inversion)
       constrained_block%block_link(iconblock,ONE_INTEGER) = &
                         cur_constrained_block%num_block_link
       do i=1,cur_constrained_block%num_block_link
+        material_property => &
+            MaterialPropGetPtrFromArray(cur_constrained_block%block_link(i), &
+                                      patch%material_property_array)
+        if (.not.associated(material_property)) then
+          option%io_buffer = 'Linked block "&
+                             '//trim(cur_constrained_block%block_link(i)) // &
+                             '" in contrained block "&
+                             '//trim(cur_constrained_block%name) // &
+                             '" not found in material list'
+          call PrintErrMsg(option)
+        endif
         constrained_block%block_link(iconblock,i+1) = &
-                        cur_constrained_block%block_link(i)
+                                      material_property%internal_id
       enddo
 
       cur_constrained_block => cur_constrained_block%next
@@ -313,11 +347,15 @@ subroutine InversionAllocateWorkArrays(inversion,survey,grid)
   type(inversion_type) :: inversion
   type(survey_type) :: survey
   type(grid_type), pointer :: grid
-        
-  allocate(inversion%b(survey%num_measurement))
+
+  PetscInt :: num_constraints
+
+  num_constraints = inversion%num_constraints_local
+
+  allocate(inversion%b(survey%num_measurement + num_constraints))
   allocate(inversion%p(grid%nlmax))
-  allocate(inversion%q(survey%num_measurement))
-  allocate(inversion%r(survey%num_measurement))        
+  allocate(inversion%q(survey%num_measurement + num_constraints))
+  allocate(inversion%r(survey%num_measurement + num_constraints))
   allocate(inversion%s(grid%nlmax))
   allocate(inversion%del_cond(grid%nlmax))
 
@@ -539,7 +577,7 @@ subroutine ConstrainedBlockParRead(constrained_block,input,option)
       constrained_block%num_block_link = num_block_link
       allocate(constrained_block%block_link(num_block_link))
       do i=1,num_block_link                   
-        call InputReadInt(input,option,constrained_block%block_link(i))
+        call InputReadCard(input,option,constrained_block%block_link(i))
         call InputErrorMsg(input,option,'BLOCK_LINKS', &
                          'INVERSION,CONSTRAINED_BLOCKS')
       enddo
@@ -764,6 +802,8 @@ subroutine InversionDestroy(inversion)
   call DeallocateArray(inversion%r)
   call DeallocateArray(inversion%s)
   call DeallocateArray(inversion%del_cond)
+  call DeallocateArray(inversion%Wm)
+  call DeallocateArray(inversion%rblock)
 
   call ConstrainedBlockDestroy(inversion%constrained_block)
 

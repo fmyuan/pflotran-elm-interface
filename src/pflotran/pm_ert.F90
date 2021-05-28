@@ -437,7 +437,7 @@ recursive subroutine PMERTInitializeRun(this)
                           &if process model ERT has INVERSION option.'
       call PrintErrMsg(option)
     else
-      call InversionConstrainedArraysFromList(this%inversion)
+      call InversionConstrainedArraysFromList(this%inversion,patch,option)
     endif
   endif
 
@@ -1019,6 +1019,9 @@ subroutine PMERTUpdateElectricalConductivity(this)
   survey => this%survey
   inversion => this%inversion
   
+  ! Build Wm matrix
+  call PMERTBuildWm(this)
+
   call InversionAllocateWorkArrays(inversion,survey,grid)
 
   ! get inversion%del_cond
@@ -1142,26 +1145,367 @@ subroutine PMERTCGLSRhs(this)
   ! Date: 05/11/21
   !
  
+  use Patch_module
+  use Material_Aux_class
+
   implicit none
 
   class(pm_ert_type) :: this
 
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
   type(survey_type), pointer :: survey
   type(inversion_type), pointer :: inversion
+  type(constrained_block_type), pointer :: constrained_block
 
-  PetscInt :: idata
+  PetscInt :: idata,iconst,irb,num_measurement
+  PetscInt, pointer :: rblock(:,:)
+  PetscReal :: cond_ce,cond_nb,x     ! cell's and neighbor's
+  PetscReal :: wm,beta
+
+  option => this%option
+  patch => this%realization%patch
+  material_auxvars => patch%aux%Material%auxvars
 
   survey => this%survey
   inversion => this%inversion
+  constrained_block => inversion%constrained_block
+  rblock => inversion%rblock
 
   inversion%b = 0.0d0
 
-  do idata=1,survey%num_measurement
+  num_measurement = survey%num_measurement
+
+  do idata=1,num_measurement
     inversion%b(idata) = survey%Wd(idata) * survey%Wd_cull(idata) * &
                          ( survey%dobs(idata) - survey%dsim(idata) )
   enddo
 
+  beta = inversion%beta
+
+  do iconst=1,inversion%num_constraints_local
+    if (inversion%Wm(iconst) == 0) cycle
+
+    wm = inversion%Wm(iconst)
+
+    cond_ce = material_auxvars(rblock(iconst,1))%electrical_conductivity(1)
+    irb = rblock(iconst,3)
+
+    select case(constrained_block%structure_metric(irb))
+    case(1)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+    case(2)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+    case(3)
+      x = log(cond_ce) - log(constrained_block%reference_conductivity(irb))
+    case(4)
+      x = log(cond_ce) - log(constrained_block%reference_conductivity(irb))
+    case(5)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+      ! TODO: compute rx,ry, and rz
+    case(6)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+      ! TODO: compute rx,ry, and rz
+    case(7)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = (log(cond_ce) - log(constrained_block%reference_conductivity(irb))) &
+         -(log(cond_nb) - log(constrained_block%reference_conductivity(irb)))
+    case(8)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = (log(cond_ce) - log(constrained_block%reference_conductivity(irb))) &
+         -(log(cond_nb) - log(constrained_block%reference_conductivity(irb)))
+    case(9)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+    case(10)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+    case default
+      option%io_buffer = 'Supported STRUCTURE_METRIC in INVERSION, &
+                          &CONSTRAINED_BLOCKS is between 1 to 10'
+      call PrintErrMsg(option)
+    end select
+
+    inversion%b(num_measurement + iconst) = - sqrt(beta) * wm * x
+
+  enddo
+
 end subroutine PMERTCGLSRhs
+
+! ************************************************************************** !
+
+subroutine PMERTBuildWm(this)
+  !
+  ! Builds model regularization matrix: Wm
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/28/21
+  !
+
+  use Patch_module
+  use Material_Aux_class
+  use Inversion_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(inversion_type), pointer :: inversion
+  type(constrained_block_type), pointer :: constrained_block
+
+  PetscInt :: i
+
+  option => this%option
+  patch => this%realization%patch
+  material_auxvars => patch%aux%Material%auxvars
+
+  inversion => this%inversion
+  constrained_block => inversion%constrained_block
+
+  if (.not.associated(inversion%Wm)) call PMERTGetInfoAllocateWm(this)
+
+  do i=1,inversion%num_constraints_local
+    call ComputeWm(i,inversion%Wm(i))
+  enddo
+
+contains
+  subroutine ComputeWm(iconst,wm)
+    ! computes an element of Wm matrix
+    !
+    ! Author: Piyoosh Jaysaval
+    ! Date: 05/28/21
+
+    implicit none
+
+    PetscInt :: iconst
+    PetscReal :: wm
+
+    PetscInt :: irb
+    PetscReal :: x,awx,awy,awz
+    PetscReal :: cond_ce,cond_nb     ! cell's and neighbor's
+    PetscReal :: mn,sd
+    PetscInt, pointer :: rblock(:,:)
+
+    rblock => inversion%rblock
+
+    ! get cond & block of the ith constrained eq.
+    cond_ce = material_auxvars(rblock(iconst,1))%electrical_conductivity(1)
+    irb = rblock(iconst,3)
+
+    select case(constrained_block%structure_metric(irb))
+    case(1)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+    case(2)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = abs(log(cond_ce) - log(cond_nb))
+    case(3)
+      x = log(cond_ce) - log(constrained_block%reference_conductivity(irb))
+    case(4)
+      x = abs(log(cond_ce) - &
+              log(constrained_block%reference_conductivity(irb)))
+    case(5)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+      ! TODO: compute rx,ry, and rz
+    case(6)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = abs(log(cond_ce) - log(cond_nb))
+      ! TODO: compute rx,ry, and rz
+    case(7)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = (log(cond_ce) - log(constrained_block%reference_conductivity(irb))) &
+         -(log(cond_nb) - log(constrained_block%reference_conductivity(irb)))
+    case(8)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = abs( &
+          (log(cond_ce) - log(constrained_block%reference_conductivity(irb))) &
+         -(log(cond_nb) - log(constrained_block%reference_conductivity(irb))) )
+    case(9)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = log(cond_ce) - log(cond_nb)
+    case(10)
+      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      x = abs(log(cond_ce) - log(cond_nb))
+    case default
+      option%io_buffer = 'Supported STRUCTURE_METRIC in INVERSION, &
+                          &CONSTRAINED_BLOCKS is between 1 to 10'
+      call PrintErrMsg(option)
+    end select
+
+    mn = constrained_block%wf_mean(irb)
+    sd = constrained_block%wf_sdev(irb)
+    ! Get weight w
+    select case(constrained_block%wf_type(irb))
+    case(1)
+      wm = 0.5 * (1 - erf( (x-mn)/sqrt(2*sd*sd) ))
+    case(2)
+      wm = 0.5 * (1 + erf( (x-mn)/sqrt(2*sd*sd) ))
+    case(3)
+      wm = 1 - exp(-((x-mn)*(x-mn)) / (2*sd*sd))
+    case(4)
+      wm = exp(-((x-mn)*(x-mn)) / (2*sd*sd))
+    case(5)
+      if((x-mn) < 0) then
+         wm = 1 / (sd*sd)
+      else
+         wm = sd*sd / (((x-mn)*(x-mn) + sd*sd)*((x-mn)*(x-mn) + sd*sd))
+      end if
+    case(6)
+      if((x-mn) > 0) then
+         wm = 1 / (sd*sd)
+      else
+        wm = sd*sd / (((x-mn)*(x-mn) + sd*sd)*((x-mn)*(x-mn) + sd*sd))
+      end if
+    case default
+      option%io_buffer = 'Supported WEIGHING_FUNCTION in INVERSION, &
+                          &CONSTRAINED_BLOCKS is between 1 to 6'
+      call PrintErrMsg(option)
+    end select
+
+    if(constrained_block%structure_metric(irb) == 5 .or. &
+       constrained_block%structure_metric(irb) == 6) then
+      awx = constrained_block%aniso_weight(irb,1)
+      awy = constrained_block%aniso_weight(irb,2)
+      awz = constrained_block%aniso_weight(irb,3)
+      ! TODO: compute rx,ry, and rz before
+      !wm = (1 - abs( awx*rx + awy*ry + awz*rz))**2
+    end if
+
+    wm = constrained_block%relative_weight(irb) * wm
+
+  end subroutine ComputeWm
+
+  end subroutine PMERTBuildWm
+
+! ************************************************************************** !
+
+subroutine PMERTGetInfoAllocateWm(this)
+  !
+  ! Allocate and get info on Wm and rblock
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/27/21
+  !
+
+  use Patch_module
+  use Grid_module
+  use Inversion_module
+
+  implicit none
+
+  class(pm_ert_type) :: this
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(inversion_type), pointer :: inversion
+  type(constrained_block_type), pointer :: constrained_block
+
+  PetscInt :: local_id,ghosted_id,ghosted_id_nbr
+  PetscInt :: iconblock,inbr,ilink
+  PetscInt :: num_constraints
+  PetscInt :: num_neighbor
+
+  patch => this%realization%patch
+  grid => patch%grid
+
+  inversion => this%inversion
+  constrained_block => inversion%constrained_block
+
+  num_constraints = 0
+  do local_id=1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    do iconblock=1,constrained_block%num_constrained_block
+      if (constrained_block%structure_metric(iconblock) > 0) then
+        if (constrained_block%material_id(iconblock) == &
+            patch%imat(ghosted_id)) then
+          if (constrained_block%structure_metric(iconblock) == 3 .or. &
+              constrained_block%structure_metric(iconblock) == 4) then
+            num_constraints = num_constraints + 1
+          else
+            num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
+            do inbr=1,num_neighbor
+              ghosted_id_nbr = abs( &
+                            grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
+                do ilink=1,constrained_block%block_link(iconblock,1)
+                  if (constrained_block%block_link(iconblock,ilink+1) == &
+                      patch%imat(ghosted_id_nbr)) then
+                    num_constraints = num_constraints + 1
+                  endif
+                enddo
+              else
+                if (constrained_block%structure_metric(iconblock) < 9 .or. &
+                    constrained_block%structure_metric(iconblock) > 10) then
+                  num_constraints = num_constraints + 1
+                endif
+              endif
+            enddo
+          endif
+        endif
+      endif
+    enddo
+  enddo
+
+  inversion%num_constraints_local = num_constraints
+  allocate(inversion%Wm(num_constraints))
+  allocate(inversion%rblock(num_constraints,THREE_INTEGER))
+  inversion%Wm = 0.d0
+  inversion%rblock = 0
+
+  ! repeat once num_constraints is known
+  num_constraints = 0
+  do local_id=1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    do iconblock=1,constrained_block%num_constrained_block
+      if (constrained_block%structure_metric(iconblock) > 0) then
+        if (constrained_block%material_id(iconblock) == &
+            patch%imat(ghosted_id)) then
+          if (constrained_block%structure_metric(iconblock) == 3 .or. &
+              constrained_block%structure_metric(iconblock) == 4) then
+            num_constraints = num_constraints + 1
+            inversion%rblock(num_constraints,1) = ghosted_id
+            inversion%rblock(num_constraints,3) = iconblock
+          else
+            num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
+            do inbr=1,num_neighbor
+              ghosted_id_nbr = abs( &
+                            grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
+                do ilink=1,constrained_block%block_link(iconblock,1)
+                  if (constrained_block%block_link(iconblock,ilink+1) == &
+                      patch%imat(ghosted_id)) then
+                    num_constraints = num_constraints + 1
+                    inversion%rblock(num_constraints,1) = ghosted_id
+                    inversion%rblock(num_constraints,2) = ghosted_id_nbr
+                    inversion%rblock(num_constraints,3) = iconblock
+                  endif
+                enddo
+              else
+                if (constrained_block%structure_metric(iconblock) < 9 .or. &
+                    constrained_block%structure_metric(iconblock) > 10) then
+                  num_constraints = num_constraints + 1
+                  inversion%rblock(num_constraints,1) = ghosted_id
+                  inversion%rblock(num_constraints,2) = ghosted_id_nbr
+                  inversion%rblock(num_constraints,3) = iconblock
+                endif
+              endif
+            enddo
+          endif
+        endif
+      endif
+    enddo
+  enddo
+
+end subroutine PMERTGetInfoAllocateWm
 
 ! ************************************************************************** !
 
@@ -1175,6 +1519,8 @@ subroutine PMERTComputeMatVecProductJp(this)
 
   use Patch_module
   use Grid_module
+  use Field_module
+  use Discretization_module
 
   implicit none
 
@@ -1183,36 +1529,83 @@ subroutine PMERTComputeMatVecProductJp(this)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
   type(survey_type), pointer :: survey
   type(inversion_type), pointer :: inversion
+  type(constrained_block_type), pointer :: constrained_block
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
-  PetscInt :: idata
+  PetscInt :: idata,iconst,irb,num_measurement
   PetscInt :: local_id,ghosted_id
+  PetscInt :: local_id_nb,ghosted_id_nb
+  PetscInt, pointer :: rblock(:,:)
+  PetscReal :: beta,wm
+  PetscReal, pointer :: pvec_ptr(:)
   PetscErrorCode :: ierr
 
   option => this%option
+  field => this%realization%field
+  discretization => this%realization%discretization
   patch => this%realization%patch
   grid => patch%grid
   ert_auxvars => patch%aux%ERT%auxvars
 
   survey => this%survey
   inversion => this%inversion
+  constrained_block => inversion%constrained_block
+  rblock => inversion%rblock
 
-  inversion%q = 0.0d0
+  inversion%q = 0.d0
+
+  ! Data part
+  call VecGetArrayF90(field%work,pvec_ptr,ierr);CHKERRQ(ierr)
+  pvec_ptr = 0.d0
 
   do idata=1,survey%num_measurement
-    do local_id=1,grid%nlmax      
+    do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)         
       if (patch%imat(ghosted_id) <= 0) cycle
       inversion%q(idata) = inversion%q(idata) + &
                            ert_auxvars(ghosted_id)%jacobian(idata) * &
-                           inversion%p(local_id) 
+                           inversion%p(local_id)
+      if (idata == 1) pvec_ptr(local_id) = inversion%p(local_id)
     enddo
     
     call MPI_Allreduce(MPI_IN_PLACE,inversion%q(idata),ONE_INTEGER_MPI, &  
                        MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
   enddo
+
+  call VecRestoreArrayF90(field%work,pvec_ptr,ierr);CHKERRQ(ierr)
+
+  ! Model part
+  ! Get local inversion%p to ghosted in pvec_ptr
+  call DiscretizationGlobalToLocal(discretization,field%work, &
+                                   field%work_loc,ONEDOF)
+  call VecGetArrayF90(field%work_loc,pvec_ptr,ierr);CHKERRQ(ierr)
+
+  num_measurement = survey%num_measurement
+  beta = inversion%beta
+
+  do iconst=1,inversion%num_constraints_local
+    if (inversion%Wm(iconst) == 0) cycle
+
+    wm = inversion%Wm(iconst)
+    irb = rblock(iconst,3)
+    ghosted_id = rblock(iconst,1)
+
+    if (constrained_block%structure_metric(irb) == 3 .or. &
+        constrained_block%structure_metric(irb) == 4) then
+          inversion%q(num_measurement + iconst) = &
+                sqrt(beta) * wm * pvec_ptr(ghosted_id)
+    else
+      ghosted_id_nb = rblock(iconst,2)
+      inversion%q(num_measurement + iconst) = &
+          sqrt(beta) * wm * (pvec_ptr(ghosted_id) - pvec_ptr(ghosted_id_nb))
+    endif
+  enddo
+
+  call VecRestoreArrayF90(field%work_loc,pvec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PMERTComputeMatVecProductJp
 
@@ -1228,6 +1621,8 @@ subroutine PMERTComputeMatVecProductJtr(this)
 
   use Patch_module
   use Grid_module
+  use Field_module
+  use Discretization_module
 
   implicit none
 
@@ -1235,33 +1630,82 @@ subroutine PMERTComputeMatVecProductJtr(this)
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
   type(survey_type), pointer :: survey
   type(inversion_type), pointer :: inversion
+  type(constrained_block_type), pointer :: constrained_block
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
-  PetscInt :: idata
+  PetscInt :: idata,iconst,irb,num_measurement
   PetscInt :: local_id,ghosted_id
+  PetscInt :: local_id_nb,ghosted_id_nb
+  PetscInt, pointer :: rblock(:,:)
+  PetscReal :: beta,wm
+  PetscReal, pointer :: svec_ptr(:)
+  PetscErrorCode :: ierr
 
-  option => this%option
+  field => this%realization%field
+  discretization => this%realization%discretization
   patch => this%realization%patch
   grid => patch%grid
   ert_auxvars => patch%aux%ERT%auxvars
 
   survey => this%survey
   inversion => this%inversion
+  constrained_block => inversion%constrained_block
+  rblock => inversion%rblock
 
   inversion%s = 0.0d0
 
-  do local_id=1,grid%nlmax      
-    ghosted_id = grid%nL2G(local_id)         
+  ! Model part
+  call VecGetArrayF90(field%work_loc,svec_ptr,ierr);CHKERRQ(ierr)
+  svec_ptr = 0.d0
+
+  num_measurement = survey%num_measurement
+  beta = inversion%beta
+
+  do iconst=1,inversion%num_constraints_local
+    if (inversion%Wm(iconst) == 0) cycle
+
+    wm = inversion%Wm(iconst)
+    irb = rblock(iconst,3)
+    ghosted_id = rblock(iconst,1)
+
+    if (constrained_block%structure_metric(irb) == 3 .or. &
+        constrained_block%structure_metric(irb) == 4) then
+          svec_ptr(ghosted_id) = svec_ptr(ghosted_id) + &
+                sqrt(beta) * wm * inversion%r(num_measurement + iconst)
+    else
+      ghosted_id_nb = rblock(iconst,2)
+      svec_ptr(ghosted_id) = svec_ptr(ghosted_id) + &
+              sqrt(beta) * wm * inversion%r(num_measurement + iconst)
+      svec_ptr(ghosted_id_nb) = svec_ptr(ghosted_id_nb) - &
+              sqrt(beta) * wm * inversion%r(num_measurement + iconst)
+    endif
+  enddo
+
+  call VecRestoreArrayF90(field%work_loc,svec_ptr,ierr);CHKERRQ(ierr)
+
+  ! Data part
+  call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
+  call DiscretizationLocalToGlobalAdd(discretization,field%work_loc, &
+                                   field%work,ONEDOF)
+
+  call VecGetArrayF90(field%work,svec_ptr,ierr);CHKERRQ(ierr)
+
+  do local_id=1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     do idata=1,survey%num_measurement
-      inversion%s(local_id) = inversion%s(local_id) + &
-                              ert_auxvars(ghosted_id)%jacobian(idata) * &
-                              inversion%r(idata) 
+      svec_ptr(local_id) = svec_ptr(local_id) + &
+                             ert_auxvars(ghosted_id)%jacobian(idata) * &
+                             inversion%r(idata)
     enddo
+    inversion%s(local_id) = svec_ptr(local_id)
   enddo
+
+  call VecRestoreArrayF90(field%work,svec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PMERTComputeMatVecProductJtr
 
