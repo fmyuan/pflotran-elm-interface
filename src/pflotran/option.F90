@@ -231,8 +231,6 @@ module Option_module
             OptionInitRealization, &
             OptionMeanVariance, &
             OptionMaxMinMeanVariance, &
-            OptionBeginTiming, &
-            OptionEndTiming, &
             OptionPrintPFLOTRANHeader, &
             OptionSetBlocking, &
             OptionCheckNonBlockingError, &
@@ -1262,76 +1260,6 @@ subroutine OptionPrintPFLOTRANHeader(option)
   endif
 
 end subroutine OptionPrintPFLOTRANHeader
-
-! ************************************************************************** !
-
-subroutine OptionBeginTiming(option)
-  !
-  ! Start outer timing.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/07/13
-  !
-
-  use Logging_module
-
-  implicit none
-
-#include "petsc/finclude/petsclog.h"
-
-  type(option_type) :: option
-
-  PetscLogDouble :: timex_wall
-  PetscErrorCode :: ierr
-
-  call PetscTime(timex_wall, ierr);CHKERRQ(ierr)
-  option%start_time = timex_wall
-
-end subroutine OptionBeginTiming
-
-! ************************************************************************** !
-
-subroutine OptionEndTiming(option)
-  !
-  ! End timing.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/07/13
-  !
-
-  use Logging_module
-
-  implicit none
-
-#include "petsc/finclude/petsclog.h"
-
-  type(option_type) :: option
-
-  PetscLogDouble :: timex_wall
-  PetscErrorCode :: ierr
-
-  ! Final Time
-  call PetscTime(timex_wall, ierr);CHKERRQ(ierr)
-
-  if (option%myrank == option%io_rank) then
-
-    if (option%print_to_screen) then
-      write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
-      & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-        timex_wall-option%start_time, &
-        (timex_wall-option%start_time)/60.d0, &
-        (timex_wall-option%start_time)/3600.d0
-    endif
-    if (option%print_to_file) then
-      write(option%fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
-      & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-        timex_wall-option%start_time, &
-        (timex_wall-option%start_time)/60.d0, &
-        (timex_wall-option%start_time)/3600.d0
-    endif
-  endif
-
-end subroutine OptionEndTiming
 
 ! ************************************************************************** !
 

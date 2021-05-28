@@ -211,7 +211,7 @@ misc_obj = \
 	${common_src}data_mediator_vec.o \
 	${common_src}data_mediator_base.o \
 	${common_src}debug.o \
-	${common_src}factory.o \
+	${common_src}factory_forward.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \

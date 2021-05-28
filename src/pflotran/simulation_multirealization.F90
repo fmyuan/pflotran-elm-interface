@@ -224,7 +224,7 @@ subroutine SimulationMRExecuteRun(this)
   ! Date: 05/27/21
 
   use Option_module
-  use Factory_PFLOTRAN_module
+  use Factory_Forward_module
 
   class(simulation_multirealization_type) :: this
 
@@ -234,10 +234,9 @@ subroutine SimulationMRExecuteRun(this)
   nullify(forward_simulation)
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
-  call FactoryPFLOTRANInitPrePetsc(option)
   do
     call SimulationMRIncrement(this,option)
-    call FactoryPFLOTRANInitPostPetsc(forward_simulation,this%driver,option)
+    call FactoryForwardInitialize(forward_simulation,option)
     call forward_simulation%InitializeRun()
     if (option%status == PROCEED) then
       call forward_simulation%ExecuteRun()
@@ -246,6 +245,7 @@ subroutine SimulationMRExecuteRun(this)
     call forward_simulation%Strip()
     deallocate(forward_simulation)
     nullify(forward_simulation)
+    call FactoryForwardFinalize(option)
     if (this%cur_realization >= this%num_local_realizations) exit
   enddo
   call OptionDestroy(option)
