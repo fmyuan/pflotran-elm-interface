@@ -158,6 +158,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
 
   PetscInt :: ielec, idata
   PetscInt :: itemp
+  PetscReal :: wd
   character(len=MAXWORDLENGTH) :: error_string
   character(len=MAXWORDLENGTH) :: string_ielec,string_idata
 
@@ -225,9 +226,11 @@ subroutine SurveyReadERT(survey,grid,input,option)
     call InputReadDouble(input,option,survey%dobs(idata))
     call InputErrorMsg(input,option,'data dobs for data ' &
                                     //string_idata,error_string)
-    call InputReadDouble(input,option,survey%Wd(idata))
+    call InputReadDouble(input,option,wd)
     call InputErrorMsg(input,option,'weight Wd for data ' &
                                     //string_idata,error_string)
+    if (wd <= 0) wd = 1.d15
+    survey%Wd(idata) = 1 / wd
   enddo
 
   ! Get cell ids corrsponding to electrode positions
