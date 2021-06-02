@@ -1005,18 +1005,23 @@ subroutine PMERTUpdateElectricalConductivity(this)
 
   use Patch_module
   use Grid_module
+  use Material_Aux_class
 
   implicit none
 
   class(pm_ert_type) :: this
   
+  class(material_auxvar_type), pointer :: material_auxvars(:)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(survey_type), pointer :: survey  
   type(inversion_type), pointer :: inversion
   
+  PetscInt :: local_id,ghosted_id
+
   patch => this%realization%patch
   grid => patch%grid
+  material_auxvars => patch%aux%Material%auxvars
 
   survey => this%survey
   inversion => this%inversion
@@ -1030,6 +1035,12 @@ subroutine PMERTUpdateElectricalConductivity(this)
   call PMERTCGLSSolve(this)
 
   ! TODO: Update material_auxvars(:)%electrical_conductivity(1)
+  do local_id=1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    material_auxvars(ghosted_id)%electrical_conductivity(1) = &
+         exp(log(material_auxvars(ghosted_id)%electrical_conductivity(1)) + &
+         inversion%del_cond(local_id))
+  enddo
 
   call InversionDeallocateWorkArrays(inversion)
 
