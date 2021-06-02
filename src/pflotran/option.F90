@@ -148,13 +148,8 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: initialize_transport_filename
 
-    character(len=MAXSTRINGLENGTH) :: input_prefix
     character(len=MAXSTRINGLENGTH) :: global_prefix
     character(len=MAXWORDLENGTH) :: group_prefix
-    !PO
-    character(len=MAXSTRINGLENGTH) :: output_file_name_prefix
-    character(len=MAXSTRINGLENGTH) :: output_dir
-    !PO end
 
     PetscBool :: use_matrix_buffer
     PetscBool :: force_newton_iteration
@@ -327,11 +322,8 @@ subroutine OptionInitAll(option)
   option%myrank = 0
   option%mycommsize = 0
 
-  option%input_prefix = 'pflotran'
   option%group_prefix = ''
   option%global_prefix = ''
-  option%output_file_name_prefix = ''
-  option%output_dir = ''
 
   option%broadcast_read = PETSC_FALSE
   option%io_rank = 0

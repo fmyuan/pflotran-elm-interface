@@ -57,21 +57,16 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
     call driver%PrintErrMsg('Cannot specify both "-pflotranin" and &
       &"-input_prefix" on the command lines.')
   else if (pflotranin_option_found) then
-    strings => StringSplit(driver%input_filename,'.')
-    if (size(strings) > 1) then
-      driver%input_prefix = StringsMerge(strings(1:size(strings)-1),'.')
-    else
-      driver%input_prefix = strings(1)
-    endif
-    deallocate(strings)
-    nullify(strings)
+    driver%input_prefix = StringStripFilenameSuffix(driver%input_filename)
   else if (input_prefix_option_found) then
     driver%input_filename = trim(driver%input_prefix) // '.in'
   endif
 
+#if 0
   string = '-output_prefix'
   call InputGetCommandLineString(string,driver%global_prefix,option_found, &
                                  option)
+#endif
 
   call HDF5Init()
   call LoggingCreate()
@@ -142,10 +137,11 @@ function FactoryPFLOTRANCreateSimulation(driver)
 
   select type(simulation)
     class is(simulation_subsurface_type)
-      string = 'pflotran.in'
-      call FactoryForwardInitialize(simulation,string,option)
+      call FactoryForwardInitialize(simulation,driver%input_filename,option)
     class is(simulation_multirealization_type)
-      if (.not.stochastic_option_found) then
+      if (stochastic_option_found) then
+        simulation%forward_simulation_filename = driver%input_filename
+      else
         call SimulationMRRead(simulation,option)
       endif
   end select

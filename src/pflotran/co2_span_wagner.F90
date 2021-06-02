@@ -1734,9 +1734,6 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   end if
 
   option%co2_database_filename = filename
-  if ( .not. StringNull(option%output_dir) ) then
-    filename = trim(option%output_dir) // '/' // trim(filename)
-  end if
 
   myrank=0; itable=0;
   call initialize_span_wagner(itable,myrank,option)

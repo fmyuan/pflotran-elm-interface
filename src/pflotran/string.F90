@@ -43,7 +43,9 @@ module String_module
             StringWriteToUnit, &
             StringWriteToUnits, &
             String1Or2, &
-            StringGetMaximumLength
+            StringGetMaximumLength, &
+            StringGetPrefixFilename, &
+            StringStripFilenameSuffix
 
   interface StringWrite
     module procedure StringWriteI
@@ -1179,6 +1181,62 @@ function StringGetMaximumLength(strings)
   enddo
 
 end function StringGetMaximumLength
+
+! ************************************************************************** !
+
+function StringGetPrefixFilename(prefix)
+  ! 
+  ! Writes a string to multipel file units (one of which could be the screen)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=*) :: prefix
+
+  character(len=MAXSTRINGLENGTH) :: StringGetPrefixFilename
+
+  PetscInt :: i
+
+  i = index(prefix,'/',PETSC_TRUE)
+
+  StringGetPrefixFilename = prefix
+  if (i > 0) then
+    StringGetPrefixFilename = trim(prefix(i+1:))
+  endif
+
+end function StringGetPrefixFilename
+
+! ************************************************************************** !
+
+function StringStripFilenameSuffix(filename)
+  ! 
+  ! Writes a string to multipel file units (one of which could be the screen)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=*) :: filename
+
+  character(len=MAXSTRINGLENGTH) :: StringStripFilenameSuffix
+
+  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
+
+  strings => StringSplit(filename,'.')
+  if (size(strings) > 1) then
+    StringStripFilenameSuffix = StringsMerge(strings(1:size(strings)-1),'.')
+  else
+    StringStripFilenameSuffix = strings(1)
+  endif
+  deallocate(strings)
+  nullify(strings)
+
+end function StringStripFilenameSuffix
 
 ! ************************************************************************** !
 

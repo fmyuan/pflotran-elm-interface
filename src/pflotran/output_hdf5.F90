@@ -485,6 +485,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
+  use String_module
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -573,7 +574,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     !           trim(option%group_prefix) // '.h5'
     filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
-    filename_header = trim(option%output_file_name_prefix) //  &
+    filename_header = trim(StringGetPrefixFilename(option%global_prefix)) // & 
                       trim(string2) // trim(option%group_prefix) // '.h5'
   else
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
@@ -600,7 +601,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     filename_path = trim(option%global_prefix) // & 
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
-    filename_header = trim(option%output_file_name_prefix) // & 
+    filename_header = trim(StringGetPrefixFilename(option%global_prefix)) // & 
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
   endif
@@ -880,6 +881,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
+  use String_module
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -974,8 +976,8 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     !           trim(option%group_prefix) // '.h5'
     filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
-    filename_header = trim(option%output_file_name_prefix) & 
-               // trim(string2) // trim(option%group_prefix) // '.h5'
+    filename_header = trim(StringGetPrefixFilename(option%global_prefix)) // & 
+               trim(string2) // trim(option%group_prefix) // '.h5'
   else
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
     select case (var_list_type)
@@ -1001,7 +1003,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     filename_path = trim(option%global_prefix) // &
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
-    filename_header = trim(option%output_file_name_prefix) // &
+    filename_header = trim(StringGetPrefixFilename(option%global_prefix)) // & 
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
   endif
@@ -1034,7 +1036,8 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   call PrintMsg(option)
   
   domain_filename_path = trim(option%global_prefix) // '-domain.h5'
-  domain_filename_header = trim(option%output_file_name_prefix) // '-domain.h5'
+  domain_filename_header = &
+    trim(StringGetPrefixFilename(option%global_prefix)) // '-domain.h5'
   write_xdmf = PETSC_FALSE
   include_cell_centers = PETSC_FALSE
   mesh_type = grid%unstructured_grid%explicit_grid%output_mesh_type
