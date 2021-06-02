@@ -910,20 +910,20 @@ function SFVGexpnSetPcmax(this,Pcmax) result (error)
   ! Set lower saturation limit (Sa) to be intercept (P(Sa) = Pcmax)
   call this%SlInline(Pcmax,Sa,dPj_dSj) ! dPj_dSj is inverted, but not used
 
-  ! Set upper saturation limit (Sb) to be the the inflection point
-  Sb = this%SlInflection()
+  ! Set upper saturation limit (Sb) to be the the inflection point in log space
+  Sb = ((1d0/this%m-1d0)/(1d0+1d0/this%m))**this%m
+  Sb = this%Sr + Sb*this%Sl_span
 
   ! Confirm Pcmax is above minimum extrapolating from inflection point
   call this%PcInline(Sb,Pe,dPj_dSj)
-
   if (Pcmax >= Pe*exp(-dPj_dSj*Sb/Pe)) then
     ! Set Pcmax and begin iteration loop
     error = 0
     this%Pcmax = Pcmax
     this%Pcmax_designated = PETSC_TRUE
 
-    do while (Sb-Sa > epsilon(this%Sj)) ! Tolerance interval epsilon
-      this%Sj = (Sa+Sb)/2d0             ! Bisect bracket
+    do while (Sb/Sa > 1d0 + epsilon(this%Sj)) ! Tolerance interval epsilon
+      this%Sj = (Sa+Sb)/2d0                ! Bisect bracket
       call this%PcInline(this%Sj,this%Pj,dPj_dSj)
       this%beta = dPj_dSj / this%Pj
 
@@ -1107,7 +1107,7 @@ function SFVGlineSetPcmax(this,Pcmax) result (error)
   call this%SlInline(Pcmax,Sa,dPj_dSj)
 
   ! Set upper saturation limit (Sb) to be the the inflection point
-  Sb = this%SInflection()
+  Sb = this%SlInflection()
 
   ! Confirm Pcmax is above minimum extrapolating from inflection point
   call this%PcInline(Sb,Pe,dPj_dSj)
