@@ -12,7 +12,6 @@ module pflotran_model_module
   use Waypoint_module
   use Units_module
   use PFLOTRAN_Constants_module
-  use Multi_Simulation_module
   use Mapping_module
 
 !#include "definitions.h"
@@ -68,7 +67,6 @@ module pflotran_model_module
 
   type, public :: pflotran_model_type
     class(simulation_base_type),  pointer :: simulation
-    type(multi_simulation_type), pointer :: multisimulation
     type(option_type),      pointer :: option
     PetscReal :: pause_time_1
     PetscReal :: pause_time_2
@@ -125,11 +123,12 @@ contains
     use Communicator_Aux_module
     use Option_module
     use Simulation_Base_class
-    use Multi_Simulation_module
+    use Simulation_Subsurface_class
     use Factory_PFLOTRAN_module
     use Factory_Subsurface_module, only : FactorySubsurfaceInitialize
     use Factory_Geomechanics_module
-    use Factory_module
+    use Factory_Forward_module
+    use Driver_module
 
     implicit none
 
@@ -141,41 +140,43 @@ contains
     type(pflotran_model_type), pointer :: pflotranModelCreate
 
     type(pflotran_model_type),      pointer :: model
+    class(driver_type), pointer :: driver
     PetscErrorCode :: ierr
 
     allocate(model)
 
     nullify(model%simulation)
-    nullify(model%multisimulation)
     nullify(model%option)
 
-    model%option => OptionCreate()
-    call FactoryPFLOTRANInitPrePetsc(model%multisimulation, model%option)
+    driver => DriverCreate()
+    call CommInitPetsc(driver%comm,mpicomm)
 
-    ! NOTE(bja) 2013-06-25 : external driver must provide an input
-    ! prefix string. If the driver wants to use pflotran.in, then it
-    ! should explicitly request that with 'pflotran'.
-    if (len(trim(pflotran_prefix)) > 1) then
-      model%option%input_prefix = trim(pflotran_prefix)
-      model%option%input_filename = trim(model%option%input_prefix) // '.in'
-      model%option%global_prefix = model%option%input_prefix
-    else
-      model%option%io_buffer = 'The external driver must provide the ' // &
-           'pflotran input file prefix.'
-      call PrintErrMsg(model%option)
-    end if
-
-    call CommInitPetsc(model%option%comm,mpicomm)
-    call OptionSetComm(model%option,model%option%comm)
-    call Initialize()
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
     PETSC_COMM_SELF = MPI_COMM_SELF
     PETSC_COMM_WORLD = MPI_COMM_WORLD
 
-    call FactoryPFLOTRANInitPostPetsc(model%simulation, model%multisimulation, &
-                                      model%option)
+    call FactoryPFLOTRANInitialize(driver,model%simulation)
+    select type(s=>model%simulation)
+      class is(simulation_subsurface_type)
+        model%option => s%option
+    end select
+
+    ! NOTE(bja) 2013-06-25 : external driver must provide an input
+    ! prefix string. If the driver wants to use pflotran.in, then it
+    ! should explicitly request that with 'pflotran'.
+    if (len(trim(pflotran_prefix)) > 1) then
+      driver%input_prefix = trim(pflotran_prefix)
+      driver%input_filename = trim(driver%input_prefix) // '.in'
+      driver%global_prefix = driver%input_prefix
+    else
+      if (driver%comm%myrank == driver%io_rank) then
+        print *, 'The external driver must provide the pflotran input &
+                 &file prefix.'
+      endif
+      stop
+    end if
 
     ! TODO(bja, 2013-07-15) this needs to be left alone for pflotran
     ! to deal with, or we need a valid unit number from the driver as
@@ -2398,25 +2399,24 @@ end subroutine pflotranModelSetICs
   ! 
 
     use Factory_PFLOTRAN_module, only : FactoryPFLOTRANFinalize
-    use Option_module, only : OptionFinalize
     use Mapping_module, only : MappingDestroy
     use Communicator_Aux_module
-    use Factory_module
+    use Factory_Forward_module
+    use Driver_module
 
     implicit none
 
     type(pflotran_model_type), pointer :: model
     PetscInt :: iflag
     type(comm_type), pointer :: comm
+    class(driver_type), pointer :: driver
 
     ! FIXME(bja, 2013-07) none of the mapping information appears to
     ! be cleaned up, so we are leaking memory....
 
+    driver => model%simulation%driver
     call model%simulation%FinalizeRun()
-    call model%simulation%Strip()
-    deallocate(model%simulation)
-    nullify(model%simulation)
-  
+    call SimulationBaseDestroy(model%simulation)
 
     if (associated(model%map_pf_srf_to_clm_srf)) then
       call MappingDestroy(model%map_clm_sub_to_pf_sub)
@@ -2443,15 +2443,10 @@ end subroutine pflotranModelSetICs
       nullify(model%map_pf_srf_to_clm_srf)
     endif
 
-    call FactoryPFLOTRANFinalize(model%option)
-    iflag = model%option%exit_code
-    call CommDestroy(model%option%comm)
-    call OptionFinalize(model%option)
-    deallocate(model)
-    nullify(model)
-    call Finalize()
+    call FactoryPFLOTRANFinalize(driver)
+    iflag = driver%exit_code
+    call DriverDestroy(driver)
     call exit(iflag)
-
 
   end subroutine pflotranModelDestroy
   

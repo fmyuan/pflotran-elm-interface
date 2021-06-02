@@ -303,7 +303,7 @@ pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    field.o global_aux.o grid.o \
                    grid_unstructured.o grid_unstructured_aux.o \
                    grid_unstructured_cell.o input_aux.o logging.o mapping.o \
-                   material.o multisimulation.o option.o patch.o \
+                   material.o simulation_multirealization.o option.o patch.o \
                    pflotran_constants.o realization_base.o \
                    realization_subsurface.o richards.o \
                    richards_aux.o saturation_function.o simulation_base.o \
@@ -311,6 +311,7 @@ pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    string.o \
                    th.o th_aux.o timestepper_base.o units.o utility.o \
                    variables.o waypoint.o
+richards.o : clm_pflotran_interface_data.o
 
 ###############################################################################
 # Dependencies

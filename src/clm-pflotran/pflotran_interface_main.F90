@@ -43,37 +43,12 @@ program pflotran_interface_main
   PetscBool                                 :: pflotranin_option_found
   PetscBool                                 :: input_prefix_option_found
   character(len=MAXSTRINGLENGTH)  , pointer :: strings(:)
-  type(option_type)               , pointer :: option
 
   PetscInt                                  :: PRINT_RANK    
   PRINT_RANK = 0
 
   call MPI_Init(ierr)
  
-  ! Determine the pflotran inputdeck
-  option => OptionCreate()
-  string = '-pflotranin'
-  call InputGetCommandLineString(string,option%input_filename, &
-                                 pflotranin_option_found,option)
-  string = '-input_prefix'
-  call InputGetCommandLineString(string,option%input_prefix, &
-                                 input_prefix_option_found,option)
-  
-  if (pflotranin_option_found .and. input_prefix_option_found) then
-    option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
-      '"-input_prefix" on the command lines.'
-    call PrintErrMsg(option)
-  else if (pflotranin_option_found) then
-    strings => StringSplit(option%input_filename,'.')
-    filename = strings(1)
-    deallocate(strings)
-    nullify(strings)
-  else if (input_prefix_option_found) then
-    filename = trim(option%input_prefix)
-  endif
-
-  call OptionDestroy(option)
-
   ! Create the model
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
   simulation => SimSubsurfCast(pflotran_m%simulation)
