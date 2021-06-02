@@ -1011,8 +1011,8 @@ function UCellQuality(cell_type,vertices,option)
   PetscReal :: max_side, min_side
   PetscReal :: len
 
-  max_side = -1.d20
-  min_side = 1.d20
+  max_side = -MAX_DOUBLE
+  min_side = MAX_DOUBLE
   do iedge = 1, UCellGetNVertices(cell_type,option)
     len = UCellGetEdgeLength(cell_type,iedge,vertices)
     if (len > max_side) max_side = len

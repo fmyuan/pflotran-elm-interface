@@ -1010,7 +1010,7 @@ function WaypointListGetFinalTime(waypoint_list)
   type(waypoint_type), pointer :: cur_waypoint
 
   ! initialize to negative infinity
-  WaypointListGetFinalTime = -1.d20
+  WaypointListGetFinalTime = -MAX_DOUBLE
   
   cur_waypoint => waypoint_list%first
   do

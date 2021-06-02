@@ -534,7 +534,7 @@ function DatasetGetMinRValue(dataset,option)
   PetscErrorCode :: ierr
 
   global_reduction_flag = PETSC_TRUE
-  DatasetGetMinRValue = 1.d20
+  DatasetGetMinRValue = MAX_DOUBLE
 
   if (associated(dataset%rarray)) then
     DatasetGetMinRValue =  minval(dataset%rarray)

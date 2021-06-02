@@ -186,8 +186,8 @@ function StructGridCreate()
   
   nullify(structured_grid%cell_neighbors_local_ghosted)
  
-  structured_grid%local_origin = -1.d20
-  structured_grid%bounds = -1.d20
+  structured_grid%local_origin = -MAX_DOUBLE
+  structured_grid%bounds = -MAX_DOUBLE
   
   structured_grid%invert_z_axis = PETSC_FALSE
   structured_grid%second_order_bc = PETSC_FALSE
