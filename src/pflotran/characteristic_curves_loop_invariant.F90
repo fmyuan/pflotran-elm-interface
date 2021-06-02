@@ -424,6 +424,7 @@ subroutine SFVGSaturation(this, capillary_pressure, &
   type(option_type), intent(inout) :: option
 
   call this%Sl(capillary_pressure, liquid_saturation, dsat_dpres)
+  dsat_dpres = -dsat_dpres ! Replicating existing reversed signed behaivor
 end subroutine SFVGSaturation
 
 ! **************************************************************************** !
