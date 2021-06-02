@@ -103,7 +103,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
     procedure, private :: PcInline              => SFVGPcInline
     procedure, private :: SlInline              => SFVGSlInline
     procedure, private :: D2SlDPc2Inline        => SFVGD2SlDPc2Inline
-    procedure, private :: Sl_inflection         => SFVGSlInflection
+    procedure, private :: SlInflection          => SFVGSlInflection
 ! No-extension mutator methods
     procedure, private :: Set_alpha             => SFVGSetAlpha
     procedure, private :: Set_m                 => SFVGSetM
@@ -911,11 +911,12 @@ function SFVGexpnSetPcmax(this,Pcmax) result (error)
   call this%SlInline(Pcmax,Sa,dPj_dSj) ! dPj_dSj is inverted, but not used
 
   ! Set upper saturation limit (Sb) to be the the inflection point
-  Sb = this%Sl_inflection()
+  Sb = this%SlInflection()
 
   ! Confirm Pcmax is above minimum extrapolating from inflection point
   call this%PcInline(Sb,Pe,dPj_dSj)
-  if (Pcmax >= Pe*exp(-dPj_dSj/Pe)) then
+
+  if (Pcmax >= Pe*exp(-dPj_dSj*Sb/Pe)) then
     ! Set Pcmax and begin iteration loop
     error = 0
     this%Pcmax = Pcmax
@@ -1106,7 +1107,7 @@ function SFVGlineSetPcmax(this,Pcmax) result (error)
   call this%SlInline(Pcmax,Sa,dPj_dSj)
 
   ! Set upper saturation limit (Sb) to be the the inflection point
-  Sb = this%Sl_inflection()
+  Sb = this%SInflection()
 
   ! Confirm Pcmax is above minimum extrapolating from inflection point
   call this%PcInline(Sb,Pe,dPj_dSj)
