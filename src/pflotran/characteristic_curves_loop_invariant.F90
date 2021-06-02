@@ -911,7 +911,7 @@ function SFVGexpnSetPcmax(this,Pcmax) result (error)
   call this%SlInline(Pcmax,Sa,dPj_dSj) ! dPj_dSj is inverted, but not used
 
   ! Set upper saturation limit (Sb) to be the the inflection point in log space
-  Sb = ((1d0/this%m-1d0)/(1d0+1d0/this%m))**this%m
+  Sb = ((1d0/(1d0+1d0/this%m))**this%m
   Sb = this%Sr + Sb*this%Sl_span
 
   ! Confirm Pcmax is above minimum extrapolating from inflection point
