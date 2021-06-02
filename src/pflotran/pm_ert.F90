@@ -886,7 +886,7 @@ subroutine PMERTBuildJacobian(this)
   PetscInt, pointer :: cell_neighbors(:,:)
   PetscReal, allocatable :: phi_sor(:), phi_rec(:)
   PetscReal :: jacob
-  PetscReal :: cond
+  PetscReal :: cond,wd,wd_cull
   PetscInt :: idata
   PetscInt :: ielec
   PetscInt :: ia,ib,im,in
@@ -979,7 +979,9 @@ subroutine PMERTBuildJacobian(this)
       ! +ve unit source so phi_rec -> - phi_rec
       ! thus => jacob = phi_s * (dM/dcond) * phi_r
       ! wrt m=ln(cond) -> dV/dm = cond * dV/dcond
-      ert_auxvars(ghosted_id)%jacobian(idata) = jacob * cond
+      wd = survey%Wd(idata)
+      wd_cull = survey%Wd_cull(idata)
+      ert_auxvars(ghosted_id)%jacobian(idata) = jacob * cond !* wd * wd_cull
 
       deallocate(phi_sor, phi_rec)
     enddo    
