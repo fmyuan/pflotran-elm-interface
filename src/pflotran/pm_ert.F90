@@ -908,7 +908,7 @@ subroutine PMERTBuildJacobian(this)
   cell_neighbors => grid%cell_neighbors_local_ghosted
 
   if (OptionPrintToScreen(this%option)) then
-    write(*,'(/," --> Building ERT Jacobian matrix:")') 
+    write(*,'(/," --> Building ERT Jacobian matrix:")')
   endif
 
   do idata=1,survey%num_measurement
@@ -975,7 +975,7 @@ subroutine PMERTBuildJacobian(this)
 
       cond = material_auxvars(ghosted_id)%electrical_conductivity(1)
 
-      ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to 
+      ! As phi_rec is due to -ve unit source but A^-1(p) gives field due to
       ! +ve unit source so phi_rec -> - phi_rec
       ! thus => jacob = phi_s * (dM/dcond) * phi_r
       ! wrt m=ln(cond) -> dV/dm = cond * dV/dcond
@@ -984,8 +984,8 @@ subroutine PMERTBuildJacobian(this)
       ert_auxvars(ghosted_id)%jacobian(idata) = jacob * cond !* wd * wd_cull
 
       deallocate(phi_sor, phi_rec)
-    enddo    
-  enddo  
+    enddo
+  enddo
 
   ! I can now deallocate potential and delM (and M just after solving)
   ! But what about potential field output?
@@ -1006,6 +1006,8 @@ subroutine PMERTUpdateElectricalConductivity(this)
   use Patch_module
   use Grid_module
   use Material_Aux_class
+  use Field_module
+  use Discretization_module
 
   implicit none
 
@@ -1014,11 +1016,17 @@ subroutine PMERTUpdateElectricalConductivity(this)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(survey_type), pointer :: survey  
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
+  type(survey_type), pointer :: survey
   type(inversion_type), pointer :: inversion
   
   PetscInt :: local_id,ghosted_id
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
 
+  field => this%realization%field
+  discretization => this%realization%discretization
   patch => this%realization%patch
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
@@ -1034,13 +1042,22 @@ subroutine PMERTUpdateElectricalConductivity(this)
   ! get inversion%del_cond
   call PMERTCGLSSolve(this)
 
-  ! TODO: Update material_auxvars(:)%electrical_conductivity(1)
-  do local_id=1,grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
+  ! update cond
+  call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  vec_ptr = 0.d0
+  vec_ptr = inversion%del_cond
+  call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+
+  call DiscretizationGlobalToLocal(discretization,field%work, &
+                                   field%work_loc,ONEDOF)
+
+  call VecGetArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
+  do ghosted_id=1,grid%ngmax
     material_auxvars(ghosted_id)%electrical_conductivity(1) = &
          exp(log(material_auxvars(ghosted_id)%electrical_conductivity(1)) + &
-         inversion%del_cond(local_id))
+         vec_ptr(ghosted_id))
   enddo
+  call VecRestoreArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
 
   call InversionDeallocateWorkArrays(inversion)
 
