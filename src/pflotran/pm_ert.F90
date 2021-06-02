@@ -1056,6 +1056,14 @@ subroutine PMERTUpdateElectricalConductivity(this)
     material_auxvars(ghosted_id)%electrical_conductivity(1) = &
          exp(log(material_auxvars(ghosted_id)%electrical_conductivity(1)) + &
          vec_ptr(ghosted_id))
+    if (material_auxvars(ghosted_id)%electrical_conductivity(1) > &
+        inversion%maxcond) &
+        material_auxvars(ghosted_id)%electrical_conductivity(1) = &
+        inversion%maxcond
+    if (material_auxvars(ghosted_id)%electrical_conductivity(1) < &
+        inversion%mincond) &
+        material_auxvars(ghosted_id)%electrical_conductivity(1) = &
+        inversion%mincond
   enddo
   call VecRestoreArrayF90(field%work_loc,vec_ptr,ierr);CHKERRQ(ierr)
 
