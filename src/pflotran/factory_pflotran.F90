@@ -109,7 +109,7 @@ function FactoryPFLOTRANCreateSimulation(driver)
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: simulation_type
-  PetscBool :: option_found, bool_flag
+  PetscBool :: stochastic_option_found, bool_flag
 
   option => OptionCreate()
   call OptionSetDriver(option,driver)
@@ -121,12 +121,12 @@ function FactoryPFLOTRANCreateSimulation(driver)
   call InputDestroy(input)
 
   string = '-stochastic'
-  call InputGetCommandLineTruth(string,bool_flag,option_found,option)
-  if (option_found) simulation_type = 'MULTIREALIZATION'
+  call InputGetCommandLineTruth(string,bool_flag,stochastic_option_found,option)
+  if (stochastic_option_found) simulation_type = 'MULTIREALIZATION'
 
   select case(simulation_type)
     case('MULTIREALIZATION')
-      simulation => SimulationMRCreate(driver,option)
+      simulation => SimulationMRCreate(driver)
     case('SUBSURFACE','GEOMECHANICS_SUBSURFACE')
       select case(simulation_type)
         case('SUBSURFACE')
@@ -142,7 +142,16 @@ function FactoryPFLOTRANCreateSimulation(driver)
 
   select type(simulation)
     class is(simulation_subsurface_type)
-      call FactoryForwardInitialize(simulation,option)
+      string = 'pflotran.in'
+      call FactoryForwardInitialize(simulation,string,option)
+    class is(simulation_multirealization_type)
+      if (.not.stochastic_option_found) then
+        call SimulationMRRead(simulation,option)
+      endif
+  end select
+
+  select type(simulation)
+    class is(simulation_subsurface_type)
     class default
       ! only destroy option if not a forward simulation
       call OptionDestroy(option)

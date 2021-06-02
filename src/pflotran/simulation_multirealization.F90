@@ -15,6 +15,7 @@ module Simulation_MultiRealization_class
     PetscInt :: num_realizations
     PetscInt :: num_local_realizations
     PetscInt :: cur_realization
+    character(len=MAXSTRINGLENGTH) :: forward_simulation_filename
     PetscInt, pointer :: realization_ids(:)
   contains
     procedure, public :: Init => SimulationMRInit
@@ -26,6 +27,7 @@ module Simulation_MultiRealization_class
 
   public :: SimulationMRCreate, &
             SimulationMRInit, &
+            SimulationMRRead, &
             SimulationMRInitializeRun, &
             SimulationMRFinalizeRun, &
             SimulationMRStrip, &
@@ -35,7 +37,7 @@ contains
 
 ! ************************************************************************** !
 
-function SimulationMRCreate(driver,option)
+function SimulationMRCreate(driver)
   !
   ! Allocates and initializes a new simulation object
   !
@@ -43,20 +45,18 @@ function SimulationMRCreate(driver,option)
   ! Date: 05/27/21
 
    use Driver_module
-   use Option_module
 
   class(simulation_multirealization_type), pointer :: SimulationMRCreate
   class(driver_type), pointer :: driver
-  type(option_type), pointer :: option
 
   allocate(SimulationMRCreate)
-  call SimulationMRCreate%Init(driver,option)
+  call SimulationMRInit(SimulationMRCreate,driver)
 
 end function SimulationMRCreate
 
 ! ************************************************************************** !
 
-subroutine SimulationMRInit(this,driver,option)
+subroutine SimulationMRInit(this,driver)
   !
   ! Initializes simulation values
   !
@@ -64,20 +64,80 @@ subroutine SimulationMRInit(this,driver,option)
   ! Date: 05/27/21
 
   use Driver_module
-  use Option_module
 
   class(simulation_multirealization_type) :: this
   class(driver_type), pointer :: driver
-  type(option_type), pointer :: option
 
   call SimulationBaseInit(this,driver)
   this%num_groups = 0
   this%num_realizations = 0
   this%num_local_realizations = 0
   this%cur_realization = 0
+  this%forward_simulation_filename = ''
   nullify(this%realization_ids)
 
 end subroutine SimulationMRInit
+
+! ************************************************************************** !
+
+subroutine SimulationMRRead(this,option)
+  !
+  ! Initializes simulation values
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/27/21
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+
+  class(simulation_multirealization_type) :: this
+  type(option_type), pointer :: option
+
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: word
+
+  error_string = 'SIMULATION,MULTIREALIZATION'
+
+  input => InputCreate(IN_UNIT,this%driver%input_filename,option)
+
+  string = 'SIMULATION'
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  word = ''
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'','SIMULATION')
+
+    call StringToUpper(word)
+    select case(trim(word))
+      case('SIMULATION_TYPE')
+      case('NUM_REALIZATIONS')
+        call InputReadInt(input,option,this%num_realizations)
+        call InputErrorMsg(input,option,word,error_string)
+      case('NUM_GROUPS')
+        call InputReadInt(input,option,this%num_groups)
+        call InputErrorMsg(input,option,word,error_string)
+      case('REALIZATION_IDS')
+        call UtilityReadArray(this%realization_ids,NEG_ONE_INTEGER, &
+                              error_string,input,option)
+      case('FORWARD_SIMULATION_FILENAME')
+        call InputReadFilename(input,option,this%forward_simulation_filename)
+        call InputErrorMsg(input,option,word,error_string)
+      case default
+        call InputKeywordUnrecognized(input,word,error_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+  call InputDestroy(input)
+
+end subroutine SimulationMRRead
 
 ! ************************************************************************** !
 
@@ -236,7 +296,8 @@ subroutine SimulationMRExecuteRun(this)
     option => OptionCreate()
     call OptionSetDriver(option,this%driver)
     call SimulationMRIncrement(this,option)
-    call FactoryForwardInitialize(forward_simulation,option)
+    call FactoryForwardInitialize(forward_simulation, &
+                                  this%forward_simulation_filename,option)
     call forward_simulation%InitializeRun()
     if (option%status == PROCEED) then
       call forward_simulation%ExecuteRun()

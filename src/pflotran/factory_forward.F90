@@ -16,7 +16,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine FactoryForwardInitialize(simulation,option)
+subroutine FactoryForwardInitialize(simulation,default_input_filename,option)
 !
 ! Sets up Forward subsurface simulation framework after PETSc initialization
 ! Author: Glenn Hammond
@@ -32,6 +32,7 @@ subroutine FactoryForwardInitialize(simulation,option)
   implicit none
 
   class(simulation_subsurface_type), pointer :: simulation
+  character(len=MAXSTRINGLENGTH) :: default_input_filename
   type(option_type), pointer :: option
 
   class(driver_type), pointer :: driver
@@ -40,7 +41,7 @@ subroutine FactoryForwardInitialize(simulation,option)
 
   driver => option%driver
 
-  call FactoryForwardReadCommandLine(option)
+  call FactoryForwardReadCommandLine(default_input_filename,option)
 
   ! popped in SimulationBaseInitializeRun()
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr);CHKERRQ(ierr)
@@ -502,7 +503,7 @@ end subroutine FactoryForwardFinalize
 
 ! ************************************************************************** !
 
-subroutine FactoryForwardReadCommandLine(option)
+subroutine FactoryForwardReadCommandLine(default_input_filename,option)
   !
   ! Initializes Forward output filenames, etc.
   !
@@ -516,6 +517,7 @@ subroutine FactoryForwardReadCommandLine(option)
 
   implicit none
 
+  character(len=MAXSTRINGLENGTH) :: default_input_filename
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -530,29 +532,31 @@ subroutine FactoryForwardReadCommandLine(option)
   PetscErrorCode :: ierr
 
   ! check for non-default input filename
-  option%input_filename = 'pflotran.in'
-  string = '-pflotranin'
-  call InputGetCommandLineString(string,option%input_filename, &
-                                 pflotranin_option_found,option)
-  string = '-input_prefix'
-  call InputGetCommandLineString(string,option%input_prefix, &
-                                 input_prefix_option_found,option)
+  if (len_trim(option%input_filename) == 0) then
+    option%input_filename = trim(adjustl(default_input_filename))
+    string = '-pflotranin'
+    call InputGetCommandLineString(string,option%input_filename, &
+                                   pflotranin_option_found,option)
+    string = '-input_prefix'
+    call InputGetCommandLineString(string,option%input_prefix, &
+                                   input_prefix_option_found,option)
 
-  if (pflotranin_option_found .and. input_prefix_option_found) then
-    option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
-      '"-input_prefix" on the command lines.'
-    call PrintErrMsg(option)
-  else if (pflotranin_option_found) then
-    strings => StringSplit(option%input_filename,'.')
-    if (size(strings) > 1) then
-      option%input_prefix = StringsMerge(strings(1:size(strings)-1),'.')
-    else
-      option%input_prefix = strings(1)
+    if (pflotranin_option_found .and. input_prefix_option_found) then
+      option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
+        '"-input_prefix" on the command lines.'
+      call PrintErrMsg(option)
+    else if (pflotranin_option_found) then
+      strings => StringSplit(option%input_filename,'.')
+      if (size(strings) > 1) then
+        option%input_prefix = StringsMerge(strings(1:size(strings)-1),'.')
+      else
+        option%input_prefix = strings(1)
+      endif
+      deallocate(strings)
+      nullify(strings)
+    else if (input_prefix_option_found) then
+      option%input_filename = trim(option%input_prefix) // '.in'
     endif
-    deallocate(strings)
-    nullify(strings)
-  else if (input_prefix_option_found) then
-    option%input_filename = trim(option%input_prefix) // '.in'
   endif
 
   string = '-output_prefix'
