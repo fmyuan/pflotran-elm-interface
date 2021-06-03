@@ -3798,7 +3798,13 @@ subroutine RReact(istep,guess,rt_auxvar,global_auxvar,material_auxvar, &
 
   character(len=MAXSTRINGLENGTH) :: string
 
+  PetscReal :: scale
+  PetscInt :: solve_error
+
   PetscInt, parameter :: iphase = 1
+
+  solve_error = 0
+  ierror = 0
 
   ncomp = reaction%ncomp
   naqcomp = reaction%naqcomp
@@ -3853,7 +3859,13 @@ subroutine RReact(istep,guess,rt_auxvar,global_auxvar,material_auxvar, &
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
     endif
     call RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         natural_id,option)
+                         natural_id,option,solve_error)
+    ! Deal with failed solve in ion exchange
+    if (solve_error .ne. 0) then
+      num_iterations = num_iterations - 1
+      ierror = 1
+      return
+    endif
 
     if (num_iterations > reaction%maximum_reaction_iterations) then
       current_total(1:naqcomp) = rt_auxvar%total(:,1)
@@ -3948,7 +3960,13 @@ subroutine RReact(istep,guess,rt_auxvar,global_auxvar,material_auxvar, &
 
     J_store = J
     call RSolve(residual,J,conc,update,ncomp,reaction%use_log_formulation, &
-                PETSC_FALSE,ierror)
+                PETSC_FALSE,ierror,solve_error)
+    ! Deal with error in ludcmp
+    if (solve_error .ne. 0) then
+      num_iterations = num_iterations - 1
+      ierror = 1
+      return
+    endif
 
     if (ierror /= 0) then
       string = 'Error in RSolve:'
@@ -4599,8 +4617,8 @@ end subroutine RActivityCoefficients
 
 ! ************************************************************************** !
 
-subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
-  !
+subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option,ierror)
+  ! 
   ! Computes the total component concentrations and derivative with
   ! respect to free-ion for all phases (aqueous, sorbed, gas, etc.)
   !
@@ -4617,11 +4635,22 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
+  PetscInt,intent(out),optional :: ierror
 
-  call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  rt_auxvar%total = 0.d0
+  if (reaction%naqcomp > 0) then
+    call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  endif
+  if(present(ierror)) ierror = 0
   if (reaction%neqsorb > 0) then
-    call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
+    if(present(ierror)) then
+      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
+        reaction,reaction%isotherm%isotherm_rxn,option,ierror)
+      if(ierror .ne. 0) return   
+    else 
+      call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
                     reaction,reaction%isotherm%isotherm_rxn,option)
+    endif
   endif
   if (option%iflowmode == MPH_MODE) then
     call RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
@@ -4754,7 +4783,7 @@ end subroutine RZeroSorb
 ! ************************************************************************** !
 
 subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                      isotherm_rxn, option)
+                      isotherm_rxn, option, ierror)
   !
   ! Computes the total sorbed component concentrations and
   ! derivative with respect to free-ion
@@ -4773,16 +4802,23 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   class(reaction_rt_type) :: reaction
   type(isotherm_rxn_type), pointer :: isotherm_rxn
   type(option_type) :: option
-
+  PetscInt,intent(out),optional :: ierror
+  
   call RZeroSorb(rt_auxvar)
+
+  if(present(ierror)) ierror = 0
 
   if (reaction%surface_complexation%neqsrfcplxrxn > 0) then
     call RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
                               reaction,option)
   endif
-
   if (reaction%neqionxrxn > 0) then
-    call RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
+    if(present(ierror)) then
+      call RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option,ierror)
+      if(ierror .ne. 0) return
+    else
+      call RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
+    endif
   endif
 
   if (reaction%neqdynamickdrxn > 0) then
@@ -4869,7 +4905,7 @@ end subroutine RTotalSorbDynamicKD
 
 ! ************************************************************************** !
 
-subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
+subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option,ierror)
   !
   ! Computes the total sorbed component concentrations and
   ! derivative with respect to free-ion for equilibrium ion
@@ -4886,8 +4922,10 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   type(global_auxvar_type) :: global_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
+  PetscInt,optional,intent(out) :: ierror
 
   PetscInt :: i, j, icomp, jcomp, ncomp
+
   PetscReal :: ln_conc(reaction%naqcomp)
   PetscReal :: ln_act(reaction%naqcomp)
   PetscReal :: tempreal1, tempreal2, total
@@ -4906,6 +4944,8 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
 
   ln_conc = log(rt_auxvar%pri_molal)
   ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
+    
+  if(present(ierror)) ierror=0
 
   ! Ion Exchange
   if (associated(rt_auxvar%eqionx_conc)) rt_auxvar%eqionx_conc = 0.d0
@@ -4941,9 +4981,14 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
       do
         it = it + 1
         if (it > 20000) then
-          option%io_buffer = 'Too many Newton iterations in ion exchange.'
-          call PrintErrMsgNoStopByRank(option)
-          option%ierror = 1
+          if(present(ierror)) then
+            ierror = 1
+            return
+          else
+            option%io_buffer = 'Too many Newton iterations in ion exchange.'
+            call PrintErrMsgNoStopByRank(option)
+            option%ierror = 1
+          endif
         endif
         ref_cation_X = KDj*(ref_cation_k*ref_cation_conc)
         cation_X(1) = ref_cation_X
@@ -5412,7 +5457,7 @@ end subroutine RGeneral
 ! ************************************************************************** !
 
 subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation, &
-                  stop_on_error,ierror)
+                  stop_on_error,ierror,solve_error)
   !
   ! Computes the kinetic mineral precipitation/dissolution
   ! rates
@@ -5433,6 +5478,7 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation, &
   PetscBool :: use_log_formulation
   PetscBool :: stop_on_error
   PetscInt :: ierror
+  PetscInt,optional,intent(out) :: solve_error
 
   PetscInt :: indices(ncomp)
   PetscReal :: rhs(ncomp)
@@ -5454,13 +5500,20 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation, &
     enddo
   endif
 
-  ierror = 0
-  call LUDecomposition(Jac,ncomp,indices,icomp,stop_on_error,ierror)
-  if (ierror == 0) then
-    call LUBackSubstitution(Jac,ncomp,indices,rhs)
-    update = rhs
-  endif
+  if(present(solve_error)) then
+    call LUDecomposition(Jac,ncomp,indices,icomp,stop_on_error,ierror)
+    solve_error=ierror
+    if(solve_error .ne. 0) return
 
+  else
+    ierror = 0
+    call LUDecomposition(Jac,ncomp,indices,icomp,stop_on_error,ierror)
+    if (ierror == 0) then
+      call LUBackSubstitution(Jac,ncomp,indices,rhs)
+      update = rhs
+    endif
+
+  endif
 
 end subroutine RSolve
 
@@ -5553,7 +5606,7 @@ end subroutine RAge
 ! ************************************************************************** !
 
 subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                           natural_id,option)
+                           natural_id,option,ierror)
   !
   ! Computes secondary variables for each grid cell
   !
@@ -5571,6 +5624,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
+  PetscInt,intent(out),optional :: ierror
 
 #if 0
   PetscReal :: Res_orig(reaction%ncomp)
@@ -5584,7 +5638,12 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
 #endif
 
   !already set  rt_auxvar%pri_molal = x
+if(present(ierror)) then
+  call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option,ierror)
+  if(ierror .ne. 0) return
+else
   call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+endif
 
 #if 0
 ! numerical check
