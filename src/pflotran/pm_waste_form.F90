@@ -5904,7 +5904,7 @@ subroutine SpacerMechInputRecord(this)
   implicit none
   ! INPUT ARGUMENTS:
   ! ================
-  type(spacer_mechanism_base_type), pointer :: this
+  class(spacer_mechanism_base_type), pointer :: this
   ! ---------------------------------
   ! LOCAL VARIABLES:
   ! ================
