@@ -1296,6 +1296,7 @@ subroutine PMERTBuildWm(this)
   !
 
   use Patch_module
+  use Grid_module
   use Material_Aux_class
   use Inversion_module
 
@@ -1306,6 +1307,7 @@ subroutine PMERTBuildWm(this)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
   type(inversion_type), pointer :: inversion
   type(constrained_block_type), pointer :: constrained_block
 
@@ -1313,6 +1315,7 @@ subroutine PMERTBuildWm(this)
 
   option => this%option
   patch => this%realization%patch
+  grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
 
   inversion => this%inversion
@@ -1336,24 +1339,27 @@ contains
     PetscInt :: iconst
     PetscReal :: wm
 
-    PetscInt :: irb
+    PetscInt :: irb,ghosted_id,ghosted_id_nb
     PetscReal :: x,awx,awy,awz
     PetscReal :: cond_ce,cond_nb     ! cell's and neighbor's
     PetscReal :: mn,sd
+    PetscReal :: rx,ry,rz,r
     PetscInt, pointer :: rblock(:,:)
 
     rblock => inversion%rblock
 
     ! get cond & block of the ith constrained eq.
-    cond_ce = material_auxvars(rblock(iconst,1))%electrical_conductivity(1)
+    ghosted_id = rblock(iconst,1)
+    ghosted_id_nb = rblock(iconst,2)
     irb = rblock(iconst,3)
+    cond_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
 
     select case(constrained_block%structure_metric(irb))
     case(1)
-      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
       x = log(cond_ce) - log(cond_nb)
     case(2)
-      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
       x = abs(log(cond_ce) - log(cond_nb))
     case(3)
       x = log(cond_ce) - log(constrained_block%reference_conductivity(irb))
@@ -1361,27 +1367,43 @@ contains
       x = abs(log(cond_ce) - &
               log(constrained_block%reference_conductivity(irb)))
     case(5)
-      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
       x = log(cond_ce) - log(cond_nb)
-      ! TODO: compute rx,ry, and rz
+
+      ! compute rx,ry, and rz
+      rx = grid%x(ghosted_id) - grid%x(ghosted_id_nb)
+      ry = grid%y(ghosted_id) - grid%y(ghosted_id_nb)
+      rz = grid%z(ghosted_id) - grid%z(ghosted_id_nb)
+      r = sqrt(rx*rx + ry*ry + rz*rz)
+      rx = rx / r
+      ry = ry / r
+      rz = rz / r
     case(6)
-      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
       x = abs(log(cond_ce) - log(cond_nb))
-      ! TODO: compute rx,ry, and rz
+
+      ! compute rx,ry, and rz
+      rx = grid%x(ghosted_id) - grid%x(ghosted_id_nb)
+      ry = grid%y(ghosted_id) - grid%y(ghosted_id_nb)
+      rz = grid%z(ghosted_id) - grid%z(ghosted_id_nb)
+      r = sqrt(rx*rx + ry*ry + rz*rz)
+      rx = rx / r
+      ry = ry / r
+      rz = rz / r
     case(7)
-      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
       x = (log(cond_ce) - log(constrained_block%reference_conductivity(irb))) &
          -(log(cond_nb) - log(constrained_block%reference_conductivity(irb)))
     case(8)
-      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
       x = abs( &
           (log(cond_ce) - log(constrained_block%reference_conductivity(irb))) &
          -(log(cond_nb) - log(constrained_block%reference_conductivity(irb))) )
     case(9)
-      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
       x = log(cond_ce) - log(cond_nb)
     case(10)
-      cond_nb = material_auxvars(rblock(iconst,2))%electrical_conductivity(1)
+      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
       x = abs(log(cond_ce) - log(cond_nb))
     case default
       option%io_buffer = 'Supported STRUCTURE_METRIC in INVERSION, &
@@ -1424,8 +1446,7 @@ contains
       awx = constrained_block%aniso_weight(irb,1)
       awy = constrained_block%aniso_weight(irb,2)
       awz = constrained_block%aniso_weight(irb,3)
-      ! TODO: compute rx,ry, and rz before
-      !wm = (1 - abs( awx*rx + awy*ry + awz*rz))**2
+      wm = (1 - abs( awx*rx + awy*ry + awz*rz))**2
     end if
 
     wm = constrained_block%relative_weight(irb) * wm
