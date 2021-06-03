@@ -563,7 +563,7 @@ end subroutine ReallocateBoolArray1
 
 ! ************************************************************************** !
 
-subroutine ludcmp(A,N,INDX,D)
+subroutine ludcmp(A,N,INDX,D,ludcmp_error)
   ! 
   ! Given an NxN matrix A, with physical dimension NP, this routine replaces it
   ! by the LU decomposition of a rowwise permutation of itself.
@@ -581,12 +581,14 @@ subroutine ludcmp(A,N,INDX,D)
   PetscReal :: A(N,N),VV(N)
   PetscInt :: INDX(N)
   PetscInt :: D
+  PetscInt,optional,intent(out) :: ludcmp_error
 
   PetscInt :: i, j, k, imax
   PetscReal :: aamax, sum, dum
   PetscMPIInt ::  rank
   PetscErrorCode :: ierr
 
+  if(present(ludcmp_error)) ludcmp_error = 0
   D=1
   do i=1,N
     aamax=0.d0
@@ -594,14 +596,19 @@ subroutine ludcmp(A,N,INDX,D)
       if (abs(A(i,j)).gt.aamax) aamax=abs(A(i,j))
     enddo
     if (aamax <= 0.d0) then
-      call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
-      print *, "ERROR: Singular value encountered in ludcmp() on processor: ", rank, ' aamax = ',aamax,' row = ',i
-      do k = 1, N
-        print *, "Jacobian: ",k,(j,A(k,j),j=1,N)
-      enddo
-      call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
-      call MPI_Finalize(ierr)
-      stop
+      if(present(ludcmp_error)) then
+        ludcmp_error = 1
+        return
+      else
+        call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
+        print *, "ERROR: Singular value encountered in ludcmp() on processor: ", rank, ' aamax = ',aamax,' row = ',i
+        do k = 1, N
+          print *, "Jacobian: ",k,(j,A(k,j),j=1,N)
+        enddo
+        call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
+        call MPI_Finalize(ierr)
+        stop
+      endif
     endif
     VV(i)=1./aamax
   enddo
