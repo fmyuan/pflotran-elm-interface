@@ -810,6 +810,7 @@ simulation_geomechanics.o : geomechanics_realization.o \
                             realization_subsurface.o simulation_aux.o \
                             simulation_subsurface.o timestepper_base.o \
                             timestepper_steady.o utility.o waypoint.o
+simulation_inverse.o : factory_forward.o simulation_subsurface.o
 simulation_multirealization.o : simulation_base.o factory_forward.o
 simulation_subsurface.o : characteristic_curves.o \
                           characteristic_curves_thermal.o checkpoint.o \

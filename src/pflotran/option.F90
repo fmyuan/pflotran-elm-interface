@@ -376,7 +376,7 @@ subroutine OptionInitRealization(option)
   call OptionTransportInitRealization(option%transport)
 
 
-  option%fid_out = OUT_UNIT
+  option%fid_out = FORWARD_OUT_UNIT
   option%fid_inputrecord = INPUT_RECORD_UNIT
 
   option%iflag = 0

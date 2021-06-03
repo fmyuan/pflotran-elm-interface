@@ -619,7 +619,7 @@ end function SimSubsurfGetFinalWaypointTime
 
 ! ************************************************************************** !
 
-subroutine SimSubsurfFinalizeRun(this)
+subroutine SimSubsurfFinalizeRun(this,fid_out)
   !
   ! Finalizes simulation
   !
@@ -640,6 +640,7 @@ subroutine SimSubsurfFinalizeRun(this)
   implicit none
 
   class(simulation_subsurface_type) :: this
+  PetscInt, optional :: fid_out
 
   character(MAXSTRINGLENGTH) :: string
   class(pmc_base_type), pointer :: cur_process_model_coupler
@@ -694,7 +695,7 @@ subroutine SimSubsurfFinalizeRun(this)
                             flow_timestepper,tran_timestepper)
   end select
 
-  call SimulationBaseFinalizeRun(this)
+  call SimulationBaseFinalizeRun(this,this%option%fid_out)
 
   ! close output files
   call PetscLogStagePop(ierr);CHKERRQ(ierr)

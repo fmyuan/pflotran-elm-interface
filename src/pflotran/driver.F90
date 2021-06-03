@@ -17,7 +17,9 @@ module Driver_module
     character(len=MAXSTRINGLENGTH) :: input_prefix
     character(len=MAXSTRINGLENGTH) :: global_prefix
 
+    PetscInt :: fid_out
     PetscBool :: print_to_screen
+    PetscBool :: print_to_file
     PetscMPIInt :: io_rank
     PetscInt :: exit_code                  ! code passed out of PFLOTRAN
                                            ! at end of simulation
@@ -53,7 +55,9 @@ function DriverCreate()
   driver%input_filename = ''
   driver%input_prefix = ''
   driver%global_prefix = ''
+  driver%fid_out = -1
   driver%print_to_screen = PETSC_TRUE
+  driver%print_to_file = PETSC_TRUE
   driver%exit_code = 0
   driver%io_rank = 0
   driver%status = 0
@@ -146,6 +150,7 @@ subroutine DriverDestroy(driver)
   class(driver_type), pointer :: driver
 
   call CommDestroy(driver%comm)
+  if (driver%fid_out > 0) close(driver%fid_out)
 
   deallocate(driver)
   nullify(driver)

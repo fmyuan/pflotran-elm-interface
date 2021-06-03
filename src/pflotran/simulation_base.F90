@@ -190,7 +190,7 @@ end subroutine SimulationBaseRunToTime
 
 ! ************************************************************************** !
 
-subroutine SimulationBaseFinalizeRun(this)
+subroutine SimulationBaseFinalizeRun(this,fid_out)
   !
   ! Finalizes simulation
   !
@@ -202,6 +202,7 @@ subroutine SimulationBaseFinalizeRun(this)
   implicit none
 
   class(simulation_base_type) :: this
+  PetscInt, optional :: fid_out
 
   type(option_type), pointer :: option
   PetscLogDouble :: total_time
@@ -222,7 +223,7 @@ subroutine SimulationBaseFinalizeRun(this)
         total_time/3600.d0
     endif
     if (option%print_to_file) then
-      write(option%fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+      write(fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
         & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
         total_time, &
         total_time/60.d0, &

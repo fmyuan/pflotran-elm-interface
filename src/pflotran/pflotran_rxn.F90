@@ -245,7 +245,7 @@ program pflotran_rxn
 
   option => OptionCreate()
   option%driver => driver
-  option%fid_out = OUT_UNIT
+  option%fid_out = FORWARD_OUT_UNIT
 
   ! check for non-default input filename
   option%input_filename = "pflotran.in"

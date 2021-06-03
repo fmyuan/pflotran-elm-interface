@@ -41,7 +41,6 @@ for line in open('pflotran_object_files.txt','r'):
 #    print(w2[0])
     source_file_roots.append(w2[0])
 source_file_roots.append('pflotran')
-source_file_roots.append('pflotran_inverse')
 source_file_roots.append('pflotran_rxn')
 source_file_roots.append('pflotran_derivative')
 

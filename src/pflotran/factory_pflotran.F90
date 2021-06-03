@@ -62,6 +62,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
     driver%input_filename = trim(driver%input_prefix) // '.in'
   endif
 
+  driver%global_prefix = driver%input_prefix
 #if 0
   string = '-output_prefix'
   call InputGetCommandLineString(string,driver%global_prefix,option_found, &
@@ -92,8 +93,9 @@ function FactoryPFLOTRANCreateSimulation(driver)
   use Factory_Forward_module
   use Simulation_Base_class
   use Simulation_Geomechanics_class
-  use Simulation_Subsurface_class
+  use Simulation_Inverse_class
   use Simulation_MultiRealization_class
+  use Simulation_Subsurface_class
 
   class(driver_type), pointer :: driver
 
@@ -120,8 +122,19 @@ function FactoryPFLOTRANCreateSimulation(driver)
   if (stochastic_option_found) simulation_type = 'MULTIREALIZATION'
 
   select case(simulation_type)
+    case('MULTIREALIZATION','INVERSE')
+      driver%fid_out = DRIVER_OUT_UNIT
+      string = trim(driver%global_prefix) // '.out'
+      if (driver%comm%myrank == driver%io_rank .and. driver%print_to_file) then
+        open(driver%fid_out, file=string, action="write", status="unknown")
+      endif
+  end select
+
+  select case(simulation_type)
     case('MULTIREALIZATION')
       simulation => SimulationMRCreate(driver)
+    case('INVERSE')
+      simulation => SimulationInverseCreate(driver)
     case('SUBSURFACE','GEOMECHANICS_SUBSURFACE')
       select case(simulation_type)
         case('SUBSURFACE')
@@ -129,7 +142,6 @@ function FactoryPFLOTRANCreateSimulation(driver)
         case('GEOMECHANICS_SUBSURFACE')
           simulation => GeomechanicsSimulationCreate(driver,option)
       end select
-    case('INVERSE')
     case default
       call driver%PrintErrMsg('Unrecognized SIMULATION_TYPE ' // &
         trim(simulation_type))
@@ -138,6 +150,8 @@ function FactoryPFLOTRANCreateSimulation(driver)
   select type(simulation)
     class is(simulation_subsurface_type)
       call FactoryForwardInitialize(simulation,driver%input_filename,option)
+    class is(simulation_inverse_type)
+      call SimulationInverseRead(simulation,option)
     class is(simulation_multirealization_type)
       if (stochastic_option_found) then
         simulation%forward_simulation_filename = driver%input_filename

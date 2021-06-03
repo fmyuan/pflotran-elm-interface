@@ -174,11 +174,6 @@ dataset_obj = \
 	${common_src}dataset_gridded_hdf5.o \
 	${common_src}time_storage.o
 
-inversion_obj = \
-	${common_src}factory_inversion.o \
-	${common_src}inversion_base.o \
-	${common_src}inversion_insite.o
-
 srcsink_obj = \
 	${common_src}srcsink_sandbox.o \
 	${common_src}srcsink_sandbox_base.o \
@@ -237,6 +232,7 @@ misc_obj = \
 	${common_src}secondary_continuum.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
+	${common_src}simulation_inverse.o \
 	${common_src}simulation_multirealization.o \
 	${common_src}simulation_subsurface.o \
 	${common_src}spline.o \

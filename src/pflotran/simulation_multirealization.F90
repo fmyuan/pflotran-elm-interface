@@ -337,7 +337,7 @@ end subroutine SimulationMRIncrement
 
 ! ************************************************************************** !
 
-subroutine SimulationMRFinalizeRun(this)
+subroutine SimulationMRFinalizeRun(this,fid_out)
   !
   ! Finalizes simulation
   !
@@ -345,8 +345,9 @@ subroutine SimulationMRFinalizeRun(this)
   ! Date: 05/27/21
 
   class(simulation_multirealization_type) :: this
+  PetscInt, optional :: fid_out
 
-  call SimulationBaseFinalizeRun(this)
+  call SimulationBaseFinalizeRun(this,this%driver%fid_out)
 
 end subroutine SimulationMRFinalizeRun
 
