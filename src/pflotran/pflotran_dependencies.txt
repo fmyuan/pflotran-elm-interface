@@ -133,6 +133,7 @@ factory_inversion.o : inversion_base.o inversion_insite.o
 factory_pflotran.o : checkpoint.o eos.o factory_geomechanics.o \
                      factory_subsurface.o hdf5_aux.o input_aux.o logging.o \
                      option.o output_aux.o simulation_multirealization.o \
+                     simulation_inverse.o \
                      pflotran_constants.o pm_auxiliary.o pm_base.o \
                      pm_geomechanics_force.o pmc_base.o simulation_base.o \
                      simulation_geomechanics.o simulation_subsurface.o \

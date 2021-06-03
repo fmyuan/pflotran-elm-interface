@@ -3,7 +3,6 @@
 !=======================================================================
 program pflotran
 
-  use Communicator_Aux_module
   use Driver_module
   use Simulation_Base_class
   use Factory_PFLOTRAN_module
@@ -18,7 +17,6 @@ program pflotran
   PetscInt :: iflag
 
   driver => DriverCreate()
-  call CommInitPetsc(driver%comm)
   call FactoryPFLOTRANInitialize(driver,simulation)
   call simulation%InitializeRun()
   if (driver%status == PROCEED) then

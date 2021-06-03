@@ -23,6 +23,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   ! Author: Glenn Hammond
   ! Date: 05/10/21
 
+  use Communicator_Aux_module
   use Driver_module
   use HDF5_Aux_module
   use Input_Aux_module
@@ -41,6 +42,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   PetscBool :: input_prefix_option_found
   PetscBool :: option_found
 
+  call CommInitPetsc(driver%comm)
   option => OptionCreate()
   call OptionSetDriver(option,driver)
 
