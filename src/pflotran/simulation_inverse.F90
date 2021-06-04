@@ -5,6 +5,7 @@ module Simulation_Inverse_class
   use PFLOTRAN_Constants_module
   use Simulation_Base_class
   use Simulation_Subsurface_class
+  use Inversion_Base_class
 
   implicit none
 
@@ -13,6 +14,7 @@ module Simulation_Inverse_class
   type, public, extends(simulation_base_type) :: &
                                       simulation_inverse_type
     class(simulation_subsurface_type), pointer :: forward_simulation
+    class(inversion_base_type), pointer :: inversion
     character(len=MAXSTRINGLENGTH) :: forward_simulation_filename
   contains
     procedure, public :: Init => SimulationInverseInit
@@ -69,6 +71,7 @@ subroutine SimulationInverseInit(this,driver)
 
   call SimulationBaseInit(this,driver)
   nullify(this%forward_simulation)
+  nullify(this%inversion)
   this%forward_simulation_filename = ''
 
 end subroutine SimulationInverseInit
@@ -137,6 +140,7 @@ subroutine SimulationInverseInitializeRun(this)
   use Option_module
   use Input_Aux_module
   use Communicator_Aux_module
+  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
 
@@ -153,6 +157,7 @@ subroutine SimulationInverseInitializeRun(this)
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
+  this%inversion => InversionINSITECreate(this%driver)
 
   call SimulationBaseInitializeRun(this)
 
@@ -172,13 +177,15 @@ subroutine SimulationInverseExecuteRun(this)
   use Option_module
   use Factory_Forward_module
   use Simulation_Subsurface_class
+  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
 
   type(option_type), pointer :: option
 
-  PetscInt :: num_forward_runs = 0
+  PetscInt :: num_forward_runs
 
+  num_forward_runs = 0
   do
     if (num_forward_runs > 2) exit
     option => OptionCreate()
@@ -187,6 +194,10 @@ subroutine SimulationInverseExecuteRun(this)
     call OptionSetDriver(option,this%driver)
     call FactoryForwardInitialize(this%forward_simulation, &
                                   this%forward_simulation_filename,option)
+    select type(i=>this%inversion)
+      class is(inversion_insite_type)
+        i%realization => this%forward_simulation%realization
+    end select
     call this%UpdateParameters()
     call this%forward_simulation%InitializeRun()
     if (option%status == PROCEED) then
@@ -213,6 +224,8 @@ subroutine SimulationInvUpdateParameters(this)
 
   class(simulation_inverse_type) :: this
 
+  call this%inversion%UpdateParameters()
+
 end subroutine SimulationInvUpdateParameters
 
 ! ************************************************************************** !
@@ -225,6 +238,8 @@ subroutine SimulationInvCalculateInverse(this)
   ! Date: 06/02/21
 
   class(simulation_inverse_type) :: this
+
+  call this%inversion%CalculateInverse()
 
 end subroutine SimulationInvCalculateInverse
 
@@ -240,6 +255,7 @@ subroutine SimulationInverseFinalizeRun(this,fid_out)
   class(simulation_inverse_type) :: this
   PetscInt, optional :: fid_out
 
+  call this%inversion%Finalize()
   call SimulationBaseFinalizeRun(this,this%driver%fid_out)
 
 end subroutine SimulationInverseFinalizeRun
@@ -256,8 +272,15 @@ subroutine SimulationInverseStrip(this)
   class(simulation_inverse_type) :: this
 
   call SimulationBaseStrip(this)
-  if (associated(this%forward_simulation)) deallocate(this%forward_simulation)
+  if (associated(this%forward_simulation)) then
+    print *, 'Why is forward simulation still associated in &
+             &SimulationInverseStrip?'
+    stop
+  endif
   nullify(this%forward_simulation)
+  call this%inversion%Strip()
+  deallocate(this%inversion)
+  nullify(this%inversion)
 
 end subroutine SimulationInverseStrip
 

@@ -540,8 +540,10 @@ subroutine FactoryForwardReadCommandLine(option)
     string = StringGetPath(option%global_prefix)
     if (.not.(len_trim(string) > 0)) then
       string = StringGetPath(option%input_filename)
-      option%global_prefix = trim(string) // '/' // &
-        adjustl(option%global_prefix)
+      if (len_trim(string) > 0) then
+        option%global_prefix = trim(string) // '/' // &
+          adjustl(option%global_prefix)
+      endif
     endif
   endif
 

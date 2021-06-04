@@ -329,10 +329,8 @@ inlinesurface_aux.o : global_aux.o option.o utility.o
 input_aux.o : option.o pflotran_constants.o string.o units.o
 integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
                   string.o utility.o
-inversion_base.o : communicator_aux.o timer.o
-inversion_insite.o : factory.o factory_pflotran.o factory_subsurface.o \
-                     inversion_base.o option.o \
-                     pflotran_constants.o simulation_base.o
+inversion_base.o : driver.o timer.o
+inversion_insite.o : inversion_base.o realization_subsurface.o
 kdtree.o :
 logging.o : pflotran_constants.o
 lookup_table.o : input_aux.o option.o pflotran_constants.o units.o utility.o
@@ -811,7 +809,8 @@ simulation_geomechanics.o : geomechanics_realization.o \
                             realization_subsurface.o simulation_aux.o \
                             simulation_subsurface.o timestepper_base.o \
                             timestepper_steady.o utility.o waypoint.o
-simulation_inverse.o : factory_forward.o simulation_subsurface.o
+simulation_inverse.o : factory_forward.o simulation_subsurface.o \
+                       inversion_insite.o
 simulation_multirealization.o : simulation_base.o factory_forward.o
 simulation_subsurface.o : characteristic_curves.o \
                           characteristic_curves_thermal.o checkpoint.o \
