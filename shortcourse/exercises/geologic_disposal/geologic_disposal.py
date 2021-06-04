@@ -48,10 +48,10 @@ basecolors = ['red','blue']
 
 #Upper aquifer obs points
 titles.append('Shallow Sandstone Aquifer')
-files.append('./geologic_disposal-obs-0.tec')
+files.append('./geologic_disposal-obs-0.pft')
 columns.append(29)
 name.append('Near')
-files.append('./geologic_disposal-obs-0.tec')
+files.append('./geologic_disposal-obs-0.pft')
 columns.append(41)
 name.append('Far')
 
@@ -60,10 +60,10 @@ colors.extend(basecolors)
 
 #Shale host rock obs points
 titles.append('Shale Host Rock')
-files.append('./geologic_disposal-obs-0.tec')
+files.append('./geologic_disposal-obs-0.pft')
 columns.append(5)
 name.append('Near')
-files.append('./geologic_disposal-obs-0.tec')
+files.append('./geologic_disposal-obs-0.pft')
 columns.append(17)
 name.append('Far')
 
@@ -72,10 +72,10 @@ colors.extend(basecolors)
 
 #Lower aquifer obs points
 titles.append('Deep Limestone Aquifer')
-files.append('./geologic_disposal-obs-0.tec')
+files.append('./geologic_disposal-obs-0.pft')
 columns.append(53)
 name.append('Near')
-files.append('./geologic_disposal-obs-0.tec')
+files.append('./geologic_disposal-obs-0.pft')
 columns.append(65)
 name.append('Far')
 
