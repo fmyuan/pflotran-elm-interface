@@ -245,7 +245,7 @@ end subroutine SimulationInvCalculateInverse
 
 ! ************************************************************************** !
 
-subroutine SimulationInverseFinalizeRun(this,fid_out)
+subroutine SimulationInverseFinalizeRun(this)
   !
   ! Finalizes simulation
   !
@@ -253,10 +253,12 @@ subroutine SimulationInverseFinalizeRun(this,fid_out)
   ! Date: 05/27/21
 
   class(simulation_inverse_type) :: this
-  PetscInt, optional :: fid_out
 
   call this%inversion%Finalize()
-  call SimulationBaseFinalizeRun(this,this%driver%fid_out)
+  call SimulationBaseFinalizeRun(this)
+  if (this%driver%comm%global_rank == this%driver%io_rank) then
+    call SimulationBaseWriteTimes(this,this%driver%fid_out)
+  endif
 
 end subroutine SimulationInverseFinalizeRun
 

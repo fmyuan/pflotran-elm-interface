@@ -208,7 +208,7 @@ end subroutine GeomechanicsSimulationExecuteRun
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsSimulationFinalizeRun(this,fid_out)
+subroutine GeomechanicsSimulationFinalizeRun(this)
   ! 
   ! This routine
   ! 
@@ -222,7 +222,6 @@ subroutine GeomechanicsSimulationFinalizeRun(this,fid_out)
   implicit none
 
   class(simulation_geomechanics_type) :: this
-  PetscInt, optional :: fid_out
 
   class(timestepper_steady_type), pointer :: geomech_timestepper
 

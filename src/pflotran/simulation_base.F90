@@ -32,6 +32,7 @@ module Simulation_Base_class
             SimulationBaseInitializeRun, &
             SimulationBaseInputRecord, &
             SimulationBaseFinalizeRun, &
+            SimulationBaseWriteTimes, &
             SimulationBaseStrip, &
             SimulationBaseDestroy
 
@@ -190,50 +191,55 @@ end subroutine SimulationBaseRunToTime
 
 ! ************************************************************************** !
 
-subroutine SimulationBaseFinalizeRun(this,fid_out)
+subroutine SimulationBaseFinalizeRun(this)
   !
   ! Finalizes simulation
   !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
   !
-  use Option_module
+  implicit none
 
+  class(simulation_base_type) :: this
+
+  call this%timer%Stop()
+
+end subroutine SimulationBaseFinalizeRun
+
+! ************************************************************************** !
+
+subroutine SimulationBaseWriteTimes(this,fid_out)
+  !
+  ! Finalizes simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/11/13
+  !
   implicit none
 
   class(simulation_base_type) :: this
   PetscInt, optional :: fid_out
 
-  type(option_type), pointer :: option
   PetscLogDouble :: total_time
 
-  option => OptionCreate()
-  call OptionSetDriver(option,this%driver)
-
-  call this%timer%Stop()
   total_time = this%timer%GetCumulativeTime()
 
-  if (option%myrank == option%io_rank) then
-
-    if (option%print_to_screen) then
-      write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
-        & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-        total_time, &
-        total_time/60.d0, &
-        total_time/3600.d0
-    endif
-    if (option%print_to_file) then
-      write(fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
-        & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-        total_time, &
-        total_time/60.d0, &
-        total_time/3600.d0
-    endif
+  if (this%driver%print_to_screen) then
+    write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+      & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
+      total_time, &
+      total_time/60.d0, &
+      total_time/3600.d0
+  endif
+  if (this%driver%print_to_file) then
+    write(fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+      & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
+      total_time, &
+      total_time/60.d0, &
+      total_time/3600.d0
   endif
 
-  call OptionDestroy(option)
-
-end subroutine SimulationBaseFinalizeRun
+end subroutine SimulationBaseWriteTimes
 
 ! ************************************************************************** !
 
