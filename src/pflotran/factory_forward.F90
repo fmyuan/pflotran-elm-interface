@@ -52,8 +52,7 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
   call PetscLogEventBegin(logging%event_init,ierr);CHKERRQ(ierr)
 
   call EOSInit()
-  filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-             '.out'
+  filename = trim(option%global_prefix) // trim(option%group_prefix) // '.out'
   if (option%myrank == option%io_rank .and. option%print_to_file) then
     open(option%fid_out, file=filename, action="write", status="unknown")
   endif
@@ -537,6 +536,14 @@ subroutine FactoryForwardReadCommandLine(option)
   string = '-output_prefix'
   call InputGetCommandLineString(string,option%global_prefix,option_found, &
                                  option)
+  if (option_found) then
+    string = StringGetPath(option%global_prefix)
+    if (.not.(len_trim(string) > 0)) then
+      string = StringGetPath(option%input_filename)
+      option%global_prefix = trim(string) // '/' // &
+        adjustl(option%global_prefix)
+    endif
+  endif
 
   string = '-screen_output'
   call InputGetCommandLineTruth(string,option%print_to_screen,option_found,option)

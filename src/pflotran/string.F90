@@ -44,7 +44,8 @@ module String_module
             StringWriteToUnits, &
             String1Or2, &
             StringGetMaximumLength, &
-            StringGetPrefixFilename, &
+            StringGetFilename, &
+            StringGetPath, &
             StringStripFilenameSuffix
 
   interface StringWrite
@@ -1184,30 +1185,55 @@ end function StringGetMaximumLength
 
 ! ************************************************************************** !
 
-function StringGetPrefixFilename(prefix)
+function StringGetFilename(filename_and_path)
   ! 
-  ! Writes a string to multipel file units (one of which could be the screen)
+  ! Strips the path from a full path and filename
   ! 
   ! Author: Glenn Hammond
-  ! Date: 08/06/18
-  ! 
+  ! Date: 06/02/21
 
   implicit none
  
-  character(len=*) :: prefix
+  character(len=*) :: filename_and_path
 
-  character(len=MAXSTRINGLENGTH) :: StringGetPrefixFilename
+  character(len=MAXSTRINGLENGTH) :: StringGetFilename
 
   PetscInt :: i
 
-  i = index(prefix,'/',PETSC_TRUE)
+  i = index(filename_and_path,'/',PETSC_TRUE)
 
-  StringGetPrefixFilename = prefix
+  StringGetFilename = filename_and_path
   if (i > 0) then
-    StringGetPrefixFilename = trim(prefix(i+1:))
+    StringGetFilename = trim(filename_and_path(i+1:))
   endif
 
-end function StringGetPrefixFilename
+end function StringGetFilename
+
+! ************************************************************************** !
+
+function StringGetPath(filename_and_path)
+  ! 
+  ! Strips the filename from a full path and filename
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/02/21
+
+  implicit none
+ 
+  character(len=*) :: filename_and_path
+
+  character(len=MAXSTRINGLENGTH) :: StringGetPath
+
+  PetscInt :: i
+
+  i = index(filename_and_path,'/',PETSC_TRUE)
+
+  StringGetPath = ''
+  if (i > 0) then
+    StringGetPath = trim(filename_and_path(1:i-1))
+  endif
+
+end function StringGetPath
 
 ! ************************************************************************** !
 
