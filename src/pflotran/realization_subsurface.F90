@@ -2654,7 +2654,7 @@ subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1, &
   PetscReal :: max_dt_cfl_1
   PetscReal :: max_pore_velocity
 
-  max_dt_cfl_1 = 1.d20
+  max_dt_cfl_1 = MAX_DOUBLE
   max_pore_velocity = 0.d0
   call PatchCalculateCFL1Timestep(realization%patch,realization%option, &
                                   max_dt_cfl_1, &

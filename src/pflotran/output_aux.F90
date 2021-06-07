@@ -1352,11 +1352,11 @@ subroutine OpenAndWriteInputRecord(option)
   id = option%fid_inputrecord
   ! the input record file has a .rec extension:
   filename = trim(option%global_prefix) // trim(option%group_prefix) // '.rec'
-  open(unit=id,file=filename,action="write",status="replace")
 !geh: this call does not work with IBM
 !  call fdate(word)
   call date_and_time(date_word,time_word,zone_word)
   if (OptionPrintToFile(option)) then
+    open(unit=id,file=filename,action="write",status="replace")
     write(id,'(a)') '---------------------------------------------------------&
                     &-----------------------'
     write(id,'(a)') '---------------------------------------------------------&

@@ -325,6 +325,7 @@ WASTE_FORM_GENERAL
     VOLUME 1.14d0 m^3
     MECHANISM_NAME dsnf01
     CRITICALITY_MECHANISM_NAME crit_01
+    SPACER_MECHANISM_NAME spc_01
     CANISTER_VITALITY_RATE 0.50 1/day
   /
   WASTE_FORM
@@ -345,7 +346,9 @@ WASTE_FORM_GENERAL
     NAME crit_01
     CRIT_START 1.d1 d
     CRIT_END 4.d2 d
-    HEAT_OF_CRITICALITY 1.d-7 W
+    HEAT_OF_CRITICALITY
+      CONSTANT_POWER 1.d-7 MW
+    /
     DECAY_HEAT TOTAL
       DATASET ./decay_heat.ext
     /
@@ -355,12 +358,25 @@ WASTE_FORM_GENERAL
     NAME crit_02
     CRIT_START 5.d1 d
     CRIT_END 1.d2 d
-    HEAT_OF_CRITICALITY 5.d-7 W
+    CRITICAL_WATER_DENSITY    8.5d2 kg/m^3
+    CRITICAL_WATER_SATURATION 0.8d0
+    HEAT_OF_CRITICALITY
+      DATASET crit_heat.txt
+      # CONSTANT_POWER 5.d-7 MW
+    /
     DECAY_HEAT TOTAL
       DATASET ./decay_heat.ext
     /
   /
   
+  SPACER_DEGRADATION_MECHANISM
+    NAME           spc_01
+    MASS           1.67040D+05 g
+    SURFACE_AREA   2.37309D+04 dm^2
+    EXPOSURE_LEVEL 9.93317D-01
+    C              3.47000D+07 mg/s-dm^2
+    Q              2.26750D+04 cal/mol
+  /
 
 END_WASTE_FORM_GENERAL
 

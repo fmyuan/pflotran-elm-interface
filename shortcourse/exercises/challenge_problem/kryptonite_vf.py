@@ -48,10 +48,10 @@ basecolors = ['red','blue']
 
 #Volume Fraction in kryptonite deposit
 titles.append('Minerals in kryptonite deposit')
-files.append('./kryptonite-obs-0.tec')
+files.append('./kryptonite-obs-0.pft')
 columns.append(24)
 name.append('Kryptonite(s)')
-files.append('./kryptonite-obs-0.tec')
+files.append('./kryptonite-obs-0.pft')
 columns.append(25)
 name.append('KrB(s)')
 

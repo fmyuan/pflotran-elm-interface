@@ -1461,7 +1461,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   endif
 
   if (hydrate_high_temp_ts_cut) then
-    r_p(:) = 1.d20
+    r_p(:) = MAX_DOUBLE
   endif
   
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)

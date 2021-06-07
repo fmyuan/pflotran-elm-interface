@@ -51,16 +51,16 @@ basecolors = ['red','green','blue','purple']
 
 #Concentration at well
 titles.append('Concentration at well')
-files.append('./kryptonite-obs-0.tec')
+files.append('./kryptonite-obs-0.pft')
 columns.append(5)
 name.append('KrA(aq)')
-files.append('./kryptonite-obs-0.tec')
+files.append('./kryptonite-obs-0.pft')
 columns.append(6)
 name.append('KrB(aq)')
-files.append('./kryptonite-obs-0.tec')
+files.append('./kryptonite-obs-0.pft')
 columns.append(7)
 name.append('KrC(aq)')
-files.append('./kryptonite-obs-0.tec')
+files.append('./kryptonite-obs-0.pft')
 columns.append(8)
 name.append('Cs137')
 
