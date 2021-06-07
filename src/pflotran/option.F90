@@ -3,6 +3,7 @@ module Option_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
+  use Communicator_Aux_module
   use Driver_module
   use Option_Flow_module
   use Option_Transport_module
@@ -18,15 +19,14 @@ module Option_module
     type(transport_option_type), pointer :: transport
     type(geophysics_option_type), pointer :: geophysics
 
-    type(driver_type), pointer :: driver
+    type(comm_type), pointer :: comm
+    class(driver_type), pointer :: driver
 
     PetscInt :: id                         ! id of realization
 
     PetscMPIInt :: mycomm                  ! PETSC_COMM_WORLD
     PetscMPIInt :: myrank                  ! rank in PETSC_COMM_WORLD
-    PetscMPIInt :: mycommsize              ! size of PETSC_COMM_WORLD
 
-    PetscMPIInt :: io_rank
     PetscMPIInt :: hdf5_read_group_size, hdf5_write_group_size
     PetscBool :: broadcast_read
     PetscBool :: blocking
@@ -83,8 +83,6 @@ module Option_module
     PetscInt :: status
     PetscBool :: input_record
     ! these flags are for printing outside of time step loop
-    PetscBool :: print_to_screen
-    PetscBool :: print_to_file
     ! these flags are for printing within time step loop where printing may
     ! need to be temporarily turned off to accommodate periodic screen outout.
     PetscBool :: print_screen_flag
@@ -201,6 +199,11 @@ module Option_module
     module procedure PrintWrnMsg2
   end interface
 
+  interface OptionIsIORank
+    module procedure OptionIsIORank1
+    module procedure OptionIsIORank2
+  end interface
+
   public :: OptionCreate, &
             OptionSetDriver, &
             OptionUpdateComm, &
@@ -227,6 +230,7 @@ module Option_module
             OptionPrintPFLOTRANHeader, &
             OptionSetBlocking, &
             OptionCheckNonBlockingError, &
+            OptionIsIORank, &
             OptionDestroy
 
 contains
@@ -240,7 +244,6 @@ function OptionCreate()
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   !
-
   implicit none
 
   type(option_type), pointer :: OptionCreate
@@ -252,6 +255,7 @@ function OptionCreate()
   option%transport => OptionTransportCreate()
   option%geophysics => OptionGeophysicsCreate()
   nullify(option%driver)
+  nullify(option%comm)
 
   ! DO NOT initialize members of the option type here.  One must decide
   ! whether the member needs initialization once for all stochastic
@@ -270,9 +274,10 @@ subroutine OptionSetDriver(option,driver)
   implicit none
 
   type(option_type) :: option
-  type(driver_type), pointer :: driver
+  class(driver_type), pointer :: driver
 
-  option%driver =>driver
+  option%driver => driver
+  option%comm => driver%comm
   call OptionUpdateComm(option)
 
 end subroutine OptionSetDriver
@@ -290,9 +295,8 @@ subroutine OptionUpdateComm(option)
 
   type(option_type) :: option
 
-  option%mycomm          = option%driver%comm%mycomm
-  option%mycommsize      = option%driver%comm%mycommsize
-  option%myrank          = option%driver%comm%myrank
+  option%mycomm          = option%comm%mycomm
+  option%myrank          = option%comm%myrank
 
 end subroutine OptionUpdateComm
 
@@ -320,13 +324,11 @@ subroutine OptionInitAll(option)
 
   option%mycomm = 0
   option%myrank = 0
-  option%mycommsize = 0
 
   option%group_prefix = ''
   option%global_prefix = ''
 
   option%broadcast_read = PETSC_FALSE
-  option%io_rank = 0
   option%hdf5_read_group_size = 0
   option%hdf5_write_group_size = 0
   option%blocking = PETSC_TRUE
@@ -335,8 +337,6 @@ subroutine OptionInitAll(option)
   option%input_record = PETSC_FALSE
   option%print_screen_flag = PETSC_FALSE
   option%print_file_flag = PETSC_FALSE
-  option%print_to_screen = PETSC_TRUE
-  option%print_to_file = PETSC_TRUE
   option%verbosity = 0
   option%keyword_logging = PETSC_TRUE
   option%keyword_logging_screen_output = PETSC_FALSE
@@ -694,7 +694,7 @@ subroutine PrintErrMsgByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  if (option%print_to_screen) then
+  if (option%driver%PrintToScreen()) then
     write(word,*) option%myrank
     print *
     print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
@@ -747,7 +747,7 @@ subroutine PrintErrMsgNoStopByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  if (option%print_to_screen) then
+  if (option%driver%PrintToScreen()) then
     write(word,*) option%myrank
     print *
     print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
@@ -902,7 +902,7 @@ subroutine PrintMsgAnyRank1(option)
 
   type(option_type) :: option
 
-  if (option%print_to_screen) call PrintMsgAnyRank2(option%io_buffer)
+  if (option%driver%PrintToScreen()) call PrintMsgAnyRank2(option%io_buffer)
 
 end subroutine PrintMsgAnyRank1
 
@@ -959,7 +959,7 @@ subroutine PrintMsgByRank2(option,string)
 
   character(len=MAXWORDLENGTH) :: word
 
-  if (option%print_to_screen) then
+  if (option%driver%PrintToScreen()) then
     write(word,*) option%myrank
     print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
   endif
@@ -1026,20 +1026,23 @@ function OptionCheckTouch(option,filename)
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: filename
 
+  PetscBool :: OptionCheckTouch
+
   PetscInt :: ios
   PetscInt :: fid = 86
-  PetscBool :: OptionCheckTouch
+  PetscBool :: is_io_rank
   PetscErrorCode :: ierr
 
   OptionCheckTouch = PETSC_FALSE
 
-  if (option%myrank == option%io_rank) &
-    open(unit=fid,file=trim(filename),status='old',iostat=ios)
-  call MPI_Bcast(ios,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
+  is_io_rank = option%driver%IsIORank()
+
+  if (is_io_rank) open(unit=fid,file=trim(filename),status='old',iostat=ios)
+  call MPI_Bcast(ios,ONE_INTEGER_MPI,MPIU_INTEGER,option%driver%io_rank, &
                  option%mycomm,ierr)
 
   if (ios == 0) then
-    if (option%myrank == option%io_rank) close(fid,status='delete')
+    if (is_io_rank) close(fid,status='delete')
     OptionCheckTouch = PETSC_TRUE
   endif
 
@@ -1061,11 +1064,7 @@ function OptionPrintToScreen(option)
 
   PetscBool :: OptionPrintToScreen
 
-  if (option%myrank == option%io_rank .and. option%print_to_screen) then
-    OptionPrintToScreen = PETSC_TRUE
-  else
-    OptionPrintToScreen = PETSC_FALSE
-  endif
+  OptionPrintToScreen = option%driver%PrintToScreen()
 
 end function OptionPrintToScreen
 
@@ -1085,11 +1084,7 @@ function OptionPrintToFile(option)
 
   PetscBool :: OptionPrintToFile
 
-  if (option%myrank == option%io_rank .and. option%print_to_file) then
-    OptionPrintToFile = PETSC_TRUE
-  else
-    OptionPrintToFile = PETSC_FALSE
-  endif
+  OptionPrintToFile = option%driver%PrintToFile()
 
 end function OptionPrintToFile
 
@@ -1202,7 +1197,7 @@ subroutine OptionMeanVariance(value,mean,variance,calculate_variance,option)
 
   call MPI_Allreduce(value,temp_real,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                      MPI_SUM,option%mycomm,ierr)
-  mean = temp_real / dble(option%mycommsize)
+  mean = temp_real / dble(option%comm%mycommsize)
 
   if (calculate_variance) then
     temp_real = value-mean
@@ -1210,10 +1205,50 @@ subroutine OptionMeanVariance(value,mean,variance,calculate_variance,option)
     call MPI_Allreduce(temp_real,variance,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION, &
                        MPI_SUM,option%mycomm,ierr)
-    variance = variance / dble(option%mycommsize)
+    variance = variance / dble(option%comm%mycommsize)
   endif
 
 end subroutine OptionMeanVariance
+
+! ************************************************************************** !
+
+function OptionIsIORank1(option)
+  !
+  ! Returns PETSC_TRUE if I/O rank
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/07/21
+  !
+  implicit none
+
+  type(option_type) :: option
+
+  PetscBool :: OptionIsIORank1
+
+  OptionIsIORank1 = option%driver%IsIORank()
+
+end function OptionIsIORank1
+
+! ************************************************************************** !
+
+function OptionIsIORank2(option,irank)
+  !
+  ! Returns PETSC_TRUE if I/O rank
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/07/21
+  !
+
+  implicit none
+
+  type(option_type) :: option
+  PetscInt :: irank
+
+  PetscBool :: OptionIsIORank2
+
+  OptionIsIORank2 = (irank == option%driver%io_rank)
+
+end function OptionIsIORank2
 
 ! ************************************************************************** !
 
@@ -1233,16 +1268,16 @@ subroutine OptionPrintPFLOTRANHeader(option)
   character(len=MAXSTRINGLENGTH) :: string
 
   version = GetVersion()
-  if (option%myrank == option%io_rank) then
+  if (option%driver%IsIORank()) then
     write(string,*) len_trim(version)+4
     string = trim(adjustl(string)) // '("=")'
     string = '(/,' // trim(string) // ',/,"  '// &
              trim(version) // &
              '",/,' // trim(string) // ',/)'
-    if (option%print_to_screen) then
+    if (option%driver%PrintToScreen()) then
       write(*,string)
     endif
-    if (option%print_to_file) then
+    if (option%driver%PrintToFile()) then
       write(option%fid_out,string)
     endif
   endif
@@ -1277,6 +1312,8 @@ subroutine OptionDestroy(option)
   ! Author: Glenn Hammond
   ! Date: 10/26/07
   !
+  use Communicator_Aux_module
+  use Driver_module
 
   implicit none
 
@@ -1287,6 +1324,7 @@ subroutine OptionDestroy(option)
   call OptionGeophysicsDestroy(option%geophysics)
   ! never destroy the driver as it was created elsewhere
   nullify(option%driver)
+  nullify(option%comm)
 
   ! all the below should be placed somewhere other than option.F90
 

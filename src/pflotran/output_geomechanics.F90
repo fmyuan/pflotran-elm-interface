@@ -178,7 +178,7 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   filename = OutputFilename(output_option,option,'tec','')
   option%global_prefix = tmp_global_prefix
     
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write tecplot geomech output file: ' // &
         trim(filename)
     call PrintMsg(option)
@@ -224,7 +224,7 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   ! write vertices
   call WriteTecplotGeomechGridElements(OUTPUT_UNIT,geomech_realization)
 
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  if (OptionIsIORank(option)) close(OUTPUT_UNIT)
 
 end subroutine OutputTecplotGeomechanics
 
@@ -603,7 +603,7 @@ subroutine OutputGetVertexCoordinatesGeomech(grid,vec,direction,option)
   PetscReal, allocatable :: values(:)
   PetscErrorCode :: ierr
   
-  if (option%mycommsize == 1) then
+  if (option%comm%mycommsize == 1) then
     call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
     select case(direction)
       case(X_COORDINATE)
@@ -845,7 +845,7 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
   endif
   
   ! communicate data to processor 0, round robin style
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     if (datatype == TECPLOT_INTEGER) then
       ! This approach makes output files identical, regardless of processor
       ! distribution.  It is necessary when diffing files.
@@ -883,13 +883,13 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
       real_data(1:local_size_mpi-iend) = real_data(iend+1:local_size_mpi)
       num_in_array = local_size_mpi-iend
     endif
-    do iproc_mpi=1,option%mycommsize-1
+    do iproc_mpi=1,option%comm%mycommsize-1
 #ifdef HANDSHAKE    
       if (option%io_handshake_buffer_size > 0 .and. &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
-        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                       option%mycomm,ierr)
+        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                       option%driver%io_rank,option%mycomm,ierr)
       endif
 #endif      
       call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
@@ -950,8 +950,8 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
 #ifdef HANDSHAKE    
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
-      call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                     option%mycomm,ierr)
+      call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     option%driver%io_rank,option%mycomm,ierr)
     endif
 #endif      
     ! Print the remaining values, if they exist
@@ -979,24 +979,26 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
     if (option%io_handshake_buffer_size > 0) then
       do
         if (option%myrank < max_proc) exit
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%io_rank,option%mycomm, &
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER, &
+                       option%driver%io_rank,option%mycomm, &
                        ierr)
       enddo
     endif
 #endif    
     if (datatype == TECPLOT_INTEGER) then
-      call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER,option%io_rank, &
+      call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
+                    option%driver%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     else
       call MPI_Send(real_data,local_size_mpi, &
-                    MPI_DOUBLE_PRECISION,option%io_rank, &
+                    MPI_DOUBLE_PRECISION,option%driver%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     endif
 #ifdef HANDSHAKE    
     if (option%io_handshake_buffer_size > 0) then
       do
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%io_rank,option%mycomm, &
-                       ierr)
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
+                       option%mycomm,ierr)
         if (max_proc < 0) exit
       enddo
     endif
@@ -1331,7 +1333,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
     call h5gclose_f(grp_id,hdf5_err)
   endif 
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write xmf geomech output file: ' // &
                        trim(xmf_filename)
     call PrintMsg(option)
@@ -1395,7 +1397,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
         endif
         att_datasetname = trim(filename) // ":/" // &
             trim(group_name) // "/" // trim(string)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           call OutputXMFAttributeGeomech(OUTPUT_UNIT,grid%nmax_node,string, &
                                          att_datasetname)
         endif
@@ -1421,7 +1423,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
                                           natural_vec,grp_id,H5T_NATIVE_DOUBLE)
           att_datasetname = trim(filename) // ":/" // &
               trim(group_name) // "/" // trim(string)
-          if (option%myrank == option%io_rank) then
+          if (OptionIsIORank(option)) then
             call OutputXMFAttributeGeomech(OUTPUT_UNIT,grid%nlmax_node,string, &
                                            att_datasetname)
           endif
@@ -1439,7 +1441,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   call h5fclose_f(file_id,hdf5_err)
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call OutputXMFFooterGeomech(OUTPUT_UNIT)
     close(OUTPUT_UNIT)
   endif

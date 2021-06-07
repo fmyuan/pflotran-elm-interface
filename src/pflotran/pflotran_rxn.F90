@@ -263,7 +263,7 @@ program pflotran_rxn
   filename_out = trim(option%global_prefix) // trim(option%group_prefix) // &
                  '.out'
 
-  if (option%myrank == option%io_rank .and. option%print_to_file) then
+  if (OptionIsIORank(option) .and. option%print_to_file) then
     open(option%fid_out, file=filename_out, action="write", status="unknown")
   endif
 

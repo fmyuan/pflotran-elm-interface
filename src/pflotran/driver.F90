@@ -28,7 +28,8 @@ module Driver_module
   contains
     procedure, public :: PrintErrMsg => DriverPrintErrorMessage
     procedure, public :: PrintToScreen => DriverPrintToScreen
-
+    procedure, public :: PrintToFile => DriverPrintToFile
+    procedure, public :: IsIORank => DriverIsIORank
   end type driver_type
 
   public :: DriverCreate, &
@@ -137,6 +138,44 @@ function DriverPrintToScreen(driver)
   endif
 
 end function DriverPrintToScreen
+
+! ************************************************************************** !
+
+function DriverPrintToFile(driver)
+  !
+  ! Returns boolean indicating whether to print to file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/26/21
+
+  class(driver_type) :: driver
+
+  PetscBool :: DriverPrintToFile
+
+  if (driver%comm%myrank == driver%io_rank .and. driver%print_to_file) then
+    DriverPrintToFile = PETSC_TRUE
+  else
+    DriverPrintToFile = PETSC_FALSE
+  endif
+
+end function DriverPrintToFile
+
+! ************************************************************************** !
+
+function DriverIsIORank(driver)
+  !
+  ! Returns boolean indicating whether to print to file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/26/21
+
+  class(driver_type) :: driver
+
+  PetscBool :: DriverIsIORank
+
+  DriverIsIORank = (driver%comm%myrank == driver%io_rank)
+
+end function DriverIsIORank
 
 ! ************************************************************************** !
 

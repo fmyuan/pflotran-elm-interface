@@ -32,7 +32,8 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
 
   implicit none
 
-  class(simulation_subsurface_type), pointer :: simulation
+  ! intent(in) is required to satisfy Intel 19.X compiler bug
+  class(simulation_subsurface_type), intent(in), pointer :: simulation
   character(len=MAXSTRINGLENGTH) :: input_filename
   type(option_type), pointer :: option
 
@@ -53,7 +54,7 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
 
   call EOSInit()
   filename = trim(option%global_prefix) // trim(option%group_prefix) // '.out'
-  if (option%myrank == option%io_rank .and. option%print_to_file) then
+  if (OptionIsIORank(option) .and. OptionPrintToFile(option)) then
     open(option%fid_out, file=filename, action="write", status="unknown")
   endif
 
@@ -177,21 +178,23 @@ subroutine FactoryForwardReadSimulationBlk(simulation,driver,option)
     enddo
   endif
 
-  ! create the simulation objects
-  select case(simulation_type)
-    case('SUBSURFACE')
-      simulation => SimSubsurfCreate(driver,option)
-    case('GEOMECHANICS_SUBSURFACE')
-      simulation => GeomechanicsSimulationCreate(driver,option)
-    case default
-      if (len_trim(simulation_type) == 0) then
-        option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
-          &SUBSURFACE") must be specified within the SIMULATION block.'
-        call PrintErrMsg(option)
-      endif
-      call InputKeywordUnrecognized(input,simulation_type, &
-                     'SIMULATION,SIMULATION_TYPE',option)
-  end select
+  if (.not.associated(simulation)) then
+    ! create the simulation objects
+    select case(simulation_type)
+      case('SUBSURFACE')
+        simulation => SimSubsurfCreate(driver,option)
+      case('GEOMECHANICS_SUBSURFACE')
+        simulation => GeomechanicsSimulationCreate(driver,option)
+      case default
+        if (len_trim(simulation_type) == 0) then
+          option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
+            &SUBSURFACE") must be specified within the SIMULATION block.'
+          call PrintErrMsg(option)
+        endif
+        call InputKeywordUnrecognized(input,simulation_type, &
+                       'SIMULATION,SIMULATION_TYPE',option)
+    end select
+  endif
 
   call WaypointListMerge(simulation%waypoint_list_outer, &
                          checkpoint_waypoint_list,option)
@@ -546,12 +549,6 @@ subroutine FactoryForwardReadCommandLine(option)
       endif
     endif
   endif
-
-  string = '-screen_output'
-  call InputGetCommandLineTruth(string,option%print_to_screen,option_found,option)
-
-  string = '-file_output'
-  call InputGetCommandLineTruth(string,option%print_to_file,option_found,option)
 
   string = '-v'
   call InputGetCommandLineInt(string,i,option_found,option)

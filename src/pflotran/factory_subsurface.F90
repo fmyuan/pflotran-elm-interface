@@ -2035,8 +2035,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputReadInt(input,option,grid%structured_grid%npz)
           call InputDefaultMsg(input,option,'npz')
 
-          if (option%myrank == option%io_rank .and. &
-              option%print_to_screen) then
+          if (OptionIsIORank(option) .and. OptionPrintToScreen(option)) then
             option%io_buffer = ' Processor Decomposition:'
             call PrintMsg(option)
             write(option%io_buffer,'("  npx   = ",3x,i4)') &
@@ -2050,12 +2049,12 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             call PrintMsg(option)
           endif
 
-          if (option%mycommsize /= grid%structured_grid%npx * &
+          if (option%comm%mycommsize /= grid%structured_grid%npx * &
                                  grid%structured_grid%npy * &
                                  grid%structured_grid%npz) then
             write(option%io_buffer,*) 'Incorrect number of processors &
               &specified: ',grid%structured_grid%npx*grid%structured_grid%npy* &
-              grid%structured_grid%npz,' commsize = ',option%mycommsize
+              grid%structured_grid%npz,' commsize = ',option%comm%mycommsize
             call PrintErrMsg(option)
           endif
         endif
@@ -3132,7 +3131,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                        grid%unstructured_grid%explicit_grid% &
                           output_mesh_type = CELL_CENTERED_OUTPUT_MESH
                        call OptionSetBlocking(option,PETSC_FALSE)
-                       if (option%myrank == option%io_rank) then
+                       if (OptionIsIORank(option)) then
                          if (grid%unstructured_grid% &
                                explicit_grid%num_elems /= &
                              grid%unstructured_grid% &
@@ -3183,7 +3182,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               call StringToUpper(word)
               select case(trim(word))
                 case('OFF')
-                  option%print_to_file = PETSC_FALSE
+                  option%driver%print_to_file = PETSC_FALSE
                 case('PERIODIC')
                   call InputReadInt(input,option,output_option%output_file_imod)
                   call InputErrorMsg(input,option,'timestep increment', &
@@ -3198,7 +3197,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               call StringToUpper(word)
               select case(trim(word))
                 case('OFF')
-                  option%print_to_screen = PETSC_FALSE
+                  option%driver%print_to_screen = PETSC_FALSE
                 case('PERIODIC')
                   call InputReadInt(input,option,output_option%screen_imod)
                   call InputErrorMsg(input,option,'timestep increment', &
@@ -3383,7 +3382,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                                'OUTPUT,FORMAT,TECPLOT',option)
                   end select
                   if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                      .and. option%mycommsize > 1) then
+                      .and. option%comm%mycommsize > 1) then
                     output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
                   endif
                   if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then

@@ -926,7 +926,7 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
           if (this%logging_verbosity > 0) then
             string = '   ' // trim(tol_string(itol)) // ', ' // &
               dof_string(idof)
-            if (option%mycommsize == 1) then
+            if (option%comm%mycommsize == 1) then
               string = trim(string) // ' (' // &
                 trim(StringFormatInt(this%converged_cell(idof,itol))) &
                 // ')'

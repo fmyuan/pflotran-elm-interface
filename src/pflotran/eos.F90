@@ -243,7 +243,7 @@ subroutine EOSRead(input,option)
             end select
             call EOSWaterSetSteamEnthalpy(word,temparray)
           case('TEST')
-            if (option%driver%comm%global_rank == 0) then
+            if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,WATER,TEST')
@@ -463,7 +463,7 @@ subroutine EOSRead(input,option)
                                               option)
             end select
           case('TEST')
-            if (option%driver%comm%global_rank == 0) then
+            if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,GAS,TEST')
@@ -590,7 +590,7 @@ subroutine EOSRead(input,option)
               end select
             enddo
             call InputPopBlock(input,option)
-            if (option%myrank == option%io_rank) then
+            if (OptionIsIORank(option)) then
               call co2_span_wagner_db_write(temparray,subkeyword,option)
             end if
             call MPI_Barrier(option%mycomm,ierr)

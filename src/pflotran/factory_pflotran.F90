@@ -55,6 +55,14 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   call InputGetCommandLineString(string,driver%input_prefix, &
                                  input_prefix_option_found,option)
 
+  string = '-screen_output'
+  call InputGetCommandLineTruth(string,driver%print_to_screen, &
+                                option_found,option)
+
+  string = '-file_output'
+  call InputGetCommandLineTruth(string,driver%print_to_file, &
+                                option_found,option)
+
   if (pflotranin_option_found .and. input_prefix_option_found) then
     call driver%PrintErrMsg('Cannot specify both "-pflotranin" and &
       &"-input_prefix" on the command lines.')
@@ -65,11 +73,6 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   endif
 
   driver%global_prefix = driver%input_prefix
-#if 0
-  string = '-output_prefix'
-  call InputGetCommandLineString(string,driver%global_prefix,option_found, &
-                                 option)
-#endif
 
   call HDF5Init()
   call LoggingCreate()

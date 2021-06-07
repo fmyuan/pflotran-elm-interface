@@ -695,7 +695,7 @@ subroutine SimSubsurfFinalizeRun(this)
   end select
 
   call SimulationBaseFinalizeRun(this)
-  if (this%option%myrank == this%option%io_rank) then
+  if (OptionIsIORank(this%option)) then
     call SimulationBaseWriteTimes(this,this%option%fid_out)
   endif
 

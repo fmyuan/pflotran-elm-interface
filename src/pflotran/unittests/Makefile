@@ -28,6 +28,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/dataset_ascii.o \
 	$(EXE_DIR)/dataset_base.o \
 	$(EXE_DIR)/time_storage.o \
+	$(EXE_DIR)/driver.o \
 	$(EXE_DIR)/eos_database.o \
 	$(EXE_DIR)/eos_gas.o \
 	$(EXE_DIR)/eos_water.o \
