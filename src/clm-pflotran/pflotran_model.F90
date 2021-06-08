@@ -171,7 +171,7 @@ contains
       driver%input_filename = trim(driver%input_prefix) // '.in'
       driver%global_prefix = driver%input_prefix
     else
-      if (driver%comm%myrank == driver%io_rank) then
+      if (driver%IsIORank()) then
         print *, 'The external driver must provide the pflotran input &
                  &file prefix.'
       endif
@@ -1584,7 +1584,7 @@ end subroutine pflotranModelSetICs
 
     PetscReal :: pause_time1
 
-    if (model%option%io_rank == model%option%myrank) then
+    if (OptionIsIORank(model%option)) then
        write(model%option%fid_out, *), '>>>> Inserting waypoint at pause_time = ', pause_time
     endif
 
