@@ -103,7 +103,7 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,DENSITY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                                'kg/m^3','EOS,WATER,DENSITY,CONSTANT',option)
-              case('EXPONENTIAL','BRAGFLO')
+              case('EXPONENTIAL','EXPONENTIAL_PRESSURE','BRAGFLO')
                 call InputReadDouble(input,option,temparray(1))
                 call InputErrorMsg(input,option,'REFERENCE_DENSITY', &
                                    'EOS,WATER,DENSITY,EXPONENTIAL')
@@ -112,7 +112,20 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,DENSITY,EXPONENTIAL')
                 call InputReadDouble(input,option,temparray(3))
                 call InputErrorMsg(input,option,'WATER_COMPRESSIBILITY', &
-                                   'EOS,WATER,DENSITY,EXPONENTIAL')
+                     'EOS,WATER,DENSITY,EXPONENTIAL')
+              case('EXPONENTIAL_PRESSURE_TEMPERATURE')
+                call InputReadDouble(input,option,temparray(1))
+                call InputErrorMsg(input,option,'REFERENCE_DENSITY', &
+                                   'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
+                call InputReadDouble(input,option,temparray(2))
+                call InputErrorMsg(input,option,'REFERENCE_PRESSURE', &
+                                   'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
+                call InputReadDouble(input,option,temparray(3))
+                call InputErrorMsg(input,option,'WATER_COMPRESSIBILITY', &
+                                   'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
+                call InputReadDouble(input,option,temparray(4))
+                call InputErrorMsg(input,option,'THERMAL_EXPANSION', &
+                                   'EOS,WATER,DENSITY,EXPONENTIAL_TEMPERATURE')
               case('LINEAR')
                 call InputReadDouble(input,option,temparray(1))
                 call InputErrorMsg(input,option,'REFERENCE_DENSITY', &
@@ -230,7 +243,7 @@ subroutine EOSRead(input,option)
             end select
             call EOSWaterSetSteamEnthalpy(word,temparray)
           case('TEST')
-            if (option%global_rank == 0) then
+            if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,WATER,TEST')
@@ -450,7 +463,7 @@ subroutine EOSRead(input,option)
                                               option)
             end select
           case('TEST')
-            if (option%global_rank == 0) then
+            if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
               call InputErrorMsg(input,option,'T_low', &
                                  'EOS,GAS,TEST')
@@ -577,7 +590,7 @@ subroutine EOSRead(input,option)
               end select
             enddo
             call InputPopBlock(input,option)
-            if (option%myrank == option%io_rank) then
+            if (OptionIsIORank(option)) then
               call co2_span_wagner_db_write(temparray,subkeyword,option)
             end if
             call MPI_Barrier(option%mycomm,ierr)

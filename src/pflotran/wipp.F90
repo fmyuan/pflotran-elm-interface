@@ -490,8 +490,8 @@ function CreepClosureCreate()
   CreepClosureCreate%num_values_per_time = UNINITIALIZED_INTEGER
   CreepClosureCreate%shutdown_pressure = 5.d7 ! set to BRAGFLO default
   CreepClosureCreate%porosity_minimum = 1.d-2 
-  CreepClosureCreate%time_closeoff = 1.d20 ! s
-  CreepClosureCreate%time_datamax =  1.d20 ! s
+  CreepClosureCreate%time_closeoff = MAX_DOUBLE ! s
+  CreepClosureCreate%time_datamax =  MAX_DOUBLE ! s
   nullify(CreepClosureCreate%lookup_table)
   nullify(CreepClosureCreate%next)
   
@@ -715,7 +715,7 @@ subroutine CreepClosureConvertListToArray(list,array,option)
     count = count + 1
     array(count)%ptr => cur_creep_closure
     !if (cur_creep_closure%test .and. &
-    !    option%myrank == option%io_rank) then
+    !    OptionIsIORank(option)) then
     !  call CreepClosureTest(cur_creep_closure,option)
     !endif
     cur_creep_closure => cur_creep_closure%next

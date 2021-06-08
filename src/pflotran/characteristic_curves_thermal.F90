@@ -3098,7 +3098,7 @@ subroutine CharCurvesThermalConvertListToArray(list,array,option)
     array(count)%ptr => cur_thermal_cc
     if (cur_thermal_cc%test) then
       call OptionSetBlocking(option,PETSC_FALSE)
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         if (associated(cur_thermal_cc%thermal_conductivity_function)) then
           call cur_thermal_cc%thermal_conductivity_function%Test( &
                cur_thermal_cc%name,option)

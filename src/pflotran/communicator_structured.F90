@@ -1,7 +1,7 @@
 module Communicator_Structured_class
 #include "petsc/finclude/petscdmda.h"
   use petscdmda
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Grid_Structured_module  
   
   use PFLOTRAN_Constants_module

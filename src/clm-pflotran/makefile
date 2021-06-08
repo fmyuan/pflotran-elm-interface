@@ -34,9 +34,7 @@ STANDARD_CFG = \
 
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
-MYFLAGS += ${FC_DEFINE_FLAG}CHUAN_CO2
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
-MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
 MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH
 #MYFLAGS += ${FC_DEFINE_FLAG}LEGACY_SATURATION_FUNCTION
 
@@ -114,10 +112,6 @@ endif
 
 ifdef no_vapor_diffusion
   MYFLAGS += -DNO_VAPOR_DIFFUSION
-endif
-
-ifdef scco2
-  MYFLAGS += -DCHUAN_CO2
 endif
 
 ifdef debug_gen
@@ -298,12 +292,12 @@ mapping.o : input_aux.o option.o pflotran_constants.o string.o
 pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    clm_pflotran_interface_data.o connection.o coupler.o \
                    discretization.o factory_geomechanics.o \
-                   factory_pflotran.o \
-                   factory_subsurface.o \
+                   factory_pflotran.o communicator_aux.o \
+                   factory_subsurface.o factory.o \
                    field.o global_aux.o grid.o \
                    grid_unstructured.o grid_unstructured_aux.o \
                    grid_unstructured_cell.o input_aux.o logging.o mapping.o \
-                   material.o multisimulation.o option.o patch.o \
+                   material.o simulation_multirealization.o option.o patch.o \
                    pflotran_constants.o realization_base.o \
                    realization_subsurface.o richards.o \
                    richards_aux.o saturation_function.o simulation_base.o \
@@ -311,6 +305,7 @@ pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    string.o \
                    th.o th_aux.o timestepper_base.o units.o utility.o \
                    variables.o waypoint.o
+richards.o : clm_pflotran_interface_data.o
 
 ###############################################################################
 # Dependencies

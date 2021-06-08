@@ -748,8 +748,8 @@ subroutine RTUpdateEquilibriumState(realization)
 
 !geh: for debugging max/min concentrations
 #if 0
-  max_conc = -1.d20
-  min_conc = 1.d20
+  max_conc = -MAX_DOUBLE
+  min_conc = MAX_DOUBLE
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     conc = rt_auxvars(ghosted_id)%total(1,1)

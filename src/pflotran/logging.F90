@@ -109,7 +109,7 @@ module Logging_module
 
   end type logging_type
 
-  type(logging_type), pointer, public :: logging
+  type(logging_type), allocatable, public :: logging
 
   public :: LoggingCreate, &
             LoggingCreateStage, &
@@ -131,6 +131,9 @@ subroutine LoggingCreate()
   implicit none
 
   PetscErrorCode :: ierr
+
+  ! prevent duplicate allocation as the stages may only be registered once
+  if (allocated(logging)) return
 
   allocate(logging)
 
@@ -486,7 +489,6 @@ subroutine LoggingDestroy()
   ! all kinds of stuff needs to be added here.
 
   deallocate(logging)
-  nullify(logging)
 
 end subroutine LoggingDestroy
 

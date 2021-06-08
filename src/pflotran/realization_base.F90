@@ -13,7 +13,7 @@ module Realization_Base_class
   use Field_module
   use Reaction_Base_module
   use Data_Mediator_Base_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Waypoint_module
 
   use PFLOTRAN_Constants_module

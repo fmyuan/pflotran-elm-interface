@@ -5,7 +5,7 @@ module PM_ERT_class
 
   use PM_Base_class
   use Realization_Subsurface_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Option_module
   use ERT_Aux_module
   use Survey_module
@@ -849,7 +849,7 @@ subroutine PMERTAssembleSimulatedData(this,time)
   enddo
 
   ! write simuated data in a E4D .srv file
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     write(time_suffix,'(f15.4)') time/this%output_option%tconv
     time_suffix = trim(adjustl(time_suffix)) // &
                   trim(adjustl(this%output_option%tunit))

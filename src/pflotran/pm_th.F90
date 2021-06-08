@@ -7,7 +7,7 @@ module PM_TH_class
 !geh: using TH_module here fails with gfortran (internal compiler error)
 !  use TH_module
   use Realization_Subsurface_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Option_module
   
   use PFLOTRAN_Constants_module
@@ -926,7 +926,7 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
           if (this%logging_verbosity > 0) then
             string = '   ' // trim(tol_string(itol)) // ', ' // &
               dof_string(idof)
-            if (option%mycommsize == 1) then
+            if (option%comm%mycommsize == 1) then
               string = trim(string) // ' (' // &
                 trim(StringFormatInt(this%converged_cell(idof,itol))) &
                 // ')'

@@ -4,7 +4,7 @@ module PM_NWT_class
   use petscsnes
   use PM_Base_class 
   use Realization_Subsurface_class
-  use Communicator_Base_module  
+  use Communicator_Base_class  
   use Option_module
   use PFLOTRAN_Constants_module
   use NW_Transport_module
@@ -781,7 +781,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
 #if 0
       min_ratio = 1.d0/maxval(dC_p/C_p)
 #else
-      min_ratio = 1.d20 ! large number
+      min_ratio = MAX_DOUBLE ! large number
       do i = 1, n
         if (C_p(i) <= dC_p(i)) then
           ratio = abs(C_p(i)/dC_p(i))
@@ -916,7 +916,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   if (this%print_ekg) then
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
-    max_relative_change_by_dof = -1.d20
+    max_relative_change_by_dof = -MAX_DOUBLE
     do local_id = 1, grid%nlmax
       offset = (local_id-1)*option%ntrandof
       do idof = 1, option%ntrandof

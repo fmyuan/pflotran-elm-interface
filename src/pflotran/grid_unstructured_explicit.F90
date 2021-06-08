@@ -18,7 +18,8 @@ module Grid_Unstructured_Explicit_module
             UGridExplicitSetCellCentroids, &
             UGridExplicitComputeVolumes, &
             UGridExplicitSetBoundaryConnect, &
-            UGridExplicitSetConnections
+            UGridExplicitSetConnections, &
+            UGridExplicitGetClosestCellFromPoint
 
 contains
 
@@ -87,7 +88,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
 ! -----------------------------------------------------------------
 
   call OptionSetBlocking(option,PETSC_FALSE)
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
 
     fileid = 86
     input => InputCreate(fileid,filename,option)
@@ -110,16 +111,16 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   call OptionSetBlocking(option,PETSC_TRUE)
   call OptionCheckNonBlockingError(option)
 
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
-                 option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
+                 option%driver%io_rank,option%mycomm,ierr)
   num_cells = temp_int
   explicit_grid%num_cells_global = num_cells
 
    ! divide cells across ranks
-  num_cells_local = num_cells/option%mycommsize
+  num_cells_local = num_cells/option%comm%mycommsize
   num_cells_local_save = num_cells_local
   remainder = num_cells - &
-              num_cells_local*option%mycommsize
+              num_cells_local*option%comm%mycommsize
   if (option%myrank < remainder) num_cells_local = &
                                  num_cells_local + 1
 
@@ -137,10 +138,10 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   ! for now, read all cells from ASCII file through io_rank and communicate
   ! to other ranks
   call OptionSetBlocking(option,PETSC_FALSE)
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     allocate(temp_real_array(5,num_cells_local_save+1))
     ! read for other processors
-    do irank = 0, option%mycommsize-1
+    do irank = 0, option%comm%mycommsize-1
       temp_real_array = UNINITIALIZED_DOUBLE
       num_to_read = num_cells_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -161,7 +162,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
       enddo
 
       ! if the cells reside on io_rank
-      if (irank == option%io_rank) then
+      if (irank == option%driver%io_rank) then
 #if UGRID_DEBUG
         write(string,*) num_cells_local
         string = trim(adjustl(string)) // ' cells stored on p0'
@@ -200,7 +201,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     allocate(temp_real_array(5,num_cells_local))
     int_mpi = num_cells_local*5
     call MPI_Recv(temp_real_array,int_mpi, &
-                  MPI_DOUBLE_PRECISION,option%io_rank, &
+                  MPI_DOUBLE_PRECISION,option%driver%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
     do icell = 1, num_cells_local
       explicit_grid%cell_ids(icell) = int(temp_real_array(1,icell))
@@ -216,7 +217,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   deallocate(temp_real_array)
 
   call OptionSetBlocking(option,PETSC_FALSE)
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call InputReadPflotranString(input,option)
     ! read CONNECTIONS card, though we already know the
     call InputReadCard(input,option,card,PETSC_FALSE)
@@ -236,15 +237,15 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
-  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
-                  option%mycomm,ierr)
+  call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
+                 option%driver%io_rank,option%mycomm,ierr)
   num_connections = temp_int
 
    ! divide cells across ranks
-  num_connections_local = num_connections/option%mycommsize
+  num_connections_local = num_connections/option%comm%mycommsize
   num_connections_local_save = num_connections_local
   remainder = num_connections - &
-              num_connections_local*option%mycommsize
+              num_connections_local*option%comm%mycommsize
   if (option%myrank < remainder) num_connections_local = &
                                  num_connections_local + 1
 
@@ -262,10 +263,10 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   ! for now, read all cells from ASCII file through io_rank and communicate
   ! to other ranks
   call OptionSetBlocking(option,PETSC_FALSE)
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     allocate(temp_real_array(6,num_connections_local_save+1))
     ! read for other processors
-    do irank = 0, option%mycommsize-1
+    do irank = 0, option%comm%mycommsize-1
       temp_real_array = UNINITIALIZED_DOUBLE
       num_to_read = num_connections_local_save
       if (irank < remainder) num_to_read = num_to_read + 1
@@ -289,7 +290,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
       enddo
 
       ! if the cells reside on io_rank
-      if (irank == option%io_rank) then
+      if (irank == option%driver%io_rank) then
 #if UGRID_DEBUG
         write(string,*) num_connections_local
         string = trim(adjustl(string)) // ' connections stored on p0'
@@ -329,7 +330,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     allocate(temp_real_array(6,num_connections_local))
     int_mpi = num_connections_local*6
     call MPI_Recv(temp_real_array,int_mpi, &
-                  MPI_DOUBLE_PRECISION,option%io_rank, &
+                  MPI_DOUBLE_PRECISION,option%driver%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
     do iconn = 1, num_connections_local
       explicit_grid%connections(1,iconn) = int(temp_real_array(1,iconn))
@@ -346,7 +347,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   deallocate(temp_real_array)
 
   call OptionSetBlocking(option,PETSC_FALSE)
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call InputReadPflotranString(input,option)
     ! read ELEMENTS card, we only use this for tecplot output
     ! not used while solving the PDEs
@@ -433,7 +434,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     endif
   endif
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call InputDestroy(input)
   endif
   call OptionSetBlocking(option,PETSC_TRUE)
@@ -540,10 +541,10 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
   ! Determine the number of cells each that will be saved on each processor
   num_cells = INT(dims_h5(1))
   explicit_grid%num_cells_global = num_cells
-  num_cells_local = num_cells/option%mycommsize
+  num_cells_local = num_cells/option%comm%mycommsize
   num_cells_local_save = num_cells_local
   remainder = num_cells - &
-              num_cells_local*option%mycommsize
+              num_cells_local*option%comm%mycommsize
   if (option%myrank < remainder) num_cells_local = &
                                   num_cells_local + 1
 
@@ -699,10 +700,10 @@ subroutine UGridExplicitReadHDF5(unstructured_grid,filename,option)
 
   ! Determine the number of cells each that will be saved on each processor
   num_connections = INT(dims_h5(2))
-  num_connections_local = num_connections/option%mycommsize
+  num_connections_local = num_connections/option%comm%mycommsize
   num_connections_local_save = num_connections_local
   remainder = num_connections - &
-              num_connections_local*option%mycommsize
+              num_connections_local*option%comm%mycommsize
   if (option%myrank < remainder) num_connections_local = &
                                   num_connections_local + 1
 
@@ -1045,7 +1046,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
   !call MatDestroy(M_mat,ierr)
 
   ! Alternate method of creating Adj_mat
-  if (option%mycommsize>1) then
+  if (option%comm%mycommsize>1) then
     call MatMPIAIJGetLocalMat(M_mat,MAT_INITIAL_MATRIX,M_mat_loc, &
                               ierr);CHKERRQ(ierr)
     call MatGetRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
@@ -1073,7 +1074,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
                        local_connections,PETSC_NULL_INTEGER,Adj_mat, &
                        ierr);CHKERRQ(ierr)
 
-  if (option%mycommsize>1) then
+  if (option%comm%mycommsize>1) then
     call MatRestoreRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
                         ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
   else
@@ -1111,7 +1112,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
   !call MatDestroy(M_mat,ierr)
 
   ! Alternate method of creating Dual_mat
-  if (option%mycommsize>1) then
+  if (option%comm%mycommsize>1) then
     call MatMPIAIJGetLocalMat(M_mat,MAT_INITIAL_MATRIX,M_mat_loc, &
                               ierr);CHKERRQ(ierr)
     call MatGetRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
@@ -1139,7 +1140,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
                        local_connections2,PETSC_NULL_INTEGER,Dual_mat, &
                        ierr);CHKERRQ(ierr)
 
-  if (option%mycommsize>1) then
+  if (option%comm%mycommsize>1) then
     call MatRestoreRowIJF90(M_mat_loc,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE,num_rows, &
                         ia_ptr,ja_ptr,success,ierr);CHKERRQ(ierr)
   else
@@ -1938,5 +1939,64 @@ function UGridExplicitSetConnections(explicit_grid,cell_ids,connection_type, &
   UGridExplicitSetConnections => connections
 
 end function UGridExplicitSetConnections
+
+! ************************************************************************** !
+
+subroutine UGridExplicitGetClosestCellFromPoint(x,y,z,grid_explicit, &
+                                                nG2L,option,icell, &
+                                                cell_distance)
+
+  ! 
+  ! Returns the cell which its center is the closest for point x,y,z
+  ! 
+  ! Author: Moise Rousseau
+  ! Date: 04/12/21
+  ! 
+  use Option_module
+  use Geometry_module  
+
+  implicit none
+  
+  PetscReal :: x, y, z
+  PetscInt :: icell
+  PetscReal :: cell_distance
+  type(unstructured_explicit_type) :: grid_explicit
+  PetscInt, pointer :: nG2L(:)
+  type(option_type) :: option
+  
+  type(point3d_type) :: pt_test
+  type(point3d_type) :: pt_champion
+  PetscReal :: min_distance, distance
+  PetscInt :: ghosted_id, local_id, champion
+  
+  !initiate
+  min_distance = MAX_DOUBLE
+  !looking for champion
+  do ghosted_id = 1, size(grid_explicit%cell_volumes)
+    local_id = nG2L(ghosted_id)
+    if (local_id <= 0) cycle
+    pt_test = grid_explicit%cell_centroids(ghosted_id)
+    distance = (pt_test%x-x)**2 + (pt_test%y-y)**2 + (pt_test%z-z)**2
+    if (distance < min_distance) then
+      champion = local_id
+      min_distance = distance
+      pt_champion = pt_test
+      cycle
+    endif
+    if (distance == min_distance) then 
+      if ((pt_test%x < pt_champion%x) .or. &
+         (pt_test%x == pt_champion%x .and. pt_test%y < pt_champion%y) .or. &
+         (pt_test%x == pt_champion%x .and. pt_test%y == pt_champion%y .and. &
+         pt_test%z < pt_champion%z)) then
+        champion = local_id
+        pt_champion = pt_test
+      endif
+    endif
+  enddo
+  
+  icell = champion
+  cell_distance = min_distance
+  
+end subroutine UGridExplicitGetClosestCellFromPoint
 
 end module Grid_Unstructured_Explicit_module

@@ -13,16 +13,16 @@ east_ic = h5.File('./east.h5', 'r')
 #Extract variables that will be used as boundary and initial conditions
 
 time_slice_string = 'Time:  2.20000E+02 y'
-t_w = west_ic[time_slice_string]['Temperature [C]'].value[0,0,:]
-lp_w = west_ic[time_slice_string]['Liquid_Pressure [Pa]'].value[0,0,:]
-gp_w = west_ic[time_slice_string]['Gas_Pressure [Pa]'].value[0,0,:]
-gs_w = west_ic[time_slice_string]['Gas_Saturation'].value[0,0,:]
-t_e = east_ic[time_slice_string]['Temperature [C]'].value[0,0,:]
-lp_e = east_ic[time_slice_string]['Liquid_Pressure [Pa]'].value[0,0,:]
-gp_e = east_ic[time_slice_string]['Gas_Pressure [Pa]'].value[0,0,:]
-gs_e = east_ic[time_slice_string]['Gas_Saturation'].value[0,0,:]
-xgl_w = west_ic[time_slice_string]['X_g^l'].value[0,0,:]
-xgl_e = east_ic[time_slice_string]['X_g^l'].value[0,0,:]
+t_w = west_ic[time_slice_string]['Temperature [C]'][0,0,:]
+lp_w = west_ic[time_slice_string]['Liquid_Pressure [Pa]'][0,0,:]
+gp_w = west_ic[time_slice_string]['Gas_Pressure [Pa]'][0,0,:]
+gs_w = west_ic[time_slice_string]['Gas_Saturation'][0,0,:]
+t_e = east_ic[time_slice_string]['Temperature [C]'][0,0,:]
+lp_e = east_ic[time_slice_string]['Liquid_Pressure [Pa]'][0,0,:]
+gp_e = east_ic[time_slice_string]['Gas_Pressure [Pa]'][0,0,:]
+gs_e = east_ic[time_slice_string]['Gas_Saturation'][0,0,:]
+xgl_w = west_ic[time_slice_string]['X_g^l'][0,0,:]
+xgl_e = east_ic[time_slice_string]['X_g^l'][0,0,:]
 
 f.create_group('bounding_gas_pressure')
 f.create_group('bounding_liquid_pressure')

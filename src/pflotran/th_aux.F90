@@ -13,6 +13,7 @@ module TH_Aux_module
   PetscInt, public :: TH_ni_count
   PetscInt, public :: TH_ts_cut_count
   PetscInt, public :: TH_ts_count
+
   PetscInt, public :: th_ice_model
 
   type, public :: TH_auxvar_type
@@ -141,6 +142,9 @@ function THAuxCreate(option)
   type(TH_type), pointer :: THAuxCreate
   
   type(TH_type), pointer :: aux
+
+  ! initialize module variables
+  th_ice_model = 0
 
   allocate(aux) 
   aux%auxvars_up_to_date = PETSC_FALSE
@@ -1159,3 +1163,4 @@ subroutine THAuxDestroy(aux)
   end subroutine THAuxDestroy
 
 end module TH_Aux_module
+

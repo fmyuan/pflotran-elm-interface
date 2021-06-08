@@ -9,9 +9,9 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Example_class
   use Reaction_Sandbox_Simple_class
   use Reaction_Sandbox_Cyber_class
-  use Reaction_Sandbox_Gas_class 
-  use Reaction_Sandbox_GMD_1_class 
-  use Reaction_Sandbox_GMD_2_class 
+  use Reaction_Sandbox_Gas_class
+  use Reaction_Sandbox_Biodeg_class
+  use Reaction_Sand_Flex_Biodeg_class
 
   ! Add new reacton sandbox classes here.
   
@@ -168,10 +168,10 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => CyberCreate()
       case('GAS')
         new_sandbox => GasCreate()
-      case('GMD_1')
-        new_sandbox => GMD1Create()
-      case('GMD_2')
-        new_sandbox => GMD2Create()
+      case('BIODEGRADATION')
+        new_sandbox => BiodegCreate()
+      case('FLEXIBLE_BIODEGRADATION')
+        new_sandbox => FlexBiodegCreate()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)
@@ -286,9 +286,9 @@ subroutine RSandboxEvaluate(Residual,Jacobian,compute_derivative,rt_auxvar, &
   cur_reaction => rxn_sandbox_list
   do
     if (.not.associated(cur_reaction)) exit
-      call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
-                                 rt_auxvar,global_auxvar,material_auxvar, &
-                                 reaction,option)
+    call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
+                               rt_auxvar,global_auxvar,material_auxvar, &
+                               reaction,option)
     cur_reaction => cur_reaction%next
   enddo
 
@@ -324,8 +324,8 @@ subroutine RSandboxUpdateKineticState(rt_auxvar,global_auxvar, &
   cur_reaction => rxn_sandbox_list
   do
     if (.not.associated(cur_reaction)) exit
-      call cur_reaction%UpdateKineticState(rt_auxvar,global_auxvar, &
-                                           material_auxvar,reaction,option)
+    call cur_reaction%UpdateKineticState(rt_auxvar,global_auxvar, &
+                                         material_auxvar,reaction,option)
     cur_reaction => cur_reaction%next
   enddo
 
@@ -372,6 +372,7 @@ subroutine RSandboxDestroy2(local_sandbox_list)
     deallocate(cur_sandbox)
     cur_sandbox => prev_sandbox
   enddo  
+  nullify(local_sandbox_list)
 
 end subroutine RSandboxDestroy2
 

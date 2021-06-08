@@ -15,7 +15,7 @@ module Material_module
 
   private
 
-  PetscInt, public :: UNMAPPED_MATERIAL_ID = -888
+  PetscInt, parameter, public :: UNMAPPED_MATERIAL_ID = -888
 
   type, public :: material_property_type
     PetscInt :: external_id
@@ -1435,14 +1435,18 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   type(option_type) :: option
 
   PetscInt :: i
-  PetscInt :: icount = 0
-  PetscInt :: num_soil_compress_func = 0
-  PetscInt :: num_soil_compress = 0
-  PetscInt :: num_soil_ref_press = 0
+  PetscInt :: icount
+  PetscInt :: num_soil_compress_func
+  PetscInt :: num_soil_compress
+  PetscInt :: num_soil_ref_press
   PetscInt :: num_material_properties
 
   procedure(MaterialCompressSoilDummy), pointer :: &
     MaterialCompressSoilPtrTmp
+
+  num_soil_compress_func = 0
+  num_soil_compress = 0
+  num_soil_ref_press = 0
 
 !  soil_thermal_conductivity_index = 0
 !  soil_heat_capacity_index = 0
@@ -1455,6 +1459,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   ! on stochastic simulations
   MaterialCompressSoilPtr => null()
 
+  icount = 0
   do i = 1, num_material_properties
     MaterialCompressSoilPtrTmp => null()
     if (len_trim(material_property_ptrs(i)%ptr% &
@@ -1663,6 +1668,10 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       do i=1, Material%num_aux
         Material%auxvars(i)%epsilon = value
       enddo
+    case(PERMEABILITY)
+      do i=1, Material%num_aux
+        Material%auxvars(i)%permeability(:) = value
+      enddo
     case(PERMEABILITY_X)
       do i=1, Material%num_aux
         Material%auxvars(i)%permeability(perm_xx_index) = value
@@ -1764,6 +1773,10 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
     case(EPSILON)
       do ghosted_id=1, Material%num_aux
         Material%auxvars(ghosted_id)%epsilon = vec_loc_p(ghosted_id)
+      enddo
+    case(PERMEABILITY)
+      do ghosted_id=1, Material%num_aux
+        Material%auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_X)
       do ghosted_id=1, Material%num_aux
@@ -1880,7 +1893,7 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%tortuosity
       enddo
-    case(PERMEABILITY_X)
+    case(PERMEABILITY_X,PERMEABILITY)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
           Material%auxvars(ghosted_id)%permeability(perm_xx_index)
@@ -1933,7 +1946,7 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
   !
   use Option_module
   use Field_module
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Variables_module, only : POROSITY
 
   implicit none
@@ -1996,7 +2009,7 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
   !
 
   use Option_module
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Variables_module, only : POROSITY
 
   implicit none
@@ -2035,7 +2048,7 @@ subroutine MaterialAuxVarCommunicate(comm,Material,vec_loc,ivar,isubvar)
   ! Date: 01/09/14
   !
 
-  use Communicator_Base_module
+  use Communicator_Base_class
 
   implicit none
 

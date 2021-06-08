@@ -356,7 +356,7 @@ subroutine UnitsCategory(unit,unit_category,error,error_msg)
         unit_category(k) = 'time'
       case('Pa.s','cP','centiPoise','Poise','P')
         unit_category(k) = 'viscosity'
-      case('J','kJ','MJ')
+      case('J','kJ','MJ','cal','kcal')
         unit_category(k) = 'energy'
       case('W','kW','MW')
         unit_category(k) = 'power'
@@ -476,6 +476,10 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
       conversion_factor = 1.d3
     case('MJ')   
       conversion_factor = 1.d6
+    case('cal')
+      conversion_factor = 4.184d0
+    case('kcal')
+      conversion_factor = 4.184d3
   ! ---> ENERGY FLUX or POWER ---> (Watt)
     case('W')   
       conversion_factor = 1.d0

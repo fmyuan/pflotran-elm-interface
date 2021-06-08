@@ -186,8 +186,8 @@ function StructGridCreate()
   
   nullify(structured_grid%cell_neighbors_local_ghosted)
  
-  structured_grid%local_origin = -1.d20
-  structured_grid%bounds = -1.d20
+  structured_grid%local_origin = -MAX_DOUBLE
+  structured_grid%bounds = -MAX_DOUBLE
   
   structured_grid%invert_z_axis = PETSC_FALSE
   structured_grid%second_order_bc = PETSC_FALSE
@@ -1311,17 +1311,17 @@ end subroutine StructGridPopulateConnection
 ! ************************************************************************** !
 
 subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
-  ! 
+  !
   ! Computes the volumes of cells in structured grid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Option_module
-  
+
   implicit none
 
   type(grid_structured_type) :: structured_grid
@@ -1329,16 +1329,16 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
   PetscInt :: nL2G(:)
   PetscReal :: radius(:)
   Vec :: volume
-  
+
   PetscReal, parameter :: Pi=3.141592653590d0
-  
+
   PetscInt :: local_id, ghosted_id
   PetscReal, pointer :: volume_p(:)
   PetscReal :: r1, r2
   PetscErrorCode :: ierr
-  
+
   call VecGetArrayF90(volume,volume_p, ierr);CHKERRQ(ierr)
-  
+
   select case(structured_grid%itype)
     case(CARTESIAN_GRID)
       do local_id=1, structured_grid%nlmax
@@ -1365,11 +1365,12 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
                              * (r2*r2 + r2*r1 + r1*r1)
       enddo
   end select
-  
+
   call VecRestoreArrayF90(volume,volume_p, ierr);CHKERRQ(ierr)
-  
-  if (option%print_to_screen .and. &
-      option%mycommsize > 1 .and. option%mycommsize <= 16) then
+
+  if (option%driver%PrintToScreen() .and. &
+      option%comm%mycommsize > 1 .and. &
+      option%comm%mycommsize <= 16) then
     write(*,'(" rank= ",i3,", nlmax= ",i6,", nlx,y,z= ",3i4, &
       & ", nxs,e = ",2i4,", nys,e = ",2i4,", nzs,e = ",2i4)') &
       option%myrank,structured_grid%nlmax,structured_grid%nlx, &

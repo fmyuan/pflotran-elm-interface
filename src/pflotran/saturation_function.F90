@@ -641,8 +641,7 @@ subroutine SaturatFuncConvertListToArray(list,array,option)
     count = count + 1
     cur_saturation_function%id = count
     array(count)%ptr => cur_saturation_function
-    if (cur_saturation_function%print_me .and. &
-        option%myrank == option%io_rank) then
+    if (cur_saturation_function%print_me .and. OptionIsIORAnk(option)) then
       call SaturationFunctionVerify(cur_saturation_function,option)
     endif
     cur_saturation_function => cur_saturation_function%next

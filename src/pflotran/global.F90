@@ -589,7 +589,7 @@ subroutine GlobalUpdateState(realization)
 
   use Realization_Subsurface_class
   use Realization_Base_class, only : RealizationGetVariable
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Variables_module, only : STATE
   
   class(realization_subsurface_type) :: realization
@@ -618,7 +618,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   use Realization_Base_class, only : RealizationGetVariable
   use Field_module
   use Option_module
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Material_module, only : MaterialUpdateAuxVars
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
                                LIQUID_DENSITY, GAS_PRESSURE, &

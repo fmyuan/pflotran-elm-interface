@@ -212,7 +212,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 #define BROADCAST_DATASET
 #ifdef BROADCAST_DATASET
   call OptionSetBlocking(option,PETSC_FALSE)
-  if (first_time .or. option%myrank == option%io_rank) then
+  if (first_time .or. OptionIsIORank(option)) then
 #endif
 
   ! open the file
@@ -352,7 +352,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   
 #ifdef BROADCAST_DATASET
   call OptionSetBlocking(option,PETSC_FALSE)
-  if (first_time .or. option%myrank == option%io_rank) then
+  if (first_time .or. OptionIsIORank(option)) then
 #endif
   ! open the "data" dataset
   dataset_name = 'Data'
@@ -441,7 +441,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   write(option%io_buffer,'(f6.2," Seconds to set up dataset ",a,".")') &
     tend-tstart, trim(this%hdf5_dataset_name) // ' (' // &
     trim(option%group_prefix) // ')'
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     print *, trim(option%io_buffer)
   endif
   call PetscTime(tstart,ierr);CHKERRQ(ierr)
@@ -468,7 +468,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   endif
 
 #ifdef BROADCAST_DATASET
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
 #endif
 
   call h5screate_simple_f(array_rank_mpi,length,memory_space_id, &
@@ -520,22 +520,22 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   call h5dclose_f(dataset_id,hdf5_err)  
 
 #ifdef BROADCAST_DATASET
-  endif !if (option%myrank == option%io_rank) then
+  endif !if (OptionIsIORank(option)) then
   if (associated(this%rbuffer)) then
     mpi_int = size(this%rbuffer)
-    call MPI_Bcast(this%rbuffer,mpi_int,MPI_DOUBLE_PRECISION,option%io_rank, &
-                   option%mycomm,ierr)
+    call MPI_Bcast(this%rbuffer,mpi_int,MPI_DOUBLE_PRECISION, &
+                   option%driver%io_rank,option%mycomm,ierr)
   else
     mpi_int = size(this%rarray)
-    call MPI_Bcast(this%rarray,mpi_int,MPI_DOUBLE_PRECISION,option%io_rank, &
-                   option%mycomm,ierr)
+    call MPI_Bcast(this%rarray,mpi_int,MPI_DOUBLE_PRECISION, &
+                   option%driver%io_rank,option%mycomm,ierr)
   endif
 #endif
   
   call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 
 #ifdef BROADCAST_DATASET
-  if (first_time .or. option%myrank == option%io_rank) then
+  if (first_time .or. OptionIsIORank(option)) then
 #endif  
   option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
   call PrintMsg(option)
@@ -553,7 +553,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   write(option%io_buffer,'(f6.2," Seconds to read dataset ",a,".")') &
     tend-tstart, trim(this%hdf5_dataset_name) // ' (' // &
     trim(option%group_prefix) // ')'
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     print *, trim(option%io_buffer)
   endif
 #endif

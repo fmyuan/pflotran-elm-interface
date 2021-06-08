@@ -1,9 +1,9 @@
-module Reaction_Sandbox_GMD_2_class
+module Reaction_Sand_Flex_Biodeg_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use Reaction_Sandbox_GMD_1_class
+  use Reaction_Sandbox_Biodeg_class
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -11,7 +11,7 @@ module Reaction_Sandbox_GMD_2_class
   private
   
   type, public, &
-    extends(reaction_sandbox_gmd_1_type) :: reaction_sandbox_gmd_2_type
+    extends(reaction_sandbox_biodeg_type) :: reaction_sandbox_flexbiodeg_type
     PetscReal :: k_max
     PetscReal :: K_Aaq_n
     PetscReal :: K_Baq
@@ -22,45 +22,45 @@ module Reaction_Sandbox_GMD_2_class
     PetscBool :: molarity_units
     PetscReal, pointer :: stoich(:)
   contains
-    procedure, public :: ReadInput => GMD2ReadInput
-    procedure, public :: Setup => GMD2Setup
-    procedure, public :: Evaluate => GMD2Evaluate
-    procedure, public :: Destroy => GMD2Destroy
-  end type reaction_sandbox_gmd_2_type
+    procedure, public :: ReadInput => FlexBiodegReadInput
+    procedure, public :: Setup => FlexBiodegSetup
+    procedure, public :: Evaluate => FlexBiodegEvaluate
+    procedure, public :: Destroy => FlexBiodegDestroy
+  end type reaction_sandbox_flexbiodeg_type
 
-  public :: GMD2Create
+  public :: FlexBiodegCreate
 
 contains
 
 ! ************************************************************************** !
 
-function GMD2Create()
+function FlexBiodegCreate()
   ! 
-  ! Allocates GMD 2 reaction object.
+  ! Allocates flexible biodegradation reaction object.
   ! 
   implicit none
   
-  class(reaction_sandbox_gmd_2_type), pointer :: GMD2Create
+  class(reaction_sandbox_flexbiodeg_type), pointer :: FlexBiodegCreate
 
-  allocate(GMD2Create)
-  GMD2Create%k_max = UNINITIALIZED_DOUBLE
-  GMD2Create%K_Aaq_n = UNINITIALIZED_DOUBLE
-  GMD2Create%K_Baq = UNINITIALIZED_DOUBLE
-  GMD2Create%I_Caq = UNINITIALIZED_DOUBLE
-  GMD2Create%yield = UNINITIALIZED_DOUBLE
-  GMD2Create%k_decay = UNINITIALIZED_DOUBLE
-  GMD2Create%n = 1.d0
-  GMD2Create%molarity_units = PETSC_TRUE
-  nullify(GMD2Create%stoich)
-  nullify(GMD2Create%next)  
+  allocate(FlexBiodegCreate)
+  FlexBiodegCreate%k_max = UNINITIALIZED_DOUBLE
+  FlexBiodegCreate%K_Aaq_n = UNINITIALIZED_DOUBLE
+  FlexBiodegCreate%K_Baq = UNINITIALIZED_DOUBLE
+  FlexBiodegCreate%I_Caq = UNINITIALIZED_DOUBLE
+  FlexBiodegCreate%yield = UNINITIALIZED_DOUBLE
+  FlexBiodegCreate%k_decay = UNINITIALIZED_DOUBLE
+  FlexBiodegCreate%n = 1.d0
+  FlexBiodegCreate%molarity_units = PETSC_TRUE
+  nullify(FlexBiodegCreate%stoich)
+  nullify(FlexBiodegCreate%next)  
       
-end function GMD2Create
+end function FlexBiodegCreate
 
 ! ************************************************************************** !
 
-subroutine GMD2ReadInput(this,input,option)
+subroutine FlexBiodegReadInput(this,input,option)
   ! 
-  ! Reads GMD 2 reaction parameters
+  ! Reads flexible biodegradation reaction parameters
   !
   use Option_module
   use Input_Aux_module
@@ -68,7 +68,7 @@ subroutine GMD2ReadInput(this,input,option)
 
   implicit none
 
-  class(reaction_sandbox_gmd_2_type) :: this
+  class(reaction_sandbox_flexbiodeg_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -77,7 +77,7 @@ subroutine GMD2ReadInput(this,input,option)
   PetscReal :: K_Aaq
 
   K_Aaq = UNINITIALIZED_DOUBLE
-  error_string = 'CHEMISTRY,REACTION_SANDBOX,GMD2'
+  error_string = 'CHEMISTRY,REACTION_SANDBOX,FLEXIBLE_BIODEGRADATION'
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
@@ -100,8 +100,8 @@ subroutine GMD2ReadInput(this,input,option)
             this%molarity_units = PETSC_FALSE
           case default
             call InputKeywordUnrecognized(input,word, &
-                         'CHEMISTRY,REACTION_SANDBOX,GMD_2,&
-                         &AQUEOUS_CONCENTRATION_UNITS',option)
+                         trim(error_string)//&
+                         'AQUEOUS_CONCENTRATION_UNITS',option)
         end select
       case('MAX_SPECIFIC_UTILIZATION_RATE') 
         call InputReadDouble(input,option,this%k_max)
@@ -129,8 +129,7 @@ subroutine GMD2ReadInput(this,input,option)
         call InputReadDouble(input,option,this%n)
         call InputErrorMsg(input,option,word,error_string)
       case default
-        call InputKeywordUnrecognized(input,word, &
-                     'CHEMISTRY,REACTION_SANDBOX,GMD_2',option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -156,20 +155,21 @@ subroutine GMD2ReadInput(this,input,option)
   endif
 
   if (len_trim(error_string) > 0) then
-    option%io_buffer = 'Reaction Sandbox GMD 2 has uninitialized parameters: ' &
+    option%io_buffer = 'Reaction Sandbox FLEXIBLE_BIODEGRADATION has &
+      &uninitialized parameters: ' &
       // error_string(1:len_trim(error_string)-1)
     call PrintErrMsg(option)
   endif
 
   this%K_Aaq_n = K_Aaq**this%n
 
-end subroutine GMD2ReadInput
+end subroutine FlexBiodegReadInput
 
 ! ************************************************************************** !
 
-subroutine GMD2Setup(this,reaction,option)
+subroutine FlexBiodegSetup(this,reaction,option)
   ! 
-  ! Sets up the GMD 1 reaction with hardwired parameters
+  ! Sets up the flexible biodegradation reaction with hardwired parameters
   ! 
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
@@ -177,11 +177,11 @@ subroutine GMD2Setup(this,reaction,option)
 
   implicit none
 
-  class(reaction_sandbox_gmd_2_type) :: this
+  class(reaction_sandbox_flexbiodeg_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-  call GMD1Setup(this,reaction,option)
+  call BiodegSetup(this,reaction,option)
   allocate(this%stoich(reaction%ncomp))
   this%stoich = 0.d0
   this%stoich(this%species_Aaq_id) = -1.d0
@@ -190,15 +190,15 @@ subroutine GMD2Setup(this,reaction,option)
   this%stoich(this%species_Daq_id) = 1.d0
   this%stoich(this%species_Xim_id+reaction%offset_immobile) = this%yield
 
-end subroutine GMD2Setup
+end subroutine FlexBiodegSetup
 
 ! ************************************************************************** !
 
-subroutine GMD2Evaluate(this,Residual,Jacobian,compute_derivative, &
-                        rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                        option)
+subroutine FlexBiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
+                              rt_auxvar,global_auxvar,material_auxvar, &
+                              reaction,option)
   ! 
-  ! Evaluates GMD 2 reaction storing residual but no Jacobian
+  ! Evaluates flexible biodegradation reaction storing residual but no Jacobian
   ! 
   use Option_module
   use Reaction_Aux_module
@@ -208,7 +208,7 @@ subroutine GMD2Evaluate(this,Residual,Jacobian,compute_derivative, &
 
   implicit none
 
-  class(reaction_sandbox_gmd_2_type) :: this
+  class(reaction_sandbox_flexbiodeg_type) :: this
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -281,11 +281,11 @@ subroutine GMD2Evaluate(this,Residual,Jacobian,compute_derivative, &
       Jacobian(Xim_offset,Xim_offset) + this%k_decay * volume
   endif
 
-end subroutine GMD2Evaluate
+end subroutine FlexBiodegEvaluate
 
 ! ************************************************************************** !
 
-subroutine GMD2Destroy(this)
+subroutine FlexBiodegDestroy(this)
   !
   ! Deallocates dynamic memory
   !
@@ -293,10 +293,10 @@ subroutine GMD2Destroy(this)
 
   implicit none
 
-  class(reaction_sandbox_gmd_2_type) :: this
+  class(reaction_sandbox_flexbiodeg_type) :: this
 
   call DeallocateArray(this%stoich)
 
-end subroutine GMD2Destroy
+end subroutine FlexBiodegDestroy
 
-end module Reaction_Sandbox_GMD_2_class
+end module Reaction_Sand_Flex_Biodeg_class

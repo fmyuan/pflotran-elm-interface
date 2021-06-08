@@ -259,7 +259,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
     call VecCreate(PETSC_COMM_SELF, &
                    geomechanics_regression%natural_vertex_id_vec, &
                    ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecSetSizes(geomechanics_regression%natural_vertex_id_vec, &
                        size(geomechanics_regression%natural_vertex_ids), &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
@@ -271,7 +271,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
     call VecSetFromOptions(geomechanics_regression%natural_vertex_id_vec, &
                            ierr);CHKERRQ(ierr)
   
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       count = size(geomechanics_regression%natural_vertex_ids)
       ! determine how many of the natural vertex ids are local
       allocate(int_array(count))
@@ -340,10 +340,10 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
     call VecCreate(PETSC_COMM_SELF, &
                    geomechanics_regression%vertices_per_process_vec, &
                    ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecSetSizes(geomechanics_regression%vertices_per_process_vec, &
                        geomechanics_regression%num_vertices_per_process* &
-                       option%mycommsize, &
+                       option%comm%mycommsize, &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
     else
       call VecSetSizes(geomechanics_regression% &
@@ -370,8 +370,8 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
     call VecRestoreArrayF90(temp_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
     ! create temporary scatter to transfer values to io_rank
-    if (option%myrank == option%io_rank) then
-      count = option%mycommsize* &
+    if (OptionIsIORank(option)) then
+      count = option%comm%mycommsize* &
               geomechanics_regression%num_vertices_per_process
       ! determine how many of the natural vertex ids are local
       allocate(int_array(count))
@@ -405,8 +405,8 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
     call VecDestroy(temp_vec,ierr);CHKERRQ(ierr)
    
     ! transfer vertex ids into array for creating new scatter
-    if (option%myrank == option%io_rank) then
-      count = option%mycommsize* &
+    if (OptionIsIORank(option)) then
+      count = option%comm%mycommsize* &
               geomechanics_regression%num_vertices_per_process
       call VecGetArrayF90(geomechanics_regression%vertices_per_process_vec, &
                           vec_ptr,ierr);CHKERRQ(ierr)
@@ -453,10 +453,10 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
 #endif
   
     ! fill in natural ids of these vertices on the io_rank
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       allocate(geomechanics_regression%vertices_per_process_natural_ids( &
                geomechanics_regression%num_vertices_per_process* &
-               option%mycommsize))
+               option%comm%mycommsize))
     endif
 
     call VecGetArrayF90(geomechanics_realization%geomech_field%press,vec_ptr, &
@@ -478,7 +478,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
                        geomechanics_regression%vertices_per_process_vec, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecGetArrayF90(geomechanics_regression% &
                           vertices_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
@@ -536,7 +536,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
   
   option => geomechanics_realization%option
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     string = trim(option%global_prefix) // &
              trim(option%group_prefix) // &  
              '.regression'
@@ -603,7 +603,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
 100 format(i9,': ',es21.13)    
 101 format(i9,': ',i9)    
     
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         string = OutputVariableToCategoryString(cur_variable%icategory)
         write(OUTPUT_UNIT,'(''-- '',a,'': '',a,'' --'')') &
           trim(string), trim(cur_variable%name)
@@ -644,12 +644,12 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
           call VecGetArrayF90(geomechanics_regression%vertices_per_process_vec,vec_ptr, &
                               ierr);CHKERRQ(ierr)
           if (cur_variable%iformat == 0) then
-            do i = 1, geomechanics_regression%num_vertices_per_process*option%mycommsize
+            do i = 1, geomechanics_regression%num_vertices_per_process*option%comm%mycommsize
               write(OUTPUT_UNIT,100) &
                 geomechanics_regression%vertices_per_process_natural_ids(i),vec_ptr(i)
             enddo
           else
-            do i = 1, geomechanics_regression%num_vertices_per_process*option%mycommsize
+            do i = 1, geomechanics_regression%num_vertices_per_process*option%comm%mycommsize
               write(OUTPUT_UNIT,101) &
                 geomechanics_regression%vertices_per_process_natural_ids(i),int(vec_ptr(i))
             enddo
@@ -669,7 +669,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
                  NORM_2,x_norm,ierr);CHKERRQ(ierr)
     call VecNorm(geomechanics_realization%geomech_field%disp_r, &
                  NORM_2,r_norm,ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       write(OUTPUT_UNIT,'(''-- SOLUTION: Geomechanics --'')')
       write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
         geomechanics_timestepper%cumulative_solver_time

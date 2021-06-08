@@ -52,6 +52,7 @@ subroutine MultiSimulationInitialize(multisimulation,option)
   ! Date: 02/04/09, 01/06/14
   use Option_module
   use Input_Aux_module
+  use Communicator_Aux_module
   
   implicit none
 
@@ -136,7 +137,8 @@ subroutine MultiSimulationInitialize(multisimulation,option)
     call PrintErrMsg(option)
   endif
   
-  call OptionCreateProcessorGroups(option,multisimulation%num_groups)
+  call CommCreateProcessorGroups(option%comm,multisimulation%num_groups)
+  call OptionUpdateFromComm(option)
   
   ! divvy up the realizations
   multisimulation%num_local_realizations = multisimulation%num_realizations / &
@@ -145,13 +147,14 @@ subroutine MultiSimulationInitialize(multisimulation,option)
                                          multisimulation%num_local_realizations
   
   ! offset is initialized above after check for '-realization_offset'
-  do i = 1, option%mygroup_id-1
+  do i = 1, option%comm%mygroup_id-1
     delta = multisimulation%num_local_realizations
     if (i < remainder) delta = delta + 1
     offset = offset + delta
   enddo
   
-  if (option%mygroup_id < remainder) multisimulation%num_local_realizations = &
+  if (option%comm%mygroup_id < remainder) &
+    multisimulation%num_local_realizations = &
                                      multisimulation%num_local_realizations + 1
   allocate(multisimulation%realization_ids( &
                                   multisimulation%num_local_realizations))
