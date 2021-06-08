@@ -259,9 +259,9 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   ! For each row numbered by vertex (-1, zero-base),
   ! the ranks of the processes that possess the vertex are stored  
   call MatCreateAIJ(option%mycomm,PETSC_DECIDE,ONE_INTEGER, &
-                    geomech_grid%nmax_node,option%mycommsize, &
-                    option%mycommsize,PETSC_NULL_INTEGER, &
-                    option%mycommsize,PETSC_NULL_INTEGER,Rank_Mat, &
+                    geomech_grid%nmax_node,option%comm%mycommsize, &
+                    option%comm%mycommsize,PETSC_NULL_INTEGER, &
+                    option%comm%mycommsize,PETSC_NULL_INTEGER,Rank_Mat, &
                     ierr);CHKERRQ(ierr)
   
   call MatZeroEntries(Rank_Mat,ierr);CHKERRQ(ierr)
@@ -283,8 +283,8 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 #endif
 
   ! Now find the maximum of all the ranks for each vertex
-  allocate(val(option%mycommsize))
-  allocate(cols(option%mycommsize))
+  allocate(val(option%comm%mycommsize))
+  allocate(cols(option%comm%mycommsize))
   call MatGetOwnershipRange(Rank_Mat,istart,iend,ierr);CHKERRQ(ierr)
   allocate(int_array(iend-istart))
   count = 0
@@ -316,12 +316,12 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 #endif    
     
   ! Now count the number of vertices that are local to each rank
-  allocate(vertex_count_array(option%mycommsize))
-  allocate(vertex_count_array2(option%mycommsize))
+  allocate(vertex_count_array(option%comm%mycommsize))
+  allocate(vertex_count_array2(option%comm%mycommsize))
   vertex_count_array = 0
   vertex_count_array2 = 0
 
-  do int_rank = 0, option%mycommsize
+  do int_rank = 0, option%comm%mycommsize
     do local_id = 1, count
       if (int_array(local_id) == int_rank) then
         vertex_count_array(int_rank+1) = vertex_count_array(int_rank+1) + 1
@@ -329,10 +329,10 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     enddo
   enddo
   call MPI_Allreduce(vertex_count_array,vertex_count_array2, &
-                     option%mycommsize,MPIU_INTEGER,MPI_SUM, &
+                     option%comm%mycommsize,MPIU_INTEGER,MPI_SUM, &
                      option%mycomm,ierr)
 
-  do int_rank = 0, option%mycommsize
+  do int_rank = 0, option%comm%mycommsize
     if (option%myrank == int_rank) geomech_grid%nlmax_node = &
       vertex_count_array2(int_rank+1)
     if (geomech_grid%nlmax_node > geomech_grid%ngmax_node) then
@@ -1180,8 +1180,8 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
     enddo
 
     ! Depending on processor rank, save only a portion of data
-    grid%mapping_num_cells = count/option%mycommsize
-      remainder = count - grid%mapping_num_cells*option%mycommsize
+    grid%mapping_num_cells = count/option%comm%mycommsize
+      remainder = count - grid%mapping_num_cells*option%comm%mycommsize
     if (option%myrank < remainder) grid%mapping_num_cells = &
                                      grid%mapping_num_cells + 1
     istart = 0

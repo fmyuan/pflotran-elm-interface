@@ -481,8 +481,8 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputErrorMsg(input,option,'y-direction','GRAVITY')
         call InputReadDouble(input,option,option%gravity(Z_DIRECTION))
         call InputErrorMsg(input,option,'z-direction','GRAVITY')
-        if (option%myrank == option%io_rank .and. &
-            option%print_to_screen) &
+        if (OptionIsIORank(option) .and. &
+            option%driver%PrintToScreen()) &
           write(option%fid_out,'(/," *GRAV",/, &
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
             & )') option%gravity(1:3)
@@ -492,7 +492,7 @@ subroutine DiscretizationRead(discretization,input,option)
                             unstructured_grid%max_cells_sharing_a_vertex)
           call InputErrorMsg(input,option,'max_cells_sharing_a_vertex', &
                              'GRID')
-        endif          
+        endif
       case ('INVERT_Z')
       case ('STENCIL_WIDTH')
         call InputReadInt(input,option,discretization%stencil_width)
@@ -517,7 +517,7 @@ subroutine DiscretizationRead(discretization,input,option)
              call InputReadFilename(input,option,discretization%grid% &
                                     unstructured_grid%explicit_grid% &
                                     domain_filename)
-            call InputErrorMsg(input,option,'DOMAIN_FILENAME','GRID')  
+            call InputErrorMsg(input,option,'DOMAIN_FILENAME','GRID')
           case default
             option%io_buffer = 'DOMAIN_FILENAME only supported for explicit &
                                &unstructured grids.'
@@ -1621,7 +1621,7 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       if (OptionPrintToScreen(option)) then
         write(*,'(/," Requested processors and decomposition = ", &
                  & i5,", npx,y,z= ",3i4)') &
-            option%mycommsize,grid%structured_grid%npx, &
+            option%comm%mycommsize,grid%structured_grid%npx, &
             grid%structured_grid%npy,grid%structured_grid%npz
         write(*,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
             grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
@@ -1630,7 +1630,7 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       if (OptionPrintToFile(option)) then
         write(option%fid_out,'(/," Requested processors and decomposition = ", &
                              & i5,", npx,y,z= ",3i4)') &
-            option%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
+            option%comm%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
             grid%structured_grid%npz
         write(option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
             grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
@@ -1638,11 +1638,11 @@ subroutine DiscretizationPrintInfo(discretization,grid,option)
       endif
     case default
       if (OptionPrintToScreen(option)) then
-        write(*,'(/," Requested processors = ",i5)') option%mycommsize
+        write(*,'(/," Requested processors = ",i5)') option%comm%mycommsize
       endif
       if (OptionPrintToFile(option)) then
         write(option%fid_out,'(/," Requested processors = ",i5)') &
-          option%mycommsize
+          option%comm%mycommsize
       endif
   end select
   

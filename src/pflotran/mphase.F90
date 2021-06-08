@@ -592,10 +592,10 @@ function MphaseInitGuessCheck(realization)
   enddo
 
   call MPI_Barrier(option%mycomm,ierr)
-  if (option%mycommsize > 1) then
+  if (option%comm%mycommsize > 1) then
     call MPI_Allreduce(ipass,ipass0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                          option%mycomm,ierr)
-    if (ipass0 < option%mycommsize) ipass=-1
+    if (ipass0 < option%comm%mycommsize) ipass=-1
   endif
   MphaseInitGuessCheck =ipass
 end function MphaseInitGuessCheck
@@ -754,10 +754,10 @@ subroutine MPhaseUpdateReason(reason, realization)
 
   call MPI_Barrier(realization%option%mycomm,ierr)
   
-  if (realization%option%mycommsize > 1) then
+  if (realization%option%comm%mycommsize > 1) then
     call MPI_Allreduce(re,re0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                         realization%option%mycomm,ierr)
-    if (re0<realization%option%mycommsize) re=0
+    if (re0<realization%option%comm%mycommsize) re=0
   endif
   reason=re
   

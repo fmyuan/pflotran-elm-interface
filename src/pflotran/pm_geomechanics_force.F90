@@ -4,7 +4,7 @@ module PM_Geomechanics_Force_class
   use petscts
   use PM_Base_class
   use Geomechanics_Realization_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Option_module
   use PFLOTRAN_Constants_module
 

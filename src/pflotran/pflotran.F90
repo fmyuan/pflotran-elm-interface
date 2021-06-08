@@ -3,51 +3,30 @@
 !=======================================================================
 program pflotran
 
-  use Option_module
+  use Driver_module
   use Simulation_Base_class
-  use Multi_Simulation_module
   use Factory_PFLOTRAN_module
-  use Factory_Subsurface_module
   use PFLOTRAN_Constants_module
-  use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
 
   implicit none
 
 #include "petsc/finclude/petscsys.h"
 
   class(simulation_base_type), pointer :: simulation
-  ! multisimulation enables multiple simulations to be run concurrently
-  ! and/or one after another until a specified set of simulations has
-  ! completed.
-  type(multi_simulation_type), pointer :: multisimulation
-  type(option_type), pointer :: option
+  class(driver_type), pointer :: driver
+  PetscInt :: iflag
 
-  nullify(simulation)
-  nullify(multisimulation)
-  option => OptionCreate()
-  call OptionInitMPI(option)
-  call FactoryPFLOTRANInitPrePetsc(multisimulation,option)
-  call OptionInitPetsc(option)
-  if (option%myrank == option%io_rank .and. option%print_to_screen) then
-    !call PrintProvenanceToScreen()
+  driver => DriverCreate()
+  call FactoryPFLOTRANInitialize(driver,simulation)
+  call simulation%InitializeRun()
+  if (driver%status == PROCEED) then
+    call simulation%ExecuteRun()
   endif
-
-  do ! multi-simulation loop
-    call FactoryPFLOTRANInitPostPetsc(simulation,multisimulation,option)
-
-    call simulation%InitializeRun()
-
-    if (option%status == PROCEED) then
-      call simulation%ExecuteRun()
-    endif
-
-    call simulation%FinalizeRun()
-    call simulation%Strip()
-    deallocate(simulation)
-    nullify(simulation)
-    if (MultiSimulationDone(multisimulation)) exit
-  enddo ! multi-simulation loop
-  call FactoryPFLOTRANFinalize(option)
-  call OptionFinalize(option)
+  call simulation%FinalizeRun()
+  call SimulationBaseDestroy(simulation)
+  call FactoryPFLOTRANFinalize(driver)
+  iflag = driver%exit_code
+  call DriverDestroy(driver)
+  call exit(iflag)
 
 end program pflotran

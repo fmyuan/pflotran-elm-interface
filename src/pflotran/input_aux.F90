@@ -719,16 +719,16 @@ subroutine InputReadPflotranString(input, option)
   PetscInt :: flag
 
   if (input%broadcast_read) then
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call InputReadPflotranStringSlave(input, option)
     endif
     flag = input%ierr
-    call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                   option%mycomm,ierr)
+    call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                   option%driver%io_rank,option%mycomm,ierr)
     input%ierr = flag
     if (.not.InputError(input)) then
       call MPI_Bcast(input%buf,MAXSTRINGLENGTH,MPI_CHARACTER, &
-                     option%io_rank,option%mycomm,ierr)
+                     option%driver%io_rank,option%mycomm,ierr)
     endif
   else
     call InputReadPflotranStringSlave(input, option)

@@ -39,7 +39,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine HDF5Init(option)
+subroutine HDF5Init()
   ! 
   ! From the HDF5 library documentation:
   !
@@ -53,9 +53,6 @@ subroutine HDF5Init(option)
   ! Author: Glenn Hammond
   ! Date: 07/06/20
   ! 
-  use Option_module
-  
-  type(option_type) :: option
   
   integer :: hdf5_err
 
@@ -131,7 +128,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   allocate(real_array(num_reals_in_dataset))
   real_array = 0.d0
 #ifdef HDF5_BROADCAST
-  if (option%myrank == option%io_rank) then                           
+  if (OptionIsIORank(option)) then                           
 #endif
     call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
     call h5dread_f(data_set_id,H5T_NATIVE_DOUBLE,real_array,length, &
@@ -139,7 +136,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
     call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 #ifdef HDF5_BROADCAST
   endif
-  if (option%mycommsize > 1) then
+  if (option%comm%mycommsize > 1) then
     int_mpi = num_reals_in_dataset
     call MPI_Bcast(real_array,int_mpi,MPI_DOUBLE_PRECISION, &
                    option%io_rank,option%mycomm,ierr)
@@ -211,9 +208,9 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
   ! Get size of each dimension
   call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
   
-  data_dims(1) = dataset_dims(1)/option%mycommsize
+  data_dims(1) = dataset_dims(1)/option%comm%mycommsize
 
-  remainder = dataset_dims(1) - data_dims(1)*option%mycommsize
+  remainder = dataset_dims(1) - data_dims(1)*option%comm%mycommsize
   if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
 
   
@@ -615,7 +612,7 @@ subroutine HDF5ReadDbase(filename,option)
       call h5tget_class_f(datatype_id, class_id, hdf5_err)
       call h5tclose_f(datatype_id, hdf5_err)
 #ifdef HDF5_BROADCAST
-      if (option%myrank == option%io_rank) then                           
+      if (OptionIsIORank(option)) then                           
 #endif
       call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
       if (class_id == H5T_INTEGER_F) then
@@ -643,7 +640,7 @@ subroutine HDF5ReadDbase(filename,option)
       call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 #ifdef HDF5_BROADCAST
       endif
-      if (option%mycommsize > 1) then
+      if (option%comm%mycommsize > 1) then
         int_mpi = num_values_in_dataset
         if (class_id == H5T_INTEGER_F) then
           call MPI_Bcast(ibuffer,int_mpi,MPI_INTEGER, &
@@ -714,16 +711,13 @@ end subroutine HDF5OpenFileReadOnly
 
 ! ************************************************************************** !
 
-subroutine HDF5Finalize(option)
+subroutine HDF5Finalize()
   ! 
   ! Closes the HDF5 library interface for Fortran.
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/06/20
   ! 
-  use Option_module
-  
-  type(option_type) :: option
   
   call h5close_f(hdf5_err)
   

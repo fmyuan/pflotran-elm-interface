@@ -7,7 +7,7 @@ module PM_Subsurface_Flow_class
 !geh: using Init_Subsurface_module here fails with gfortran (internal compiler error)
 !  use Init_Subsurface_module
   use Realization_Subsurface_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Option_module
   
   use PFLOTRAN_Constants_module

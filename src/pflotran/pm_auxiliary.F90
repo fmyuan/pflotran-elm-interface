@@ -4,7 +4,7 @@ module PM_Auxiliary_class
   use petscsys
   use PM_Base_class
   use Realization_Subsurface_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   
   use PFLOTRAN_Constants_module
 

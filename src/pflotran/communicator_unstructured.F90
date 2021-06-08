@@ -1,7 +1,7 @@
 module Communicator_Unstructured_class
 #include "petsc/finclude/petscdm.h"
   use petscdm
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Grid_Unstructured_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Explicit_module  
