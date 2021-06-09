@@ -89,6 +89,7 @@ subroutine SimulationInverseRead(this,option)
   use Input_Aux_module
   use String_module
   use Utility_module
+  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
   type(option_type), pointer :: option
@@ -96,31 +97,44 @@ subroutine SimulationInverseRead(this,option)
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: word
 
-  error_string = 'SIMULATION,MULTIREALIZATION'
+  error_string = 'SIMULATION,INVERSE'
 
   input => InputCreate(IN_UNIT,this%driver%input_filename,option)
 
   string = 'SIMULATION'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
-  word = ''
+  keyword = ''
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadCard(input,option,word)
-    call InputErrorMsg(input,option,'','SIMULATION')
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'',error_string)
 
-    call StringToUpper(word)
-    select case(trim(word))
+    call StringToUpper(keyword)
+    select case(trim(keyword))
       case('SIMULATION_TYPE')
+      case('INVERSION')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'inversion type', &
+                           trim(error_string)//','//keyword)
+        call StringToUpper(word)
+        select case(word)
+          case('INSITE')
+            this%inversion => InversionINSITECreate(this%driver)
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        end select
+        call this%inversion%ReadBlock(input,option)
       case('FORWARD_SIMULATION_FILENAME')
         call InputReadFilename(input,option,this%forward_simulation_filename)
-        call InputErrorMsg(input,option,word,error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
-        call InputKeywordUnrecognized(input,word,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -157,7 +171,6 @@ subroutine SimulationInverseInitializeRun(this)
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
-  this%inversion => InversionINSITECreate(this%driver)
 
   call SimulationBaseInitializeRun(this)
 

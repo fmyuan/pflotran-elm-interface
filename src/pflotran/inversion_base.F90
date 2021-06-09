@@ -3,6 +3,7 @@ module Inversion_Base_class
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
+  use PFLOTRAN_Constants_module
   use Driver_module
   use Timer_class
 
@@ -16,6 +17,7 @@ module Inversion_Base_class
   contains
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseInitialize
+    procedure, public :: ReadBlock => InversionBaseReadBlock
     procedure, public :: UpdateParameters => InversionBaseUpdateParameters
     procedure, public :: CalculateInverse => InversionBaseCalculateInverse
     procedure, public :: Finalize => InversionBaseFinalize
@@ -23,6 +25,7 @@ module Inversion_Base_class
   end type inversion_base_type
 
   public :: InversionBaseInit, &
+            InversionBaseReadSelectCase, &
             InversionBaseFinalize, &
             InversionBaseStrip, &
             InversionBaseDestroy
@@ -46,6 +49,75 @@ subroutine InversionBaseInit(this,driver)
   call this%timer%Start()
 
 end subroutine InversionBaseInit
+
+! ************************************************************************** !
+
+subroutine InversionBaseReadBlock(this,input,option)
+
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  class(inversion_base_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  error_string = 'Base Inversion'
+
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    found = PETSC_TRUE
+    call InversionBaseReadSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+    if (found) cycle
+
+    select case(trim(keyword))
+      case default
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
+
+  enddo
+  call InputPopBlock(input,option)
+  
+end subroutine InversionBaseReadBlock
+
+! ************************************************************************** !
+
+subroutine InversionBaseReadSelectCase(this,input,keyword,found, &
+                                       error_string,option)
+
+  use Input_Aux_module
+  use Option_module
+
+  class(inversion_base_type) :: this
+  type(input_type) :: input
+
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine InversionBaseReadSelectCase
 
 ! ************************************************************************** !
 
