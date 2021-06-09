@@ -6525,6 +6525,10 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                   call new_crit_mech%crit_heat_dataset%Read(new_crit_mech% &
                                                             crit_heat_dataset% &
                                                             file_name,option)
+              !-----------------------------
+                case default
+                  call InputKeywordUnrecognized(input,word,error_string,option)
+              !-----------------------------
               end select
             enddo
             call InputPopBlock(input,option)
@@ -6532,12 +6536,16 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
           case('DECAY_HEAT')
             call InputReadCard(input,option,word)
             select case (trim(word))
+            !-----------------------------
               case('TOTAL')
                 new_crit_mech%heat_source_cond = 1
+            !-----------------------------
               case('ADDITIONAL')
                 new_crit_mech%heat_source_cond = 2
+            !-----------------------------
               case('CYCLIC')
                 new_crit_mech%heat_source_cond = 3
+            !-----------------------------
             end select
             call InputPushBlock(input,option)
             do
@@ -6546,6 +6554,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               if (InputCheckExit(input,option)) exit
               call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
+              !-----------------------------
                 case('DATASET')
                   internal_units = 'MW'
                   new_crit_mech%heat_dataset => DatasetAsciiCreate()
@@ -6556,6 +6565,10 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           internal_units,error_string,option)
                   new_crit_mech%heat_dataset%time_storage% &
                           time_interpolation_method = 2
+              !-----------------------------
+                case default
+                  call InputKeywordUnrecognized(input,word,error_string,option)
+              !-----------------------------
               end select
             enddo
             call InputPopBlock(input,option)
@@ -6568,6 +6581,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               if (InputCheckExit(input,option)) exit
               call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
+              !-----------------------------
                 case('DATASET')
                   internal_units = 'g/g'
                   new_crit_mech%rad_dataset => DatasetAsciiCreate()
@@ -6578,6 +6592,10 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           internal_units,error_string,option)
                   new_crit_mech%rad_dataset%time_storage% &
                           time_interpolation_method = 2
+              !-----------------------------
+                case default
+                  call InputKeywordUnrecognized(input,word,error_string,option)
+              !-----------------------------
               end select
             enddo
             call InputPopBlock(input,option)
