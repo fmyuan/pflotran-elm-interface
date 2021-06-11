@@ -338,7 +338,7 @@ integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
                   string.o utility.o
 inversion.o : grid.o input_aux.o material.o option.o patch.o \
               pflotran_constants.o string.o survey.o utility.o
-inversion_base.o : driver.o timer.o
+inversion_base.o : driver.o timer.o input_aux.o
 inversion_insite.o : inversion_base.o realization_subsurface.o
 kdtree.o :
 logging.o : pflotran_constants.o
