@@ -1353,6 +1353,7 @@ contains
     ghosted_id_nb = rblock(iconst,2)
     irb = rblock(iconst,3)
     cond_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
+    x = 0.d0
 
     select case(constrained_block%structure_metric(irb))
     case(1)
@@ -1367,10 +1368,10 @@ contains
       x = abs(log(cond_ce) - &
               log(constrained_block%reference_conductivity(irb)))
     case(5)
-      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
-      x = log(cond_ce) - log(cond_nb)
+      !cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
+      !x = log(cond_ce) - log(cond_nb)
 
-      ! compute rx,ry, and rz
+      ! compute unit vectors: rx,ry, and rz
       rx = grid%x(ghosted_id) - grid%x(ghosted_id_nb)
       ry = grid%y(ghosted_id) - grid%y(ghosted_id_nb)
       rz = grid%z(ghosted_id) - grid%z(ghosted_id_nb)
@@ -1379,13 +1380,13 @@ contains
       ry = ry / r
       rz = rz / r
     case(6)
-      cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
-      x = abs(log(cond_ce) - log(cond_nb))
+      !cond_nb = material_auxvars(ghosted_id_nb)%electrical_conductivity(1)
+      !x = abs(log(cond_ce) - log(cond_nb))
 
-      ! compute rx,ry, and rz
-      rx = grid%x(ghosted_id) - grid%x(ghosted_id_nb)
-      ry = grid%y(ghosted_id) - grid%y(ghosted_id_nb)
-      rz = grid%z(ghosted_id) - grid%z(ghosted_id_nb)
+      ! compute unit vectors: rx,ry, and rz
+      rx = abs(grid%x(ghosted_id) - grid%x(ghosted_id_nb))
+      ry = abs(grid%y(ghosted_id) - grid%y(ghosted_id_nb))
+      rz = abs(grid%z(ghosted_id) - grid%z(ghosted_id_nb))
       r = sqrt(rx*rx + ry*ry + rz*rz)
       rx = rx / r
       ry = ry / r
@@ -1453,7 +1454,7 @@ contains
 
   end subroutine ComputeWm
 
-  end subroutine PMERTBuildWm
+end subroutine PMERTBuildWm
 
 ! ************************************************************************** !
 
