@@ -97,3 +97,4 @@ src/clm-pflotran/*.F90
 *.gcno
 
 build/
+bin/

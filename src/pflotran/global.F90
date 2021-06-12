@@ -441,22 +441,10 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
         auxvars(ghosted_id)%istate = int(vec_loc_p(ghosted_id)+1.d-10)
       enddo
     case(DARCY_VELOCITY)
-      select case(isubvar)
-        case(TIME_T)
-          do ghosted_id=1, grid%ngmax
-            patch%aux%Global%auxvars(ghosted_id)%darcy_vel_store(option%liquid_phase,TIME_T) = &
-                vec_loc_p(ghosted_id)
-          enddo
-        case(TIME_TpDT)
-          do ghosted_id=1, grid%ngmax
-            patch%aux%Global%auxvars(ghosted_id)%darcy_vel_store(option%liquid_phase,TIME_TpDT) = &
-                vec_loc_p(ghosted_id)
-          enddo
-        case default
-          do ghosted_id=1, grid%ngmax
-            patch%aux%Global%auxvars(ghosted_id)%darcy_vel(option%liquid_phase) = vec_loc_p(ghosted_id)
-          enddo
-      end select 
+      do ghosted_id=1, grid%ngmax
+        patch%aux%Global%auxvars(ghosted_id)%darcy_vel(option%liquid_phase) = vec_loc_p(ghosted_id)
+      enddo
+      !end select 
     case default
       print *, 'Case(', ivar, ') not supported in GlobalSetAuxVarVecLoc'
       stop
@@ -555,10 +543,6 @@ subroutine GlobalWeightAuxVars(realization,weight)
     auxvars(ghosted_id)%sat(:) = &
       (weight*auxvars(ghosted_id)%sat_store(:,TIME_TpDT)+ &
        (1.d0-weight)*auxvars(ghosted_id)%sat_store(:,TIME_T))
-    auxvars(ghosted_id)%darcy_vel(:) = &
-       (weight*auxvars(ghosted_id)%darcy_vel_store(:,TIME_TpDT)+ &
-        (1.d0-weight)*auxvars(ghosted_id)%darcy_vel_store(:,TIME_T))
- 
   enddo
   
   select case(option%iflowmode) 
