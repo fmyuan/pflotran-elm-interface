@@ -22,6 +22,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/characteristic_curves.o \
 	$(EXE_DIR)/characteristic_curves_base.o \
 	$(EXE_DIR)/characteristic_curves_common.o \
+        $(EXE_DIR)/characteristic_curves_loop_invariant.o \
 	$(EXE_DIR)/characteristic_curves_wipp.o \
 	$(EXE_DIR)/characteristic_curves_thermal.o \
 	$(EXE_DIR)/dataset_ascii.o \
