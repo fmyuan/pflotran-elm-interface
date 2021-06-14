@@ -89,6 +89,8 @@ subroutine SimulationInverseRead(this,option)
   use Input_Aux_module
   use String_module
   use Utility_module
+  use Inversion_ERT_class
+  use Inversion_ERT_class
   use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
@@ -126,6 +128,8 @@ subroutine SimulationInverseRead(this,option)
         select case(word)
           case('INSITE')
             this%inversion => InversionINSITECreate(this%driver)
+          case('ERT')
+            this%inversion => InversionERTCreate(this%driver)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         end select
@@ -154,6 +158,7 @@ subroutine SimulationInverseInitializeRun(this)
   use Option_module
   use Input_Aux_module
   use Communicator_Aux_module
+  use Inversion_ERT_class
   use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
@@ -190,6 +195,7 @@ subroutine SimulationInverseExecuteRun(this)
   use Option_module
   use Factory_Forward_module
   use Simulation_Subsurface_class
+  use Inversion_ERT_class
   use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
@@ -210,6 +216,8 @@ subroutine SimulationInverseExecuteRun(this)
     select type(i=>this%inversion)
       class is(inversion_insite_type)
         i%realization => this%forward_simulation%realization
+      class is(inversion_ert_type)
+      i%realization => this%forward_simulation%realization
     end select
     call this%UpdateParameters()
     call this%forward_simulation%InitializeRun()
