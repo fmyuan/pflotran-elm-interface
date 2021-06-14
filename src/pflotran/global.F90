@@ -639,9 +639,9 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
 
   class(realization_subsurface_type) :: realization
   PetscReal :: time
-  PetscInt :: time_level
+  PetscInt  :: time_level
   
-  PetscInt :: ghosted_id, ghosted_id_max
+  PetscInt :: local_id, local_id_max
   Vec :: vec_x,vec_y,vec_z,global_vec
   PetscReal, pointer :: vec_x_ptr(:),vec_y_ptr(:),vec_z_ptr(:), vec_calc_ptr(:)
   Vec :: vec_calc,velx,vely,velz
@@ -686,7 +686,8 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
     call DiscretizationDuplicateVector(discretization,global_vec,vec_y)
     call DiscretizationDuplicateVector(discretization,global_vec,vec_z)
     call DiscretizationDuplicateVector(discretization,global_vec,vec_calc)
-    call OutputGetCellCenteredVelocities(realization,vec_x,vec_y,vec_z,LIQUID_PHASE)
+    call OutputGetCellCenteredVelocities(realization,vec_x,vec_y,vec_z, &
+                                         LIQUID_PHASE)
 
     ! open the vectors 
     call VecGetArrayF90(vec_x, vec_x_ptr,ierr)
@@ -696,12 +697,14 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
 
     ! the local size of the velocity vector
     ! local size = the number of cells calculated on the processor
-    call VecGetLocalSize(vec_x, ghosted_id_max, ierr)
+    call VecGetLocalSize(vec_x, local_id_max, ierr)
 
     ! for each local(!) calculation calculate the velocity and store it
-    do ghosted_id=1, ghosted_id_max
-      vec_calc_ptr(ghosted_id) = sqrt(vec_x_ptr(ghosted_id)**2+vec_y_ptr(ghosted_id)**2+vec_z_ptr(ghosted_id)**2)/ &
-                                realization%output_option%tconv
+    do local_id=1, local_id_max
+      vec_calc_ptr(local_id) = sqrt(vec_x_ptr(local_id)**2 &
+                                   + vec_y_ptr(local_id)**2 &
+                                   + vec_z_ptr(local_id)**2 ) &
+                                   / realization%output_option%tconv
     enddo
 
     ! close the vectors
