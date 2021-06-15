@@ -20,6 +20,8 @@ module Inversion_Base_class
     procedure, public :: ReadBlock => InversionBaseReadBlock
     procedure, public :: UpdateParameters => InversionBaseUpdateParameters
     procedure, public :: CalculateInverse => InversionBaseCalculateInverse
+    procedure, public :: CheckConvergence => InversionBaseCheckConvergence
+    procedure, public :: CostFunctions => InversionBaseCostFunctions
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
   end type inversion_base_type
@@ -157,6 +159,32 @@ subroutine InversionBaseCalculateInverse(this)
   class(inversion_base_type) :: this
 
 end subroutine InversionBaseCalculateInverse
+
+! ************************************************************************** !
+
+subroutine InversionBaseCheckConvergence(this)
+  !
+  ! Check inversion convergence
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 06/14/21
+  !
+  class(inversion_base_type) :: this
+
+end subroutine InversionBaseCheckConvergence
+
+! ************************************************************************** !
+
+subroutine InversionBaseCostFunctions(this)
+  !
+  ! Computes cost functions
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 06/14/21
+  !
+  class(inversion_base_type) :: this
+
+end subroutine InversionBaseCostFunctions
 
 ! ************************************************************************** !
 

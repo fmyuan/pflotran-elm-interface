@@ -21,6 +21,8 @@ module Inversion_INSITE_class
     procedure, public :: ReadBlock => InversionINSITEReadBlock
     procedure, public :: UpdateParameters => InversionINSITEUpdateParameters
     procedure, public :: CalculateInverse => InversionINSITECalculateInverse
+    procedure, public :: CheckConvergence => InversionINSITECheckConvergence
+    procedure, public :: CostFunctions => InversionINSITECostFunctions
     procedure, public :: Finalize => InversionINSITEFinalize
     procedure, public :: Strip => InversionINSITEStrip
   end type inversion_insite_type
@@ -232,6 +234,32 @@ subroutine InversionINSITECalculateInverse(this)
   endif
 
 end subroutine InversionINSITECalculateInverse
+
+! ************************************************************************** !
+
+subroutine InversionINSITECheckConvergence(this)
+  !
+  ! Check inversion convergence
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 06/14/21
+  !
+  class(inversion_insite_type) :: this
+
+end subroutine InversionINSITECheckConvergence
+
+! ************************************************************************** !
+
+subroutine InversionINSITECostFunctions(this)
+  !
+  ! Computes cost functions
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 06/14/21
+  !
+  class(inversion_insite_type) :: this
+
+end subroutine InversionINSITECostFunctions
 
 ! ************************************************************************** !
 

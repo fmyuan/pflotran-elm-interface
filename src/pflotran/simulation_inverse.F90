@@ -102,7 +102,7 @@ subroutine SimulationInverseRead(this,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: word
 
-  error_string = 'SIMULATION,INVERSE'
+  error_string = 'SIMULATION,INVERSION'
 
   input => InputCreate(IN_UNIT,this%driver%input_filename,option)
 
@@ -206,7 +206,7 @@ subroutine SimulationInverseExecuteRun(this)
 
   num_forward_runs = 0
   do
-    if (num_forward_runs > 2) exit
+    if (num_forward_runs > 1) exit
     option => OptionCreate()
     write(option%group_prefix,'(i6)') num_forward_runs+1
     option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))

@@ -762,8 +762,8 @@ subroutine PMERTSolve(this,time,ierr)
   if (this%option%geophysics%compute_jacobian) call PMERTBuildJacobian(this)
 
   ! For inversion
-  if (this%option%geophysics%inversion) &
-                           call PMERTUpdateElectricalConductivity(this)
+  !if (this%option%geophysics%inversion) &
+  !                         call PMERTUpdateElectricalConductivity(this)
 
 end subroutine PMERTSolve
 
