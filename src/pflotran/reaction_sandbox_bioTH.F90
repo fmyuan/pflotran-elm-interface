@@ -1,4 +1,4 @@
-module Reaction_Sandbox_bioTH_class
+module Reaction_Sandbox_BioTH_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -12,7 +12,7 @@ module Reaction_Sandbox_bioTH_class
   private
 
   type, public, &
-    extends(reaction_sandbox_base_type) :: reaction_sandbox_bioTH_type
+    extends(reaction_sandbox_base_type) :: reaction_sandbox_bioth_type
     
     !ID number of bioparticle species
     PetscInt :: species_Vaq_id ! Aqueous species
@@ -54,20 +54,20 @@ module Reaction_Sandbox_bioTH_class
     PetscBool :: debug_option
     
   contains
-    procedure, public :: ReadInput => bioTH_Read
-    procedure, public :: Setup => bioTH_Setup
-    procedure, public :: Evaluate => bioTH_React
-    procedure, public :: Destroy => bioTH_Destroy
+    procedure, public :: ReadInput => BioTH_Read
+    procedure, public :: Setup => BioTH_Setup
+    procedure, public :: Evaluate => BioTH_React
+    procedure, public :: Destroy => BioTH_Destroy
   
-  end type reaction_sandbox_bioTH_type
+  end type reaction_sandbox_bioth_type
 
-  public :: bioTH_Create
+  public :: BioTH_Create
 
 contains
 
 ! ************************************************************************** !
 
-function bioTH_Create()
+function BioTH_Create()
   ! 
   ! Allocates particle transport variables.
   ! 
@@ -77,53 +77,53 @@ function bioTH_Create()
 
   implicit none
   
-  class(reaction_sandbox_bioTH_type), pointer :: bioTH_Create
+  class(reaction_sandbox_bioth_type), pointer :: BioTH_Create
   
-  allocate(bioTH_Create)
+  allocate(BioTH_Create)
 
   !ID number of bioparticle species
-  bioTH_Create%species_Vaq_id = 0
-  bioTH_Create%species_Vim_id = 0
+  BioTH_Create%species_Vaq_id = 0
+  BioTH_Create%species_Vim_id = 0
 
   !Name of bioparticle species
-  bioTH_Create%name_aqueous = ''
-  bioTH_Create%name_immobile = ''
+  BioTH_Create%name_aqueous = ''
+  BioTH_Create%name_immobile = ''
 
   !Decay rates (Temperature model)
-  bioTH_Create%logDref_aqueous = 0.d0
-  bioTH_Create%Tref_aqueous = 0.d0
-  bioTH_Create%zT_aqueous = 0.d0
-  bioTH_Create%nAq_aqueous = 0.d0
+  BioTH_Create%logDref_aqueous = 0.d0
+  BioTH_Create%Tref_aqueous = 0.d0
+  BioTH_Create%zT_aqueous = 0.d0
+  BioTH_Create%nAq_aqueous = 0.d0
 
-  bioTH_Create%logDref_adsorbed = 0.d0
-  bioTH_Create%Tref_adsorbed = 0.d0
-  bioTH_Create%zT_adsorbed = 0.d0
-  bioTH_Create%nAq_adsorbed = 0.d0
+  BioTH_Create%logDref_adsorbed = 0.d0
+  BioTH_Create%Tref_adsorbed = 0.d0
+  BioTH_Create%zT_adsorbed = 0.d0
+  BioTH_Create%nAq_adsorbed = 0.d0
 
   !Decay rates (Constant)
-  bioTH_Create%decay_aqueous = -1.d0
-  bioTH_Create%decay_adsorbed = -1.d0
+  BioTH_Create%decay_aqueous = -1.d0
+  BioTH_Create%decay_adsorbed = -1.d0
 
   !Filtration Model
-  bioTH_Create%diam_collector = 0.d0
-  bioTH_Create%diam_particle = 0.d0
-  bioTH_Create%hamaker_constant = 0.d0
-  bioTH_Create%density_particle = 0.d0
-  bioTH_Create%alpha_efficiency = 1.d0
+  BioTH_Create%diam_collector = 0.d0
+  BioTH_Create%diam_particle = 0.d0
+  BioTH_Create%hamaker_constant = 0.d0
+  BioTH_Create%density_particle = 0.d0
+  BioTH_Create%alpha_efficiency = 1.d0
 
   !Attachment rates
-  bioTH_Create%rate_attachment = -1.d0
-  bioTH_Create%rate_detachment = 0.d0
+  BioTH_Create%rate_attachment = -1.d0
+  BioTH_Create%rate_detachment = 0.d0
 
   !Attachment rates
-  bioTH_Create%debug_option = .False.
+  BioTH_Create%debug_option = .False.
 
-  nullify(bioTH_Create%next)
+  nullify(BioTH_Create%next)
 
-end function bioTH_Create
+end function BioTH_Create
 
 ! ************************************************************************** !
-subroutine bioTH_Read(this,input,option)
+subroutine BioTH_Read(this,input,option)
   ! 
   ! Reads input deck for reaction sandbox parameters
   ! 
@@ -140,7 +140,7 @@ subroutine bioTH_Read(this,input,option)
   
   implicit none
 
-  class(reaction_sandbox_bioTH_type) :: this
+  class(reaction_sandbox_bioth_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -540,10 +540,10 @@ subroutine bioTH_Read(this,input,option)
   
   call InputPopBlock(input,option)
 
-end subroutine bioTH_Read
+end subroutine BioTH_Read
 
 ! ************************************************************************** !
-subroutine bioTH_Setup(this,reaction,option)
+subroutine BioTH_Setup(this,reaction,option)
   ! 
   ! Sets up the kinetic attachment/dettachment reactions
   ! 
@@ -557,7 +557,7 @@ subroutine bioTH_Setup(this,reaction,option)
 
   implicit none
   
-  class(reaction_sandbox_bioTH_type) :: this
+  class(reaction_sandbox_bioth_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
@@ -567,10 +567,10 @@ subroutine bioTH_Setup(this,reaction,option)
   this%species_Vim_id = &
     GetImmobileSpeciesIDFromName(this%name_immobile,reaction%immobile,option)
 
-end subroutine bioTH_Setup
+end subroutine BioTH_Setup
 
 ! ************************************************************************** !
-subroutine bioTH_React(this,Residual,Jacobian,compute_derivative, &
+subroutine BioTH_React(this,Residual,Jacobian,compute_derivative, &
                         rt_auxvar,global_auxvar,material_auxvar, &
                         reaction, option)
   ! 
@@ -589,7 +589,7 @@ subroutine bioTH_React(this,Residual,Jacobian,compute_derivative, &
 
   implicit none
 
-  class(reaction_sandbox_bioTH_type) :: this  
+  class(reaction_sandbox_bioth_type) :: this  
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -895,10 +895,10 @@ subroutine bioTH_React(this,Residual,Jacobian,compute_derivative, &
   !   Residual(this%species_Vim_id + reaction%offset_immobile) &
   !   - RateDet - RateDecayIm
 
-end subroutine bioTH_React
+end subroutine BioTH_React
 
 ! ************************************************************************** !
-subroutine bioTH_Destroy(this)
+subroutine BioTH_Destroy(this)
   ! 
   ! Destroys allocatable or pointer objects created in this
   ! module
@@ -909,8 +909,8 @@ subroutine bioTH_Destroy(this)
 
   implicit none
   
-  class(reaction_sandbox_bioTH_type) :: this  
+  class(reaction_sandbox_bioth_type) :: this  
 
-end subroutine bioTH_Destroy
+end subroutine BioTH_Destroy
 
-end module Reaction_Sandbox_bioTH_class
+end module Reaction_Sandbox_BioTH_class
