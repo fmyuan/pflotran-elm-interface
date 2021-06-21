@@ -17,6 +17,7 @@ module Inversion_ERT_class
     PetscInt :: iqoi
 
     PetscInt :: iteration                ! iteration number
+    PetscInt :: start_iteration          ! Starting iteration number
     PetscInt :: miniter,maxiter          ! min/max CGLS iterations
 
     PetscReal :: beta                    ! regularization parameter
@@ -154,7 +155,8 @@ subroutine InversionERTInit(this,driver)
   this%target_chi2 = 1.d0
   this%min_phi_red = 0.2d0
 
-  this%iteration = UNINITIALIZED_INTEGER
+  this%iteration = 1
+  this%start_iteration = 1
   this%num_constraints_local = UNINITIALIZED_INTEGER
   this%current_chi2 = UNINITIALIZED_DOUBLE
   this%phi_total_0 = UNINITIALIZED_DOUBLE
@@ -531,6 +533,11 @@ subroutine InversionERTReadBlock(this,input,option)
             call InputKeywordUnrecognized(input,word,trim(error_string)// &
                              & ',STARTING_MODEL',option)
         end select
+      case('START_INVERSION_ITERATION')
+        call InputReadInt(input,option,this%start_iteration)
+        call InputErrorMsg(input,option,'START_INVERSION_ITERATION', &
+                           error_string)
+        this%iteration = this%start_iteration
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -905,11 +912,11 @@ subroutine InversionERTCostFunctions(this)
 
   this%phi_total = this%phi_data + this%phi_model
 
-  if (this%iteration == 1) then
+  if (this%iteration == this%start_iteration) then
     this%phi_data_0 = this%phi_data
     this%phi_model_0 = this%phi_model
     this%phi_total_0 = this%phi_total
-  endif  
+  endif
 
 end subroutine InversionERTCostFunctions
 
@@ -928,7 +935,7 @@ subroutine InversionERTCheckBeta(this)
 
 print*,this%beta,this%iteration
 
-  if (this%iteration == 1) return
+  if (this%iteration == this%start_iteration) return
 
   if ( abs((this%phi_total_0 - this%phi_total)/this%phi_total_0) <= &
                                                       this%min_phi_red ) then
@@ -940,6 +947,9 @@ print*,this%beta,this%iteration
   this%phi_data_0 = this%phi_data
   this%phi_model_0 = this%phi_model
   this%phi_total_0 = this%phi_total
+
+  ! update iteration number
+  this%iteration = this%iteration + 1
 
 end subroutine InversionERTCheckBeta
 
@@ -969,8 +979,6 @@ subroutine InversionERTUpdateParameters(this)
   field => this%realization%field
   discretization => this%realization%discretization
 
-  this%iteration = this%iteration + 1
-
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
     call this%Initialize()
   else
@@ -980,6 +988,9 @@ subroutine InversionERTUpdateParameters(this)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  field%work_loc,this%iqoi,ZERO_INTEGER)    
   endif
+
+  ! Build Wm matrix
+  call InversionERTBuildWm(this)
 
 end subroutine InversionERTUpdateParameters
 
@@ -1012,8 +1023,6 @@ subroutine InversionERTCalculateUpdate(this)
   grid => patch%grid
 
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
-    ! Build Wm matrix
-    call InversionERTBuildWm(this)
 
     call InversionERTAllocateWorkArrays(this)
 
