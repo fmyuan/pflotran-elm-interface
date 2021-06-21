@@ -208,7 +208,7 @@ subroutine SimulationInverseExecuteRun(this)
 
   num_forward_runs = 0
   do
-    if (num_forward_runs > 1) exit
+    if (num_forward_runs > 10) exit
     option => OptionCreate()
     write(option%group_prefix,'(i6)') num_forward_runs+1
     option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))

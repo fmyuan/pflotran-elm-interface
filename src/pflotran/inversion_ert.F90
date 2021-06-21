@@ -933,11 +933,17 @@ subroutine InversionERTCheckBeta(this)
 
   class(inversion_ert_type) :: this
 
-print*,this%beta,this%iteration
+print*,'ITER: ',this%beta,this%iteration,this%start_iteration,this%current_chi2
+print*,'PHI: ',this%phi_data,this%phi_model,this%phi_total
+print*,'PHI_0: ',this%phi_data_0,this%phi_model_0,this%phi_total_0
+print*,'MIN: ',(this%phi_total_0 - this%phi_total)/this%phi_total_0,this%min_phi_red
 
-  if (this%iteration == this%start_iteration) return
+  ! update iteration number
+  this%iteration = this%iteration + 1
 
-  if ( abs((this%phi_total_0 - this%phi_total)/this%phi_total_0) <= &
+  if (this%iteration - 1 == this%start_iteration) return
+
+  if ( (this%phi_total_0 - this%phi_total)/this%phi_total_0 <= &
                                                       this%min_phi_red ) then
     this%beta = this%beta * this%beta_red_factor
     this%phi_model = this%beta_red_factor * this%phi_model
@@ -947,9 +953,6 @@ print*,this%beta,this%iteration
   this%phi_data_0 = this%phi_data
   this%phi_model_0 = this%phi_model
   this%phi_total_0 = this%phi_total
-
-  ! update iteration number
-  this%iteration = this%iteration + 1
 
 end subroutine InversionERTCheckBeta
 
