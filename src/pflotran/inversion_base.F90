@@ -19,9 +19,10 @@ module Inversion_Base_class
     procedure, public :: Initialize => InversionBaseInitialize
     procedure, public :: ReadBlock => InversionBaseReadBlock
     procedure, public :: UpdateParameters => InversionBaseUpdateParameters
-    procedure, public :: CalculateInverse => InversionBaseCalculateInverse
+    procedure, public :: CalculateUpdate => InversionBaseCalculateUpdate
     procedure, public :: CheckConvergence => InversionBaseCheckConvergence
     procedure, public :: CostFunctions => InversionBaseCostFunctions
+    procedure, public :: CheckBeta => InversionBaseCheckBeta
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
   end type inversion_base_type
@@ -149,7 +150,7 @@ end subroutine InversionBaseUpdateParameters
 
 ! ************************************************************************** !
 
-subroutine InversionBaseCalculateInverse(this)
+subroutine InversionBaseCalculateUpdate(this)
   !
   ! Initializes inversion
   !
@@ -158,7 +159,7 @@ subroutine InversionBaseCalculateInverse(this)
   !
   class(inversion_base_type) :: this
 
-end subroutine InversionBaseCalculateInverse
+end subroutine InversionBaseCalculateUpdate
 
 ! ************************************************************************** !
 
@@ -185,6 +186,19 @@ subroutine InversionBaseCostFunctions(this)
   class(inversion_base_type) :: this
 
 end subroutine InversionBaseCostFunctions
+
+! ************************************************************************** !
+
+subroutine InversionBaseCheckBeta(this)
+  !
+  ! Computes cost functions
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 06/18/21
+  !
+  class(inversion_base_type) :: this
+
+end subroutine InversionBaseCheckBeta
 
 ! ************************************************************************** !
 

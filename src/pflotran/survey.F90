@@ -243,6 +243,9 @@ subroutine SurveyReadERT(survey,grid,input,option)
   allocate(survey%Wd_cull(survey%num_measurement))
   survey%Wd_cull = 1
 
+  ! calculate apparent conductivity from survey data
+  call SurveyCalculateApparentCond(survey)
+
 end subroutine SurveyReadERT
 
 ! ************************************************************************** !
@@ -373,7 +376,7 @@ subroutine SurveyCalculateApparentCond(survey)
     if (ib/=0 .and. in/=0) GFbn = GeometricFactor(ib,in,B_pos,N_pos)
 
     ! Total Geometric Factor
-    GF = (GFam - GFan - GFbm + GFbn) / 2*PI
+    GF = 0.5d0*(GFam - GFan - GFbm + GFbn) / PI
 
     ! TODO: CHANGE dsim to dobs
     if (survey%dobs(idata) /= 0) cond = GF/survey%dobs(idata)

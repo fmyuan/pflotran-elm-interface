@@ -20,9 +20,10 @@ module Inversion_INSITE_class
     procedure, public :: Initialize => InversionINSITEInitialize
     procedure, public :: ReadBlock => InversionINSITEReadBlock
     procedure, public :: UpdateParameters => InversionINSITEUpdateParameters
-    procedure, public :: CalculateInverse => InversionINSITECalculateInverse
+    procedure, public :: CalculateUpdate => InversionINSITECalculateUpdate
     procedure, public :: CheckConvergence => InversionINSITECheckConvergence
     procedure, public :: CostFunctions => InversionINSITECostFunctions
+    procedure, public :: CheckBeta => InversionINSITECheckBeta
     procedure, public :: Finalize => InversionINSITEFinalize
     procedure, public :: Strip => InversionINSITEStrip
   end type inversion_insite_type
@@ -218,7 +219,7 @@ end subroutine InversionINSITEUpdateParameters
 
 ! ************************************************************************** !
 
-subroutine InversionINSITECalculateInverse(this)
+subroutine InversionINSITECalculateUpdate(this)
   !
   ! Calculates update to input parameters
   !
@@ -233,7 +234,7 @@ subroutine InversionINSITECalculateInverse(this)
     call VecScale(this%quantity_of_interest,2.d0,ierr);CHKERRQ(ierr)
   endif
 
-end subroutine InversionINSITECalculateInverse
+end subroutine InversionINSITECalculateUpdate
 
 ! ************************************************************************** !
 
@@ -260,6 +261,21 @@ subroutine InversionINSITECostFunctions(this)
   class(inversion_insite_type) :: this
 
 end subroutine InversionINSITECostFunctions
+
+! ************************************************************************** !
+
+! ************************************************************************** !
+
+subroutine InversionINSITECheckBeta(this)
+  !
+  ! Computes cost functions
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 06/18/21
+  !
+  class(inversion_insite_type) :: this
+
+end subroutine InversionINSITECheckBeta
 
 ! ************************************************************************** !
 

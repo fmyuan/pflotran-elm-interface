@@ -20,7 +20,9 @@ module Simulation_Inverse_class
     procedure, public :: Init => SimulationInverseInit
     procedure, public :: InitializeRun => SimulationInverseInitializeRun
     procedure, public :: UpdateParameters => SimulationInvUpdateParameters
-    procedure, public :: CalculateInverse => SimulationInvCalculateInverse
+    procedure, public :: CalculateUpdate => SimulationInvCalculateUpdate
+    procedure, public :: CheckBeta => SimulationInvCheckBeta
+    procedure, public :: CheckConvergence => SimulationInvCheckConvergence
     procedure, public :: ExecuteRun => SimulationInverseExecuteRun
     procedure, public :: FinalizeRun => SimulationInverseFinalizeRun
     procedure, public :: Strip => SimulationInverseStrip
@@ -224,7 +226,9 @@ subroutine SimulationInverseExecuteRun(this)
     if (option%status == PROCEED) then
       call this%forward_simulation%ExecuteRun()
     endif
-    call this%CalculateInverse()
+    call this%CheckConvergence()
+    call this%CalculateUpdate()
+    call this%CheckBeta()
     call this%forward_simulation%FinalizeRun()
     call this%forward_simulation%Strip()
     deallocate(this%forward_simulation)
@@ -251,7 +255,7 @@ end subroutine SimulationInvUpdateParameters
 
 ! ************************************************************************** !
 
-subroutine SimulationInvCalculateInverse(this)
+subroutine SimulationInvCalculateUpdate(this)
   !
   ! Calculates updated parameters
   !
@@ -260,9 +264,39 @@ subroutine SimulationInvCalculateInverse(this)
 
   class(simulation_inverse_type) :: this
 
-  call this%inversion%CalculateInverse()
+  call this%inversion%CalculateUpdate()
 
-end subroutine SimulationInvCalculateInverse
+end subroutine SimulationInvCalculateUpdate
+
+! ************************************************************************** !
+
+subroutine SimulationInvCheckConvergence(this)
+  !
+  ! Calculates updated parameters
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 06/18/21
+
+  class(simulation_inverse_type) :: this
+
+  call this%inversion%CheckConvergence()
+
+end subroutine SimulationInvCheckConvergence
+
+! ************************************************************************** !
+
+subroutine SimulationInvCheckBeta(this)
+  !
+  ! Calculates updated parameters
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 06/21/21
+
+  class(simulation_inverse_type) :: this
+
+  call this%inversion%CheckBeta()
+
+end subroutine SimulationInvCheckBeta
 
 ! ************************************************************************** !
 
