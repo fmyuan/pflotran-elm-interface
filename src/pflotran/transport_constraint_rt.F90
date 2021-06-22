@@ -362,7 +362,13 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
               endif
             endif
           else
-            aq_species_constraint%constraint_type(icomp) = CONSTRAINT_TOTAL
+            option%io_buffer = 'A constraint type (e.g. T, F, P, etc.) is &
+              &missing for primary species "' // &
+              trim(aq_species_constraint%names(icomp)) // &
+              '" in constraint "' // &
+              trim(constraint%name) // &
+              '".'
+            call PrintErrMsg(option)
           endif  
         
         enddo  
