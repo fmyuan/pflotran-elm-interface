@@ -7816,7 +7816,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1, &
   material_auxvars => patch%aux%Material%auxvars
   grid => patch%grid
 
-  max_dt_cfl_1 = 1.d20
+  max_dt_cfl_1 = MAX_DOUBLE
   max_pore_velocity = 0.d0
 
   connection_set_list => grid%internal_connection_set_list

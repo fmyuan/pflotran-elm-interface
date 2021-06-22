@@ -48,6 +48,9 @@ module Option_Flow_module
 
     PetscReal :: minimum_hydrostatic_pressure
 
+    ! If true, velocity is calculated to be used in reactions
+    PetscBool :: store_darcy_vel
+
   end type flow_option_type
   
   public :: OptionFlowCreate, &
@@ -150,9 +153,11 @@ subroutine OptionFlowInitRealization(option)
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
   option%set_secondary_init_temp = PETSC_FALSE
-  option%minimum_hydrostatic_pressure = -1.d20
+  option%minimum_hydrostatic_pressure = -MAX_DOUBLE
   option%th_freezing = PETSC_FALSE
   option%steady_state = PETSC_FALSE
+
+  option%store_darcy_vel = PETSC_FALSE
 
 end subroutine OptionFlowInitRealization
 

@@ -12,6 +12,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Gas_class
   use Reaction_Sandbox_BioHill_class
   use Reaction_Sand_FlexBioHill_class
+  use Reaction_Sandbox_BioTH_class
 
   ! Add new reacton sandbox classes here.
   
@@ -172,6 +173,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => BioHillCreate()
       case('FLEXIBLE_BIODEGRADATION_HILL')
         new_sandbox => FlexBioHillCreate()
+      case('BIOPARTICLE')
+        new_sandbox => BioTH_Create()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)
@@ -372,6 +375,7 @@ subroutine RSandboxDestroy2(local_sandbox_list)
     deallocate(cur_sandbox)
     cur_sandbox => prev_sandbox
   enddo  
+  nullify(local_sandbox_list)
 
 end subroutine RSandboxDestroy2
 

@@ -63,7 +63,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
 
       PetscInt :: iitable,i,j
       PetscMPIInt :: myrank
-      PetscInt :: iflag = 1
+      PetscInt :: iflag
 
       character*3 :: q
       character*1 :: tab
@@ -75,6 +75,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
 
       type(option_type) :: option
 
+      iflag = 1
       tab = char(9)
       q = '","'
 
