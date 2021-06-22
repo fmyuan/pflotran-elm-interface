@@ -14,6 +14,8 @@ module Inversion_Base_class
   type, public :: inversion_base_type
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
+
+    PetscBool :: converg_flag            ! convergence flag
   contains
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseInitialize
@@ -50,6 +52,8 @@ subroutine InversionBaseInit(this,driver)
   this%driver => driver
   this%timer => TimerCreate()
   call this%timer%Start()
+
+  this%converg_flag = PETSC_FALSE
 
 end subroutine InversionBaseInit
 

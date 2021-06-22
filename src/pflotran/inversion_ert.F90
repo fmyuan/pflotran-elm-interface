@@ -18,6 +18,7 @@ module Inversion_ERT_class
 
     PetscInt :: iteration                ! iteration number
     PetscInt :: start_iteration          ! Starting iteration number
+    PetscInt :: maximum_iteration        ! Maximum iteration number
     PetscInt :: miniter,maxiter          ! min/max CGLS iterations
 
     PetscReal :: beta                    ! regularization parameter
@@ -35,7 +36,6 @@ module Inversion_ERT_class
     PetscBool :: cull_flag               ! flag to ignore data outliers
     PetscReal :: cull_dev                ! data cull cutoff (std deviation)
 
-    PetscBool :: converg_flag            ! convergence flag
     PetscBool :: app_cond_start_model    ! apparent cond as start model
 
     ! arrays for CGLS algorithm
@@ -157,6 +157,7 @@ subroutine InversionERTInit(this,driver)
 
   this%iteration = 1
   this%start_iteration = 1
+  this%maximum_iteration = 20
   this%num_constraints_local = UNINITIALIZED_INTEGER
   this%current_chi2 = UNINITIALIZED_DOUBLE
   this%phi_total_0 = UNINITIALIZED_DOUBLE
@@ -169,7 +170,6 @@ subroutine InversionERTInit(this,driver)
   this%cull_flag = PETSC_FALSE
   this%cull_dev = UNINITIALIZED_DOUBLE
 
-  this%converg_flag = PETSC_FALSE
   this%app_cond_start_model = PETSC_TRUE
 
   nullify(this%b)
@@ -538,6 +538,10 @@ subroutine InversionERTReadBlock(this,input,option)
         call InputErrorMsg(input,option,'START_INVERSION_ITERATION', &
                            error_string)
         this%iteration = this%start_iteration
+      case('MAX_INVERSION_ITERATION')
+        call InputReadInt(input,option,this%maximum_iteration)
+        call InputErrorMsg(input,option,'MAX_INVERSION_ITERATION', &
+                           error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -773,7 +777,8 @@ subroutine InversionERTCheckConvergence(this)
 
   this%converg_flag = PETSC_FALSE
   call this%CostFunctions()
-  if (this%current_chi2 <= this%target_chi2) this%converg_flag = PETSC_TRUE
+  if ((this%current_chi2 <= this%target_chi2) .or. &
+      (this%iteration > this%maximum_iteration)) this%converg_flag = PETSC_TRUE
 
 end subroutine InversionERTCheckConvergence
 

@@ -205,10 +205,12 @@ subroutine SimulationInverseExecuteRun(this)
   type(option_type), pointer :: option
 
   PetscInt :: num_forward_runs
+  PetscBool :: converged
 
   num_forward_runs = 0
+  converged = PETSC_FALSE
   do
-    if (num_forward_runs > 10) exit
+    !if (num_forward_runs > 10) exit
     option => OptionCreate()
     write(option%group_prefix,'(i6)') num_forward_runs+1
     option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
@@ -226,7 +228,7 @@ subroutine SimulationInverseExecuteRun(this)
     if (option%status == PROCEED) then
       call this%forward_simulation%ExecuteRun()
     endif
-    call this%CheckConvergence()
+    call this%CheckConvergence(); if (this%inversion%converg_flag) exit
     call this%CalculateUpdate()
     call this%CheckBeta()
     call this%forward_simulation%FinalizeRun()
