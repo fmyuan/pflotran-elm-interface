@@ -253,9 +253,10 @@ geomechanics_strata.o : geomechanics_material.o geomechanics_region.o \
 geomechanics_subsurface_properties.o : grid.o input_aux.o material_aux.o \
                                        option.o pflotran_constants.o string.o
 geometry.o : input_aux.o option.o pflotran_constants.o
-global.o : communicator_base.o connection.o coupler.o field.o global_aux.o \
-           grid.o material.o option.o patch.o pflotran_constants.o \
-           realization_base.o realization_subsurface.o variables.o
+global.o : communicator_base.o connection.o coupler.o discretization.o field.o \
+           global_aux.o grid.o material.o option.o output_common.o patch.o \
+           pflotran_constants.o realization_base.o realization_subsurface.o \
+           variables.o
 global_aux.o : option.o pflotran_constants.o utility.o
 grid.o : connection.o dm_kludge.o geometry.o grid_structured.o \
          grid_unstructured.o grid_unstructured_aux.o \
@@ -671,7 +672,8 @@ reaction_mineral_aux.o : option.o pflotran_constants.o reaction_database_aux.o \
                          string.o utility.o
 reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      output_aux.o pflotran_constants.o reaction_aux.o \
-                     reaction_sandbox_base.o reaction_sandbox_biodeg.o \
+                     reaction_sandbox_base.o reaction_sandbox_bioTH.o \
+                     reaction_sandbox_biodeg.o \
                      reaction_sandbox_clm_cn.o reaction_sandbox_example.o \
                      reaction_sandbox_flexbiodeg.o reaction_sandbox_gas.o \
                      reaction_sandbox_pnnl_cyber.o reaction_sandbox_simple.o \
@@ -680,10 +682,16 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
 reaction_sandbox_base.o : global_aux.o input_aux.o material_aux.o option.o \
                           output_aux.o pflotran_constants.o reaction_aux.o \
                           reactive_transport_aux.o
+reaction_sandbox_bioTH.o : global_aux.o material_aux.o option.o \
+                           pflotran_constants.o reaction_aux.o \
+                           reaction_immobile_aux.o reaction_sandbox_base.o \
+                           reactive_transport_aux.o string.o
+
 reaction_sandbox_biodeg.o : global_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o
+
 reaction_sandbox_clm_cn.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \

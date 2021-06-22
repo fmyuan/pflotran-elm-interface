@@ -1,0 +1,23 @@
+-- CONCENTRATION: Total Vaq --
+      Max:   9.9771856187534E-01
+      Min:   9.0126992189962E-01
+     Mean:   9.4954399469892E-01
+      100:   9.0126992189962E-01
+-- CONCENTRATION: Vim --
+      Max:   2.8182767647853E+01
+      Min:   1.8936452586963E+01
+     Mean:   2.4031138108946E+01
+      100:   1.8936452586963E+01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+      100:         1
+-- SOLUTION: Transport --
+   Time (seconds):   2.2457027435303E-01
+   Time Steps:          204
+   Newton Iterations:          868
+   Linear Solver Iterations:          868
+   Time Step Cuts:            0
+   Solution 2-Norm:   2.4198542687516E+02
+   Residual 2-Norm:   1.4533798865247E-14
