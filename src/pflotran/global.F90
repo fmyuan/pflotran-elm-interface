@@ -806,6 +806,12 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
         call GlobalSetAuxVarVecLoc(realization,field%work_loc,TEMPERATURE, &
                                    time_level)
       endif
+      ! Gas pressure
+      call RealizationGetVariable(realization,field%work,GAS_PRESSURE, &
+                                 ZERO_INTEGER)
+      call realization%comm1%GlobalToLocal(field%work,field%work_loc)
+      call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_PRESSURE, &
+                                 time_level)
       ! Gas density
       call RealizationGetVariable(realization,field%work,GAS_DENSITY, &
                                  ZERO_INTEGER)
