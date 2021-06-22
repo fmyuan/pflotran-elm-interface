@@ -211,6 +211,7 @@ subroutine SimulationInverseExecuteRun(this)
   converged = PETSC_FALSE
   do
     !if (num_forward_runs > 10) exit
+    if (this%inversion%converg_flag) exit
     option => OptionCreate()
     write(option%group_prefix,'(i6)') num_forward_runs+1
     option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
@@ -228,7 +229,7 @@ subroutine SimulationInverseExecuteRun(this)
     if (option%status == PROCEED) then
       call this%forward_simulation%ExecuteRun()
     endif
-    call this%CheckConvergence(); if (this%inversion%converg_flag) exit
+    call this%CheckConvergence()
     call this%CalculateUpdate()
     call this%CheckBeta()
     call this%forward_simulation%FinalizeRun()
