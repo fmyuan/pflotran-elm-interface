@@ -16,7 +16,7 @@ path = []
 path.append('.')
 files=[]
 
-files.append('tracer_1D_MC_leaching_test-obs-0.pft')
+files.append('tracer_1D_MC_leaching-obs-0.pft')
 filenames = pft.get_full_paths(path,files)
 
 f = plt.figure(figsize=(8,6))
