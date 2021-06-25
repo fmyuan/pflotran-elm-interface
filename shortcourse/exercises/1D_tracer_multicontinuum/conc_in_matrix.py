@@ -27,7 +27,7 @@ plt.ylabel('Concentration [M]')
 
 for ifile in range(len(filenames)):
   data = pft.Dataset(filenames[ifile],1,2)
-  plt.plot(data.get_array('x'),np.flip(data.get_array('y'),0),label=data.title)
+  plt.plot(data.get_array('x'),np.flip(data.get_array('y'),0),label='{} days'.format(data.title))
 
 plt.legend(loc=1)
 
