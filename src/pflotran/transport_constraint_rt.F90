@@ -24,12 +24,14 @@ module Transport_Constraint_RT_module
   PetscInt, parameter, public :: CONSTRAINT_TOTAL = 2
   PetscInt, parameter, public :: CONSTRAINT_LOG = 3
   PetscInt, parameter, public :: CONSTRAINT_PH = 4
-  PetscInt, parameter, public :: CONSTRAINT_MINERAL = 5
-  PetscInt, parameter, public :: CONSTRAINT_GAS = 6
-  PetscInt, parameter, public :: CONSTRAINT_CHARGE_BAL = 7
-  PetscInt, parameter, public :: CONSTRAINT_TOTAL_SORB = 9
-  PetscInt, parameter, public :: CONSTRAINT_SUPERCRIT_CO2 = 10
-  PetscInt, parameter, public :: CONSTRAINT_TOTAL_AQ_PLUS_SORB = 11
+  PetscInt, parameter, public :: CONSTRAINT_PE = 5
+  PetscInt, parameter, public :: CONSTRAINT_EH = 6
+  PetscInt, parameter, public :: CONSTRAINT_MINERAL = 7
+  PetscInt, parameter, public :: CONSTRAINT_GAS = 8
+  PetscInt, parameter, public :: CONSTRAINT_CHARGE_BAL = 9
+  PetscInt, parameter, public :: CONSTRAINT_TOTAL_SORB = 10
+  PetscInt, parameter, public :: CONSTRAINT_SUPERCRIT_CO2 = 11
+  PetscInt, parameter, public :: CONSTRAINT_TOTAL_AQ_PLUS_SORB = 12
 
   type, public, extends(tran_constraint_base_type) :: tran_constraint_rt_type
     type(aq_species_constraint_type), pointer :: aqueous_species

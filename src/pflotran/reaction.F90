@@ -14,6 +14,7 @@ module Reaction_module
   use Reaction_Immobile_module
   use Reaction_Gas_module
   use Reaction_Isotherm_module
+  use Reaction_Redox_module
 
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Mineral_Aux_module
@@ -1938,8 +1939,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     ! to zero
     tempreal = minval(rt_auxvar%pri_molal)
     if (tempreal <= 0.d0) then
-      option%io_buffer = 'ERROR: Zero concentrations found in ' // &
-        'constraint "' // trim(constraint%name) // '".'
+      option%io_buffer = 'ERROR: Zero concentrations found in &
+        &constraint "' // trim(constraint%name) // '".'
       call PrintMsgByRank(option)
       ! now figure out which species have zero concentrations
       do idof = 1, reaction%naqcomp
@@ -1952,8 +1953,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           call PrintMsgByRank(option)
         endif
       enddo
-      option%io_buffer = 'Free ion concentations RESULTING from ' // &
-        'constraint concentrations must be positive.'
+      option%io_buffer = 'Free ion concentations RESULTING from &
+        &constraint concentrations must be positive.'
       call PrintErrMsgByRank(option)
     endif
     
@@ -1969,11 +1970,11 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (tempreal > 100.d0 .and. num_iterations > 500) then
       !geh: for some reason, needs the array rank included in call to maxloc
       idof = maxloc(rt_auxvar%pri_molal,1)
-      option%io_buffer = 'ERROR: Excessively large concentration for ' // &
-        'species "' // trim(reaction%primary_species_names(idof)) // &
+      option%io_buffer = 'ERROR: Excessively large concentration for &
+        &species "' // trim(reaction%primary_species_names(idof)) // &
         '" in constraint "' // trim(constraint%name) // &
-        '" in ReactionEquilibrateConstraint. Email input deck to ' // &
-        'pflotran-dev@googlegroups.com.'
+        '" in ReactionEquilibrateConstraint. Email input deck to &
+        &pflotran-dev@googlegroups.com.'
       call PrintErrMsg(option)
     endif
 #endif
@@ -2267,60 +2268,29 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       constraint_coupler%num_iterations
 
     if (associated(reaction%species_idx)) then
-!    output pH
-      if (reaction%species_idx%h_ion_id > 0) then
-        ph = &
-          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
-                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
-      else if (reaction%species_idx%h_ion_id < 0) then
-        ph = &
-          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
-                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
-      endif
-      if (reaction%species_idx%h_ion_id > 0 .or. reaction%species_idx%h_ion_id < 0) &
-      write(option%fid_out,203) '              pH: ',ph
-
-!    output Eh and pe
-      if (reaction%species_idx%o2_gas_id > 0 .and. (reaction%species_idx%h_ion_id > 0 &
-          .or. reaction%species_idx%h_ion_id < 0)) then
-
-        ifo2 = reaction%species_idx%o2_gas_id
-      
-      ! compute gas partial pressure
-        lnQKgas(ifo2) = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-      
-      ! activity of water
-        if (reaction%gas%paseqh2oid(ifo2) > 0) then
-          lnQKgas(ifo2) = lnQKgas(ifo2) + reaction%gas%paseqh2ostoich(ifo2)*rt_auxvar%ln_act_h2o
+      ! output pH, Eh, pe
+      if (reaction%species_idx%h_ion_id /= 0) then
+        call RRedoxCalcpH(rt_auxvar,global_auxvar,reaction,ph,option)
+        write(option%fid_out,203) '              pH: ',ph
+        if (reaction%species_idx%o2_gas_id > 0) then
+          call RRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe, &
+                              option)
+          write(option%fid_out,203) '              pe: ',pe
+          write(option%fid_out,203) '              Eh: ',eh
         endif
-        do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-          comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-          lnQKgas(ifo2) = lnQKgas(ifo2) + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(rt_auxvar%pri_molal(comp_id)*rt_auxvar%pri_act_coef(comp_id))
-        enddo
-
-        tk = global_auxvar%temp+273.15d0
-        ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-        eh = ehfac*(-4.d0*ph+lnQKgas(ifo2)*LN_TO_LOG+logKeh(tk))/4.d0
-        pe = eh/ehfac
-
-!       pe = (-4.d0*ph+lnQKgas(ifo2)*LN_TO_LOG+logKeh(tk))/4.d0
-!       eh = pe*ehfac
-        write(option%fid_out,203) '              pe: ',pe
-        write(option%fid_out,203) '              Eh: ',eh
       endif
     endif
-    
+
     ionic_strength = 0.d0
     charge_balance = 0.d0
-    do icomp = 1, reaction%naqcomp      
+    do icomp = 1, reaction%naqcomp
       charge_balance = charge_balance + rt_auxvar%total(icomp,1)* &
                                         reaction%primary_spec_Z(icomp)
       ionic_strength = ionic_strength + rt_auxvar%pri_molal(icomp)* &
         reaction%primary_spec_Z(icomp)*reaction%primary_spec_Z(icomp)
     enddo
-    
-    if (reaction%neqcplx > 0) then    
+
+    if (reaction%neqcplx > 0) then
       do i = 1, reaction%neqcplx
         ionic_strength = ionic_strength + rt_auxvar%sec_molal(i)* &
                                           reaction%eqcplx_Z(i)* &
@@ -2523,8 +2493,8 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   if (surface_complexation%nsrfcplxrxn > 0 .and. &
       surface_complexation%neqsrfcplxrxn /= &
       surface_complexation%nsrfcplxrxn) then
-    string = 'WARNING: Only equilibrium surface complexes are printed to ' // &
-             'this file!'
+    string = 'WARNING: Only equilibrium surface complexes are printed to &
+             &this file!'
     write(option%fid_out,'(/,2x,a,/)') trim(string)
   endif
 
@@ -3376,8 +3346,8 @@ subroutine ReactionReadOutput(reaction,input,option)
        reaction%print_all_species) .and. &
       .not.(reaction%print_total_component .or. &
             reaction%print_free_ion)) then
-    option%io_buffer = 'FREE_ION or TOTAL must be specified to print a ' // &
-      'primary species.'
+    option%io_buffer = 'FREE_ION or TOTAL must be specified to print a &
+      &primary species.'
     call PrintErrMsg(option)
   endif
 
@@ -5697,8 +5667,8 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
                                    update_mnrl, &
                                    option)    
     if (associated(reaction%surface_complexation%srfcplx_logKcoef)) then
-      option%io_buffer = 'Temperature dependent surface complexation ' // &
-        'coefficients not yet function for high pressure/temperature.'
+      option%io_buffer = 'Temperature dependent surface complexation &
+        &coefficients not yet function for high pressure/temperature.'
       call PrintMsg(option)
     endif
   endif 
@@ -5850,59 +5820,46 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   else
     sec_mol_char = 'M'
   endif
-  
-  if (reaction%print_pH .and. associated(reaction%species_idx)) then
-    if (reaction%species_idx%h_ion_id /= 0) then
+
+  if (associated(reaction%species_idx)) then
+    if ((reaction%print_pH .or. reaction%print_EH .or. &
+         reaction%print_pe) .and. reaction%species_idx%h_ion_id == 0) then
+      option%io_buffer = 'pH, Eh or pe may not be printed when H+ &
+          &is not defined as a species.'
+      call PrintErrMsg(option)
+    endif
+    if ((reaction%print_EH .or. reaction%print_pe .or. &
+         reaction%print_O2) .and. reaction%species_idx%o2_gas_id == 0) then
+      option%io_buffer = 'logfO2, Eh or pe may not be printed when O2(g) &
+          &is not defined as a species.'
+      call PrintErrMsg(option)
+    endif
+    if (reaction%print_pH) then
       name = 'pH'
       units = ''
       call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units,PH, &
-                                   reaction%species_idx%h_ion_id)
-    else
-      option%io_buffer = 'pH may not be printed when H+ is not ' // &
-        'defined as a species.'
-      call PrintErrMsg(option)
+                                  reaction%species_idx%h_ion_id)
     endif
-  endif  
-  
-  if (reaction%print_EH .and. associated(reaction%species_idx)) then
-    if (reaction%species_idx%o2_gas_id > 0) then
+    if (reaction%print_EH) then
       name = 'Eh'
       units = 'V'
       call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units,EH, &
-                                   reaction%species_idx%h_ion_id)
-    else
-      option%io_buffer = 'Eh may not be printed when O2(g) is not ' // &
-        'defined as a species.'
-      call PrintErrMsg(option)
+                                  reaction%species_idx%h_ion_id)
     endif
-  endif  
-  
-  if (reaction%print_pe .and. associated(reaction%species_idx)) then
-    if (reaction%species_idx%o2_gas_id > 0) then
+    if (reaction%print_pe) then
       name = 'pe'
       units = ''
       call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units,PE, &
-                                   reaction%species_idx%h_ion_id)
-    else
-      option%io_buffer = 'pe may not be printed when O2(g) is not ' // &
-        'defined as a species.'
-      call PrintErrMsg(option)
+                                  reaction%species_idx%h_ion_id)
     endif
-  endif  
-  
-  if (reaction%print_O2 .and. associated(reaction%species_idx)) then
-    if (reaction%species_idx%o2_gas_id > 0) then
+    if (reaction%print_O2) then
       name = 'logfO2'
       units = 'bars'
       call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units,O2, &
-                                   reaction%species_idx%o2_gas_id)
-    else
-      option%io_buffer = 'logfO2 may not be printed when O2(g) is not ' // &
-        'defined as a species.'
-      call PrintErrMsg(option)
+                                  reaction%species_idx%o2_gas_id)
     endif
-  endif  
-  
+  endif
+
   if (reaction%print_total_component) then
     do i=1,reaction%naqcomp
       if (reaction%primary_species_print(i)) then
