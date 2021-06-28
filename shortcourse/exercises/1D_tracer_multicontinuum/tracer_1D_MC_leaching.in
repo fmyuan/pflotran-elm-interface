@@ -36,6 +36,26 @@ CHEMISTRY
     REACTION Tracer <->
     HALF_LIFE 12.35 y
   /
+  SORPTION
+    ISOTHERM_REACTIONS
+      Tracer
+        TYPE LINEAR
+        ! Calculating distribution coefficient (Kd) from retardation (R)#
+
+        !   Kd = porosity*saturation*water_density*(R-1)
+
+        ! Assume#
+        !   Kd units = kg water/m^3 bulk volume
+        !   water_density = 1000. [kg/m^3]
+        !   saturation = 1. 
+        !   matrix porosity = 0.01 
+
+        ! R = 2, Kd = 10.
+        DISTRIBUTION_COEFFICIENT 0.0 kg/m^3 ! kg water/m^3 bulk
+        SEC_CONT_KD 10.0 kg/m^3
+      /
+    /
+  /
   LOG_FORMULATION
   DATABASE ../../../database/hanford.dat
   OUTPUT
@@ -103,15 +123,15 @@ TIME
 #=========================== regions ===============================
 REGION all
   COORDINATES
-    0.d0  0.d0  0.d0
-    10.d0 1.d0  1.d0
+     0.d0  0.d0  0.d0
+     10.d0 1.d0 1.d0
   /
 END
 
 REGION west
   FACE WEST
   COORDINATES
-    0.d0 0.d0  0.d0
+    0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
   /
 END
@@ -119,8 +139,8 @@ END
 REGION east
   FACE EAST
   COORDINATES
-    10.d0 0.d0  0.d0
-    10.d0 1.d0  1.d0
+    10.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
   /
 END
 
@@ -135,7 +155,7 @@ OBSERVATION
 
 #==== transport conditions=====================================================
 TRANSPORT_CONDITION background
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial_constraint
   /
@@ -183,14 +203,14 @@ CONSTRAINT initial_constraint
 
 CONSTRAINT inlet_constraint
   CONCENTRATIONS
-    Tracer  1.0  T
+    Tracer  1.d-20  T
   /
 /
 
 #==================== secondary continuum initial constraint ==================
 SECONDARY_CONSTRAINT sec
   CONCENTRATIONS
-    Tracer  1.d-20  T 
+    Tracer  1.d0  T 
   /
 /
 
