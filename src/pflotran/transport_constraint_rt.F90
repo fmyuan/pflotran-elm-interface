@@ -321,24 +321,26 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
                 call PrintErrMsg(option)
               case('P','PH')
                 aq_species_constraint%constraint_type(icomp) = CONSTRAINT_PH
+              case('E','PE')
+                aq_species_constraint%constraint_type(icomp) = CONSTRAINT_PE
               case('L','LOG')
                 aq_species_constraint%constraint_type(icomp) = CONSTRAINT_LOG
-              case('M','MINERAL','MNRL') 
+              case('M','MINERAL','MNRL')
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_MINERAL
-              case('G','GAS') 
+              case('G','GAS')
                 aq_species_constraint%constraint_type(icomp) = CONSTRAINT_GAS
-              case('SC','CONSTRAINT_SUPERCRIT_CO2') 
+              case('SC','CONSTRAINT_SUPERCRIT_CO2')
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_SUPERCRIT_CO2
-              case('Z','CHARGE_BALANCE') 
+              case('Z','CHARGE_BALANCE')
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_CHARGE_BAL
               case default
                 call InputKeywordUnrecognized(input,word, &
                        'CONSTRAINT,CONCENTRATION,TYPE',option)
-            end select 
-            
+            end select
+
             if (aq_species_constraint%constraint_type(icomp) == &
                   CONSTRAINT_MINERAL .or. &
                 aq_species_constraint%constraint_type(icomp) == &
@@ -371,11 +373,11 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
               trim(constraint%name) // &
               '".'
             call PrintErrMsg(option)
-          endif  
-        
-        enddo  
+          endif
+
+        enddo
         call InputPopBlock(input,option)
-        
+
         if (icomp < reaction%naqcomp) then
           option%io_buffer = &
                    'Number of concentration constraints is less than &
@@ -402,11 +404,11 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
             call PrintErrMsg(option)
           endif
         enddo
-        
+
         if (associated(constraint%aqueous_species)) &
           call AqueousSpeciesConstraintDestroy(constraint%aqueous_species)
-        constraint%aqueous_species => aq_species_constraint 
-        
+        constraint%aqueous_species => aq_species_constraint
+
       case('FREE_ION_GUESS')
 
         free_ion_guess_constraint => GuessConstraintCreate(reaction,option)

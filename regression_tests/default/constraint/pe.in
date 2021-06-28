@@ -1,0 +1,117 @@
+#Description: Crownpoint 5 Spot Uranium Leaching problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    MAXIMUM_NUMBER_OF_TIMESTEPS 0
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    H+
+    O2(aq)
+  /
+  PASSIVE_GAS_SPECIES
+    O2(g)
+  /
+  DATABASE ../../../database/hanford.dat
+  LOG_FORMULATION
+  OUTPUT
+    ALL
+    PH
+    PE
+    FREE_ION
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  POROSITY 0.20d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1. s
+  INITIAL_TIMESTEP_SIZE 1. s
+  MAXIMUM_TIMESTEP_SIZE 1. s
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.0 0.0 0.0
+    1.0 1.0 1.0
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+     -1.d20 -1.d20 -1.d20
+     1.d20 1.d20 1.d20
+  /
+/
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION all
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== flow conditions ==================================
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial
+  CONCENTRATIONS
+    H+         7.24d0      PH
+    O2(aq)     8.45109   PE
+  /
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil
+END
+
+END_SUBSURFACE

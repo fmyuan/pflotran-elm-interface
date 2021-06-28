@@ -1430,6 +1430,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   
   PetscBool :: charge_balance_warning_flag = PETSC_FALSE
   PetscBool :: use_log_formulation
+  PetscInt :: io2gas
+  PetscReal :: eh, pe
+  PetscBool :: flag
   
   PetscReal :: Jac_num(reaction%naqcomp)
   PetscReal :: Res_pert, pert, prev_value, coh0
@@ -1502,7 +1505,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     enddo
   endif
 
-  if (associated(colloid_constraint)) then      
+  if (associated(colloid_constraint)) then
     colloid_constraint%basis_conc_mob = colloid_constraint%constraint_conc_mob        
     colloid_constraint%basis_conc_imb = colloid_constraint%constraint_conc_imb        
     rt_auxvar%colloid%conc_mob = colloid_constraint%basis_conc_mob* &
@@ -1510,8 +1513,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     !TODO(geh): this can't be correct as immobile concentrations are mol/m^3
     rt_auxvar%colloid%conc_imb = colloid_constraint%basis_conc_imb* &
                                  convert_molar_to_molal
-  endif  
-  
+  endif
+
   if (.not.reaction%use_full_geochemistry) then
     ! if constraint concentratoins are molalities, need to convert to molarity
     ! when reaction%initialize_with_molality is true, regardless of whether
@@ -1521,11 +1524,11 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     rt_auxvar%total(:,iphase) = aq_species_constraint%basis_molarity
     return
   endif
-  
+
   if (.not.option%use_isothermal) then
     call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_TRUE,option)
   endif
-  
+
   if (use_prev_soln_as_guess) then
     free_conc = rt_auxvar%pri_molal
   else if (associated(free_ion_guess_constraint)) then
@@ -1579,7 +1582,33 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                      '), but H+ not found in chemical species.'
             call PrintErrMsg(option)
           endif
-        endif        
+        endif
+      case(CONSTRAINT_PE)
+        ! conc(icomp) is equal to pe
+        flag = PETSC_FALSE
+        ! check that H+ is present and O2 is a passive gas
+        if (associated(reaction%species_idx)) then
+          if (reaction%species_idx%h_ion_id == 0 .or. &
+              reaction%species_idx%o2_gas_id == 0) then
+            flag = PETSC_TRUE
+          endif
+        else
+          flag = PETSC_TRUE
+        endif
+        if (flag) then
+          option%io_buffer = 'pe constraint for species "' // &
+            trim(reaction%primary_species_names(icomp)) // '" requires &
+            &that H+ and O2(g) be found among chemical species.'
+          call PrintErrMsg(option)
+        endif
+        if (.not. &
+            (StringCompare(aq_species_constraint%names(icomp),'H+') .or. &
+             StringCompare(aq_species_constraint%names(icomp),'O2(aq)'))) then
+          option%io_buffer = 'pe constraint may only be used with "H+" or &
+            &"O2(aq)", not "' // &
+            trim(aq_species_constraint%names(icomp)) // '".'
+          call PrintErrMsg(option)
+        endif
       case(CONSTRAINT_MINERAL)
         if (.not.use_prev_soln_as_guess) then
           free_conc(icomp) = conc(icomp)*convert_molar_to_molal ! guess
@@ -1602,7 +1631,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! essentially the same as:
   !   compute_activity_coefficients = (use_prev_soln_as_guess == PETSC_TRUE)
   compute_activity_coefs = use_prev_soln_as_guess
-  
+
   do
 
     ! there are cases (e.g. in a linear update) where components constrained by
@@ -1613,44 +1642,43 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         case(CONSTRAINT_FREE,CONSTRAINT_LOG)
           rt_auxvar%pri_molal(icomp) = free_conc(icomp)
       end select
-    enddo          
-  
+    enddo
     if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF .and. &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
       if (option%iflowmode == MPH_MODE) then
-        call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)  
+        call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
       endif
     endif
     call RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
-    
+
     ! geh - for debugging
     !call RTPrintAuxVar(rt_auxvar,reaction,option)
 
     Jac = 0.d0
 
-! for colloids later on    
+! for colloids later on
 !    if (reaction%ncoll > 0) then
 !      do idof = istartcoll, iendcoll
 !        Jac(idof,idof) = 1.d0
 !      enddo
 !    endif
-        
+
     do icomp = 1, reaction%naqcomp
 
       select case(constraint_type(icomp))
-      
+
         case(CONSTRAINT_NULL,CONSTRAINT_TOTAL)
-        
+
           ! units = mol/L water
           Res(icomp) = rt_auxvar%total(icomp,1) - total_conc(icomp)
           ! dtotal units = kg water/L water
 
           ! Jac units = kg water/L water
           Jac(icomp,:) = rt_auxvar%aqueous%dtotal(icomp,:,1)
-          
+
         case(CONSTRAINT_TOTAL_SORB)
-        
+
           ! units = mol/m^3 bulk
           Res(icomp) = rt_auxvar%total_sorb_eq(icomp) - total_conc(icomp)
           ! dtotal_sorb units = kg water/m^3 bulk
@@ -1658,7 +1686,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           Jac(icomp,:) = rt_auxvar%dtotal_sorb_eq(icomp,:)
 
         case(CONSTRAINT_TOTAL_AQ_PLUS_SORB)
-        
+
           ! L water/m^3 bulk
           tempreal = material_auxvar%porosity * global_auxvar%sat(1) * 1.d3
           ! units = mol/L water
@@ -1672,14 +1700,14 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                          rt_auxvar%dtotal_sorb_eq(icomp,:) / tempreal
 
         case(CONSTRAINT_FREE,CONSTRAINT_LOG)
-        
+
           Res(icomp) = 0.d0
           Jac(icomp,:) = 0.d0
 !          Jac(:,icomp) = 0.d0
           Jac(icomp,icomp) = 1.d0
-          
+
         case(CONSTRAINT_CHARGE_BAL)
-        
+
           Res(icomp) = 0.d0
           Jac(icomp,:) = 0.d0
           do jcomp = 1, reaction%naqcomp
@@ -1707,9 +1735,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
               rt_auxvar%pri_molal(icomp) = 1.e-3 ! reset guess
             endif
           endif
-          
+
         case(CONSTRAINT_PH)
-        
+
           Res(icomp) = 0.d0
           Jac(icomp,:) = 0.d0
           if (associated(reaction%species_idx)) then
@@ -1718,9 +1746,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                                             rt_auxvar%pri_act_coef(icomp)
               Jac(icomp,icomp) = 1.d0
             else ! H+ is a complex
-            
+
               icplx = abs(reaction%species_idx%h_ion_id)
-              
+
               ! compute secondary species concentration
               ! *note that the sign was flipped below
               lnQK = -reaction%eqcplx_logK(icplx)*LOG_TO_LN
@@ -1738,7 +1766,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
               enddo
               lnQK = lnQK + conc(icomp)*LOG_TO_LN ! this is log activity H+
               QK = exp(lnQK)
-              
+
               Res(icomp) = 1.d0 - QK
 
               do jcomp = 1,reaction%eqcplxspecid(0,icplx)
@@ -1748,7 +1776,32 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
               enddo
             endif
           endif
-                      
+
+        case(CONSTRAINT_PE)
+          ! icomp should be O2(aq)
+          io2gas = reaction%species_idx%o2_gas_id
+          Res(icomp) = 0.d0
+          Jac(icomp,:) = 0.d0
+          call RRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe,option)
+          Res(icomp) = conc(icomp) - pe
+          ! dRes_dO2
+          do jcomp = 1, reaction%gas%paseqspecid(0,io2gas)
+            comp_id = reaction%gas%paseqspecid(jcomp,io2gas)
+            if (comp_id /= icomp) cycle
+            Jac(icomp,icomp) = 1.d0/rt_auxvar%pri_molal(comp_id)* &
+                               reaction%gas%paseqstoich(jcomp,io2gas)* &
+                               rt_auxvar%pri_act_coef(comp_id)* &
+                               LN_TO_LOG*0.25d0
+            exit
+          enddo
+          ! dRes_dH+
+          ! dpH_dH+
+          comp_id = reaction%species_idx%h_ion_id
+          tempreal = -1.d0/rt_auxvar%pri_molal(comp_id)*LN_TO_LOG
+          ! dpe_dpH * dpH_dH+
+          Jac(icomp,comp_id) = -1.d0*tempreal
+
+          Jac(icomp,:) = -1.d0*Jac(icomp,:)
         case(CONSTRAINT_MINERAL)
 
           imnrl = constraint_id(icomp)
@@ -1766,7 +1819,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                           log(rt_auxvar%pri_molal(comp_id)* &
                           rt_auxvar%pri_act_coef(comp_id))
           enddo
-          
+
           Res(icomp) = lnQK
 
           do jcomp = 1,mineral_reaction%mnrlspecid(0,imnrl)
@@ -1774,15 +1827,15 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
             Jac(icomp,comp_id) = mineral_reaction%mnrlstoich(jcomp,imnrl)/ &
               rt_auxvar%pri_molal(comp_id)
           enddo
-  
+
         case(CONSTRAINT_GAS)
 
           igas = constraint_id(icomp)
           lnQK = -reaction%gas%paseqlogK(igas)*LOG_TO_LN
- 
+
           ! divide K by RT
           !lnQK = lnQK - log((auxvar%temp+273.15d0)*IDEAL_GAS_CONSTANT)
-          
+
           ! activity of water
           if (reaction%gas%paseqh2oid(igas) > 0) then
             lnQK = lnQK + reaction%gas%paseqh2ostoich(igas)*rt_auxvar%ln_act_h2o
@@ -1794,9 +1847,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
             lnQK = lnQK + reaction%gas%paseqstoich(jcomp,igas)* &
               log(rt_auxvar%pri_molal(comp_id)*rt_auxvar%pri_act_coef(comp_id))
           enddo
-          
+
 !         QK = exp(lnQK)
-          
+
 !         Res(icomp) = QK - conc(icomp)
           Res(icomp) = lnQK - log(conc(icomp)) ! gas pressure
           Jac(icomp,:) = 0.d0
@@ -1810,35 +1863,35 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 
         ! CO2-specific
         case(CONSTRAINT_SUPERCRIT_CO2)
-          
+
           igas = constraint_id(icomp)
-         
+
           ! compute secondary species concentration
           if (abs(reaction%species_idx%co2_gas_id) == igas) then
-           
+
 !           pres = global_auxvar%pres(2)
             pres = conc(icomp)*1.D5
             global_auxvar%pres(2) = pres
-            
+
             tc = global_auxvar%temp
 
             call EOSWaterSaturationPressure(tc, sat_pressure, ierr)
-            
+
             pco2 = conc(icomp)*1.e5
 !           pco2 = pres - sat_pressure
-            
+
             pres = pco2 + sat_pressure
             yco2 = pco2/pres
-             
+
             iflag = 1
             call co2_span_wagner(pres*1D-6,tc+273.15D0,dg,dddt,dddp,fg, &
               dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,iflag,option%itable)
 
 !            call co2_span_wagner(pco2*1D-6,tc+273.15D0,dg,dddt,dddp,fg, &
 !              dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,option%itable)
-            
+
             global_auxvar%den_kg(2) = dg
-            
+
             !compute fugacity coefficient
             fg = fg*1.D6
             xphico2 = fg / pres
@@ -1856,14 +1909,14 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                 option%m_nacl,option%m_nacl)
              !   print *, 'SC: mnacl=', option%m_nacl,'stioh2o=',reaction%gas%paseqh2ostoich(igas)
             endif
-            
+
             lnQk = -log(xphico2*henry)-lngamco2
 
             reaction%gas%paseqlogK(igas) = -lnQK*LN_TO_LOG
 !           reaction%scco2_eq_logK = -lnQK*LN_TO_LOG
 !geh: scco2_eq_logK is only used in one location.  Why add to global_auxvar???
 !geh            global_auxvar%scco2_eq_logK = -lnQK*LN_TO_LOG
-                        
+
             ! activity of water
             if (reaction%gas%paseqh2oid(igas) > 0) then
               lnQK = lnQK + reaction%gas%paseqh2ostoich(igas)*rt_auxvar%ln_act_h2o
@@ -1876,9 +1929,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 !                print *,'SC: ',rt_auxvar%pri_molal(comp_id), &
 !                  rt_auxvar%pri_act_coef(comp_id),exp(lngamco2)
             enddo
-          
+
 !           QK = exp(lnQK)
-             
+
             Res(icomp) = lnQK - log(pco2*1D-5) ! gas pressure bars
             Jac(icomp,:) = 0.d0
             do jcomp = 1,reaction%gas%paseqspecid(0,igas)
@@ -1887,15 +1940,15 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 !                                reaction%gas%paseqstoich(jcomp,igas)
               Jac(icomp,comp_id) = reaction%gas%paseqstoich(jcomp,igas)/ &
                 rt_auxvar%pri_molal(comp_id)
-              
+
             enddo
-         endif       
+         endif
         ! end CO2-specific
       end select
     enddo
-    
+
     maximum_residual = maxval(abs(Res))
-    
+
     if (reaction%use_log_formulation) then
       ! force at least 4 log updates, then cycle the next 5 updates between
       ! log/linear.  This improves convergence of linear problems or 
@@ -1908,15 +1961,15 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     else
       use_log_formulation = PETSC_FALSE
     endif
-      
+
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
                 use_log_formulation)
-    
+
     prev_molal = rt_auxvar%pri_molal
 
     if (use_log_formulation) then
       update = dsign(1.d0,update)*min(dabs(update),reaction%max_dlnC)
-      rt_auxvar%pri_molal = rt_auxvar%pri_molal*exp(-update)    
+      rt_auxvar%pri_molal = rt_auxvar%pri_molal*exp(-update)
     else ! linear update
       ! ensure non-negative concentration
       min_ratio = MAX_DOUBLE ! large number
@@ -1934,7 +1987,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       ! could use:
       ! rt_auxvar%pri_molal = prev_molal - update * minval(abs(prev_molal/update))
     endif
-    
+
     ! check to ensure that minimum concentration is not less than or equal
     ! to zero
     tempreal = minval(rt_auxvar%pri_molal)
@@ -1957,7 +2010,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         &constraint concentrations must be positive.'
       call PrintErrMsgByRank(option)
     endif
-    
+
 #if 0
 !geh cannot use this check as for many problems (e.g. Hanford 300 Area U), the 
 !    concentrations temporarily go well above 100.
@@ -1978,12 +2031,12 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       call PrintErrMsg(option)
     endif
 #endif
-    
+
     maximum_relative_change = maxval(abs((rt_auxvar%pri_molal-prev_molal)/ &
                                          prev_molal))
-    
+
     num_iterations = num_iterations + 1
-    
+
     if (mod(num_iterations,1000) == 0) then
 100   format('Constraint iteration count has exceeded: ',i5)
       write(option%io_buffer,100) num_iterations
@@ -2007,7 +2060,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         call PrintErrMsgByRank(option)
       endif
     endif
-    
+
     ! check for convergence
     if (maximum_residual < reaction%max_residual_tolerance .and. &
         maximum_relative_change < reaction%max_relative_change_tolerance) then
@@ -2041,7 +2094,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                                    reaction,option)
     endif
   endif
-  
+
   ! WARNING: below assumes site concentration multiplicative factor
   if (surface_complexation%nsrfcplxrxn > 0) then
     do irxn = 1, surface_complexation%nkinmrsrfcplxrxn
@@ -2083,7 +2136,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         rt_auxvar%kinsrfcplx_free_site_conc
     endif
   endif
-  
+
   ! do not scale by molal_to_molar since it could be 1.d0 if MOLAL flag set
   aq_species_constraint%basis_molarity = rt_auxvar%pri_molal* &
                                  global_auxvar%den_kg(option%liquid_phase)/ &
@@ -2094,13 +2147,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 #endif
 
 ! this is performed above
-!  if (associated(colloid_constraint%colloids)) then                        
+!  if (associated(colloid_constraint%colloids)) then
 !    colloid_constraint%colloids%basis_conc_mob = rt_auxvar%colloid%conc_mob* &
 !                           global_auxvar%den_kg(option%liquid_phase)/1000.d0
 !    colloid_constraint%colloids%basis_conc_imb = rt_auxvar%colloid%conc_imb* &
 !                           global_auxvar%den_kg(option%liquid_phase)/1000.d0
 !  endif
-    
+
 !  write(option%io_buffer,111) trim(constraint%name),num_iterations
 !  call PrintMsg(option)
 !111 format(' Equilibrate Constraint: ',a30,i4)
@@ -2363,6 +2416,8 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
           string = 'log'
         case(CONSTRAINT_PH)
           string = 'pH'
+        case(CONSTRAINT_PE)
+          string = 'pe'
         case(CONSTRAINT_MINERAL,CONSTRAINT_GAS)
           string = aq_species_constraint%constraint_aux_string(icomp)
         case(CONSTRAINT_SUPERCRIT_CO2)
