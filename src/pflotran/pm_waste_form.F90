@@ -850,8 +850,8 @@ function PMWFSpacerMechCreate()
 ! LOCAL VARIABLES:
 ! ================
 ! ----------------------------------------------
-  type(spacer_mechanism_base_type), pointer :: PMWFSpacerMechCreate
-  type(spacer_mechanism_base_type), pointer :: spc
+  class(spacer_mechanism_base_type), pointer :: PMWFSpacerMechCreate
+  class(spacer_mechanism_base_type), pointer :: spc
 ! ----------------------------------------------
 
   allocate(spc)
@@ -2724,7 +2724,7 @@ subroutine PMWFSetup(this)
   ! point the waste form region to the desired region 
   call PMWFAssociateRegion(this,this%realization%patch%region_list)
   
-  allocate(ranks(option%mycommsize))
+  allocate(ranks(option%comm%mycommsize))
   
   waste_form_id = 0
   nullify(prev_waste_form)
@@ -2784,12 +2784,12 @@ subroutine PMWFSetup(this)
       cur_waste_form%id = 0
       ranks(option%myrank+1) = 0
     endif
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%mycommsize,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
                        MPI_SUM,option%mycomm,ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_form%rank_list(newcomm_size))
     j = 0
-    do i = 1,option%mycommsize
+    do i = 1,option%comm%mycommsize
       if (ranks(i) == 1) then
         j = j + 1
         cur_waste_form%rank_list(j) = (i - 1)  ! (world ranks)

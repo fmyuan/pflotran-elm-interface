@@ -8,7 +8,7 @@ module PM_RT_class
 !     compiler error)
 !  use Reactive_Transport_module
   use Realization_Subsurface_class
-  use Communicator_Base_module  
+  use Communicator_Base_class  
   use Option_module
   
   use PFLOTRAN_Constants_module

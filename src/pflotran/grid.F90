@@ -1610,7 +1610,7 @@ subroutine GridCheckCellNeighbors(grid,option)
     !   print *, check(:,i)
     !   print *, '--'
     ! enddo
-    option%exit_code = EXIT_FAILURE
+    option%driver%exit_code = EXIT_FAILURE
     option%io_buffer = 'Error mapping neighboring cells.  Please send &
      &your input files to pflotran-dev@googlegroups.com'
     call PrintErrMsgByRank(option)

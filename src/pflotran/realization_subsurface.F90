@@ -2515,7 +2515,7 @@ subroutine RealizationPrintGridStatistics(realization)
                      MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
 
   ! why I cannot use *100, I do not know....geh
-  inactive_percentages = dble(temp_int_out)/dble(option%mycommsize)*10.d0
+  inactive_percentages = dble(temp_int_out)/dble(option%comm%mycommsize)*10.d0
   inactive_percentages = inactive_percentages+1.d-8
 
   r1 = 0.d0
@@ -2560,7 +2560,7 @@ subroutine RealizationPrintGridStatistics(realization)
               & "                                        Check : ",1f7.2,/)') &
            global_total_count, &
            global_active_count, &
-           option%mycommsize, &
+           option%comm%mycommsize, &
            i1,i2,i3, &
            int(total_max+1.d-4), &
            int(total_min+1.d-4), &
@@ -2611,7 +2611,7 @@ subroutine RealizationPrintGridStatistics(realization)
                & "                                        Check : ",1f7.2,/)') &
            global_total_count, &
            global_active_count, &
-           option%mycommsize, &
+           option%comm%mycommsize, &
            i1,i2,i3, &
            int(total_max+1.d-4), &
            int(total_min+1.d-4), &

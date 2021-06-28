@@ -1650,7 +1650,7 @@ subroutine CharCurvesConvertListToArray(list,array,option)
     array(count)%ptr => cur_characteristic_curves
     if (cur_characteristic_curves%test) then
       call OptionSetBlocking(option,PETSC_FALSE)
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         call CharacteristicCurvesTest(cur_characteristic_curves,option)
       endif
       call OptionSetBlocking(option,PETSC_TRUE)

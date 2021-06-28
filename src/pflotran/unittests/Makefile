@@ -19,6 +19,7 @@ TEST_OBJS = $(TEST_SRCS:.pf=$(OBJ_EXT))
 # their dependancies)! Probably need a more complex .o dependancy
 # setup like the main makefile...
 PFLOTRAN_OBJS = \
+	$(EXE_DIR)/communicator_aux.o \
 	$(EXE_DIR)/characteristic_curves.o \
 	$(EXE_DIR)/characteristic_curves_base.o \
 	$(EXE_DIR)/characteristic_curves_common.o \
@@ -28,6 +29,7 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/dataset_ascii.o \
 	$(EXE_DIR)/dataset_base.o \
 	$(EXE_DIR)/time_storage.o \
+	$(EXE_DIR)/driver.o \
 	$(EXE_DIR)/eos_database.o \
 	$(EXE_DIR)/eos_gas.o \
 	$(EXE_DIR)/eos_water.o \

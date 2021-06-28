@@ -349,23 +349,23 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
         indices(i) = count+i-1 ! zero-based indexing
       enddo
       ierr = 0
-      if (option%myrank == option%io_rank) &
+      if (OptionIsIORank(option)) &
         read(fid,*,iostat=ierr) values(1:read_count)
       flag = ierr
-      call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                     option%mycomm,ierr)      
+      call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     option%driver%io_rank,option%mycomm,ierr)
       if (flag /= 0) then
         option%io_buffer = 'Insufficent data in file: ' // filename
         call PrintErrMsg(option)
       endif
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         call VecSetValues(natural_vec,read_count,indices,values,INSERT_VALUES, &
                           ierr);CHKERRQ(ierr)
       endif
       count = count + read_count
     enddo
-    call MPI_Bcast(count,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                   option%mycomm,ierr)      
+    call MPI_Bcast(count,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                   option%driver%io_rank,option%mycomm,ierr)
     if (count /= grid%nmax) then
       write(option%io_buffer,'("Number of data in file (",i8, &
       & ") does not match size of vector (",i8,")")') count, grid%nlmax
@@ -381,19 +381,19 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
     select case(vector_type)
       case(LOCAL)
         call DiscretizationCreateVector(discretization,ONEDOF,global_vec, &
-                                        GLOBAL,option)        
+                                        GLOBAL,option)
         call DiscretizationNaturalToGlobal(discretization,natural_vec, &
-                                           global_vec,ONEDOF)  
+                                           global_vec,ONEDOF)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          vector,ONEDOF)
         call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
       case(GLOBAL)
         call DiscretizationNaturalToGlobal(discretization,natural_vec, &
-                                           vector,ONEDOF) 
-    end select 
+                                           vector,ONEDOF)
+    end select
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
-  
+
 end subroutine readVectorFromFile
 
 ! ************************************************************************** !

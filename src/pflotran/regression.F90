@@ -250,7 +250,7 @@ subroutine RegressionCreateMapping(regression,realization)
     endif
     call VecCreate(PETSC_COMM_SELF,regression%natural_cell_id_vec, &
                    ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecSetSizes(regression%natural_cell_id_vec, &
                        size(regression%natural_cell_ids), &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
@@ -260,7 +260,7 @@ subroutine RegressionCreateMapping(regression,realization)
     endif
     call VecSetFromOptions(regression%natural_cell_id_vec,ierr);CHKERRQ(ierr)
   
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       count = size(regression%natural_cell_ids)
       ! determine how many of the natural cell ids are local
       allocate(int_array(count))
@@ -322,9 +322,9 @@ subroutine RegressionCreateMapping(regression,realization)
     ! cells ids per processor
     call VecCreate(PETSC_COMM_SELF,regression%cells_per_process_vec, &
                    ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecSetSizes(regression%cells_per_process_vec, &
-                       regression%num_cells_per_process*option%mycommsize, &
+                       regression%num_cells_per_process*option%comm%mycommsize, &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
     else
       call VecSetSizes(regression%cells_per_process_vec,ZERO_INTEGER, &
@@ -349,8 +349,8 @@ subroutine RegressionCreateMapping(regression,realization)
     call VecRestoreArrayF90(temp_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
     ! create temporary scatter to transfer values to io_rank
-    if (option%myrank == option%io_rank) then
-      count = option%mycommsize*regression%num_cells_per_process
+    if (OptionIsIORank(option)) then
+      count = option%comm%mycommsize*regression%num_cells_per_process
       ! determine how many of the natural cell ids are local
       allocate(int_array(count))
       do i = 1, count
@@ -382,8 +382,8 @@ subroutine RegressionCreateMapping(regression,realization)
     call VecDestroy(temp_vec,ierr);CHKERRQ(ierr)
    
     ! transfer cell ids into array for creating new scatter
-    if (option%myrank == option%io_rank) then
-      count = option%mycommsize*regression%num_cells_per_process
+    if (OptionIsIORank(option)) then
+      count = option%comm%mycommsize*regression%num_cells_per_process
       call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       do i = 1, count
@@ -425,9 +425,9 @@ subroutine RegressionCreateMapping(regression,realization)
 #endif
   
     ! fill in natural ids of these cells on the io_rank
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       allocate(regression%cells_per_process_natural_ids( &
-               regression%num_cells_per_process*option%mycommsize))
+               regression%num_cells_per_process*option%comm%mycommsize))
     endif
 
     call VecGetArrayF90(realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
@@ -445,7 +445,7 @@ subroutine RegressionCreateMapping(regression,realization)
                        regression%cells_per_process_vec, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       regression%cells_per_process_natural_ids(:) = int(vec_ptr(:)+0.1)
@@ -505,7 +505,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   
   option => realization%option
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     string = trim(option%global_prefix) // &
              trim(option%group_prefix) // &  
              '.regression'
@@ -565,7 +565,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 100 format(i9,': ',es21.13)    
 101 format(i9,': ',i9)    
     
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       string = OutputVariableToCategoryString(cur_variable%icategory)
       write(OUTPUT_UNIT,'(''-- '',a,'': '',a,'' --'')') &
         trim(string), trim(cur_variable%name)
@@ -606,12 +606,12 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
         if (cur_variable%iformat == 0) then
-          do i = 1, regression%num_cells_per_process*option%mycommsize
+          do i = 1, regression%num_cells_per_process*option%comm%mycommsize
             write(OUTPUT_UNIT,100) &
               regression%cells_per_process_natural_ids(i),vec_ptr(i)
           enddo
         else
-          do i = 1, regression%num_cells_per_process*option%mycommsize
+          do i = 1, regression%num_cells_per_process*option%comm%mycommsize
             write(OUTPUT_UNIT,101) &
               regression%cells_per_process_natural_ids(i),int(vec_ptr(i))
           enddo
@@ -660,7 +660,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         else
           string = 'GAS'
         endif
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- GENERIC: '',a,'' VELOCITY ['',a, &
                               &''] --'')') &
             trim(string), 'm/' // trim(realization%output_option%tunit)
@@ -724,7 +724,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 104 format(i9,': ',3es21.13) 
 
         ! natural cell ids
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           if (associated(regression%natural_cell_ids)) then
             if (size(regression%natural_cell_ids) > 0) then
               call VecGetArrayF90(x_vel_natural,vec_ptr,ierr);CHKERRQ(ierr)
@@ -746,7 +746,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
             call VecGetArrayF90(x_vel_process,vec_ptr,ierr);CHKERRQ(ierr)
             call VecGetArrayF90(y_vel_process,y_ptr,ierr);CHKERRQ(ierr)
             call VecGetArrayF90(z_vel_process,z_ptr,ierr);CHKERRQ(ierr)
-            do i = 1, regression%num_cells_per_process*option%mycommsize
+            do i = 1, regression%num_cells_per_process*option%comm%mycommsize
               write(OUTPUT_UNIT,104) &
                 regression%cells_per_process_natural_ids(i),vec_ptr(i), &
                   y_ptr(i),z_ptr(i)
@@ -782,7 +782,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
       class is(timestepper_BE_type)
         call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
         call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
           flow_stepper%cumulative_solver_time
@@ -799,7 +799,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
       class is(timestepper_TS_type)
         call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
         call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
           flow_stepper%cumulative_solver_time
@@ -825,7 +825,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
       class is(timestepper_BE_type)
         call VecNorm(realization%field%tran_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
         call VecNorm(realization%field%tran_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
             tran_stepper%cumulative_solver_time
@@ -841,7 +841,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         endif
       class is(timestepper_KSP_type)
         call VecNorm(realization%field%tran_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
             tran_stepper%cumulative_solver_time

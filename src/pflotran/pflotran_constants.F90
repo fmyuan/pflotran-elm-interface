@@ -33,9 +33,10 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
   PetscInt, parameter, public :: MAXWORDLENGTH = 32
   PetscInt, parameter, public :: STDOUT_UNIT = stdout
-  PetscInt, parameter, public :: OUT_UNIT = 15
+  PetscInt, parameter, public :: DRIVER_OUT_UNIT = 14
+  PetscInt, parameter, public :: FORWARD_OUT_UNIT = 15
   PetscInt, parameter, public :: OUTPUT_UNIT = 16
-  PetscInt, parameter, public :: IN_UNIT = 17
+  PetscInt, parameter, public :: IN_UNIT = 17 ! 17-MAX_IN_UNIT are reserved
   ! If you increase MAX_IN_UNIT, you MUST ensure that no other units #
   ! lie between IN_UNIT and MAX_IN_UNIT, as these units are reserved
   ! for embedded input files.

@@ -227,39 +227,39 @@ end subroutine DatasetCommonHDF5ReadSelectCase
 
 subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
                                       option)
-  ! 
+  !
   ! DatasetGlobalReadTimes: Read dataset times into time storage
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/12/08
-  ! 
-                         
+  !
+
   use hdf5
   use Time_Storage_module
   use Units_module, only : UnitsConvertToInternal
   use Option_module
   use Logging_module
   use HDF5_Aux_module
-  
+
   implicit none
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: dataset_name
   type(time_storage_type), pointer :: time_storage
   type(option_type) :: option
-  
+
   integer(HID_T) :: file_id
   integer(HID_T) :: file_space_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: dataset_id
   integer(HID_T) :: prop_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: atype_id  
-  integer(HID_T) :: attribute_id  
-  integer(HSIZE_T) :: num_times  
+  integer(HID_T) :: atype_id
+  integer(HID_T) :: attribute_id
+  integer(HSIZE_T) :: num_times
   integer(HSIZE_T) :: length(1)
   integer(HSIZE_T) :: attribute_dim(1)
-  integer(SIZE_T) :: size_t_int  
+  integer(SIZE_T) :: size_t_int
   PetscMPIInt :: array_rank_mpi
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: attribute_name, time_units
@@ -268,21 +268,21 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   PetscInt :: temp_int, num_times_read_by_iorank
   PetscMPIInt :: hdf5_err, h5fopen_err
   PetscBool :: attribute_exists, group_exists
-  PetscLogDouble :: tstart, tend  
+  PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
-  
+
   call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
-  
+
 !#define TIME_READING_TIMES
 #ifdef TIME_READING_TIMES
   call PetscTime(tstart,ierr);CHKERRQ(ierr)
-#endif  
-  
+#endif
+
   h5fopen_err = 0
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
     call PrintMsg(option)
-  
+
     ! set read file access property
     call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
     !geh: DO NOT call h5pset_fapl_mpio_f here since the attribute is only being
@@ -336,47 +336,47 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   ! by the I/O rank, need to broadcast the error flag.
   temp_int = h5fopen_err
   int_mpi = 1
-  call MPI_Bcast(temp_int,int_mpi,MPI_INTEGER,option%io_rank, &
+  call MPI_Bcast(temp_int,int_mpi,MPI_INTEGER,option%driver%io_rank, &
                  option%mycomm,ierr)
   if (temp_int < 0) then ! actually h5fopen_err
     option%io_buffer = 'Error opening file: ' // trim(filename)
     call PrintErrMsg(option)
   endif
-  
+
   int_mpi = 1
   call MPI_Bcast(num_times_read_by_iorank,int_mpi,MPI_INTEGER, &
-                 option%io_rank,option%mycomm,ierr)
+                 option%driver%io_rank,option%mycomm,ierr)
   num_times = num_times_read_by_iorank
-  
+
   if (num_times == -1) then
     ! no times exist, simply return
     return
   endif
-  
+
   time_storage => TimeStorageCreate()
   time_storage%max_time_index = int(num_times)
   allocate(time_storage%times(num_times))
   time_storage%times = 0.d0
-  
-  if (option%myrank == option%io_rank) then 
+
+  if (OptionIsIORank(option)) then
     array_rank_mpi = 1
     length(1) = num_times
     call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
     call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F,hdf5_err)
-#endif  
+#endif
     call h5screate_simple_f(array_rank_mpi,length,memory_space_id,hdf5_err,length)    
     call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,time_storage%times, &
                     length,hdf5_err,memory_space_id,file_space_id,prop_id)
 
-      
+
     call h5pclose_f(prop_id,hdf5_err)
     if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
     call h5sclose_f(file_space_id,hdf5_err)
-    call h5dclose_f(dataset_id,hdf5_err)  
+    call h5dclose_f(dataset_id,hdf5_err)
     option%io_buffer = 'Closing group: ' // trim(dataset_name)
     call PrintMsg(option)
-    call h5gclose_f(grp_id,hdf5_err)  
+    call h5gclose_f(grp_id,hdf5_err)
     option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
     call PrintMsg(option)
     call h5fclose_f(file_id,hdf5_err)
@@ -387,7 +387,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 
   int_mpi = int(num_times)
   call MPI_Bcast(time_storage%times,int_mpi,MPI_DOUBLE_PRECISION, &
-                 option%io_rank,option%mycomm,ierr)
+                 option%driver%io_rank,option%mycomm,ierr)
 
 #ifdef TIME_READING_TIMES
   call MPI_Barrier(option%mycomm,ierr)
@@ -395,13 +395,13 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   write(option%io_buffer,'(f6.2," Seconds to read dataset times",a,".")') &
     tend-tstart, trim(dataset_name) // ' (' // trim(option%group_prefix) // &
     ')'
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     print *, trim(option%io_buffer)
   endif
 #endif
 
   call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
-  
+
 end subroutine DatasetCommonHDF5ReadTimes
 
 ! ************************************************************************** !

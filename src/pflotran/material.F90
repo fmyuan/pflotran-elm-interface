@@ -1668,6 +1668,10 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       do i=1, Material%num_aux
         Material%auxvars(i)%epsilon = value
       enddo
+    case(PERMEABILITY)
+      do i=1, Material%num_aux
+        Material%auxvars(i)%permeability(:) = value
+      enddo
     case(PERMEABILITY_X)
       do i=1, Material%num_aux
         Material%auxvars(i)%permeability(perm_xx_index) = value
@@ -1769,6 +1773,10 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
     case(EPSILON)
       do ghosted_id=1, Material%num_aux
         Material%auxvars(ghosted_id)%epsilon = vec_loc_p(ghosted_id)
+      enddo
+    case(PERMEABILITY)
+      do ghosted_id=1, Material%num_aux
+        Material%auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_X)
       do ghosted_id=1, Material%num_aux
@@ -1885,7 +1893,7 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%tortuosity
       enddo
-    case(PERMEABILITY_X)
+    case(PERMEABILITY_X,PERMEABILITY)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
           Material%auxvars(ghosted_id)%permeability(perm_xx_index)
@@ -1938,7 +1946,7 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
   !
   use Option_module
   use Field_module
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Variables_module, only : POROSITY
 
   implicit none
@@ -2001,7 +2009,7 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
   !
 
   use Option_module
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Variables_module, only : POROSITY
 
   implicit none
@@ -2040,7 +2048,7 @@ subroutine MaterialAuxVarCommunicate(comm,Material,vec_loc,ivar,isubvar)
   ! Date: 01/09/14
   !
 
-  use Communicator_Base_module
+  use Communicator_Base_class
 
   implicit none
 

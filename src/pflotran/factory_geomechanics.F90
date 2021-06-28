@@ -453,8 +453,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
         call InputErrorMsg(input,option,'y-direction','GEOMECH GRAVITY')
         call InputReadDouble(input,option,option%geomech_gravity(Z_DIRECTION))
         call InputErrorMsg(input,option,'z-direction','GEOMECH GRAVITY')
-        if (option%myrank == option%io_rank .and. &
-            option%print_to_screen) &
+        if (OptionIsIORank(option) .and. OptionPrintToScreen(option)) &
             write(option%fid_out,'(/," *GEOMECH_GRAV",/, &
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
             & )') option%geomech_gravity(1:3)

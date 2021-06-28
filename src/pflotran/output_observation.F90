@@ -153,7 +153,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
       if (observation%print_velocities) calculate_velocities = PETSC_TRUE
       if (observation%itype == OBSERVATION_SCALAR .or. &
           (observation%itype == OBSERVATION_FLUX .and. &
-           option%myrank == option%io_rank)) then
+           OptionIsIORank(option))) then
         open_file = PETSC_TRUE
         exit
       endif
@@ -220,7 +220,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
               enddo
             endif
           case(OBSERVATION_FLUX)
-            if (option%myrank == option%io_rank) then
+            if (OptionIsIORank(option)) then
               call WriteObservationHeaderForBC(fid,realization_base, &
                                                 observation%linkage_name)
             endif
@@ -347,7 +347,7 @@ subroutine OutputAggregateToFile(realization_base)
         fid = 86
 
         if (observation_aggregate_first .or. .not.FileExists(filename)) then
-          if (option%myrank == option%io_rank) then
+          if (OptionIsIORank(option)) then
             open(unit=fid,file=filename,action="write",status="replace")
             ! write header
             ! write title
@@ -650,7 +650,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
       if (.not.associated(observation)) exit
       if (observation%itype == OBSERVATION_SCALAR .or. &
           (observation%itype == OBSERVATION_FLUX .and. &
-           option%myrank == option%io_rank)) then
+           OptionIsIORank(option))) then
         open_file = PETSC_TRUE
         exit
       endif
@@ -1336,8 +1336,8 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
         int_mpi = option%nphase
         call MPI_Reduce(sum_volumetric_flux,sum_volumetric_flux_global, &
                         int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                        option%io_rank,option%mycomm,ierr)
-        if (option%myrank == option%io_rank) then
+                        option%driver%io_rank,option%mycomm,ierr)
+        if (OptionIsIORank(option)) then
           do i = 1, option%nphase
             write(fid,110,advance="no") sum_volumetric_flux_global(i)
           enddo
@@ -1356,8 +1356,8 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
       int_mpi = option%ntrandof
       call MPI_Reduce(sum_solute_flux,sum_solute_flux_global, &
                       int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%io_rank,option%mycomm,ierr)
-      if (option%myrank == option%io_rank) then
+                      option%driver%io_rank,option%mycomm,ierr)
+      if (OptionIsIORank(option)) then
         !we currently only print the aqueous components
         do i = 1, reaction%naqcomp
           write(fid,110,advance="no") sum_solute_flux_global(i)
@@ -2034,7 +2034,7 @@ subroutine OutputIntegralFlux(realization_base)
   endif
   
   ! open file
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -2131,16 +2131,16 @@ subroutine OutputIntegralFlux(realization_base)
 120 format(100es17.8e3)
 
   ! write time
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     write(fid,100,advance="no") option%time/output_option%tconv
   endif
   
   if (option%nflowdof > 0) then
-    if (option%myrank == option%io_rank) &
+    if (OptionIsIORank(option)) &
       write(fid,100,advance="no") option%flow_dt/output_option%tconv
   endif
   if (option%ntrandof > 0) then
-    if (option%myrank == option%io_rank) &
+    if (OptionIsIORank(option)) &
       write(fid,100,advance="no") option%tran_dt/output_option%tconv
   endif
   
@@ -2183,10 +2183,10 @@ subroutine OutputIntegralFlux(realization_base)
     int_mpi = size(array)
     call MPI_Reduce(array,array_global, &
                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                    option%io_rank,option%mycomm,ierr)
+                    option%driver%io_rank,option%mycomm,ierr)
     ! time units conversion
     array_global(:,2) = array_global(:,2) * output_option%tconv
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       if (option%nflowdof > 0) then
         do i = 1, option%nflowdof
           do j = 1, 2  ! 1 = integral, 2 = instantaneous
@@ -2225,7 +2225,7 @@ subroutine OutputIntegralFlux(realization_base)
   deallocate(array_global)
   deallocate(instantaneous_array)
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     write(fid,'(a)') ''
     close(fid)
   endif
@@ -2342,7 +2342,7 @@ subroutine OutputMassBalance(realization_base)
   endif
   
   ! open file
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -2560,16 +2560,16 @@ subroutine OutputMassBalance(realization_base)
 110 format(100es16.8)
 
   ! write time
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     write(fid,100,advance="no") option%time/output_option%tconv
   endif
   
   if (option%nflowdof > 0) then
-    if (option%myrank == option%io_rank) &
+    if (OptionIsIORank(option)) &
       write(fid,100,advance="no") option%flow_dt/output_option%tconv
   endif
   if (option%ntrandof > 0) then
-    if (option%myrank == option%io_rank) &
+    if (OptionIsIORank(option)) &
       write(fid,100,advance="no") option%tran_dt/output_option%tconv
   endif
   
@@ -2602,17 +2602,17 @@ subroutine OutputMassBalance(realization_base)
     int_mpi = option%nflowspec*option%nphase
     call MPI_Reduce(sum_kg,sum_kg_global, &
                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                    option%io_rank,option%mycomm,ierr)
+                    option%driver%io_rank,option%mycomm,ierr)
 
     if (option%iflowmode == MPH_MODE) then
 !     call MPI_Barrier(option%mycomm,ierr)
       int_mpi = option%nphase
       call MPI_Reduce(sum_trapped,sum_trapped_global, &
                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                    option%io_rank,option%mycomm,ierr)
+                    option%driver%io_rank,option%mycomm,ierr)
     endif
 
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       select case(option%iflowmode)
         case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,H_MODE,TH_MODE,TH_TS_MODE)
           do iphase = 1, option%nphase
@@ -2661,9 +2661,9 @@ subroutine OutputMassBalance(realization_base)
     int_mpi = max_tran_size*8
     call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                     MPI_DOUBLE_PRECISION,MPI_SUM, &
-                    option%io_rank,option%mycomm,ierr)
+                    option%driver%io_rank,option%mycomm,ierr)
 
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       do icomp = 1, reaction%naqcomp
         if (reaction%primary_species_print(icomp)) then
           write(fid,110,advance="no") sum_mol_global(icomp,1)
@@ -2687,7 +2687,7 @@ subroutine OutputMassBalance(realization_base)
 
 !   print out mineral contribution to mass balance
     if (option%mass_bal_detailed) then
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         do i = 1, reaction%mineral%nkinmnrl
           if (reaction%mineral%kinmnrl_print(i)) then
             write(fid,110,advance="no") sum_mol_global(i,6)
@@ -2758,9 +2758,9 @@ subroutine OutputMassBalance(realization_base)
 
         call MPI_Reduce(sum_area,sum_area_global, &
                         FOUR_INTEGER_MPI,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                        option%io_rank,option%mycomm,ierr)
-                          
-        if (option%myrank == option%io_rank) then
+                        option%driver%io_rank,option%mycomm,ierr)
+
+        if (OptionIsIORank(option)) then
           print *
           write(word,'(es16.6)') sum_area_global(1)
           print *, 'Total area in ' // trim(coupler%name) // &
@@ -2792,9 +2792,9 @@ subroutine OutputMassBalance(realization_base)
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg,sum_kg_global, &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global
           endif
@@ -2804,16 +2804,16 @@ subroutine OutputMassBalance(realization_base)
           do iconn = 1, coupler%connection_set%num_connections
             sum_kg = sum_kg + global_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta
           enddo
-          
+
           ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
           sum_kg = sum_kg*FMWH2O
 
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg,sum_kg_global, &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global*output_option%tconv
           endif
@@ -2828,9 +2828,9 @@ subroutine OutputMassBalance(realization_base)
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg,sum_kg_global, &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global
           endif
@@ -2846,9 +2846,9 @@ subroutine OutputMassBalance(realization_base)
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg,sum_kg_global, &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global*output_option%tconv
           endif
@@ -2865,14 +2865,14 @@ subroutine OutputMassBalance(realization_base)
             int_mpi = 1
             call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-            if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+            if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
               write(fid,110,advance="no") -sum_kg_global(icomp,1)
             endif
           enddo
-          
+
         ! print out H2O & CO2 fluxes in kmol and kmol/time
           sum_kg = 0.d0
           do icomp = 1, option%nflowspec
@@ -2888,9 +2888,9 @@ subroutine OutputMassBalance(realization_base)
             int_mpi = 1
             call MPI_Reduce(sum_kg(icomp,1),sum_kg_global(icomp,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-            if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+            if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
               write(fid,110,advance="no") -sum_kg_global(icomp,1)*output_option%tconv
             endif
@@ -2906,9 +2906,9 @@ subroutine OutputMassBalance(realization_base)
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global(:,1)
           endif
@@ -2921,13 +2921,13 @@ subroutine OutputMassBalance(realization_base)
           enddo
           sum_kg(1,1) = sum_kg(1,1)*FMWH2O
           sum_kg(2,1) = sum_kg(2,1)*general_fmw(2)
-          
+
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global(:,1)*output_option%tconv
           endif
@@ -2941,9 +2941,9 @@ subroutine OutputMassBalance(realization_base)
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global(:,1)
           endif
@@ -2956,19 +2956,19 @@ subroutine OutputMassBalance(realization_base)
           enddo
           sum_kg(1,1) = sum_kg(1,1)*FMWH2O
           sum_kg(2,1) = sum_kg(2,1)*wipp_flow_fmw(2)
-          
+
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg(:,1),sum_kg_global(:,1), &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
-                              
-          if (option%myrank == option%io_rank) then
+                          option%driver%io_rank,option%mycomm,ierr)
+
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             write(fid,110,advance="no") -sum_kg_global(:,1)*output_option%tconv
           endif
       end select
     endif
-    
+
     if (option%ntrandof > 0) then
       select case(option%itranmode)
         case(RT_MODE)
@@ -2985,9 +2985,9 @@ subroutine OutputMassBalance(realization_base)
           int_mpi = nmobilecomp
           call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                           MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
+                          option%driver%io_rank,option%mycomm,ierr)
 
-          if (option%myrank == option%io_rank) then
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             do icomp = 1, reaction%naqcomp
               if (reaction%primary_species_print(icomp)) then
@@ -3006,9 +3006,9 @@ subroutine OutputMassBalance(realization_base)
           int_mpi = nmobilecomp
           call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                           MPI_DOUBLE_PRECISION,MPI_SUM, &
-                          option%io_rank,option%mycomm,ierr)
+                          option%driver%io_rank,option%mycomm,ierr)
 
-          if (option%myrank == option%io_rank) then
+          if (OptionIsIORank(option)) then
             ! change sign for positive in / negative out
             do icomp = 1, reaction%naqcomp
               if (reaction%primary_species_print(icomp)) then
@@ -3043,7 +3043,7 @@ subroutine OutputMassBalance(realization_base)
     enddo
   endif
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     write(fid,'(a)') ''
     close(fid)
   endif

@@ -20,6 +20,7 @@ module Simulation_Subsurface_class
   private
 
   type, public, extends(simulation_base_type) :: simulation_subsurface_type
+    type(option_type), pointer :: option
     type(checkpoint_option_type), pointer :: checkpoint_option
     type(output_option_type), pointer :: output_option
     PetscInt :: stop_flag
@@ -37,8 +38,8 @@ module Simulation_Subsurface_class
     ! regression object
     type(regression_type), pointer :: regression
     type(waypoint_list_type), pointer :: waypoint_list_subsurface
+    type(waypoint_list_type), pointer :: waypoint_list_outer ! outer sync loop
   contains
-    procedure, public :: Init => SimSubsurfInit
     procedure, public :: JumpStart => SimSubsurfJumpStart
     procedure, public :: InitializeRun => SimSubsurfInitializeRun
     procedure, public :: InputRecord => SimSubsurfInputRecord
@@ -47,6 +48,7 @@ module Simulation_Subsurface_class
     procedure, public :: FinalizeRun => SimSubsurfFinalizeRun
     procedure, public :: Strip => SimSubsurfStrip
   end type simulation_subsurface_type
+
 
   public :: SimSubsurfCreate, &
             SimSubsurfInit, &
@@ -62,18 +64,19 @@ contains
 
 ! ************************************************************************** !
 
-function SimSubsurfCreate(option)
+function SimSubsurfCreate(driver,option)
   !
   ! Allocates and initializes a new simulation object
   !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   !
-
+  use Driver_module
   use Option_module
 
   implicit none
 
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
   class(simulation_subsurface_type), pointer :: SimSubsurfCreate
@@ -83,13 +86,13 @@ function SimSubsurfCreate(option)
 #endif
 
   allocate(SimSubsurfCreate)
-  call SimSubsurfCreate%Init(option)
+  call SimSubsurfInit(SimSubsurfCreate,driver,option)
 
 end function SimSubsurfCreate
 
 ! ************************************************************************** !
 
-subroutine SimSubsurfInit(this,option)
+subroutine SimSubsurfInit(this,driver,option)
   !
   ! Initializes simulation values
   !
@@ -99,20 +102,23 @@ subroutine SimSubsurfInit(this,option)
   use Timestepper_Base_class, only : TS_CONTINUE
   use Output_Aux_module
   use Waypoint_module
+  use Driver_module
   use Option_module
   use EOS_module
 
   implicit none
 
   class(simulation_subsurface_type) :: this
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
 #ifdef DEBUG
   call PrintMsg(this%option,'SimSubsurfInit()')
 #endif
 
-  call SimulationBaseInit(this,option)
+  call SimulationBaseInit(this,driver)
   call EOSInit()
+  this%option => option
   this%output_option => OutputOptionCreate()
   nullify(this%checkpoint_option)
   nullify(this%process_model_coupler_list)
@@ -125,6 +131,7 @@ subroutine SimSubsurfInit(this,option)
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()
+  this%waypoint_list_outer => WaypointListCreate()
 
 end subroutine SimSubsurfInit
 
@@ -146,7 +153,7 @@ function SimSubsurfCast(simulation)
   nullify(SimSubsurfCast)
   select type(simulation)
     class is(simulation_subsurface_type)
-      SimSubsurfCast => simulation
+      SimSubsurfCast=> simulation
   end select
 
 end function SimSubsurfCast
@@ -235,7 +242,7 @@ subroutine SimSubsurfInitializeRun(this)
     call this%JumpStart()
   endif
 
-  call SimulationBaseInputRecordPrint(this)
+  call SimulationBaseInputRecordPrint(this,this%option)
   call PrintMsg(this%option," ")
   call PrintMsg(this%option,"  Finished Initialization")
   if (OptionPrintToFile(this%option)) then
@@ -415,7 +422,7 @@ subroutine SimSubsurfJumpStart(this)
                        'has been met.  Stopping....'
     call PrintMsg(option)
     call PrintMsg(option,'')
-    option%status = DONE
+    option%driver%status = DONE
     this%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
@@ -441,7 +448,7 @@ subroutine SimSubsurfJumpStart(this)
                        'has been met.  Stopping....'
     call PrintMsg(option)
     call PrintMsg(option,'')
-    option%status = DONE
+    option%driver%status = DONE
     this%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
@@ -456,7 +463,7 @@ subroutine SimSubsurfJumpStart(this)
         'Null flow waypoint list; final time likely equal to start time.&
         &time or simulation time needs to be extended on a restart.'
       call PrintMsg(option)
-      option%status = FAIL
+      option%driver%status = FAIL
       return
     else
       flow_timestepper%dt_max = flow_timestepper%cur_waypoint%dt_max
@@ -468,7 +475,7 @@ subroutine SimSubsurfJumpStart(this)
         'Null transport waypoint list; final time likely equal to start &
         &time or simulation time needs to be extended on a restart.'
       call PrintMsg(option)
-      option%status = FAIL
+      option%driver%status = FAIL
       return
     else
       tran_timestepper%dt_max = tran_timestepper%cur_waypoint%dt_max
@@ -640,10 +647,6 @@ subroutine SimSubsurfFinalizeRun(this)
   class(timestepper_base_type), pointer :: tran_timestepper
   PetscErrorCode :: ierr
 
-#ifdef DEBUG
-  call PrintMsg(this%option,'SimSubsurfFinalizeRun()')
-#endif
-
   if (this%stop_flag /= TS_STOP_END_SIMULATION) then
     select case(this%stop_flag)
       case(TS_STOP_WALLCLOCK_EXCEEDED)
@@ -652,7 +655,7 @@ subroutine SimSubsurfFinalizeRun(this)
         string = 'Maximum timestep exceeded.  Exiting!'
       case(TS_STOP_FAILURE)
         string = 'Simulation failed.  Exiting!'
-        this%option%exit_code = EXIT_FAILURE
+        this%driver%exit_code = EXIT_FAILURE
       case default
         string = 'Simulation stopped for unknown reason (' // &
                 trim(StringWrite(this%stop_flag)) // ').'
@@ -662,7 +665,7 @@ subroutine SimSubsurfFinalizeRun(this)
 
   ! pushed in InitializeRun()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
-  ! popped in OptionFinalize()
+  ! popped in below
   call PetscLogStagePush(logging%stage(FINAL_STAGE),ierr);CHKERRQ(ierr)
 
   if (associated(this%process_model_coupler_list)) then
@@ -692,6 +695,9 @@ subroutine SimSubsurfFinalizeRun(this)
   end select
 
   call SimulationBaseFinalizeRun(this)
+  if (OptionIsIORank(this%option)) then
+    call SimulationBaseWriteTimes(this,this%option%fid_out)
+  endif
 
   ! close output files
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
@@ -741,6 +747,7 @@ call this%process_model_coupler_list%Destroy()
   nullify(this%realization)
   call RegressionDestroy(this%regression)
   call WaypointListDestroy(this%waypoint_list_subsurface)
+  call OptionDestroy(this%option)
 
 end subroutine SimSubsurfStrip
 

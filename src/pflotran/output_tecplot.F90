@@ -264,7 +264,7 @@ subroutine OutputTecplotBlock(realization_base)
   
   filename = OutputFilename(output_option,option,'tec','')
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write tecplot output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
@@ -321,7 +321,7 @@ subroutine OutputTecplotBlock(realization_base)
     call WriteTecplotPolyUGridElements(OUTPUT_UNIT,realization_base)
   endif
 
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  if (OptionIsIORank(option)) close(OUTPUT_UNIT)
 
   if (output_option%print_tecplot_vel_cent) then
     call OutputVelocitiesTecplotBlock(realization_base)
@@ -468,7 +468,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
 
   filename = OutputFilename(output_option,option,'tec','vel')
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write tecplot velocity output file: ' // &
                        trim(filename)
     call PrintMsg(option)
@@ -584,7 +584,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
     call WriteTecplotExpGridElements(OUTPUT_UNIT,realization_base)
   endif
   
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  if (OptionIsIORank(option)) close(OUTPUT_UNIT)
   
 end subroutine OutputVelocitiesTecplotBlock
 
@@ -706,7 +706,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   
   filename = trim(filename) // '-' // trim(string) // '.tec'
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write tecplot velocity flux output file: ' // &
                        trim(filename)
     call PrintMsg(option)
@@ -927,7 +927,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   deallocate(array)
   deallocate(indices)
 
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  if (OptionIsIORank(option)) close(OUTPUT_UNIT)
 
   call PetscLogEventEnd(logging%event_output_write_flux_tecplot, &
                         ierr);CHKERRQ(ierr)
@@ -988,7 +988,7 @@ subroutine OutputTecplotPoint(realization_base)
 
   filename = OutputFilename(output_option,option,'tec','')
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write tecplot output file: ' // &
                        trim(filename)
     call PrintMsg(option)
@@ -1032,7 +1032,7 @@ subroutine OutputTecplotPoint(realization_base)
 
   enddo
   
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  if (OptionIsIORank(option)) close(OUTPUT_UNIT)
   
   if (output_option%print_tecplot_vel_cent) then
     call OutputVelocitiesTecplotPoint(realization_base)
@@ -1102,7 +1102,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   
   filename = OutputFilename(output_option,option,'tec','vel')
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write tecplot velocity output file: ' // &
                        trim(filename)
     call PrintMsg(option)
@@ -1221,7 +1221,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
     call VecDestroy(global_vec_vgz,ierr);CHKERRQ(ierr)
   endif
 
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  if (OptionIsIORank(option)) close(OUTPUT_UNIT)
   
 end subroutine OutputVelocitiesTecplotPoint
 
@@ -1271,7 +1271,7 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization_base,vector)
   discretization => realization_base%discretization
   
   ! open file
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write tecplot output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
@@ -1371,7 +1371,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
   ny = grid%structured_grid%ny
   nz = grid%structured_grid%nz
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     ! x-dir
     count = 0
     do k=1,nz+1
@@ -1501,7 +1501,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
       call VecGetLocalSize(global_vertex_vec,local_size,ierr);CHKERRQ(ierr)
       call OutputGetVertexCoordinates(grid, global_vertex_vec,X_COORDINATE,option)
       call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
-      if (option%myrank == option%io_rank) &
+      if (OptionIsIORank(option)) &
         write(fid,'(a)') '# vertex x-coordinate'
       call WriteTecplotDataSet(fid,realization_base,vec_ptr,TECPLOT_REAL, &
       local_size)
@@ -1509,7 +1509,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
 
       call OutputGetVertexCoordinates(grid,global_vertex_vec,Y_COORDINATE,option)
       call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
-      if (option%myrank == option%io_rank) &
+      if (OptionIsIORank(option)) &
         write(fid,'(a)') '# vertex y-coordinate'
       call WriteTecplotDataSet(fid,realization_base,vec_ptr,TECPLOT_REAL, &
       local_size)
@@ -1517,7 +1517,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
 
       call OutputGetVertexCoordinates(grid,global_vertex_vec, Z_COORDINATE,option)
       call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
-      if (option%myrank == option%io_rank) &
+      if (OptionIsIORank(option)) &
         write(fid,'(a)') '# vertex z-coordinate'
       call WriteTecplotDataSet(fid,realization_base,vec_ptr,TECPLOT_REAL, &
       local_size)
@@ -1525,7 +1525,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
 
       call VecDestroy(global_vertex_vec, ierr);CHKERRQ(ierr)
     case (EXPLICIT_UNSTRUCTURED_GRID)
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         if (output_option%print_explicit_primal_grid) then
         num_cells = grid%unstructured_grid%explicit_grid%num_cells_global
         count = 0
@@ -1609,7 +1609,7 @@ subroutine WriteTecplotExpGridElements(fid,realization_base)
   
   if (.not.associated(grid%unstructured_grid%explicit_grid%cell_vertices)) return
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     do icell = 1, num_elems
       num_vertices = grid%unstructured_grid%explicit_grid% &
                        cell_vertices(0,icell)
@@ -2011,7 +2011,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
   endif
   
   ! communicate data to processor 0, round robin style
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     if (datatype == TECPLOT_INTEGER) then
       ! This approach makes output files identical, regardless of processor
       ! distribution.  It is necessary when diffing files.
@@ -2049,15 +2049,15 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
       real_data(1:local_size_mpi-iend) = real_data(iend+1:local_size_mpi)
       num_in_array = local_size_mpi-iend
     endif
-    do iproc_mpi=1,option%mycommsize-1
-#ifdef HANDSHAKE    
+    do iproc_mpi=1,option%comm%mycommsize-1
+#ifdef HANDSHAKE
       if (option%io_handshake_buffer_size > 0 .and. &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
-        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                       option%mycomm,ierr)
+        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                       option%driver%io_rank,option%mycomm,ierr)
       endif
-#endif      
+#endif
       call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
       recv_size_mpi = status_mpi(MPI_TAG)
       if (datatype == TECPLOT_INTEGER) then
@@ -2112,13 +2112,13 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
         endif
       endif
     enddo
-#ifdef HANDSHAKE    
+#ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
-      call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                     option%mycomm,ierr)
+      call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     option%driver%io_rank,option%mycomm,ierr)
     endif
-#endif      
+#endif
     ! Print the remaining values, if they exist
     if (datatype == TECPLOT_INTEGER) then
       if (num_in_array > 0) then
@@ -2140,34 +2140,36 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
         write(fid,1010) real_data(1:num_in_array)
     endif
   else
-#ifdef HANDSHAKE    
+#ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
         if (option%myrank < max_proc) exit
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%io_rank,option%mycomm, &
-                       ierr)
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
+                       option%mycomm,ierr)
       enddo
     endif
-#endif    
+#endif
     if (datatype == TECPLOT_INTEGER) then
-      call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER,option%io_rank, &
+      call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
+                    option%driver%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     else
-      call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
+      call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION, &
+                    option%driver%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     endif
-#ifdef HANDSHAKE    
+#ifdef HANDSHAKE
     if (option%io_handshake_buffer_size > 0) then
       do
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%io_rank,option%mycomm, &
-                       ierr)
+        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%driver%io_rank, &
+                       option%mycomm,ierr)
         if (max_proc < 0) exit
       enddo
     endif
 #endif
 #undef HANDSHAKE
   endif
-      
+
   if (datatype == TECPLOT_INTEGER) then
     deallocate(integer_data)
   else
@@ -2242,7 +2244,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   call OutputGetExplicitAuxVars(realization_base,count,vec_proc, &
                                 density)
     
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write rate output file: ' // &
                        trim(filename)
     call PrintMsg(option)
@@ -2402,7 +2404,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
                '-sec-rank' // trim(adjustl(string)) // '-obs' &
                // trim(adjustl(string2)) // '-' // trim(string3) // '.tec'    
     
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       option%io_buffer = '--> write tecplot output file: ' // trim(filename)
       call PrintMsg(option)
     endif
