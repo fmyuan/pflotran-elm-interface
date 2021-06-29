@@ -1,11 +1,8 @@
-#Description: 1D microbial degradation problem without biomass
+#Description: 0D microbial degradation problem with biomass
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE RICHARDS
-    /
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
     /
@@ -30,34 +27,47 @@ END
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 5
+  CELL_IDS
+    1
+  /
+END
+
+#=========================== flow mode ========================================
+# Uniform velocity (see below). No flow mode specified.
+
+#=========================== useful tranport parameters ==================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0 
 END
 
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    A(aq)
-    B(aq)
-    C(aq)
+    Na+
+    Cl-
+    K+
   /
   IMMOBILE_SPECIES
     D(im)
   /
   MICROBIAL_REACTION
-    REACTION A(aq) + 2 B(aq) <-> 1.5 C(aq)
+    CONCENTRATION_UNITS ACTIVITY
+    # this is a bogus reaction; just using ions to alter activity
+    REACTION Na+ + 2 Cl- <-> 1.5 K+
     RATE_CONSTANT 1.d-6
     MONOD 
-      SPECIES_NAME A(aq) 
+      SPECIES_NAME Na+
       HALF_SATURATION_CONSTANT 1.d-5        ! A is the donor
       THRESHOLD_CONCENTRATION 1.d-20
     /
     MONOD
-      SPECIES_NAME B(aq) 
+      SPECIES_NAME Cl-
       HALF_SATURATION_CONSTANT 1.d-4        ! B is the acceptor
       THRESHOLD_CONCENTRATION 1.d-11
     /
     INHIBITION
-      SPECIES_NAME C(aq)
+      SPECIES_NAME K+
       TYPE INVERSE_MONOD
       INHIBITION_CONSTANT 6.d-4   ! C is the product and inhibits when too high
     /
@@ -65,7 +75,6 @@ CHEMISTRY
       SPECIES_NAME D(im)
       YIELD 0.01d0
     /
-    CONCENTRATION_UNITS ACTIVITY
   /
   IMMOBILE_DECAY_REACTION
     SPECIES_NAME D(im)
@@ -73,7 +82,7 @@ CHEMISTRY
   /
   DATABASE ../../../database/hanford.dat
   LOG_FORMULATION
-  ACTIVITY_COEFFICIENTS OFF
+  ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
     ALL
     TOTAL
@@ -84,11 +93,11 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE STRUCTURED CYLINDRICAL
-  NXYZ 5 1 1
+  TYPE STRUCTURED
+  NXYZ 1 1 1
   BOUNDS
-    0.d0 0.d0
-    100.d0 1.d0
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
   /
 END
 
@@ -102,41 +111,23 @@ MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 0.25d0
   TORTUOSITY 1.d0
-  PERMEABILITY
-    PERM_ISO 1.d-12
-  /
-  CHARACTERISTIC_CURVES default
-END
-
-#=========================== characteristic curves ============================
-CHARACTERISTIC_CURVES default
-  SATURATION_FUNCTION BROOKS_COREY
-    ALPHA 1.d-4
-    LAMBDA 0.3d0
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    SMOOTH
-  /
-  PERMEABILITY_FUNCTION MUALEM_BC_LIQ
-    LAMBDA 0.3d0
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-  /
 END
 
 #=========================== output options ===================================
-skip
 OUTPUT
-  SNAPSHOT_FILE
-    PERIODIC TIMESTEP 1
-    FORMAT HDF5
-  /
-END
+#  TIMES y 5. 10. 15. 20.
+skip
+  FORMAT TECPLOT POINT
+  PERIODIC_OBSERVATION TIMESTEP 1
 noskip
+END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 25.d0 y
-  INITIAL_TIMESTEP_SIZE 0.5d0 y
-  MAXIMUM_TIMESTEP_SIZE 0.5d0 y
+  FINAL_TIME 25.d0 y            ! A(aq) at 50m midpoint
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 2.5d-1 y
+#  MAXIMUM_TIMESTEP_SIZE 1.d-3 y
 END
 
 #=========================== regions ==========================================
@@ -147,48 +138,13 @@ REGION all
   /
 END
 
-REGION injection_region
-  COORDINATE 10.d0 0.5d0 0.5d0
-END
-
-REGION biozone
-  COORDINATES
-    20.d0 0.d0 0.d0
-    80.d0 1.d0 1.d0
-  /
-END
-
-REGION east
-  FACE EAST
-  COORDINATES
-    100.d0 0.d0 0.d0
-    100.d0 1.d0 1.d0
-  /
-END
-
 REGION pt
-  COORDINATE 50.d0 0.5d0 0.5d0
+  COORDINATE 0.5d0 0.5d0 0.5d0
 END
 
 #=========================== observation points ===============================
 OBSERVATION
   REGION pt
-END
-
-#=========================== flow conditions ==================================
-FLOW_CONDITION initial
-  TYPE
-    PRESSURE HYDROSTATIC
-  /
-  DATUM 0. 0. 10.
-  PRESSURE 101325d0
-END
-
-FLOW_CONDITION well
-  TYPE
-    RATE mass_rate
-  /
-  RATE 314.d3 kg/yr
 END
 
 #=========================== transport conditions =============================
@@ -199,75 +155,23 @@ TRANSPORT_CONDITION initial
   /
 END
 
-TRANSPORT_CONDITION biozone
-  TYPE ZERO_GRADIENT
-  CONSTRAINT_LIST
-    0.d0 initial_biozone
-  /
-END
-
-TRANSPORT_CONDITION inlet
-  TYPE DIRICHLET_ZERO_GRADIENT
-  CONSTRAINT_LIST
-    0.d0 inlet
-  /
-END
-
 #=========================== constraints ======================================
 CONSTRAINT initial
   CONCENTRATIONS
-    A(aq) 1.d-7  T
-    B(aq) 1.d-7  T
-    C(aq) 1.d-7  T
+    Na+ 1.d-4  T
+    Cl- 1.d-3  T
+    K+  1.d-7  T
   /
   IMMOBILE
     D(im) 1.d-7
   /
 END
 
-CONSTRAINT initial_biozone
-  CONCENTRATIONS
-    A(aq) 1.d-7  T
-    B(aq) 1.d-7  T
-    C(aq) 1.d-7  T
-  /
-  IMMOBILE
-    D(im) 1.d-3
-  /
-END
-
-CONSTRAINT inlet
-  CONCENTRATIONS
-    A(aq) 1.d-4  T
-    B(aq) 1.d-3  T
-    C(aq) 1.d-7  T
-  /
-END
-
 #=========================== condition couplers ===============================
 # initial condition
 INITIAL_CONDITION
-  FLOW_CONDITION initial
   TRANSPORT_CONDITION initial
   REGION all
-END
-
-INITIAL_CONDITION
-  FLOW_CONDITION initial
-  TRANSPORT_CONDITION biozone
-  REGION biozone
-END
-
-BOUNDARY_CONDITION outlet
-  FLOW_CONDITION initial
-  TRANSPORT_CONDITION initial
-  REGION east
-END
-
-SOURCE_SINK inlet
-  FLOW_CONDITION well
-  TRANSPORT_CONDITION inlet
-  REGION injection_region
 END
 
 #=========================== stratigraphy couplers ============================

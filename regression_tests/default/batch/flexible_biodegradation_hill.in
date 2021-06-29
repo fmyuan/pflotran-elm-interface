@@ -1,71 +1,91 @@
-#Description: 1D microbial degradation problem without biomass
+#Description: Reaction Sandbox Simple
 
+#==============================================================================
+# DO NOT MODIFY
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
-      OPTIONS
-      /
     /
   /
 END
+# END DO NOT MODIFY
+#==============================================================================
 
 SUBSURFACE
 
-#=========================== numerical methods ================================
-NUMERICAL_METHODS TRANSPORT
-
-  NEWTON_SOLVER
-    ATOL 1.d-50
-    RTOL 1.d-50
-    STOL 1.d-50
-    #  ITOL_RELATIVE_UPDATE 1.d-12
-    ITOL_RELATIVE_UPDATE 1.d-12
-  /
-
-END
-
-#=========================== regression =======================================
 REGRESSION
   CELL_IDS
     1
   /
 END
 
-#=========================== flow mode ========================================
-# Uniform velocity (see below). No flow mode specified.
-
-#=========================== useful tranport parameters ==================
-SPECIFIED_VELOCITY
-  UNIFORM? YES
-  DATASET 0.d0 0.d0 0.d0 
+#=========================== constraints ======================================
+# modify these initial concentration
+CONSTRAINT initial
+  CONCENTRATIONS # [mol/L]
+    Aaq  1.d-3   F
+    Baq  5.d-4   F
+    Caq  1.d-10  F
+    Daq  1.d-10  F
+    Eaq  1.d-10  F
+  /
+  IMMOBILE     # [mol/m^3 bulk]
+    Xim  1.d-4
+    Yim  1.d-10
+  /
 END
 
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    A(aq)
-    B(aq)
+    Aaq
+    Baq
+    Eaq
+    Caq
+    Daq
   /
-  MICROBIAL_REACTION
-    REACTION A(aq) <-> B(aq) 
-    RATE_CONSTANT 1.d-12
-    MONOD
-      SPECIES_NAME A(aq)
-      HALF_SATURATION_CONSTANT 1.d-20        ! A is the donor
+  IMMOBILE_SPECIES
+    Yim
+    Xim
+  /
+  REACTION_SANDBOX
+    FLEXIBLE_BIODEGRADATION_HILL
+      AQUEOUS_CONCENTRATION_UNITS MOLARITY
+      MAX_SPECIFIC_UTILIZATION_RATE 324.d0 1/h
+      AAQ_HALF_SATURATION_CONSTANT 2.d-4
+      BAQ_HALF_SATURATION_CONSTANT 1.25d-5
+      CAQ_MONOD_INHIBITION_CONSTANT 2.5d-4
+      YIELD 1.d-4
+      BIOMASS_DECAY_RATE_CONSTANT 1.d-6
+      HILL_EXPONENT 1.2d0
     /
-    CONCENTRATION_UNITS ACTIVITY
   /
-  DATABASE ../../../database/hanford.dat
+  DATABASE ../../../database/simple_rxn_database.dat
+  LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
-    ALL
-    TOTAL
+    FREE_ION
+    Aaq
+    Baq
+    Caq
+    Daq
+    Xim
   /
 END
 
-#=========================== solver options ===================================
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== discretization ===================================
 GRID
@@ -78,42 +98,42 @@ GRID
 END
 
 #=========================== fluid properties =================================
-FLUID_PROPERTY
-  DIFFUSION_COEFFICIENT 1.d-9
-END
+REFERENCE_LIQUID_DENSITY 1000.d0
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
-  POROSITY 0.25d0
-  TORTUOSITY 1.d0
+  POROSITY 1.d0
 END
 
 #=========================== output options ===================================
 OUTPUT
-#  TIMES y 5. 10. 15. 20.
-#  FORMAT TECPLOT POINT
-   PERIODIC_OBSERVATION TIMESTEP 1
+  PERIODIC_OBSERVATION TIMESTEP 1
+  TIME_UNITS d
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 4.d0 y            ! A(aq) at 50m midpoint
+  FINAL_TIME 1.d0 w
   INITIAL_TIMESTEP_SIZE 1.d0 h
-  MAXIMUM_TIMESTEP_SIZE 2.5d-1 y
+  MAXIMUM_TIMESTEP_SIZE 1.d0 h
 END
 
 #=========================== regions ==========================================
 REGION all
   COORDINATES
-    0.d0 0.d0 0.d0
-    1.d0 1.d0 1.d0
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
   /
+END
+
+REGION middle
+  COORDINATE 0.5d0 0.5d0 0.5d0
 END
 
 #=========================== observation points ===============================
 OBSERVATION
-  REGION all
+  REGION middle
 END
 
 #=========================== transport conditions =============================
@@ -121,14 +141,6 @@ TRANSPORT_CONDITION initial
   TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
-  /
-END
-
-#=========================== constraints ======================================
-CONSTRAINT initial
-  CONCENTRATIONS
-    A(aq) 1.d-4  T
-    B(aq) 1.d-7  T
   /
 END
 
@@ -144,6 +156,5 @@ STRATA
   REGION all
   MATERIAL soil1
 END
-
 
 END_SUBSURFACE
