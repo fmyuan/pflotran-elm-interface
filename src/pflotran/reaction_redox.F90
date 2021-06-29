@@ -81,8 +81,29 @@ subroutine RRedoxCalcEhpe(rt_auxvar,global_auxvar,reaction,eh,pe,option)
   call RRedoxCalcLnFO2(rt_auxvar,global_auxvar,reaction,lnQKo2,option)
   t_kelvin = global_auxvar%temp+273.15d0
   ehfac = IDEAL_GAS_CONSTANT*t_kelvin*LOG_TO_LN/FARADAY
-  eh = ehfac*(-4.d0*ph+lnQKo2*LN_TO_LOG+ &
-              RRedoxCalcLogKEh(t_kelvin))/4.d0
+
+  ! O2(aq) + 4 e- + 4 H+ -> 2 H2O
+
+  ! Keq = {H2O}^2 / {O2(aq)} * {e-}^4 * {H+}^4
+
+  ! e-^4 = {H2O}^2 / Keq * {O2(aq)} * {H+}^4
+
+  ! e- = {H2O}^0.5 / (Keq * {O2(aq)})^0.25 * {H+}
+
+  ! pe = (0.5 ln{H2O} - 0.25 lnKeq - 0.25 ln{O2(aq)} - ln{H+}) * -LN_TO_LOG
+
+    !   ph = -log{H+} = -ln{H+} * LN_TO_LOG
+
+  ! pe = (0.5 ln{H2O} - 0.25 lnKeq - 0.25 ln{O2(aq)}) * -LN_TO_LOG - ph
+
+  ! pe = (-0.5 ln{H2O} + 0.25 lnKeq + 0.25 ln{O2(aq)}) * LN_TO_LOG - ph
+
+  ! pe = ((-2 ln{H2O} + lnKeq + ln{O2(aq)}) * LN_TO_LOG - 4 ph) * 0.25d0
+  !   RRedoxCalcLogKEh = ln Keq*LN_TO_LOG
+  !   lnQKo2 = ln{O2(aq)}
+
+  eh = ehfac*(-4.d0*ph+(-2.d0*rt_auxvar%ln_act_h2o+lnQKo2)*LN_TO_LOG+ &
+              RRedoxCalcLogKEh(t_kelvin)) * 0.25d0
   pe = eh/ehfac
 
 end subroutine RRedoxCalcEhpe

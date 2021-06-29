@@ -43,6 +43,8 @@ CHEMISTRY
     O2(g)
   /
   DATABASE ../../../database/hanford.dat
+  ACTIVITY_COEFFICIENTS
+  ACTIVITY_WATER
   LOG_FORMULATION
   OUTPUT
     ALL
