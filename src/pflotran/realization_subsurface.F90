@@ -21,7 +21,6 @@ module Realization_Subsurface_class
   use Reaction_Aux_module
   use NW_Transport_Aux_module
   use Survey_module
-  use Inversion_module
 
 
   implicit none
@@ -52,7 +51,6 @@ private
     class(reaction_nw_type), pointer :: reaction_nw
 
     type(survey_type), pointer :: survey
-    type(inversion_type), pointer :: inversion
 
   end type realization_subsurface_type
 
@@ -169,7 +167,6 @@ function RealizationCreate2(option)
   nullify(realization%reaction)
   nullify(realization%reaction_nw)
   nullify(realization%survey)
-  nullify(realization%inversion)
   realization%nonuniform_velocity_filename = ''
 
   RealizationCreate2 => realization
@@ -2945,10 +2942,6 @@ subroutine RealizationStrip(this)
 
   if (associated(this%survey)) then
     call SurveyDestroy(this%survey)
-  endif
-
-  if (associated(this%inversion)) then
-    call InversionDestroy(this%inversion)
   endif
 
 end subroutine RealizationStrip

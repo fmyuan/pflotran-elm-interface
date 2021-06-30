@@ -2174,7 +2174,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Time_Storage_module
   use TH_Aux_module
   use Survey_module
-  use Inversion_module
 
 #ifdef SOLID_SOLUTION
   use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
@@ -2245,7 +2244,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input, input_parent
   type(survey_type), pointer :: survey
-  type(inversion_type), pointer :: inversion
 
   PetscReal :: dt_init
   PetscReal :: dt_min
@@ -3774,13 +3772,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         call SurveyRead(survey,input,option)
         realization%survey => survey
         nullify(survey)
-
-!....................
-      case ('INVERSION')
-        inversion => InversionCreate()
-        call InversionRead(inversion,input,option)
-        realization%inversion => inversion
-        nullify(inversion)        
 
 !....................
       case ('END_SUBSURFACE')
