@@ -1962,8 +1962,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       use_log_formulation = PETSC_FALSE
     endif
 
+    ! iflag is a dummy error flag since stop_on_error = PETSC_TRUE
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
-                use_log_formulation)
+                use_log_formulation,PETSC_TRUE,iflag)
 
     prev_molal = rt_auxvar%pri_molal
 
@@ -3073,56 +3074,6 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
 
 end subroutine ReactionDoubleLayer
 
-#if 0
-
-! ************************************************************************** !
-
-subroutine srfcmplx(irxn,icplx,lnQK,logK,Z,potential,tempk, &
-                ln_act,ln_act_h2o,ln_free_site,srfcplx_conc)
-
-implicit none
-
-  PetscReal, parameter :: tk = 273.15d0
-  
-  PetscReal :: fac, boltzmann, dbl_charge, surface_charge, ionic_strength, &
-               charge_balance, potential, tempk, debye_length, &
-               srfchrg_capacitance_model
-               
-  PetscReal :: ln_conc(reaction%naqcomp)
-  PetscReal :: ln_act(reaction%naqcomp)
-  PetscReal :: srfcplx_conc(reaction%neqsrfcplx)
-
-  PetscReal :: free_site_conc
-  PetscReal :: ln_free_site, ln_act_h2o
-  PetscReal :: lnQK, tempreal, tempreal1, tempreal2, total
-
-  PetscInt :: i, j, icomp, icplx, irxn, ncomp, ncplx
-
-        do j = 1, ncplx
-          icplx = reaction%srfcplxrxn_to_complex(j,irxn)
-          ! compute secondary species concentration
-          lnQK = -logK(icplx)*LOG_TO_LN &
-                 + Z(icplx)*FARADAY*potential &
-                 /(IDEAL_GAS_CONSTANT*tempk)/LOG_TO_LN
-
-          ! activity of water
-          if (reaction%eqsrfcplxh2oid(icplx) > 0) then
-            lnQK = lnQK + reaction%eqsrfcplxh2ostoich(icplx)*rt_auxvar%ln_act_h2o
-          endif
-
-          lnQK = lnQK + reaction%eqsrfcplx_free_site_stoich(icplx)* &
-                        ln_free_site
-        
-          ncomp = reaction%srfcplxspecid(0,icplx)
-          do i = 1, ncomp
-            icomp = reaction%srfcplxspecid(i,icplx)
-            lnQK = lnQK + reaction%eqsrfcplxstoich(i,icplx)*ln_act(icomp)
-          enddo
-          srfcplx_conc(icplx) = exp(lnQK)
-        enddo
-end subroutine srfcmplx
-#endif
-
 ! ************************************************************************** !
 
 subroutine ReactionReadOutput(reaction,input,option)
@@ -3457,7 +3408,8 @@ end subroutine RJumpStartKineticSorption
 ! ************************************************************************** !
 
 subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
-                  num_iterations_,reaction,natural_id,option,ierror)
+                  num_iterations_,reaction,natural_id,option, &
+                  verbose_output,stop_on_error,ierror)
   ! 
   ! Solves reaction portion of operator splitting using Newton-Raphson
   ! 
@@ -3477,6 +3429,8 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: num_iterations_
   PetscInt :: natural_id
   type(option_type) :: option
+  PetscBool :: verbose_output
+  PetscBool :: stop_on_error
   PetscInt :: ierror
   
   PetscReal :: residual(reaction%ncomp)
@@ -3501,6 +3455,8 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
 
   PetscInt, parameter :: iphase = 1
 
+  ierror = 0
+  option%ierror = 0
   ncomp = reaction%ncomp
   naqcomp = reaction%naqcomp
   nimmobile = reaction%immobile%nimmobile
@@ -3583,6 +3539,13 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
     call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar, &
                    material_auxvar,reaction,option)
     
+    if (option%ierror /= 0) then
+      ! errors in function evaluations above will set option%ierror /= 0
+      num_iterations_ = num_iterations
+      ierror = option%ierror
+      return
+    endif
+    
     if (maxval(abs(residual)) < reaction%max_residual_tolerance) exit
 
     conc(1:naqcomp) = rt_auxvar%pri_molal(1:naqcomp)
@@ -3590,7 +3553,14 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
       conc(immobile_start:immobile_end) = rt_auxvar%immobile(:)
     endif
 
-    call RSolve(residual,J,conc,update,ncomp,reaction%use_log_formulation)
+    call RSolve(residual,J,conc,update,ncomp,reaction%use_log_formulation, &
+                stop_on_error,ierror)
+
+    if (ierror /= 0) then
+      num_iterations_ = num_iterations
+      ierror = option%ierror
+      return
+    endif
     
     prev_solution(1:naqcomp) = rt_auxvar%pri_molal(1:naqcomp)
     if (nimmobile > 0) then
@@ -3630,15 +3600,17 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
       else if (num_iterations <= 500) then
         scale = 0.001d0
       else
-        print *, 'Maximum iterations in RReact: stop: ' // &
-                 trim(StringWrite(num_iterations))
-        print *, 'Maximum iterations in RReact: residual: ' // &
-                 trim(StringWrite(residual))
-        print *, 'Maximum iterations in RReact: new solution: ' // &
-                 trim(StringWrite(new_solution))
-        print *, 'Grid cell: ' // trim(StringWrite(natural_id))
-        if (option%comm%mycommsize > 1) then
-          print *, 'Process rank: ' // trim(StringWrite(option%myrank))
+        if (verbose_output) then
+          print *, 'Maximum iterations in RReact: stop: ' // &
+                   trim(StringWrite(num_iterations))
+          print *, 'Maximum iterations in RReact: residual: ' // &
+                   trim(StringWrite(residual))
+          print *, 'Maximum iterations in RReact: new solution: ' // &
+                   trim(StringWrite(new_solution))
+          print *, 'Grid cell: ' // trim(StringWrite(natural_id))
+          if (option%comm%mycommsize > 1) then
+            print *, 'Process rank: ' // trim(StringWrite(option%myrank))
+          endif
         endif
         num_iterations_ = num_iterations
         ierror = 1
@@ -3976,6 +3948,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
   ! 
 
   use Option_module
+  use Utility_module, only : InitToNaN
   
   implicit none
 
@@ -4024,12 +3997,11 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
           ' too many iterations in computing activity coefficients-stop',it,f,I, &
           ' setting all activity coefficients to NaNs to crash the code.'
         call PrintErrMsgNoStopByRank(option)
-        NaN = 0.d0
-        NaN = 1.d0/NaN
-        NaN = 0.d0*NaN
+        NaN = InitToNaN()
         rt_auxvar%pri_molal = NaN
         rt_auxvar%pri_act_coef = NaN
         rt_auxvar%sec_act_coef = NaN
+        option%ierror = 1
       endif
     
   ! add secondary species contribution to ionic strength
@@ -4079,7 +4051,12 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
       if (II < 0.d0) then
         write(option%io_buffer,*) 'ionic strength negative! it =',it, &
           ' I= ',I,II,den,didi,dcdi,sum
-        call PrintErrMsgByRank(option)
+        call PrintErrMsgNoStopByRank(option)
+        NaN = InitToNaN()
+        rt_auxvar%pri_molal = NaN
+        rt_auxvar%pri_act_coef = NaN
+        rt_auxvar%sec_act_coef = NaN
+        option%ierror = 1
       endif
     
   ! compute activity coefficients
@@ -4564,7 +4541,8 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
         it = it + 1
         if (it > 20000) then
           option%io_buffer = 'Too many Newton iterations in ion exchange.'
-          call PrintErrMsgByRank(option)
+          call PrintErrMsgNoStopByRank(option)
+          option%ierror = 1
         endif
         ref_cation_X = KDj*(ref_cation_k*ref_cation_conc)
         cation_X(1) = ref_cation_X
@@ -5033,7 +5011,8 @@ end subroutine RGeneral
 
 ! ************************************************************************** !
 
-subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation)
+subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation, &
+                  stop_on_error,ierror)
   ! 
   ! Computes the kinetic mineral precipitation/dissolution
   ! rates
@@ -5052,6 +5031,8 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation)
   PetscReal :: update(ncomp)
   PetscReal :: conc(ncomp)
   PetscBool :: use_log_formulation
+  PetscBool :: stop_on_error
+  PetscInt :: ierror
   
   PetscInt :: indices(ncomp)
   PetscReal :: rhs(ncomp)
@@ -5073,7 +5054,7 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation)
     enddo
   endif
 
-  call ludcmp(Jac,ncomp,indices,icomp)
+  call ludcmp(Jac,ncomp,indices,icomp,stop_on_error,ierror)
   call lubksb(Jac,ncomp,indices,rhs)
   
   update = rhs

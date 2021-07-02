@@ -62,6 +62,11 @@ module Utility_module
     module procedure CalcParallelSUM2
   end interface
 
+  interface ludcmp
+    module procedure ludcmp1
+    module procedure ludcmp2
+  end interface
+  
   public :: GetRndNumFromNormalDist, &
             DotProduct, &
             CrossProduct, &
@@ -560,7 +565,26 @@ end subroutine ReallocateBoolArray1
 
 ! ************************************************************************** !
 
-subroutine ludcmp(A,N,INDX,D)
+subroutine ludcmp2(A,N,INDX,D)
+
+  ! wrapper for more verbose ludcmp2
+
+  implicit none
+
+  PetscInt :: N
+  PetscReal :: A(N,N),VV(N)
+  PetscInt :: INDX(N)
+  PetscInt :: D
+
+  PetscInt :: idum 
+
+  call ludcmp(A,N,INDX,D,PETSC_TRUE,idum)
+
+end subroutine ludcmp2
+
+! ************************************************************************** !
+
+subroutine ludcmp1(A,N,INDX,D,stop_on_error,ierror)
   ! 
   ! Given an NxN matrix A, with physical dimension NP, this routine replaces it
   ! by the LU decomposition of a rowwise permutation of itself.
@@ -578,6 +602,8 @@ subroutine ludcmp(A,N,INDX,D)
   PetscReal :: A(N,N),VV(N)
   PetscInt :: INDX(N)
   PetscInt :: D
+  PetscBool :: stop_on_error
+  PetscInt :: ierror
 
   PetscInt :: i, j, k, imax
   PetscReal :: aamax, sum, dum
@@ -591,14 +617,20 @@ subroutine ludcmp(A,N,INDX,D)
       if (abs(A(i,j)).gt.aamax) aamax=abs(A(i,j))
     enddo
     if (aamax <= 0.d0) then
-      call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
-      print *, "ERROR: Singular value encountered in ludcmp() on processor: ", rank, ' aamax = ',aamax,' row = ',i
-      do k = 1, N
-        print *, "Jacobian: ",k,(j,A(k,j),j=1,N)
-      enddo
-      call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
-      call MPI_Finalize(ierr)
-      stop
+      if (stop_on_error) then
+        call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
+        print *, "ERROR: Singular value encountered in ludcmp() on &
+                 &processor: ", rank, ' aamax = ',aamax,' row = ',i
+        do k = 1, N
+          print *, "Jacobian: ",k,(j,A(k,j),j=1,N)
+        enddo
+        call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
+        call MPI_Finalize(ierr)
+        stop
+      else
+        ierror = 1
+        return
+      endif
     endif
     VV(i)=1./aamax
   enddo
@@ -643,7 +675,7 @@ subroutine ludcmp(A,N,INDX,D)
   enddo
   return
 
-end subroutine ludcmp
+end subroutine ludcmp1
 
 ! ************************************************************************** !
 
@@ -1684,6 +1716,7 @@ subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
   PetscReal :: A(3,3)
   PetscInt :: indx(3)
   PetscInt :: d
+  PetscInt :: ierror
 
   A(1,1) = 1.d0
   A(2,1) = 1.d0
@@ -1705,7 +1738,7 @@ subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
   ! coefficients(2): value at 2
   ! coefficients(3): derivative at 1 or 2
   
-  call ludcmp(A,THREE_INTEGER,indx,d)
+  call ludcmp(A,THREE_INTEGER,indx,d,PETSC_TRUE,ierror)
   call lubksb(A,THREE_INTEGER,indx,coefficients)
 
 end subroutine QuadraticPolynomialSetup
@@ -1754,6 +1787,7 @@ subroutine CubicPolynomialSetup(value_1,value_2,coefficients)
   PetscReal :: A(4,4)
   PetscInt :: indx(4)
   PetscInt :: d
+  PetscInt :: ierror
 
   A(1,1) = 1.d0
   A(2,1) = 1.d0
@@ -1780,7 +1814,7 @@ subroutine CubicPolynomialSetup(value_1,value_2,coefficients)
   ! coefficients(3): derivative at 1
   ! coefficients(4): derivative at 2
   
-  call ludcmp(A,FOUR_INTEGER,indx,d)
+  call ludcmp(A,FOUR_INTEGER,indx,d,PETSC_TRUE,ierror)
   call lubksb(A,FOUR_INTEGER,indx,coefficients)
 
 end subroutine CubicPolynomialSetup
