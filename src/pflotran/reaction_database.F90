@@ -1690,7 +1690,7 @@ subroutine BasisInit(reaction,option)
     allocate(reaction%eqcplxspecid(0:max_aq_species,reaction%neqcplx))
     reaction%eqcplxspecid = 0
 
-    allocate(reaction%eqcplxstoich(0:max_aq_species,reaction%neqcplx))
+    allocate(reaction%eqcplxstoich(max_aq_species,reaction%neqcplx))
     reaction%eqcplxstoich = 0.d0
 
     allocate(reaction%eqcplxh2oid(reaction%neqcplx))
@@ -4223,7 +4223,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
     gas_print = PETSC_FALSE
     allocate(eqspecid(0:max_aq_species,ngas))
     eqspecid = 0
-    allocate(eqstoich(0:max_aq_species,ngas))
+    allocate(eqstoich(max_aq_species,ngas))
     eqstoich = 0.d0
     allocate(eqh2oid(ngas))
     eqh2oid = 0

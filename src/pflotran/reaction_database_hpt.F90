@@ -1483,7 +1483,7 @@ subroutine BasisInit_hpt(reaction,option)
     allocate(reaction%eqcplxspecid(0:reaction%naqcomp,reaction%neqcplx))
     reaction%eqcplxspecid = 0
 
-    allocate(reaction%eqcplxstoich(0:reaction%naqcomp,reaction%neqcplx))
+    allocate(reaction%eqcplxstoich(reaction%naqcomp,reaction%neqcplx))
     reaction%eqcplxstoich = 0.d0
 
     allocate(reaction%eqcplxh2oid(reaction%neqcplx))
@@ -1565,7 +1565,7 @@ subroutine BasisInit_hpt(reaction,option)
     reaction%gas_species_print = PETSC_FALSE
     allocate(reaction%eqgasspecid(0:reaction%naqcomp,reaction%ngas))
     reaction%eqgasspecid = 0
-    allocate(reaction%eqgasstoich(0:reaction%naqcomp,reaction%ngas))
+    allocate(reaction%eqgasstoich(reaction%naqcomp,reaction%ngas))
     reaction%eqgasstoich = 0.d0
     allocate(reaction%eqgash2oid(reaction%ngas))
     reaction%eqgash2oid = 0
