@@ -1378,7 +1378,8 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
   PetscInt :: temp_int(reaction%num_dbase_temperatures), &
               indx(reaction%num_dbase_temperatures)
   PetscReal :: a(FIVE_INTEGER,FIVE_INTEGER), &
-               vec(FIVE_INTEGER,reaction%num_dbase_temperatures), temperature_kelvin
+               vec(FIVE_INTEGER,reaction%num_dbase_temperatures), &
+               temperature_kelvin
 
   PetscInt :: i, j, k, iflag
   
@@ -1424,7 +1425,7 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
     enddo
   enddo
 
-  call ludcmp(a,FIVE_INTEGER,indx,i,PETSC_TRUE,iflag)
+  call ludcmp(a,FIVE_INTEGER,indx,i)
   call lubksb(a,FIVE_INTEGER,indx,coefs)
 
 end subroutine ReactionFitLogKCoef

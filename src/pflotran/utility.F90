@@ -8,7 +8,6 @@ module Utility_module
 
   private
 
-
   interface DotProduct
     module procedure DotProduct1
     module procedure DotProduct2
@@ -1633,21 +1632,20 @@ end function Equal
 
 function InitToNan()
 
-!------------------------------------------------------------------------------
-! Function to provide a NaN (not a number value)
-!------------------------------------------------------------------------------
-! Author: Dave Ponting
-! Date  : Jun 2018
-!------------------------------------------------------------------------------
-implicit none
+  !----------------------------------------------------------------------------
+  ! Function to provide a NaN (not a number value)
+  !----------------------------------------------------------------------------
+  ! Author: Dave Ponting
+  ! Date  : Jun 2018
+  !----------------------------------------------------------------------------
+  implicit none
+ 
+  PetscReal :: InitToNan
+  InitToNan = 0.0
+  InitToNan = 1.0/InitToNan
+  InitToNan = 0.0d0*InitToNan
 
-PetscReal :: InitToNan
-
-InitToNan = 0.0
-InitToNan = 1.0/InitToNan
-InitToNan = 0.0d0*InitToNan
-
-return
+  return
 
 end function InitToNan
 
@@ -1716,7 +1714,6 @@ subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
   PetscReal :: A(3,3)
   PetscInt :: indx(3)
   PetscInt :: d
-  PetscInt :: ierror
 
   A(1,1) = 1.d0
   A(2,1) = 1.d0
@@ -1787,7 +1784,6 @@ subroutine CubicPolynomialSetup(value_1,value_2,coefficients)
   PetscReal :: A(4,4)
   PetscInt :: indx(4)
   PetscInt :: d
-  PetscInt :: ierror
 
   A(1,1) = 1.d0
   A(2,1) = 1.d0
