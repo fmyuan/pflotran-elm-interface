@@ -1738,7 +1738,7 @@ subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
   ! coefficients(2): value at 2
   ! coefficients(3): derivative at 1 or 2
   
-  call ludcmp(A,THREE_INTEGER,indx,d,PETSC_TRUE,ierror)
+  call ludcmp(A,THREE_INTEGER,indx,d)
   call lubksb(A,THREE_INTEGER,indx,coefficients)
 
 end subroutine QuadraticPolynomialSetup
@@ -1814,7 +1814,7 @@ subroutine CubicPolynomialSetup(value_1,value_2,coefficients)
   ! coefficients(3): derivative at 1
   ! coefficients(4): derivative at 2
   
-  call ludcmp(A,FOUR_INTEGER,indx,d,PETSC_TRUE,ierror)
+  call ludcmp(A,FOUR_INTEGER,indx,d)
   call lubksb(A,FOUR_INTEGER,indx,coefficients)
 
 end subroutine CubicPolynomialSetup
