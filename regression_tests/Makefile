@@ -32,6 +32,10 @@ ifdef CHECK
 	TEST_OPTIONS += --check-only
 endif
 
+ifdef RUN_ONLY
+	TEST_OPTIONS += --run-only
+endif
+
 ifdef NEW
 	TEST_OPTIONS += --new-tests
 endif
