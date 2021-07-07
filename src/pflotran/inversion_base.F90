@@ -25,6 +25,7 @@ module Inversion_Base_class
     procedure, public :: CheckConvergence => InversionBaseCheckConvergence
     procedure, public :: CostFunctions => InversionBaseCostFunctions
     procedure, public :: CheckBeta => InversionBaseCheckBeta
+    procedure, public :: WriteIterationInfo => InversionBaseWriteIterationInfo
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
   end type inversion_base_type
@@ -203,6 +204,22 @@ subroutine InversionBaseCheckBeta(this)
   class(inversion_base_type) :: this
 
 end subroutine InversionBaseCheckBeta
+
+! ************************************************************************** !
+
+subroutine InversionBaseWriteIterationInfo(this,fid,print_to_file, &
+                                           print_to_screen)
+  !
+  ! Writes inversion run info
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/01/21
+  !
+  class(inversion_base_type) :: this
+  PetscInt :: fid
+  PetscBool :: print_to_file,print_to_screen
+
+end subroutine InversionBaseWriteIterationInfo
 
 ! ************************************************************************** !
 

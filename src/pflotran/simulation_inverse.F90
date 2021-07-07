@@ -23,6 +23,7 @@ module Simulation_Inverse_class
     procedure, public :: CalculateUpdate => SimulationInvCalculateUpdate
     procedure, public :: CheckBeta => SimulationInvCheckBeta
     procedure, public :: CheckConvergence => SimulationInvCheckConvergence
+    procedure, public :: WriteIterationInfo => SimulationInvWriteIterationInfo
     procedure, public :: ExecuteRun => SimulationInverseExecuteRun
     procedure, public :: FinalizeRun => SimulationInverseFinalizeRun
     procedure, public :: Strip => SimulationInverseStrip
@@ -231,6 +232,7 @@ subroutine SimulationInverseExecuteRun(this)
     endif
     call this%CheckConvergence()
     call this%CalculateUpdate()
+    call this%WriteIterationInfo()
     call this%CheckBeta()
     call this%forward_simulation%FinalizeRun()
     call this%forward_simulation%Strip()
@@ -290,7 +292,7 @@ end subroutine SimulationInvCheckConvergence
 
 subroutine SimulationInvCheckBeta(this)
   !
-  ! Calculates updated parameters
+  ! Checks beta if it needs cooling or not
   !
   ! Author: Piyoosh Jaysaval
   ! Date: 06/21/21
@@ -300,6 +302,30 @@ subroutine SimulationInvCheckBeta(this)
   call this%inversion%CheckBeta()
 
 end subroutine SimulationInvCheckBeta
+
+! ************************************************************************** !
+
+subroutine SimulationInvWriteIterationInfo(this)
+  !
+  ! Writes information after each iteration
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/07/21
+
+  class(simulation_inverse_type) :: this
+
+  PetscInt :: fid
+  PetscBool :: print_to_file,print_to_screen
+
+  fid = this%driver%fid_out
+  print_to_file = this%driver%print_to_file
+  print_to_screen = this%driver%print_to_screen
+
+  if (this%driver%comm%global_rank == this%driver%io_rank) then
+    call this%inversion%WriteIterationInfo(fid,print_to_file,print_to_screen)
+  endif
+
+end subroutine SimulationInvWriteIterationInfo
 
 ! ************************************************************************** !
 

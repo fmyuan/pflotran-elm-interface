@@ -48,6 +48,7 @@ module Inversion_ERT_class
 
     ! For Wm
     PetscInt :: num_constraints_local    ! Number of constraints
+    PetscInt :: num_constraints_total    ! Total number of constraints
     PetscInt, pointer :: rblock(:,:)     ! array stores info about reg.
     PetscReal, pointer :: Wm(:)          ! Regularization matrix    
 
@@ -62,6 +63,7 @@ module Inversion_ERT_class
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
     procedure, public :: CostFunctions => InversionERTCostFunctions
     procedure, public :: CheckBeta => InversionERTCheckBeta
+    procedure, public :: WriteIterationInfo => InversionERTWriteIterationInfo
     procedure, public :: Finalize => InversionERTFinalize
     procedure, public :: Strip => InversionERTStrip
   end type inversion_ert_type
@@ -159,6 +161,7 @@ subroutine InversionERTInit(this,driver)
   this%start_iteration = 1
   this%maximum_iteration = 20
   this%num_constraints_local = UNINITIALIZED_INTEGER
+  this%num_constraints_total = UNINITIALIZED_INTEGER
   this%current_chi2 = UNINITIALIZED_DOUBLE
   this%phi_total_0 = UNINITIALIZED_DOUBLE
   this%phi_data_0 = UNINITIALIZED_DOUBLE
@@ -938,11 +941,6 @@ subroutine InversionERTCheckBeta(this)
 
   class(inversion_ert_type) :: this
 
-print*,'ITER: ',this%beta,this%iteration,this%start_iteration,this%current_chi2
-print*,'PHI: ',this%phi_data,this%phi_model,this%phi_total
-print*,'PHI_0: ',this%phi_data_0,this%phi_model_0,this%phi_total_0
-print*,'MIN: ',(this%phi_total_0 - this%phi_total)/this%phi_total_0,this%min_phi_red
-
   ! update iteration number
   this%iteration = this%iteration + 1
 
@@ -1449,11 +1447,13 @@ subroutine InversionERTAllocateWm(this)
 
   use Patch_module
   use Grid_module
+  use Option_module
 
   implicit none
 
   class(inversion_ert_type) :: this
 
+  type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(constrained_block_type), pointer :: constrained_block
@@ -1462,7 +1462,9 @@ subroutine InversionERTAllocateWm(this)
   PetscInt :: iconblock,inbr,ilink
   PetscInt :: num_constraints
   PetscInt :: num_neighbor
+  PetscErrorCode :: ierr
 
+  option => this%realization%option
   patch => this%realization%patch
   grid => patch%grid
 
@@ -1504,6 +1506,8 @@ subroutine InversionERTAllocateWm(this)
   enddo
 
   this%num_constraints_local = num_constraints
+  call MPI_Allreduce(num_constraints,this%num_constraints_total, &
+                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
   allocate(this%Wm(num_constraints))
   allocate(this%rblock(num_constraints,THREE_INTEGER))
   this%Wm = 0.d0
@@ -1757,6 +1761,105 @@ subroutine InversionERTComputeMatVecProductJtr(this)
   call VecRestoreArrayF90(field%work,svec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine InversionERTComputeMatVecProductJtr
+
+! ************************************************************************** !
+
+subroutine InversionERTWriteIterationInfo(this,fid,print_to_file, &
+                                          print_to_screen)
+  !
+  ! Writes inversion run info
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/02/21
+  !
+
+  use String_module
+
+  implicit none
+
+  class(inversion_ert_type) :: this
+  PetscInt :: fid
+  PetscBool :: print_to_file,print_to_screen
+
+  character(len=MAXWORDLENGTH) :: string
+
+  if (print_to_screen) then
+    write(*,*)
+    write(*,98)
+    if (this%iteration == this%start_iteration) then
+      write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AT STARTING &
+                                 &ITERATION:",c_red), this%start_iteration
+    else
+      write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AFTER &
+                                 &ITERATION:",c_red),this%iteration
+    endif
+    write(*,99)
+    write(*,*) StringColor("  Phi_data   ",c_green), &
+               StringColor("   Phi_Model  ",c_blue), &
+               StringColor("  Phi_Model/Beta",c_magenta), &
+               StringColor("    Phi_Total   ",c_cyan)
+    write(*,102) this%phi_data,this%phi_model,this%phi_model/this%beta, &
+                 this%phi_total
+    write(*,*)
+    write(*,103) this%num_constraints_total
+    write(*,104) this%current_chi2
+    write(*,105) this%target_chi2
+    write(*,106) sqrt(this%current_chi2)
+    write(*,107) this%beta
+    write(*,108) this%beta_red_factor
+    write(*,109) 100.d0*(this%phi_total_0 - this%phi_total)/this%phi_total_0
+    write(*,110) 100.d0*this%min_phi_red
+    write(*,99)
+    write(*,*)
+    write(*,98)
+  endif
+
+  if (print_to_file) then
+    write(fid,*)
+    write(fid,98)
+    if (this%iteration == this%start_iteration) then
+      write(fid,'(/,2x,a,i6.4,/)') "CONVERGENCE STATISTICS AT STARTING &
+                                   &ITERATION:", this%start_iteration
+    else
+      write(fid,'(/,2x,a,i6.4,/)') "CONVERGENCE STATISTICS AFTER ITERATION:", &
+                                    this%iteration
+    endif
+    write(fid,99)
+    write(fid,101) "  Phi_data   ","   Phi_Model   "," Phi_Model/Beta", &
+                  &"   Phi_Total   "
+    write(fid,102) this%phi_data,this%phi_model,this%phi_model/this%beta, &
+                   this%phi_total
+    write(fid,*)
+    write(fid,103) this%num_constraints_total
+    write(fid,104) this%current_chi2
+    write(fid,105) this%target_chi2
+    write(fid,106) sqrt(this%current_chi2)
+    write(fid,107) this%beta
+    write(fid,108) this%beta_red_factor
+    write(fid,109) 100.d0*(this%phi_total_0 - this%phi_total)/this%phi_total_0
+    write(fid,110) 100.d0*this%min_phi_red
+    write(fid,99)
+    write(fid,*)
+    write(fid,98)
+    flush(fid)
+  endif
+
+98 format(40('=+'))
+99 format(80('~'))
+101 format(4a15)
+102 format(4g15.7)
+
+103 format(4x,'Number of Constraint Eqs:      ',2x,i15.10)
+104 format(4x,'Current Chi2:                  ',2x,f15.4)
+105 format(4x,'Target Ch2:                    ',2x,f15.4)
+106 format(4x,'RMS error:                     ',2x,f15.4)
+107 format(4x,'Beta:                          ',2x,f15.4)
+108 format(4x,'Beta reduction factor:         ',2x,f15.4)
+109 format(4x,'Reduction in Phi_Total:        ',2x,f15.4," %")
+110 format(4x,'Minimum reduction in Phi_Total ' /,8x, &
+                 &'before Beta reduction:     ',2x,f15.4," %")
+
+end subroutine InversionERTWriteIterationInfo
 
 ! ************************************************************************** !
 
