@@ -6753,9 +6753,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         endif
       endif
     case(ELECTRICAL_POTENTIAL)
-      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
+      value = patch%aux%ERT%auxvars(ghosted_id)%potential(isubvar)
     case(ELECTRICAL_JACOBIAN)
-      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
+      value = patch%aux%ERT%auxvars(ghosted_id)%jacobian(isubvar)
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)
     case(NATURAL_ID)
