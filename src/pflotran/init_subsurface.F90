@@ -507,6 +507,12 @@ subroutine InitSubsurfAssignMatProperties(realization)
                material_property%tortuosity_dataset, &
                material_property%internal_id,PETSC_FALSE,field%tortuosity0)
       endif
+      if (associated(material_property%electrical_conductivity_dataset)) then
+        call SubsurfReadDatasetToVecWithMask(realization, &
+               material_property%electrical_conductivity_dataset, &
+               material_property%internal_id,PETSC_FALSE, &
+                        field%electrical_conductivity)
+      endif
       if (associated(material_property%multicontinuum)) then
         if (associated(material_property%multicontinuum%epsilon_dataset)) then
           call SubsurfReadDatasetToVecWithMask(realization, &

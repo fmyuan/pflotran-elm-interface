@@ -52,6 +52,7 @@ module Material_module
 
     ! Geophysics properties
     PetscReal :: electrical_conductivity
+    class(dataset_base_type), pointer :: electrical_conductivity_dataset
 
     class(fracture_type), pointer :: fracture
 
@@ -202,6 +203,7 @@ function MaterialPropertyCreate(option)
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
   material_property%electrical_conductivity = UNINITIALIZED_DOUBLE
+  nullify(material_property%electrical_conductivity_dataset)
 
   nullify(material_property%fracture)
   nullify(material_property%geomechanics_subsurface_properties)
@@ -845,10 +847,10 @@ subroutine MaterialPropertyRead(material_property,input,option)
         enddo
         call InputPopBlock(input,option)
       case('ELECTRICAL_CONDUCTIVITY')
-              call InputReadDouble(input,option, &
-                                   material_property%electrical_conductivity)
-              call InputErrorMsg(input,option,'electrical conductivity', &
-                                 'MATERIAL_PROPERTY')
+        call DatasetReadDoubleOrDataset(input, &
+                      material_property%electrical_conductivity, &
+                      material_property%electrical_conductivity_dataset, &
+                      'electrical conductivity','MATERIAL_PROPERTY',option)
       case default
         call InputKeywordUnrecognized(input,keyword,'MATERIAL_PROPERTY',option)
     end select
@@ -2330,6 +2332,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%permeability_dataset_yz)
   nullify(material_property%porosity_dataset)
   nullify(material_property%tortuosity_dataset)
+  nullify(material_property%electrical_conductivity_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)
 

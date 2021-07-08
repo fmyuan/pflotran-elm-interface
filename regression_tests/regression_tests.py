@@ -1771,7 +1771,8 @@ class RegressionTestManager(object):
                            testlog)
 
     def run_tests(self, mpiexec, executable,
-                  dry_run, update, new_test, check_only, testlog):
+                  dry_run, update, new_test, check_only,
+                  run_only, testlog):
         """
         Run the tests specified in the config file.
 
@@ -1790,6 +1791,8 @@ class RegressionTestManager(object):
 
         * check_only - flag to indicate just diffing the existing
           regression files without rerunning pflotran.
+
+        * run_only - flag to indicate running pflotran to completion only
         """
         if self.num_tests() > 0:
             if new_test:
@@ -1798,6 +1801,8 @@ class RegressionTestManager(object):
                 self._run_update(mpiexec, executable, dry_run, testlog)
             elif check_only:
                 self._check_only(dry_run, testlog)
+            elif run_only:
+                self._run_only(mpiexec, executable, dry_run, testlog)
             else:
                 self._run_check(mpiexec, executable, dry_run, testlog)
         else:
@@ -1819,6 +1824,26 @@ class RegressionTestManager(object):
             if not dry_run and status.error == _NULL_ERROR and \
                                status.skipped == 0:
                 test.check(status, testlog)
+
+            self._add_to_file_status(status)
+
+            self._test_summary(test.name(), status,
+                               "passed", "failed", testlog)
+
+        self._print_file_summary(dry_run, "passed", "failed", testlog)
+
+    def _run_only(self, mpiexec, executable, dry_run, testlog):
+        """
+        Run the test only
+        """
+        print("Running simulations only from '{0}':".format(self._config_filename), file=testlog)
+        print(50 * '-', file=testlog)
+
+        for test in self._tests:
+            status = TestStatus()
+            self._test_header(test.name(), testlog)
+
+            test.run(mpiexec, executable, dry_run, status, testlog)
 
             self._add_to_file_status(status)
 
@@ -2176,6 +2201,10 @@ def commandline_options():
 
     parser.add_argument('-c', '--config-files', nargs="+", default=None,
                         help='test configuration file to use')
+
+    parser.add_argument('--run-only', action='store_true', default=False,
+                        help="running simulations only without checking "
+                        "regressoin output.")
 
     parser.add_argument('--check-only', action='store_true', default=False,
                         help="diff the existing regression files without "
@@ -2659,6 +2688,7 @@ def main(options):
                                    options.update,
                                    options.new_tests,
                                    options.check_only,
+                                   options.run_only,
                                    testlog)
 
             #geh: if run from regression_tests directory, truncate path. 

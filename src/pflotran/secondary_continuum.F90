@@ -1069,9 +1069,9 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   enddo
   
   ! Find the inverse of D_M
-  call ludcmp(D_M,ncomp,indx,d) 
+  call LUDecomposition(D_M,ncomp,indx,d) 
   do j = 1, ncomp
-    call lubksb(D_M,ncomp,indx,identity(1,j))
+    call LUBackSubstitution(D_M,ncomp,indx,identity(1,j))
   enddo  
   inv_D_M = identity      
   

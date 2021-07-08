@@ -16,7 +16,7 @@ module Reactive_Transport_Aux_module
 
   PetscReal, public :: rt_itol_scaled_res = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
-  PetscReal, public :: rt_min_saturation = 0.d0
+  PetscReal, public :: rt_min_saturation = 1.d-40
 
   type, public :: reactive_transport_auxvar_type
     ! molality

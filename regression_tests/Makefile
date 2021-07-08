@@ -32,6 +32,10 @@ ifdef CHECK
 	TEST_OPTIONS += --check-only
 endif
 
+ifdef RUN_ONLY
+	TEST_OPTIONS += --run-only
+endif
+
 ifdef NEW
 	TEST_OPTIONS += --new-tests
 endif
@@ -58,6 +62,7 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/reaction_sandbox/reaction_sandbox.cfg \
 	default/batch/batch.cfg \
 	default/debug/debug.cfg \
@@ -132,6 +137,7 @@ GEOCHEMISTRY_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/batch/batch.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
@@ -163,6 +169,7 @@ FLOW_CFG = \
 TRANSPORT_CFG = \
 	default/543/543.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/dispersion/dispersion.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/velocity/velocity.cfg \

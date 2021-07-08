@@ -3630,9 +3630,9 @@ subroutine PMWFInitializeTimestep(this)
       enddo
       ! linear solve steps
       ! solve step 1/2: get LU decomposition
-      call ludcmp(Jacobian,num_species,indices,i)
+      call LUDecomposition(Jacobian,num_species,indices,i)
       ! solve step 2/2: LU back substitution linear solve
-      call lubksb(Jacobian,num_species,indices,rhs)
+      call LUBackSubstitution(Jacobian,num_species,indices,rhs)
       rhs = dsign(1.d0,rhs)*min(dabs(rhs),10.d0)
       ! update the solution
       solution = solution*exp(-rhs)

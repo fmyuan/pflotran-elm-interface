@@ -1,4 +1,4 @@
-module Reaction_Sandbox_Biodeg_class
+module Reaction_Sandbox_BioHill_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -11,7 +11,7 @@ module Reaction_Sandbox_Biodeg_class
   private
   
   type, public, &
-    extends(reaction_sandbox_base_type) :: reaction_sandbox_biodeg_type
+    extends(reaction_sandbox_base_type) :: reaction_sandbox_biohill_type
     ! Aqueous species
     PetscInt :: species_Aaq_id
     PetscInt :: species_Baq_id
@@ -20,33 +20,33 @@ module Reaction_Sandbox_Biodeg_class
     ! Immobile species (e.g. biomass)
     PetscInt :: species_Xim_id
   contains
-    procedure, public :: Setup => BiodegSetup
-    procedure, public :: Evaluate => BiodegEvaluate
-  end type reaction_sandbox_biodeg_type
+    procedure, public :: Setup => BioHillSetup
+    procedure, public :: Evaluate => BioHillEvaluate
+  end type reaction_sandbox_biohill_type
 
-  public :: BiodegCreate, &
-            BiodegSetup
+  public :: BioHillCreate, &
+            BioHillSetup
 
 contains
 
 ! ************************************************************************** !
 
-function BiodegCreate()
+function BioHillCreate()
   ! 
   ! Allocates biodegradtion reaction object.
   ! 
   implicit none
   
-  class(reaction_sandbox_biodeg_type), pointer :: BiodegCreate
+  class(reaction_sandbox_biohill_type), pointer :: BioHillCreate
 
-  allocate(BiodegCreate)
-  nullify(BiodegCreate%next)  
+  allocate(BioHillCreate)
+  nullify(BioHillCreate%next)  
       
-end function BiodegCreate
+end function BioHillCreate
 
 ! ************************************************************************** !
 
-subroutine BiodegSetup(this,reaction,option)
+subroutine BioHillSetup(this,reaction,option)
   ! 
   ! Sets up the biodegradation reaction with hardwired parameters
   ! 
@@ -56,7 +56,7 @@ subroutine BiodegSetup(this,reaction,option)
 
   implicit none
   
-  class(reaction_sandbox_biodeg_type) :: this
+  class(reaction_sandbox_biohill_type) :: this
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
@@ -81,13 +81,13 @@ subroutine BiodegSetup(this,reaction,option)
   this%species_Xim_id = &
     GetImmobileSpeciesIDFromName(word,reaction%immobile,option)
       
-end subroutine BiodegSetup
+end subroutine BioHillSetup
 
 ! ************************************************************************** !
 
-subroutine BiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
-                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                          option)
+subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
+                           rt_auxvar,global_auxvar,material_auxvar,reaction, &
+                           option)
   ! 
   ! Evaluates biodegradation reaction storing residual but no Jacobian
   ! 
@@ -99,7 +99,7 @@ subroutine BiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
   
   implicit none
   
-  class(reaction_sandbox_biodeg_type) :: this  
+  class(reaction_sandbox_biohill_type) :: this  
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
@@ -140,7 +140,7 @@ subroutine BiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
   I_Caq = 2.5d-4
 
   yield = 1.d-4
-  n = 1.d0
+  n = 1.2d0
 
   stoichA = -1.d0
   stoichB = -0.25d0
@@ -166,6 +166,6 @@ subroutine BiodegEvaluate(this,Residual,Jacobian,compute_derivative, &
   Residual(this%species_Xim_id + reaction%offset_immobile) = &
     Residual(this%species_Xim_id + reaction%offset_immobile) - RateX
   
-end subroutine BiodegEvaluate
+end subroutine BioHillEvaluate
 
-end module Reaction_Sandbox_Biodeg_class
+end module Reaction_Sandbox_BioHill_class

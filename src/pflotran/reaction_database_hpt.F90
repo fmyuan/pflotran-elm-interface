@@ -1092,11 +1092,11 @@ subroutine BasisInit_hpt(reaction,option)
   allocate(sec_matrix_inverse(ncomp_secondary,ncomp_secondary))
   sec_matrix_inverse = 0.d0
  
-  call ludcmp(sec_matrix,ncomp_secondary,indices,idum)
+  call LUDecomposition(sec_matrix,ncomp_secondary,indices,idum)
   do ispec = 1, ncomp_secondary
     unit_vector = 0.d0
     unit_vector(ispec) = 1.d0
-    call lubksb(sec_matrix,ncomp_secondary,indices,unit_vector)
+    call LUBackSubstitution(sec_matrix,ncomp_secondary,indices,unit_vector)
     sec_matrix_inverse(:,ispec) = unit_vector(:)
   enddo
 
@@ -1483,7 +1483,7 @@ subroutine BasisInit_hpt(reaction,option)
     allocate(reaction%eqcplxspecid(0:reaction%naqcomp,reaction%neqcplx))
     reaction%eqcplxspecid = 0
 
-    allocate(reaction%eqcplxstoich(0:reaction%naqcomp,reaction%neqcplx))
+    allocate(reaction%eqcplxstoich(reaction%naqcomp,reaction%neqcplx))
     reaction%eqcplxstoich = 0.d0
 
     allocate(reaction%eqcplxh2oid(reaction%neqcplx))
@@ -1565,7 +1565,7 @@ subroutine BasisInit_hpt(reaction,option)
     reaction%gas_species_print = PETSC_FALSE
     allocate(reaction%eqgasspecid(0:reaction%naqcomp,reaction%ngas))
     reaction%eqgasspecid = 0
-    allocate(reaction%eqgasstoich(0:reaction%naqcomp,reaction%ngas))
+    allocate(reaction%eqgasstoich(reaction%naqcomp,reaction%ngas))
     reaction%eqgasstoich = 0.d0
     allocate(reaction%eqgash2oid(reaction%ngas))
     reaction%eqgash2oid = 0

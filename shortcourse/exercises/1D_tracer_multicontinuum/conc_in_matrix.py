@@ -15,20 +15,20 @@ import pflotran as pft
 path = []
 path.append('.')
 
-files = pft.get_tec_filenames('tracer_1D_MC-sec-rank0-obs0',range(5))
+files = pft.get_tec_filenames('tracer_1D_MC-sec-rank0-obs0',[1,2])
 filenames = pft.get_full_paths(path,files)
 
-f = plt.figure(figsize=(6,6))
+f = plt.figure(figsize=(8,6))
 plt.subplot(1,1,1)
-f.suptitle("1D Tracer - Matrix Concentration Profiles",fontsize=16)
-plt.xlabel('Time [s]')
-plt.ylabel('Concentration [mol/L]')
+f.suptitle("1D Tracer - Concentration in Matrix at z = 2 [m]",fontsize=16)
+plt.xlabel('x [m]')
+plt.ylabel('Concentration [M]')
 
 
 for ifile in range(len(filenames)):
   data = pft.Dataset(filenames[ifile],1,2)
-  plt.plot(data.get_array('x'),data.get_array('y'),label=data.title)
+  plt.plot(data.get_array('x'),np.flip(data.get_array('y'),0),label='{} days'.format(data.title))
 
-plt.legend(loc=3,title='Time [s]')
+plt.legend(loc=1)
 
 plt.show()

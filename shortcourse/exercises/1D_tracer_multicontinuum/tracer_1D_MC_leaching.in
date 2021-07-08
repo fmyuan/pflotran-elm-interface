@@ -1,0 +1,217 @@
+# Description: 1D tracer constant flow rate
+# S. Karra/P.C. Lichtner/R. Leone
+# PFLOTRAN shortcourse
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+        MULTIPLE_CONTINUUM
+      /
+    /
+  /
+END
+
+SUBSURFACE
+#=========================== useful tranport parameters ==================
+SPECIFIED_VELOCITY #Darcy flux / specific discharge (vol/area/time)
+  UNIFORM? YES
+  DATASET 5d-6 0.d0 0.d0 m/d
+END
+#=========================== numerical methods ========================
+NUMERICAL_METHODS TRANSPORT
+  NEWTON_SOLVER
+    DTOL 1.d20
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+     Tracer
+   /
+
+  RADIOACTIVE_DECAY_REACTION
+    REACTION Tracer <->
+    HALF_LIFE 12.35 y
+  /
+  SORPTION
+    ISOTHERM_REACTIONS
+      Tracer
+        TYPE LINEAR
+        ! Calculating distribution coefficient (Kd) from retardation (R)#
+
+        !   Kd = porosity*saturation*water_density*(R-1)
+
+        ! Assume#
+        !   Kd units = kg water/m^3 bulk volume
+        !   water_density = 1000. [kg/m^3]
+        !   saturation = 1. 
+        !   matrix porosity = 0.01 
+
+        ! R = 2, Kd = 10.
+        DISTRIBUTION_COEFFICIENT 0.0 kg/m^3 ! kg water/m^3 bulk
+        SEC_CONT_KD 10.0 kg/m^3
+      /
+    /
+  /
+  LOG_FORMULATION
+  DATABASE ../../../database/hanford.dat
+  OUTPUT
+    All
+    TOTAL
+  /
+/
+
+#===================== Discretization =========================
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 100 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+#===================== Solver options ========================
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+/
+
+#========================= material properties ===================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1.d0
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2700.d0 #kg/m3
+  LONGITUDINAL_DISPERSIVITY 0.5 #m
+
+  SECONDARY_CONTINUUM
+    TYPE SLAB
+    LENGTH 1.0
+    AREA 1.0
+    NUM_CELLS 50
+    EPSILON 0.00005d0
+    DIFFUSION_COEFFICIENT 1.6d-10
+    POROSITY 0.01
+   /
+END
+
+#========================= output options =========================
+OUTPUT
+  SNAPSHOT_FILE
+    TIMES d 100.
+    FORMAT TECPLOT POINT
+    NO_PRINT_INITIAL
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+    PRINT_COLUMN_IDS
+  /
+  VELOCITY_AT_CENTER
+END
+
+#======================== times ====================================
+TIME
+  FINAL_TIME 500.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-3 d
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
+/
+#=========================== regions ===============================
+REGION all
+  COORDINATES
+     0.d0  0.d0  0.d0
+     10.d0 1.d0 1.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+REGION obs
+  COORDINATE 2.0 0.5 0.5
+END
+
+OBSERVATION 
+  REGION obs
+  SECONDARY_CONCENTRATION
+/
+
+#==== transport conditions=====================================================
+TRANSPORT_CONDITION background
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial_constraint
+  /
+END
+
+TRANSPORT_CONDITION inlet
+  TYPE DIRICHLET
+  CONSTRAINT_LIST
+    0.d0 inlet_constraint
+  / 
+/
+
+#========================== initial and boundary conditions =================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION background
+  REGION all
+END
+
+# east boundary condition
+BOUNDARY_CONDITION outlet
+  TRANSPORT_CONDITION background
+  REGION east
+END
+
+# west boundary condition
+BOUNDARY_CONDITION inlet
+  TRANSPORT_CONDITION inlet
+  REGION west
+END
+
+#===================== stratigraphy couplers ==============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+  CONCENTRATIONS
+    Tracer  1.d-20  T 
+  /
+/
+
+
+CONSTRAINT inlet_constraint
+  CONCENTRATIONS
+    Tracer  1.d-20  T
+  /
+/
+
+#==================== secondary continuum initial constraint ==================
+SECONDARY_CONSTRAINT sec
+  CONCENTRATIONS
+    Tracer  1.d0  T 
+  /
+/
+
+END_SUBSURFACE

@@ -257,9 +257,10 @@ geomechanics_strata.o : geomechanics_material.o geomechanics_region.o \
 geomechanics_subsurface_properties.o : grid.o input_aux.o material_aux.o \
                                        option.o pflotran_constants.o string.o
 geometry.o : input_aux.o option.o pflotran_constants.o
-global.o : communicator_base.o connection.o coupler.o field.o global_aux.o \
-           grid.o material.o option.o patch.o pflotran_constants.o \
-           realization_base.o realization_subsurface.o variables.o
+global.o : communicator_base.o connection.o coupler.o discretization.o field.o \
+           global_aux.o grid.o material.o option.o output_common.o patch.o \
+           pflotran_constants.o realization_base.o realization_subsurface.o \
+           variables.o
 global_aux.o : option.o pflotran_constants.o utility.o
 grid.o : connection.o dm_kludge.o geometry.o grid_structured.o \
          grid_unstructured.o grid_unstructured_aux.o \
@@ -442,8 +443,9 @@ patch.o : auxiliary.o characteristic_curves.o characteristic_curves_thermal.o \
           nw_transport_aux.o nw_transport_equilibrium.o observation.o option.o \
           output_aux.o pflotran_constants.o reaction.o reaction_aux.o \
           reaction_base.o reaction_mineral.o reaction_mineral_aux.o \
-          reaction_surf_complex_aux.o reactive_transport_aux.o region.o \
-          richards_aux.o saturation_function.o strata.o string.o th_aux.o \
+          reaction_redox.o reaction_surf_complex_aux.o \
+          reactive_transport_aux.o region.o richards_aux.o \
+          saturation_function.o strata.o string.o th_aux.o \
           transport_constraint.o transport_constraint_base.o \
           transport_constraint_nwt.o transport_constraint_rt.o \
           upwind_direction.o utility.o variables.o wipp_flow_aux.o
@@ -611,7 +613,7 @@ reaction.o : generic.o global_aux.o input_aux.o material_aux.o option.o \
              reaction_immobile_aux.o reaction_isotherm.o \
              reaction_isotherm_aux.o reaction_microbial.o \
              reaction_microbial_aux.o reaction_mineral.o \
-             reaction_mineral_aux.o reaction_sandbox.o \
+             reaction_mineral_aux.o reaction_redox.o reaction_sandbox.o \
              reaction_solid_solution.o reaction_solid_solution_aux.o \
              reaction_surf_complex.o reaction_surf_complex_aux.o \
              reactive_transport_aux.o string.o transport_constraint_rt.o \
@@ -623,7 +625,7 @@ reaction.o : co2_span_wagner.o co2eos.o eos_water.o generic.o global_aux.o \
              reaction_gas_aux.o reaction_immobile.o reaction_immobile_aux.o \
              reaction_isotherm.o reaction_isotherm_aux.o reaction_microbial.o \
              reaction_microbial_aux.o reaction_mineral.o \
-             reaction_mineral_aux.o reaction_sandbox.o \
+             reaction_mineral_aux.o reaction_redox.o reaction_sandbox.o \
              reaction_solid_solution.o reaction_solid_solution_aux.o \
              reaction_surf_complex.o reaction_surf_complex_aux.o \
              reactive_transport_aux.o string.o transport_constraint_rt.o \
@@ -682,21 +684,27 @@ reaction_mineral.o : global_aux.o input_aux.o material_aux.o option.o \
                      string.o units.o utility.o
 reaction_mineral_aux.o : option.o pflotran_constants.o reaction_database_aux.o \
                          string.o utility.o
+reaction_redox.o : global_aux.o option.o pflotran_constants.o reaction_aux.o \
+                   reaction_gas_aux.o reactive_transport_aux.o
 reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      output_aux.o pflotran_constants.o reaction_aux.o \
-                     reaction_sandbox_base.o reaction_sandbox_biodeg.o \
-                     reaction_sandbox_clm_cn.o reaction_sandbox_example.o \
-                     reaction_sandbox_flexbiodeg.o reaction_sandbox_gas.o \
-                     reaction_sandbox_pnnl_cyber.o reaction_sandbox_simple.o \
-                     reaction_sandbox_ufd_wp.o reactive_transport_aux.o \
-                     string.o utility.o
+                     reaction_sandbox_base.o reaction_sandbox_bioTH.o \
+                     reaction_sandbox_biohill.o reaction_sandbox_clm_cn.o \
+                     reaction_sandbox_example.o reaction_sandbox_flexbiohill.o \
+                     reaction_sandbox_gas.o reaction_sandbox_pnnl_cyber.o \
+                     reaction_sandbox_simple.o reaction_sandbox_ufd_wp.o \
+                     reactive_transport_aux.o string.o utility.o
 reaction_sandbox_base.o : global_aux.o input_aux.o material_aux.o option.o \
                           output_aux.o pflotran_constants.o reaction_aux.o \
                           reactive_transport_aux.o
-reaction_sandbox_biodeg.o : global_aux.o material_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
-                            reaction_immobile_aux.o reaction_sandbox_base.o \
-                            reactive_transport_aux.o
+reaction_sandbox_bioTH.o : global_aux.o input_aux.o material_aux.o option.o \
+                           pflotran_constants.o reaction_aux.o \
+                           reaction_immobile_aux.o reaction_sandbox_base.o \
+                           reactive_transport_aux.o string.o units.o utility.o
+reaction_sandbox_biohill.o : global_aux.o material_aux.o option.o \
+                             pflotran_constants.o reaction_aux.o \
+                             reaction_immobile_aux.o reaction_sandbox_base.o \
+                             reactive_transport_aux.o
 reaction_sandbox_clm_cn.o : global_aux.o input_aux.o material_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_immobile_aux.o reaction_sandbox_base.o \
@@ -706,11 +714,11 @@ reaction_sandbox_example.o : global_aux.o input_aux.o material_aux.o option.o \
                              pflotran_constants.o reaction_aux.o \
                              reaction_sandbox_base.o reactive_transport_aux.o \
                              string.o units.o
-reaction_sandbox_flexbiodeg.o : global_aux.o input_aux.o material_aux.o \
-                                option.o pflotran_constants.o reaction_aux.o \
-                                reaction_immobile_aux.o \
-                                reaction_sandbox_biodeg.o \
-                                reactive_transport_aux.o string.o utility.o
+reaction_sandbox_flexbiohill.o : global_aux.o input_aux.o material_aux.o \
+                                 option.o pflotran_constants.o reaction_aux.o \
+                                 reaction_immobile_aux.o \
+                                 reaction_sandbox_biohill.o \
+                                 reactive_transport_aux.o string.o utility.o
 reaction_sandbox_gas.o : global_aux.o input_aux.o material_aux.o option.o \
                          pflotran_constants.o reaction_aux.o \
                          reaction_gas_aux.o reaction_immobile_aux.o \
