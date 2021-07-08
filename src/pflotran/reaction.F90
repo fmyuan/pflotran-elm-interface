@@ -5054,8 +5054,8 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation, &
     enddo
   endif
 
-  call ludcmp(Jac,ncomp,indices,icomp,stop_on_error,ierror)
-  call lubksb(Jac,ncomp,indices,rhs)
+  call LUDecomposition(Jac,ncomp,indices,icomp,stop_on_error,ierror)
+  call LUBackSubstitution(Jac,ncomp,indices,rhs)
   
   update = rhs
 

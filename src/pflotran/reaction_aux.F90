@@ -1425,8 +1425,8 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
     enddo
   enddo
 
-  call ludcmp(a,FIVE_INTEGER,indx,i)
-  call lubksb(a,FIVE_INTEGER,indx,coefs)
+  call LUDecomposition(a,FIVE_INTEGER,indx,i)
+  call LUBackSubstitution(a,FIVE_INTEGER,indx,coefs)
 
 end subroutine ReactionFitLogKCoef
 

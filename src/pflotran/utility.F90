@@ -61,9 +61,9 @@ module Utility_module
     module procedure CalcParallelSUM2
   end interface
 
-  interface ludcmp
-    module procedure ludcmp1
-    module procedure ludcmp2
+  interface LUDecomposition
+    module procedure LUDecomposition1
+    module procedure LUDecomposition2
   end interface
   
   public :: GetRndNumFromNormalDist, &
@@ -77,8 +77,8 @@ module Utility_module
             GradientLinear, &
             InterpolateBilinear, &
             SearchOrderedArray, &
-            ludcmp, &
-            lubksb, &
+            LUDecomposition, &
+            LUBackSubstitution, &
             FileExists, &
             Equal, &
             InitToNaN, &
@@ -564,9 +564,9 @@ end subroutine ReallocateBoolArray1
 
 ! ************************************************************************** !
 
-subroutine ludcmp2(A,N,INDX,D)
+subroutine LUDecomposition2(A,N,INDX,D)
 
-  ! wrapper for more verbose ludcmp2
+  ! wrapper for more verbose LUDecomposition2
 
   implicit none
 
@@ -577,21 +577,21 @@ subroutine ludcmp2(A,N,INDX,D)
 
   PetscInt :: idum 
 
-  call ludcmp(A,N,INDX,D,PETSC_TRUE,idum)
+  call LUDecomposition(A,N,INDX,D,PETSC_TRUE,idum)
 
-end subroutine ludcmp2
+end subroutine LUDecomposition2
 
 ! ************************************************************************** !
 
-subroutine ludcmp1(A,N,INDX,D,stop_on_error,ierror)
+subroutine LUDecomposition1(A,N,INDX,D,stop_on_error,ierror)
   ! 
   ! Given an NxN matrix A, with physical dimension NP, this routine replaces it
   ! by the LU decomposition of a rowwise permutation of itself.
   ! A and N are input. A is output; INDX is output vector which records the
   ! row permutation effected by the partial pivoting; D id output as +1 or -1
   ! depending on whether the number of row interchanges was odd or even,
-  ! respectively. This routine is used in combination with lubksb to solve
-  ! linear equations or invert a matrix.
+  ! respectively. This routine is used in combination with LUBackSubstitution 
+  ! to solve linear equations or invert a matrix.
   ! 
 
   implicit none
@@ -618,7 +618,7 @@ subroutine ludcmp1(A,N,INDX,D,stop_on_error,ierror)
     if (aamax <= 0.d0) then
       if (stop_on_error) then
         call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
-        print *, "ERROR: Singular value encountered in ludcmp() on &
+        print *, "ERROR: Singular value encountered in LUDecomposition() on &
                  &processor: ", rank, ' aamax = ',aamax,' row = ',i
         do k = 1, N
           print *, "Jacobian: ",k,(j,A(k,j),j=1,N)
@@ -674,16 +674,16 @@ subroutine ludcmp1(A,N,INDX,D,stop_on_error,ierror)
   enddo
   return
 
-end subroutine ludcmp1
+end subroutine LUDecomposition1
 
 ! ************************************************************************** !
 
-subroutine lubksb(A,N,INDX,B)
+subroutine LUBackSubstitution(A,N,INDX,B)
   ! 
   ! Solves the set of N linear equations A.X=D. Here A is input, not as a matrix
   ! A but rather as its LU decomposition. INDX is the input as the permutation
-  ! vector returned by ludcmp. B is input as the right-hand side vector B, and
-  ! returns with the solution vector X.
+  ! vector returned by LUDecomposition. B is input as the right-hand side 
+  ! vector B, and returns with the solution vector X.
   ! 
 
   implicit none
@@ -721,19 +721,19 @@ subroutine lubksb(A,N,INDX,B)
   enddo
   return
 
-end subroutine lubksb
+end subroutine LUBackSubstitution
 
 ! ************************************************************************** !
 
-subroutine ludcmp_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
+subroutine LUDecomposition_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
   ! 
   ! Given an NxN matrix A, with physical dimension NP, this routine replaces it
   ! by the LU decomposition of a rowwise permutation of itself.
   ! A and N are input. A is output; INDX is output vector which records the
   ! row permutation effected by the partial pivoting; D id output as +1 or -1
   ! depending on whether the number of row interchanges was odd or even,
-  ! respectively. This routine is used in combination with lubksb to solve
-  ! linear equations or invert a matrix.
+  ! respectively. This routine is used in combination with LUBackSubstitution 
+  ! to solve linear equations or invert a matrix.
   ! 
 
   implicit none
@@ -764,7 +764,7 @@ subroutine ludcmp_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
     enddo
     if (aamax.eq.0.d0) then
       call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
-      print *, "ERROR: Singular value encountered in ludcmp() on processor", rank, ichunk,ithread
+      print *, "ERROR: Singular value encountered in LUDecomposition() on processor", rank, ichunk,ithread
       call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
       call MPI_Finalize(ierr)
       stop
@@ -815,16 +815,16 @@ subroutine ludcmp_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
   
   return
 
-end subroutine ludcmp_chunk
+end subroutine LUDecomposition_chunk
 
 ! ************************************************************************** !
 
-subroutine lubksb_chunk(A,N,INDX,B,chunk_size,ithread,num_threads)
+subroutine LUBackSubstitution_chunk(A,N,INDX,B,chunk_size,ithread,num_threads)
   ! 
   ! Solves the set of N linear equations A.X=D. Here A is input, not as a matrix
   ! A but rather as its LU decomposition. INDX is the input as the permutation
-  ! vector returned bu ludcmp. B is input as the right-hand side vector B, and
-  ! returns with the solution vector X.
+  ! vector returned bu LUDecomposition. B is input as the right-hand side 
+  ! vector B, and returns with the solution vector X.
   ! 
 
   implicit none
@@ -871,7 +871,7 @@ subroutine lubksb_chunk(A,N,INDX,B,chunk_size,ithread,num_threads)
   
   return
 
-end subroutine lubksb_chunk
+end subroutine LUBackSubstitution_chunk
 
 ! ************************************************************************** !
 
@@ -1735,8 +1735,8 @@ subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
   ! coefficients(2): value at 2
   ! coefficients(3): derivative at 1 or 2
   
-  call ludcmp(A,THREE_INTEGER,indx,d)
-  call lubksb(A,THREE_INTEGER,indx,coefficients)
+  call LUDecomposition(A,THREE_INTEGER,indx,d)
+  call LUBackSubstitution(A,THREE_INTEGER,indx,coefficients)
 
 end subroutine QuadraticPolynomialSetup
 
@@ -1810,8 +1810,8 @@ subroutine CubicPolynomialSetup(value_1,value_2,coefficients)
   ! coefficients(3): derivative at 1
   ! coefficients(4): derivative at 2
   
-  call ludcmp(A,FOUR_INTEGER,indx,d)
-  call lubksb(A,FOUR_INTEGER,indx,coefficients)
+  call LUDecomposition(A,FOUR_INTEGER,indx,d)
+  call LUBackSubstitution(A,FOUR_INTEGER,indx,coefficients)
 
 end subroutine CubicPolynomialSetup
 
