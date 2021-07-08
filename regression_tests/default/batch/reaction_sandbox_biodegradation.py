@@ -15,6 +15,12 @@ import matplotlib.pyplot as plt
 import math
 import pflotran as pft
 
+if len(sys.argv) < 2:
+    print("\nPlease use one of the following commands:\n\n  python %s biodegradation-obs-0.pft\n  python %s biodegradation_hill-obs-0.pft\n  python %s flexible_biodegradation_hill-obs-0.pft\n"%(sys.argv[0],sys.argv[0],sys.argv[0]))
+    sys.exit(0)
+
+observation_filename = sys.argv[1]
+
 legend_fontsize = 'small'
 
 def plot_aqueous(plt,filename,scale_string):
@@ -106,21 +112,19 @@ im_colors.append('darkorange')
 im_colors.append('navy')
 
 f = plt.figure(figsize=(16,6))
-f.suptitle("Reaction Sandbox GMD 1 & 2 Comparison",fontsize=16)
+f.suptitle("Reaction Sandbox Biodegradation",fontsize=16)
 
 #linear scale
 plt.subplot(1,2,1)
-plt.title('GMD 1')
+plt.title('Time History - Linear Scale')
 scale_string = 'linear'
-observation_filename = 'gmd_1-obs-0.pft'
 plot_aqueous(plt,observation_filename,scale_string)
 plot_immobile(plt,observation_filename,scale_string)
 
 #log scale
 plt.subplot(1,2,2)
-plt.title('GMD 2')
-scale_string = 'linear'
-observation_filename = 'gmd_2-obs-0.pft'
+plt.title('Time History - Log Scale')
+scale_string = 'log'
 plot_aqueous(plt,observation_filename,scale_string)
 plot_immobile(plt,observation_filename,scale_string)
 

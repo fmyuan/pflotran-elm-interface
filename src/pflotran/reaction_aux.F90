@@ -391,8 +391,7 @@ module Reaction_Aux_module
             IonExchangeRxnCreate, &
             IonExchangeCationCreate, &
             ReactionInputRecord, &
-            ReactionDestroy, &
-            LogKeh
+            ReactionDestroy
              
 contains
 
@@ -1379,7 +1378,8 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
   PetscInt :: temp_int(reaction%num_dbase_temperatures), &
               indx(reaction%num_dbase_temperatures)
   PetscReal :: a(FIVE_INTEGER,FIVE_INTEGER), &
-               vec(FIVE_INTEGER,reaction%num_dbase_temperatures), temperature_kelvin
+               vec(FIVE_INTEGER,reaction%num_dbase_temperatures), &
+               temperature_kelvin
 
   PetscInt :: i, j, k, iflag
   
@@ -1425,8 +1425,8 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
     enddo
   enddo
 
-  call ludcmp(a,FIVE_INTEGER,indx,i)
-  call lubksb(a,FIVE_INTEGER,indx,coefs)
+  call LUDecomposition(a,FIVE_INTEGER,indx,i)
+  call LUBackSubstitution(a,FIVE_INTEGER,indx,coefs)
 
 end subroutine ReactionFitLogKCoef
 
@@ -1592,31 +1592,6 @@ subroutine ReactionInterpolateLogK_hpt(coefs,logKs,temp,pres,n)
   enddo
  ! print *,'ReactionInterpolateLogK_hpt: ', pres,temp, logKs, coefs
 end subroutine ReactionInterpolateLogK_hpt
-
-! ************************************************************************** !
-
-PetscReal function logkeh(tk)
-  ! 
-  ! Function logkeh: Maier-Kelly fit to equilibrium constant half-cell reaction
-  ! 2 H2O - 4 H+ - 4 e- = O2, to compute Eh and pe.
-  ! 
-  ! Author: Peter Lichtner
-  ! Date: 04/27/13
-  ! 
-
-  implicit none
-
-  PetscReal, intent(in) :: tk
-
-  PetscReal, parameter :: cm1 = 6.745529048112373d0
-  PetscReal, parameter :: c0 = -48.295936593543715d0
-  PetscReal, parameter :: c1 = 0.0005578156078778505d0
-  PetscReal, parameter :: c2 = 27780.749538022003d0
-  PetscReal, parameter :: c3 = 4027.3376948579394d0
-
-  logkeh = cm1 * log(tk) + c0 + c1 * tk + c2 / tk + c3 / (tk * tk)
-
-end function logkeh
 
 ! ************************************************************************** !
 

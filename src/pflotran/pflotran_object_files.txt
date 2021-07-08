@@ -116,15 +116,17 @@ chem_obj = \
 	${common_src}reaction_base.o \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_clm.o \
+	${common_src}reaction_redox.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
-	${common_src}reaction_sandbox_biodeg.o \
-	${common_src}reaction_sandbox_flexbiodeg.o \
+	${common_src}reaction_sandbox_biohill.o \
+	${common_src}reaction_sandbox_flexbiohill.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
-	${common_src}reaction_sandbox_simple.o \
+    ${common_src}reaction_sandbox_simple.o \
+    ${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \

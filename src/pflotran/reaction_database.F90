@@ -1297,11 +1297,11 @@ subroutine BasisInit(reaction,option)
   allocate(sec_matrix_inverse(ncomp_secondary,ncomp_secondary))
   sec_matrix_inverse = 0.d0
  
-  call ludcmp(sec_matrix,ncomp_secondary,indices,temp_int)
+  call LUDecomposition(sec_matrix,ncomp_secondary,indices,temp_int)
   do ispec = 1, ncomp_secondary
     unit_vector = 0.d0
     unit_vector(ispec) = 1.d0
-    call lubksb(sec_matrix,ncomp_secondary,indices,unit_vector)
+    call LUBackSubstitution(sec_matrix,ncomp_secondary,indices,unit_vector)
     sec_matrix_inverse(:,ispec) = unit_vector(:)
   enddo
 
@@ -1690,7 +1690,7 @@ subroutine BasisInit(reaction,option)
     allocate(reaction%eqcplxspecid(0:max_aq_species,reaction%neqcplx))
     reaction%eqcplxspecid = 0
 
-    allocate(reaction%eqcplxstoich(0:max_aq_species,reaction%neqcplx))
+    allocate(reaction%eqcplxstoich(max_aq_species,reaction%neqcplx))
     reaction%eqcplxstoich = 0.d0
 
     allocate(reaction%eqcplxh2oid(reaction%neqcplx))
@@ -4223,7 +4223,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
     gas_print = PETSC_FALSE
     allocate(eqspecid(0:max_aq_species,ngas))
     eqspecid = 0
-    allocate(eqstoich(0:max_aq_species,ngas))
+    allocate(eqstoich(max_aq_species,ngas))
     eqstoich = 0.d0
     allocate(eqh2oid(ngas))
     eqh2oid = 0

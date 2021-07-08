@@ -37,14 +37,6 @@ END
 
 #=========================== chemistry ========================================
 CHEMISTRY
-  REACTION_SANDBOX
-    BIODEGRADATION
-  /
-#==============================================================================
-#==============================================================================
-# DO NOT MODIFY ANYTHING BELOW (unless you know what you are doing)
-#==============================================================================
-#==============================================================================
   PRIMARY_SPECIES
     Aaq
     Baq
@@ -54,10 +46,6 @@ CHEMISTRY
   IMMOBILE_SPECIES
     Xim
   /
-# These reactions are for verifying the template 1 reaction sandbox example.
-# Activity coefficients must be 1 and water density = 1000 kg/m^3 to ensure
-# that activities are equal to molarity.
-skip
   MICROBIAL_REACTION
     REACTION Aaq + 0.25 Baq <-> 0.33 Caq + Daq
     RATE_CONSTANT 9.d-2
@@ -83,7 +71,6 @@ skip
     SPECIES_NAME Xim
     RATE_CONSTANT 1.d-6
   /
-noskip
   DATABASE ../../../database/simple_rxn_database.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF

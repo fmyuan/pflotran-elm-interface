@@ -4464,6 +4464,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use TH_Aux_module
   use Richards_Aux_module
   use Reaction_Mineral_module
+  use Reaction_Redox_module
   use Reaction_module
   use Reactive_Transport_Aux_module
   use Reaction_Surface_Complexation_Aux_module
@@ -5408,115 +5409,36 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
 
       select case(ivar)
         case(PH)
-          if (isubvar > 0) then
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                -log10(patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)* &
-                       patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-            enddo
-          else
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-               -log10(patch%aux%RT%auxvars(ghosted_id)%sec_act_coef(-isubvar)* &
-                      patch%aux%RT%auxvars(ghosted_id)%sec_molal(-isubvar))
-            enddo
-          endif
+          do local_id=1,grid%nlmax
+            ghosted_id = grid%nL2G(local_id)
+            call RRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
+                              patch%aux%Global%auxvars(ghosted_id), &
+                              reaction,ph0,option)
+            vec_ptr(local_id) = ph0
+          enddo
         case(EH)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            if (patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar) > &
-                0.d0) then
-              !geh: all the below should be calculated somewhere else, not in
-              !     patch.F90.  most likely reactive_transport.F90
-              ph0 = &
-                -log10(patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)* &
-                       patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-              ifo2 = reaction%species_idx%o2_gas_id
-              ! compute gas partial pressure
-              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-              ! activity of water
-              if (reaction%gas%paseqh2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-              endif
-              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-              enddo
-              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
-                   273.15d0
-              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-              eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
-              pe0 = eh0/ehfac
-              vec_ptr(local_id) = eh0
-            else
-              vec_ptr(local_id) = 0.d0
-            endif
+            call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+                                  patch%aux%Global%auxvars(ghosted_id), &
+                                  reaction,eh0,pe0,option)
+            vec_ptr(local_id) = eh0
           enddo
         case(PE)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            if (patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar) > &
-                0.d0) then
-              !geh: all the below should be calculated somewhere else, not in
-              !     patch.F90.  most likely reactive_transport.F90
-              ph0 = &
-                -log10(patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)* &
-                       patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-              ifo2 = reaction%species_idx%o2_gas_id
-              ! compute gas partial pressure
-              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-              ! activity of water
-              if (reaction%gas%paseqh2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-              endif
-              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-              enddo
-              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
-                   273.15d0
-              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-              eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
-              pe0 = eh0/ehfac
-              vec_ptr(local_id) = pe0
-            else
-              vec_ptr(local_id) = 0.d0
-            endif
+            call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+                                  patch%aux%Global%auxvars(ghosted_id), &
+                                  reaction,eh0,pe0,option)
+            vec_ptr(local_id) = pe0
           enddo
-
         case(O2)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            if (patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar) > &
-                0.d0) then
-              !geh: all the below should be calculated somewhere else, not in
-              !     patch.F90.  most likely reactive_transport.F90
-              ifo2 = reaction%species_idx%o2_gas_id
-              ! compute gas partial pressure
-              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-              ! activity of water
-              if (reaction%gas%paseqh2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-              endif
-              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-              enddo
-              vec_ptr(local_id) = lnQKgas * LN_TO_LOG
-            else
-              vec_ptr(local_id) = 0.d0
-            endif
+            call RRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
+                                 patch%aux%Global%auxvars(ghosted_id), &
+                                 reaction,lnQKgas,option)
+            vec_ptr(local_id) = lnQKgas
           enddo
         case(PRIMARY_MOLALITY)
           do local_id=1,grid%nlmax
@@ -6001,6 +5923,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use Richards_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_Mineral_module
+  use Reaction_Redox_module
   use Reaction_module
   use Reaction_Mineral_Aux_module
   use Reaction_Surface_Complexation_Aux_module
@@ -6582,89 +6505,25 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
       select case(ivar)
         case(PH)
-          if (isubvar > 0) then
-            value = -log10(patch%aux%RT%auxvars(ghosted_id)% &
-                           pri_act_coef(isubvar)* &
-                           patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-          else
-            value = -log10(patch%aux%RT%auxvars(ghosted_id)% &
-                           sec_act_coef(-isubvar)* &
-                           patch%aux%RT%auxvars(ghosted_id)%sec_molal(-isubvar))
-          endif
+          call RRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
+                            patch%aux%Global%auxvars(ghosted_id), &
+                            reaction,ph0,option)
+          value = ph0
         case(EH)
-          ph0 = -log10(patch%aux%RT%auxvars(ghosted_id)% &
-                         pri_act_coef(isubvar)* &
-                         patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-
-          ifo2 = reaction%species_idx%o2_gas_id
-
-      ! compute gas partial pressure
-          lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-
-      ! activity of water
-          if (reaction%gas%paseqh2oid(ifo2) > 0) then
-            lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-          endif
-          do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-            comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-            lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-          enddo
-
-          tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
-          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-          eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
-
+          call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+                                patch%aux%Global%auxvars(ghosted_id), &
+                                reaction,eh0,pe0,option)
           value = eh0
-
         case(PE)
-          ph0 = -log10(patch%aux%RT%auxvars(ghosted_id)% &
-                         pri_act_coef(isubvar)* &
-                         patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-
-          ifo2 = reaction%species_idx%o2_gas_id
-
-      ! compute gas partial pressure
-          lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-
-      ! activity of water
-          if (reaction%gas%paseqh2oid(ifo2) > 0) then
-            lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-          endif
-          do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-            comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-            lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-          enddo
-
-          tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
-          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-          eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
-          pe0 = eh0/ehfac
+          call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+                                patch%aux%Global%auxvars(ghosted_id), &
+                                reaction,eh0,pe0,option)
           value = pe0
-
         case(O2)
-
-      ! compute gas partial pressure
-              ifo2 = reaction%species_idx%o2_gas_id
-              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-
-      ! activity of water
-              if (reaction%gas%paseqh2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-              endif
-              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-              enddo
-           value = lnQKgas * LN_TO_LOG
+          call RRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
+                               patch%aux%Global%auxvars(ghosted_id), &
+                               reaction,lnQKgas,option)
+          value = lnQKgas * LN_TO_LOG
         case(PRIMARY_MOLALITY)
           value = patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar)
         case(PRIMARY_MOLARITY)
