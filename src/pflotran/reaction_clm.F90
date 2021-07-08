@@ -1319,7 +1319,9 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         if (stoich_c < 0.0d0) then
           option%io_buffer = 'CLMDec litter decomposition reaction has' // &
                              'negative respiration fraction!'
-          call PrintErrMsg(option)
+          call PrintErrMsgNoStopByRank(option)
+          option%ierror = 1
+          return
         endif
 
         this%mineral_c_stoich(irxn) = stoich_c

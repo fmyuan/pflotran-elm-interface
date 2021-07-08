@@ -80,6 +80,7 @@ module Option_module
     PetscInt :: ngeopdof ! geophysics # of dof
 
     PetscInt :: iflag
+    PetscInt :: ierror
     PetscInt :: status
     PetscBool :: input_record
     ! these flags are for printing outside of time step loop
@@ -380,6 +381,7 @@ subroutine OptionInitRealization(option)
   option%fid_inputrecord = INPUT_RECORD_UNIT
 
   option%iflag = 0
+  option%ierror = 0
   option%io_buffer = ''
 
   option%use_isothermal = PETSC_FALSE

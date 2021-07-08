@@ -1905,7 +1905,8 @@ subroutine RTReact(realization)
     call RReact(tran_xx_p,rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
 !                tran_xx_p(istart:iend), &
-                num_iterations,reaction,grid%nG2A(ghosted_id),option,ierror)
+                num_iterations,reaction,grid%nG2A(ghosted_id),option, &
+                PETSC_TRUE,PETSC_TRUE,ierror)
     ! set primary dependent var back to free-ion molality
     tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal
     if (reaction%immobile%nimmobile > 0) then
