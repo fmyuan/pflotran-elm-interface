@@ -205,16 +205,13 @@ subroutine SimulationInverseExecuteRun(this)
 
   type(option_type), pointer :: option
 
-  PetscInt :: num_forward_runs
-  PetscBool :: converged
+  PetscInt :: iteration
 
-  num_forward_runs = 0
-  converged = PETSC_FALSE
+  iteration = 0
   do
-    !if (num_forward_runs > 10) exit
     if (this%inversion%converg_flag) exit
     option => OptionCreate()
-    write(option%group_prefix,'(i6)') num_forward_runs+1
+    write(option%group_prefix,'(i6)') iteration+1
     option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
     call OptionSetDriver(option,this%driver)
     call FactoryForwardInitialize(this%forward_simulation, &
@@ -238,7 +235,7 @@ subroutine SimulationInverseExecuteRun(this)
     call this%forward_simulation%Strip()
     deallocate(this%forward_simulation)
     nullify(this%forward_simulation)
-    num_forward_runs = num_forward_runs + 1
+    iteration = iteration + 1
   enddo
 
 end subroutine SimulationInverseExecuteRun

@@ -531,7 +531,7 @@ subroutine InversionERTReadBlock(this,input,option)
           case('APPARENT_ELECTRICAL_CONDUCTIVITY')
             this%app_cond_start_model = PETSC_TRUE
           case('INPUT_ELECTRICAL_CONDUCTIVITY')
-            this%app_cond_start_model = PETSC_FALSE  
+            this%app_cond_start_model = PETSC_FALSE
           case default
             call InputKeywordUnrecognized(input,word,trim(error_string)// &
                              & ',STARTING_MODEL',option)
