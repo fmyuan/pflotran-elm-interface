@@ -19,9 +19,13 @@ module PM_NWT_class
     PetscReal, pointer :: max_volfrac_change(:)
     PetscReal :: volfrac_change_governor
     PetscReal :: cfl_governor
+    PetscReal, pointer :: itol_rel_update(:)
     PetscReal :: newton_inf_rel_update_tol
+    PetscReal, pointer :: itol_scaled_res(:)
     PetscReal :: newton_inf_scaled_res_tol
+    PetscReal, pointer :: itol_abs_update(:)
     PetscReal :: newton_inf_abs_update_tol
+    PetscReal, pointer :: itol_abs_res(:)
     PetscReal :: newton_inf_abs_res_tol
     PetscReal :: max_dlnC
     PetscReal :: dt_cut
@@ -138,6 +142,10 @@ function PMNWTCreate()
   nwt_pm%controls%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
   nwt_pm%controls%newton_inf_abs_update_tol = UNINITIALIZED_DOUBLE
   nwt_pm%controls%newton_inf_abs_res_tol = UNINITIALIZED_DOUBLE
+  nullify(nwt_pm%controls%itol_rel_update)
+  nullify(nwt_pm%controls%itol_scaled_res)
+  nullify(nwt_pm%controls%itol_abs_update)
+  nullify(nwt_pm%controls%itol_abs_res)
   nwt_pm%controls%dt_cut = 0.5d0
   nwt_pm%controls%max_dlnC = 5.0d0
   nwt_pm%controls%check_post_converged = PETSC_FALSE
@@ -293,6 +301,7 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
   ! Date: 03/25/20
 
   use Input_Aux_module
+  use String_module
   use Option_module
  
   implicit none
@@ -300,12 +309,22 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
   class(pm_nwt_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
 
-  PetscBool :: found
+  character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
+  PetscReal, pointer :: temp_itol_rel_update(:)
+  PetscReal, pointer :: temp_itol_scaled_res(:)
+  PetscReal, pointer :: temp_itol_abs_update(:)
+  PetscReal, pointer :: temp_itol_abs_res(:)
+  PetscInt :: k, j
+  character(len=MAXSTRINGLENGTH) :: error_string_ex
+  character(len=MAXWORDLENGTH) :: word
 
   option => this%option
+
+  allocate(temp_species_names(50))
   
   !found = PETSC_TRUE
   !call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
@@ -332,9 +351,104 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,this%controls%newton_inf_abs_res_tol)
       call InputErrorMsg(input,option,keyword,error_string)
       nwt_itol_abs_res = this%controls%newton_inf_abs_res_tol
+    !------------------------------------------------------------------------
+    case('NWT_ITOL_RELATIVE_UPDATE')
+      k = 0
+      temp_species_names = ''
+      error_string_ex = trim(error_string) // ',NWT_ITOL_RELATIVE_UPDATE'
+      allocate(temp_itol_rel_update(50))
+      temp_itol_rel_update = -999.99999
+      do 
+        k = k + 1
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'SPECIES NAME',error_string_ex)
+        call StringToUpper(word)
+        temp_species_names(k) = trim(word)
+        call InputReadDouble(input,option,temp_itol_rel_update(k))
+        call InputErrorMsg(input,option,'SPECIES TOLERANCE VALUE', &
+                           error_string_ex)
+      enddo
+      allocate(this%controls%itol_rel_update(k-1))
+      this%controls%itol_rel_update(:) = temp_itol_rel_update(1:k-1)
+      deallocate(temp_itol_rel_update)
+    !------------------------------------------------------------------------
+    case('NWT_ITOL_SCALED_RESIDUAL')
+      k = 0
+      temp_species_names = ''
+      error_string_ex = trim(error_string) // ',NWT_ITOL_SCALED_RESIDUAL'
+      allocate(temp_itol_scaled_res(50))
+      temp_itol_scaled_res = -999.99999
+      do 
+        k = k + 1
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'SPECIES NAME',error_string_ex)
+        call StringToUpper(word)
+        temp_species_names(k) = trim(word)
+        call InputReadDouble(input,option,temp_itol_scaled_res(k))
+        call InputErrorMsg(input,option,'SPECIES TOLERANCE VALUE', &
+                           error_string_ex)
+      enddo
+      allocate(this%controls%itol_scaled_res(k-1))
+      this%controls%itol_scaled_res(:) = temp_itol_scaled_res(1:k-1)
+      deallocate(temp_itol_scaled_res)
+    !------------------------------------------------------------------------
+    case('NWT_ITOL_ABSOLUTE_UPDATE')
+      k = 0
+      temp_species_names = ''
+      error_string_ex = trim(error_string) // ',NWT_ITOL_ABSOLUTE_UPDATE'
+      allocate(temp_itol_abs_update(50))
+      temp_itol_abs_update = -999.99999
+      do 
+        k = k + 1
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'SPECIES NAME',error_string_ex)
+        call StringToUpper(word)
+        temp_species_names(k) = trim(word)
+        call InputReadDouble(input,option,temp_itol_abs_update(k))
+        call InputErrorMsg(input,option,'SPECIES TOLERANCE VALUE', &
+                           error_string_ex)
+      enddo
+      allocate(this%controls%itol_abs_update(k-1))
+      this%controls%itol_abs_update(:) = temp_itol_abs_update(1:k-1)
+      deallocate(temp_itol_abs_update)
+    !------------------------------------------------------------------------
+    case('NWT_ITOL_ABSOLUTE_RESIDUAL')
+      k = 0
+      temp_species_names = ''
+      error_string_ex = trim(error_string) // ',ITOL_ABSOLUTE_RESIDUAL'
+      allocate(temp_itol_abs_res(50))
+      temp_itol_abs_res = -999.99999
+      do 
+        k = k + 1
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'SPECIES NAME',error_string_ex)
+        call StringToUpper(word)
+        temp_species_names(k) = trim(word)
+        call InputReadDouble(input,option,temp_itol_scaled_res(k))
+        call InputErrorMsg(input,option,'SPECIES TOLERANCE VALUE', &
+                           error_string_ex)
+      enddo
+      allocate(this%controls%itol_abs_res(k-1))
+      this%controls%itol_abs_res(:) = temp_itol_abs_res(1:k-1)
+      deallocate(temp_itol_abs_res)
+    !------------------------------------------------------------------------
   case default
       found = PETSC_FALSE
   end select
+
+  deallocate(temp_species_names)
   
 end subroutine PMNWTReadNewtonSelectCase
 
@@ -392,6 +506,9 @@ subroutine PMNWTSetup(this)
   
   allocate(this%controls%max_concentration_change(this%params%nspecies))
   allocate(this%controls%max_volfrac_change(this%params%nspecies))
+
+  ! load the species-dependent criteria into the pointers now
+  ! or? check what was loaded makes sense?
 
   if (Uninitialized(nwt_itol_rel_update)) then
     this%option%io_buffer = 'ITOL_RELATIVE_UPDATE was not provided in the &
