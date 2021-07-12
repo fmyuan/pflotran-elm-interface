@@ -65,6 +65,9 @@ module NW_Transport_Aux_module
     PetscReal :: truncated_concentration
     PetscReal :: bh_zero_value
     PetscReal :: init_total_mass_conc
+    PetscReal :: wm_start_time
+    PetscReal :: wm_end_time
+    PetscReal :: wm_value
     character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
     character(len=MAXWORDLENGTH), pointer :: dirichlet_material_names(:)
   end type nwt_params_type
@@ -278,8 +281,11 @@ function NWTReactionCreate()
   reaction_nw%params%calculate_transverse_dispersion = PETSC_FALSE
   reaction_nw%params%temperature_dependent_diffusion = PETSC_FALSE
   reaction_nw%params%truncated_concentration = UNINITIALIZED_DOUBLE
-  reaction_nw%params%bh_zero_value = 1.0d-20  ! [mol/m3-bulk]
+  reaction_nw%params%bh_zero_value = 1.0d-40  ! [mol/m3-bulk]
   reaction_nw%params%init_total_mass_conc = UNINITIALIZED_DOUBLE
+  reaction_nw%params%wm_start_time = UNINITIALIZED_DOUBLE  ! [sec]
+  reaction_nw%params%wm_end_time = UNINITIALIZED_DOUBLE  ! [sec]
+  reaction_nw%params%wm_value = 1.0d-40  ! [mol/m3-bulk]
   nullify(reaction_nw%params%bh_material_names)
   nullify(reaction_nw%params%dirichlet_material_names)
   
@@ -581,6 +587,28 @@ subroutine NWTRead(reaction_nw,input,option)
           reaction_nw%params%bh_material_names(num_materials) = &
                                                   bh_materials(num_materials)
         enddo
+      case('WASHING_MACHINE')
+        error_string = trim(error_string_base) // ',WASHING_MACHINE'
+        do 
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'TIME_START/END',error_string)
+          call StringToUpper(word)
+          if (trim(word) == 'TIME_START') then
+            call InputReadDouble(input,option,reaction_nw%params%wm_start_time)
+            call InputErrorMsg(input,option,'TIME_START',error_string)
+          endif 
+          if (trim(word) == 'TIME_END') then
+            call InputReadDouble(input,option,reaction_nw%params%wm_end_time)
+            call InputErrorMsg(input,option,'TIME_END',error_string)
+          endif 
+          if (trim(word) == 'VALUE') then
+            call InputReadDouble(input,option,reaction_nw%params%wm_value)
+            call InputErrorMsg(input,option,'VALUE',error_string)
+          endif
+        enddo
       case default
         call InputKeywordUnrecognized(input,keyword,error_string_base,option)
     end select
@@ -741,6 +769,12 @@ subroutine NWTReadPass2(reaction_nw,input,option)
           if (InputCheckExit(input,option)) exit
         enddo
       case('BOREHOLE_MATERIALS')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+        enddo
+      case('WASHING_MACHINE')
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit

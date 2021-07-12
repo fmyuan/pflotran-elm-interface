@@ -53,6 +53,9 @@ module PM_NWT_class
     PetscBool :: zero_out_borehole
     PetscReal :: bh_zero_value
     PetscReal :: init_total_mass_conc
+    PetscReal :: wm_start_time
+    PetscReal :: wm_end_time
+    PetscReal :: wm_value
     character(len=MAXWORDLENGTH), pointer :: bh_material_names(:)
     character(len=MAXWORDLENGTH), pointer :: dirichlet_material_names(:)
     PetscInt, pointer :: bh_material_ids(:)
@@ -162,7 +165,10 @@ function PMNWTCreate()
   nwt_pm%params%temperature_dependent_diffusion = PETSC_FALSE
   nwt_pm%params%steady_flow = PETSC_FALSE
   nwt_pm%params%zero_out_borehole = PETSC_FALSE
-  nwt_pm%params%bh_zero_value = 1.0d-20  ! [mol/m3-bulk]
+  nwt_pm%params%bh_zero_value = 1.0d-40  ! [mol/m3-bulk]
+  nwt_pm%params%wm_start_time = UNINITIALIZED_DOUBLE  ! [sec]
+  nwt_pm%params%wm_end_time = UNINITIALIZED_DOUBLE  ! [sec]
+  nwt_pm%params%wm_value = 1.0d-40  ! [mol/m3-bulk]
   nwt_pm%params%init_total_mass_conc = UNINITIALIZED_DOUBLE
   nullify(nwt_pm%params%bh_material_names)
   nullify(nwt_pm%params%dirichlet_material_names)
@@ -377,6 +383,9 @@ subroutine PMNWTSetup(this)
     this%params%dirichlet_material_ids = UNINITIALIZED_INTEGER
     this%params%init_total_mass_conc = reaction_nw%params%init_total_mass_conc
   endif
+  this%params%wm_start_time = reaction_nw%params%wm_start_time
+  this%params%wm_end_time = reaction_nw%params%wm_end_time
+  this%params%wm_value = reaction_nw%params%wm_value
         
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -623,17 +632,31 @@ subroutine PMNWTInitializeTimestep(this)
     enddo
   endif
 
-  ! Jenn's hack for upper borehole
+  ! Jenn's hack for upper borehole:
+  ! You must include a material property called BH_OPEN_UPPER, and if you
+  ! do, then the concentration there is kept at background levels.
   hack_material_name = 'BH_OPEN_UPPER'
   material_property => &
        MaterialPropGetPtrFromList(hack_material_name, &
                                   this%realization%patch%material_properties)
+  if (associated(material_property) .and. &
+      Uninitialized(this%params%wm_start_time)) then
+    this%option%io_buffer = 'START_TIME was not provided in the &
+      &WASHING_MACHINE block for SUBSURFACE_TRANSPORT MODE NWT.' 
+    call PrintErrMsg(this%option)
+  endif
+  if (associated(material_property) .and. &
+      Uninitialized(this%params%wm_end_time)) then
+    this%option%io_buffer = 'END_TIME was not provided in the &
+      &WASHING_MACHINE block for SUBSURFACE_TRANSPORT MODE NWT.' 
+    call PrintErrMsg(this%option)
+  endif
   if (associated(material_property)) then
     do local_id = 1, patch%grid%nlmax
       ghosted_id = patch%grid%nL2G(local_id)
       ! if within BH_OPEN time interval:
-      if (this%option%time >= 1.10376000d+10 .and. &   ! 350.0 yr
-          this%option%time < 1.73448000d+10) then      ! 550.0 yr
+      if (this%option%time >= this%params%wm_start_time .and. & 
+          this%option%time < this%params%wm_end_time) then  
         if (patch%imat(ghosted_id) == material_property%internal_id) then
           ! Means the current grid cell is in BH_OPEN_UPPER
           call VecGetArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
@@ -641,7 +664,7 @@ subroutine PMNWTInitializeTimestep(this)
           offset = (local_id-1)*this%params%nspecies
           do idof = 1, this%params%nspecies
             index = idof + offset
-            xx_p(index) = 1.d-40  ! mol/m3-bulk
+            xx_p(index) = this%params%wm_value  ! mol/m3-bulk
           enddo
           ! calculate range of species
           istart = offset + 1
