@@ -63,6 +63,7 @@ module Inversion_ERT_class
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
     procedure, public :: CostFunctions => InversionERTCostFunctions
     procedure, public :: CheckBeta => InversionERTCheckBeta
+    procedure, public :: SetIterationNum => InversionERTSetIterationNum
     procedure, public :: WriteIterationInfo => InversionERTWriteIterationInfo
     procedure, public :: Finalize => InversionERTFinalize
     procedure, public :: Strip => InversionERTStrip
@@ -958,6 +959,21 @@ subroutine InversionERTCheckBeta(this)
   this%phi_total_0 = this%phi_total
 
 end subroutine InversionERTCheckBeta
+
+! ************************************************************************** !
+
+PetscInt function InversionERTSetIterationNum(this)
+  !
+  ! Sets starting iteration number
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/09/21
+
+  class(inversion_ert_type) :: this
+
+  InversionERTSetIterationNum = this%start_iteration - 1
+
+end function InversionERTSetIterationNum
 
 ! ************************************************************************** !
 

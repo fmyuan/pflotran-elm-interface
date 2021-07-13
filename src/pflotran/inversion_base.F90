@@ -25,6 +25,7 @@ module Inversion_Base_class
     procedure, public :: CheckConvergence => InversionBaseCheckConvergence
     procedure, public :: CostFunctions => InversionBaseCostFunctions
     procedure, public :: CheckBeta => InversionBaseCheckBeta
+    procedure, public :: SetIterationNum => InversionBaseSetIterationNum
     procedure, public :: WriteIterationInfo => InversionBaseWriteIterationInfo
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
@@ -204,6 +205,21 @@ subroutine InversionBaseCheckBeta(this)
   class(inversion_base_type) :: this
 
 end subroutine InversionBaseCheckBeta
+
+! ************************************************************************** !
+
+PetscInt function InversionBaseSetIterationNum(this)
+  !
+  ! Sets starting iteration number
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/09/21
+
+  class(inversion_base_type) :: this
+
+  !InversionBaseSetIterationNum = this%start_iteration - 1
+
+end function InversionBaseSetIterationNum
 
 ! ************************************************************************** !
 

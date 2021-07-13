@@ -22,6 +22,7 @@ module Simulation_Inverse_class
     procedure, public :: UpdateParameters => SimulationInvUpdateParameters
     procedure, public :: CalculateUpdate => SimulationInvCalculateUpdate
     procedure, public :: CheckBeta => SimulationInvCheckBeta
+    procedure, public :: SetIterationNum => SimulationInvSetIterationNum
     procedure, public :: CheckConvergence => SimulationInvCheckConvergence
     procedure, public :: WriteIterationInfo => SimulationInvWriteIterationInfo
     procedure, public :: ExecuteRun => SimulationInverseExecuteRun
@@ -207,7 +208,7 @@ subroutine SimulationInverseExecuteRun(this)
 
   PetscInt :: iteration
 
-  iteration = 0
+  iteration = this%SetIterationNum()
   do
     if (this%inversion%converg_flag) exit
     option => OptionCreate()
@@ -299,6 +300,21 @@ subroutine SimulationInvCheckBeta(this)
   call this%inversion%CheckBeta()
 
 end subroutine SimulationInvCheckBeta
+
+! ************************************************************************** !
+
+PetscInt function SimulationInvSetIterationNum(this)
+  !
+  ! Sets starting iteration number
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/09/21
+
+  class(simulation_inverse_type) :: this
+
+  SimulationInvSetIterationNum = this%inversion%SetIterationNum()
+
+end function SimulationInvSetIterationNum
 
 ! ************************************************************************** !
 
