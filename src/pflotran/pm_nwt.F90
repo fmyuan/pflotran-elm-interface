@@ -1468,10 +1468,13 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     endif
 
     do idof = 1, option%ntrandof
-      if (idof_cnvgd_due_to_rel_update(idof) .or. &
-          idof_cnvgd_due_to_abs_update(idof)) then
+      if (idof_cnvgd_due_to_rel_update(idof)) then
         idof_cnvgd_due_to_update(idof) = PETSC_TRUE
       endif
+      !if (idof_cnvgd_due_to_rel_update(idof) .or. &
+      !    idof_cnvgd_due_to_abs_update(idof)) then
+      !  idof_cnvgd_due_to_update(idof) = PETSC_TRUE
+      !endif
       if (idof_cnvgd_due_to_scaled_res(idof) .or. &
           idof_cnvgd_due_to_abs_res(idof)) then
         idof_cnvgd_due_to_residual(idof) = PETSC_TRUE
@@ -1494,9 +1497,9 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   !WRITE(*,*) '              maxloc = ', maxloc4
   !WRITE(*,*) ' max_absolute_update = ', max_absolute_change
   !WRITE(*,*) '              maxloc = ', maxloc3
-  WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  ' idof_cnvgd_due_to_rel_update = ', idof_cnvgd_due_to_rel_update
-  WRITE(*,*)  ' idof_cnvgd_due_to_abs_update = ', idof_cnvgd_due_to_abs_update
+  !WRITE(*,*)  ' --------------------------------------------------------------'
+  !WRITE(*,*)  ' idof_cnvgd_due_to_rel_update = ', idof_cnvgd_due_to_rel_update
+  !WRITE(*,*)  ' idof_cnvgd_due_to_abs_update = ', idof_cnvgd_due_to_abs_update
   WRITE(*,*)  ' --------------------------------------------------------------'
   WRITE(*,*)  ' idof_cnvgd_due_to_scaled_res = ', idof_cnvgd_due_to_scaled_res
   WRITE(*,*)  ' idof_cnvgd_due_to_abs_res = ', idof_cnvgd_due_to_abs_res
