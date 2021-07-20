@@ -3581,6 +3581,9 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
 
   PetscInt, parameter :: iphase = 1
 
+  solve_error = 0
+  ierror = 0
+
   ncomp = reaction%ncomp
   naqcomp = reaction%naqcomp
   nimmobile = reaction%immobile%nimmobile
@@ -4339,6 +4342,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option,ierror
   PetscInt,intent(out),optional :: ierror
   
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
+  if(present(ierror)) ierror = 0
   if (reaction%neqsorb > 0) then
     if(present(ierror)) then
       call RTotalSorb(rt_auxvar,global_auxvar,material_auxvar, &
@@ -4509,6 +4513,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option,ie
                               reaction,option)
   endif
   
+  if(present(ierror)) ierror = 0
   if (reaction%neqionxrxn > 0) then
     if(present(ierror)) then
       call RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option,ierror)
