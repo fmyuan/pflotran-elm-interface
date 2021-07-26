@@ -4,9 +4,10 @@ module Inversion_ERT_class
   use petscvec
 
   use PFLOTRAN_Constants_module
+  use Dataset_Base_class
   use Inversion_Base_class
   use Realization_Subsurface_class
-    
+
   implicit none
 
   private
@@ -15,6 +16,8 @@ module Inversion_ERT_class
     class(realization_subsurface_type), pointer :: realization
     Vec :: quantity_of_interest
     PetscInt :: iqoi
+    Vec :: ref_quantity_of_interest
+    class(dataset_base_type), pointer :: ref_qoi_dataset
 
     PetscInt :: iteration                ! iteration number
     PetscInt :: start_iteration          ! Starting iteration number
@@ -146,6 +149,8 @@ subroutine InversionERTInit(this,driver)
 
   this%quantity_of_interest = PETSC_NULL_VEC
   this%iqoi = ELECTRICAL_CONDUCTIVITY
+  this%ref_quantity_of_interest = PETSC_NULL_VEC
+  nullify(this%ref_qoi_dataset)
 
   ! Default inversion parameters
   this%miniter = 10
@@ -277,7 +282,7 @@ subroutine InversionERTAllocateWorkArrays(this)
   use Survey_module
 
   implicit none
-      
+
   class(inversion_ert_type) :: this
 
   type(survey_type), pointer :: survey
@@ -496,6 +501,12 @@ subroutine InversionERTReadBlock(this,input,option)
             call InputKeywordUnrecognized(input,word,trim(error_string)// &
                                         & ',QUANTITY_OF_INTEREST',option)
         end select
+      case('REFERENCE_QUANTITY_OF_INTEREST')
+        this%ref_qoi_dataset => DatasetBaseCreate()
+        call InputReadNChars(input,option,this%ref_qoi_dataset%name, &
+                             MAXWORDLENGTH,PETSC_TRUE)
+        call InputErrorMsg(input,option,'DATASET NAME', &
+                           keyword)
       case('MIN_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option,this%mincond)
         call InputErrorMsg(input,option,'MIN_ELECTRICAL_CONDUCTIVITY', &
@@ -707,6 +718,7 @@ subroutine InversionERTInitialize(this)
   ! Date: 06/14/21
   !
   use Discretization_module
+  use Init_Subsurface_module
   use Material_module
   use Option_module
   use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
@@ -757,6 +769,15 @@ subroutine InversionERTInitialize(this)
   endif
 
   call InversionERTConstrainedArraysFromList(this)
+
+  if (associated(this%ref_qoi_dataset)) then
+    call VecDuplicate(this%quantity_of_interest, &
+                      this%ref_quantity_of_interest,ierr);CHKERRQ(ierr)
+    call SubsurfReadDatasetToVecWithMask(this%realization, &
+                                         this%ref_qoi_dataset, &
+                                         ZERO_INTEGER,PETSC_TRUE, &
+                                         this%ref_quantity_of_interest)
+  endif
 
 end subroutine InversionERTInitialize
 
@@ -1901,6 +1922,8 @@ subroutine InversionERTStrip(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 06/14/21
   !
+  use Dataset_module
+
   class(inversion_ert_type) :: this
 
   PetscErrorCode :: ierr
@@ -1911,6 +1934,10 @@ subroutine InversionERTStrip(this)
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
     call VecDestroy(this%quantity_of_interest,ierr);CHKERRQ(ierr)
   endif
+  if (this%ref_quantity_of_interest /= PETSC_NULL_VEC) then
+    call VecDestroy(this%ref_quantity_of_interest,ierr);CHKERRQ(ierr)
+  endif
+  call DatasetDestroy(this%ref_qoi_dataset)
 
 end subroutine InversionERTStrip
 
