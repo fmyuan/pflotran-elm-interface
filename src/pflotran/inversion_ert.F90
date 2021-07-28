@@ -636,6 +636,7 @@ subroutine ConstrainedBlockParRead(constrained_block,input,option)
   type(option_type) :: option  
 
   PetscInt :: i,num_block_link
+  PetscReal :: norm_factor
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: error_string
 
@@ -682,6 +683,10 @@ subroutine ConstrainedBlockParRead(constrained_block,input,option)
         call InputReadDouble(input,option,constrained_block%aniso_weight(i))
         call InputErrorMsg(input,option,'ANISOTROPY_WEIGHTS',error_string)
       enddo
+      norm_factor = sqrt(sum(constrained_block%aniso_weight* &
+                             constrained_block%aniso_weight))
+      if (norm_factor > 0.) constrained_block%aniso_weight = &
+                              constrained_block%aniso_weight / norm_factor
     case('RELATIVE_WEIGHT')
       call InputReadDouble(input,option,constrained_block%relative_weight)
       call InputErrorMsg(input,option,'RELATIVE_WEIGHT',error_string)
