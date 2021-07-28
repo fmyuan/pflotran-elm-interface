@@ -120,7 +120,7 @@ plt.subplot(1,2,1)
 plt.title('Concentration Breakthrough')
 
 files = []
-files.append('reaction_sandbox_simple-obs-0.tec')
+files.append('reaction_sandbox_simple-obs-0.pft')
 filenames = pft.get_full_paths(path,files)
 
 plt.xlabel('Time [y]')
