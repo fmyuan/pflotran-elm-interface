@@ -1107,6 +1107,8 @@ subroutine InversionERTCGLSSolve(this)
 
   use Option_module
   use Survey_module
+  use Timer_class
+  use String_module
 
   implicit none
 
@@ -1114,6 +1116,7 @@ subroutine InversionERTCGLSSolve(this)
 
   type(option_type), pointer :: option
   type(survey_type), pointer :: survey
+  class(timer_type), pointer ::timer
 
   PetscInt :: i,nm,ncons
   PetscReal :: alpha,gbeta,gamma,gamma1,delta1,delta2,delta
@@ -1129,6 +1132,9 @@ subroutine InversionERTCGLSSolve(this)
   survey => this%realization%survey
 
   this%del_cond = 0.0d0
+
+  timer => TimerCreate()
+  call timer%Start()
 
   if (OptionPrintToScreen(option)) then
     write(*,'(" --> Solving normal equation using CGLS solver:")') 
@@ -1204,6 +1210,14 @@ subroutine InversionERTCGLSSolve(this)
     if( abs((resNE_old - resNe) /resNE_old) < delta_initer .and. &
         i > this%miniter) exit_info = PETSC_TRUE
   enddo
+
+  call timer%Stop()
+  option%io_buffer = '    ' // &
+    trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) &
+    // ' seconds and ' // trim(StringWrite(i)) // &
+    ' iterations to solve normal equation.'
+  call PrintMsg(option)
+  call TimerDestroy(timer)
 
 end subroutine InversionERTCGLSSolve
 
