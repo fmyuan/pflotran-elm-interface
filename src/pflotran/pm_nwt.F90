@@ -22,6 +22,9 @@ module PM_NWT_class
     PetscReal, pointer :: itol_rel_update(:)
     PetscReal, pointer :: itol_scaled_res(:)
     PetscReal, pointer :: itol_abs_res(:)
+    character(len=MAXWORDLENGTH), pointer :: names_itol_rel_update(:)
+    character(len=MAXWORDLENGTH), pointer :: names_itol_scaled_res(:)
+    character(len=MAXWORDLENGTH), pointer :: names_itol_abs_res(:)
     PetscReal :: max_dlnC
     PetscReal :: dt_cut
     PetscBool :: check_post_converged
@@ -136,6 +139,9 @@ function PMNWTCreate()
   nullify(nwt_pm%controls%itol_rel_update)
   nullify(nwt_pm%controls%itol_scaled_res)
   nullify(nwt_pm%controls%itol_abs_res)
+  nullify(nwt_pm%controls%names_itol_rel_update)
+  nullify(nwt_pm%controls%names_itol_scaled_res)
+  nullify(nwt_pm%controls%names_itol_abs_res)
   nwt_pm%controls%dt_cut = 0.5d0
   nwt_pm%controls%max_dlnC = 5.0d0
   nwt_pm%controls%check_post_converged = PETSC_FALSE
@@ -346,6 +352,8 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
       enddo
       allocate(this%controls%itol_rel_update(k-1))
       this%controls%itol_rel_update(:) = temp_itol_rel_update(1:k-1)
+      allocate(this%controls%names_itol_rel_update(k-1))
+      this%controls%names_itol_rel_update(:) = temp_species_names(1:k-1)
       deallocate(temp_itol_rel_update)
     !------------------------------------------------------------------------
     case('NWT_ITOL_SCALED_RESIDUAL')
@@ -369,6 +377,8 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
       enddo
       allocate(this%controls%itol_scaled_res(k-1))
       this%controls%itol_scaled_res(:) = temp_itol_scaled_res(1:k-1)
+      allocate(this%controls%names_itol_scaled_res(k-1))
+      this%controls%names_itol_scaled_res(:) = temp_species_names(1:k-1)
       deallocate(temp_itol_scaled_res)
     !------------------------------------------------------------------------
     case('NWT_ITOL_ABSOLUTE_RESIDUAL')
@@ -392,6 +402,8 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
       enddo
       allocate(this%controls%itol_abs_res(k-1))
       this%controls%itol_abs_res(:) = temp_itol_abs_res(1:k-1)
+      allocate(this%controls%names_itol_abs_res(k-1))
+      this%controls%names_itol_abs_res(:) = temp_species_names(1:k-1)
       deallocate(temp_itol_abs_res)
     !------------------------------------------------------------------------
   case default
@@ -412,11 +424,18 @@ subroutine PMNWTSetup(this)
   ! Date: 03/08/2019
   ! 
 
+  use String_module
+
   implicit none
   
   class(pm_nwt_type) :: this
     
   class(reaction_nw_type), pointer :: reaction_nw
+  PetscReal :: temp_cnvg_crit_value(this%params%nspecies)
+  PetscInt :: i_index(this%params%nspecies)
+  PetscInt :: k, j 
+  character(len=MAXWORDLENGTH) :: name_species
+  character(len=MAXWORDLENGTH) :: name_cnvgcrit
   
   reaction_nw => this%realization%reaction_nw
   
@@ -503,6 +522,77 @@ subroutine PMNWTSetup(this)
       call PrintErrMsg(this%option)
     endif
   endif
+
+  ! reorder the convergence based on the reaction_nw%species_names(:) order 
+  !---------------------------------------------------------------------------
+  do k = 1,this%params%nspecies
+    i_index(k) = 0
+    name_species = trim(reaction_nw%species_names(k))
+    call StringToUpper(name_species)
+    do j = 1,this%params%nspecies
+      name_cnvgcrit = trim(this%controls%names_itol_abs_res(j))
+      call StringToUpper(name_cnvgcrit)
+      if (name_cnvgcrit == name_species) then
+        i_index(k) = j ! i_index gives the index in controls order
+      endif
+    enddo
+    if (i_index(k) == 0) then
+      this%option%io_buffer = 'Species ' // trim(name_species) // ' not &
+        &found among species included in the NUMERICAL_METHODS,NEWTON_SOLVER,&
+        &NWT_ITOL_ABSOLUTE_RESIDUAL block.'
+      call PrintErrMsg(this%option)
+    endif
+    temp_cnvg_crit_value(k) = this%controls%itol_abs_res(i_index(k))
+  enddo
+  do k = 1,this%params%nspecies
+    this%controls%itol_abs_res(k) = temp_cnvg_crit_value(k)
+  enddo
+  !---------------------------------------------------------------------------
+  do k = 1,this%params%nspecies
+    i_index(k) = 0
+    name_species = trim(reaction_nw%species_names(k))
+    call StringToUpper(name_species)
+    do j = 1,this%params%nspecies
+      name_cnvgcrit = trim(this%controls%names_itol_scaled_res(j))
+      call StringToUpper(name_cnvgcrit)
+      if (name_cnvgcrit == name_species) then
+        i_index(k) = j ! i_index gives the index in controls order
+      endif
+    enddo
+    if (i_index(k) == 0) then
+      this%option%io_buffer = 'Species ' // trim(name_species) // ' not &
+        &found among species included in the NUMERICAL_METHODS,NEWTON_SOLVER,&
+        &NWT_ITOL_SCALED_RESIDUAL block.'
+      call PrintErrMsg(this%option)
+    endif
+    temp_cnvg_crit_value(k) = this%controls%itol_scaled_res(i_index(k))
+  enddo
+  do k = 1,this%params%nspecies
+    this%controls%itol_scaled_res(k) = temp_cnvg_crit_value(k)
+  enddo
+  !---------------------------------------------------------------------------
+  do k = 1,this%params%nspecies
+    i_index(k) = 0
+    name_species = trim(reaction_nw%species_names(k))
+    call StringToUpper(name_species)
+    do j = 1,this%params%nspecies
+      name_cnvgcrit = trim(this%controls%names_itol_rel_update(j))
+      call StringToUpper(name_cnvgcrit)
+      if (name_cnvgcrit == name_species) then
+        i_index(k) = j ! i_index gives the index in controls order
+      endif
+    enddo
+    if (i_index(k) == 0) then
+      this%option%io_buffer = 'Species ' // trim(name_species) // ' not &
+        &found among species included in the NUMERICAL_METHODS,NEWTON_SOLVER,&
+        &NWT_ITOL_RELATIVE_UPDATE block.'
+      call PrintErrMsg(this%option)
+    endif
+    temp_cnvg_crit_value(k) = this%controls%itol_rel_update(i_index(k))
+  enddo
+  do k = 1,this%params%nspecies
+    this%controls%itol_rel_update(k) = temp_cnvg_crit_value(k)
+  enddo
 
 end subroutine PMNWTSetup
 
