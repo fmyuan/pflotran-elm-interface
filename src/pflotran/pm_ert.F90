@@ -847,6 +847,8 @@ subroutine PMERTBuildJacobian(this)
   use Patch_module
   use Grid_module
   use Material_Aux_class
+  use Timer_class
+  use String_module
 
   implicit none 
 
@@ -858,6 +860,7 @@ subroutine PMERTBuildJacobian(this)
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  class(timer_type), pointer ::timer
 
   PetscInt, pointer :: cell_neighbors(:,:)
   PetscReal, allocatable :: phi_sor(:), phi_rec(:)
@@ -882,6 +885,10 @@ subroutine PMERTBuildJacobian(this)
   ert_auxvars => patch%aux%ERT%auxvars
   material_auxvars => patch%aux%Material%auxvars
   cell_neighbors => grid%cell_neighbors_local_ghosted
+
+  call MPI_Barrier(option%mycomm,ierr)
+  timer => TimerCreate()
+  call timer%Start()
 
   if (OptionPrintToScreen(this%option)) then
     write(*,'(/," --> Building ERT Jacobian matrix:")')
@@ -965,6 +972,14 @@ subroutine PMERTBuildJacobian(this)
 
   ! I can now deallocate potential and delM (and M just after solving)
   ! But what about potential field output?
+
+  call MPI_Barrier(option%mycomm,ierr)
+  call timer%Stop()
+  option%io_buffer = '    ' // &
+    trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) &
+    // ' seconds to build Jacobian.'
+  call PrintMsg(option)
+  call TimerDestroy(timer)
 
 end subroutine PMERTBuildJacobian
 

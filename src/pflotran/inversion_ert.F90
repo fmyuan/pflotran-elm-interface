@@ -6,7 +6,7 @@ module Inversion_ERT_class
   use PFLOTRAN_Constants_module
   use Inversion_Base_class
   use Realization_Subsurface_class
-    
+
   implicit none
 
   private
@@ -15,6 +15,8 @@ module Inversion_ERT_class
     class(realization_subsurface_type), pointer :: realization
     Vec :: quantity_of_interest
     PetscInt :: iqoi
+    Vec :: ref_quantity_of_interest
+    character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
 
     PetscInt :: iteration                ! iteration number
     PetscInt :: start_iteration          ! Starting iteration number
@@ -146,6 +148,8 @@ subroutine InversionERTInit(this,driver)
 
   this%quantity_of_interest = PETSC_NULL_VEC
   this%iqoi = ELECTRICAL_CONDUCTIVITY
+  this%ref_quantity_of_interest = PETSC_NULL_VEC
+  this%ref_qoi_dataset_name = ''
 
   ! Default inversion parameters
   this%miniter = 10
@@ -277,7 +281,7 @@ subroutine InversionERTAllocateWorkArrays(this)
   use Survey_module
 
   implicit none
-      
+
   class(inversion_ert_type) :: this
 
   type(survey_type), pointer :: survey
@@ -496,6 +500,11 @@ subroutine InversionERTReadBlock(this,input,option)
             call InputKeywordUnrecognized(input,word,trim(error_string)// &
                                         & ',QUANTITY_OF_INTEREST',option)
         end select
+      case('REFERENCE_QUANTITY_OF_INTEREST')
+        call InputReadNChars(input,option,this%ref_qoi_dataset_name, &
+                             MAXWORDLENGTH,PETSC_TRUE)
+        call InputErrorMsg(input,option,'DATASET NAME', &
+                           keyword)
       case('MIN_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option,this%mincond)
         call InputErrorMsg(input,option,'MIN_ELECTRICAL_CONDUCTIVITY', &
@@ -710,7 +719,10 @@ subroutine InversionERTInitialize(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 06/14/21
   !
+  use Dataset_Base_class
+  use Dataset_module
   use Discretization_module
+  use Init_Subsurface_module
   use Material_module
   use Option_module
   use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
@@ -719,6 +731,8 @@ subroutine InversionERTInitialize(this)
 
   PetscBool :: exists
   character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
+  class(dataset_base_type), pointer :: dataset
   PetscErrorCode :: ierr
 
   ! theck to ensure that quantity of interest exists
@@ -761,6 +775,21 @@ subroutine InversionERTInitialize(this)
   endif
 
   call InversionERTConstrainedArraysFromList(this)
+
+  if (len_trim(this%ref_qoi_dataset_name) > 0) then
+    call VecDuplicate(this%quantity_of_interest, &
+                      this%ref_quantity_of_interest,ierr);CHKERRQ(ierr)
+    string = 'Reference QOI dataset'
+    dataset => DatasetBaseGetPointer(this%realization%datasets, &
+                                     this%ref_qoi_dataset_name, &
+                                     string,this%realization%option)
+    call SubsurfReadDatasetToVecWithMask(this%realization,dataset, &
+                                         ZERO_INTEGER,PETSC_TRUE, &
+                                         this%ref_quantity_of_interest)
+    ! do not destroy the dataset as the pointer is owned by the list; just
+    ! strip to free up memory
+    call DatasetStrip(dataset)
+  endif
 
 end subroutine InversionERTInitialize
 
@@ -1082,6 +1111,8 @@ subroutine InversionERTCGLSSolve(this)
 
   use Option_module
   use Survey_module
+  use Timer_class
+  use String_module
 
   implicit none
 
@@ -1089,6 +1120,7 @@ subroutine InversionERTCGLSSolve(this)
 
   type(option_type), pointer :: option
   type(survey_type), pointer :: survey
+  class(timer_type), pointer ::timer
 
   PetscInt :: i,nm,ncons
   PetscReal :: alpha,gbeta,gamma,gamma1,delta1,delta2,delta
@@ -1104,6 +1136,9 @@ subroutine InversionERTCGLSSolve(this)
   survey => this%realization%survey
 
   this%del_cond = 0.0d0
+
+  timer => TimerCreate()
+  call timer%Start()
 
   if (OptionPrintToScreen(option)) then
     write(*,'(" --> Solving normal equation using CGLS solver:")') 
@@ -1179,6 +1214,14 @@ subroutine InversionERTCGLSSolve(this)
     if( abs((resNE_old - resNe) /resNE_old) < delta_initer .and. &
         i > this%miniter) exit_info = PETSC_TRUE
   enddo
+
+  call timer%Stop()
+  option%io_buffer = '    ' // &
+    trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) &
+    // ' seconds and ' // trim(StringWrite(i)) // &
+    ' iterations to solve normal equation.'
+  call PrintMsg(option)
+  call TimerDestroy(timer)
 
 end subroutine InversionERTCGLSSolve
 
@@ -1914,6 +1957,9 @@ subroutine InversionERTStrip(this)
   nullify(this%realization)
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
     call VecDestroy(this%quantity_of_interest,ierr);CHKERRQ(ierr)
+  endif
+  if (this%ref_quantity_of_interest /= PETSC_NULL_VEC) then
+    call VecDestroy(this%ref_quantity_of_interest,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine InversionERTStrip

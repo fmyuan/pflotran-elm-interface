@@ -335,11 +335,11 @@ integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
                   string.o utility.o
 inversion_base.o : driver.o input_aux.o option.o pflotran_constants.o string.o \
                    timer.o
-inversion_ert.o : discretization.o driver.o ert_aux.o field.o grid.o \
-                  input_aux.o inversion_base.o material.o material_aux.o \
-                  option.o patch.o pflotran_constants.o \
-                  realization_subsurface.o string.o survey.o utility.o \
-                  variables.o
+inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
+                  field.o grid.o init_subsurface.o input_aux.o \
+                  inversion_base.o material.o material_aux.o option.o patch.o \
+                  pflotran_constants.o realization_subsurface.o string.o \
+                  survey.o utility.o variables.o
 inversion_insite.o : discretization.o driver.o input_aux.o inversion_base.o \
                      material.o option.o pflotran_constants.o \
                      realization_subsurface.o string.o variables.o

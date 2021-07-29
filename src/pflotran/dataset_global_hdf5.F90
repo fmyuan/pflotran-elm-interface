@@ -25,6 +25,7 @@ module Dataset_Global_HDF5_class
             DatasetGlobalHDF5Cast, &
             DatasetGlobalHDF5Load, &
             DatasetGlobalHDF5Print, &
+            DatasetGlobalHDF5Strip, &
             DatasetGlobalHDF5Destroy
   
 contains
