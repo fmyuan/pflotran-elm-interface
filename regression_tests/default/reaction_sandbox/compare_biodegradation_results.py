@@ -36,7 +36,7 @@ def plot_aqueous(plt,filename,scale_string):
     plt.plot(data.get_array('x'),data.get_array('y'),
              label=aq_labels[icol],c=aq_colors[icol])
   if scale_string == 'linear':
-    plt.ylim(-.05*maxval,1.05*maxval)
+    plt.ylim(-.02*maxval,1.05*maxval)
   else:
     plt.ylim(0.5*minval,2.*maxval)
 
@@ -71,7 +71,7 @@ def plot_immobile(plt,filename,scale_string):
     plt.plot(data.get_array('x'),data.get_array('y'),
              label=im_labels[icol],ls='--',c=im_colors[icol])
   if scale_string == 'linear':
-    plt.ylim(-0.05*maxval,1.05*maxval)
+    plt.ylim(-0.02*maxval,1.05*maxval)
   else:
     plt.ylim(0.5*minval,2.*maxval)
 
