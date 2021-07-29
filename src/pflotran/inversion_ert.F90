@@ -782,7 +782,9 @@ subroutine InversionERTInitialize(this)
     call SubsurfReadDatasetToVecWithMask(this%realization,dataset, &
                                          ZERO_INTEGER,PETSC_TRUE, &
                                          this%ref_quantity_of_interest)
-    call DatasetDestroy(dataset)
+    ! do not destroy the dataset as the pointer is owned by the list; just
+    ! strip to free up memory
+    call DatasetStrip(dataset)
   endif
 
 end subroutine InversionERTInitialize
