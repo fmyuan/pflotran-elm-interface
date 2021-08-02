@@ -22,6 +22,8 @@ module PM_NWT_class
     PetscReal, pointer :: itol_rel_update(:)
     PetscReal, pointer :: itol_scaled_res(:)
     PetscReal, pointer :: itol_abs_res(:)
+    PetscReal, pointer :: cnvg_criteria_value(:) 
+    PetscInt, pointer :: i_mapping(:) 
     character(len=MAXWORDLENGTH), pointer :: names_itol_rel_update(:)
     character(len=MAXWORDLENGTH), pointer :: names_itol_scaled_res(:)
     character(len=MAXWORDLENGTH), pointer :: names_itol_abs_res(:)
@@ -139,6 +141,8 @@ function PMNWTCreate()
   nullify(nwt_pm%controls%itol_rel_update)
   nullify(nwt_pm%controls%itol_scaled_res)
   nullify(nwt_pm%controls%itol_abs_res)
+  nullify(nwt_pm%controls%cnvg_criteria_value)
+  nullify(nwt_pm%controls%i_mapping)
   nullify(nwt_pm%controls%names_itol_rel_update)
   nullify(nwt_pm%controls%names_itol_scaled_res)
   nullify(nwt_pm%controls%names_itol_abs_res)
@@ -431,8 +435,6 @@ subroutine PMNWTSetup(this)
   class(pm_nwt_type) :: this
     
   class(reaction_nw_type), pointer :: reaction_nw
-  PetscReal :: temp_cnvg_crit_value(this%params%nspecies)
-  PetscInt :: i_index(this%params%nspecies)
   PetscInt :: k, j 
   character(len=MAXWORDLENGTH) :: name_species
   character(len=MAXWORDLENGTH) :: name_cnvgcrit
@@ -475,6 +477,8 @@ subroutine PMNWTSetup(this)
   
   allocate(this%controls%max_concentration_change(this%params%nspecies))
   allocate(this%controls%max_volfrac_change(this%params%nspecies))
+  allocate(this%controls%cnvg_criteria_value(this%params%nspecies))
+  allocate(this%controls%i_mapping(this%params%nspecies))
 
   if (.not.associated(this%controls%itol_abs_res)) then
     this%option%io_buffer = 'A NWT_ITOL_ABSOLUTE_RESIDUAL block is required &
@@ -526,73 +530,70 @@ subroutine PMNWTSetup(this)
   ! reorder the convergence based on the reaction_nw%species_names(:) order 
   !---------------------------------------------------------------------------
   do k = 1,this%params%nspecies
-    i_index(k) = 0
+    this%controls%i_mapping(k) = 0
     name_species = trim(reaction_nw%species_names(k))
     call StringToUpper(name_species)
     do j = 1,this%params%nspecies
       name_cnvgcrit = trim(this%controls%names_itol_abs_res(j))
       call StringToUpper(name_cnvgcrit)
       if (name_cnvgcrit == name_species) then
-        i_index(k) = j ! i_index gives the index in controls order
+        this%controls%i_mapping(k) = j ! gives the index in controls order
       endif
     enddo
-    if (i_index(k) == 0) then
+    if (this%controls%i_mapping(k) == 0) then
       this%option%io_buffer = 'Species ' // trim(name_species) // ' not &
         &found among species included in the NUMERICAL_METHODS,NEWTON_SOLVER,&
         &NWT_ITOL_ABSOLUTE_RESIDUAL block.'
       call PrintErrMsg(this%option)
     endif
-    temp_cnvg_crit_value(k) = this%controls%itol_abs_res(i_index(k))
+    this%controls%cnvg_criteria_value(k) = &
+                    this%controls%itol_abs_res(this%controls%i_mapping(k))
   enddo
-  do k = 1,this%params%nspecies
-    this%controls%itol_abs_res(k) = temp_cnvg_crit_value(k)
-  enddo
+  this%controls%itol_abs_res = this%controls%cnvg_criteria_value
   !---------------------------------------------------------------------------
   do k = 1,this%params%nspecies
-    i_index(k) = 0
+    this%controls%i_mapping(k) = 0
     name_species = trim(reaction_nw%species_names(k))
     call StringToUpper(name_species)
     do j = 1,this%params%nspecies
       name_cnvgcrit = trim(this%controls%names_itol_scaled_res(j))
       call StringToUpper(name_cnvgcrit)
       if (name_cnvgcrit == name_species) then
-        i_index(k) = j ! i_index gives the index in controls order
+        this%controls%i_mapping(k) = j ! gives the index in controls order
       endif
     enddo
-    if (i_index(k) == 0) then
+    if (this%controls%i_mapping(k) == 0) then
       this%option%io_buffer = 'Species ' // trim(name_species) // ' not &
         &found among species included in the NUMERICAL_METHODS,NEWTON_SOLVER,&
         &NWT_ITOL_SCALED_RESIDUAL block.'
       call PrintErrMsg(this%option)
     endif
-    temp_cnvg_crit_value(k) = this%controls%itol_scaled_res(i_index(k))
+    this%controls%cnvg_criteria_value(k) = &
+                    this%controls%itol_scaled_res(this%controls%i_mapping(k))
   enddo
-  do k = 1,this%params%nspecies
-    this%controls%itol_scaled_res(k) = temp_cnvg_crit_value(k)
-  enddo
+  this%controls%itol_scaled_res = this%controls%cnvg_criteria_value
   !---------------------------------------------------------------------------
   do k = 1,this%params%nspecies
-    i_index(k) = 0
+    this%controls%i_mapping(k) = 0
     name_species = trim(reaction_nw%species_names(k))
     call StringToUpper(name_species)
     do j = 1,this%params%nspecies
       name_cnvgcrit = trim(this%controls%names_itol_rel_update(j))
       call StringToUpper(name_cnvgcrit)
       if (name_cnvgcrit == name_species) then
-        i_index(k) = j ! i_index gives the index in controls order
+        this%controls%i_mapping(k) = j ! gives the index in controls order
       endif
     enddo
-    if (i_index(k) == 0) then
+    if (this%controls%i_mapping(k) == 0) then
       this%option%io_buffer = 'Species ' // trim(name_species) // ' not &
         &found among species included in the NUMERICAL_METHODS,NEWTON_SOLVER,&
         &NWT_ITOL_RELATIVE_UPDATE block.'
       call PrintErrMsg(this%option)
     endif
-    temp_cnvg_crit_value(k) = this%controls%itol_rel_update(i_index(k))
+    this%controls%cnvg_criteria_value(k) = &
+                    this%controls%itol_rel_update(this%controls%i_mapping(k))
   enddo
-  do k = 1,this%params%nspecies
-    this%controls%itol_rel_update(k) = temp_cnvg_crit_value(k)
-  enddo
+  this%controls%itol_rel_update = this%controls%cnvg_criteria_value
 
 end subroutine PMNWTSetup
 
@@ -1776,7 +1777,24 @@ subroutine PMNWTDestroy(this)
 
   call DeallocateArray(this%controls%max_concentration_change)
   call DeallocateArray(this%controls%max_volfrac_change)
+  call DeallocateArray(this%controls%itol_rel_update)
+  call DeallocateArray(this%controls%itol_scaled_res)
+  call DeallocateArray(this%controls%itol_abs_res)
+  call DeallocateArray(this%controls%cnvg_criteria_value)
+  call DeallocateArray(this%controls%i_mapping)
+  call DeallocateArray(this%controls%names_itol_rel_update)
+  call DeallocateArray(this%controls%names_itol_scaled_res)
+  call DeallocateArray(this%controls%names_itol_abs_res)
 
+  if (associated(this%params%bh_material_ids)) then
+    call DeallocateArray(this%params%bh_material_ids)
+    call DeallocateArray(this%params%bh_material_names)
+  endif
+  if (associated(this%params%dirichlet_material_ids)) then
+    call DeallocateArray(this%params%dirichlet_material_ids)
+    call DeallocateArray(this%params%dirichlet_material_names)
+  endif
+  
   call PMBaseDestroy(this)
   call NWTDestroy(this%realization)
  
