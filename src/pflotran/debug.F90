@@ -5,9 +5,9 @@ module Debug_module
   use PFLOTRAN_Constants_module
 
   implicit none
-  
+
   private
-  
+
   PetscInt, parameter, public :: DEBUG_ASCII_FORMAT = 1
   PetscInt, parameter, public :: DEBUG_BINARY_FORMAT = 2
   PetscInt, parameter, public :: DEBUG_MATLAB_FORMAT = 3
@@ -19,6 +19,7 @@ module Debug_module
     PetscBool :: matview_Jacobian
     PetscBool :: matview_Jacobian_detailed
     PetscBool :: norm_Jacobian
+    PetscBool :: matview_Matrix
 
     PetscInt  :: output_format
     PetscBool :: verbose_filename
@@ -35,36 +36,37 @@ module Debug_module
             DebugWriteFilename, &
             DebugViewerDestroy, &
             DebugDestroy
-  
+
 contains
 
 ! ************************************************************************** !
 
 function DebugCreate()
-  ! 
+  !
   ! Create object that stores debugging options for PFLOW
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/21/07
-  ! 
+  !
 
   implicit none
-  
+
   type(debug_type), pointer :: DebugCreate
-  
+
   type(debug_type), pointer :: debug
-  
+
   allocate(debug)
-  
+
   debug%vecview_residual = PETSC_FALSE
   debug%vecview_solution = PETSC_FALSE
   debug%matview_Jacobian = PETSC_FALSE
   debug%matview_Jacobian_detailed = PETSC_FALSE
   debug%norm_Jacobian = PETSC_FALSE
+  debug%matview_Matrix = PETSC_FALSE
 
   debug%output_format = DEBUG_ASCII_FORMAT
   debug%verbose_filename = PETSC_FALSE
-  
+
   debug%print_couplers = PETSC_FALSE
   debug%print_regions = PETSC_FALSE
   debug%coupler_string = ''
@@ -77,39 +79,39 @@ end function DebugCreate
 ! ************************************************************************** !
 
 subroutine DebugRead(debug,input,option)
-  ! 
+  !
   ! Reads debugging data from the input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/21/07
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
   use String_module
-  
+
   implicit none
-    
+
   type(debug_type) :: debug
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
 
-    if (InputCheckExit(input,option)) exit  
+    if (InputCheckExit(input,option)) exit
 
     call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword','DEBUG')   
+    call InputErrorMsg(input,option,'keyword','DEBUG')
     call StringToUpper(keyword)
-      
+
     select case(trim(keyword))
-    
+
       case('PRINT_SOLUTION','VECVIEW_SOLUTION','VIEW_SOLUTION')
         debug%vecview_solution = PETSC_TRUE
       case('PRINT_RESIDUAL','VECVIEW_RESIDUAL','VIEW_RESIDUAL')
@@ -118,6 +120,8 @@ subroutine DebugRead(debug,input,option)
         debug%matview_Jacobian = PETSC_TRUE
       case('PRINT_JACOBIAN_NORM','NORM_JACOBIAN')
         debug%norm_Jacobian = PETSC_TRUE
+      case('PRINT_MATRIX','MATVIEW_MATRIX','VIEW_MATRIX')
+        debug%matview_Matrix = PETSC_TRUE
       case('PRINT_REGIONS')
         debug%print_regions = PETSC_TRUE
       case('PRINT_COUPLERS','PRINT_COUPLER')
@@ -132,7 +136,7 @@ subroutine DebugRead(debug,input,option)
         debug%verbose_filename = PETSC_TRUE
       case('FORMAT')
         call InputReadCard(input,option,keyword)
-        call InputErrorMsg(input,option,'keyword','DEBUG,FORMAT')   
+        call InputErrorMsg(input,option,'keyword','DEBUG,FORMAT')
         call StringToUpper(keyword)
         select case(keyword)
           case('ASCII')
@@ -146,8 +150,8 @@ subroutine DebugRead(debug,input,option)
         end select
       case default
         call InputKeywordUnrecognized(input,keyword,'DEBUG',option)
-    end select 
-  
+    end select
+
   enddo
   call InputPopBlock(input,option)
 
@@ -205,13 +209,13 @@ end subroutine DebugCreateViewer
 ! ************************************************************************** !
 
 subroutine DebugWriteFilename(debug,filename,prefix,suffix,ts,ts_cut,ni)
-  ! 
-  ! Appends timestep, timestep cut, and Newton iteration counts to a 
+  !
+  ! Appends timestep, timestep cut, and Newton iteration counts to a
   ! filename.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/18
-  ! 
+  !
 
   implicit none
 
@@ -224,7 +228,7 @@ subroutine DebugWriteFilename(debug,filename,prefix,suffix,ts,ts_cut,ni)
   PetscInt :: ni
 
   character(len=MAXWORDLENGTH) :: word
- 
+
   filename = adjustl(prefix)
   if (debug%verbose_filename) then
     write(word,*) ts
@@ -237,7 +241,7 @@ subroutine DebugWriteFilename(debug,filename,prefix,suffix,ts,ts_cut,ni)
   if (len_trim(suffix) > 0) then
     filename = trim(filename) // '.' // adjustl(suffix)
   endif
- 
+
 end subroutine DebugWriteFilename
 
 ! ************************************************************************** !
@@ -254,40 +258,40 @@ subroutine DebugViewerDestroy(debug,viewer)
   type(debug_type) :: debug
   PetscViewer :: viewer
   PetscErrorCode :: ierr
-  
+
   !geh: must use an 'or' operation since new formats greater than
   !     DEBUG_NATIVE_FORMAT may not require PopFormat()
   if (debug%output_format == DEBUG_MATLAB_FORMAT .or. &
       debug%output_format == DEBUG_NATIVE_FORMAT) then
   !  DEBUG_ASCII_FORMAT = 1
-  !  DEBUG_BINARY_FORMAT = 2 
+  !  DEBUG_BINARY_FORMAT = 2
   !  DEBUG_MATLAB_FORMAT = 3  popformat required
   !  DEBUG_NATIVE_FORMAT = 4  popformat required
     call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
   endif
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  
+
 
 end subroutine DebugViewerDestroy
 
 ! ************************************************************************** !
 
 subroutine DebugDestroy(debug)
-  ! 
+  !
   ! Deallocates memory associated with debug object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/21/07
-  ! 
+  !
   implicit none
-  
+
   type(debug_type), pointer :: debug
 
   if (.not.associated(debug)) return
-  
+
   deallocate(debug)
   nullify(debug)
-  
+
 end subroutine DebugDestroy
 
 end module Debug_module

@@ -1,4 +1,4 @@
-module Communicator_Base_module
+module Communicator_Base_class
 
 #include "petsc/finclude/petscvec.h"
    use petscvec
@@ -64,56 +64,5 @@ module Communicator_Base_module
     end subroutine BaseDestroy
 
   end interface
-  
-  public :: CommCreateProcessorGroups
-  
-contains
 
-! ************************************************************************** !
-
-subroutine CommCreateProcessorGroups(option,num_groups)
-  ! 
-  ! Splits MPI_COMM_WORLD into N separate
-  ! processor groups
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 08/11/09
-  ! 
-  use Option_module
-  
-  implicit none
-  
-
-  type(option_type) :: option
-  PetscInt :: num_groups
-
-  PetscInt :: local_commsize
-  PetscInt :: offset, delta, remainder
-  PetscInt :: igroup
-  PetscMPIInt :: mycolor_mpi, mykey_mpi
-  PetscErrorCode :: ierr
-
-  local_commsize = option%global_commsize / num_groups
-  remainder = option%global_commsize - num_groups * local_commsize
-  offset = 0
-  do igroup = 1, num_groups
-    delta = local_commsize
-    if (igroup < remainder) delta = delta + 1
-    if (option%global_rank >= offset .and. &
-        option%global_rank < offset + delta) exit
-    offset = offset + delta
-  enddo
-  mycolor_mpi = igroup
-  option%mygroup_id = igroup
-  mykey_mpi = option%global_rank - offset
-  call MPI_Comm_split(MPI_COMM_WORLD,mycolor_mpi,mykey_mpi,option%mycomm,ierr)
-  call MPI_Comm_group(option%mycomm,option%mygroup,ierr)
-
-  PETSC_COMM_WORLD = option%mycomm
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
-  call MPI_Comm_rank(option%mycomm,option%myrank, ierr)
-  call MPI_Comm_size(option%mycomm,option%mycommsize,ierr)
-
-end subroutine CommCreateProcessorGroups
-  
-end module Communicator_Base_module
+end module Communicator_Base_class

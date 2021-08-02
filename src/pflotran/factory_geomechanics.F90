@@ -11,13 +11,13 @@ module Factory_Geomechanics_module
 
   private
 
-  public :: GeomechanicsInitialize
+  public :: FactoryGeomechanicsInitialize
 
 contains
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsInitialize(simulation)
+subroutine FactoryGeomechanicsInitialize(simulation)
   ! 
   ! This routine
   ! 
@@ -32,7 +32,7 @@ subroutine GeomechanicsInitialize(simulation)
   ! NOTE: PETSc must already have been initialized here!
   call GeomechanicsInitializePostPETSc(simulation)
   
-end subroutine GeomechanicsInitialize
+end subroutine FactoryGeomechanicsInitialize
 
 ! ************************************************************************** !
 
@@ -64,6 +64,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   use Input_Aux_module
   use Logging_module
   use Output_Aux_module
+  use Waypoint_module
 
   implicit none
 
@@ -105,7 +106,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     cur_pm => cur_pm%next
   enddo
   
-  call SubsurfaceInitializePostPetsc(simulation)  
+  call FactorySubsurfaceInitPostPetsc(simulation)  
   simulation%process_model_coupler_list%is_master = PETSC_TRUE
     
   if (option%geomech_on) then
@@ -304,13 +305,6 @@ subroutine GeomechanicsJumpStart(simulation)
                            PETSC_NULL_CHARACTER, "-vecload_block_size", &
                            failure, ierr);CHKERRQ(ierr)
                              
-  if (option%steady_state) then
-    option%io_buffer = 'Running in steady-state not yet supported for &
-                       &surface-flow.'
-    call PrintErrMsg(option)
-    return
-  endif
-  
   geomech_timestepper%name = 'GEOMECHANICS'
  
   master_timestepper => geomech_timestepper
@@ -459,8 +453,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
         call InputErrorMsg(input,option,'y-direction','GEOMECH GRAVITY')
         call InputReadDouble(input,option,option%geomech_gravity(Z_DIRECTION))
         call InputErrorMsg(input,option,'z-direction','GEOMECH GRAVITY')
-        if (option%myrank == option%io_rank .and. &
-            option%print_to_screen) &
+        if (OptionIsIORank(option) .and. OptionPrintToScreen(option)) &
             write(option%fid_out,'(/," *GEOMECH_GRAV",/, &
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
             & )') option%geomech_gravity(1:3)

@@ -56,7 +56,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(characteristic_curves_type) :: characteristic_curves
+  class(characteristic_curves_type) :: characteristic_curves
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
   PetscInt :: ispec 
@@ -93,7 +93,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
     ideriv = 1
     pert = max(dabs(x(ideriv)*perturbation_tolerance),0.1d0)
     x_pert = x
-    if (x_pert(ideriv) < option%reference_pressure) pert = -1.d0*pert
+    if (x_pert(ideriv) < option%flow%reference_pressure) pert = -1.d0*pert
     x_pert(ideriv) = x_pert(ideriv) + pert
     
     call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
@@ -178,8 +178,8 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: v_darcy, area, dist(-1:3)
-  type(characteristic_curves_type) :: characteristic_curves_up
-  type(characteristic_curves_type) :: characteristic_curves_dn
+  class(characteristic_curves_type) :: characteristic_curves_up
+  class(characteristic_curves_type) :: characteristic_curves_dn
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
      
@@ -297,10 +297,10 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
     ideriv = 1
 !    pert_up = x_up(ideriv)*perturbation_tolerance
     pert_up = max(dabs(x_up(ideriv)*perturbation_tolerance),0.1d0)
-    if (x_up(ideriv) < option%reference_pressure) pert_up = -1.d0*pert_up
+    if (x_up(ideriv) < option%flow%reference_pressure) pert_up = -1.d0*pert_up
 !    pert_dn = x_dn(ideriv)*perturbation_tolerance
     pert_dn = max(dabs(x_dn(ideriv)*perturbation_tolerance),0.1d0)
-    if (x_dn(ideriv) < option%reference_pressure) pert_dn = -1.d0*pert_dn
+    if (x_dn(ideriv) < option%flow%reference_pressure) pert_dn = -1.d0*pert_dn
     x_pert_up = x_up
     x_pert_dn = x_dn
     x_pert_up(ideriv) = x_pert_up(ideriv) + pert_up
@@ -462,7 +462,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   ! dist(1:3) = unit vector
   ! dist(0)*dist(1:3) = vector
   PetscReal :: dist(-1:3)
-  type(characteristic_curves_type) :: characteristic_curves_dn
+  class(characteristic_curves_type) :: characteristic_curves_dn
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -563,7 +563,8 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                 ! flow in
             if (dphi > 0.d0 .and. &
                 ! boundary cell is <= pref
-                global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+                global_auxvar_up%pres(1)- &
+                  option%flow%reference_pressure < eps) then
               dphi = 0.d0
               dphi_dp_dn = 0.d0
             endif
@@ -580,52 +581,6 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           v_darcy = Dq * ukvr * dphi
           q = v_darcy * area
           dq_dp_dn = Dq*(dukvr_dp_dn*dphi + ukvr*dphi_dp_dn)*area
-
-          ! If running with surface-flow model, ensure (darcy_velocity*dt) does
-          ! not exceed depth of standing water.
-          if (option%surf_flow_on) then
-          if (Equal(rich_auxvar_dn%vars_for_sflow(11),0.d0)) then
-            if (pressure_bc_type == HET_SURF_HYDROSTATIC_SEEPAGE_BC .and. &
-                option%surf_flow_on) then
-              call EOSWaterdensity(option%reference_temperature, &
-                                   option%reference_pressure,rho,dum1,ierr)
-
-              if (global_auxvar_dn%pres(1) <= &
-                  rich_auxvar_dn%vars_for_sflow(1)) then
-
-                ! Linear approximation
-                call Interpolate(rich_auxvar_dn%vars_for_sflow(8), &
-                                 rich_auxvar_dn%vars_for_sflow(7), &
-                                 global_auxvar_dn%pres(1), &
-                                 rich_auxvar_dn%vars_for_sflow(10), &
-                                 rich_auxvar_dn%vars_for_sflow(9), &
-                                 q_approx)
-                v_darcy = q_approx/area
-                q       = q_approx
-
-                dP_lin = rich_auxvar_dn%vars_for_sflow(8) - &
-                         rich_auxvar_dn%vars_for_sflow(7)
-                dq_lin = rich_auxvar_dn%vars_for_sflow(10) - &
-                         rich_auxvar_dn%vars_for_sflow(9)
-                dq_dp_dn = dq_lin/dP_lin
-
-              else
-                if (global_auxvar_dn%pres(1) <= &
-                    rich_auxvar_dn%vars_for_sflow(2)) then
-                  ! Cubic approximation
-                  call CubicPolynomialEvaluate( &
-                        rich_auxvar_dn%vars_for_sflow(3:6), &
-                        global_auxvar_dn%pres(1) - option%reference_pressure, &
-                        q_approx, dq_approx)
-                  v_darcy = q_approx/area
-                  q = q_approx
-                  dq_dp_dn = dq_approx
-                endif
-              endif
-            endif
-          endif
-          endif
-
         endif
 
       endif
@@ -700,7 +655,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
     ideriv = 1
 !    pert_dn = x_dn(ideriv)*perturbation_tolerance    
     pert_dn = max(dabs(x_dn(ideriv)*perturbation_tolerance),0.1d0)
-    if (x_dn(ideriv) < option%reference_pressure) pert_dn = -1.d0*pert_dn
+    if (x_dn(ideriv) < option%flow%reference_pressure) pert_dn = -1.d0*pert_dn
     x_pert_dn = x_dn
     x_pert_dn(ideriv) = x_pert_dn(ideriv) + pert_dn
     x_pert_up = x_up
@@ -838,59 +793,20 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
                 ! flow in
             if (dphi > 0.d0 .and. &
                 ! boundary cell is <= pref
-                global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+                global_auxvar_up%pres(1)- &
+                  option%flow%reference_pressure < eps) then
               dphi = 0.d0
             endif
         end select
    
-       if (dphi>=0.D0) then
-         ukvr = rich_auxvar_up%kvr
-       else
-         ukvr = rich_auxvar_dn%kvr
-       endif
-        
-       if (ukvr*Dq>floweps) then
-        v_darcy = Dq * ukvr * dphi
-
-        ! If running with surface-flow model, ensure (darcy_velocity*dt) does
-        ! not exceed depth of standing water.
-        if (pressure_bc_type == HET_SURF_HYDROSTATIC_SEEPAGE_BC .and. &
-            option%surf_flow_on) then
-          call EOSWaterdensity(option%reference_temperature, &
-                               option%reference_pressure,rho,dum1,ierr)
-
-          if (Equal(rich_auxvar_dn%vars_for_sflow(11),0.d0)) then
-            if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(1)) then
-
-              if (Equal(rich_auxvar_dn%vars_for_sflow(7),-99999.d0)) then
-                call PrintErrMsg(option,'Coeffs for linear approx for darcy flux not set')
-              endif
-
-              ! Linear approximation
-              call Interpolate(rich_auxvar_dn%vars_for_sflow(8), &
-                               rich_auxvar_dn%vars_for_sflow(7), &
-                               global_auxvar_dn%pres(1), &
-                               rich_auxvar_dn%vars_for_sflow(2), &
-                               rich_auxvar_dn%vars_for_sflow(1), &
-                               q_approx)
-              v_darcy = q_approx/area
-
-            else if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(2)) then
-
-              if (Equal(rich_auxvar_dn%vars_for_sflow(3),-99999.d0)) then
-                call PrintErrMsg(option,'Coeffs for cubic approx for darcy flux not set')
-              endif
-
-              ! Cubic approximation
-              call CubicPolynomialEvaluate(rich_auxvar_dn%vars_for_sflow(3:6), &
-                                           global_auxvar_dn%pres(1) - option%reference_pressure, &
-                                           q_approx, dq_approx)
-              v_darcy = q_approx/area
-            endif
-          endif
-
+        if (dphi>=0.D0) then
+          ukvr = rich_auxvar_up%kvr
+        else
+          ukvr = rich_auxvar_dn%kvr
         endif
-       endif
+        if (ukvr*Dq>floweps) then
+          v_darcy = Dq * ukvr * dphi
+        endif
       endif 
 
     case(NEUMANN_BC)

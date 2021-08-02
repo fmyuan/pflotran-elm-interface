@@ -202,33 +202,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                            'SATURATION_FUNCTION')
       case('PERMEABILITY_END_POINT')
         select case(option%iflowmode)
-          case(FLASH2_MODE)
-            call InputReadCard(input,option,keyword)
-            call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
-            call StringToUpper(keyword)   
-            select case(trim(keyword))
-              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
-                iphase = 1
-              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
-                iphase = 2
-            end select
-            call InputReadDouble(input,option,saturation_function%Kr0(iphase))
-            word = trim(keyword) // 'permeabiliy end point'
-            call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
           case(MPH_MODE)
-            call InputReadCard(input,option,keyword)
-            call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
-            call StringToUpper(keyword)   
-            select case(trim(keyword))
-              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
-                iphase = 1
-              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
-                iphase = 2
-            end select
-            call InputReadDouble(input,option,saturation_function%Kr0(iphase))
-            word = trim(keyword) // 'permeabiliy end point'
-            call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
-          case(IMS_MODE)
             call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
             call StringToUpper(keyword)   
@@ -244,19 +218,6 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
         end select
       case('RESIDUAL_SATURATION') 
         select case(option%iflowmode)
-          case(FLASH2_MODE)
-            call InputReadCard(input,option,keyword)
-            call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
-            call StringToUpper(keyword)   
-            select case(trim(keyword))
-              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
-                iphase = 1
-              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
-                iphase = 2
-            end select
-            call InputReadDouble(input,option,saturation_function%Sr(iphase))
-            word = trim(keyword) // ' residual saturation'
-            call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
           case(MPH_MODE)
             call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
@@ -266,21 +227,6 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                 iphase = 1
               case('CO2','CO2_PHASE','GAS','GAS_PHASE')
                 iphase = 2
-            end select
-            call InputReadDouble(input,option,saturation_function%Sr(iphase))
-            word = trim(keyword) // ' residual saturation'
-            call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
-          case(IMS_MODE)
-            call InputReadCard(input,option,keyword)
-            call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
-            call StringToUpper(keyword)   
-            select case(trim(keyword))
-              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
-                iphase = 1
-              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
-                iphase = 2
-              case('OIL','OIL_PHASE','NAPL','NAPL_PHASE')
-                iphase = 3
             end select
             call InputReadDouble(input,option,saturation_function%Sr(iphase))
             word = trim(keyword) // ' residual saturation'
@@ -542,7 +488,8 @@ subroutine SatFunctionComputePolynomial(option,saturation_function)
       ! fill matix with values
       ! these are capillary pressures
       pressure_low = 0  ! saturated
-      pressure_high = 0.01d0*option%reference_pressure  ! just below saturated
+                                                    ! just below saturated
+      pressure_high = 0.01d0*optionflow%flow%reference_pressure
   
       saturation_function%spline_low = pressure_low
       saturation_function%spline_high = pressure_high
@@ -694,8 +641,7 @@ subroutine SaturatFuncConvertListToArray(list,array,option)
     count = count + 1
     cur_saturation_function%id = count
     array(count)%ptr => cur_saturation_function
-    if (cur_saturation_function%print_me .and. &
-        option%myrank == option%io_rank) then
+    if (cur_saturation_function%print_me .and. OptionIsIORAnk(option)) then
       call SaturationFunctionVerify(cur_saturation_function,option)
     endif
     cur_saturation_function => cur_saturation_function%next
@@ -1101,12 +1047,12 @@ implicit none
   ! compute saturation
   select case(saturation_function%saturation_function_itype)
     case(VAN_GENUCHTEN)
-      if (liquid_pressure >= option%reference_pressure) then
+      if (liquid_pressure >= option%flow%reference_pressure) then
         function_B = 1.d0
         dfunc_B_pl = 0.d0
       else
         alpha = saturation_function%alpha
-        pc = option%reference_pressure - liquid_pressure
+        pc = option%flow%reference_pressure - liquid_pressure
         m = saturation_function%m
         n = 1.d0/(1.d0 - m)
         pc_alpha = pc*alpha
@@ -1587,7 +1533,7 @@ implicit none
   select case(saturation_function%saturation_function_itype)
     case(VAN_GENUCHTEN)
       alpha = saturation_function%alpha
-      Pcgl = option%reference_pressure - pl
+      Pcgl = option%flow%reference_pressure - pl
       m = saturation_function%m      
       call CalcPhasePartitionIceDeriv(alpha,m,Pcgl,T,s_g,s_i,s_l,dsg_dpl, &
                                       dsg_dT,dsi_dpl,dsi_dT,dsl_dpl, &
@@ -1697,7 +1643,7 @@ implicit none
     case(VAN_GENUCHTEN)
       T = T + T_0  ! convert to K 
       alpha = saturation_function%alpha
-      Pcgl = option%reference_pressure - pl
+      Pcgl = option%flow%reference_pressure - pl
       m = saturation_function%m      
       call ComputeVGAndDerivative(alpha,m,Pcgl,S,dS)
       call ComputeInvVGAndDerivative(alpha,m,S,Sinv,dSinv)
@@ -1831,7 +1777,7 @@ implicit none
     case(VAN_GENUCHTEN)
       T = T + T_0  ! convert to K 
       alpha = saturation_function%alpha
-      Pcgl = option%reference_pressure - pl
+      Pcgl = option%flow%reference_pressure - pl
       m = saturation_function%m      
       call ComputeVGAndDerivative(alpha,m,Pcgl,S,dS)
       call ComputeInvVGAndDerivative(alpha,m,S,Sinv,dSinv)
@@ -1996,7 +1942,7 @@ subroutine SatFuncComputeIceDallAmico(pl, T, &
       alpha = saturation_function%alpha
       m = saturation_function%m
 
-      Pc0 = option%reference_pressure - pl
+      Pc0 = option%flow%reference_pressure - pl
 
       T_star = T_0 - 1.d0/beta*T_0/L_f/rho_l*Pc0
 
@@ -2032,7 +1978,7 @@ subroutine SatFuncComputeIceDallAmico(pl, T, &
       theta = (T - T_star)/T_star
       Pc1 = Pc0 - beta*theta*L_f*rho_l*H
 
-      p_fh2o = option%reference_pressure - Pc1
+      p_fh2o = option%flow%reference_pressure - Pc1
       dp_fh2o_dT = -beta*L_f*rho_l*H/T_star
       dp_fh2o_dP = 1.d0 - T*T_0/T_star/T_star*H
       p_fh2o = pl
@@ -2510,7 +2456,7 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
       capillary_pressure = (one_over_alpha-pcmax)*Se + pcmax
 #if 0
     case(THOMEER_COREY)
-      pc = option%reference_pressure-pressure
+      pc = option%flow%reference_pressure-pressure
       por = auxvar1
       perm = auxvar2*1.013202d15 ! convert from m^2 to mD
       Fg = saturation_function%alpha
@@ -2648,7 +2594,7 @@ subroutine SaturationFunctionVerify(saturation_function,option)
   ! calculate capillary pressure as a function of saturation
   do i = 1, 101
     sat = dble(i-1)*0.01d0
-    call SatFuncGetCapillaryPressure(pc,sat,option%reference_temperature, &
+    call SatFuncGetCapillaryPressure(pc,sat,option%flow%reference_temperature, &
                                      saturation_function,option)
     x(i) = sat
     y(i) = pc

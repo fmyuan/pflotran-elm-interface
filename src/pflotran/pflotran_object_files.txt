@@ -1,8 +1,10 @@
 # this file contains all object files except pflotran.o, pflotran_rxn.o, etc.
 
-# DO NOT place any object files that depend on the discretization within 
+# DO NOT place any object files that depend on the discretization within
 # util_obj
-util_obj  = \
+util_obj = \
+	${common_src}communicator_aux.o \
+	${common_src}driver.o \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -10,50 +12,36 @@ util_obj  = \
 	${common_src}option.o \
 	${common_src}option_flow.o \
 	${common_src}option_transport.o \
+	${common_src}option_geophysics.o \
 	${common_src}output_aux.o \
 	${common_src}matrix_zeroing.o \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
+	${common_src}timer.o \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}variables.o
 
 deriv_obj = \
-	${common_src}toil_ims_derivs.o \
-	${common_src}general_derivative.o \
-	${common_src}derivative_tests.o \
-	${common_src}derivatives_utilities.o
+	${common_src}general_derivative.o
 
-# DO NOT place any object files that depend on the discretization within 
+# DO NOT place any object files that depend on the discretization within
 # util_obj
 eos_obj = \
 	${common_src}co2_sw.o \
 	${common_src}co2_span_wagner_spline.o \
 	${common_src}eos.o \
 	${common_src}eos_gas.o \
-	${common_src}eos_oil.o \
-        ${common_src}eos_slv.o \
-	${common_src}gas_eos_mod.o 
+	${common_src}gas_eos_mod.o
 
 mode_aux_obj = \
 	${common_src}auxiliary.o \
-	${common_src}auxvars_base.o \
-	${common_src}auxvars_flow.o \
-	${common_src}auxvars_flow_energy.o \
-	${common_src}auxvars_toil_ims.o \
-	${common_src}auxvars_towg.o \
-	${common_src}flash2_aux.o \
 	${common_src}general_aux.o \
 	${common_src}hydrate_aux.o \
 	${common_src}wipp_flow_aux.o \
-	${common_src}pm_base_aux.o \
-	${common_src}pm_toil_ims_aux.o \
-	${common_src}pm_towg_aux.o \
-	${common_src}immis_aux.o \
-	${common_src}miscible_aux.o \
 	${common_src}mphase_aux.o \
-        ${common_src}nw_transport_aux.o \
+	${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
@@ -61,21 +49,13 @@ mode_aux_obj = \
 	${common_src}pm_general.o \
 	${common_src}pm_hydrate.o \
 	${common_src}pm_wipp_flow.o \
-	${common_src}pm_toil_ims.o \
-	${common_src}pm_towg.o \
-	${common_src}pm_flash2.o \
-	${common_src}pm_immis.o \
 	${common_src}pm_mphase.o \
-	${common_src}pm_miscible.o \
-        ${common_src}pm_nwt.o \
+	${common_src}pm_nwt.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \
 	${common_src}pm_osrt.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
-	${common_src}pm_surface_flow.o \
-	${common_src}pm_surface_th.o \
-	${common_src}pm_surface.o \
 	${common_src}pm_th.o \
 	${common_src}pm_th_ts.o \
 	${common_src}pm_ufd_decay.o \
@@ -87,27 +67,22 @@ mode_aux_obj = \
 	${common_src}inlinesurface_aux.o
 
 mode_obj = \
-	${common_src}flash2.o \
 	${common_src}general.o \
 	${common_src}general_common.o \
 	${common_src}wipp_flow.o \
 	${common_src}hydrate.o \
 	${common_src}hydrate_common.o \
 	${common_src}wipp_flow_common.o \
-	${common_src}toil_ims.o \
-	${common_src}towg.o \
 	${common_src}global.o \
-	${common_src}immis.o \
-	${common_src}miscible.o \
 	${common_src}mphase.o \
-        ${common_src}nw_transport.o \
+	${common_src}nw_transport.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
 	${common_src}richards_common.o \
 	${common_src}th.o \
 	${common_src}inlinesurface.o
 
-# DO NOT place any object files that depend on the discretization within 
+# DO NOT place any object files that depend on the discretization within
 # util_obj
 shared_mode_aux_obj = \
 	${common_src}co2eos.o \
@@ -119,9 +94,9 @@ shared_mode_aux_obj = \
 	${common_src}global_aux.o \
 	${common_src}lookup_table.o \
 	${common_src}material_aux.o \
-	${common_src}reactive_transport_aux.o 
+	${common_src}reactive_transport_aux.o
 
-# DO NOT place any object files that depend on the discretization within 
+# DO NOT place any object files that depend on the discretization within
 # util_obj
 chem_obj = \
 	${common_src}reaction_database.o \
@@ -131,6 +106,8 @@ chem_obj = \
 	${common_src}reaction_gas_aux.o \
 	${common_src}reaction_immobile.o \
 	${common_src}reaction_immobile_aux.o \
+	${common_src}reaction_isotherm.o \
+	${common_src}reaction_isotherm_aux.o \
 	${common_src}reaction_microbial.o \
 	${common_src}reaction_microbial_aux.o \
 	${common_src}reaction_mineral.o \
@@ -139,13 +116,17 @@ chem_obj = \
 	${common_src}reaction_base.o \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_clm.o \
+	${common_src}reaction_redox.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
+	${common_src}reaction_sandbox_biohill.o \
+	${common_src}reaction_sandbox_flexbiohill.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
-        ${common_src}reaction_sandbox_simple.o \
+    ${common_src}reaction_sandbox_simple.o \
+    ${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
@@ -165,8 +146,6 @@ grid_obj = \
 	${common_src}discretization.o \
 	${common_src}dm_kludge.o \
 	${common_src}grid.o \
-	${common_src}grid_grdecl.o \
-	${common_src}grid_grdecl_util.o \
 	${common_src}grid_structured.o \
 	${common_src}grid_unstructured_cell.o \
 	${common_src}grid_unstructured_explicit.o \
@@ -175,19 +154,18 @@ grid_obj = \
 	${common_src}grid_unstructured_polyhedra.o
 
 relations_obj = \
-	${common_src}saturation.o \
 	${common_src}saturation_function.o \
 	${common_src}characteristic_curves.o \
 	${common_src}characteristic_curves_base.o \
 	${common_src}characteristic_curves_common.o \
-	${common_src}characteristic_curves_owg.o \
 	${common_src}characteristic_curves_wipp.o \
 	${common_src}characteristic_curves_thermal.o \
+	${common_src}characteristic_curves_loop_invariant.o \
 	${common_src}mphase_pckr_mod.o
 
 properties_obj = \
 	${common_src}fluid.o \
-	${common_src}material.o 
+	${common_src}material.o
 
 dataset_obj = \
 	${common_src}dataset_ascii.o \
@@ -197,7 +175,7 @@ dataset_obj = \
 	${common_src}dataset_map_hdf5.o \
 	${common_src}dataset.o \
 	${common_src}dataset_gridded_hdf5.o \
-	${common_src}time_storage.o 
+	${common_src}time_storage.o
 
 srcsink_obj = \
 	${common_src}srcsink_sandbox.o \
@@ -208,7 +186,6 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox_wipp_well.o
 
 io_obj = \
-	${common_src}output_eclipse.o \
 	${common_src}hdf5.o \
 	${common_src}hdf5_aux.o \
 	${common_src}output.o \
@@ -216,14 +193,12 @@ io_obj = \
 	${common_src}output_ekg.o \
 	${common_src}output_hdf5.o \
 	${common_src}output_observation.o \
-	${common_src}output_surface.o \
 	${common_src}output_tecplot.o \
 	${common_src}output_vtk.o
 
 misc_obj = \
 	${common_src}block_solve.o \
 	${common_src}block_tridiag.o \
-	${common_src}characteristic_curves_table.o \
 	${common_src}checkpoint.o \
 	${common_src}condition.o \
 	${common_src}condition_control.o \
@@ -234,18 +209,19 @@ misc_obj = \
 	${common_src}data_mediator_vec.o \
 	${common_src}data_mediator_base.o \
 	${common_src}debug.o \
+	${common_src}factory_forward.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \
 	${common_src}hydrostatic.o \
-	${common_src}hydrostatic_multi_phase.o \
 	${common_src}init_common.o \
 	${common_src}init_subsurface.o \
 	${common_src}init_subsurface_flow.o \
 	${common_src}init_subsurface_transport.o \
 	${common_src}integral_flux.o \
+	${common_src}inversion_base.o \
+	${common_src}inversion_insite.o \
 	${common_src}matrix_buffer.o \
-	${common_src}multisimulation.o \
 	${common_src}observation.o \
 	${common_src}patch.o \
 	${common_src}pmc_auxiliary.o \
@@ -261,6 +237,8 @@ misc_obj = \
 	${common_src}secondary_continuum.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
+	${common_src}simulation_inverse.o \
+	${common_src}simulation_multirealization.o \
 	${common_src}simulation_subsurface.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
@@ -272,30 +250,6 @@ misc_obj = \
 	${common_src}upwind_direction.o \
 	${common_src}waypoint.o \
 	${common_src}wipp.o
-
-well_obj = \
-	${common_src}well_data.o \
-	${common_src}well_type.o \
-	${common_src}well_solver.o
-
-surface_obj = \
-	${common_src}checkpoint_surface.o \
-	${common_src}factory_surface.o \
-	${common_src}factory_surfsubsurface.o \
-	${common_src}init_surface.o \
-	${common_src}pmc_surface.o \
-	${common_src}simulation_surface.o \
-	${common_src}simulation_surfsubsurface.o \
-	${common_src}surface_auxiliary.o \
-	${common_src}surface_field.o \
-	${common_src}surface_flow.o \
-	${common_src}surface_global_aux.o \
-	${common_src}surface_global.o \
-	${common_src}surface_material.o \
-	${common_src}realization_surface.o \
-	${common_src}surface_th_aux.o \
-	${common_src}surface_th.o \
-	${common_src}timestepper_surface.o
 
 geomech_obj = \
 	${common_src}factory_geomechanics.o \
@@ -324,6 +278,14 @@ geomech_obj = \
 	${common_src}simulation_geomechanics.o \
 	${common_src}shape_function.o \
 	${common_src}timestepper_steady.o
+
+geophysics_obj = \
+	${common_src}ert.o \
+	${common_src}ert_aux.o \
+	${common_srt}init_subsurface_geophysics.o \
+	${common_src}pm_ert.o \
+	${common_src}pmc_geophysics.o \
+	${common_src}survey.o
 
 solver_obj = \
 	${common_src}preconditioner_cpr.o \

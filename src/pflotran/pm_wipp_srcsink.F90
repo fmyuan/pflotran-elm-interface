@@ -2489,7 +2489,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   waste_panel%RXH2S_factor = waste_panel%RXH2_factor   ! [mol-H2S/mol-cell]
   
   ! bragflo apparently sets RXH2O_factor to zero
-  ! algebra sets STCO_22 as SMIC_H20, which is RXH2O_factor
+  ! algebra sets STCO_22 as SMIC_H2O, which is RXH2O_factor
   ! also, it includes salt weight in the brine (water) weight in the
   ! brine generation rate output
   waste_panel%RXH2O_factor = 0.0d0
@@ -2565,7 +2565,7 @@ subroutine PMWSSSetup(this)
   ! point the waste panel region to the desired region 
   call PMWSSAssociateRegion(this,this%realization%patch%region_list)
   
-  allocate(ranks(option%mycommsize))
+  allocate(ranks(option%comm%mycommsize))
   
   waste_panel_id = 0
   nullify(prev_waste_panel)
@@ -2589,19 +2589,20 @@ subroutine PMWSSSetup(this)
       ranks(option%myrank+1) = 0
     endif
     ! count the number of processes that own the waste panel
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%mycommsize,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
                        MPI_SUM,option%mycomm,ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_panel%rank_list(newcomm_size))
     j = 0
-    do i = 1,option%mycommsize
+    do i = 1,option%comm%mycommsize
       if (ranks(i) == 1) then
         j = j + 1
         cur_waste_panel%rank_list(j) = (i - 1)
       endif
     enddo
     ! create an MPI group and communicator for each waste panel
-    call MPI_Group_incl(option%mygroup,newcomm_size,cur_waste_panel%rank_list, &
+    call MPI_Group_incl(option%comm%mygroup,newcomm_size, &
+                        cur_waste_panel%rank_list, &
                         cur_waste_panel%myMPIgroup,ierr)
     call MPI_Comm_create(option%mycomm,cur_waste_panel%myMPIgroup, &
                          cur_waste_panel%myMPIcomm,ierr)
@@ -3530,7 +3531,7 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(3,3)*cwp%rxnrate_FeOH2_sulf(i) + &
                       this%stoic_mat(5,3)*cwp%rxnrate_MgO_hyd(i) + &
                       this%stoic_mat(8,3)*cwp%rxnrate_hydromag_conv(i) + &
-                      this%stoic_mat(2,3)*cwp%rxnrate_cell_biodeg(i) + & ! STCO_22=SMIC_H20
+                      this%stoic_mat(2,3)*cwp%rxnrate_cell_biodeg(i) + & ! STCO_22=SMIC_H2O
                          cwp%RXH2O_factor*cwp%rxnrate_cell_biodeg(i)     ! SFAC
         ! Convert water weight to brine rate (bragflo BRH2O)
         cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) / &
@@ -4812,7 +4813,7 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
   xold(:) = rad_inventory%new_mass(:,cell_index)
   xnew(:) = xold(:)
   
-    ! [kg brine/kg H20] * [kg H20/mol H20] = kg brine/molH20]
+    ! [kg brine/kg H2O] * [kg H2O/mol H2O] = kg brine/molH2O]
   wmbrrad = -1.d0/(1.d0 - 1.d-2*salt_wtpercent)*MW_H2O 
 
   rthalf = log(2.d0)/rad_inventory%half_life
@@ -5144,7 +5145,7 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
   h2_produced = h2_source * MW_H2 / (dt * material_auxvar%volume)
   h2_produced = h2_produced + h2_source * MW_O2 * radiolysis_parameters% &
                 srado2 / (dt * material_auxvar%volume)
-  ! kg H20/m^3 bulk/sec
+  ! kg H2O/m^3 bulk/sec
   brine_consumed = wmbrrad * h2_source / (dt * material_auxvar%volume)
   
 end subroutine Radiolysis

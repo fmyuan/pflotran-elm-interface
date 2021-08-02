@@ -4,7 +4,7 @@ module PM_Geomechanics_Force_class
   use petscts
   use PM_Base_class
   use Geomechanics_Realization_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Option_module
   use PFLOTRAN_Constants_module
 
@@ -22,6 +22,7 @@ module PM_Geomechanics_Force_class
     procedure, public :: FinalizeRun => PMGeomechForceFinalizeRun
     procedure, public :: InitializeTimestep => PMGeomechForceInitializeTimestep
     procedure, public :: CheckConvergence => PMGeomechCheckConvergence
+    procedure, public :: AcceptSolution => PMGeomechAcceptSolution
     procedure, public :: Residual => PMGeomechForceResidual
     procedure, public :: Jacobian => PMGeomechForceJacobian
     procedure, public :: PreSolve => PMGeomechForcePreSolve
@@ -185,7 +186,6 @@ subroutine PMGeomechForceInitializeTimestep(this)
   call PrintMsg(this%option,'PMGeomechForce%InitializeTimestep()')
 #endif
 
-  call PMBasePrintHeader(this)
   call GeomechanicsForceInitialGuess(this%geomech_realization)
   
 end subroutine PMGeomechForceInitializeTimestep
@@ -304,6 +304,24 @@ subroutine PMGeomechForceUpdateSolution(this)
   call GeomechForceUpdateAuxVars(this%geomech_realization)
 
 end subroutine PMGeomechForceUpdateSolution
+
+! ************************************************************************** !
+
+function PMGeomechAcceptSolution(this)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/19/21
+
+  implicit none
+
+  class(pm_geomech_force_type) :: this
+
+  PetscBool :: PMGeomechAcceptSolution
+
+  ! do nothing
+  PMGeomechAcceptSolution = PETSC_TRUE
+
+end function PMGeomechAcceptSolution
 
 ! ************************************************************************** !
 

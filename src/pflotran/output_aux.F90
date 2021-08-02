@@ -11,7 +11,7 @@ module Output_Aux_module
 
   PetscInt, parameter, public :: INSTANTANEOUS_VARS = 1
   PetscInt, parameter, public :: AVERAGED_VARS = 2
-  
+
   PetscInt, parameter, public :: CHECKPOINT_BINARY = 1
   PetscInt, parameter, public :: CHECKPOINT_HDF5 = 2
   PetscInt, parameter, public :: CHECKPOINT_BOTH = 3
@@ -23,7 +23,7 @@ module Output_Aux_module
     PetscInt :: periodic_ts_incr
     PetscInt :: format
   end type checkpoint_option_type
-  
+
   type, public :: output_option_type
 
     character(len=MAXWORDLENGTH) :: tunit
@@ -35,7 +35,8 @@ module Output_Aux_module
     PetscBool :: print_final_snap
     PetscBool :: print_initial_massbal
     PetscBool :: print_final_massbal
-  
+    PetscBool :: print_ss_massbal
+
     PetscBool :: print_hdf5
     PetscBool :: extend_hdf5_time_format
     PetscBool :: print_hdf5_vel_cent
@@ -48,16 +49,16 @@ module Output_Aux_module
     PetscBool :: print_hdf5_aveg_energy_flowrate
     PetscBool :: print_explicit_flowrate
 
-    PetscBool :: print_tecplot 
+    PetscBool :: print_tecplot
     PetscInt :: tecplot_format
     PetscBool :: print_tecplot_vel_cent
     PetscBool :: print_tecplot_vel_face
     PetscBool :: print_fluxes
-    
-    PetscBool :: print_vtk 
+
+    PetscBool :: print_vtk
     PetscBool :: print_vtk_vel_cent
 
-    PetscBool :: print_observation 
+    PetscBool :: print_observation
     PetscBool :: print_column_ids
 
     PetscBool :: print_explicit_primal_grid    ! prints primal grid if true
@@ -65,44 +66,39 @@ module Output_Aux_module
 
     PetscInt :: screen_imod
     PetscInt :: output_file_imod
-    
+
     PetscInt :: periodic_snap_output_ts_imod
     PetscInt :: periodic_obs_output_ts_imod
     PetscInt :: periodic_msbl_output_ts_imod
-    
+
     PetscReal :: periodic_snap_output_time_incr
     PetscReal :: periodic_obs_output_time_incr
     PetscReal :: periodic_msbl_output_time_incr
-    
+
     PetscBool :: filter_non_state_variables
+    PetscBool :: force_synchronized_output
 
     PetscInt :: xmf_vert_len
-    
+
     type(output_variable_list_type), pointer :: output_variable_list ! (master)
     type(output_variable_list_type), pointer :: output_snap_variable_list
     type(output_variable_list_type), pointer :: output_obs_variable_list
     type(output_variable_list_type), pointer :: aveg_output_variable_list
-    
+
     type(mass_balance_region_type), pointer :: mass_balance_region_list
     PetscBool :: mass_balance_region_flag
 
     PetscReal :: aveg_var_time
     PetscReal :: aveg_var_dtime
-    
+
     PetscInt :: plot_number
     character(len=MAXWORDLENGTH) :: plot_name
 
     PetscBool :: print_hydrograph
     PetscInt :: surf_xmf_vert_len
 
-    PetscBool :: write_ecl = PETSC_FALSE
-    ! Write well mass rates and totals as well as surface volumes
-    ! Note this is not a Eclipse-file-only option
-    PetscBool :: write_masses = PETSC_FALSE
-    type(output_option_eclipse_type), pointer :: eclipse_options =>null()
-
   end type output_option_type
-  
+
   type, public :: output_variable_list_type
     type(output_variable_type), pointer :: first
     type(output_variable_type), pointer :: last
@@ -110,7 +106,7 @@ module Output_Aux_module
     PetscBool :: flow_vars
     PetscBool :: energy_vars
   end type output_variable_list_type
-  
+
   type, public :: output_variable_type
     character(len=MAXWORDLENGTH) :: name   ! string that appears in hdf5 file
     character(len=MAXWORDLENGTH) :: units
@@ -123,7 +119,7 @@ module Output_Aux_module
     PetscInt :: isubsubvar
     type(output_variable_type), pointer :: next
   end type output_variable_type
-  
+
   type, public :: mass_balance_region_type
     character(len=MAXWORDLENGTH) :: region_name
     PetscInt :: num_cells
@@ -132,22 +128,6 @@ module Output_Aux_module
     type(mass_balance_region_type), pointer :: next
   end type mass_balance_region_type
 
-  type, public :: output_option_eclipse_type
-! Controls for Eclipse format input and output
-    PetscBool :: write_ecl_form         ! Indicates Eclipse files are formatted
-! For output of Eclipse summary and restart files, hold:
-! The interval in time or step count between writes
-! The last time or step count at which the file was written
-    PetscReal :: write_ecl_sum_deltat
-    PetscReal :: write_ecl_rst_deltat
-    PetscInt  :: write_ecl_sum_deltas
-    PetscInt  :: write_ecl_rst_deltas
-    PetscReal :: write_ecl_sum_lastt
-    PetscReal :: write_ecl_rst_lastt
-    PetscInt  :: write_ecl_sum_lasts
-    PetscInt  :: write_ecl_rst_lasts
-  end type
-
   type, public :: output_h5_type
     PetscBool :: first_write
   end type output_h5_type
@@ -155,18 +135,18 @@ module Output_Aux_module
 !  type, public, EXTENDS (output_variable_type) :: aveg_output_variable_type
 !    PetscReal :: time_interval
 !  end type aveg_output_variable_type
-  
+
   interface OutputVariableCreate
     module procedure OutputVariableCreate1
     module procedure OutputVariableCreate2
     module procedure OutputVariableCreate3
   end interface OutputVariableCreate
-  
+
   interface OutputVariableAddToList
     module procedure OutputVariableAddToList1
     module procedure OutputVariableAddToList2
   end interface OutputVariableAddToList
-  
+
   ! Output categories
   PetscInt, parameter, public :: OUTPUT_GENERIC = 0
   PetscInt, parameter, public :: OUTPUT_PRESSURE = 1
@@ -198,7 +178,6 @@ module Output_Aux_module
             OutputVariableListDestroy, &
             CheckpointOptionCreate, &
             CheckpointOptionDestroy, &
-            CreateOutputOptionEclipse, &
             OutputH5Create, &
             OutputH5Destroy
 
@@ -207,19 +186,19 @@ contains
 ! ************************************************************************** !
 
 function OutputOptionCreate()
-  ! 
+  !
   ! Creates output options object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/07/07
-  ! 
+  !
 
   implicit none
-  
+
   type(output_option_type), pointer :: OutputOptionCreate
 
   type(output_option_type), pointer :: output_option
-  
+
   allocate(output_option)
   output_option%print_hdf5 = PETSC_FALSE
   output_option%extend_hdf5_time_format = PETSC_FALSE
@@ -249,6 +228,7 @@ function OutputOptionCreate()
   output_option%print_final_snap = PETSC_TRUE
   output_option%print_initial_massbal = PETSC_FALSE
   output_option%print_final_massbal = PETSC_TRUE
+  output_option%print_ss_massbal = PETSC_TRUE
   output_option%plot_number = 0
   output_option%screen_imod = 1
   output_option%output_file_imod = 1
@@ -263,6 +243,7 @@ function OutputOptionCreate()
   output_option%aveg_var_dtime = 0.d0
   output_option%xmf_vert_len = UNINITIALIZED_INTEGER
   output_option%filter_non_state_variables = PETSC_TRUE
+  output_option%force_synchronized_output = PETSC_TRUE
 
   nullify(output_option%output_variable_list) ! master
   output_option%output_variable_list => OutputVariableListCreate() ! master
@@ -272,28 +253,28 @@ function OutputOptionCreate()
   output_option%output_obs_variable_list => OutputVariableListCreate()
   nullify(output_option%aveg_output_variable_list)
   output_option%aveg_output_variable_list => OutputVariableListCreate()
-  
+
   nullify(output_option%mass_balance_region_list)
   output_option%mass_balance_region_flag = PETSC_FALSE
-  
+
   output_option%tconv = 1.d0
   output_option%tunit = ''
-  
+
   output_option%print_hydrograph = PETSC_FALSE
 
   OutputOptionCreate => output_option
-  
+
 end function OutputOptionCreate
 
 ! ************************************************************************** !
 
 function OutputH5Create()
-  ! 
+  !
   ! Initializes module variables for H5 output
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/18/19
-  ! 
+  !
   type(output_h5_type), pointer :: OutputH5Create
 
   allocate(OutputH5Create)
@@ -304,21 +285,21 @@ end function OutputH5Create
 ! ************************************************************************** !
 
 function OutputOptionDuplicate(output_option)
-  ! 
+  !
   ! Creates a copy of output options object
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/22/2016
-  ! 
+  !
 
   implicit none
-  
+
   type(output_option_type), pointer :: output_option
 
   type(output_option_type), pointer :: OutputOptionDuplicate
 
   type(output_option_type), pointer :: output_option2
-  
+
   allocate(output_option2)
 
   output_option2%print_hdf5 = output_option%print_hdf5
@@ -352,6 +333,7 @@ function OutputOptionDuplicate(output_option)
   output_option2%print_initial_snap = output_option%print_initial_snap
   output_option2%print_final_snap = output_option%print_final_snap
   output_option2%print_initial_massbal = output_option%print_initial_massbal
+  output_option2%print_ss_massbal = output_option%print_ss_massbal
   output_option2%print_final_massbal = output_option%print_final_massbal
   output_option2%plot_number = output_option%plot_number
   output_option2%screen_imod = output_option%screen_imod
@@ -379,7 +361,7 @@ function OutputOptionDuplicate(output_option)
   nullify(output_option2%output_snap_variable_list)
   nullify(output_option2%output_obs_variable_list)
   nullify(output_option2%aveg_output_variable_list)
-  
+
   output_option2%output_variable_list => &
        OutputVariableListDuplicate(output_option%output_variable_list)
   output_option2%output_snap_variable_list => &
@@ -388,7 +370,7 @@ function OutputOptionDuplicate(output_option)
        OutputVariableListDuplicate(output_option%output_obs_variable_list)
   output_option2%aveg_output_variable_list => &
        OutputVariableListDuplicate(output_option%aveg_output_variable_list)
-       
+
   nullify(output_option2%mass_balance_region_list)
   if (associated(output_option%mass_balance_region_list)) then
     output_option2%mass_balance_region_list => &
@@ -396,32 +378,32 @@ function OutputOptionDuplicate(output_option)
   endif
   output_option2%mass_balance_region_flag = &
     output_option%mass_balance_region_flag
-  
+
   output_option2%tconv = output_option%tconv
   output_option2%tunit = output_option%tunit
-  
+
   output_option2%print_hydrograph = output_option%print_hydrograph
 
   OutputOptionDuplicate => output_option2
-  
+
 end function OutputOptionDuplicate
 
 ! ************************************************************************** !
 
 function CheckpointOptionCreate()
-  ! 
+  !
   ! Creates output options object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/07/07
-  ! 
+  !
 
   implicit none
-  
+
   type(checkpoint_option_type), pointer :: CheckpointOptionCreate
 
   type(checkpoint_option_type), pointer :: checkpoint_option
-  
+
   allocate(checkpoint_option)
   checkpoint_option%tunit = ''
   checkpoint_option%tconv = 0.d0
@@ -431,44 +413,44 @@ function CheckpointOptionCreate()
   checkpoint_option%format = CHECKPOINT_BINARY
 
   CheckpointOptionCreate => checkpoint_option
-  
-end function CheckpointOptionCreate 
-  
+
+end function CheckpointOptionCreate
+
 ! ************************************************************************** !
 
 function OutputVariableCreate1()
-  ! 
+  !
   ! initializes output variable object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   type(output_variable_type), pointer :: OutputVariableCreate1
-  
+
   type(output_variable_type), pointer :: output_variable
-  
+
   allocate(output_variable)
   call OutputVariableInit(output_variable)
-  
+
   OutputVariableCreate1 => output_variable
-  
+
 end function OutputVariableCreate1
 
 ! ************************************************************************** !
 
 function OutputVariableCreate2(name,icategory,units,ivar,isubvar,isubsubvar)
-  ! 
+  !
   ! initializes output variable object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   character(len=*) :: name
   PetscInt :: icategory ! note that I tuck it inbetween the strings to avoid
                         ! errors
@@ -478,9 +460,9 @@ function OutputVariableCreate2(name,icategory,units,ivar,isubvar,isubsubvar)
   PetscInt, intent(in), optional :: isubsubvar
 
   type(output_variable_type), pointer :: OutputVariableCreate2
-  
+
   type(output_variable_type), pointer :: output_variable
-  
+
   output_variable => OutputVariableCreate()
   output_variable%name = trim(adjustl(name))
   output_variable%icategory = icategory
@@ -493,30 +475,30 @@ function OutputVariableCreate2(name,icategory,units,ivar,isubvar,isubsubvar)
     output_variable%isubsubvar = isubsubvar
   endif
   nullify(output_variable%next)
-  
+
   OutputVariableCreate2 => output_variable
-  
+
 end function OutputVariableCreate2
 
 ! ************************************************************************** !
 
 function OutputVariableCreate3(output_variable)
-  ! 
+  !
   ! initializes output variable object from an existing
   ! output variabl object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   type(output_variable_type), pointer :: output_variable
 
   type(output_variable_type), pointer :: OutputVariableCreate3
-  
+
   type(output_variable_type), pointer :: new_output_variable
-  
+
   new_output_variable => OutputVariableCreate()
   new_output_variable%name = output_variable%name
   new_output_variable%units = output_variable%units
@@ -527,24 +509,24 @@ function OutputVariableCreate3(output_variable)
   new_output_variable%isubvar = output_variable%isubvar
   new_output_variable%isubsubvar = output_variable%isubsubvar
   nullify(new_output_variable%next)
-  
+
   OutputVariableCreate3 => new_output_variable
-  
+
 end function OutputVariableCreate3
 
 ! ************************************************************************** !
 
 subroutine OutputVariableInit(output_variable)
-  ! 
+  !
   ! initializes output variable object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/02/17
-  ! 
+  !
   implicit none
-  
+
   type(output_variable_type) :: output_variable
-  
+
   output_variable%name = ''
   output_variable%units = ''
   output_variable%plot_only = PETSC_FALSE
@@ -554,83 +536,83 @@ subroutine OutputVariableInit(output_variable)
   output_variable%isubvar = 0
   output_variable%isubsubvar = 0
   nullify(output_variable%next)
-  
+
 end subroutine OutputVariableInit
 
 ! ************************************************************************** !
 
 function OutputVariableListCreate()
-  ! 
+  !
   ! initializes output variable list object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   type(output_variable_list_type), pointer :: OutputVariableListCreate
-  
+
   type(output_variable_list_type), pointer :: output_variable_list
-  
+
   allocate(output_variable_list)
   nullify(output_variable_list%first)
   nullify(output_variable_list%last)
   output_variable_list%nvars = 0
   output_variable_list%flow_vars = PETSC_TRUE
   output_variable_list%energy_vars = PETSC_TRUE
-  
+
   OutputVariableListCreate => output_variable_list
-  
+
 end function OutputVariableListCreate
 
 ! ************************************************************************** !
 
 function OutputMassBalRegionCreate()
-  ! 
+  !
   ! Creates and initializes a mass balance region list object
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 04/26/2016
-  ! 
+  !
 
   implicit none
-  
+
   type(mass_balance_region_type), pointer :: OutputMassBalRegionCreate
-   
+
   allocate(OutputMassBalRegionCreate)
   OutputMassBalRegionCreate%region_name =''
   nullify(OutputMassBalRegionCreate%region_cell_ids)
   OutputMassBalRegionCreate%num_cells = 0
   OutputMassBalRegionCreate%total_mass = 0.d0
   nullify(OutputMassBalRegionCreate%next)
-  
+
 end function OutputMassBalRegionCreate
 
 ! ************************************************************************** !
 
 function OutputVariableListDuplicate(old_list)
-  ! 
+  !
   ! initializes output variable list object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   type(output_variable_list_type) :: old_list
-  
+
   type(output_variable_list_type), pointer :: OutputVariableListDuplicate
-  
+
   type(output_variable_list_type), pointer :: new_list
   type(output_variable_type), pointer :: cur_variable
-  
+
   allocate(new_list)
   nullify(new_list%first)
   nullify(new_list%last)
   new_list%nvars = old_list%nvars
-  
+
   cur_variable => old_list%first
   do
     if (.not.associated(cur_variable)) exit
@@ -639,29 +621,29 @@ function OutputVariableListDuplicate(old_list)
   enddo
 
   OutputVariableListDuplicate => new_list
-  
+
 end function OutputVariableListDuplicate
 
 ! ************************************************************************** !
 
 function OutputMassBalRegListDuplicate(old_list)
-  ! 
+  !
   ! Duplicates a mass balance region list object
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 04/27/2016
-  ! 
+  !
 
   implicit none
-  
+
   type(mass_balance_region_type), pointer :: old_list
-  
+
   type(mass_balance_region_type), pointer :: new_list
   type(mass_balance_region_type), pointer :: new_mbr
   type(mass_balance_region_type), pointer :: cur_mbr
   type(mass_balance_region_type), pointer :: OutputMassBalRegListDuplicate
   PetscBool :: added
-  
+
   nullify(new_list)
 
   do
@@ -691,48 +673,48 @@ function OutputMassBalRegListDuplicate(old_list)
   enddo
 
   OutputMassBalRegListDuplicate => new_list
-  
+
 end function OutputMassBalRegListDuplicate
 
 ! ************************************************************************** !
 
 subroutine OutputVariableAddToList1(list,variable)
-  ! 
+  !
   ! adds variable to list object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   type(output_variable_list_type) :: list
   type(output_variable_type), pointer :: variable
-  
+
   if (.not. associated(list%first)) then
     list%first => variable
   else
     list%last%next => variable
   endif
   list%last => variable
-  
+
   list%nvars = list%nvars+1
-  
+
 end subroutine OutputVariableAddToList1
 
 ! ************************************************************************** !
 
 subroutine OutputVariableAddToList2(list,name,icategory,units,ivar, &
                                     isubvar,isubsubvar)
-  ! 
+  !
   ! creates variable and adds to list object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   type(output_variable_list_type) :: list
   character(len=*) :: name
   character(len=*) :: units
@@ -740,9 +722,9 @@ subroutine OutputVariableAddToList2(list,name,icategory,units,ivar, &
   PetscInt :: ivar
   PetscInt, intent(in), optional :: isubvar
   PetscInt, intent(in), optional :: isubsubvar
-  
+
   type(output_variable_type), pointer :: variable
-  
+
   if (present(isubvar)) then
     if (present(isubsubvar)) then
       variable => OutputVariableCreate(name,icategory,units, &
@@ -755,7 +737,7 @@ subroutine OutputVariableAddToList2(list,name,icategory,units,ivar, &
     variable => OutputVariableCreate(name,icategory,units,ivar)
   endif
   call OutputVariableAddToList1(list,variable)
-  
+
 end subroutine OutputVariableAddToList2
 
 ! ************************************************************************** !
@@ -763,7 +745,7 @@ end subroutine OutputVariableAddToList2
 subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                               option)
 
- ! 
+ !
  ! Assigns identifying information to a given input variable.
  !
  ! Author: Michael Nole
@@ -874,90 +856,6 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       category = OUTPUT_GENERIC
       id = GAS_ENERGY
       subvar = ONE_INTEGER
-    case ('OIL_PRESSURE')
-      name = 'Oil Pressure'
-      units = 'Pa'
-      category = OUTPUT_PRESSURE
-      id = OIL_PRESSURE
-    case ('OIL_SATURATION')
-      name = 'Oil Saturation'
-      units = ''
-      category = OUTPUT_SATURATION
-      id = OIL_SATURATION
-    case ('OIL_DENSITY')
-      name = 'Oil Density'
-      units = 'kg/m^3'
-      category = OUTPUT_GENERIC
-      id = OIL_DENSITY
-    case ('OIL_DENSITY_MOLAR')
-      name = 'Oil Density'
-      units = 'kmol/m^3'
-       category = OUTPUT_GENERIC
-      id = OIL_DENSITY_MOL
-    case ('OIL_MOBILITY')
-      name = 'Oil Mobility'
-      units = '1/Pa-s'
-      category = OUTPUT_GENERIC
-      id = OIL_MOBILITY
-    case ('OIL_VISCOSITY')
-      name = 'Oil Viscosity'
-      units = 'Pa-s'
-      category = OUTPUT_GENERIC
-      id = OIL_VISCOSITY
-    case ('OIL_ENERGY')
-      name = 'Oil Energy'
-      units = 'MJ/m^3'
-      category = OUTPUT_GENERIC
-      id = OIL_ENERGY
-      subvar = ZERO_INTEGER
-    case ('OIL_ENERGY_PER_VOLUME')
-      name = 'Oil Energy'
-      units = 'MJ/kmol'
-      category = OUTPUT_GENERIC
-      id = OIL_ENERGY
-      subvar = ONE_INTEGER
-    case ('SOLVENT_PRESSURE')
-      name = 'Solvent Pressure'
-      units = 'Pa'
-      category = OUTPUT_PRESSURE
-      id = SOLVENT_PRESSURE
-    case ('SOLVENT_SATURATION')
-      name = 'Solvent Saturation'
-      units = ''
-      category = OUTPUT_SATURATION
-      id = SOLVENT_SATURATION
-    case ('SOLVENT_DENSITY')
-      name = 'Solvent Density'
-      units = 'kg/m^3'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_DENSITY
-    case ('SOLVENT_DENSITY_MOLAR')
-      name = 'Solvent Density'
-      units = 'kmol/m^3'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_DENSITY_MOL
-    case ('SOLVENT_MOBILITY')
-      name = 'Solvent Mobility'
-      units = '1/Pa-s'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_MOBILITY
-    case ('SOLVENT_ENERGY')
-      name = 'Solvent Energy'
-      units = 'MJ/m^3'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_ENERGY
-      subvar = ZERO_INTEGER
-    case ('SOLVENT_ENERGY_PER_VOLUME')
-      name = 'Solvent Energy'
-      units = 'MJ/m^3'
-      category = OUTPUT_GENERIC
-      id = SOLVENT_ENERGY
-      subvar = ONE_INTEGER
-    case ('BUBBLE_POINT')
-      name = 'Bubble Point'
-      units = 'Pa'
-      category = OUTPUT_PRESSURE
-      id = BUBBLE_POINT
     case ('ICE_SATURATION')
       name = 'Ice Saturation'
       units = ''
@@ -1209,6 +1107,36 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'K Orthogonality Error'
       category = OUTPUT_GENERIC
       id = K_ORTHOGONALITY_ERROR
+    case ('ELECTRICAL_CONDUCTIVITY')
+      if (option%ngeopdof <= 0) then
+        option%io_buffer = 'ELECTRICAL_CONDUCTIVITY output only supported &
+          &when the GEOPHYSICS process model is used.'
+        call PrintErrMsg(option)
+      endif
+      units = 'S/m'
+      name = 'Electrical Conductivity'
+      category = OUTPUT_GENERIC
+      id = ELECTRICAL_CONDUCTIVITY
+    case ('ELECTRICAL_POTENTIAL')
+      if (option%ngeopdof <= 0) then
+        option%io_buffer = 'ELECTRICAL_POTENTIAL output only supported &
+          &when the GEOPHYSICS process model is used.'
+        call PrintErrMsg(option)
+      endif
+      units = 'V'
+      name = 'Electrical Potential'
+      category = OUTPUT_GENERIC
+      id = ELECTRICAL_POTENTIAL
+    case ('ELECTRICAL_JACOBIAN')
+      if (option%ngeopdof <= 0) then
+        option%io_buffer = 'ELECTRICAL_JACOBIAN output only supported &
+          &when the GEOPHYSICS process model is used.'
+        call PrintErrMsg(option)
+      endif
+      units = 'Vm/S'
+      name = 'Electrical Jacobian'
+      category = OUTPUT_GENERIC
+      id = ELECTRICAL_JACOBIAN      
   end select
 
 end subroutine OutputVariableToID
@@ -1217,27 +1145,27 @@ end subroutine OutputVariableToID
 
 subroutine OutputWriteVariableListToHeader(fid,variable_list,cell_string, &
                                            icolumn,plot_file,variable_count)
-  ! 
+  !
   ! Converts a variable list to a header string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   PetscInt :: fid
   type(output_variable_list_type) :: variable_list
   character(len=*) :: cell_string
   PetscInt :: icolumn
   PetscBool :: plot_file
   PetscInt :: variable_count
-  
+
   type(output_variable_type), pointer :: cur_variable
   character(len=MAXWORDLENGTH) :: variable_name, units
-  
+
   variable_count = 0
   cur_variable => variable_list%first
   do
@@ -1259,12 +1187,12 @@ end subroutine OutputWriteVariableListToHeader
 
 subroutine OutputWriteToHeader(fid,variable_string,units_string, &
                                cell_string, icolumn)
-  ! 
+  !
   ! Appends formatted strings to header string
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/27/11
-  ! 
+  !
 
   implicit none
 
@@ -1320,22 +1248,22 @@ end subroutine OutputWriteToHeader
 ! ************************************************************************** !
 
 function OutputVariableToCategoryString(icategory)
-  ! 
+  !
   ! returns a string associated with an
   ! output variable category
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt :: icategory
-  
+
   character(len=MAXWORDLENGTH) :: OutputVariableToCategoryString
-  
+
   character(len=MAXWORDLENGTH) :: string
-  
+
   select case(icategory)
     case(OUTPUT_GENERIC)
       string = 'GENERIC'
@@ -1368,12 +1296,12 @@ end function OutputVariableToCategoryString
 ! ************************************************************************** !
 
 subroutine OutputVariableAppendDefaults(output_variable_list,option)
-  ! 
+  !
   ! Adds default output variables to list
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 12/21/12
-  ! 
+  !
 
   use Option_module
   use Variables_module
@@ -1382,7 +1310,7 @@ subroutine OutputVariableAppendDefaults(output_variable_list,option)
 
   type(output_variable_list_type), pointer :: output_variable_list
   type(option_type), pointer :: option
-  
+
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable
@@ -1395,23 +1323,23 @@ subroutine OutputVariableAppendDefaults(output_variable_list,option)
   output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
   output_variable%iformat = 1 ! integer
   call OutputVariableAddToList(output_variable_list,output_variable)
-  
+
 end subroutine OutputVariableAppendDefaults
 
 ! ************************************************************************** !
 
 subroutine OpenAndWriteInputRecord(option)
-  ! 
+  !
   ! Opens the input record file and begins to write to it.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
   type(option_type), pointer :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -1424,11 +1352,11 @@ subroutine OpenAndWriteInputRecord(option)
   id = option%fid_inputrecord
   ! the input record file has a .rec extension:
   filename = trim(option%global_prefix) // trim(option%group_prefix) // '.rec'
-  open(unit=id,file=filename,action="write",status="replace")
 !geh: this call does not work with IBM
 !  call fdate(word)
   call date_and_time(date_word,time_word,zone_word)
   if (OptionPrintToFile(option)) then
+    open(unit=id,file=filename,action="write",status="replace")
     write(id,'(a)') '---------------------------------------------------------&
                     &-----------------------'
     write(id,'(a)') '---------------------------------------------------------&
@@ -1441,15 +1369,15 @@ subroutine OpenAndWriteInputRecord(option)
                     &-----------------------'
     write(id,'(a)') '---------------------------------------------------------&
                     &-----------------------'
-  
-    write(id,'(a18)',advance='no') 'input file: '  
-    write(id,*) trim(option%global_prefix) // '.in' 
-    
-    write(id,'(a18)',advance='no') 'group: ' 
+
+    write(id,'(a18)',advance='no') 'input file: '
+    write(id,*) trim(option%global_prefix) // '.in'
+
+    write(id,'(a18)',advance='no') 'group: '
     write(id,*) trim(option%group_prefix)
-  
-    write(word,*) option%global_commsize
-    write(id,'(a18)',advance='no') 'n processors: ' 
+
+    write(word,*) option%comm%mycommsize
+    write(id,'(a18)',advance='no') 'n processors: '
     write(id,*) trim(adjustl(word))
   endif
 
@@ -1458,85 +1386,85 @@ end subroutine OpenAndWriteInputRecord
 ! ************************************************************************** !
 
 subroutine OutputVariableListDestroy(output_variable_list)
-  ! 
+  !
   ! Deallocates an output variable list object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   type(output_variable_list_type), pointer :: output_variable_list
-  
+
   if (.not.associated(output_variable_list)) return
 
   nullify(output_variable_list%last)
   call OutputVariableDestroy(output_variable_list%first)
-  
+
   deallocate(output_variable_list)
   nullify(output_variable_list)
-  
+
 end subroutine OutputVariableListDestroy
 
 ! ************************************************************************** !
 
 recursive subroutine OutputVariableDestroy(output_variable)
-  ! 
+  !
   ! Deallocates an output variable object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/15/12
-  ! 
+  !
 
   implicit none
-  
+
   type(output_variable_type), pointer :: output_variable
-  
+
   if (.not.associated(output_variable)) return
-  
+
   call OutputVariableDestroy(output_variable%next)
-  
+
   deallocate(output_variable)
   nullify(output_variable)
-  
+
 end subroutine OutputVariableDestroy
 
 ! ************************************************************************** !
 
 subroutine CheckpointOptionDestroy(checkpoint_option)
-  ! 
+  !
   ! Deallocates an output option
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/07/07
-  ! 
+  !
 
   implicit none
-  
+
   type(checkpoint_option_type), pointer :: checkpoint_option
-  
+
   if (.not.associated(checkpoint_option)) return
-  
+
   deallocate(checkpoint_option)
   nullify(checkpoint_option)
-  
+
 end subroutine CheckpointOptionDestroy
 
 ! ************************************************************************** !
 
 recursive subroutine OutputMassBalRegDestroy(mass_balance_region)
-  ! 
+  !
   ! Nullifies and deallocates a mass balance region object
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 04/27/2016
-  ! 
+  !
 
   implicit none
-  
+
   type(mass_balance_region_type), pointer :: mass_balance_region
-  
+
   if (associated(mass_balance_region)) then
     ! do not deallocate because the region owns the cell_ids array,
     ! not the mass_balance_region, so just nullify it
@@ -1546,61 +1474,8 @@ recursive subroutine OutputMassBalRegDestroy(mass_balance_region)
     endif
     deallocate(mass_balance_region)
   endif
-  
+
 end subroutine OutputMassBalRegDestroy
-
-! ************************************************************************** !
-
-subroutine CreateOutputOptionEclipse(output_option)
-  !
-  ! Creates and initialises the Eclipse output option block
-  !
-  ! Author: Dave Ponting
-  ! Date: 01/29/07
-  !
-
-  implicit none
-
-  type(output_option_type), pointer :: output_option
-
-  if (.not.associated(output_option%eclipse_options) ) then
-    allocate(output_option%eclipse_options)
-!  Initial defaults for Eclipse format input and output
-    output_option%eclipse_options%write_ecl_form  = PETSC_FALSE
-
-    output_option%eclipse_options%write_ecl_sum_deltat = -1.0
-    output_option%eclipse_options%write_ecl_rst_deltat = -1.0
-    output_option%eclipse_options%write_ecl_sum_deltas =  1
-    output_option%eclipse_options%write_ecl_rst_deltas =  10
-
-    output_option%eclipse_options%write_ecl_sum_lastt =  -1.0
-    output_option%eclipse_options%write_ecl_rst_lastt =  -1.0
-    output_option%eclipse_options%write_ecl_sum_lasts =  -1
-    output_option%eclipse_options%write_ecl_rst_lasts =  -1
-  endif
-
-end subroutine CreateOutputOptionEclipse
-
-! ************************************************************************** !
-
-subroutine DestroyOutputOptionEclipse(eclipse_options)
-  !
-  ! Deletes the Eclipse output option block
-  !
-  ! Author: Dave Ponting
-  ! Date: 01/29/07
-  !
-
-  implicit none
-
-  type(output_option_eclipse_type), pointer :: eclipse_options
-
-  if (associated(eclipse_options) ) then
-    deallocate(eclipse_options)
-    nullify(eclipse_options)
-  endif
-
-end subroutine DestroyOutputOptionEclipse
 
 ! ************************************************************************** !
 
@@ -1626,17 +1501,17 @@ end subroutine OutputH5Destroy
 ! ************************************************************************** !
 
 subroutine OutputOptionDestroy(output_option)
-  ! 
+  !
   ! Deallocates an output option
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/07/07
-  ! 
+  !
 
   implicit none
-  
+
   type(output_option_type), pointer :: output_option
-  
+
   if (.not.associated(output_option)) return
 
   if (associated(output_option%output_variable_list, &
@@ -1648,19 +1523,17 @@ subroutine OutputOptionDestroy(output_option)
                  output_option%output_obs_variable_list)) then
     nullify(output_option%output_obs_variable_list)
   endif
-  
+
   call OutputVariableListDestroy(output_option%output_variable_list)
   call OutputVariableListDestroy(output_option%output_snap_variable_list)
   call OutputVariableListDestroy(output_option%output_obs_variable_list)
   call OutputVariableListDestroy(output_option%aveg_output_variable_list)
-  
+
   call OutputMassBalRegDestroy(output_option%mass_balance_region_list)
 
-  call DestroyOutputOptionEclipse(output_option%eclipse_options)
-    
   deallocate(output_option)
   nullify(output_option)
-  
+
 end subroutine OutputOptionDestroy
 
 end module Output_Aux_module

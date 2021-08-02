@@ -118,6 +118,7 @@ function TranConstraintNWTCast(this)
   class(tran_constraint_nwt_type), pointer :: TranConstraintNWTCast
 
   nullify(TranConstraintNWTCast)
+  if (.not.associated(this)) return
   select type (this)
     class is (tran_constraint_nwt_type)
       TranConstraintNWTCast => this
@@ -144,6 +145,7 @@ function TranConstraintCouplerNWTCast(this)
                      TranConstraintCouplerNWTCast
 
   nullify(TranConstraintCouplerNWTCast)
+  if (.not.associated(this)) return
   select type (this)
     class is (tran_constraint_coupler_nwt_type)
       TranConstraintCouplerNWTCast => this
@@ -168,6 +170,7 @@ function TranConstraintNWTGetAuxVar(this)
   type(nw_transport_auxvar_type), pointer :: TranConstraintNWTGetAuxVar
 
   nullify(TranConstraintNWTGetAuxVar)
+  if (.not.associated(this)) return
   select type (coupler=>this)
     class is (tran_constraint_coupler_nwt_type)
       TranConstraintNWTGetAuxVar => coupler%nwt_auxvar

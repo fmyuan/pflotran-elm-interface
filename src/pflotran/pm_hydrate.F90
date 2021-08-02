@@ -269,6 +269,8 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         select case(word)
           case('MORIDIS')
             hydrate_phase_boundary = 2
+          case('MORIDIS_SIMPLE')
+            hydrate_phase_boundary = 3
           case default
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_PHASE_BOUNDARY',option)
@@ -345,6 +347,23 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
           case('DAI_AND_SEOL')
             temp_int = 1
             hydrate_perm_scaling_function = temp_int
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'PERM_SCALING_FUNCTION',option)
+        end select
+      case('SALINITY')
+        call InputReadDouble(input,option,hydrate_xmol_nacl)
+        call InputErrorMsg(input,option,'SALINITY',error_string)        
+      case('THERMAL_CONDUCTIVITY')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','thermal_conductivity_func')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('IGHCC2')
+            hydrate_tcond = 1
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'HYDRATE COMPOSITE THERMAL CONDUCTIVITY MODEL',option)
         end select
     end select
 
@@ -1606,7 +1625,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 string = '   ' // trim(tol_string(itol)) // ', ' // &
                  trim(state_string(istate)) // ', ' // dof_string(idof,istate)
               endif
-              if (option%mycommsize == 1) then
+              if (option%comm%mycommsize == 1) then
                 string = trim(string) // ' (' // &
                   trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &
                   // ')' 

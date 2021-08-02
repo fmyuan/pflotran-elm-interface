@@ -17,6 +17,11 @@ SUBSURFACE
 #=========================== numerical methods ================================
 NUMERICAL_METHODS TRANSPORT
 
+  NEWTON_SOLVER
+    # Uncomment to debug reactions
+    #NUMERICAL_JACOBIAN
+  /
+
   LINEAR_SOLVER
     SOLVER DIRECT
   /
@@ -29,8 +34,6 @@ REGRESSION
 END
 
 #=========================== chemistry ========================================
-# Uncomment to debug reactions
-#NUMERICAL_JACOBIAN_RXN
 CHEMISTRY
   PRIMARY_SPECIES
     A(aq)
@@ -62,6 +65,7 @@ CHEMISTRY
       SPECIES_NAME D(im)
       YIELD 0.01d0
     /
+    CONCENTRATION_UNITS ACTIVITY
   /
   IMMOBILE_DECAY_REACTION
     SPECIES_NAME D(im)

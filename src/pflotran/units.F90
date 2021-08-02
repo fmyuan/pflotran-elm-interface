@@ -15,7 +15,7 @@ contains
 
 ! ************************************************************************** !
 
-function UnitsConvertToInternal(units,internal_units,option)
+function UnitsConvertToInternal(units,internal_units,option,ierr)
   ! 
   ! Converts given units to pflotran internal units
   ! 
@@ -31,6 +31,7 @@ function UnitsConvertToInternal(units,internal_units,option)
   character(len=*) :: units
   character(len=MAXWORDLENGTH) :: internal_units
   type(option_type) :: option
+  PetscErrorCode, optional :: ierr
 
   character(len=MAXSTRINGLENGTH) :: units_buff
   character(len=MAXSTRINGLENGTH) :: internal_units_buff1
@@ -72,8 +73,13 @@ function UnitsConvertToInternal(units,internal_units,option)
   enddo
   
   if (.not.successful) then
-    option%io_buffer = error_msg
-    call PrintErrMsg(option)
+    if (present(ierr)) then
+      ierr = -1
+      return
+    else
+      option%io_buffer = error_msg
+      call PrintErrMsg(option)
+    endif
   endif
 
   UnitsConvertToInternal = conversion_factor
@@ -350,7 +356,7 @@ subroutine UnitsCategory(unit,unit_category,error,error_msg)
         unit_category(k) = 'time'
       case('Pa.s','cP','centiPoise','Poise','P')
         unit_category(k) = 'viscosity'
-      case('J','kJ','MJ')
+      case('J','kJ','MJ','cal','kcal')
         unit_category(k) = 'energy'
       case('W','kW','MW')
         unit_category(k) = 'power'
@@ -470,6 +476,10 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
       conversion_factor = 1.d3
     case('MJ')   
       conversion_factor = 1.d6
+    case('cal')
+      conversion_factor = 4.184d0
+    case('kcal')
+      conversion_factor = 4.184d3
   ! ---> ENERGY FLUX or POWER ---> (Watt)
     case('W')   
       conversion_factor = 1.d0

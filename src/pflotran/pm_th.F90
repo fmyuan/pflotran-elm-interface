@@ -7,7 +7,7 @@ module PM_TH_class
 !geh: using TH_module here fails with gfortran (internal compiler error)
 !  use TH_module
   use Realization_Subsurface_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Option_module
   
   use PFLOTRAN_Constants_module
@@ -157,7 +157,7 @@ subroutine PMTHReadSimOptionsBlock(this,input)
     
     select case(trim(keyword))
       case('FREEZING')
-        option%th_freezing = PETSC_TRUE
+        option%flow%th_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing
@@ -629,7 +629,7 @@ subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   if (Initialized(this%pressure_dampening_factor)) then
     ! P^p+1 = P^p - dP^p
-    P_R = option%reference_pressure
+    P_R = option%flow%reference_pressure
     scale = this%pressure_dampening_factor
 
     call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -926,7 +926,7 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
           if (this%logging_verbosity > 0) then
             string = '   ' // trim(tol_string(itol)) // ', ' // &
               dof_string(idof)
-            if (option%mycommsize == 1) then
+            if (option%comm%mycommsize == 1) then
               string = trim(string) // ' (' // &
                 trim(StringFormatInt(this%converged_cell(idof,itol))) &
                 // ')'
@@ -990,7 +990,7 @@ subroutine PMTHUpdateSolution(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THUpdateSolution, THUpdateSurfaceBC
+  use TH_module, only : THUpdateSolution
 
   implicit none
   
@@ -998,8 +998,6 @@ subroutine PMTHUpdateSolution(this)
   
   call PMSubsurfaceFlowUpdateSolution(this)
   call THUpdateSolution(this%realization)
-  if (this%option%surf_flow_on) &
-    call THUpdateSurfaceBC(this%realization)
 
 end subroutine PMTHUpdateSolution     
 

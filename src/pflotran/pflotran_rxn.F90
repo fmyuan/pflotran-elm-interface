@@ -205,7 +205,9 @@ program pflotran_rxn
   use Global_Aux_module
   use Material_Aux_class
   use Reaction_Database_module
+  use Communicator_Aux_module
   use Option_module
+  use Driver_module
   use Input_Aux_module
   use String_module
   
@@ -226,6 +228,7 @@ program pflotran_rxn
   class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
   type(input_type), pointer :: input
+  class(driver_type), pointer :: driver
 
   type(global_auxvar_type), pointer :: global_auxvars
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars
@@ -236,18 +239,13 @@ program pflotran_rxn
   type(tran_constraint_list_type), pointer :: transport_constraints
   class(tran_constraint_coupler_base_type), pointer :: constraint_coupler 
 
-  option => OptionCreate()
-  option%fid_out = OUT_UNIT
-
+  driver => DriverCreate()
   call MPI_Init(ierr)
-  option%global_comm = MPI_COMM_WORLD
-  call MPI_Comm_rank(MPI_COMM_WORLD, option%global_rank, ierr)
-  call MPI_Comm_size(MPI_COMM_WORLD, option%global_commsize, ierr)
-  call MPI_Comm_group(MPI_COMM_WORLD, option%global_group, ierr)
-  option%mycomm = option%global_comm
-  option%myrank = option%global_rank
-  option%mycommsize = option%global_commsize
-  option%mygroup = option%global_group
+  call CommInitPetsc(driver%comm,MPI_COMM_WORLD)
+
+  option => OptionCreate()
+  option%driver => driver
+  option%fid_out = FORWARD_OUT_UNIT
 
   ! check for non-default input filename
   option%input_filename = "pflotran.in"
@@ -265,7 +263,7 @@ program pflotran_rxn
   filename_out = trim(option%global_prefix) // trim(option%group_prefix) // &
                  '.out'
 
-  if (option%myrank == option%io_rank .and. option%print_to_file) then
+  if (driver%IsIORank() .and. driver%PrintToFile()) then
     open(option%fid_out, file=filename_out, action="write", status="unknown")
   endif
 
@@ -274,7 +272,7 @@ program pflotran_rxn
   !
   option%nphase = 1
   option%liquid_phase = 1
-  option%reference_density(option%liquid_phase) = 998.2
+  option%flow%reference_density(option%liquid_phase) = 998.2
 
   call BatchChemInitializeReactions(option, input, reaction)
 
@@ -294,15 +292,15 @@ program pflotran_rxn
   ! material_auxvars --> cell by cell material property data
   allocate(material_auxvars)
   call MaterialAuxVarInit(material_auxvars, option)
-  material_auxvars%porosity = option%reference_porosity
+  material_auxvars%porosity = option%flow%reference_porosity
 
   ! assign default state values
-  global_auxvars%pres = option%reference_pressure
-  global_auxvars%temp = option%reference_temperature
-  ! global_auxvars%den_kg = option%reference_water_density
+  global_auxvars%pres = option%flow%reference_pressure
+  global_auxvars%temp = option%flow%reference_temperature
+  ! global_auxvars%den_kg = option%flow%reference_water_density
   ! NOTE(bja): option%ref_density = 0.0, so we set it manually. This is a Bad Thing(TM)
   global_auxvars%den_kg = 998.2
-  global_auxvars%sat = option%reference_saturation  
+  global_auxvars%sat = option%flow%reference_saturation  
 
   ! create the constraint list
   allocate(transport_constraints)
@@ -333,6 +331,7 @@ program pflotran_rxn
   nullify(material_auxvars)
   call InputDestroy(input)
   call OptionDestroy(option)
+  call DriverDestroy(driver)
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)
 

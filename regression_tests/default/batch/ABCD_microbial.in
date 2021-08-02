@@ -14,6 +14,11 @@ SUBSURFACE
 #=========================== numerical methods ================================
 NUMERICAL_METHODS TRANSPORT
 
+  NEWTON_SOLVER
+    # Uncomment to debug reactions
+    #NUMERICAL_JACOBIAN
+  /
+
   LINEAR_SOLVER
     SOLVER DIRECT
   /
@@ -37,8 +42,6 @@ SPECIFIED_VELOCITY
 END
 
 #=========================== chemistry ========================================
-# Uncomment to debug reactions
-#NUMERICAL_JACOBIAN_RXN
 CHEMISTRY
   PRIMARY_SPECIES
     A(aq)
@@ -49,6 +52,7 @@ CHEMISTRY
     D(im)
   /
   MICROBIAL_REACTION
+    CONCENTRATION_UNITS ACTIVITY
     REACTION A(aq) + 2 B(aq) <-> 1.5 C(aq)
     RATE_CONSTANT 1.d-6
     MONOD 

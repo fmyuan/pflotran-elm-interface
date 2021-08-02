@@ -103,9 +103,9 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
                                       hdf5_err)
   ! divide across all processes
   temp_int = int(num_integers_in_file)
-  read_block_size = temp_int / option%mycommsize
-  remainder = temp_int - read_block_size*option%mycommsize
-  if (option%myrank < temp_int - read_block_size*option%mycommsize) &
+  read_block_size = temp_int / option%comm%mycommsize
+  remainder = temp_int - read_block_size*option%comm%mycommsize
+  if (option%myrank < temp_int - read_block_size*option%comm%mycommsize) &
     read_block_size = read_block_size + 1
   if (local_size > 0 .and. local_size /= read_block_size) then
     write(string,*) local_size, read_block_size
@@ -327,6 +327,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   
   use Option_module
   use Grid_module
+  use String_module
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -348,6 +349,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   integer(HSIZE_T) :: offset(3), length(3), stride(3)
   integer :: ndims_h5
   PetscMPIInt :: rank_mpi
+  PetscInt :: cell_id_bounds(2)
   ! seeting to MPIInt to ensure i4
   integer, allocatable :: indices_i4(:)
   integer(HSIZE_T) :: num_data_in_file
@@ -433,6 +435,19 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   call h5sclose_f(memory_space_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
   call h5dclose_f(data_set_id,hdf5_err)
+
+  cell_id_bounds(1) = minval(indices(1:iend-istart))
+  cell_id_bounds(2) = maxval(indices(1:iend-istart))
+  cell_id_bounds(1) = -cell_id_bounds(1)
+  call MPI_Allreduce(MPI_IN_PLACE,cell_id_bounds,TWO_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
+  cell_id_bounds(1) = -cell_id_bounds(1)
+  if (cell_id_bounds(1) < 1 .or. cell_id_bounds(2) > grid%nmax) then
+    option%io_buffer = 'One or more "Cell Ids" in HDF5 dataset &
+      &are outside the range of valid cell IDs: 1-' // &
+      adjustl(StringWrite(grid%nmax))
+    call PrintErrMsg(option)
+  endif
 
   call PetscLogEventEnd(logging%event_read_indices_hdf5,ierr);CHKERRQ(ierr)
   
@@ -866,8 +881,8 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   region%sideset => RegionCreateSideset()
   sideset => region%sideset
 
-  sideset%nfaces = int(dims_h5(2)/option%mycommsize)
-  remainder = int(dims_h5(2)) - sideset%nfaces*option%mycommsize
+  sideset%nfaces = int(dims_h5(2)/option%comm%mycommsize)
+  remainder = int(dims_h5(2)) - sideset%nfaces*option%comm%mycommsize
   if (option%myrank < remainder) sideset%nfaces = sideset%nfaces + 1
 
   ! Find istart and iend

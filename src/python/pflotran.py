@@ -1,6 +1,10 @@
 # pflotran.py
 import numpy as np
 import sys
+import re
+
+# this regular expression fixes: 9.99-100 -> 9.99e-100
+swap = re.compile(r'(?P<pre>[0-9]+\.[0-9]*)(?P<post>-[0-9]{3})')
 
 class FileType:
   NULL = -1
@@ -153,7 +157,7 @@ class Dataset:
     for line in self.f:
       w = line.split()
       for i in range(len(w)):
-        temp_array[count] = float(w[i])
+        temp_array[count] = self.read_float(w[i])
         count += 1
       if count >= n:
         break
@@ -164,7 +168,7 @@ class Dataset:
     for line in self.f:
       w = line.split()
       for i in range(len(w)):
-        temp_array[count] = float(w[i])
+        temp_array[count] = self.read_float(w[i])
         count += 1
       if count >= n:
         break
@@ -175,7 +179,7 @@ class Dataset:
     for line in self.f:
       w = line.split()
       for i in range(len(w)):
-        temp_array[count] = float(w[i])
+        temp_array[count] = self.read_float(w[i])
         count += 1
       if count >= n:
         break
@@ -197,8 +201,8 @@ class Dataset:
         array2.resize(size)
       w = line.split()
       # xcol and ycol are 1-based
-      array1[count] = float(w[xcol])
-      array2[count] = float(w[ycol])
+      array1[count] = self.read_float(w[xcol])
+      array2[count] = self.read_float(w[ycol])
       count += 1
     array1.resize(count)
     array2.resize(count)
@@ -229,7 +233,7 @@ class Dataset:
     for line in self.f:
       w = line.split()
       for i in range(len(w)):
-        array[count] = float(w[i])
+        array[count] = self.read_float(w[i])
         count += 1
         if count >= n:
           break
@@ -239,3 +243,9 @@ class Dataset:
     self.dictionary['z'] = len(self.arrays)
     self.arrays.append(array)
     
+  def read_float(self,string):
+    try:
+      f = float(string)
+    except:
+      f = float(swap.sub('\g<pre>E\g<post>',string))
+    return f

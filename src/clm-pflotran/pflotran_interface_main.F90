@@ -7,8 +7,7 @@ program pflotran_interface_main
   use petscvec
   use pflotran_model_module         , only : pflotran_model_type, pflotranModelCreate, &
        pflotranModelInitMapping, pflotranModelStepperRunInit, &
-       pflotranModelStepperRunTillPauseTime, pflotranModelDestroy, &
-       CLM_SRF_TO_PF_SRF, PF_SRF_TO_CLM_SRF
+       pflotranModelStepperRunTillPauseTime, pflotranModelDestroy
   use clm_pflotran_interface_data
   use Mapping_module
   use Input_Aux_module
@@ -17,11 +16,9 @@ program pflotran_interface_main
   use String_module
   
   use Simulation_Base_class         , only : simulation_base_type
-  use Simulation_Subsurface_class   , only : simulation_subsurface_type
-  use Simulation_Surface_class      , only : simulation_surface_type
-  use Simulation_Surf_Subsurf_class , only : simulation_surfsubsurface_type
+  use Simulation_Subsurface_class   , only : simulation_subsurface_type, &
+                                             SimSubsurfCast
   use Realization_Base_class        , only : realization_base_type
-  use Realization_surface_class     , only : realization_surface_type
   use Timestepper_Base_class        , only : TS_STOP_END_SIMULATION
 
   use PFLOTRAN_Constants_module
@@ -31,8 +28,7 @@ program pflotran_interface_main
 
   type(pflotran_model_type)       , pointer :: pflotran_m
   class(realization_base_type)    , pointer :: realization
-  class(realization_surface_type) , pointer :: surf_realization
-
+  class(simulation_subsurface_type), pointer :: simulation
   
   PetscErrorCode                            :: ierr
   PetscInt                                  :: time
@@ -47,59 +43,27 @@ program pflotran_interface_main
   PetscBool                                 :: pflotranin_option_found
   PetscBool                                 :: input_prefix_option_found
   character(len=MAXSTRINGLENGTH)  , pointer :: strings(:)
-  type(option_type)               , pointer :: option
 
   PetscInt                                  :: PRINT_RANK    
   PRINT_RANK = 0
 
   call MPI_Init(ierr)
  
-  ! Determine the pflotran inputdeck
-  option => OptionCreate()
-  string = '-pflotranin'
-  call InputGetCommandLineString(string,option%input_filename, &
-                                 pflotranin_option_found,option)
-  string = '-input_prefix'
-  call InputGetCommandLineString(string,option%input_prefix, &
-                                 input_prefix_option_found,option)
-  
-  if (pflotranin_option_found .and. input_prefix_option_found) then
-    option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
-      '"-input_prefix" on the command lines.'
-    call PrintErrMsg(option)
-  else if (pflotranin_option_found) then
-    strings => StringSplit(option%input_filename,'.')
-    filename = strings(1)
-    deallocate(strings)
-    nullify(strings)
-  else if (input_prefix_option_found) then
-    filename = trim(option%input_prefix)
- endif
-
- call OptionDestroy(option)
-
   ! Create the model
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
+  simulation => SimSubsurfCast(pflotran_m%simulation)
 
-  select type (simulation => pflotran_m%simulation)
+  select type (simulation)
     class is (simulation_subsurface_type)
        realization => simulation%realization
-       nullify(surf_realization)
-    class is (simulation_surfsubsurface_type)
-       realization => simulation%realization
-       surf_realization => simulation%surf_realization
-    class is (simulation_surface_type)
-       nullify(realization)
-       surf_realization => simulation%surf_realization
     class default
        nullify(realization)
-       nullify(surf_realization)
        pflotran_m%option%io_buffer = "ERROR: pflotran model only works on combinations of subsurface and surface simulations."
        call PrintErrMsg(pflotran_m%option)
    end select
 
   ! Set up CLM cell ids
-  if (pflotran_m%option%mycommsize == 1) then
+  if (pflotran_m%option%comm%mycommsize == 1) then
     clm_npts = 5000*10
     clm_surf_npts = 5000
     allocate (clm_cell_ids(clm_npts))
@@ -111,7 +75,7 @@ program pflotran_interface_main
       clm_surf_cell_ids(ii) = (ii-1)*10
     enddo
   else
-    if (pflotran_m%option%mycommsize == 2) then
+    if (pflotran_m%option%comm%mycommsize == 2) then
       clm_surf_npts = 5000/2
       clm_npts       = clm_surf_npts*10
       allocate (clm_cell_ids(clm_npts))
@@ -176,7 +140,7 @@ program pflotran_interface_main
   enddo
 
   ! flag ensures shutdown due to successful run.
-  pflotran_m%simulation%stop_flag = TS_STOP_END_SIMULATION
+  simulation%stop_flag = TS_STOP_END_SIMULATION
   
   ! Finalize PFLOTRAN Stepper
   !call pflotranModelStepperRunFinalize(pflotran_m)

@@ -2,18 +2,17 @@ module Output_module
 
 #include "petsc/finclude/petscdm.h"
   use petscdm
-  use Logging_module 
+  use Logging_module
   use Output_Aux_module
 
- ! use Output_Surface_module
   use Output_HDF5_module
   use Output_Tecplot_module
   use Output_VTK_module
   use Output_Observation_module
-  
+
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
-  
+
   implicit none
 
   private
@@ -27,7 +26,7 @@ module Output_module
   PetscInt, parameter :: TECPLOT_FILE = 0
   PetscInt, parameter ::  HDF5_FILE = 1
 
-  
+
   PetscBool :: observation_first
   PetscBool :: hdf5_first
   PetscBool :: mass_balance_first
@@ -49,21 +48,21 @@ contains
 ! ************************************************************************** !
 
 subroutine OutputInit(option,num_steps)
-  ! 
+  !
   ! Initializes variables
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/22/09
-  ! 
+  !
   use Option_module
   use Output_Common_module
   use Output_EKG_module
 
   implicit none
-  
+
   type(option_type) :: option
   PetscInt :: num_steps
-  
+
   call OutputCommonInit()
   call OutputObservationInit(num_steps)
   call OutputHDF5Init(num_steps)
@@ -75,12 +74,12 @@ end subroutine OutputInit
 
 subroutine OutputFileRead(input,realization,output_option, &
                           waypoint_list,block_name)
-  ! 
+  !
   ! Reads the *_FILE block within the OUTPUT block.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 02/23/2016
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
@@ -101,7 +100,7 @@ subroutine OutputFileRead(input,realization,output_option, &
   type(output_option_type), pointer :: output_option
   type(waypoint_list_type), pointer :: waypoint_list
   character(len=*) :: block_name
-  
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -142,8 +141,6 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_observation = PETSC_TRUE
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
-    case('ECLIPSE_FILE')
-      output_option%write_ecl = PETSC_TRUE
   end select
 
   call InputPushBlock(input,option)
@@ -151,12 +148,12 @@ subroutine OutputFileRead(input,realization,output_option, &
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,word)
     string = 'OUTPUT,' // trim(block_name)
     call InputErrorMsg(input,option,'keyword',string)
     call StringToUpper(word)
-    
+
     select case(trim(word))
 !......................................
       case('NO_FINAL','NO_PRINT_FINAL')
@@ -179,17 +176,19 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
-
-      case('WRITE_MASS_RATES')
+!...............................
+      case('NO_PRINT_SOURCE_SINK')
         select case(trim(block_name))
+          case('OBSERVATION_FILE')
+            option%io_buffer = 'NO_PRINT_SOURCE_SINK cannot be specified for &
+                               &OUTPUT,OBSERVATION_FILE block.'
+            call PrintErrMsg(option)
+          case('SNAPSHOT_FILE')
+            option%io_buffer = 'NO_PRINT_SOURCE_SINK cannot be specified for &
+                               &OUTPUT,SNAPSHOT_FILE block.'
+            call PrintErrMsg(option)
           case('MASS_BALANCE_FILE')
-            output_option%write_masses = PETSC_TRUE
-        end select
-
-      case('FORMATTED')
-        select case(trim(block_name))
-          case('ECLIPSE_FILE')
-            output_option%eclipse_options%write_ecl_form = PETSC_TRUE
+            output_option%print_ss_massbal = PETSC_FALSE
         end select
 !...............................
       case('TOTAL_MASS_REGIONS')
@@ -212,7 +211,7 @@ subroutine OutputFileRead(input,realization,output_option, &
               if (InputCheckExit(input,option)) exit
               ! Region name found; read the region name
               call InputReadWord(input,option,word,PETSC_TRUE)
-              call InputErrorMsg(input,option,'keyword',string) 
+              call InputErrorMsg(input,option,'keyword',string)
               ! Create a new mass balance region
               new_massbal_region => OutputMassBalRegionCreate()
               new_massbal_region%region_name = trim(word)
@@ -256,7 +255,7 @@ subroutine OutputFileRead(input,realization,output_option, &
               waypoint%print_obs_output = PETSC_TRUE
             case('MASS_BALANCE_FILE')
               waypoint%print_msbl_output = PETSC_TRUE
-          end select    
+          end select
           call WaypointInsertInList(waypoint,waypoint_list)
         enddo
         call DeallocateArray(temp_real_array)
@@ -277,7 +276,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputErrorMsg(input,option,'time increment units',string)
             internal_units = 'sec'
             units_conversion = UnitsConvertToInternal(word, &
-                 internal_units,option) 
+                 internal_units,option)
             select case(trim(block_name))
               case('SNAPSHOT_FILE')
                 output_option%periodic_snap_output_time_incr = temp_real* &
@@ -297,7 +296,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'start time units',string)
                 units_conversion = UnitsConvertToInternal(word, &
-                     internal_units,option) 
+                     internal_units,option)
                 temp_real = temp_real * units_conversion
                 call InputReadCard(input,option,word)
                 if (.not.StringCompareIgnoreCase(word,'and')) then
@@ -309,7 +308,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'end time units',string)
                 units_conversion = UnitsConvertToInternal(word, &
-                     internal_units,option) 
+                     internal_units,option)
                 temp_real2 = temp_real2 * units_conversion
                 select case(trim(block_name))
                   case('SNAPSHOT_FILE')
@@ -371,46 +370,6 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputKeywordUnrecognized(input,word,'OUTPUT,PERIODIC',option)
         end select
 
-      case('PERIOD_SUM','PERIOD_RST')
-        is_sum=StringCompareIgnoreCase(word,'PERIOD_SUM')
-        is_rst=StringCompareIgnoreCase(word,'PERIOD_RST')
-        string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'periodic time increment type',string)
-        call StringToUpper(word)
-        select case(trim(word))
-          case('TIME')
-            deltat = -1.0
-            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIME'
-            call InputReadDouble(input,option,temp_real)
-            call InputErrorMsg(input,option,'time increment',string)
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'time increment units',string)
-            internal_units = 'sec'
-            units_conversion = UnitsConvertToInternal(word, &
-                 internal_units,option)
-            deltat = temp_real*units_conversion
-            if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltat = deltat
-              output_option%eclipse_options%write_ecl_sum_deltas = -1
-            endif
-            if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltat = deltat
-              output_option%eclipse_options%write_ecl_rst_deltas = -1
-            endif
-          case('TIMESTEP')
-            deltas = -1
-            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
-              call InputReadInt(input,option,deltas)
-            if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltas = deltas
-              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
-            endif
-            if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltas = deltas
-              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
-            endif
-        end select
 !...................
       case('SCREEN')
         string = 'OUTPUT,' // trim(block_name) // ',SCREEN'
@@ -419,7 +378,7 @@ subroutine OutputFileRead(input,realization,output_option, &
         call StringToUpper(word)
         select case(trim(word))
           case('OFF')
-            option%print_to_screen = PETSC_FALSE
+            option%driver%print_to_screen = PETSC_FALSE
           case('PERIODIC')
             string = trim(string) // ',PERIODIC'
             call InputReadInt(input,option,output_option%screen_imod)
@@ -444,7 +403,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             call PrintErrMsg(option)
         end select
         call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'keyword',string) 
+        call InputErrorMsg(input,option,'keyword',string)
         call StringToUpper(word)
         select case(trim(word))
         !..............
@@ -489,7 +448,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             string = trim(string) // ',TECPLOT'
             output_option%print_tecplot = PETSC_TRUE
             call InputReadCard(input,option,word)
-            call InputErrorMsg(input,option,'TECPLOT format',string) 
+            call InputErrorMsg(input,option,'TECPLOT format',string)
             call StringToUpper(word)
             select case(trim(word))
               case('POINT')
@@ -502,7 +461,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 call InputKeywordUnrecognized(input,word,string,option)
             end select
             if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                 .and. option%mycommsize > 1) then
+                 .and. option%comm%mycommsize > 1) then
               option%io_buffer = 'TECPLOT POINT format not supported in &
                 &parallel. Switching to TECPLOT BLOCK.'
               call PrintMsg(option)
@@ -532,10 +491,10 @@ subroutine OutputFileRead(input,realization,output_option, &
 !......................
       case('VARIABLES')
         select case(trim(block_name))
-          case('SNAPSHOT_FILE')           
+          case('SNAPSHOT_FILE')
             call OutputVariableRead(input,option, &
                  output_option%output_snap_variable_list)
-          case('OBSERVATION_FILE')           
+          case('OBSERVATION_FILE')
             call OutputVariableRead(input,option, &
                  output_option%output_obs_variable_list)
           case('MASS_BALANCE_FILE')
@@ -544,15 +503,15 @@ subroutine OutputFileRead(input,realization,output_option, &
                  &determined internally.'
             call PrintErrMsg(option)
         end select
-        
+
 !.............................
       case('PRINT_COLUMN_IDS')
         output_option%print_column_ids = PETSC_TRUE
-        
+
 !.............................
       case('DETAILED')
         select case(trim(block_name))
-          case('MASS_BALANCE_FILE') 
+          case('MASS_BALANCE_FILE')
             option%mass_bal_detailed = PETSC_TRUE
         end select
 
@@ -587,7 +546,7 @@ subroutine OutputFileRead(input,realization,output_option, &
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 
   if (vel_cent) then
     if (output_option%print_tecplot) &
@@ -644,18 +603,18 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_explicit_flowrate = mass_flowrate
     endif
   endif
-  
+
 end subroutine OutputFileRead
 
 ! ************************************************************************** !
 
 subroutine OutputVariableRead(input,option,output_variable_list)
-  ! 
+  !
   ! This routine reads a variable from the input file.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL; Glenn Hammond PNNL/SNL
   ! Date: 12/21/12
-  ! 
+  !
 
   use Option_module
   use Input_Aux_module
@@ -667,18 +626,19 @@ subroutine OutputVariableRead(input,option,output_variable_list)
   type(option_type), pointer :: option
   type(input_type), pointer :: input
   type(output_variable_list_type), pointer :: output_variable_list
-  
+
   character(len=MAXWORDLENGTH) :: word, word2
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable
   PetscInt :: temp_int, id, category, subvar, subsubvar
+  PetscInt :: icount
 
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','VARIABLES')
     call StringToUpper(word)
@@ -849,7 +809,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable => OutputVariableCreate(name,category,units,id)
          ! toggle output off for observation
 !geh: nope, this can change over time.
-!geh         output_variable%plot_only = PETSC_TRUE 
+!geh         output_variable%plot_only = PETSC_TRUE
 
          output_variable%iformat = 1 ! integer
          call OutputVariableAddToList(output_variable_list,output_variable)
@@ -914,14 +874,14 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
-        
+
         word = 'Y_COORDINATE'
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
         output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
-        
+
         word = 'Z_COORDINATE'
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
@@ -953,6 +913,28 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 0 ! double
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         call OutputVariableAddToList(output_variable_list,output_variable)
+      case('ELECTRICAL_POTENTIAL','ELECTRICAL_JACOBIAN')
+        icount = 0
+        do
+          call InputReadInt(input,option,temp_int)
+          ! if no electrode id is present, the single electrode id is set to 1
+          if (input%ierr == 0 .or. icount == 0) then
+            icount = icount + 1
+            if (input%ierr /= 0) temp_int = 1
+            call OutputVariableToID(word,name,units,category,id, &
+                                    subvar,subsubvar,option)
+            name = trim(name) // '_' // adjustl(StringWrite(temp_int))
+            subvar = temp_int
+            call OutputVariableAddToList(output_variable_list,name, &
+                                       category,units,id,subvar)
+          else
+            exit
+          endif
+        enddo
+! IMPORANT
+! Developers: Before you add a new case statement, does the new
+! have non-default values (see OutputVariableInit). If no, do
+! not add a new case statement as "case default" will work.
       case default
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
@@ -980,19 +962,19 @@ end subroutine OutputVariableRead
 
 subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
                   massbal_plot_flag)
-  ! 
+  !
   ! Main driver for all output subroutines
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   ! Notes: Modified by Jenn Frederick, 2/23/2016
-  ! 
+  !
 
   use Realization_Base_class, only : realization_base_type
   use Option_module
-  
+
   implicit none
-  
+
   class(realization_base_type) :: realization_base
   PetscBool :: snapshot_plot_flag
   PetscBool :: observation_plot_flag
@@ -1004,7 +986,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
   type(option_type), pointer :: option
 
   option => realization_base%option
-  
+
   call PetscLogStagePush(logging%stage(OUTPUT_STAGE),ierr);CHKERRQ(ierr)
 
   ! check for plot request from active directory
@@ -1039,14 +1021,14 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
         end select
       else
         call OutputHDF5(realization_base,INSTANTANEOUS_VARS)
-      endif      
+      endif
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') &
             tend-tstart
       call PrintMsg(option)
     endif
-   
+
     if (realization_base%output_option%print_tecplot) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
       call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
@@ -1062,7 +1044,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
             tend-tstart
       call PrintMsg(option)
     endif
-    
+
     if (realization_base%output_option%print_explicit_flowrate) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
       call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
@@ -1085,7 +1067,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
             tend-tstart
       call PrintMsg(option)
     endif
-      
+
     ! Print secondary continuum variables vs sec. continuum dist.
     if (option%use_mc) then
       if (realization_base%output_option%print_tecplot) then
@@ -1102,14 +1084,14 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
         call PrintMsg(option)
       endif
     endif
-      
+
     if (option%compute_statistics) then
       call ComputeFlowCellVelocityStats(realization_base)
       call ComputeFlowFluxVelocityStats(realization_base)
     endif
 
   endif
-  
+
 !.................................
   if (observation_plot_flag) then
     call OutputObservation(realization_base)
@@ -1120,18 +1102,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
     call OutputMassBalance(realization_base)
   endif
 
-  !  Output Eclipse files for this step if required
-  if( realization_base%output_option%write_ecl ) then
-    call OutputEclipseFiles(realization_base)
-  endif
-
-  ! Output single-line report for this step if required
-  if (option%linerept) then
-    option%print_to_screen = PETSC_FALSE
-    call OutputLineRept(realization_base,option)
-  endif
-
-  ! Output temporally average variables 
+  ! Output temporally average variables
   call OutputAvegVars(realization_base)
 
   if (snapshot_plot_flag) then
@@ -1151,12 +1122,12 @@ end subroutine Output
 ! ************************************************************************** !
 
 subroutine OutputInputRecord(output_option,waypoint_list)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
-  !  
+  !
   use Output_Aux_module
   use Waypoint_module
 
@@ -1164,15 +1135,15 @@ subroutine OutputInputRecord(output_option,waypoint_list)
 
   type(output_option_type), pointer :: output_option
   type(waypoint_list_type), pointer :: waypoint_list
-  
+
   type(waypoint_type), pointer :: cur_waypoint
   type(output_variable_type), pointer :: cur_variable
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: snap_string,obs_string,msbl_string
   PetscBool :: snap_output_found,obs_output_found,msbl_output_found
-  PetscInt :: id = INPUT_RECORD_UNIT  
+  PetscInt :: id = INPUT_RECORD_UNIT
   character(len=10) :: Format
-  
+
   Format = '(ES14.7)'
 
   write(id,'(a)') ' '
@@ -1449,17 +1420,17 @@ subroutine OutputInputRecord(output_option,waypoint_list)
   else
     write(id,'(a)') 'OFF'
   endif
-  
+
 
 end subroutine OutputInputRecord
 
 ! ************************************************************************** !
 
 subroutine ComputeFlowCellVelocityStats(realization_base)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/11/08
-  ! 
+  !
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
@@ -1471,13 +1442,13 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   use Discretization_module
 
   implicit none
-  
+
   class(realization_base_type) :: realization_base
-  
+
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(patch_type), pointer :: patch  
+  type(patch_type), pointer :: patch
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
   PetscInt :: iconn, i, direction, iphase, sum_connection
@@ -1489,11 +1460,11 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   PetscReal :: average, sum, max, min, std_dev
   PetscInt :: max_loc, min_loc
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   PetscReal, pointer :: vec_ptr(:), vec2_ptr(:), den_loc_p(:)
   PetscReal, allocatable :: sum_area(:)
   PetscErrorCode :: ierr
-  
+
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
@@ -1504,7 +1475,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   field => realization_base%field
   output_option => realization_base%output_option
   discretization => realization_base%discretization
-    
+
   allocate(sum_area(grid%nlmax))
   call DiscretizationDuplicateVector(discretization,field%work,global_vec)
   call DiscretizationDuplicateVector(discretization,field%work,global_vec2)
@@ -1512,16 +1483,16 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   do iphase = 1,option%nphase
 
     do direction = 1,3
-    
+
       sum_area(1:grid%nlmax) = 0.d0
       call VecSet(global_vec,0.d0,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-      ! interior velocities  
+      ! interior velocities
       connection_set_list => grid%internal_connection_set_list
       cur_connection_set => connection_set_list%first
       sum_connection = 0
-      do 
+      do
         if (.not.associated(cur_connection_set)) exit
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
@@ -1586,7 +1557,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
       string = trim(string) // ' Velocity Statistics [m/' // &
                trim(output_option%tunit) // ']:'
 
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         write(*,'(/,a,/, &
                      &"Average:",1es12.4,/, &
                      &"Max:    ",1es12.4,"  Location:",i11,/, &
@@ -1605,7 +1576,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
 
     enddo
   enddo
-  
+
   if (allocated(sum_area)) deallocate(sum_area)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec2,ierr);CHKERRQ(ierr)
@@ -1615,14 +1586,14 @@ end subroutine ComputeFlowCellVelocityStats
 ! ************************************************************************** !
 
 subroutine ComputeFlowFluxVelocityStats(realization_base)
-  ! 
+  !
   ! Print flux statistics
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/11/08
-  ! 
+  !
 !geh - specifically, the flow velocities at the interfaces between cells
- 
+
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -1630,21 +1601,21 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   use Field_module
   use Connection_module
   use Patch_module
-  
+
   implicit none
 
   class(realization_base_type) :: realization_base
-  
+
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(discretization_type), pointer :: discretization  
+  type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
-  
+
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
-  
+
   PetscInt :: iphase
   PetscInt :: direction
   PetscInt :: local_id, ghosted_id
@@ -1657,28 +1628,28 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
 
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-    
+
   discretization => realization_base%discretization
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
   field => realization_base%field
   output_option => realization_base%output_option
-  
-  call DiscretizationDuplicateVector(discretization,field%work,global_vec) 
-  call DiscretizationDuplicateVector(discretization,field%work,global_vec2) 
+
+  call DiscretizationDuplicateVector(discretization,field%work,global_vec)
+  call DiscretizationDuplicateVector(discretization,field%work,global_vec2)
 
   do iphase = 1,option%nphase
     do direction = 1,3
-    
+
       call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
-      
+
       ! place interior velocities in a vector
       connection_set_list => grid%internal_connection_set_list
       cur_connection_set => connection_set_list%first
       sum_connection = 0
-      do 
+      do
         if (.not.associated(cur_connection_set)) exit
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
@@ -1693,7 +1664,7 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
       enddo
 
       call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
-      
+
       ! compute stats
       call VecSum(global_vec,sum,ierr);CHKERRQ(ierr)
       average = sum/real(grid%nmax)
@@ -1718,7 +1689,7 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
       end select
       string = trim(string) // ' Flux Velocity Statistics [m/' // &
                trim(output_option%tunit) // ']:'
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         write(*,'(/,a,/, &
                      &"Average:",1es12.4,/, &
                      &"Max:    ",1es12.4,"  Location:",i11,/, &
@@ -1736,25 +1707,25 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
       endif
     enddo
   enddo
-  
+
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec2,ierr);CHKERRQ(ierr)
-  
+
 end subroutine ComputeFlowFluxVelocityStats
 
 ! ************************************************************************** !
 
 subroutine OutputPrintCouplers(realization_base,istep)
-  ! 
+  !
   ! Prints values of auxiliary variables associated with
   ! couplers (boundary and initial conditions, source
   ! sinks).  Note that since multiple connections for
   ! couplers can exist for a single cell, the latter will
   ! overwrite the former.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/02/11
-  ! 
+  !
 
   use Realization_Base_class, only : realization_base_type
   use Coupler_module
@@ -1771,7 +1742,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
-  
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: cur_patch
   type(field_type), pointer :: field
@@ -1786,8 +1757,8 @@ subroutine OutputPrintCouplers(realization_base,istep)
   PetscInt, allocatable :: iauxvars(:)
   character(len=MAXWORDLENGTH), allocatable :: auxvar_names(:)
   PetscErrorCode :: ierr
-  
-  
+
+
   option => realization_base%option
   flow_debug => realization_base%debug
   field => realization_base%field
@@ -1826,13 +1797,13 @@ subroutine OutputPrintCouplers(realization_base,istep)
         'OutputPrintCouplers() not yet supported for this flow mode'
       call PrintErrMsg(option)
   end select
-  
+
   coupler_string = flow_debug%coupler_string
   ierr = 0
   do
     call InputReadWord(coupler_string,word,PETSC_TRUE,ierr)
     if (ierr /= 0) exit
-    
+
     do iaux = 1, size(iauxvars)
       cur_patch => realization_base%patch_list%first
       do
@@ -1860,7 +1831,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
         string = adjustl(string)
         string = trim(word) // '_' // trim(auxvar_names(iaux)) // '_' // &
                  trim(string)
-      else 
+      else
         string = trim(word) // '_' // trim(auxvar_names(iaux))
       endif
       if (len_trim(option%group_prefix) > 1) then
@@ -1869,7 +1840,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
       string = trim(string) // '.tec'
       call OutputVectorTecplot(string,word,realization_base,field%work)
     enddo
-      
+
   enddo
 
   deallocate(iauxvars)
@@ -1880,13 +1851,13 @@ end subroutine OutputPrintCouplers
 ! ************************************************************************** !
 
 subroutine OutputPrintCouplersH5(realization_base,istep)
-  ! 
+  !
   ! Prints values of auxiliary variables associated with
   ! couplers (boundary and initial conditions, source
   ! sinks).  Note that since multiple connections for
   ! couplers can exist for a single cell, the latter will
   ! overwrite the former. HDF5 format version.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/20/20
 
@@ -1910,7 +1881,7 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
-  
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: cur_patch
   type(field_type), pointer :: field
@@ -1942,8 +1913,8 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
   integer(HID_T) :: grp_id
 
   PetscErrorCode :: ierr
-  
-  
+
+
   option => realization_base%option
   field => realization_base%field
   discretization => realization_base%discretization
@@ -2004,7 +1975,7 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
   endif
 
   !TODO(geh): move conditional inside of OutputXMFHeader
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call OutputXMFHeader(OUTPUT_UNIT, &
                          option%time/output_option%tconv, &
                          grid%nmax, &
@@ -2024,13 +1995,13 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
 
   call DiscretizationCreateVector(discretization,ONEDOF,natural_vec,NATURAL, &
                                   option)
-  
+
   coupler_string = flow_debug%coupler_string
   ierr = 0
   do
     call InputReadWord(coupler_string,word,PETSC_TRUE,ierr)
     if (ierr /= 0) exit
-    
+
     do iaux = 1, size(iauxvars)
       cur_patch => realization_base%patch_list%first
       do
@@ -2058,7 +2029,7 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
         string = adjustl(string)
         string = trim(word) // '_' // trim(auxvar_names(iaux)) // '_' // &
                  trim(string)
-      else 
+      else
         string = trim(word) // '_' // trim(auxvar_names(iaux))
       endif
       if (len_trim(option%group_prefix) > 1) then
@@ -2072,16 +2043,16 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
       string2 = trim(h5_filename_without_path) // &
                      ":/" // trim(group_name) // "/" // trim(string)
       !TODO(geh): move conditional inside of OutputXMFAttribute
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,string2, &
                                 CELL_CENTERED_OUTPUT_MESH)
       endif
     enddo
-      
+
   enddo
 
   !TODO(geh): move conditional inside of OutputXMFFooter
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call OutputXMFFooter(OUTPUT_UNIT)
     close(OUTPUT_UNIT)
   endif
@@ -2100,12 +2071,12 @@ end subroutine OutputPrintCouplersH5
 ! ************************************************************************** !
 
 subroutine OutputPrintRegions(realization_base)
-  ! 
+  !
   ! Prints out the number of connections to each cell in a region.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/16
-  ! 
+  !
   use Realization_Base_class, only : realization_base_type
   use Option_module
   use Debug_module
@@ -2116,7 +2087,7 @@ subroutine OutputPrintRegions(realization_base)
   implicit none
 
   class(realization_base_type) :: realization_base
-  
+
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(debug_type), pointer :: flow_debug
@@ -2126,8 +2097,8 @@ subroutine OutputPrintRegions(realization_base)
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
   PetscErrorCode :: ierr
-  
-  
+
+
   option => realization_base%option
   flow_debug => realization_base%debug
   field => realization_base%field
@@ -2146,18 +2117,18 @@ subroutine OutputPrintRegions(realization_base)
     call OutputVectorTecplot(string,word,realization_base,field%work)
     cur_region => cur_region%next
   enddo
-  
+
 end subroutine OutputPrintRegions
 
 ! ************************************************************************** !
 
 subroutine OutputPrintRegionsH5(realization_base)
-  ! 
+  !
   ! Prints out the number of connections to each cell in a region in HDF5.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/19/19
-  ! 
+  !
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use hdf5
@@ -2176,7 +2147,7 @@ subroutine OutputPrintRegionsH5(realization_base)
   implicit none
 
   class(realization_base_type) :: realization_base
-  
+
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
@@ -2226,7 +2197,7 @@ subroutine OutputPrintRegionsH5(realization_base)
   endif
 
   !TODO(geh): move conditional inside of OutputXMFHeader
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call OutputXMFHeader(OUTPUT_UNIT, &
                          option%time/output_option%tconv, &
                          grid%nmax, &
@@ -2272,7 +2243,7 @@ subroutine OutputPrintRegionsH5(realization_base)
     string2 = trim(h5_filename_without_path) // &
                    ":/" // trim(group_name) // "/" // trim(string)
     !TODO(geh): move conditional inside of OutputXMFAttribute
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,string2, &
                               CELL_CENTERED_OUTPUT_MESH)
     endif
@@ -2288,13 +2259,13 @@ subroutine OutputPrintRegionsH5(realization_base)
   string2 = trim(h5_filename_without_path) // &
                  ":/" // trim(group_name) // "/" // trim(string)
   !TODO(geh): move conditional inside of OutputXMFAttribute
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,string2, &
                             CELL_CENTERED_OUTPUT_MESH)
   endif
 
   !TODO(geh): move conditional inside of OutputXMFFooter
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call OutputXMFFooter(OUTPUT_UNIT)
     close(OUTPUT_UNIT)
   endif
@@ -2306,52 +2277,52 @@ subroutine OutputPrintRegionsH5(realization_base)
   call VecDestroy(one_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(all_vec,ierr);CHKERRQ(ierr)
   call OutputH5Destroy(h5obj)
-  
+
 end subroutine OutputPrintRegionsH5
 
 ! ************************************************************************** !
 
 subroutine OutputAvegVars(realization_base)
-  ! 
+  !
   ! This routine temporally averages variables and outputs thems
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/10/13
-  ! 
+  !
 
   use Realization_Base_class, only : realization_base_type
   use Option_module
   use Output_Aux_module
-  use Output_Common_module, only : OutputGetVariableArray  
+  use Output_Common_module, only : OutputGetVariableArray
   use Field_module
 
   implicit none
-  
+
   class(realization_base_type) :: realization_base
 
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
-  type(field_type), pointer :: field  
+  type(field_type), pointer :: field
 
   PetscReal :: dtime
   PetscBool :: aveg_plot_flag
   PetscInt :: ivar
   PetscReal,pointer :: aval_p(:),ival_p(:)
-  PetscErrorCode :: ierr  
+  PetscErrorCode :: ierr
   PetscLogDouble :: tstart, tend
 
   option => realization_base%option
   output_option => realization_base%output_option
   field => realization_base%field
 
-  ! 
+  !
   if (option%time<1.d-10) return
-  
+
   dtime = option%time-output_option%aveg_var_time
   output_option%aveg_var_dtime = output_option%aveg_var_dtime + dtime
   output_option%aveg_var_time = output_option%aveg_var_time + dtime
-  
+
   if (abs(output_option%aveg_var_dtime - &
           output_option%periodic_snap_output_time_incr)<1.d0) then
     aveg_plot_flag=PETSC_TRUE
@@ -2372,7 +2343,7 @@ subroutine OutputAvegVars(realization_base)
     endif
     return
   endif
-  
+
   ivar = 0
   cur_variable => output_option%aveg_output_variable_list%first
   do
@@ -2400,7 +2371,7 @@ subroutine OutputAvegVars(realization_base)
                               ierr);CHKERRQ(ierr)
 
     endif
-    
+
     cur_variable => cur_variable%next
   enddo
 
@@ -2413,7 +2384,7 @@ subroutine OutputAvegVars(realization_base)
         call OutputHDF5UGridXDMF(realization_base,AVERAGED_VARS)
       else
         call OutputHDF5(realization_base,AVERAGED_VARS)
-      endif      
+      endif
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
@@ -2434,12 +2405,12 @@ end subroutine OutputAvegVars
 ! ************************************************************************** !
 
 subroutine OutputEnsureVariablesExist(output_option,option)
-  ! 
+  !
   ! Loop over output variables to ensure that they exist in the simulation
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/02/17
-  ! 
+  !
   use Option_module
 
   implicit none
@@ -2461,12 +2432,12 @@ end subroutine OutputEnsureVariablesExist
 ! ************************************************************************** !
 
 subroutine OutputListEnsureVariablesExist(output_variable_list,option)
-  ! 
+  !
   ! Loop over output variables to ensure that they exist in the simulation
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/02/17
-  ! 
+  !
   use Option_module
   use Material_Aux_class, only : soil_compressibility_index, &
                                  soil_reference_pressure_index
@@ -2519,12 +2490,12 @@ end subroutine OutputListEnsureVariablesExist
 ! ************************************************************************** !
 
 subroutine OutputFindNaNOrInfInVec(vec,grid,option)
-  ! 
+  !
   ! Reports Infs or NaNs in a vector
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/08/18
-  ! 
+  !
   use Grid_module
   use Option_module
 !geh: ieee_arithmetic is not yet supported by gfortran 4.x or lower

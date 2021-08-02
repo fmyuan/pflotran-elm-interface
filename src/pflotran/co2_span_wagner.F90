@@ -63,7 +63,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
 
       PetscInt :: iitable,i,j
       PetscMPIInt :: myrank
-      PetscInt :: iflag = 1
+      PetscInt :: iflag
 
       character*3 :: q
       character*1 :: tab
@@ -75,6 +75,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
 
       type(option_type) :: option
 
+      iflag = 1
       tab = char(9)
       q = '","'
 
@@ -1733,9 +1734,6 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   end if
 
   option%co2_database_filename = filename
-  if ( .not. StringNull(option%output_dir) ) then
-    filename = trim(option%output_dir) // '/' // trim(filename)
-  end if
 
   myrank=0; itable=0;
   call initialize_span_wagner(itable,myrank,option)

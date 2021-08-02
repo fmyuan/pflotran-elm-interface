@@ -64,8 +64,10 @@ module Grid_Structured_module
     PetscBool :: invert_z_axis
     
     PetscReal, pointer :: dx(:), dy(:), dz(:)  ! ghosted grid spacings for each grid cell
-    
-    PetscInt, pointer :: cell_neighbors(:,:)
+    PetscInt, pointer :: cell_neighbors_local_ghosted(:,:)
+                            ! (0,local_id) = number of neighbors for local_id
+                            ! (iface=1:6,local_id) = ghosted_ids of neighbors
+                            ! ghosted neighbors have negative ghost_ids
     PetscBool :: second_order_bc
     
   end type grid_structured_type
@@ -87,7 +89,8 @@ module Grid_Structured_module
             StructGridGetIJKFromGhostedID, &
             StructGridGetGhostedNeighbors, &
             StructGridCreateTVDGhosts, &
-            StructGridGetGhostedNeighborsCorners
+            StructGridGetGhostedNeighborsCorners, &
+            StructGridPopulateCellNeighbors
             
 contains
 
@@ -181,10 +184,10 @@ function StructGridCreate()
   nullify(structured_grid%dy)
   nullify(structured_grid%dz)
   
-  nullify(structured_grid%cell_neighbors)
+  nullify(structured_grid%cell_neighbors_local_ghosted)
  
-  structured_grid%local_origin = -1.d20
-  structured_grid%bounds = -1.d20
+  structured_grid%local_origin = -MAX_DOUBLE
+  structured_grid%bounds = -MAX_DOUBLE
   
   structured_grid%invert_z_axis = PETSC_FALSE
   structured_grid%second_order_bc = PETSC_FALSE
@@ -1308,17 +1311,17 @@ end subroutine StructGridPopulateConnection
 ! ************************************************************************** !
 
 subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
-  ! 
+  !
   ! Computes the volumes of cells in structured grid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Option_module
-  
+
   implicit none
 
   type(grid_structured_type) :: structured_grid
@@ -1326,16 +1329,16 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
   PetscInt :: nL2G(:)
   PetscReal :: radius(:)
   Vec :: volume
-  
+
   PetscReal, parameter :: Pi=3.141592653590d0
-  
+
   PetscInt :: local_id, ghosted_id
   PetscReal, pointer :: volume_p(:)
   PetscReal :: r1, r2
   PetscErrorCode :: ierr
-  
+
   call VecGetArrayF90(volume,volume_p, ierr);CHKERRQ(ierr)
-  
+
   select case(structured_grid%itype)
     case(CARTESIAN_GRID)
       do local_id=1, structured_grid%nlmax
@@ -1362,11 +1365,12 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
                              * (r2*r2 + r2*r1 + r1*r1)
       enddo
   end select
-  
+
   call VecRestoreArrayF90(volume,volume_p, ierr);CHKERRQ(ierr)
-  
-  if (option%print_to_screen .and. &
-      option%mycommsize > 1 .and. option%mycommsize <= 16) then
+
+  if (option%driver%PrintToScreen() .and. &
+      option%comm%mycommsize > 1 .and. &
+      option%comm%mycommsize <= 16) then
     write(*,'(" rank= ",i3,", nlmax= ",i6,", nlx,y,z= ",3i4, &
       & ", nxs,e = ",2i4,", nys,e = ",2i4,", nzs,e = ",2i4)') &
       option%myrank,structured_grid%nlmax,structured_grid%nlx, &
@@ -1617,33 +1621,115 @@ subroutine StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
   call StructGridGetIJKFromGhostedID(structured_grid,ghosted_id,i,j,k)
 
   icount = 0
-  
-  ! gb:08/08/13 Dependence on stencil_type is not necessary.
-  !select case(stencil_type)
-  !  case(DMDA_STENCIL_STAR)
-      do kk = max(k-stencil_width_k,1), &
-                min(k+stencil_width_k,structured_grid%ngz)
-        do jj = max(j-stencil_width_j,1), &
-                  min(j+stencil_width_j,structured_grid%ngy)
-          do ii = max(i-stencil_width_i,1), &
-                    min(i+stencil_width_i,structured_grid%ngx)
-            if (ii == i .and. jj == j .and. kk == k) then
-            ! do nothing
-            else
-              icount = icount + 1
-              ghosted_neighbors(icount) = &
-              StructGridGetGhostedIDFromIJK(structured_grid,ii,jj,kk)
-            endif
-          enddo
-        enddo          
+
+  do kk = max(k-stencil_width_k,1), &
+            min(k+stencil_width_k,structured_grid%ngz)
+    do jj = max(j-stencil_width_j,1), &
+              min(j+stencil_width_j,structured_grid%ngy)
+      do ii = max(i-stencil_width_i,1), &
+                min(i+stencil_width_i,structured_grid%ngx)
+        if (ii == i .and. jj == j .and. kk == k) then
+        ! do nothing
+        else
+          icount = icount + 1
+          ghosted_neighbors(icount) = &
+          StructGridGetGhostedIDFromIJK(structured_grid,ii,jj,kk)
+        endif
       enddo
-  !  case(DMDA_STENCIL_BOX)
-  !    option%io_buffer = 'DMDA_STENCIL_BOX not yet supported in ' // &
-  !      'StructGridGetNeighbors.'
-  !    call PrintErrMsg(option)
-  !end select
+    enddo
+  enddo
 
 end subroutine StructGridGetGhostedNeighborsCorners
+
+! ************************************************************************** !
+
+subroutine StructGridPopulateCellNeighbors(structured_grid,option)
+  !
+  ! Allocates and populates an array that stores cell neighbors
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/05/21
+  !
+
+  use Option_module
+
+  implicit none
+
+  type(grid_structured_type) :: structured_grid
+  type(option_type) :: option
+
+  PetscInt, pointer :: cell_neighbors(:,:)
+  PetscInt :: i, j, k
+  PetscInt :: icount
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  PetscInt :: id
+  PetscBool :: xs_ghosted, xe_ghosted
+  PetscBool :: ys_ghosted, ye_ghosted
+  PetscBool :: zs_ghosted, ze_ghosted
+
+  allocate(cell_neighbors(0:6,structured_grid%nlmax))
+  cell_neighbors = 0
+
+  xs_ghosted = structured_grid%lxs /= structured_grid%gxs
+  ys_ghosted = structured_grid%lys /= structured_grid%gys
+  zs_ghosted = structured_grid%lzs /= structured_grid%gzs
+  xe_ghosted = structured_grid%lxe /= structured_grid%gxe
+  ye_ghosted = structured_grid%lye /= structured_grid%gye
+  ze_ghosted = structured_grid%lze /= structured_grid%gze
+
+  local_id = 0
+  ! Xstart will be 0 (not ghosted) or 1 (ghosted)
+  do k=structured_grid%kstart,structured_grid%kend
+    do j=structured_grid%jstart,structured_grid%jend
+      do i=structured_grid%istart,structured_grid%iend
+        local_id = local_id + 1
+        ghosted_id = i+j*structured_grid%ngx+k*structured_grid%ngxy+1
+        icount = 0
+        if (i > 0 .or. xs_ghosted) then
+          id = ghosted_id-1
+          if (i == structured_grid%istart .and. i == 1) id = -id
+          icount = icount + 1
+          cell_neighbors(icount,local_id) = id
+        endif
+        if (i < structured_grid%iend .or. xe_ghosted) then
+          id = ghosted_id+1
+          if (i == structured_grid%iend) id = -id
+          icount = icount + 1
+          cell_neighbors(icount,local_id) = id
+        endif
+        if (j > 0 .or. ys_ghosted) then
+          id = ghosted_id-structured_grid%ngx
+          if (j == structured_grid%jstart .and. j == 1) id = -id
+          icount = icount + 1
+          cell_neighbors(icount,local_id) = id
+        endif
+        if (j < structured_grid%jend .or. ye_ghosted) then
+          id = ghosted_id+structured_grid%ngx
+          if (j == structured_grid%jend) id = -id
+          icount = icount + 1
+          cell_neighbors(icount,local_id) = id
+        endif
+        if (k > 0 .or. zs_ghosted) then
+          id = ghosted_id-structured_grid%ngxy
+          if (k == structured_grid%kstart .and. k == 1) id = -id
+          icount = icount + 1
+          cell_neighbors(icount,local_id) = id
+        endif
+        if (k < structured_grid%kend .or. ze_ghosted) then
+          id = ghosted_id+structured_grid%ngxy
+          if (k == structured_grid%kend) id = -id
+          icount = icount + 1
+          cell_neighbors(icount,local_id) = id
+        endif
+        cell_neighbors(0,local_id) = icount
+      enddo
+    enddo
+  enddo
+
+  structured_grid%cell_neighbors_local_ghosted => cell_neighbors
+
+end subroutine StructGridPopulateCellNeighbors
 
 ! ************************************************************************** !
 
@@ -1676,7 +1762,7 @@ subroutine StructGridDestroy(structured_grid)
   call DeallocateArray(structured_grid%dy)
   call DeallocateArray(structured_grid%dz)
   
-  call DeallocateArray(structured_grid%cell_neighbors)
+  call DeallocateArray(structured_grid%cell_neighbors_local_ghosted)
   
   deallocate(structured_grid)
   nullify(structured_grid)

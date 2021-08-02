@@ -15,11 +15,117 @@ import matplotlib.pyplot as plt
 import math
 import pflotran as pft
 
-path = []
-path.append('.')
+observation_filename = 'reaction_sandbox_simple-obs-0.pft'
+plot_filename = 'reaction_sandbox_simple-002.tec'
 
-scale_string = 'linear'
-#scale_string = 'log'
+legend_fontsize = 'small'
+
+def plot_aq_conc_breakthrough(plt,filename,scale_string):
+  plt.xlabel('Time [y]')
+  plt.ylabel('Aqueous Concentration [M]')
+  plt.yscale(scale_string)
+
+  maxval = -1.e20
+  minval = 1.e-10
+  columns = [2,3,4,5,6,7]
+  for icol in range(len(columns)):
+    data = pft.Dataset(filename,1,columns[icol])
+    ydata = data.get_array('y')
+    maxval = max(maxval,np.amax(ydata))
+    plt.plot(data.get_array('x'),data.get_array('y'),
+             label=aq_labels[icol],c=aq_colors[icol])
+  if scale_string == 'linear':
+    plt.ylim(-.02*maxval,1.05*maxval)
+  else:
+    plt.ylim(0.5*minval,2.*maxval)
+
+  #'best'         : 0, (only implemented for axis legends)
+  #'upper right'  : 1,
+  #'upper left'   : 2,
+  #'lower left'   : 3,
+  #'lower right'  : 4,
+  #'right'        : 5,
+  #'center left'  : 6,
+  #'center right' : 7,
+  #'lower center' : 8,
+  #'upper center' : 9,
+  #'center'       : 10,
+  # xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
+  plt.legend(title='Aqueous',loc='center left',fontsize=legend_fontsize)
+  legend = plt.gca().get_legend()
+  legend.get_frame().set_fill(False)
+  legend.draw_frame(False)
+
+def plot_im_conc_breakthrough(plt,filename,scale_string):
+  plt.twinx()
+  plt.ylabel('Immobile Concentration [mol/m^3]')
+  plt.yscale(scale_string)
+
+  maxval = -1.e20
+  minval = 1.e-10
+  columns = [8,9]
+  for icol in range(len(columns)):
+    data = pft.Dataset(filename,1,columns[icol])
+    ydata = data.get_array('y')
+    maxval = max(maxval,np.amax(ydata))
+    plt.plot(data.get_array('x'),data.get_array('y'),
+             label=im_labels[icol],c=im_colors[icol])
+  if scale_string == 'linear':
+    plt.ylim(-.02*maxval,1.05*maxval)
+  else:
+    plt.ylim(0.5*minval,2.*maxval)
+
+  plt.legend(title='Immobile',loc='lower left',fontsize=legend_fontsize)
+  legend = plt.gca().get_legend()
+  legend.get_frame().set_fill(False)
+  legend.draw_frame(False)
+
+def plot_aq_conc_profile(plt,filename,scale_string):
+  plt.xlabel('X [m]')
+  plt.ylabel('Aqueous Concentration [M]')
+  plt.yscale(scale_string)
+  maxval = -1.e20
+  minval = 1.e-10
+  columns = [4,5,6,7,8,9]
+  for icol in range(len(columns)):
+    data = pft.Dataset(filename,1,columns[icol])
+    ydata = data.get_array('y')
+    maxval = max(maxval,np.amax(ydata))
+    plt.plot(data.get_array('x'),data.get_array('y'),
+             label=aq_labels[icol],c=aq_colors[icol])
+  if scale_string == 'linear':
+    plt.ylim(-0.02*maxval,1.05*maxval)
+  else:
+    plt.ylim(0.5*minval,2.*maxval)
+
+  plt.legend(title='Aqueous',loc='center right',fontsize=legend_fontsize)
+  legend = plt.gca().get_legend()
+  legend.get_frame().set_fill(False)
+  legend.draw_frame(False)
+
+def plot_im_conc_profile(plt,filename,scale_string):
+  plt.twinx()
+  plt.ylabel('Immobile Concentration [mol/m^3]')
+  plt.yscale(scale_string)
+  maxval = -1.e20
+  minval = 1.e-10
+  columns = [10,11]
+  for icol in range(len(columns)):
+    data = pft.Dataset(filename,1,columns[icol])
+    ydata = data.get_array('y')
+    maxval = max(maxval,np.amax(ydata))
+    plt.plot(data.get_array('x'),data.get_array('y'),
+             label=im_labels[icol],c=im_colors[icol])
+  if scale_string == 'linear':
+    plt.ylim(-0.02*maxval,1.05*maxval)
+  else:
+    plt.ylim(0.5*minval,2.*maxval)
+
+  plt.legend(title='Immobile',loc='lower right',fontsize=legend_fontsize)
+  legend = plt.gca().get_legend()
+  legend.get_frame().set_fill(False)
+  legend.draw_frame(False)
+
 
 aq_labels = []
 aq_labels.append('Aaq')
@@ -46,120 +152,21 @@ im_colors.append('darkorange')
 im_colors.append('navy')
 
 f = plt.figure(figsize=(16,6))
-f.suptitle("Simple Reaction Sandbox",fontsize=16)
+f.suptitle("Reaction Sandbox Simple",fontsize=16)
 
-# concentration profiles
-plt.subplot(1,2,2)
-plt.title('Concentration Profile')
-
-files = pft.get_tec_filenames('reaction_sandbox_simple',[2])
-filenames = pft.get_full_paths(path,files)
-
-plt.xlabel('X [m]')
-plt.ylabel('Concentration [M]')
-
-plt.yscale(scale_string)
-
-maxval = -1.e20
-minval = 1.e20
-for ifile in range(len(filenames)):
-  columns = [4,5,6,7,8,9]
-  for icol in range(len(columns)):
-    data = pft.Dataset(filenames[ifile],1,columns[icol])
-    ydata = data.get_array('y')
-    maxval = max(maxval,np.amax(ydata))
-    minval = min(minval,np.amin(ydata))
-    plt.plot(data.get_array('x'),ydata,
-             label=aq_labels[icol],c=aq_colors[icol])
-plt.ylim(0.95*minval,1.05*maxval)
-
-#'best'         : 0, (only implemented for axis legends)
-#'upper right'  : 1,
-#'upper left'   : 2,
-#'lower left'   : 3,
-#'lower right'  : 4,
-#'right'        : 5,
-#'center left'  : 6,
-#'center right' : 7,
-#'lower center' : 8,
-#'upper center' : 9,
-#'center'       : 10,
-plt.legend(loc=1)
-# xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
-plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')
-#      plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
-plt.setp(plt.gca().get_legend().get_frame().set_fill(False))
-plt.setp(plt.gca().get_legend().draw_frame(False))
-#        plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
-
-plt.twinx()
-plt.ylabel('Concentration [mol/m^3]')
-#plt.ylim(0.,1.1e-5)
-plt.yscale(scale_string)
-for ifile in range(len(filenames)):
-  columns = [10,11]
-  for icol in range(len(columns)):
-    data = pft.Dataset(filenames[ifile],1,columns[icol])
-    ydata = data.get_array('y')
-    maxval = max(maxval,np.amax(ydata))
-    minval = min(minval,np.amin(ydata))
-    plt.plot(data.get_array('x'),data.get_array('y'),
-             label=im_labels[icol],c=im_colors[icol])
-plt.ylim(0.95*minval,1.05*maxval)
-
-plt.legend(loc=4)
-# xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
-plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')
-#      plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
-plt.setp(plt.gca().get_legend().get_frame().set_fill(False))
-plt.setp(plt.gca().get_legend().draw_frame(False))
-#        plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
-
-# concentration breakthrough at observation point
+#linear scale
 plt.subplot(1,2,1)
-plt.title('Concentration Breakthrough')
+plt.title('Concentration Breakthrough @ 49.5 Meters')
+scale_string = 'linear'
+plot_aq_conc_breakthrough(plt,observation_filename,scale_string)
+plot_im_conc_breakthrough(plt,observation_filename,scale_string)
 
-files = []
-files.append('reaction_sandbox_simple-obs-0.tec')
-filenames = pft.get_full_paths(path,files)
-
-plt.xlabel('Time [y]')
-plt.ylabel('Concentration [M]')
-
-#plt.xlim(0.,1.)
-#plt.ylim(0.,1.)
-#plt.grid(True)
-plt.yscale(scale_string)
-
-for ifile in range(len(filenames)):
-  columns = [2,3,4,5,6,7]
-  for icol in range(len(columns)):
-    data = pft.Dataset(filenames[ifile],1,columns[icol])
-    ydata = data.get_array('y')
-    maxval = max(maxval,np.amax(ydata))
-    minval = min(minval,np.amin(ydata))
-    plt.plot(data.get_array('x'),data.get_array('y'),
-             label=aq_labels[icol],c=aq_colors[icol])
-plt.ylim(0.95*minval,1.05*maxval)
-
-#'best'         : 0, (only implemented for axis legends)
-#'upper right'  : 1,
-#'upper left'   : 2,
-#'lower left'   : 3,
-#'lower right'  : 4,
-#'right'        : 5,
-#'center left'  : 6,
-#'center right' : 7,
-#'lower center' : 8,
-#'upper center' : 9,
-#'center'       : 10,
-plt.legend(loc=4)
-# xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
-plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')
-#      plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
-plt.setp(plt.gca().get_legend().get_frame().set_fill(False))
-plt.setp(plt.gca().get_legend().draw_frame(False))
-#        plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
+#log scale
+plt.subplot(1,2,2)
+plt.title('Concentration Profile @ 12.5 Years')
+scale_string = 'linear'
+plot_aq_conc_profile(plt,plot_filename,scale_string)
+plot_im_conc_profile(plt,plot_filename,scale_string)
 
 f.subplots_adjust(hspace=0.2,wspace=0.40,
                   bottom=.12,top=.85,

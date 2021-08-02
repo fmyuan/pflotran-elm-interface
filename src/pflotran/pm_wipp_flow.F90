@@ -1341,7 +1341,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   if (this%scale_linear_system) then
-!    if (this%option%mycommsize > 1) then
+!    if (this%option%comm%mycommsize > 1) then
 !      this%option%io_buffer = 'WIPP FLOW matrix scaling not allowed in &
 !        &parallel.'
 !      call PrintErrMsg(this%option)
@@ -1552,7 +1552,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   max_abs_pressure_change_NI = 0.d0
   max_abs_pressure_change_TS = 0.d0
   max_rel_pressure_change_TS = 0.d0
-  min_liq_pressure = 1.d20
+  min_liq_pressure = MAX_DOUBLE
   max_liq_pres_rel_change_cell = 0
   max_gas_sat_change_NI_cell = 0
   max_gas_sat_change_TS_cell = 0
@@ -1859,7 +1859,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   converged_gas_equation = PETSC_TRUE
   max_normal_res_liq_ = 0.d0
   max_normal_res_gas_ = 0.d0
-  min_gas_pressure = 1.d20
+  min_gas_pressure = MAX_DOUBLE
   max_normal_res_liq_cell = 0
   max_normal_res_gas_cell = 0
   min_gas_pressure_cell = 0
@@ -1992,7 +1992,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
   ! if running in parallel, we can no longer report the sign on the maximum
   ! change variables as the sign may differ across processes.
-  if (option%mycommsize > 1) then
+  if (option%comm%mycommsize > 1) then
     this%convergence_reals(1:MIN_LIQ_PRES-1) = &
       dabs(this%convergence_reals(1:MIN_LIQ_PRES-1))
   endif
@@ -2121,7 +2121,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
       ! just overwrite the character, the flag/real matches FORCE_ITERATION
       reason_string(7:7) = 'B'
     endif
-    if (option%mycommsize > 1 .or. grid%nmax > 9999) then
+    if (option%comm%mycommsize > 1 .or. grid%nmax > 9999) then
       write(*,'(4x,"Rsn: ",a10,4es10.2)') reason_string, &
         this%convergence_reals(MAX_NORMAL_RES_LIQ), &
         this%convergence_reals(MAX_NORMAL_RES_GAS), &

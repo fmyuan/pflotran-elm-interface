@@ -68,7 +68,7 @@ subroutine OutputVTK(realization_base)
   ! open file
   filename = OutputFilename(output_option,option,'vtk','')
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write vtk output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
@@ -89,7 +89,7 @@ subroutine OutputVTK(realization_base)
   ! write out coordinates
   call WriteVTKGrid(OUTPUT_UNIT,realization_base)
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
   endif
   
@@ -114,7 +114,7 @@ subroutine OutputVTK(realization_base)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  if (OptionIsIORank(option)) close(OUTPUT_UNIT)
 
 #if 1
   if (output_option%print_vtk_vel_cent) then
@@ -128,7 +128,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           X_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+        case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               X_DIRECTION)
       end select
@@ -137,7 +137,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           Y_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+        case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               Y_DIRECTION)
       end select
@@ -146,7 +146,7 @@ subroutine OutputVTK(realization_base)
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           Z_DIRECTION)
       select case(option%iflowmode)
-        case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE,WF_MODE)
+        case(MPH_MODE,G_MODE,H_MODE,WF_MODE)
           call OutputFluxVelocitiesVTK(realization_base,GAS_PHASE, &
                                               Z_DIRECTION)
       end select
@@ -203,7 +203,7 @@ subroutine OutputVelocitiesVTK(realization_base)
   ! open file
   filename = OutputFilename(output_option,option,'vtk','vel')
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
    option%io_buffer = '--> write vtk velocity output file: ' // &
                       trim(filename)
     call PrintMsg(option)
@@ -231,7 +231,7 @@ subroutine OutputVelocitiesVTK(realization_base)
   ! write out coordinates
   call WriteVTKGrid(OUTPUT_UNIT,realization_base)
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
   endif
 
@@ -288,7 +288,7 @@ subroutine OutputVelocitiesVTK(realization_base)
   call VecDestroy(global_vec_vy,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
 
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  if (OptionIsIORank(option)) close(OUTPUT_UNIT)
   
 end subroutine OutputVelocitiesVTK
 #endif
@@ -341,7 +341,7 @@ subroutine WriteVTKGrid(fid,realization_base)
     nyp1 = ny+1
     nzp1 = nz+1
   
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
 
  1010 format("POINTS",1x,i12,1x,"float")
       write(fid,1010) (nx+1)*(ny+1)*(nz+1)
@@ -512,7 +512,7 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
   endif
   
   ! communicate data to processor 0, round robin style
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
 
     if (datatype == VTK_INTEGER) then
       write(fid,'(''SCALARS '',a20,'' int 1'')') dataset_name
@@ -547,13 +547,13 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
       real_data(1:local_size_mpi-iend) = real_data(iend+1:local_size_mpi)
       num_in_array = local_size_mpi-iend
     endif
-    do iproc_mpi=1,option%mycommsize-1
+    do iproc_mpi=1,option%comm%mycommsize-1
 #ifdef HANDSHAKE    
       if (option%io_handshake_buffer_size > 0 .and. &
           iproc_mpi+max_proc_prefetch >= max_proc) then
         max_proc = max_proc + option%io_handshake_buffer_size
-        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                       option%mycomm,ierr)
+        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                       option%driver%io_rank,option%mycomm,ierr)
       endif
 #endif      
       call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
@@ -601,8 +601,8 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
 #ifdef HANDSHAKE    
     if (option%io_handshake_buffer_size > 0) then
       max_proc = -1
-      call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                     option%mycomm,ierr)
+      call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     option%driver%io_rank,option%mycomm,ierr)
     endif
 #endif      
     ! Print the remaining values, if they exist
@@ -619,23 +619,25 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
     if (option%io_handshake_buffer_size > 0) then
       do
         if (option%myrank < max_proc) exit
-        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                       option%mycomm,ierr)
+        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                       option%driver%io_rank,option%mycomm,ierr)
       enddo
     endif
 #endif    
     if (datatype == VTK_INTEGER) then
-      call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER,option%io_rank, &
+      call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER, &
+                    option%driver%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     else
-      call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
+      call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION, &
+                    option%driver%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     endif
 #ifdef HANDSHAKE    
     if (option%io_handshake_buffer_size > 0) then
       do
-        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                       option%mycomm,ierr)
+        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                       option%driver%io_rank,option%mycomm,ierr)
         if (max_proc < 0) exit
       enddo
     endif

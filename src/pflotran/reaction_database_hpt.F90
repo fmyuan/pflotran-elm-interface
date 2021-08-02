@@ -10,6 +10,7 @@ module Reaction_Database_hpt_module
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Mineral_Aux_module
   use Reaction_Gas_Aux_module
+  use Reaction_Isotherm_Aux_module
 
   use PFLOTRAN_Constants_module
 
@@ -688,7 +689,7 @@ subroutine BasisInit_hpt(reaction,option)
   type(ion_exchange_rxn_type), pointer :: cur_ionx_rxn
   type(ion_exchange_cation_type), pointer :: cur_cation
   type(general_rxn_type), pointer :: cur_general_rxn
-  type(kd_rxn_type), pointer :: cur_kd_rxn
+  type(isotherm_link_type), pointer :: cur_isotherm_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
   type(transition_state_rxn_type), pointer :: tstrxn
@@ -1091,11 +1092,11 @@ subroutine BasisInit_hpt(reaction,option)
   allocate(sec_matrix_inverse(ncomp_secondary,ncomp_secondary))
   sec_matrix_inverse = 0.d0
  
-  call ludcmp(sec_matrix,ncomp_secondary,indices,idum)
+  call LUDecomposition(sec_matrix,ncomp_secondary,indices,idum)
   do ispec = 1, ncomp_secondary
     unit_vector = 0.d0
     unit_vector(ispec) = 1.d0
-    call lubksb(sec_matrix,ncomp_secondary,indices,unit_vector)
+    call LUBackSubstitution(sec_matrix,ncomp_secondary,indices,unit_vector)
     sec_matrix_inverse(:,ispec) = unit_vector(:)
   enddo
 
@@ -1482,7 +1483,7 @@ subroutine BasisInit_hpt(reaction,option)
     allocate(reaction%eqcplxspecid(0:reaction%naqcomp,reaction%neqcplx))
     reaction%eqcplxspecid = 0
 
-    allocate(reaction%eqcplxstoich(0:reaction%naqcomp,reaction%neqcplx))
+    allocate(reaction%eqcplxstoich(reaction%naqcomp,reaction%neqcplx))
     reaction%eqcplxstoich = 0.d0
 
     allocate(reaction%eqcplxh2oid(reaction%neqcplx))
@@ -1564,7 +1565,7 @@ subroutine BasisInit_hpt(reaction,option)
     reaction%gas_species_print = PETSC_FALSE
     allocate(reaction%eqgasspecid(0:reaction%naqcomp,reaction%ngas))
     reaction%eqgasspecid = 0
-    allocate(reaction%eqgasstoich(0:reaction%naqcomp,reaction%ngas))
+    allocate(reaction%eqgasstoich(reaction%naqcomp,reaction%ngas))
     reaction%eqgasstoich = 0.d0
     allocate(reaction%eqgash2oid(reaction%ngas))
     reaction%eqgash2oid = 0
@@ -2680,33 +2681,29 @@ subroutine BasisInit_hpt(reaction,option)
   
   ! Kd reactions
   
-  if (reaction%neqkdrxn > 0) then
+  if (reaction%isotherm%neqkdrxn > 0) then
   
-    ! allocate arrays
-    allocate(reaction%eqkdspecid(reaction%neqkdrxn))
-    reaction%eqkdspecid = 0
-    allocate(reaction%eqkdtype(reaction%neqkdrxn))
-    reaction%eqkdtype = 0
-    allocate(reaction%eqkddistcoef(reaction%neqkdrxn))
-    reaction%eqkddistcoef = 0.d0
-    allocate(reaction%eqkdlangmuirb(reaction%neqkdrxn))
-    reaction%eqkdlangmuirb = 0.d0
-    allocate(reaction%eqkdfreundlichn(reaction%neqkdrxn))
-    reaction%eqkdfreundlichn = 0.d0
+     ! allocate arrays
+    call IsothermRxnCreate(reaction%isotherm_rxn,reaction%isotherm)
+    allocate(reaction%isotherm%eqkdspecid(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqkdspecid = 0
+    allocate(reaction%isotherm%eqisothermtype(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqisothermtype = 0
 
-    cur_kd_rxn => reaction%kd_rxn_list
+
+    cur_isotherm_rxn => reaction%isotherm%isotherm_list
     irxn = 0
     do  
-      if (.not.associated(cur_kd_rxn)) exit
+      if (.not.associated(cur_isotherm_rxn)) exit
 
       irxn = irxn + 1
 
       found = PETSC_FALSE
       do i = 1, reaction%naqcomp
-        if (StringCompare(cur_kd_rxn%species_name, &
+        if (StringCompare(cur_isotherm_rxn%species_name, &
                           reaction%primary_species_names(i), &
                           MAXWORDLENGTH)) then
-          reaction%eqkdspecid(irxn) = i
+          reaction%isotherm%eqkdspecid(irxn) = i
           found = PETSC_TRUE
           exit      
         endif
@@ -2717,12 +2714,16 @@ subroutine BasisInit_hpt(reaction,option)
                  ' not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%eqkdtype(irxn) = cur_kd_rxn%itype
-      reaction%eqkddistcoef(irxn) = cur_kd_rxn%Kd
-      reaction%eqkdlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
-      reaction%eqkdfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
+      reaction%isotherm%isotherm_rxn%eqisothermtype(irxn) = &
+        cur_isotherm_rxn%itype
+      reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn) = &
+        cur_isotherm_rxn%Kd
+      reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(irxn) = &
+        cur_isotherm_rxn%Langmuir_b
+      reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(irxn) = &
+        cur_isotherm_rxn%Freundlich_n
        
-      cur_kd_rxn => cur_kd_rxn%next
+      cur_isotherm_rxn => cur_isotherm_rxn%next
     enddo
   endif
 

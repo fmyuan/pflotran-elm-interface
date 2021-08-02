@@ -32,17 +32,11 @@ REGRESSION
   CELL_IDS
     1
     20
-    25
     30
-    35
     40
-    45
     50
-    55
     60
-    65
     70
-    75
     80
     100
   /
@@ -58,8 +52,6 @@ SPECIFIED_VELOCITY
 END
 
 #=========================== chemistry ========================================
-# Uncomment to debug reactions
-#NUMERICAL_JACOBIAN_RXN
 CHEMISTRY
   PRIMARY_SPECIES
     A(aq)
@@ -70,6 +62,7 @@ CHEMISTRY
     D(im)
   /
   MICROBIAL_REACTION
+    CONCENTRATION_UNITS ACTIVITY
     REACTION A(aq) + 2 B(aq) <-> 1.5 C(aq)
     RATE_CONSTANT 1.d-6
     MONOD 

@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
       OPTIONS
-  #      NUMERICAL_JACOBIAN
       /
     /
   /
@@ -19,6 +18,8 @@ NUMERICAL_METHODS TRANSPORT
 
   NEWTON_SOLVER
     MAXIMUM_NUMBER_OF_ITERATIONS 12
+    # Uncomment to debug reactions
+    #NUMERICAL_JACOBIAN
   /
 
   LINEAR_SOLVER
@@ -45,8 +46,6 @@ END
 REFERENCE_TEMPERATURE 24.d0 C
 
 #=========================== chemistry ========================================
-# Uncomment to debug reactions
-#NUMERICAL_JACOBIAN_RXN
 CHEMISTRY
   PRIMARY_SPECIES
     C5H7O2N(aq)

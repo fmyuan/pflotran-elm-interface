@@ -12,7 +12,6 @@ module Init_Common_module
             InitCommonReadRegionFiles, &
             InitCommonReadVelocityField, &
             InitCommonVerifyAllCouplers, &
-            setSurfaceFlowMode, &
             InitCommonAddOutputWaypoints
 
 contains
@@ -84,37 +83,6 @@ subroutine InitReadInputFilenames(option,filenames)
   call InputDestroy(input)
 
 end subroutine InitReadInputFilenames
-
-! ************************************************************************** !
-
-subroutine setSurfaceFlowMode(option)
-  ! 
-  ! Sets the flow mode for surface (richards, th, etc.)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 07/30/14
-  ! 
-
-  use Option_module
-  use String_module
-
-  implicit none 
-
-  type(option_type) :: option
-  
-  select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      option%nsurfflowdof = ONE_INTEGER
-    case(TH_MODE,TH_TS_MODE)
-      option%nsurfflowdof = TWO_INTEGER
-    case default
-      write(option%io_buffer,*) option%iflowmode
-      option%io_buffer = 'Flow Mode ' // &
-        trim(option%io_buffer) // ' not recognized in setSurfaceFlowMode().'
-      call PrintErrMsg(option)
-  end select
-  
-end subroutine setSurfaceFlowMode
 
 ! ************************************************************************** !
 
@@ -381,23 +349,23 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
         indices(i) = count+i-1 ! zero-based indexing
       enddo
       ierr = 0
-      if (option%myrank == option%io_rank) &
+      if (OptionIsIORank(option)) &
         read(fid,*,iostat=ierr) values(1:read_count)
       flag = ierr
-      call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                     option%mycomm,ierr)      
+      call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     option%driver%io_rank,option%mycomm,ierr)
       if (flag /= 0) then
         option%io_buffer = 'Insufficent data in file: ' // filename
         call PrintErrMsg(option)
       endif
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
         call VecSetValues(natural_vec,read_count,indices,values,INSERT_VALUES, &
                           ierr);CHKERRQ(ierr)
       endif
       count = count + read_count
     enddo
-    call MPI_Bcast(count,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                   option%mycomm,ierr)      
+    call MPI_Bcast(count,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                   option%driver%io_rank,option%mycomm,ierr)
     if (count /= grid%nmax) then
       write(option%io_buffer,'("Number of data in file (",i8, &
       & ") does not match size of vector (",i8,")")') count, grid%nlmax
@@ -413,19 +381,19 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
     select case(vector_type)
       case(LOCAL)
         call DiscretizationCreateVector(discretization,ONEDOF,global_vec, &
-                                        GLOBAL,option)        
+                                        GLOBAL,option)
         call DiscretizationNaturalToGlobal(discretization,natural_vec, &
-                                           global_vec,ONEDOF)  
+                                           global_vec,ONEDOF)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          vector,ONEDOF)
         call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
       case(GLOBAL)
         call DiscretizationNaturalToGlobal(discretization,natural_vec, &
-                                           vector,ONEDOF) 
-    end select 
+                                           vector,ONEDOF)
+    end select
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
-  
+
 end subroutine readVectorFromFile
 
 ! ************************************************************************** !

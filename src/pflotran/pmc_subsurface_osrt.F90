@@ -215,6 +215,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscErrorCode :: ierr
 
   call PetscTime(log_outer_start_time,ierr);CHKERRQ(ierr)
+  call this%PrintHeader()
 
   option => this%option
   realization => this%realization
@@ -381,7 +382,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       call RReact(tran_xx_p(istart:iend),rt_auxvars(ghosted_id), &
                   global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
                   num_iterations,reaction,grid%nG2A(ghosted_id),option, &
-                  rreact_error)
+                  PETSC_TRUE,PETSC_TRUE,rreact_error)
       if (rreact_error /= 0) exit
       ! set primary dependent var back to free-ion molality
       iend = offset_global + reaction%naqcomp
@@ -393,6 +394,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     enddo
     call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
 
+    call MPI_Allreduce(MPI_IN_PLACE,rreact_error,ONE_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_MAX,option%mycomm,ierr)
     call MPI_Barrier(option%mycomm,ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     process_model%cumulative_reaction_time = &

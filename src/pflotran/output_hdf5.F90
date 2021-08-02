@@ -485,6 +485,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
+  use String_module
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -573,7 +574,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     !           trim(option%group_prefix) // '.h5'
     filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
-    filename_header = trim(option%output_file_name_prefix) //  &
+    filename_header = trim(StringGetFilename(option%global_prefix)) // & 
                       trim(string2) // trim(option%group_prefix) // '.h5'
   else
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
@@ -600,7 +601,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     filename_path = trim(option%global_prefix) // & 
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
-    filename_header = trim(option%output_file_name_prefix) // & 
+    filename_header = trim(StringGetFilename(option%global_prefix)) // & 
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
   endif
@@ -641,7 +642,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     call h5gclose_f(grp_id,hdf5_err)
   endif
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write xmf output file: ' // trim(filename_path)
     call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
@@ -706,7 +707,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
         endif
         att_datasetname = trim(filename_header) // ":/" // trim(group_name) // &
                           "/" // trim(string)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
                                   att_datasetname,CELL_CENTERED_OUTPUT_MESH)
         endif
@@ -731,7 +732,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
                                        H5T_NATIVE_DOUBLE)
           att_datasetname = trim(filename_header) // ":/" // trim(group_name) // &
                             "/" // trim(string)
-          if (option%myrank == option%io_rank) then
+          if (OptionIsIORank(option)) then
             call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
                                     att_datasetname,CELL_CENTERED_OUTPUT_MESH)
           endif
@@ -791,7 +792,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
                                    H5T_NATIVE_DOUBLE)
       att_datasetname = trim(filename_header) // ":/" // &
                         trim(group_name) // "/" // trim(string)
-      if (option%myrank == option%io_rank) then
+      if (OptionIsIORank(option)) then
       call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname, &
                               CELL_CENTERED_OUTPUT_MESH)
       endif
@@ -821,7 +822,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
                                      H5T_NATIVE_DOUBLE)
         att_datasetname = trim(filename_header) // ":/" // &
                           trim(group_name) // "/" // trim(string)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
                                   att_datasetname,CELL_CENTERED_OUTPUT_MESH)
         endif
@@ -853,7 +854,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
   call h5fclose_f(file_id,hdf5_err)
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     call OutputXMFFooter(OUTPUT_UNIT)
     close(OUTPUT_UNIT)
   endif
@@ -880,6 +881,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
+  use String_module
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -922,8 +924,10 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   type(output_variable_type), pointer :: cur_variable
 
   Vec :: global_vec
+  Vec :: global_vec_vx, global_vec_vy, global_vec_vz
   Vec :: natural_vec
   PetscReal, pointer :: v_ptr
+  PetscBool :: include_gas_phase
 
   character(len=MAXSTRINGLENGTH) :: filename_path, filename_header
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
@@ -972,8 +976,8 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     !           trim(option%group_prefix) // '.h5'
     filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
-    filename_header = trim(option%output_file_name_prefix) & 
-               // trim(string2) // trim(option%group_prefix) // '.h5'
+    filename_header = trim(StringGetFilename(option%global_prefix)) // & 
+               trim(string2) // trim(option%group_prefix) // '.h5'
   else
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
     select case (var_list_type)
@@ -999,7 +1003,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     filename_path = trim(option%global_prefix) // &
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
-    filename_header = trim(option%output_file_name_prefix) // &
+    filename_header = trim(StringGetFilename(option%global_prefix)) // & 
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
   endif
@@ -1032,11 +1036,12 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   call PrintMsg(option)
   
   domain_filename_path = trim(option%global_prefix) // '-domain.h5'
-  domain_filename_header = trim(option%output_file_name_prefix) // '-domain.h5'
+  domain_filename_header = &
+    trim(StringGetFilename(option%global_prefix)) // '-domain.h5'
   write_xdmf = PETSC_FALSE
   include_cell_centers = PETSC_FALSE
   mesh_type = grid%unstructured_grid%explicit_grid%output_mesh_type
-  if (option%myrank == option%io_rank .and. &
+  if (OptionIsIORank(option) .and. &
       (output_option%print_explicit_primal_grid .or. &
        len_trim(grid%unstructured_grid%explicit_grid% &
                   domain_filename) > 0)) then
@@ -1211,11 +1216,109 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   end select
 
+  ! output cell-centered velocity
+  include_gas_phase = PETSC_FALSE
+  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+     include_gas_phase = PETSC_TRUE
+  endif
+  if (output_option%print_hdf5_vel_cent .and. &
+       (var_list_type==INSTANTANEOUS_VARS)) then
+     call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vx)
+     call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vy)
+     call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vz)
+
+     call OutputGetCellCenteredVelocities(realization_base, global_vec_vx, &
+                                          global_vec_vy,global_vec_vz, &
+                                          LIQUID_PHASE)
+
+     string = "Liquid X-Velocity [m_per_" // trim(output_option%tunit) // "]"
+     call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+                                        natural_vec,ONEDOF)
+     call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                  H5T_NATIVE_DOUBLE)
+     att_datasetname = trim(filename_header) // ":/" // &
+                       trim(group_name) // "/" // trim(string)
+     if (write_xdmf) then
+        call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                att_datasetname,mesh_type)
+     endif
+
+     string = "Liquid Y-Velocity [m_per_" // trim(output_option%tunit) // "]"
+     call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
+                                        natural_vec,ONEDOF)
+     call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                  H5T_NATIVE_DOUBLE)
+     att_datasetname = trim(filename_header) // ":/" // &
+                       trim(group_name) // "/" // trim(string)
+     if (write_xdmf) then
+        call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                att_datasetname,mesh_type)
+     endif
+
+     string = "Liquid Z-Velocity [m_per_" // trim(output_option%tunit) // "]"
+     call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
+                                        natural_vec,ONEDOF)
+     call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                  H5T_NATIVE_DOUBLE)
+
+     att_datasetname = trim(filename_header) // ":/" // &
+                       trim(group_name) // "/" // trim(string)
+     if (write_xdmf) then
+        call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                att_datasetname,mesh_type)
+     endif
+
+     if (include_gas_phase) then
+        call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
+                                             global_vec_vy,global_vec_vz, &
+                                             GAS_PHASE)
+
+        string = "Gas X-Velocity"
+        call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
+                                           natural_vec,ONEDOF)
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                    H5T_NATIVE_DOUBLE)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
+        if (write_xdmf) then
+           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                   att_datasetname,mesh_type)
+        endif
+
+        string = "Gas Y-Velocity"
+        call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
+                                           natural_vec,ONEDOF)
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                     H5T_NATIVE_DOUBLE)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
+        if (write_xdmf) then
+           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                   att_datasetname,mesh_type)
+        endif
+
+        string = "Gas Z-Velocity"
+        call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
+                                           natural_vec,ONEDOF)
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                     H5T_NATIVE_DOUBLE)
+        att_datasetname = trim(filename_header) // ":/" // &
+                          trim(group_name) // "/" // trim(string)
+        if (write_xdmf) then
+           call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string, &
+                                   att_datasetname,mesh_type)
+        endif
+     endif
+     call VecDestroy(global_vec_vx,ierr);CHKERRQ(ierr)
+     call VecDestroy(global_vec_vy,ierr);CHKERRQ(ierr)
+     call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
+  endif
+
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+
   call h5gclose_f(grp_id,hdf5_err)
-   
-  call h5fclose_f(file_id,hdf5_err)    
+  call h5fclose_f(file_id,hdf5_err)
 
   if (write_xdmf) then
     call OutputXMFFooter(OUTPUT_UNIT)
@@ -1467,7 +1570,7 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
 #ifndef SERIAL_HDF5
   call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F,hdf5_err) ! must be independent and only from p0
 #endif
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
      call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
      ! this is due to a bug in hdf5-1.8.18 hwere H5S_ALL_F is an INTEGER.  It
      ! should be INTEGER(HID_T)
@@ -3479,7 +3582,7 @@ subroutine OutputXMFOpenFile(option, filename, fid)
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
 
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     option%io_buffer = '--> write xmf output file: ' // trim(filename)
     call PrintMsg(option)
     open(unit=fid,file=filename,action="write")

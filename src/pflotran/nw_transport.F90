@@ -663,7 +663,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     
 #if 1
   !== Accumulation Terms ======================================
-  if (.not.option%steady_state) then
+  if (.not.option%transport%steady_state) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials
@@ -1497,7 +1497,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   
 #if 1
   !== Accumulation Terms ======================================
-  if (.not.option%steady_state) then
+  if (.not.option%transport%steady_state) then
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials

@@ -264,9 +264,9 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   endif
   if (.not.associated(characteristic_curves)) then
     characteristic_curves => CharacteristicCurvesCreate()
-    sf => SF_VG_Create()
-    rpf_liq => RPF_Mualem_VG_Liq_Create()
-    rpf_gas => RPF_Mualem_VG_Gas_Create()
+    sf => SFVGCreate()
+    rpf_liq => RPFMualemVGLiqCreate()
+    rpf_gas => RPFMualemVGGasCreate()
     sf%m = 0.5d0
     sf%alpha = 1.d-4
     sf%Sr = 0.d0
@@ -772,7 +772,7 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   type(general_auxvar_type) :: general_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:), global_auxvar_ss(0:)
   type(material_auxvar_type) :: material_auxvar(0:)
-  type(characteristic_curves_type) :: characteristic_curves
+  class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
   PetscReal :: scale
   
@@ -930,3 +930,4 @@ subroutine GeneralDerivativeDestroy(general_parameter, &
 end subroutine GeneralDerivativeDestroy
 
 end module General_Derivative_module
+

@@ -836,6 +836,7 @@ subroutine BasisInit(reaction,option)
   use Reaction_Microbial_Aux_module
   use Reaction_Immobile_Aux_module
   use Reaction_Gas_Aux_module
+  use Reaction_Isotherm_Aux_module
   
 #ifdef SOLID_SOLUTION  
   use Reaction_Solid_Solution_module
@@ -869,7 +870,8 @@ subroutine BasisInit(reaction,option)
   type(microbial_rxn_type), pointer :: cur_microbial_rxn
   type(immobile_decay_rxn_type), pointer :: cur_immobile_decay_rxn
   type(dynamic_kd_rxn_type), pointer :: cur_dynamic_kd_rxn
-  type(kd_rxn_type), pointer :: cur_kd_rxn, sec_cont_cur_kd_rxn
+  type(isotherm_link_type), pointer :: cur_isotherm_rxn, &
+                                       sec_cont_cur_isotherm_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
   type(transition_state_rxn_type), pointer :: tstrxn
@@ -945,91 +947,91 @@ subroutine BasisInit(reaction,option)
   endif
     
 ! get database temperature based on REFERENCE_TEMPERATURE
-  if (option%reference_temperature <= 0.01d0) then
+  if (option%flow%reference_temperature <= 0.01d0) then
     reaction%debyeA = 0.4939d0 
     reaction%debyeB = 0.3253d0 
     reaction%debyeBdot = 0.0374d0
-  else if (option%reference_temperature > 0.d0 .and. &
-           option%reference_temperature <= 25.d0) then
+  else if (option%flow%reference_temperature > 0.d0 .and. &
+           option%flow%reference_temperature <= 25.d0) then
     temp_low = 0.d0
     temp_high = 25.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.5114d0,0.4939d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3288d0,0.3253d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0410d0,0.0374d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 25.d0 .and. &
-           option%reference_temperature <= 60.d0) then
+  else if (option%flow%reference_temperature > 25.d0 .and. &
+           option%flow%reference_temperature <= 60.d0) then
     temp_low = 25.d0
     temp_high = 60.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.5465d0,0.5114d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3346d0,0.3288d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0440d0,0.0410d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 60.d0 .and. &
-           option%reference_temperature <= 100.d0) then
+  else if (option%flow%reference_temperature > 60.d0 .and. &
+           option%flow%reference_temperature <= 100.d0) then
     temp_low = 60.d0
     temp_high = 100.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.5995d0,0.5465d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3421d0,0.3346d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0460d0,0.0440d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 100.d0 .and. &
-           option%reference_temperature <= 150.d0) then
+  else if (option%flow%reference_temperature > 100.d0 .and. &
+           option%flow%reference_temperature <= 150.d0) then
     temp_low = 100.d0
     temp_high = 150.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.6855d0,0.5995d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3525d0,0.3421d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0470d0,0.0460d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 150.d0 .and. &
-           option%reference_temperature <= 200.d0) then
+  else if (option%flow%reference_temperature > 150.d0 .and. &
+           option%flow%reference_temperature <= 200.d0) then
     temp_low = 150.d0
     temp_high = 200.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.7994d0,0.6855d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3639d0,0.3525d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0470d0,0.0470d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 200.d0 .and. &
-           option%reference_temperature <= 250.d0) then
+  else if (option%flow%reference_temperature > 200.d0 .and. &
+           option%flow%reference_temperature <= 250.d0) then
     temp_low = 200.d0
     temp_high = 250.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.9593d0,0.7994d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3766d0,0.3639d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0340d0,0.0470d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 250.d0 .and. &
-           option%reference_temperature <= 300.d0) then
+  else if (option%flow%reference_temperature > 250.d0 .and. &
+           option%flow%reference_temperature <= 300.d0) then
     temp_low = 250.d0
     temp_high = 300.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      1.2180d0,0.9593d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3925d0,0.3766d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0000d0,0.0340d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 300.d0 .and. &
-           option%reference_temperature <= 350.d0) then
+  else if (option%flow%reference_temperature > 300.d0 .and. &
+           option%flow%reference_temperature <= 350.d0) then
     temp_low = 300.d0
     temp_high = 350.d0
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      1.2180d0,1.2180d0,reaction%debyeA)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.3925d0,0.3925d0,reaction%debyeB)
-    call Interpolate(temp_high,temp_low,option%reference_temperature, &
+    call Interpolate(temp_high,temp_low,option%flow%reference_temperature, &
                      0.0000d0,0.0000d0,reaction%debyeBdot)
-  else if (option%reference_temperature > 350.d0) then
+  else if (option%flow%reference_temperature > 350.d0) then
     reaction%debyeA = 1.2180d0 
     reaction%debyeB = 0.3925d0 
     reaction%debyeBdot = 0.0000d0
@@ -1040,12 +1042,13 @@ subroutine BasisInit(reaction,option)
   endif
 
   if (.not. reaction%use_geothermal_hpt) then
-    if (option%reference_temperature <= reaction%dbase_temperatures(1)) then
+    if (option%flow%reference_temperature <=  &
+        reaction%dbase_temperatures(1)) then
       itemp_low = 1
       itemp_high = 1
       temp_low = reaction%dbase_temperatures(itemp_low)
       temp_high = reaction%dbase_temperatures(itemp_high)
-    else if (option%reference_temperature > &
+    else if (option%flow%reference_temperature > &
              reaction%dbase_temperatures(reaction%num_dbase_temperatures)) then
       itemp_low = reaction%num_dbase_temperatures
       itemp_high = reaction%num_dbase_temperatures
@@ -1057,8 +1060,8 @@ subroutine BasisInit(reaction,option)
         itemp_high = itemp+1
         temp_low = reaction%dbase_temperatures(itemp_low)
         temp_high = reaction%dbase_temperatures(itemp_high)
-        if (option%reference_temperature > temp_low .and. &
-            option%reference_temperature <= temp_high) then
+        if (option%flow%reference_temperature > temp_low .and. &
+            option%flow%reference_temperature <= temp_high) then
           exit
         endif
       enddo
@@ -1294,11 +1297,11 @@ subroutine BasisInit(reaction,option)
   allocate(sec_matrix_inverse(ncomp_secondary,ncomp_secondary))
   sec_matrix_inverse = 0.d0
  
-  call ludcmp(sec_matrix,ncomp_secondary,indices,temp_int)
+  call LUDecomposition(sec_matrix,ncomp_secondary,indices,temp_int)
   do ispec = 1, ncomp_secondary
     unit_vector = 0.d0
     unit_vector(ispec) = 1.d0
-    call lubksb(sec_matrix,ncomp_secondary,indices,unit_vector)
+    call LUBackSubstitution(sec_matrix,ncomp_secondary,indices,unit_vector)
     sec_matrix_inverse(:,ispec) = unit_vector(:)
   enddo
 
@@ -1687,7 +1690,7 @@ subroutine BasisInit(reaction,option)
     allocate(reaction%eqcplxspecid(0:max_aq_species,reaction%neqcplx))
     reaction%eqcplxspecid = 0
 
-    allocate(reaction%eqcplxstoich(0:max_aq_species,reaction%neqcplx))
+    allocate(reaction%eqcplxstoich(max_aq_species,reaction%neqcplx))
     reaction%eqcplxstoich = 0.d0
 
     allocate(reaction%eqcplxh2oid(reaction%neqcplx))
@@ -1756,7 +1759,8 @@ subroutine BasisInit(reaction,option)
 
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
-          call Interpolate(temp_high,temp_low,option%reference_temperature, &
+          call Interpolate(temp_high,temp_low, &
+                      option%flow%reference_temperature, &
                       cur_sec_aq_spec%dbaserxn%logK(itemp_high), &
                       cur_sec_aq_spec%dbaserxn%logK(itemp_low), &
                       reaction%eqcplx_logK(isec_spec))
@@ -1818,9 +1822,7 @@ subroutine BasisInit(reaction,option)
                                   reaction%gas%acteqlogK, &
                                   reaction%gas%acteqlogKcoef)
   if (option%nphase > 1 .and. reaction%gas%nactive_gas == 0 .and. &
-      (option%iflowmode == MPH_MODE .or. &
-       option%iflowmode == IMS_MODE .or. &
-       option%iflowmode == FLASH2_MODE)) then
+      (option%iflowmode == MPH_MODE)) then
     option%io_buffer = 'An ACTIVE_GAS_SPECIES block must be specified in &
       &CHEMISTRY to run a CO2 flow mode coupled with reactive transport.'
     call PrintErrMsg(option)
@@ -1987,12 +1989,15 @@ subroutine BasisInit(reaction,option)
 
       allocate(mineral%kinmnrl_armor_pwr(mineral%nkinmnrl))
       mineral%kinmnrl_armor_pwr = 0.d0
-
       allocate(mineral%kinmnrl_armor_crit_vol_frac(mineral%nkinmnrl))
       mineral%kinmnrl_armor_crit_vol_frac = 0.d0
-
       allocate(mineral%kinmnrl_armor_min_names(mineral%nkinmnrl))
       mineral%kinmnrl_armor_min_names = ''
+
+      allocate(mineral%kinmnrl_surf_area_epsilon(mineral%nkinmnrl))
+      mineral%kinmnrl_surf_area_epsilon = 0.d0
+      allocate(mineral%kinmnrl_vol_frac_epsilon(mineral%nkinmnrl))
+      mineral%kinmnrl_vol_frac_epsilon = 0.d0
 
       allocate(mineral%kinmnrl_num_prefactors(mineral%nkinmnrl))
       mineral%kinmnrl_num_prefactors = 0
@@ -2193,7 +2198,8 @@ subroutine BasisInit(reaction,option)
 
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
-          call Interpolate(temp_high,temp_low,option%reference_temperature, &
+          call Interpolate(temp_high,temp_low, &
+                           option%flow%reference_temperature, &
                            cur_mineral%dbaserxn%logK(itemp_high), &
                            cur_mineral%dbaserxn%logK(itemp_low), &
                            mineral%mnrl_logK(imnrl))
@@ -2229,7 +2235,8 @@ subroutine BasisInit(reaction,option)
 
         if (.not.reaction%use_geothermal_hpt) then
           if (option%use_isothermal) then
-            call Interpolate(temp_high,temp_low,option%reference_temperature, &
+            call Interpolate(temp_high,temp_low, &
+                             option%flow%reference_temperature, &
                              cur_mineral%dbaserxn%logK(itemp_high), &
                              cur_mineral%dbaserxn%logK(itemp_low), &
                              mineral%kinmnrl_logK(ikinmnrl))
@@ -2321,6 +2328,10 @@ subroutine BasisInit(reaction,option)
           mineral%kinmnrl_armor_pwr(ikinmnrl) = tstrxn%armor_pwr
           mineral%kinmnrl_armor_crit_vol_frac(ikinmnrl) = &
             tstrxn%armor_crit_vol_frac
+          mineral%kinmnrl_surf_area_epsilon(ikinmnrl) = &
+            tstrxn%surf_area_epsilon
+          mineral%kinmnrl_vol_frac_epsilon(ikinmnrl) = &
+            tstrxn%vol_frac_epsilon
 
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
             ! no prefactors, rates stored in upper level
@@ -2360,6 +2371,17 @@ subroutine BasisInit(reaction,option)
       cur_mineral => cur_mineral%next
       imnrl = imnrl + 1
     enddo
+
+    if (maxval(mineral%kinmnrl_rate_limiter) > 0.d0 .and. &
+        associated(mineral%kinmnrl_affinity_power)) then
+      do ikinmnrl = 1, mineral%nkinmnrl
+        if (.not.Equal(mineral%kinmnrl_affinity_power(ikinmnrl),1.d0)) then
+          option%io_buffer = 'Mineral rate limiters cannot be used when &
+            &AFFINITY_POWER for any mineral is not equal to one.'
+          call PrintErrMsg(option)
+        endif
+      enddo
+    endif
 
 #ifdef SOLID_SOLUTION    
     call SolidSolutionLinkNamesToIDs(reaction%solid_solution_list, &
@@ -2511,7 +2533,8 @@ subroutine BasisInit(reaction,option)
       
       if (.not.reaction%use_geothermal_hpt) then
         if (option%use_isothermal) then
-          call Interpolate(temp_high,temp_low,option%reference_temperature, &
+          call Interpolate(temp_high,temp_low, &
+                            option%flow%reference_temperature, &
                             cur_srfcplx%dbaserxn%logK(itemp_high), &
                             cur_srfcplx%dbaserxn%logK(itemp_low), &
                             surface_complexation%srfcplx_logK(isrfcplx))
@@ -2699,7 +2722,7 @@ subroutine BasisInit(reaction,option)
               ! backward rate will be calculated based on Kb = Kf * Keq
               if (.not.reaction%use_geothermal_hpt) then
               call Interpolate(temp_high,temp_low, &
-                               option%reference_temperature, &
+                               option%flow%reference_temperature, &
                                cur_srfcplx%dbaserxn%logK(itemp_high), &
                                cur_srfcplx%dbaserxn%logK(itemp_low), &
                                value)
@@ -3512,94 +3535,103 @@ subroutine BasisInit(reaction,option)
 
   ! Kd reactions
   
-  if (reaction%neqkdrxn > 0) then
+  if (reaction%isotherm%neqkdrxn > 0) then
 
-    if (reaction%neqcplx > 0) then
-      option%io_buffer = 'Isotherm reactions currently calculated as a &
-                         &function of free-ion, not totals.  Contact Glenn!'
-      call PrintErrMsg(option)
-    endif
-  
+    call IsothermRxnCreate(reaction%isotherm%isotherm_rxn, &
+      reaction%isotherm)
     ! allocate arrays
-    allocate(reaction%eqkdspecid(reaction%neqkdrxn))
-    reaction%eqkdspecid = 0
-    allocate(reaction%eqkdtype(reaction%neqkdrxn))
-    reaction%eqkdtype = 0
-    allocate(reaction%eqkddistcoef(reaction%neqkdrxn))
-    reaction%eqkddistcoef = 0.d0
-    allocate(reaction%eqkdlangmuirb(reaction%neqkdrxn))
-    reaction%eqkdlangmuirb = 0.d0
-    allocate(reaction%eqkdfreundlichn(reaction%neqkdrxn))
-    reaction%eqkdfreundlichn = 0.d0
-    allocate(reaction%eqkdmineral(reaction%neqkdrxn))
-    reaction%eqkdmineral = 0
+    allocate(reaction%isotherm%eqkdspecid(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqkdspecid = 0
+    allocate(reaction%isotherm%eqisothermtype(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqisothermtype = 0
+    allocate(reaction%isotherm%eqkdmineral(reaction%isotherm%neqkdrxn))
+    reaction%isotherm%eqkdmineral = 0
 
-    cur_kd_rxn => reaction%kd_rxn_list
+    cur_isotherm_rxn => reaction%isotherm%isotherm_list
     
     if (option%use_mc) then
-      allocate(reaction%sec_cont_eqkdtype(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdtype = 0   
-      allocate(reaction%sec_cont_eqkddistcoef(reaction%neqkdrxn))
-      reaction%sec_cont_eqkddistcoef = 0.d0
-      allocate(reaction%sec_cont_eqkdlangmuirb(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdlangmuirb = 0.d0
-      allocate(reaction%sec_cont_eqkdfreundlichn(reaction%neqkdrxn))
-      reaction%sec_cont_eqkdfreundlichn = 0.d0
-      sec_cont_cur_kd_rxn => reaction%sec_cont_kd_rxn_list
+      call IsothermRxnCreate(reaction%isotherm%multicontinuum_isotherm_rxn, &
+                             reaction%isotherm)
+      sec_cont_cur_isotherm_rxn => &
+        reaction%isotherm%multicontinuum_isotherm_list
     endif
     
     irxn = 0
     do  
-      if (.not.associated(cur_kd_rxn)) exit
+      if (.not.associated(cur_isotherm_rxn)) exit
 
       irxn = irxn + 1
 
       found = PETSC_FALSE
       do i = 1, reaction%naqcomp
-        if (StringCompare(cur_kd_rxn%species_name, &
+        if (StringCompare(cur_isotherm_rxn%species_name, &
                           reaction%primary_species_names(i), &
                           MAXWORDLENGTH)) then
-          reaction%eqkdspecid(irxn) = i
+          reaction%isotherm%eqkdspecid(irxn) = i
           found = PETSC_TRUE
           exit      
         endif
       enddo
       if (.not.found) then
-        option%io_buffer = 'Species ' // trim(cur_kd_rxn%species_name) // &
+        option%io_buffer = 'Species ' // trim(cur_isotherm_rxn%species_name) // &
                  ' in kd reaction &
                  & not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%eqkdtype(irxn) = cur_kd_rxn%itype
+      reaction%isotherm%eqisothermtype(irxn) = cur_isotherm_rxn%itype
       ! associate mineral id
-      if (len_trim(cur_kd_rxn%kd_mineral_name) > 1) then
-        reaction%eqkdmineral(irxn) = &
-          GetKineticMineralIDFromName(cur_kd_rxn%kd_mineral_name, &
+      if (len_trim(cur_isotherm_rxn%kd_mineral_name) > 1) then
+        reaction%isotherm%eqkdmineral(irxn) = &
+          GetKineticMineralIDFromName(cur_isotherm_rxn%kd_mineral_name, &
                                       reaction%mineral,option)
-        if (reaction%eqkdmineral(irxn) < 0) then
+        if (reaction%isotherm%eqkdmineral(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
                              ' listed in kd (linear sorption) &
                              &reaction not found in mineral list'
           call PrintErrMsg(option)
         endif
       endif      
-      reaction%eqkddistcoef(irxn) = cur_kd_rxn%Kd
-      reaction%eqkdlangmuirb(irxn) = cur_kd_rxn%Langmuir_b
-      reaction%eqkdfreundlichn(irxn) = cur_kd_rxn%Freundlich_n
+      reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn) = cur_isotherm_rxn%Kd
+      reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(irxn) = cur_isotherm_rxn%Langmuir_b
+      reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(irxn) = cur_isotherm_rxn%Freundlich_n
        
-      cur_kd_rxn => cur_kd_rxn%next
+      cur_isotherm_rxn => cur_isotherm_rxn%next
       
       if (option%use_mc) then
-        reaction%sec_cont_eqkdtype(irxn) = sec_cont_cur_kd_rxn%itype
-        reaction%sec_cont_eqkddistcoef(irxn) = sec_cont_cur_kd_rxn%Kd
-        reaction%sec_cont_eqkdlangmuirb(irxn) = sec_cont_cur_kd_rxn%Langmuir_b
-        reaction%sec_cont_eqkdfreundlichn(irxn) = &
-          sec_cont_cur_kd_rxn%Freundlich_n
-        sec_cont_cur_kd_rxn => sec_cont_cur_kd_rxn%next
+        reaction%isotherm%multicontinuum_isotherm_rxn%eqisothermcoeff(irxn) = &
+          sec_cont_cur_isotherm_rxn%Kd
+        reaction%isotherm%multicontinuum_isotherm_rxn%eqisothermlangmuirb(irxn) = &
+          sec_cont_cur_isotherm_rxn%Langmuir_b
+        reaction%isotherm%multicontinuum_isotherm_rxn%eqisothermfreundlichn(irxn) = &
+          sec_cont_cur_isotherm_rxn%Freundlich_n
+        sec_cont_cur_isotherm_rxn => sec_cont_cur_isotherm_rxn%next
       endif
       
-      
     enddo
+
+    ! check for isotherm reaction using species with complexes
+    found = PETSC_FALSE
+    do icplx = 1, reaction%neqcplx
+      do icomp = 1, reaction%eqcplxspecid(0,icplx)
+        ipri_spec = reaction%eqcplxspecid(icomp,icplx)
+        do irxn = 1, reaction%isotherm%neqkdrxn
+          if (reaction%isotherm%eqkdspecid(irxn) == ipri_spec) then
+            found = PETSC_TRUE
+            option%io_buffer = 'Primary aqueous species "' // &
+              trim(reaction%primary_species_names(ipri_spec)) // &
+              '" is referenced in a sorption isotherm reaction and &
+             &is associated with secondary aqueous complex "' // &
+              trim(reaction%secondary_species_names(icplx)) // '".'
+            call PrintMsg(option)
+          endif
+        enddo
+      enddo
+    enddo
+    if (found) then
+      option%io_buffer = 'Isotherm reactions can only be simulated for &
+        &species without secondary aqueous complexes.  See comments above.'
+      call PrintErrMsg(option)
+    endif
   endif
 
   call BasisPrint(reaction,'Final Basis',option)
@@ -3957,22 +3989,22 @@ subroutine BasisInit(reaction,option)
     enddo
 
     write(86,'(/,"<Isotherms")')
-    do irxn = 1, reaction%neqkdrxn
+    do irxn = 1, reaction%isotherm%neqkdrxn
        write(86,'(a," ; ")',advance='no') &
-         trim(reaction%primary_species_names(reaction%eqkdspecid(irxn)))
-      select case (reaction%eqkdtype(irxn))
+         trim(reaction%primary_species_names(reaction%isotherm%eqkdspecid(irxn)))
+      select case (reaction%isotherm%eqisothermtype(irxn))
         case(SORPTION_LINEAR)
            write(86,'("linear ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
+             reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn)
            write(86,'()')
         case(SORPTION_LANGMUIR)
            write(86,'("langmuir ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
-           write(86,'(es13.5)') reaction%eqkdlangmuirb(irxn)
+             reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn)
+           write(86,'(es13.5)') reaction%isotherm%isotherm_rxn%eqisothermlangmuirb(irxn)
         case(SORPTION_FREUNDLICH)
            write(86,'("freundlich ; ",es13.5)',advance='no') &
-             reaction%eqkddistcoef(irxn)
-           write(86,'(es13.5)') reaction%eqkdfreundlichn(irxn)
+             reaction%isotherm%isotherm_rxn%eqisothermcoeff(irxn)
+           write(86,'(es13.5)') reaction%isotherm%isotherm_rxn%eqisothermfreundlichn(irxn)
       end select
     enddo
 
@@ -4191,7 +4223,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
     gas_print = PETSC_FALSE
     allocate(eqspecid(0:max_aq_species,ngas))
     eqspecid = 0
-    allocate(eqstoich(0:max_aq_species,ngas))
+    allocate(eqstoich(max_aq_species,ngas))
     eqstoich = 0.d0
     allocate(eqh2oid(ngas))
     eqh2oid = 0
@@ -4248,7 +4280,8 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
         if (.not.reaction%use_geothermal_hpt) then
           if (option%use_isothermal) then
             eqlogKcoef(:,igas_spec) = cur_gas_spec%dbaserxn%logK
-            call Interpolate(temp_high,temp_low,option%reference_temperature, &
+            call Interpolate(temp_high,temp_low, &
+                             option%flow%reference_temperature, &
                              cur_gas_spec%dbaserxn%logK(itemp_high), &
                              cur_gas_spec%dbaserxn%logK(itemp_low), &
                              eqlogK(igas_spec))

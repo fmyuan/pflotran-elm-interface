@@ -4,7 +4,7 @@ module PM_Auxiliary_class
   use petscsys
   use PM_Base_class
   use Realization_Subsurface_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   
   use PFLOTRAN_Constants_module
 
@@ -341,8 +341,6 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
 
   PetscInt :: ndof
 
-  call PMBasePrintHeader(this)
-
   ierr = 0
   call InitSubsurfAssignMatIDsToRegns(this%realization)
   call InitSubsurfAssignMatProperties(this%realization)
@@ -374,8 +372,6 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt, parameter :: iphase = 1
     
-  call PMBasePrintHeader(this)
-
   ierr = 0
   do j = 1, 2
     if (j == 1) then

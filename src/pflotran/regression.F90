@@ -3,7 +3,6 @@ module Regression_module
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Output_Aux_module
-  
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -11,7 +10,7 @@ module Regression_module
   private
  
   type, public :: regression_type
-    type(regression_variable_type), pointer :: variable_list
+    type(output_variable_list_type), pointer :: variable_list
     PetscInt, pointer :: natural_cell_ids(:)
     PetscInt :: num_cells_per_process
     PetscInt, pointer :: cells_per_process_natural_ids(:)
@@ -23,13 +22,8 @@ module Regression_module
     type(regression_type), pointer :: next
   end type regression_type
 
-  type, public :: regression_variable_type
-    character(len=MAXSTRINGLENGTH) :: name
-    type(regression_variable_type), pointer :: next
-  end type regression_variable_type
-  
   public :: RegressionRead, &
-            RegressionCreateMapping, &
+            RegressionSetup, &
             RegressionOutput, &
             RegressionDestroy
   
@@ -68,29 +62,6 @@ end function RegressionCreate
 
 ! ************************************************************************** !
 
-function RegressionVariableCreate()
-  ! 
-  ! Creates a regression variable object
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/11/12
-  ! 
-  
-  implicit none
-
-  type(regression_variable_type), pointer :: RegressionVariableCreate
-  
-  type(regression_variable_type), pointer :: regression_variable
-  
-  allocate(regression_variable)
-  regression_variable%name = ''
-  nullify(regression_variable%next)
-  RegressionVariableCreate => regression_variable
-
-end function RegressionVariableCreate
-
-! ************************************************************************** !
-
 subroutine RegressionRead(regression,input,option)
   ! 
   ! Reads in contents of a regression card
@@ -101,6 +72,7 @@ subroutine RegressionRead(regression,input,option)
 
   use Option_module
   use Input_Aux_module
+  use Output_module
   use String_module
   use Utility_module
 
@@ -108,10 +80,10 @@ subroutine RegressionRead(regression,input,option)
   
   type(regression_type), pointer :: regression
   type(input_type), pointer :: input
-  type(option_type) :: option
+  type(option_type), pointer :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word
-  type(regression_variable_type), pointer :: cur_variable, new_variable
+  type(output_variable_type), pointer :: cur_variable, new_variable
   PetscInt :: count, max_cells
   PetscInt, pointer :: int_array(:)
   PetscErrorCode :: ierr
@@ -133,29 +105,12 @@ subroutine RegressionRead(regression,input,option)
     select case(trim(keyword))
     
       case('VARIABLES') 
-        count = 0
-        call InputPushBlock(input,option)
-        do 
-          call InputReadPflotranString(input,option)
-          if (InputCheckExit(input,option)) exit  
-
-          call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'variable','REGRESSION,VARIABLES')
-          call StringToUpper(word)
-          new_variable => RegressionVariableCreate()
-          new_variable%name = word
-          if (.not.associated(regression%variable_list)) then
-            regression%variable_list => new_variable
-          else
-            cur_variable%next => new_variable
-          endif
-          cur_variable => new_variable
-        enddo
-        call InputPopBlock(input,option)
-
+        if (.not.associated(regression%variable_list)) then
+          regression%variable_list => OutputVariableListCreate()
+        endif
+        call OutputVariableRead(input,option,regression%variable_list)
       case('CELLS')
         call InputKeywordDeprecated('CELLS','CELL_IDS',option)
-
       case('CELL_IDS')
         max_cells = 100
         allocate(int_array(max_cells))
@@ -193,6 +148,27 @@ end subroutine RegressionRead
 
 ! ************************************************************************** !
 
+subroutine RegressionSetup(regression,realization)
+  ! 
+  ! Configures variables and mappings for regression testing
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/14/21
+  ! 
+  use Option_module
+  use Realization_Subsurface_class
+
+  implicit none
+
+  type(regression_type), pointer :: regression
+  class(realization_subsurface_type) :: realization
+
+  call RegressionCreateMapping(regression,realization)
+
+end subroutine RegressionSetup
+
+! ************************************************************************** !
+
 subroutine RegressionCreateMapping(regression,realization)
   ! 
   ! Creates mapping between a natural mpi vec and a
@@ -201,8 +177,6 @@ subroutine RegressionCreateMapping(regression,realization)
   ! Author: Glenn Hammond
   ! Date: 10/12/12
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Grid_module
@@ -276,7 +250,7 @@ subroutine RegressionCreateMapping(regression,realization)
     endif
     call VecCreate(PETSC_COMM_SELF,regression%natural_cell_id_vec, &
                    ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecSetSizes(regression%natural_cell_id_vec, &
                        size(regression%natural_cell_ids), &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
@@ -286,7 +260,7 @@ subroutine RegressionCreateMapping(regression,realization)
     endif
     call VecSetFromOptions(regression%natural_cell_id_vec,ierr);CHKERRQ(ierr)
   
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       count = size(regression%natural_cell_ids)
       ! determine how many of the natural cell ids are local
       allocate(int_array(count))
@@ -348,9 +322,9 @@ subroutine RegressionCreateMapping(regression,realization)
     ! cells ids per processor
     call VecCreate(PETSC_COMM_SELF,regression%cells_per_process_vec, &
                    ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecSetSizes(regression%cells_per_process_vec, &
-                       regression%num_cells_per_process*option%mycommsize, &
+                       regression%num_cells_per_process*option%comm%mycommsize, &
                        PETSC_DECIDE,ierr);CHKERRQ(ierr)
     else
       call VecSetSizes(regression%cells_per_process_vec,ZERO_INTEGER, &
@@ -375,8 +349,8 @@ subroutine RegressionCreateMapping(regression,realization)
     call VecRestoreArrayF90(temp_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
     ! create temporary scatter to transfer values to io_rank
-    if (option%myrank == option%io_rank) then
-      count = option%mycommsize*regression%num_cells_per_process
+    if (OptionIsIORank(option)) then
+      count = option%comm%mycommsize*regression%num_cells_per_process
       ! determine how many of the natural cell ids are local
       allocate(int_array(count))
       do i = 1, count
@@ -408,8 +382,8 @@ subroutine RegressionCreateMapping(regression,realization)
     call VecDestroy(temp_vec,ierr);CHKERRQ(ierr)
    
     ! transfer cell ids into array for creating new scatter
-    if (option%myrank == option%io_rank) then
-      count = option%mycommsize*regression%num_cells_per_process
+    if (OptionIsIORank(option)) then
+      count = option%comm%mycommsize*regression%num_cells_per_process
       call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       do i = 1, count
@@ -451,9 +425,9 @@ subroutine RegressionCreateMapping(regression,realization)
 #endif
   
     ! fill in natural ids of these cells on the io_rank
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       allocate(regression%cells_per_process_natural_ids( &
-               regression%num_cells_per_process*option%mycommsize))
+               regression%num_cells_per_process*option%comm%mycommsize))
     endif
 
     call VecGetArrayF90(realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
@@ -471,7 +445,7 @@ subroutine RegressionCreateMapping(regression,realization)
                        regression%cells_per_process_vec, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       regression%cells_per_process_natural_ids(:) = int(vec_ptr(:)+0.1)
@@ -502,7 +476,6 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   use Option_module
   use Discretization_module
   use Output_module
-  use Output_Aux_module
   use Output_Common_module, only : OutputGetCellCenteredVelocities, &
                                    OutputGetVariableArray
   
@@ -532,7 +505,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   
   option => realization%option
   
-  if (option%myrank == option%io_rank) then
+  if (OptionIsIORank(option)) then
     string = trim(option%global_prefix) // &
              trim(option%group_prefix) // &  
              '.regression'
@@ -543,11 +516,18 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   
   call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                   global_vec,GLOBAL,option)  
-  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vx)
-  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vy)
-  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vz)
+  call DiscretizationDuplicateVector(realization%discretization, &
+                                     global_vec,global_vec_vx)
+  call DiscretizationDuplicateVector(realization%discretization, &
+                                     global_vec,global_vec_vy)
+  call DiscretizationDuplicateVector(realization%discretization, &
+                                     global_vec,global_vec_vz)
 
-  cur_variable => realization%output_option%output_snap_variable_list%first
+  if (.not.associated(regression%variable_list)) then
+    cur_variable => realization%output_option%output_snap_variable_list%first
+  else
+    cur_variable => regression%variable_list%first
+  endif
   do 
     if (.not.associated(cur_variable)) exit
     
@@ -585,7 +565,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 100 format(i9,': ',es21.13)    
 101 format(i9,': ',i9)    
     
-    if (option%myrank == option%io_rank) then
+    if (OptionIsIORank(option)) then
       string = OutputVariableToCategoryString(cur_variable%icategory)
       write(OUTPUT_UNIT,'(''-- '',a,'': '',a,'' --'')') &
         trim(string), trim(cur_variable%name)
@@ -626,12 +606,12 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         call VecGetArrayF90(regression%cells_per_process_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
         if (cur_variable%iformat == 0) then
-          do i = 1, regression%num_cells_per_process*option%mycommsize
+          do i = 1, regression%num_cells_per_process*option%comm%mycommsize
             write(OUTPUT_UNIT,100) &
               regression%cells_per_process_natural_ids(i),vec_ptr(i)
           enddo
         else
-          do i = 1, regression%num_cells_per_process*option%mycommsize
+          do i = 1, regression%num_cells_per_process*option%comm%mycommsize
             write(OUTPUT_UNIT,101) &
               regression%cells_per_process_natural_ids(i),int(vec_ptr(i))
           enddo
@@ -680,7 +660,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         else
           string = 'GAS'
         endif
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- GENERIC: '',a,'' VELOCITY ['',a, &
                               &''] --'')') &
             trim(string), 'm/' // trim(realization%output_option%tunit)
@@ -744,7 +724,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 104 format(i9,': ',3es21.13) 
 
         ! natural cell ids
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           if (associated(regression%natural_cell_ids)) then
             if (size(regression%natural_cell_ids) > 0) then
               call VecGetArrayF90(x_vel_natural,vec_ptr,ierr);CHKERRQ(ierr)
@@ -766,7 +746,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
             call VecGetArrayF90(x_vel_process,vec_ptr,ierr);CHKERRQ(ierr)
             call VecGetArrayF90(y_vel_process,y_ptr,ierr);CHKERRQ(ierr)
             call VecGetArrayF90(z_vel_process,z_ptr,ierr);CHKERRQ(ierr)
-            do i = 1, regression%num_cells_per_process*option%mycommsize
+            do i = 1, regression%num_cells_per_process*option%comm%mycommsize
               write(OUTPUT_UNIT,104) &
                 regression%cells_per_process_natural_ids(i),vec_ptr(i), &
                   y_ptr(i),z_ptr(i)
@@ -802,7 +782,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
       class is(timestepper_BE_type)
         call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
         call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
           flow_stepper%cumulative_solver_time
@@ -819,7 +799,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
       class is(timestepper_TS_type)
         call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
         call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
           flow_stepper%cumulative_solver_time
@@ -845,7 +825,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
       class is(timestepper_BE_type)
         call VecNorm(realization%field%tran_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
         call VecNorm(realization%field%tran_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
             tran_stepper%cumulative_solver_time
@@ -861,7 +841,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         endif
       class is(timestepper_KSP_type)
         call VecNorm(realization%field%tran_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
+        if (OptionIsIORank(option)) then
           write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
           write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
             tran_stepper%cumulative_solver_time
@@ -885,29 +865,6 @@ end subroutine RegressionOutput
 
 ! ************************************************************************** !
 
-recursive subroutine RegressionVariableDestroy(regression_variable)
-  ! 
-  ! Destroys a regression variable object
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/11/12
-  ! 
-
-  implicit none
-  
-  type(regression_variable_type), pointer :: regression_variable
-  
-  if (.not.associated(regression_variable)) return
-  
-  call RegressionVariableDestroy(regression_variable%next)
-
-  deallocate(regression_variable)
-  nullify(regression_variable)
-  
-end subroutine RegressionVariableDestroy
-
-! ************************************************************************** !
-
 subroutine RegressionDestroy(regression)
   ! 
   ! Destroys a regression object
@@ -926,7 +883,7 @@ subroutine RegressionDestroy(regression)
   
   if (.not.associated(regression)) return
   
-  call RegressionVariableDestroy(regression%variable_list)
+  call OutputVariableListDestroy(regression%variable_list)
   call DeallocateArray(regression%natural_cell_ids)
   regression%num_cells_per_process = 0
   call DeallocateArray(regression%cells_per_process_natural_ids)

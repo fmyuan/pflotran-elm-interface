@@ -917,7 +917,7 @@ subroutine PMUFDBSetup(this)
   call PMUFDBAllocateERBarrays(this)
   
   nullify(prev_ERB)
-  allocate(ranks(this%option%mycommsize))
+  allocate(ranks(this%option%comm%mycommsize))
   cur_ERB => this%ERB_list
   do
     if (.not.associated(cur_ERB)) exit
@@ -930,12 +930,12 @@ subroutine PMUFDBSetup(this)
     newcomm_size = 0
     if (local) ranks(this%option%myrank+1) = 1
     if (.not.local) ranks(this%option%myrank+1) = 0
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,this%option%mycommsize,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,this%option%comm%mycommsize,MPI_INTEGER, &
                        MPI_SUM,this%option%mycomm,ierr)
     newcomm_size = sum(ranks)
     allocate(cur_ERB%rank_list(newcomm_size))
     j = 0
-    do i = 1,this%option%mycommsize
+    do i = 1,this%option%comm%mycommsize
       if (ranks(i) == 1) then
         j = j + 1
         cur_ERB%rank_list(j) = (i - 1)  ! (world ranks)
@@ -1322,12 +1322,9 @@ subroutine PMUFDBInitializeTimestep(this)
 
   class(pm_ufd_biosphere_type) :: this
   
-  call PMBasePrintHeader(this)
-  
   if (this%option%time >= this%output_start_time) then
     call PMUFDBOutput(this)
   endif
-
   
 end subroutine PMUFDBInitializeTimestep
 

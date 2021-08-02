@@ -196,29 +196,30 @@ subroutine MphaseSetupPatch(realization)
     allocate(mphase_sec_heat_vars(grid%nlmax))
   
     do local_id = 1, grid%nlmax
-  
+       
+      ghosted_id = grid%nL2G(local_id)
     ! Assuming the same secondary continuum for all regions (need to make it an array)
     ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
-        patch%material_property_array(1)%ptr%secondary_continuum_name, &
-        patch%material_property_array(1)%ptr%secondary_continuum_length, &
-        patch%material_property_array(1)%ptr%secondary_continuum_matrix_block_size, &
-        patch%material_property_array(1)%ptr%secondary_continuum_fracture_spacing, &
-        patch%material_property_array(1)%ptr%secondary_continuum_radius, &
-        patch%material_property_array(1)%ptr%secondary_continuum_area, &
+        patch%material_property_array(1)%ptr%multicontinuum%name, &
+        patch%material_property_array(1)%ptr%multicontinuum%length, &
+        patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
+        patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
+        patch%material_property_array(1)%ptr%multicontinuum%radius, &
+        patch%material_property_array(1)%ptr%multicontinuum%area, &
         option)
         
       mphase_sec_heat_vars(local_id)%ncells = &
-        patch%material_property_array(1)%ptr%secondary_continuum_ncells
+        patch%material_property_array(1)%ptr%multicontinuum%ncells
       mphase_sec_heat_vars(local_id)%aperture = &
-        patch%material_property_array(1)%ptr%secondary_continuum_aperture
+        patch%material_property_array(1)%ptr%multicontinuum%aperture
       mphase_sec_heat_vars(local_id)%epsilon = &
-        patch%material_property_array(1)%ptr%secondary_continuum_epsilon
+        patch%aux%Material%auxvars(ghosted_id)%epsilon
       mphase_sec_heat_vars(local_id)%log_spacing = &
-        patch%material_property_array(1)%ptr%secondary_continuum_log_spacing
+        patch%material_property_array(1)%ptr%multicontinuum%log_spacing
       mphase_sec_heat_vars(local_id)%outer_spacing = &
-        patch%material_property_array(1)%ptr%secondary_continuum_outer_spacing
+        patch%material_property_array(1)%ptr%multicontinuum%outer_spacing
         
 
       allocate(mphase_sec_heat_vars(local_id)%area(mphase_sec_heat_vars(local_id)%ncells))
@@ -244,16 +245,16 @@ subroutine MphaseSetupPatch(realization)
       mphase_sec_heat_vars(local_id)%interfacial_area = area_per_vol* &
           (1.d0 - mphase_sec_heat_vars(local_id)%epsilon)* &
           patch%material_property_array(1)%ptr% &
-          secondary_continuum_area_scaling
+          multicontinuum%area_scaling
 
 
     ! Setting the initial values of all secondary node temperatures same as primary node 
     ! temperatures (with initial dirichlet BC only) -- sk 06/26/12
       allocate(mphase_sec_heat_vars(local_id)%sec_temp(mphase_sec_heat_vars(local_id)%ncells))
       
-      if (option%set_secondary_init_temp) then
+      if (option%flow%set_secondary_init_temp) then
         mphase_sec_heat_vars(local_id)%sec_temp = &
-          patch%material_property_array(1)%ptr%secondary_continuum_init_temp
+          patch%material_property_array(1)%ptr%multicontinuum%init_temp
       else
         mphase_sec_heat_vars(local_id)%sec_temp = &
         initial_condition%flow_condition%temperature%dataset%rarray(1)
@@ -591,10 +592,10 @@ function MphaseInitGuessCheck(realization)
   enddo
 
   call MPI_Barrier(option%mycomm,ierr)
-  if (option%mycommsize > 1) then
+  if (option%comm%mycommsize > 1) then
     call MPI_Allreduce(ipass,ipass0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                          option%mycomm,ierr)
-    if (ipass0 < option%mycommsize) ipass=-1
+    if (ipass0 < option%comm%mycommsize) ipass=-1
   endif
   MphaseInitGuessCheck =ipass
 end function MphaseInitGuessCheck
@@ -753,10 +754,10 @@ subroutine MPhaseUpdateReason(reason, realization)
 
   call MPI_Barrier(realization%option%mycomm,ierr)
   
-  if (realization%option%mycommsize > 1) then
+  if (realization%option%comm%mycommsize > 1) then
     call MPI_Allreduce(re,re0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                         realization%option%mycomm,ierr)
-    if (re0<realization%option%mycommsize) re=0
+    if (re0<realization%option%comm%mycommsize) re=0
   endif
   reason=re
   

@@ -41,6 +41,8 @@ module Reaction_Mineral_Aux_module
     character(len=MAXWORDLENGTH) :: armor_min_name
     PetscReal :: armor_pwr
     PetscReal :: armor_crit_vol_frac
+    PetscReal :: surf_area_epsilon
+    PetscReal :: vol_frac_epsilon
     type(transition_state_prefactor_type), pointer :: prefactor
     type(transition_state_rxn_type), pointer :: next
   end type transition_state_rxn_type
@@ -129,6 +131,8 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_surf_area_porosity_pwr(:)
     PetscReal, pointer :: kinmnrl_armor_crit_vol_frac(:)
     PetscReal, pointer :: kinmnrl_armor_pwr(:)
+    PetscReal, pointer :: kinmnrl_surf_area_epsilon(:)
+    PetscReal, pointer :: kinmnrl_vol_frac_epsilon(:)
     PetscInt, pointer :: kinmnrl_irreversible(:)
    
   end type mineral_type
@@ -227,6 +231,9 @@ function MineralCreate()
   nullify(mineral%kinmnrl_armor_crit_vol_frac)
   nullify(mineral%kinmnrl_armor_pwr)
 
+  nullify(mineral%kinmnrl_surf_area_epsilon)
+  nullify(mineral%kinmnrl_vol_frac_epsilon)
+
   MineralCreate => mineral
   
 end function MineralCreate
@@ -290,6 +297,8 @@ function TransitionStateTheoryRxnCreate()
   tstrxn%armor_min_name = ''
   tstrxn%armor_pwr = 0.d0
   tstrxn%armor_crit_vol_frac = 0.d0
+  tstrxn%surf_area_epsilon = 0.d0
+  tstrxn%vol_frac_epsilon = 0.d0
   tstrxn%rate = 0.d0
   nullify(tstrxn%prefactor)
   nullify(tstrxn%next)
@@ -799,6 +808,9 @@ subroutine MineralDestroy(mineral)
   call DeallocateArray(mineral%kinmnrl_armor_pwr)
   call DeallocateArray(mineral%kinmnrl_armor_crit_vol_frac)
   call DeallocateArray(mineral%kinmnrl_irreversible)
+
+  call DeallocateArray(mineral%kinmnrl_surf_area_epsilon)
+  call DeallocateArray(mineral%kinmnrl_vol_frac_epsilon)
   
   deallocate(mineral)
   nullify(mineral)

@@ -126,51 +126,37 @@ module Variables_module
   PetscInt, parameter, public :: LIQUID_MASS_FRACTION    = 106
   PetscInt, parameter, public :: GAS_MASS_FRACTION       = 107
 
-!  PetscInt, parameter, public :: LIQUID_VELOCITY_CELL_CENT = 58
-!  PetscInt, parameter, public :: LIQUID_VELOCITY_CELL_FACE = 59
+  PetscInt, parameter, public :: NATURAL_ID              = 108
+  PetscInt, parameter, public :: REACTION_AUXILIARY      = 109
 
-  PetscInt, parameter, public :: OIL_PRESSURE            = 108
-  PetscInt, parameter, public :: OIL_SATURATION          = 109
-  PetscInt, parameter, public :: OIL_DENSITY             = 110
-  PetscInt, parameter, public :: OIL_DENSITY_MOL         = 111
-  PetscInt, parameter, public :: OIL_ENERGY              = 112
-  PetscInt, parameter, public :: OIL_MOBILITY            = 113
+  PetscInt, parameter, public :: FRACTURE                = 110
 
-  PetscInt, parameter, public :: NATURAL_ID              = 114
-  PetscInt, parameter, public :: REACTION_AUXILIARY      = 115
+  PetscInt, parameter, public :: GAS_PERMEABILITY        = 111
+  PetscInt, parameter, public :: GAS_PERMEABILITY_X      = 112
+  PetscInt, parameter, public :: GAS_PERMEABILITY_Y      = 113
+  PetscInt, parameter, public :: GAS_PERMEABILITY_Z      = 114
 
-  PetscInt, parameter, public :: OIL_VISCOSITY           = 116
+  PetscInt, parameter, public :: LIQUID_RELATIVE_PERMEABILITY = 115
+  PetscInt, parameter, public :: GAS_RELATIVE_PERMEABILITY    = 116
+  PetscInt, parameter, public :: SALINITY                = 117
 
-  PetscInt, parameter, public :: OIL_MOLE_FRACTION       = 117
-  PetscInt, parameter, public :: SOLVENT_SATURATION      = 118
-  PetscInt, parameter, public :: CAPILLARY_PRESSURE_OGC  = 119
-  PetscInt, parameter, public :: FRACTURE                = 120
+  PetscInt, parameter, public :: HYDRATE_SATURATION      = 118
 
-  PetscInt, parameter, public :: GAS_PERMEABILITY        = 121
-  PetscInt, parameter, public :: GAS_PERMEABILITY_X      = 122
-  PetscInt, parameter, public :: GAS_PERMEABILITY_Y      = 123
-  PetscInt, parameter, public :: GAS_PERMEABILITY_Z      = 124
+  PetscInt, parameter, public :: AQUEOUS_EQ_CONC         = 119
+  PetscInt, parameter, public :: MNRL_EQ_CONC            = 120
+  PetscInt, parameter, public :: SORB_EQ_CONC            = 121
+  PetscInt, parameter, public :: TOTAL_BULK_CONC         = 122
+  PetscInt, parameter, public :: MNRL_VOLUME_FRACTION    = 123
 
-  PetscInt, parameter, public :: BUBBLE_POINT            = 125
+  PetscInt, parameter, public :: K_ORTHOGONALITY_ERROR   = 124
 
-  PetscInt, parameter, public :: SOLVENT_PRESSURE        = 126
-  PetscInt, parameter, public :: SOLVENT_DENSITY         = 127
-  PetscInt, parameter, public :: SOLVENT_DENSITY_MOL     = 128
-  PetscInt, parameter, public :: SOLVENT_ENERGY          = 129
-  PetscInt, parameter, public :: SOLVENT_MOBILITY        = 130
+  PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 125
 
-  PetscInt, parameter, public :: LIQUID_RELATIVE_PERMEABILITY = 131
-  PetscInt, parameter, public :: GAS_RELATIVE_PERMEABILITY    = 132
-  PetscInt, parameter, public :: SALINITY                = 133
+  PetscInt, parameter, public :: ELECTRICAL_CONDUCTIVITY = 126
+  PetscInt, parameter, public :: ELECTRICAL_POTENTIAL    = 127
+  PetscInt, parameter, public :: ELECTRICAL_JACOBIAN     = 128
 
-  PetscInt, parameter, public :: HYDRATE_SATURATION      = 134
-  
-  PetscInt, parameter, public :: AQUEOUS_EQ_CONC         = 135
-  PetscInt, parameter, public :: MNRL_EQ_CONC            = 136
-  PetscInt, parameter, public :: SORB_EQ_CONC            = 137
-  PetscInt, parameter, public :: TOTAL_BULK_CONC         = 138
-  PetscInt, parameter, public :: MNRL_VOLUME_FRACTION    = 139
+  PetscInt, parameter, public :: EPSILON = 129
 
-  PetscInt, parameter, public :: K_ORTHOGONALITY_ERROR   = 140
-
+  PetscInt, parameter, public :: DARCY_VELOCITY          = 141
 end module Variables_module

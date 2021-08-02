@@ -22,6 +22,7 @@ module PM_Base_class
     Vec :: residual_vec
     PetscBool :: print_ekg
     PetscBool :: skip_restart
+    PetscBool :: steady_state
     ! solver now has to originate in the pm to support pm-dependent defaults
     type(solver_type), pointer :: solver
     class(realization_base_type), pointer :: realization_base
@@ -40,6 +41,7 @@ module PM_Base_class
     procedure, public :: Jacobian => PMBaseJacobian
     procedure, public :: UpdateTimestep => PMBaseUpdateTimestep
     procedure, public :: InitializeTimestep => PMBaseThisOnly
+    procedure, public :: SetupSolvers => PMBaseThisOnly
     procedure, public :: PreSolve => PMBaseThisOnly
     procedure, public :: Solve => PMBaseThisTimeError
     procedure, public :: PostSolve => PMBaseThisOnly
@@ -98,6 +100,7 @@ subroutine PMBaseInit(this)
   this%solution_vec = PETSC_NULL_VEC
   this%residual_vec = PETSC_NULL_VEC
   this%print_ekg = PETSC_FALSE
+  this%steady_state = PETSC_FALSE
   this%skip_restart = PETSC_FALSE
   nullify(this%next)
   
@@ -155,7 +158,7 @@ subroutine PMBaseReadPMBlock(this,input)
   implicit none
   class(pm_base_type) :: this
   type(input_type), pointer :: input
-  this%option%exit_code = EXIT_FAILURE
+  this%option%driver%exit_code = EXIT_FAILURE
   this%option%io_buffer = 'A member routine PMBaseReadPMBlock must &
              &extend for: ' // trim(this%name)
   call PrintErrMsg(this%option)
@@ -179,6 +182,8 @@ subroutine PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
+    case('STEADY_STATE')
+      this%steady_state = PETSC_TRUE
     case('SKIP_RESTART')
       this%skip_restart = PETSC_TRUE
     case default
@@ -470,7 +475,7 @@ subroutine PMBasePrintErrMsg(this,subroutine_name)
   implicit none
   class(pm_base_type) :: this
   character(len=*) :: subroutine_name
-  this%option%exit_code = EXIT_FAILURE
+  this%option%driver%exit_code = EXIT_FAILURE
   this%option%io_buffer = 'A member routine ' // trim(subroutine_name) // &
          ' must extend for: ' //  trim(this%name)
   call PrintErrMsg(this%option)

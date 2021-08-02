@@ -30,10 +30,7 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use Init_Common_module
   use Material_module
   
-  use Flash2_module
   use Mphase_module
-  use Immis_module
-  use Miscible_module
   use PM_Richards_TS_class
   use PM_TH_TS_class
   use Richards_module
@@ -41,8 +38,6 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use General_module
   use Hydrate_module
   use WIPP_Flow_module
-  use TOilIms_module
-  use TOWG_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
   use PM_Hydrate_class 
@@ -67,8 +62,7 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,TOIL_IMS_MODE, &
-           TOWG_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
@@ -82,14 +76,6 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
       case(MPH_MODE)
         call init_span_wagner(option)      
         call MphaseSetup(realization)
-      case(IMS_MODE)
-        call init_span_wagner(option)      
-        call ImmisSetup(realization)
-      case(MIS_MODE)
-        call MiscibleSetup(realization)
-      case(FLASH2_MODE)
-        call init_span_wagner(option)      
-        call Flash2Setup(realization)
       case(WF_MODE)
         call WIPPFloSetup(realization)
       case(G_MODE)
@@ -105,10 +91,6 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
           end select
           pm => pm%next
         enddo
-      case(TOIL_IMS_MODE)
-        call TOilImsSetup(realization)
-      case(TOWG_MODE)
-        call TOWGSetup(realization)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
         call PrintErrMsg(option)
@@ -134,12 +116,6 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call PMRichardsTSUpdateAuxVarsPatch(realization)
       case(MPH_MODE)
         call MphaseUpdateAuxVars(realization)
-      case(IMS_MODE)
-        call ImmisUpdateAuxVars(realization)
-      case(MIS_MODE)
-        call MiscibleUpdateAuxVars(realization)
-      case(FLASH2_MODE)
-        call Flash2UpdateAuxVars(realization)
       case(G_MODE)
         !geh: cannot update state during initialization as the guess will be
         !     assigned as the initial condition if the state changes. therefore,
@@ -149,10 +125,6 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call HydrateUpdateAuxVars(realization,PETSC_FALSE)
       case(WF_MODE)
         call WIPPFloUpdateAuxVars(realization)
-      case(TOIL_IMS_MODE)
-        call TOilImsUpdateAuxVars(realization)
-      case(TOWG_MODE)
-        call TOWGUpdateAuxVars(realization,PETSC_FALSE)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>UpdateAuxVars'
         call PrintErrMsg(option)

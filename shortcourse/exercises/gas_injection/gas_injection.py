@@ -48,13 +48,13 @@ basecolors = ['red','green','blue']
 
 #Gas saturation
 titles.append('Gas Saturation')
-files.append('./gas_injection-obs-0.tec')
+files.append('./gas_injection-obs-0.pft')
 columns.append(16)
 name.append('Lower')
-files.append('./gas_injection-obs-0.tec')
+files.append('./gas_injection-obs-0.pft')
 columns.append(36)
 name.append('Middle')
-files.append('./gas_injection-obs-0.tec')
+files.append('./gas_injection-obs-0.pft')
 columns.append(56)
 name.append('Upper')
 
@@ -63,13 +63,13 @@ colors.extend(basecolors)
 
 #Liquid saturation
 titles.append('Liquid Saturation')
-files.append('./gas_injection-obs-0.tec')
+files.append('./gas_injection-obs-0.pft')
 columns.append(5)
 name.append('Lower')
-files.append('./gas_injection-obs-0.tec')
+files.append('./gas_injection-obs-0.pft')
 columns.append(25)
 name.append('Middle')
-files.append('./gas_injection-obs-0.tec')
+files.append('./gas_injection-obs-0.pft')
 columns.append(45)
 name.append('Upper')
 

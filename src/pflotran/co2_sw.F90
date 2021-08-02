@@ -90,7 +90,7 @@ subroutine initialize_sw_interp(itable,myrank)
         PetscMPIInt myrank
         
         PetscInt i, j
-        PetscInt :: iflag = 1
+        PetscInt :: iflag
         
         PetscReal p,t, ts,tmp2, tmp, dum1, dum2
 !       PetscReal dtmp,dddt,dddp
@@ -100,10 +100,7 @@ subroutine initialize_sw_interp(itable,myrank)
         character*3 :: q
         character*1 :: tab
       
-      
-      
-      
-
+        iflag = 1
         tab = char(9)
          q = '","'
         
@@ -359,8 +356,9 @@ subroutine interp(x1,x2,y)
              
       PetscReal ps, tmp, tmp2, ntab_t, ntab_p, dt_tab, dp_tab, p0_tab, t0_tab 
       PetscInt isucc, i1,i2,j1,j2, icross, i,j
-      PetscInt :: iflag = 1
-      
+      PetscInt :: iflag
+
+      iflag = 1
       ifinetable = PETSC_FALSE
       if (x2 <= co2_sw_f_t1_tab .and. x1<= co2_sw_f_p1_tab) then
        ! within the fine grid table 

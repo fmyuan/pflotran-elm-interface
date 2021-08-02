@@ -1,0 +1,173 @@
+#Description: 3D Geophysics Electrical Resistivity Tomography  problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_GEOPHYSICS geop
+      MODE ERT
+      OPTIONS
+        COMPUTE_JACOBIAN
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS GEOPHYSICS
+
+  LINEAR_SOLVER
+    SOLVER BCGS
+    PC_TYPE BLOCK_JACOBI
+    ATOL 1.d-12
+  /
+
+END
+
+#=========================== regression =======================================
+
+REGRESSION
+  CELLS_PER_PROCESS 3
+  CELL_IDS
+    29
+  /
+  VARIABLES
+    ELECTRICAL_CONDUCTIVITY
+    ELECTRICAL_POTENTIAL
+    ELECTRICAL_JACOBIAN
+  /
+END
+
+#=========================== Geophysics survey  ================================
+SURVEY
+  FILE_NAME ert.srv
+  FORMAT E4D_SRV
+END  
+
+#=========================== Output options ==-================================
+
+OUTPUT
+  #FORMAT TECPLOT BLOCK
+  FORMAT HDF5
+  VARIABLES
+    ELECTRICAL_CONDUCTIVITY
+    ELECTRICAL_POTENTIAL 1
+    ELECTRICAL_JACOBIAN 1
+  /
+  NO_PRINT_INITIAL
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 4 6
+  BOUNDS
+    0.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  ELECTRICAL_CONDUCTIVITY 1.12d0
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 3.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 4.d0 3.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    5.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION south
+  FACE SOUTH
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 0.d0 3.d0
+  /
+END
+
+REGION north
+  FACE NORTH
+  COORDINATES
+    0.d0 4.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 10.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+
+#=========================== geophyscs conditions ==================================
+GEOPHYSICS_CONDITION boundary_potential
+  TYPE DIRICHLET
+END
+
+#=========================== condition couplers ===============================
+BOUNDARY_CONDITION top_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top
+END
+
+BOUNDARY_CONDITION east_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION east
+END
+
+BOUNDARY_CONDITION west_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION west
+END
+
+BOUNDARY_CONDITION south_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION south
+END
+
+BOUNDARY_CONDITION north_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION north
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+
+END_SUBSURFACE

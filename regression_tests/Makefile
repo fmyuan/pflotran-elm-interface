@@ -32,6 +32,10 @@ ifdef CHECK
 	TEST_OPTIONS += --check-only
 endif
 
+ifdef RUN_ONLY
+	TEST_OPTIONS += --run-only
+endif
+
 ifdef NEW
 	TEST_OPTIONS += --new-tests
 endif
@@ -58,6 +62,7 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/reaction_sandbox/reaction_sandbox.cfg \
 	default/batch/batch.cfg \
 	default/debug/debug.cfg \
@@ -68,6 +73,7 @@ STANDARD_CFG = \
 	default/materials/mineral_volume/mineral_volume.cfg \
 	default/materials/full_tensor/full_tensor.cfg \
 	default/infiltrometer/infiltrometer.cfg \
+	default/infiltration1d/infiltration1d.cfg \
 	default/numerical/numerical.cfg \
 	default/output/output.cfg \
 	default/output/compare/compare.cfg \
@@ -78,7 +84,6 @@ STANDARD_CFG = \
 	default/condition/dataset/dataset.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/scco2/mphase/mphase.cfg \
-	default/scco2/flash2/flash2.cfg \
 	default/regions/regions.cfg \
 	default/regions/cell_mapping/cell_mapping.cfg \
 	default/salinity/salinity.cfg \
@@ -100,16 +105,12 @@ STANDARD_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
 	wipp/transport/wipp_regular.cfg \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
-	towg/bo/towg_bo.cfg \
-	default/integral_flux/integral_flux.cfg
+	default/integral_flux/integral_flux.cfg \
+	geophys/ert/ert.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
-	CPR_preconditioner/CPR_preconditioner.cfg \
 	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
@@ -124,8 +125,6 @@ STANDARD_CFG += \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
 	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
 	geomech/terzaghi/terzaghi.cfg \
-	surfaceflow/surface_flow_only/surface_only.cfg \
-	surfaceflow/surface_th/surface_th.cfg \
 	surfaceflow/inlinesurface/inlinesurface.cfg
 endif
 
@@ -138,6 +137,7 @@ GEOCHEMISTRY_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/batch/batch.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
@@ -158,14 +158,10 @@ FLOW_CFG = \
 	default/condition/condition.cfg \
 	default/eos/eos.cfg \
 	default/infiltrometer/infiltrometer.cfg \
+	default/infiltration1d/infiltration1d.cfg \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
-	default/scco2/flash2/flash2.cfg \
 	general/general.cfg \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
-	towg/bo/towg_bo.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg
@@ -173,11 +169,15 @@ FLOW_CFG = \
 TRANSPORT_CFG = \
 	default/543/543.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/dispersion/dispersion.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/velocity/velocity.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
 	wipp/transport/wipp_regular.cfg
+
+GEOPHYSICS_CFG = \
+	geophys/ert/ert.cfg
 
 MESH_CFG = \
 	default/discretization/discretization.cfg
@@ -190,7 +190,6 @@ CHECK_CFG = \
 
 NOHDF5_CFG = \
 	default/column/column.cfg \
-	default/scco2/flash2/flash2.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
 	wipp/nuts/nuts.cfg \
@@ -266,6 +265,10 @@ transport :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(TRANSPORT_CFG) --suite transport
 
+geophysics :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(GEOPHYSICS_CFG) --suite geophysics
+
 mesh :
 ifneq ($(strip $(PARMETIS_LIB)),)
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
@@ -310,6 +313,15 @@ clean-tests :
 	-find . -type f -name '*.testlog' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.out' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.tec' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.pft' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.xmf' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.vtk' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.bio' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.wf' -print0 | xargs -0 -r rm
+	-find . -type f -name '-int.dat' -print0 | xargs -0 -r rm
+	-find . -type f -name '-mas.dat' -print0 | xargs -0 -r rm
+	-find . -type f -name '-obs*.tec' -print0 | xargs -0 -r rm
+	-find . -type f -name '*.pnl' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.regression' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.stdout' -print0 | xargs -0 -r rm
 	-find . -type f -name '*.old' -print0 | xargs -0 -r rm
@@ -321,7 +333,6 @@ clean-tests :
 	-find . -type f -name '*.dpd' -print0 | xargs -0 -r rm
 	-find . -type f -name 'e4d*.log' -print0 | xargs -0 -r rm
 	-find . -type d -name '__pycache__' -print0 | xargs -0 -r rm 
-	-rm -f mfd/mfd-mas.dat
 	-rm -f mfd/mfd.h5
 	-rm -f default/543/543_flow_and_tracer-np8.h5
 	-rm -f default/543/543_flow_and_tracer.h5
@@ -329,28 +340,14 @@ clean-tests :
 	-rm -f default/discretization/mixed_implicit.h5
 	-rm -f general/calcite_flow_and_tran_general.h5
 	-rm -f general/ictest1D.h5
-	-rm -f general/ictest1D-mas.dat
 	-rm -f general/ictest2D.h5
-	-rm -f general/ictest2D-mas.dat
-	-rm -f ngee/sink-mas.dat 
 	-rm -f ngee/sink.h5 
-	-rm -f ngee/source-mas.dat
 	-rm -f ngee/source.h5
 	-rm -f default/543/543_flow_and_tracer_dbase.h5
-	-rm -f ascem/batch/calcite-kinetics-int.dat
-	-rm -f ascem/batch/calcite-kinetics-volume-fractions-int.dat
-	-rm -f ascem/batch/general-reaction-int.dat
-	-rm -f ngee/CLM-CN-int.dat
-	-rm -f shortcourse/1D_variably_saturated_flow/vsat_flow_pulse_2layer-int.dat
-	-rm -f shortcourse/copper_leaching/cu_leaching-int.dat
-	-rm -f wipp/nuts/case3-int.dat
-	-rm -f wipp/nuts/case4r1_modified-int.dat
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d-np4.h5
 	-rm -f wipp/bragflo/wipp_flow/well_production2-ss_mass-0.dat
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_2d.h5
 	-rm -f wipp/bragflo/wipp_flow/gas_generation_one_cell.h5
-	-rm -f wipp/bragflo/wipp_flow/*.pnl
-	-rm -f wipp/wipp_flow/gas_generation/*.pnl 
 	-rm -f wipp/wipp_flow/gas_generation/*.h5
 	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
 	-rm -f default/multicontinuum/0D_heat_TH-int.dat
@@ -371,18 +368,6 @@ clean-tests :
 	-rm -f default/condition/dataset/z_line_node_centered.h5
 	-rm -f default/salinity/20x20_xz.h5
 	-rm -f default/timestepping/20x20_xz.h5
-	-rm -f default/output/output_biosphere-0.bio
-	-rm -f default/output/output_WIPP_pnl-0.pnl
-	-rm -f default/output/output_waste_form_wf-0.wf
-	-rm -f default/output/output_vtk-000.vtk
-	-rm -f default/output/output_vtk-np3-000.vtk
-	-rm -f default/output/output_xdmf_explicit-000.xmf
-	-rm -f default/output/output_xdmf_explicit_primal-000.xmf
-	-rm -f ufd/glass-0.wf
-	-rm -f ufd/fmdm_dummy-0.wf
-	-rm -f ufd/wf_doubles-0.wf
-	-rm -f ufd/wf_region-wf_mass-*.dat
-	-rm -f ufd/glass-*.vtk
-	-rm -f ufd/wf_doubles-*.vtk
-	-rm -f ufd/wf_region-*.vtk
-	-rm -f ufd/glass_full_geochem_np4-*.vtk
+	-rm -f geophys/ert/*.h5
+	-rm -f geophys/ert/*.dat
+	-rm -f geophys/ert/ert-simulated.srv

@@ -9,7 +9,10 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Example_class
   use Reaction_Sandbox_Simple_class
   use Reaction_Sandbox_Cyber_class
-  use Reaction_Sandbox_Gas_class 
+  use Reaction_Sandbox_Gas_class
+  use Reaction_Sandbox_BioHill_class
+  use Reaction_Sand_FlexBioHill_class
+  use Reaction_Sandbox_BioTH_class
 
   ! Add new reacton sandbox classes here.
   
@@ -35,7 +38,7 @@ module Reaction_Sandbox_module
             RSandboxRead, &
             RSandboxSkipInput, &
             RSandboxSetup, &
-            RSandbox, &
+            RSandboxEvaluate, &
             RSandboxUpdateKineticState, &
             RSandboxAuxiliaryPlotVariables, &
             RSandboxDestroy
@@ -166,6 +169,12 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => CyberCreate()
       case('GAS')
         new_sandbox => GasCreate()
+      case('BIODEGRADATION_HILL')
+        new_sandbox => BioHillCreate()
+      case('FLEXIBLE_BIODEGRADATION_HILL')
+        new_sandbox => FlexBioHillCreate()
+      case('BIOPARTICLE')
+        new_sandbox => BioTH_Create()
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,REACTION_SANDBOX',option)
@@ -249,8 +258,8 @@ end subroutine RSandboxSkipInput
 
 ! ************************************************************************** !
 
-subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
-                    global_auxvar,material_auxvar,reaction,option)
+subroutine RSandboxEvaluate(Residual,Jacobian,compute_derivative,rt_auxvar, &
+                            global_auxvar,material_auxvar,reaction,option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -280,13 +289,13 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
   cur_reaction => rxn_sandbox_list
   do
     if (.not.associated(cur_reaction)) exit
-      call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
-                                 rt_auxvar,global_auxvar,material_auxvar, &
-                                 reaction,option)
+    call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
+                               rt_auxvar,global_auxvar,material_auxvar, &
+                               reaction,option)
     cur_reaction => cur_reaction%next
   enddo
 
-end subroutine RSandbox
+end subroutine RSandboxEvaluate
 
 ! ************************************************************************** !
 
@@ -318,8 +327,8 @@ subroutine RSandboxUpdateKineticState(rt_auxvar,global_auxvar, &
   cur_reaction => rxn_sandbox_list
   do
     if (.not.associated(cur_reaction)) exit
-      call cur_reaction%UpdateKineticState(rt_auxvar,global_auxvar, &
-                                           material_auxvar,reaction,option)
+    call cur_reaction%UpdateKineticState(rt_auxvar,global_auxvar, &
+                                         material_auxvar,reaction,option)
     cur_reaction => cur_reaction%next
   enddo
 
@@ -366,6 +375,7 @@ subroutine RSandboxDestroy2(local_sandbox_list)
     deallocate(cur_sandbox)
     cur_sandbox => prev_sandbox
   enddo  
+  nullify(local_sandbox_list)
 
 end subroutine RSandboxDestroy2
 

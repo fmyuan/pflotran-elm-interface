@@ -28,7 +28,6 @@ module Simulation_Geomechanics_class
     type(waypoint_list_type), pointer :: waypoint_list_geomechanics
     type(geomechanics_regression_type), pointer :: geomech_regression
   contains
-    procedure, public :: Init => GeomechanicsSimulationInit
     procedure, public :: InitializeRun => GeomechanicsSimulationInitializeRun
     procedure, public :: InputRecord => GeomechanicsSimInputRecord
     procedure, public :: ExecuteRun => GeomechanicsSimulationExecuteRun
@@ -43,18 +42,19 @@ contains
 
 ! ************************************************************************** !
 
-function GeomechanicsSimulationCreate(option)
+function GeomechanicsSimulationCreate(driver,option)
   ! 
   ! This routine
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   ! 
-
+  use Driver_module
   use Option_module
 
   implicit none
 
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
   class(simulation_geomechanics_type), pointer :: GeomechanicsSimulationCreate
@@ -62,13 +62,13 @@ function GeomechanicsSimulationCreate(option)
   print *,'GeomechanicsSimulationCreate'
 
   allocate(GeomechanicsSimulationCreate)
-  call GeomechanicsSimulationCreate%Init(option)
+  call GeomechanicsSimulationInit(GeomechanicsSimulationCreate,driver,option)
 
 end function GeomechanicsSimulationCreate
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsSimulationInit(this, option)
+subroutine GeomechanicsSimulationInit(this,driver,option)
   ! 
   ! This routine
   ! 
@@ -77,14 +77,16 @@ subroutine GeomechanicsSimulationInit(this, option)
   ! Modified: Satish Karra, 06/01/2016
   ! 
   use Waypoint_module
+  use Driver_module
   use Option_module
 
   implicit none
 
   class(simulation_geomechanics_type) :: this
+  class(driver_type), pointer :: driver
   type(option_type), pointer :: option
 
-  call SubsurfaceSimulationInit(this, option)
+  call SimSubsurfInit(this,driver,option)
   nullify(this%geomech_realization)
   nullify(this%geomech_regression)
   this%waypoint_list_geomechanics => WaypointListCreate()
@@ -109,11 +111,12 @@ subroutine GeomechanicsSimulationInitializeRun(this)
   class(simulation_geomechanics_type) :: this
 
   call PrintMsg(this%option,'Simulation%InitializeRun()')
-  call this%process_model_coupler_list%InitializeRun()
 
   if (this%option%restart_flag) then
     call PrintErrMsg(this%option,'add code for restart of GeomechanicsSimulation')
   endif
+
+  call SimSubsurfInitializeRun(this)
 
 end subroutine GeomechanicsSimulationInitializeRun
 
@@ -154,7 +157,6 @@ subroutine GeomechanicsSimulationExecuteRun(this)
   ! 
 
   use Waypoint_module
-  use Simulation_Base_class
   use Timestepper_Base_class, only : TS_CONTINUE
 
   implicit none
@@ -168,7 +170,7 @@ subroutine GeomechanicsSimulationExecuteRun(this)
 
   time = this%option%time
 
-  final_time = SimulationGetFinalWaypointTime(this)
+  final_time = SimSubsurfGetFinalWaypointTime(this)
 
   call PrintMsg(this%option,'GeomechanicsSimulationExecuteRun()')
 
@@ -215,15 +217,16 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
   ! Modified by Satish Karra, 06/22/16
 
   use Timestepper_Steady_class
+  use Timestepper_Base_class
 
   implicit none
 
   class(simulation_geomechanics_type) :: this
+
   class(timestepper_steady_type), pointer :: geomech_timestepper
 
   call PrintMsg(this%option,'GeomechanicsSimulationFinalizeRun')
 
-  call SubsurfaceFinalizeRun(this)
   !call GeomechanicsFinalizeRun(this)
   nullify(geomech_timestepper)
   if (associated(this%geomech_process_model_coupler)) then
@@ -239,6 +242,8 @@ subroutine GeomechanicsSimulationFinalizeRun(this)
                                         this%geomech_realization, &
                                         geomech_timestepper)
   end select
+
+  call SimSubsurfFinalizeRun(this)
 
 end subroutine GeomechanicsSimulationFinalizeRun
 
@@ -259,7 +264,7 @@ subroutine GeomechanicsSimulationStrip(this)
   
   call PrintMsg(this%option,'GeomechanicsSimulationStrip()')
   
-  call SubsurfaceSimulationStrip(this)
+  call SimSubsurfStrip(this)
   call GeomechanicsRegressionDestroy(this%geomech_regression)
   call WaypointListDestroy(this%waypoint_list_subsurface)
   call WaypointListDestroy(this%waypoint_list_geomechanics)

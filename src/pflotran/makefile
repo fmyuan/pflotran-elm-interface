@@ -131,10 +131,6 @@ ifdef amanzi_bgd
   MYFLAGS += ${FC_DEFINE_FLAG}AMANZI_BGD
 endif
 
-ifdef surface_th_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}SURFACE_TH_DEBUG
-endif
-
 ifdef th_bc_hack
   MYFLAGS += ${FC_DEFINE_FLAG}THDIRICHLET_TEMP_BC_HACK
 endif
@@ -200,7 +196,7 @@ endif
 
 # These flags are supplemental to the PETSc flags
 CFLAGS   =
-FFLAGS   =
+FFLAGS   = 
 CPPFLAGS = ${MYFLAGS}
 FPPFLAGS = ${MYFLAGS}
 
@@ -244,9 +240,9 @@ include $(SRC_DIR)/pflotran_object_files.txt
 
 # Concatentate dependency groups 
 pflotran_base_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
-	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
+	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(geophysics_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
-	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
+	$(srcsink_obj) $(io_obj) $(misc_obj) $(solver_obj) \
 	$(deriv_obj)
 
 pflotran_obj = $(pflotran_base_obj) ${pflotran_src}pflotran.o
