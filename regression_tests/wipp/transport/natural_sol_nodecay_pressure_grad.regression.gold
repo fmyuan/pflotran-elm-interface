@@ -29,35 +29,35 @@
      Mean:   1.0165017154401E+00
         3:   1.0165042363511E+00
 -- CONCENTRATION: Total Bulk Conc. AM241L --
-      Max:   8.6783444301446E-04
-      Min:   8.6738670921553E-04
-     Mean:   8.6760850757570E-04
-        3:   8.6760711516546E-04
+      Max:   8.8211425758227E-04
+      Min:   8.6668672632917E-04
+     Mean:   8.7151629383671E-04
+        3:   8.6668672632917E-04
 -- CONCENTRATION: Total Bulk Conc. PU239L --
-      Max:   1.7846234363382E-03
-      Min:   1.7837027120909E-03
-     Mean:   1.7841588204453E-03
-        3:   1.7841559570750E-03
+      Max:   1.8349692257353E-03
+      Min:   1.7843851117469E-03
+     Mean:   1.8016175240457E-03
+        3:   1.7886812353108E-03
 -- CONCENTRATION: Aq. Conc. AM241L --
-      Max:   2.8914800078169E-03
-      Min:   2.8911444597977E-03
-     Mean:   2.8913053769006E-03
-        3:   2.8913007736476E-03
+      Max:   2.9402338329856E-03
+      Min:   2.8882335777846E-03
+     Mean:   2.9043304509676E-03
+        3:   2.8882335777846E-03
 -- CONCENTRATION: Aq. Conc. PU239L --
-      Max:   5.9460684341236E-03
-      Min:   5.9453784098808E-03
-     Mean:   5.9457093213763E-03
-        3:   5.9456998551876E-03
+      Max:   5.9462066736121E-03
+      Min:   5.9458689057454E-03
+     Mean:   5.9461105461235E-03
+        3:   5.9462066736121E-03
 -- CONCENTRATION: Mnrl. Conc. AM241L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
      Mean:   0.0000000000000E+00
         3:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Conc. PU239L --
-      Max:   0.0000000000000E+00
+      Max:   5.1018022099937E-05
       Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
-        3:   0.0000000000000E+00
+     Mean:   1.7338320313478E-05
+        3:   4.3731946908221E-06
 -- CONCENTRATION: Sorb. Conc. AM241L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
@@ -74,17 +74,17 @@
      Mean:   0.0000000000000E+00
         3:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Vol. Frac. PU239L --
-      Max:   0.0000000000000E+00
+      Max:   4.4043400746508E-09
       Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
-        3:   0.0000000000000E+00
+     Mean:   1.4967324939563E-09
+        3:   3.7745847245494E-10
 -- DISCRETE: Material ID --
       Max:         3
       Min:         3
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   2.0728111267090E-03
+   Time (seconds):   2.3519992828369E-03
    Time Steps:            7
    Newton Iterations:           10
    Linear Solver Iterations:           10
@@ -92,10 +92,10 @@
    Solution 2-Norm:   2.8129312725013E+06
    Residual 2-Norm:   8.0059320849734E-16
 -- SOLUTION: Transport --
-   Time (seconds):   1.0520291328430E-01
-   Time Steps:           66
-   Newton Iterations:          556
-   Linear Solver Iterations:          556
-   Time Step Cuts:           13
-   Solution 2-Norm:   4.4361962032990E-03
-   Residual 2-Norm:   3.6868716908478E-12
+   Time (seconds):   5.4147958755493E-02
+   Time Steps:           34
+   Newton Iterations:          236
+   Linear Solver Iterations:          236
+   Time Step Cuts:           12
+   Solution 2-Norm:   4.4753834998303E-03
+   Residual 2-Norm:   1.3896634024325E-07
