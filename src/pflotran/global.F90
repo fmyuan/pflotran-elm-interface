@@ -645,6 +645,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   Vec :: vec_x,vec_y,vec_z,global_vec
   PetscReal, pointer :: vec_x_ptr(:),vec_y_ptr(:),vec_z_ptr(:), vec_calc_ptr(:)
   Vec :: vec_calc,velx,vely,velz
+  PetscBool :: flag
   PetscErrorCode :: ierr
   type(discretization_type), pointer :: discretization
 
@@ -676,25 +677,20 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
                              time_level)
 
   ! gas saturation
+  flag = PETSC_FALSE
   select case(option%iflowmode)
     case(RICHARDS_MODE,TH_MODE,TH_TS_MODE)
-      if (option%transport%nphase > 1) then
-        ! we cannot access GAS_SATURATION through RealizationGetVariable
-        call RealizationGetVariable(realization,field%work,LIQUID_SATURATION, &
-                                    ZERO_INTEGER)
-        call VecShift(field%work,-1.d0,ierr);CHKERRQ(ierr)
-        call VecAbs(field%work,ierr);CHKERRQ(ierr)
-        call realization%comm1%GlobalToLocal(field%work,field%work_loc)
-        call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_SATURATION, &
-                                   time_level)                         
-      endif
+      if (option%transport%nphase > 1) flag = PETSC_TRUE
     case default
-      call RealizationGetVariable(realization,field%work,GAS_SATURATION, &
-                                  ZERO_INTEGER)
-      call realization%comm1%GlobalToLocal(field%work,field%work_loc)
-      call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_SATURATION, &
-                                 time_level)                         
+      flag = PETSC_TRUE
   end select
+  if (flag) then
+    call RealizationGetVariable(realization,field%work,GAS_SATURATION, &
+                                ZERO_INTEGER)
+    call realization%comm1%GlobalToLocal(field%work,field%work_loc)
+    call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_SATURATION, &
+                               time_level)
+  endif
   
   
   select case(option%iflowmode)
