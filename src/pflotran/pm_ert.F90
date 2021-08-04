@@ -964,7 +964,7 @@ subroutine PMERTBuildJacobian(this)
       ! wrt m=ln(cond) -> dV/dm = cond * dV/dcond
       wd = survey%Wd(idata)
       wd_cull = survey%Wd_cull(idata)
-      ert_auxvars(ghosted_id)%jacobian(idata) = jacob * cond !* wd * wd_cull
+      ert_auxvars(ghosted_id)%jacobian(idata) = jacob * cond * wd * wd_cull
 
       deallocate(phi_sor, phi_rec)
     enddo
