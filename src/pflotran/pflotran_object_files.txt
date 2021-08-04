@@ -60,6 +60,7 @@ mode_aux_obj = \
 	${common_src}pm_th_ts.o \
 	${common_src}pm_ufd_decay.o \
 	${common_src}pm_waste_form.o \
+	${common_src}pm_well.o \
 	${common_src}pm_wipp_srcsink.o \
 	${common_src}pm_ufd_biosphere.o \
 	${common_src}richards_aux.o \
