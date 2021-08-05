@@ -1,7 +1,9 @@
 module PM_Well_class
 
 #include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscsnes.h"
   use petscsys
+  use petscsnes
   use PM_Base_class
   use Option_module
   use Realization_Subsurface_class
@@ -12,6 +14,9 @@ module PM_Well_class
 
   private
 
+  ! I don't yet know if this well model will need its own realization that comes
+  ! with a grid and all that. Probably? Because it can't actually share the grid
+  ! in the main subsurface realization.
   type :: well_grid_type
     PetscInt :: nsegments       ! number of well segments
     PetscReal :: dh             ! delta h discretization of each segment center
@@ -25,6 +30,16 @@ module PM_Well_class
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
     procedure, public :: SetRealization => PMWellSetRealization
+    procedure, public :: InitializeRun => PMWellInitializeRun
+    procedure, public :: FinalizeRun => PMWellFinalizeRun
+    procedure, public :: InitializeTimestep => PMWellInitializeTimestep
+    procedure, public :: UpdateTimestep => PMWellUpdateTimestep
+    procedure, public :: FinalizeTimestep => PMWellFinalizeTimestep
+    procedure, public :: Residual => PMWellResidual
+    procedure, public :: Jacobian => PMWellJacobian
+    procedure, public :: PreSolve => PMWellPreSolve
+    procedure, public :: PostSolve => PMWellPostSolve
+    procedure, public :: Destroy => PMWellDestroy
   end type pm_well_type
 
   public :: PMWellCreate
@@ -116,11 +131,200 @@ subroutine PMWellSetRealization(this,realization)
   
   class(pm_well_type) :: this
   class(realization_subsurface_type), pointer :: realization
+
+  ! There will probably need to be a realization_well created because we need
+  ! our own grid and solution vectors and all that. But we will still need to
+  ! be connected to the subsurface realization too.
   
   this%realization => realization
   this%realization_base => realization
 
 end subroutine PMWellSetRealization
+
+! ************************************************************************** !
+
+recursive subroutine PMWellInitializeRun(this)
+  ! 
+  ! Initializes the simulation run for the well process model.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+  
+  implicit none
+
+  class(pm_well_type) :: this
+  
+  ! placeholder
+  
+end subroutine PMWellInitializeRun
+
+! ************************************************************************** !
+
+recursive subroutine PMWellFinalizeRun(this)
+  ! 
+  ! Finalizes the simulation run for the well process model.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  
+  ! placeholder 
+  
+  if (associated(this%next)) then
+    call this%next%FinalizeRun()
+  endif  
+  
+end subroutine PMWellFinalizeRun
+
+! ************************************************************************** !
+
+subroutine PMWellInitializeTimestep(this)
+  !
+  ! Initializes the time step for the well process model.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+  
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  ! placeholder
+
+end subroutine PMWellInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMWellUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+                               num_newton_iterations,tfac, &
+                               time_step_max_growth_factor)
+  !
+  ! Updates the time step for the well process model.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+  
+  implicit none
+  
+  class(pm_well_type) :: this
+  PetscReal :: dt
+  PetscReal :: dt_min,dt_max
+  PetscInt :: iacceleration
+  PetscInt :: num_newton_iterations
+  PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
+
+  ! placeholder
+
+end subroutine PMWellUpdateTimestep
+
+! ************************************************************************** !
+
+subroutine PMWellFinalizeTimestep(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  ! placeholder
+  
+end subroutine PMWellFinalizeTimestep
+
+! ************************************************************************** !
+
+subroutine PMWellResidual(this,snes,xx,r,ierr)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  SNES :: snes
+  Vec :: xx
+  Vec :: r
+  PetscErrorCode :: ierr
+    
+  ! placeholder
+
+end subroutine PMWellResidual
+
+! ************************************************************************** !
+
+subroutine PMWellJacobian(this,snes,xx,A,B,ierr)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  SNES :: snes
+  Vec :: xx
+  Mat :: A, B
+  PetscErrorCode :: ierr
+  
+  ! placeholder
+
+end subroutine PMWellJacobian
+
+! ************************************************************************** !
+
+subroutine PMWellPreSolve(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  
+  ! placeholder
+  
+end subroutine PMWellPreSolve
+
+! ************************************************************************** !
+
+subroutine PMWellPostSolve(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  
+  ! placeholder
+  
+end subroutine PMWellPostSolve
+
+! ************************************************************************** !
+
+subroutine PMWellDestroy(this)
+  ! 
+  ! Destroys the well process model.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+  !
+  use Utility_module, only : DeallocateArray
+  use Option_module
+
+  implicit none
+  
+  class(pm_well_type) :: this
+    
+  call PMBaseDestroy(this)
+
+  call DeallocateArray(this%grid%h)
+  
+end subroutine PMWellDestroy
 
 ! ************************************************************************** !
 
