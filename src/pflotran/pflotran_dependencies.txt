@@ -159,10 +159,11 @@ factory_subsurface.o : characteristic_curves.o characteristic_curves_thermal.o \
                        pm_osrt.o pm_richards.o pm_richards_ts.o pm_rt.o \
                        pm_subsurface_flow.o pm_th.o pm_th_ts.o \
                        pm_ufd_biosphere.o pm_ufd_decay.o pm_waste_form.o \
-                       pm_wipp_flow.o pm_wipp_srcsink.o pmc_auxiliary.o \
-                       pmc_base.o pmc_geophysics.o pmc_subsurface.o \
-                       pmc_subsurface_osrt.o pmc_third_party.o reaction.o \
-                       reaction_aux.o reaction_database.o reaction_mineral.o \
+                       pm_well.o pm_wipp_flow.o pm_wipp_srcsink.o \
+                       pmc_auxiliary.o pmc_base.o pmc_geophysics.o \
+                       pmc_subsurface.o pmc_subsurface_osrt.o \
+                       pmc_third_party.o reaction.o reaction_aux.o \
+                       reaction_database.o reaction_mineral.o \
                        reaction_solid_solution.o reactive_transport.o \
                        realization_base.o realization_subsurface.o region.o \
                        regression.o saturation_function.o \

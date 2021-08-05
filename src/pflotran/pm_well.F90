@@ -13,17 +13,18 @@ module PM_Well_class
   private
 
   type :: well_grid_type
-    PetscInt :: nsegments    ! number of well segments
-    PetscReal :: dh          ! delta h discretization of each segment center
-    PetscReal :: h(:)        ! h coordinate of each segment center
+    PetscInt :: nsegments       ! number of well segments
+    PetscReal :: dh             ! delta h discretization of each segment center
+    PetscReal, pointer :: h(:)  ! h coordinate of each segment center
   end type well_grid_type
 
   type, public, extends(pm_base_type) :: pm_well_type
     class(realization_subsurface_type), pointer :: realization
     type(well_grid_type), pointer :: grid
   contains
-    procedure, public :: Setup => PMWellInit
+    procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
+    procedure, public :: SetRealization => PMWellSetRealization
   end type pm_well_type
 
   public :: PMWellCreate
@@ -34,7 +35,7 @@ module PM_Well_class
 
 function PMWellCreate()
   ! 
-  ! Creates the well process model
+  ! Creates the well process model.
   ! 
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 08/04/2021
@@ -59,7 +60,7 @@ end function PMWellCreate
   
 subroutine PMWellSetup(this)
   ! 
-  ! Initializes variables associated with the well model.
+  ! Initializes variables associated with the well process model.
   ! 
   ! Author: Jennifer M. Frederick, SNL
   ! Date: 08/04/2021
@@ -101,6 +102,25 @@ subroutine PMWellReadPMBlock(this,input)
   call PrintMsg(option)
 
 end subroutine PMWellReadPMBlock
+
+! ************************************************************************** !
+
+subroutine PMWellSetRealization(this,realization)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  use Realization_Subsurface_class
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  class(realization_subsurface_type), pointer :: realization
+  
+  this%realization => realization
+  this%realization_base => realization
+
+end subroutine PMWellSetRealization
 
 ! ************************************************************************** !
 
