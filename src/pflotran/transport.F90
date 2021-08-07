@@ -108,6 +108,9 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: vi2_over_v_up, vj2_over_v_up, vk2_over_v_up
   PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn  
 
+  PetscReal, parameter :: sg_pow = 7.d0/3.d0
+  PetscReal, parameter :: por_pow = 1.d0/3.d0
+
   nphase = rt_parameter%nphase
   
   abs_dist(:) = dabs(dist(1:3))
@@ -148,10 +151,22 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
              (101325.d0/global_auxvar_dn%pres(GAS_PHASE)))
       end select
     else
-      molecular_diffusion_up(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase)
-      molecular_diffusion_dn(:) = &
-            rt_parameter%diffusion_coefficient(:,iphase)
+      select case(iphase)
+        case(LIQUID_PHASE)
+          molecular_diffusion_up(:) = &
+                rt_parameter%diffusion_coefficient(:,iphase)
+          molecular_diffusion_dn(:) = &
+                rt_parameter%diffusion_coefficient(:,iphase)
+        case(GAS_PHASE)
+          molecular_diffusion_up(:) = &
+                rt_parameter%diffusion_coefficient(:,iphase) * &
+                sat_up**sg_pow * &
+                material_auxvar_up%porosity**por_pow
+          molecular_diffusion_dn(:) = &
+                rt_parameter%diffusion_coefficient(:,iphase) * &
+                sat_dn**sg_pow * &
+                material_auxvar_dn%porosity**por_pow
+      end select
     endif
     q = qdarcy(iphase)
     if (rt_parameter%calculate_transverse_dispersion) then
@@ -308,6 +323,9 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn  
   PetscReal :: t_ref_inv
 
+  PetscReal, parameter :: sg_pow = 7.d0/3.d0
+  PetscReal, parameter :: por_pow = 1.d0/3.d0
+
   nphase = rt_parameter%nphase
   
   abs_dist_dn(:) = dabs(dist_dn(1:3))
@@ -336,8 +354,16 @@ subroutine TDispersionBC(ibndtype, &
              (101325.d0/global_auxvar_up%pres(GAS_PHASE)))
       end select
     else
-      molecular_diffusion(:) = &
+      select case(iphase)
+        case(LIQUID_PHASE)
+          molecular_diffusion(:) = &
             rt_parameter%diffusion_coefficient(:,iphase)
+        case(GAS_PHASE)
+          molecular_diffusion(:) = &
+                rt_parameter%diffusion_coefficient(:,iphase) * &
+                sat_dn**sg_pow * &
+                material_auxvar_dn%porosity**por_pow
+      end select
     endif
     q = qdarcy(iphase)
     if (rt_parameter%calculate_transverse_dispersion) then
