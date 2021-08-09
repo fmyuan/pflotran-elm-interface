@@ -919,6 +919,8 @@ subroutine SomDecRead_AbioticFactors(abiotic_factors,input,option)
                   abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLMCN
               case('DLEM')
                   abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM
+              case('LOGTHETA')
+                  abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_LOGTHETA
               case default
                   abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_OFF
                   option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec, ' // &
@@ -1643,7 +1645,15 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       CHKERRQ(ierr)
     endif
 #else
-    f_w = 1.0d0
+    if(cur_abioticfactors%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_LOGTHETA) then
+      if(theta <= 0.08) then
+        f_w=0.01
+      else
+        f_w=log(theta/0.08)/log(1.0/0.08)
+      endif
+    else
+      f_w = 1.0d0
+    endif
 #endif
 
     ! explicitly using DAYCENT's WFPS function, as an abiotic modification to 'f_w'
