@@ -22,6 +22,7 @@ module ELM_RspFuncs_module
   PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_OFF   = 0
   PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_CLMCN = 1
   PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_DLEM  = 2
+  PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_LOGTHETA = 3
 
 ! pH response function
   PetscInt, parameter, public :: PH_RESPONSE_FUNCTION_OFF     = 0

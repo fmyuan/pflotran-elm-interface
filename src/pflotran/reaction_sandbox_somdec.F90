@@ -760,6 +760,7 @@ subroutine SomDecRead(this,input,option)
 
         ! default abiotic_factors for 'new_rxn',
         ! if not yet specifically defined from inputs' block of ' Abiotic_Factors ..../'
+        ! Note (Ben Sulman): This only works if universal abiotic factors are defined earlier in the input deck than these reactions !
         if (.not.associated(new_rxn%abiotic_factors)) then
           new_rxn%abiotic_factors => AbioticFactorsCreate()
           if(associated(this%all_abioticfactors)) then
@@ -910,11 +911,13 @@ subroutine SomDecRead_AbioticFactors(abiotic_factors,input,option)
                   abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLMCN
               case('DLEM')
                   abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM
+              case('LOGTHETA')
+                  abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_LOGTHETA
               case default
                   abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_OFF
                   option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec, ' // &
-                                     'TEMPERATURE_RESPONSE_FUNCTION keyword: ' // &
-                                     trim(word) // ' not recognized - Valid: CLMCN,DLEM. ' // &
+                                     'MOISTURE_RESPONSE_FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized - Valid: CLMCN,DLEM,LOGTHETA. ' // &
                                      'Thus OFF now'
                   call printMsg(option)
             end select
@@ -1629,10 +1632,12 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       CHKERRQ(ierr)
     endif
 #else
-    if((theta>0.d0 .and. theta<1.d0).and. &
-       cur_abioticfactors%moisture_response_function /= MOISTURE_RESPONSE_FUNCTION_OFF) then
-      f_w = GetMoistureResponse(theta, veclocal_id, &
-                                cur_abioticfactors%moisture_response_function)
+    if(cur_abioticfactors%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_LOGTHETA) then
+      if(theta <= 0.08) then
+        f_w=0.01
+      else
+        f_w=log(theta/0.08)/log(1.0/0.08)
+      endif
     else
       f_w = 1.0d0
     endif
