@@ -23,13 +23,13 @@
        41:   1.9651869995969E+00
        81:   9.6260906844445E-01
 -- GENERIC: Electrical Jacobian_1 --
-      Max:  -5.8424952247145E-04
-      Min:  -9.6253171016958E+01
-     Mean:  -4.9364964177964E+00
-       93:  -1.2879149797624E+00
-        1:  -1.7530143919719E-01
-       41:  -9.8476598831776E-02
-       81:  -1.6283217588523E-02
+      Max:  -5.8424952247145E-02
+      Min:  -9.6253171016958E+03
+     Mean:  -4.9364964177964E+02
+       93:  -1.2879149797624E+02
+        1:  -1.7530143919719E+01
+       41:  -9.8476598831776E+00
+       81:  -1.6283217588523E+00
 -- CONCENTRATION: Total Ca++ --
       Max:   3.2375412929375E-05
       Min:   9.9999999997341E-08
@@ -55,18 +55,18 @@
        41:         1
        81:         1
 -- SOLUTION: Flow --
-   Time (seconds):   3.1743049621582E-02
+   Time (seconds):   2.3114338517189E-02
    Time Steps:            9
    Newton Iterations:           17
    Linear Solver Iterations:           57
    Time Step Cuts:            0
    Solution 2-Norm:   1.1138064288819E+06
-   Residual 2-Norm:   7.8962573736758E-16
+   Residual 2-Norm:   7.8962867749087E-16
 -- SOLUTION: Transport --
-   Time (seconds):   1.8380641937256E-02
+   Time (seconds):   1.2931566685438E-02
    Time Steps:            9
    Newton Iterations:            9
    Linear Solver Iterations:            9
    Time Step Cuts:            0
    Solution 2-Norm:   1.2571910732195E-04
-   Residual 2-Norm:   4.5704629497996E-22
+   Residual 2-Norm:   4.5704348797547E-22
