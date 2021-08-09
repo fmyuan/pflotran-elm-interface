@@ -1851,16 +1851,16 @@ subroutine InversionERTWriteIterationInfo(this,fid,print_to_file, &
     write(*,98)
     if (this%iteration == this%start_iteration) then
       write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AT STARTING &
-                                 &ITERATION:",c_red), this%start_iteration
+                                 &ITERATION:",C_RED), this%start_iteration
     else
       write(*,'(/,2x,a,i6.4,/)') StringColor("CONVERGENCE STATISTICS AFTER &
-                                 &ITERATION:",c_red),this%iteration
+                                 &ITERATION:",C_RED),this%iteration
     endif
     write(*,99)
-    write(*,*) StringColor("  Phi_data   ",c_green), &
-               StringColor("   Phi_Model  ",c_blue), &
-               StringColor("  Phi_Model/Beta",c_magenta), &
-               StringColor("    Phi_Total   ",c_cyan)
+    write(*,*) StringColor("  Phi_data   ",C_GREEN), &
+               StringColor("   Phi_Model  ",C_BLUE), &
+               StringColor("  Phi_Model/Beta",C_MAGENTA), &
+               StringColor("    Phi_Total   ",C_CYAN)
     write(*,102) this%phi_data,this%phi_model,this%phi_model/this%beta, &
                  this%phi_total
     write(*,*)

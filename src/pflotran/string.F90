@@ -18,26 +18,26 @@ module String_module
   PetscInt, parameter, public :: STRING_NO = 0
   PetscInt, parameter, public :: STRING_OTHER = UNINITIALIZED_INTEGER
 
-  character(len=1), parameter :: c_esc = achar(27)
-  character(len=2), parameter, public :: c_start = c_esc // '['
-  character(len=1), parameter, public :: c_end = 'm'
-  character(len=*), parameter, public :: c_dark_grey = '90'
-  character(len=*), parameter, public :: c_peach = '91'
-  character(len=*), parameter, public :: c_light_green = '92'
-  character(len=*), parameter, public :: c_light_yellow = '93'
-  character(len=*), parameter, public :: c_light_blue = '94'
-  character(len=*), parameter, public :: c_pink = '95'
-  character(len=*), parameter, public :: c_light_acqua = '96'
-  character(len=*), parameter, public :: c_pearl_white = '97'
-  character(len=*), parameter, public :: c_black = '30'
-  character(len=*), parameter, public :: c_red = '31'
-  character(len=*), parameter, public :: c_green = '32'
-  character(len=*), parameter, public :: c_yellow = '33'
-  character(len=*), parameter, public :: c_blue = '34'
-  character(len=*), parameter, public :: c_magenta = '35'
-  character(len=*), parameter, public :: c_cyan = '36'
-  character(len=*), parameter, public :: c_white = '37'
-  character(len=*), parameter :: c_clear = c_start // '0' // c_end
+  character(len=1), parameter :: C_ESC = achar(27)
+  character(len=2), parameter, public :: C_START = C_ESC // '['
+  character(len=1), parameter, public :: C_END = 'm'
+  character(len=*), parameter, public :: C_DARK_GREY = '90'
+  character(len=*), parameter, public :: C_PEACH = '91'
+  character(len=*), parameter, public :: C_LIGHT_GREEN = '92'
+  character(len=*), parameter, public :: C_LIGHT_YELLOW = '93'
+  character(len=*), parameter, public :: C_LIGHT_BLUE = '94'
+  character(len=*), parameter, public :: C_PINK = '95'
+  character(len=*), parameter, public :: C_LIGHT_ACQUA = '96'
+  character(len=*), parameter, public :: C_PEARL_WHITE = '97'
+  character(len=*), parameter, public :: C_BLACK = '30'
+  character(len=*), parameter, public :: C_RED = '31'
+  character(len=*), parameter, public :: C_GREEN = '32'
+  character(len=*), parameter, public :: C_YELLOW = '33'
+  character(len=*), parameter, public :: C_BLUE = '34'
+  character(len=*), parameter, public :: C_MAGENTA = '35'
+  character(len=*), parameter, public :: C_CYAN = '36'
+  character(len=*), parameter, public :: C_WHITE = '37'
+  character(len=*), parameter :: C_CLEAR = C_START // '0' // C_END
 
   public :: StringColor, &
             StringCompare, &
@@ -118,7 +118,7 @@ function StringColor(string,c_code) result(color_string)
   character(len=*), intent(in) :: c_code
   character(len=:), allocatable :: color_string
 
-  color_string = c_start // c_code // c_end // string // c_clear
+  color_string = C_START // c_code // C_END // string // C_CLEAR
 
 end function StringColor
 
