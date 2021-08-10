@@ -89,7 +89,6 @@ subroutine SimulationInverseRead(this,option)
   use Utility_module
   use Inversion_ERT_class
   use Inversion_ERT_class
-  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
   type(option_type), pointer :: option
@@ -124,8 +123,6 @@ subroutine SimulationInverseRead(this,option)
                            trim(error_string)//','//keyword)
         call StringToUpper(word)
         select case(word)
-          case('INSITE')
-            this%inversion => InversionINSITECreate(this%driver)
           case('ERT')
             this%inversion => InversionERTCreate(this%driver)
           case default
@@ -157,7 +154,6 @@ subroutine SimulationInverseInitializeRun(this)
   use Input_Aux_module
   use Communicator_Aux_module
   use Inversion_ERT_class
-  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
 
@@ -194,7 +190,6 @@ subroutine SimulationInverseExecuteRun(this)
   use Factory_Forward_module
   use Simulation_Subsurface_class
   use Inversion_ERT_class
-  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
 
@@ -212,8 +207,6 @@ subroutine SimulationInverseExecuteRun(this)
     call FactoryForwardInitialize(this%forward_simulation, &
                                   this%forward_simulation_filename,option)
     select type(i=>this%inversion)
-      class is(inversion_insite_type)
-        i%realization => this%forward_simulation%realization
       class is(inversion_ert_type)
       i%realization => this%forward_simulation%realization
     end select
