@@ -19,12 +19,6 @@ module Simulation_Inverse_class
   contains
     procedure, public :: Init => SimulationInverseInit
     procedure, public :: InitializeRun => SimulationInverseInitializeRun
-    procedure, public :: UpdateParameters => SimulationInvUpdateParameters
-    procedure, public :: CalculateUpdate => SimulationInvCalculateUpdate
-    procedure, public :: CheckBeta => SimulationInvCheckBeta
-    procedure, public :: SetIterationNum => SimulationInvSetIterationNum
-    procedure, public :: CheckConvergence => SimulationInvCheckConvergence
-    procedure, public :: WriteIterationInfo => SimulationInvWriteIterationInfo
     procedure, public :: ExecuteRun => SimulationInverseExecuteRun
     procedure, public :: FinalizeRun => SimulationInverseFinalizeRun
     procedure, public :: Strip => SimulationInverseStrip
@@ -95,7 +89,6 @@ subroutine SimulationInverseRead(this,option)
   use Utility_module
   use Inversion_ERT_class
   use Inversion_ERT_class
-  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
   type(option_type), pointer :: option
@@ -130,8 +123,6 @@ subroutine SimulationInverseRead(this,option)
                            trim(error_string)//','//keyword)
         call StringToUpper(word)
         select case(word)
-          case('INSITE')
-            this%inversion => InversionINSITECreate(this%driver)
           case('ERT')
             this%inversion => InversionERTCreate(this%driver)
           case default
@@ -163,7 +154,6 @@ subroutine SimulationInverseInitializeRun(this)
   use Input_Aux_module
   use Communicator_Aux_module
   use Inversion_ERT_class
-  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
 
@@ -200,7 +190,6 @@ subroutine SimulationInverseExecuteRun(this)
   use Factory_Forward_module
   use Simulation_Subsurface_class
   use Inversion_ERT_class
-  use Inversion_INSITE_class
 
   class(simulation_inverse_type) :: this
 
@@ -208,7 +197,7 @@ subroutine SimulationInverseExecuteRun(this)
 
   PetscInt :: iteration
 
-  iteration = this%SetIterationNum()
+  iteration = this%inversion%SetIterationNumber()
   do
     if (this%inversion%converg_flag) exit
     option => OptionCreate()
@@ -218,20 +207,18 @@ subroutine SimulationInverseExecuteRun(this)
     call FactoryForwardInitialize(this%forward_simulation, &
                                   this%forward_simulation_filename,option)
     select type(i=>this%inversion)
-      class is(inversion_insite_type)
-        i%realization => this%forward_simulation%realization
       class is(inversion_ert_type)
       i%realization => this%forward_simulation%realization
     end select
-    call this%UpdateParameters()
+    call this%inversion%UpdateParameters()
     call this%forward_simulation%InitializeRun()
     if (option%status == PROCEED) then
       call this%forward_simulation%ExecuteRun()
     endif
-    call this%CheckConvergence()
-    call this%CalculateUpdate()
-    call this%WriteIterationInfo()
-    call this%CheckBeta()
+    call this%inversion%CheckConvergence()
+    call this%inversion%CalculateUpdate()
+    call this%inversion%WriteIterationInfo()
+    call this%inversion%UpdateRegularizationParameters()
     call this%forward_simulation%FinalizeRun()
     call this%forward_simulation%Strip()
     deallocate(this%forward_simulation)
@@ -240,105 +227,6 @@ subroutine SimulationInverseExecuteRun(this)
   enddo
 
 end subroutine SimulationInverseExecuteRun
-
-! ************************************************************************** !
-
-subroutine SimulationInvUpdateParameters(this)
-  !
-  ! Alters forward run parameters based on inverse calculation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/02/21
-
-  class(simulation_inverse_type) :: this
-
-  call this%inversion%UpdateParameters()
-
-end subroutine SimulationInvUpdateParameters
-
-! ************************************************************************** !
-
-subroutine SimulationInvCalculateUpdate(this)
-  !
-  ! Calculates updated parameters
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/02/21
-
-  class(simulation_inverse_type) :: this
-
-  call this%inversion%CalculateUpdate()
-
-end subroutine SimulationInvCalculateUpdate
-
-! ************************************************************************** !
-
-subroutine SimulationInvCheckConvergence(this)
-  !
-  ! Calculates updated parameters
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 06/18/21
-
-  class(simulation_inverse_type) :: this
-
-  call this%inversion%CheckConvergence()
-
-end subroutine SimulationInvCheckConvergence
-
-! ************************************************************************** !
-
-subroutine SimulationInvCheckBeta(this)
-  !
-  ! Checks beta if it needs cooling or not
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 06/21/21
-
-  class(simulation_inverse_type) :: this
-
-  call this%inversion%CheckBeta()
-
-end subroutine SimulationInvCheckBeta
-
-! ************************************************************************** !
-
-PetscInt function SimulationInvSetIterationNum(this)
-  !
-  ! Sets starting iteration number
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 07/09/21
-
-  class(simulation_inverse_type) :: this
-
-  SimulationInvSetIterationNum = this%inversion%SetIterationNum()
-
-end function SimulationInvSetIterationNum
-
-! ************************************************************************** !
-
-subroutine SimulationInvWriteIterationInfo(this)
-  !
-  ! Writes information after each iteration
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 07/07/21
-
-  class(simulation_inverse_type) :: this
-
-  PetscInt :: fid
-  PetscBool :: print_to_file,print_to_screen
-
-  fid = this%driver%fid_out
-  print_to_file = this%driver%print_to_file
-  print_to_screen = this%driver%print_to_screen
-
-  if (this%driver%comm%global_rank == this%driver%io_rank) then
-    call this%inversion%WriteIterationInfo(fid,print_to_file,print_to_screen)
-  endif
-
-end subroutine SimulationInvWriteIterationInfo
 
 ! ************************************************************************** !
 

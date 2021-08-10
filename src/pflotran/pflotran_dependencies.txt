@@ -340,9 +340,6 @@ inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
                   inversion_base.o material.o material_aux.o option.o patch.o \
                   pflotran_constants.o realization_subsurface.o string.o \
                   survey.o timer.o utility.o variables.o
-inversion_insite.o : discretization.o driver.o input_aux.o inversion_base.o \
-                     material.o option.o pflotran_constants.o \
-                     realization_subsurface.o string.o variables.o
 kdtree.o :
 logging.o : pflotran_constants.o
 lookup_table.o : input_aux.o option.o pflotran_constants.o units.o utility.o
@@ -829,10 +826,9 @@ simulation_geomechanics.o : driver.o geomechanics_realization.o \
                             simulation_subsurface.o timestepper_base.o \
                             timestepper_steady.o utility.o waypoint.o
 simulation_inverse.o : communicator_aux.o driver.o factory_forward.o \
-                       input_aux.o inversion_base.o inversion_ert.o \
-                       inversion_insite.o option.o pflotran_constants.o \
-                       simulation_base.o simulation_subsurface.o string.o \
-                       utility.o
+                       input_aux.o inversion_base.o inversion_ert.o option.o \
+                       pflotran_constants.o simulation_base.o \
+                       simulation_subsurface.o string.o utility.o
 simulation_multirealization.o : communicator_aux.o driver.o factory_forward.o \
                                 input_aux.o option.o pflotran_constants.o \
                                 simulation_base.o simulation_subsurface.o \
