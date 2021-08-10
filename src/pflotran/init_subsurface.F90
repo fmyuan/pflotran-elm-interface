@@ -15,7 +15,8 @@ module Init_Subsurface_module
             SubsurfInitMaterialProperties, &
             SubsurfAssignVolsToMatAuxVars, &
             SubsurfSandboxesSetup, &
-            InitSubsurfaceSetupZeroArrays
+            InitSubsurfaceSetupZeroArrays, &
+            SubsurfReadDatasetToVecWithMask
   
 contains
 

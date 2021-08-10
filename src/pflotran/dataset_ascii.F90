@@ -24,6 +24,7 @@ module Dataset_Ascii_class
             DatasetAsciiReadSingle, &
             DatasetAsciiUpdate, &
             DatasetAsciiPrint, &
+            DatasetAsciiStrip, &
             DatasetAsciiDestroy
   
 contains

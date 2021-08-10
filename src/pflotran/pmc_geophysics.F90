@@ -103,6 +103,15 @@ recursive subroutine PMCGeophysicsInitializeRun(this)
       call PrintErrMsg(this%option)
   end select
 
+  ! ensure that the first waypoint is not at time zero.
+  if (associated(this%cur_waypoint)) then
+    if (this%cur_waypoint%time < 1.d-40) then
+      this%option%io_buffer = 'Simulating an ERT survey is not possible at &
+        &time zero. Please choose a non-zero time for the first survey.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
+
   call PMCBaseInitializeRun(this)
 
 end subroutine PMCGeophysicsInitializeRun

@@ -28,7 +28,8 @@ module Dataset_module
             DatasetReadDoubleOrDataset, &
             DatasetGetMinRValue, &
             DatasetUnknownClass, &
-            DatasetDestroy
+            DatasetDestroy, &
+            DatasetStrip
 
 contains
 
@@ -585,6 +586,53 @@ subroutine DatasetUnknownClass(this,option,string)
   call PrintErrMsg(option)
             
 end subroutine DatasetUnknownClass
+
+! ************************************************************************** !
+
+subroutine DatasetStrip(dataset)
+  ! 
+  ! Deallocates the dynamic memory (e.g. buffers) associated with a dataset
+  ! This routine is NOT recursve.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/29/21
+  ! 
+
+  implicit none
+  
+  class(dataset_base_type), pointer :: dataset
+  
+  class(dataset_global_hdf5_type), pointer :: dataset_global_hdf5
+  class(dataset_gridded_hdf5_type), pointer :: dataset_gridded_hdf5
+  class(dataset_map_hdf5_type), pointer :: dataset_map_hdf5
+  class(dataset_common_hdf5_type), pointer :: dataset_common_hdf5
+  class(dataset_ascii_type), pointer :: dataset_ascii
+  class(dataset_base_type), pointer :: dataset_base
+
+  if (.not.associated(dataset)) return
+  
+  select type (selector => dataset)
+    class is (dataset_ascii_type)
+      dataset_ascii => selector
+      call DatasetAsciiStrip(dataset_ascii)
+    class is (dataset_global_hdf5_type)
+      dataset_global_hdf5 => selector
+      call DatasetGlobalHDF5Strip(dataset_global_hdf5)
+    class is (dataset_gridded_hdf5_type)
+      dataset_gridded_hdf5 => selector
+      call DatasetGriddedHDF5Strip(dataset_gridded_hdf5)
+    class is (dataset_map_hdf5_type)
+      dataset_map_hdf5 => selector
+      call DatasetMapHDF5Strip(dataset_map_hdf5)
+    class is (dataset_common_hdf5_type)
+      dataset_common_hdf5 => selector
+      call DatasetCommonHDF5Strip(dataset_common_hdf5)
+    class is (dataset_base_type)
+      dataset_base => selector
+      call DatasetBaseStrip(dataset_base)
+  end select
+  
+end subroutine DatasetStrip
 
 ! ************************************************************************** !
 
