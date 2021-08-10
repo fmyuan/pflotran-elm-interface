@@ -14,18 +14,19 @@ module Inversion_Base_class
   type, public :: inversion_base_type
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
-
+    PetscInt :: iteration                ! iteration number
     PetscBool :: converg_flag            ! convergence flag
   contains
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseInitialize
     procedure, public :: ReadBlock => InversionBaseReadBlock
+    procedure, public :: SetIterationNumber => InversionBaseSetIterationNum
     procedure, public :: UpdateParameters => InversionBaseUpdateParameters
     procedure, public :: CalculateUpdate => InversionBaseCalculateUpdate
     procedure, public :: CheckConvergence => InversionBaseCheckConvergence
-    procedure, public :: CostFunctions => InversionBaseCostFunctions
-    procedure, public :: CheckBeta => InversionBaseCheckBeta
-    procedure, public :: SetIterationNum => InversionBaseSetIterationNum
+    procedure, public :: EvaluateCostFunction => InvBaseEvaluateCostFunction
+    procedure, public :: UpdateRegularizationParameters => &
+                           InvBaseUpdateRegularizParams
     procedure, public :: WriteIterationInfo => InversionBaseWriteIterationInfo
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
@@ -55,6 +56,7 @@ subroutine InversionBaseInit(this,driver)
   this%timer => TimerCreate()
   call this%timer%Start()
 
+  this%iteration = 1
   this%converg_flag = PETSC_FALSE
 
 end subroutine InversionBaseInit
@@ -101,7 +103,7 @@ subroutine InversionBaseReadBlock(this,input,option)
 
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine InversionBaseReadBlock
 
 ! ************************************************************************** !
@@ -140,6 +142,22 @@ subroutine InversionBaseInitialize(this)
   class(inversion_base_type) :: this
 
 end subroutine InversionBaseInitialize
+
+
+! ************************************************************************** !
+
+PetscInt function InversionBaseSetIterationNum(this)
+  !
+  ! Sets starting iteration number
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/09/21
+
+  class(inversion_base_type) :: this
+
+  InversionBaseSetIterationNum = 0
+
+end function InversionBaseSetIterationNum
 
 ! ************************************************************************** !
 
@@ -182,7 +200,7 @@ end subroutine InversionBaseCheckConvergence
 
 ! ************************************************************************** !
 
-subroutine InversionBaseCostFunctions(this)
+subroutine InvBaseEvaluateCostFunction(this)
   !
   ! Computes cost functions
   !
@@ -191,11 +209,11 @@ subroutine InversionBaseCostFunctions(this)
   !
   class(inversion_base_type) :: this
 
-end subroutine InversionBaseCostFunctions
+end subroutine InvBaseEvaluateCostFunction
 
 ! ************************************************************************** !
 
-subroutine InversionBaseCheckBeta(this)
+subroutine InvBaseUpdateRegularizParams(this)
   !
   ! Computes cost functions
   !
@@ -204,27 +222,11 @@ subroutine InversionBaseCheckBeta(this)
   !
   class(inversion_base_type) :: this
 
-end subroutine InversionBaseCheckBeta
+end subroutine InvBaseUpdateRegularizParams
 
 ! ************************************************************************** !
 
-PetscInt function InversionBaseSetIterationNum(this)
-  !
-  ! Sets starting iteration number
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 07/09/21
-
-  class(inversion_base_type) :: this
-
-  !InversionBaseSetIterationNum = this%start_iteration - 1
-
-end function InversionBaseSetIterationNum
-
-! ************************************************************************** !
-
-subroutine InversionBaseWriteIterationInfo(this,fid,print_to_file, &
-                                           print_to_screen)
+subroutine InversionBaseWriteIterationInfo(this)
   !
   ! Writes inversion run info
   !
@@ -232,8 +234,6 @@ subroutine InversionBaseWriteIterationInfo(this,fid,print_to_file, &
   ! Date: 07/01/21
   !
   class(inversion_base_type) :: this
-  PetscInt :: fid
-  PetscBool :: print_to_file,print_to_screen
 
 end subroutine InversionBaseWriteIterationInfo
 

@@ -22,8 +22,8 @@ module Inversion_INSITE_class
     procedure, public :: UpdateParameters => InversionINSITEUpdateParameters
     procedure, public :: CalculateUpdate => InversionINSITECalculateUpdate
     procedure, public :: CheckConvergence => InversionINSITECheckConvergence
-    procedure, public :: CostFunctions => InversionINSITECostFunctions
-    procedure, public :: CheckBeta => InversionINSITECheckBeta
+    procedure, public :: EvaluateCostFunction => InversionINSITECostFunctions
+    procedure, public :: UpdateRegularizParams => InversionINSITECheckBeta
     procedure, public :: Finalize => InversionINSITEFinalize
     procedure, public :: Strip => InversionINSITEStrip
   end type inversion_insite_type
@@ -79,9 +79,9 @@ end subroutine InversionINSITEInit
 ! ************************************************************************** !
 
 subroutine InversionINSITEReadBlock(this,input,option)
-  ! 
+  !
   ! Reads input file parameters associated an INSITE inversion
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/25/16
   !
@@ -89,30 +89,30 @@ subroutine InversionINSITEReadBlock(this,input,option)
   use String_module
   use Option_module
   use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
- 
+
   class(inversion_insite_type) :: this
   type(input_type), pointer :: input
   type(option_type) :: option
-  
+
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
 
   error_string = 'INSITE Inversion'
-  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
-  
+
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
-    
+
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-    
+
     found = PETSC_FALSE
     call InversionBaseReadSelectCase(this,input,keyword,found, &
                                      error_string,option)
@@ -136,7 +136,7 @@ subroutine InversionINSITEReadBlock(this,input,option)
     end select
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine InversionINSITEReadBlock
 
 ! ************************************************************************** !

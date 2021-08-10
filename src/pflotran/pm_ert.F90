@@ -575,9 +575,9 @@ subroutine PMERTPreSolve(this)
         cond_sp = 0.d0
         do species_id = 1, reaction%naqcomp
           cond_sp = cond_sp + &                          ! S/m
-          this%species_conductivity_coef(species_id)  * &![m^2-charge-A/V-mol]
-          rt_auxvars(ghosted_id)%pri_molal(species_id)* &![mol/kg water]
-          global_auxvars(ghosted_id)%den_kg(1)           ![kg water/m^3]
+            this%species_conductivity_coef(species_id)  * &![m^2-charge-A/V-mol]
+            rt_auxvars(ghosted_id)%pri_molal(species_id)* &![mol/kg water]
+            global_auxvars(ghosted_id)%den_kg(1)           ![kg water/m^3]
         enddo
         ! modify fluid conductivity for species contribution
         cond_w = cond_w0 + cond_sp
@@ -591,7 +591,7 @@ subroutine PMERTPreSolve(this)
     call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c,cond)
     material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
   enddo
- 
+
 end subroutine PMERTPreSolve
 
 ! ************************************************************************** !
@@ -850,7 +850,7 @@ subroutine PMERTBuildJacobian(this)
   use Timer_class
   use String_module
 
-  implicit none 
+  implicit none
 
   class(pm_ert_type) :: this
 
@@ -871,7 +871,7 @@ subroutine PMERTBuildJacobian(this)
   PetscInt :: ia,ib,im,in
   PetscInt :: local_id,ghosted_id
   PetscInt :: local_id_a,local_id_b
-  PetscInt :: ghosted_id_a,ghosted_id_b 
+  PetscInt :: ghosted_id_a,ghosted_id_b
   PetscInt :: local_id_m,local_id_n
   PetscInt :: ghosted_id_m,ghosted_id_n
   PetscInt :: inbr,num_neighbors
@@ -895,18 +895,18 @@ subroutine PMERTBuildJacobian(this)
   endif
 
   do idata=1,survey%num_measurement
-    
+
     ! for A and B electrodes
     ia = survey%config(1,idata)
     ib = survey%config(2,idata)
     im = survey%config(3,idata)
-    in = survey%config(4,idata) 
+    in = survey%config(4,idata)
 
     do local_id=1,grid%nlmax
-      
-      ghosted_id = grid%nL2G(local_id)         
+
+      ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-    
+
       num_neighbors = cell_neighbors(0,local_id)
       allocate(phi_sor(num_neighbors+1), phi_rec(num_neighbors+1))
       phi_sor = 0.d0
@@ -925,7 +925,7 @@ subroutine PMERTBuildJacobian(this)
 
       do inbr = 1,num_neighbors
         ! Source electrode +A
-        if (ia/=0) then        
+        if (ia/=0) then
           phi_sor(inbr+1) = phi_sor(inbr+1) +                               &
                ert_auxvars(abs(cell_neighbors(inbr,local_id)))%potential(ia)
         endif
@@ -1086,7 +1086,7 @@ subroutine PMERTStrip(this)
   ! Date: 01/22/21
   !
   use Utility_module
-  
+
   implicit none
 
   class(pm_ert_type) :: this
