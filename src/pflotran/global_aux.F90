@@ -140,8 +140,10 @@ subroutine GlobalAuxVarInit(auxvar,option)
   auxvar%sat = 0.d0
   allocate(auxvar%den_kg(nphase))
   auxvar%den_kg = 0.d0
-  allocate(auxvar%darcy_vel(option%nphase))
-  auxvar%darcy_vel = 0.d0
+  if (option%flow%store_darcy_vel) then
+    allocate(auxvar%darcy_vel(option%nphase))
+    auxvar%darcy_vel = 0.d0
+  endif
 
   ! need these for reactive transport only if flow is computed
   if (option%nflowdof > 0 .and. option%ntrandof > 0) then
@@ -253,16 +255,16 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
 !  auxvar2%dphi = auxvar%dphi
-  auxvar2%darcy_vel = auxvar%darcy_vel
- 
+
+  if (associated(auxvar2%darcy_vel)) then
+    auxvar2%darcy_vel = auxvar%darcy_vel
+  endif
   if (associated(auxvar2%reaction_rate)) then
     auxvar2%reaction_rate = auxvar%reaction_rate
   endif
-  
   if (associated(auxvar2%m_nacl)) then
     auxvar2%m_nacl = auxvar%m_nacl
   endif
-
   if (associated(auxvar2%fugacoeff)) then
     auxvar2%fugacoeff = auxvar%fugacoeff  
   endif

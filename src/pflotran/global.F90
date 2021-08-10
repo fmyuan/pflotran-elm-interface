@@ -645,6 +645,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   Vec :: vec_x,vec_y,vec_z,global_vec
   PetscReal, pointer :: vec_x_ptr(:),vec_y_ptr(:),vec_z_ptr(:), vec_calc_ptr(:)
   Vec :: vec_calc,velx,vely,velz
+  PetscBool :: flag
   PetscErrorCode :: ierr
   type(discretization_type), pointer :: discretization
 
@@ -674,59 +675,23 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   call realization%comm1%GlobalToLocal(field%work,field%work_loc)
   call GlobalSetAuxVarVecLoc(realization,field%work_loc,LIQUID_SATURATION, &
                              time_level)
+
+  ! gas saturation
+  flag = PETSC_FALSE
+  select case(option%iflowmode)
+    case(RICHARDS_MODE,TH_MODE,TH_TS_MODE)
+      if (option%transport%nphase > 1) flag = PETSC_TRUE
+    case default
+      flag = PETSC_TRUE
+  end select
+  if (flag) then
+    call RealizationGetVariable(realization,field%work,GAS_SATURATION, &
+                                ZERO_INTEGER)
+    call realization%comm1%GlobalToLocal(field%work,field%work_loc)
+    call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_SATURATION, &
+                               time_level)
+  endif
   
-  ! darcy velocity (start)
-  if (option%flow%store_darcy_vel) then 
-    
-    !Create vectors of approapriate size
-    discretization => realization%discretization
-    call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
-                                    option)
-    call DiscretizationDuplicateVector(discretization,global_vec,vec_x)
-    call DiscretizationDuplicateVector(discretization,global_vec,vec_y)
-    call DiscretizationDuplicateVector(discretization,global_vec,vec_z)
-    call DiscretizationDuplicateVector(discretization,global_vec,vec_calc)
-    call OutputGetCellCenteredVelocities(realization,vec_x,vec_y,vec_z, &
-                                         LIQUID_PHASE)
-
-    ! open the vectors 
-    call VecGetArrayF90(vec_x, vec_x_ptr,ierr)
-    call VecGetArrayF90(vec_y, vec_y_ptr,ierr)
-    call VecGetArrayF90(vec_z, vec_z_ptr,ierr)
-    call VecGetArrayF90(vec_calc, vec_calc_ptr,ierr)
-
-    ! the local size of the velocity vector
-    ! local size = the number of cells calculated on the processor
-    call VecGetLocalSize(vec_x, local_id_max, ierr)
-
-    ! for each local(!) calculation calculate the velocity and store it
-    do local_id=1, local_id_max
-      vec_calc_ptr(local_id) = sqrt(vec_x_ptr(local_id)**2 &
-                                   + vec_y_ptr(local_id)**2 &
-                                   + vec_z_ptr(local_id)**2 ) &
-                                   / realization%output_option%tconv
-    enddo
-
-    ! close the vectors
-    call VecRestoreArrayF90(vec_calc,vec_calc_ptr,ierr)
-    call VecRestoreArrayF90(vec_x,vec_x_ptr,ierr)
-    call VecRestoreArrayF90(vec_y,vec_y_ptr,ierr)
-    call VecRestoreArrayF90(vec_z,vec_z_ptr,ierr)
-
-    ! Set the auxvar variable for the DARCY_VELOCITY
-    call realization%comm1%GlobalToLocal(vec_calc,field%work_loc)
-    call GlobalSetAuxVarVecLoc(realization,field%work_loc,DARCY_VELOCITY, &
-                              time_level)
-
-    ! Destroy all vectors which were used for calculations
-    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
-    call VecDestroy(vec_x,ierr);CHKERRQ(ierr)
-    call VecDestroy(vec_y,ierr);CHKERRQ(ierr)
-    call VecDestroy(vec_z,ierr);CHKERRQ(ierr) 
-    call VecDestroy(vec_calc,ierr);CHKERRQ(ierr) 
-
-  end if
-  ! darcy velocity (end)
   
   select case(option%iflowmode)
     case(MPH_MODE)
@@ -742,14 +707,6 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
       call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_DENSITY_MOL, &
                                  time_level)
  
- 
-      ! Gas saturation
-      call RealizationGetVariable(realization,field%work,GAS_SATURATION, &
-                                  ZERO_INTEGER)
-      call realization%comm1%GlobalToLocal(field%work,field%work_loc)
-      call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_SATURATION, &
-                                 time_level)                         
-   
       ! liquid pressure
       call RealizationGetVariable(realization,field%work,LIQUID_PRESSURE, &
                                   ZERO_INTEGER)
@@ -818,13 +775,60 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
       call realization%comm1%GlobalToLocal(field%work,field%work_loc)
       call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_DENSITY, &
                                  time_level)
-      ! Gas saturation
-      call RealizationGetVariable(realization,field%work,GAS_SATURATION, &
-                                  ZERO_INTEGER)
-      call realization%comm1%GlobalToLocal(field%work,field%work_loc)
-      call GlobalSetAuxVarVecLoc(realization,field%work_loc,GAS_SATURATION, &
-                                 time_level)                         
   end select
+
+  ! darcy velocity (start)
+  if (option%flow%store_darcy_vel) then 
+    
+    !Create vectors of approapriate size
+    discretization => realization%discretization
+    call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
+                                    option)
+    call DiscretizationDuplicateVector(discretization,global_vec,vec_x)
+    call DiscretizationDuplicateVector(discretization,global_vec,vec_y)
+    call DiscretizationDuplicateVector(discretization,global_vec,vec_z)
+    call DiscretizationDuplicateVector(discretization,global_vec,vec_calc)
+    call OutputGetCellCenteredVelocities(realization,vec_x,vec_y,vec_z, &
+                                         LIQUID_PHASE)
+
+    ! open the vectors 
+    call VecGetArrayF90(vec_x, vec_x_ptr,ierr)
+    call VecGetArrayF90(vec_y, vec_y_ptr,ierr)
+    call VecGetArrayF90(vec_z, vec_z_ptr,ierr)
+    call VecGetArrayF90(vec_calc, vec_calc_ptr,ierr)
+
+    ! the local size of the velocity vector
+    ! local size = the number of cells calculated on the processor
+    call VecGetLocalSize(vec_x, local_id_max, ierr)
+
+    ! for each local(!) calculation calculate the velocity and store it
+    do local_id=1, local_id_max
+      vec_calc_ptr(local_id) = sqrt(vec_x_ptr(local_id)**2 &
+                                   + vec_y_ptr(local_id)**2 &
+                                   + vec_z_ptr(local_id)**2 ) &
+                                   / realization%output_option%tconv
+    enddo
+
+    ! close the vectors
+    call VecRestoreArrayF90(vec_calc,vec_calc_ptr,ierr)
+    call VecRestoreArrayF90(vec_x,vec_x_ptr,ierr)
+    call VecRestoreArrayF90(vec_y,vec_y_ptr,ierr)
+    call VecRestoreArrayF90(vec_z,vec_z_ptr,ierr)
+
+    ! Set the auxvar variable for the DARCY_VELOCITY
+    call realization%comm1%GlobalToLocal(vec_calc,field%work_loc)
+    call GlobalSetAuxVarVecLoc(realization,field%work_loc,DARCY_VELOCITY, &
+                              time_level)
+
+    ! Destroy all vectors which were used for calculations
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(vec_x,ierr);CHKERRQ(ierr)
+    call VecDestroy(vec_y,ierr);CHKERRQ(ierr)
+    call VecDestroy(vec_z,ierr);CHKERRQ(ierr) 
+    call VecDestroy(vec_calc,ierr);CHKERRQ(ierr) 
+
+  end if
+  ! darcy velocity (end)
 
 end subroutine GlobalUpdateAuxVars
 
