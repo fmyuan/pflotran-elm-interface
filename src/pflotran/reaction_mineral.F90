@@ -785,6 +785,8 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
     sign_ = sign(1.d0,affinity_factor)
 
     if (rt_auxvar%mnrl_volfrac(imnrl) > 0 .or. sign_ < 0.d0) then
+      ! only allow dissolution
+      if (sign_ < 0.d0) cycle
 
 !   if ((mineral%kinmnrl_irreversible(imnrl) == 0 &
 !     .and. (rt_auxvar%mnrl_volfrac(imnrl) > 0 .or. sign_ < 0.d0)) &
