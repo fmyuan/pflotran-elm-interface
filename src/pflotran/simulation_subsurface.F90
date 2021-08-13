@@ -307,6 +307,8 @@ subroutine SimSubsurfInputRecord(this)
       write(id,'(a)') 'multi-phase'
     case(RICHARDS_MODE)
       write(id,'(a)') 'richards'
+    case(ZFLOW_MODE)
+      write(id,'(a)') 'zflow'
     case(RICHARDS_TS_MODE)
       write(id,'(a)') 'richards_ts'
     case(G_MODE)

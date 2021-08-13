@@ -90,17 +90,17 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       cur_patch%imat = UNINITIALIZED_INTEGER
       select case(option%iflowmode)
         case(NULL_MODE)
-        case(RICHARDS_MODE,WF_MODE)
+        case(RICHARDS_MODE,WF_MODE,ZFLOW_MODE)
           allocate(cur_patch%cc_id(grid%ngmax))
           cur_patch%cc_id = UNINITIALIZED_INTEGER
         case default
           allocate(cur_patch%cc_id(grid%ngmax))
           cur_patch%cc_id = UNINITIALIZED_INTEGER
-          allocate(cur_patch%cct_id(grid%ngmax)) 
+          allocate(cur_patch%cct_id(grid%ngmax))
           cur_patch%cct_id = UNINITIALIZED_INTEGER
       end select
     endif
-    
+
     cur_patch%aux%Material => MaterialAuxCreate()
     allocate(material_auxvars(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
@@ -1121,6 +1121,8 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     select case(option%iflowmode)
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
         matrix_zeroing => patch%aux%Richards%matrix_zeroing
+      case(ZFLOW_MODE)
+        matrix_zeroing => patch%aux%ZFlow%matrix_zeroing
       case(TH_MODE,TH_TS_MODE)
         matrix_zeroing => patch%aux%TH%matrix_zeroing
       case(MPH_MODE)
@@ -1138,6 +1140,9 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
         patch%aux%Richards%matrix_zeroing => matrix_zeroing
         patch%aux%Richards%inactive_cells_exist = inactive_cells_exist
+      case(ZFLOW_MODE)
+        patch%aux%ZFlow%matrix_zeroing => matrix_zeroing
+        patch%aux%ZFlow%inactive_cells_exist = inactive_cells_exist
       case(TH_MODE,TH_TS_MODE)
         patch%aux%TH%matrix_zeroing => matrix_zeroing
         patch%aux%TH%inactive_cells_exist = inactive_cells_exist

@@ -679,7 +679,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   ! gas saturation
   flag = PETSC_FALSE
   select case(option%iflowmode)
-    case(RICHARDS_MODE,TH_MODE,TH_TS_MODE)
+    case(RICHARDS_MODE,TH_MODE,TH_TS_MODE,ZFLOW_MODE)
       if (option%transport%nphase > 1) flag = PETSC_TRUE
     case default
       flag = PETSC_TRUE

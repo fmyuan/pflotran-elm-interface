@@ -893,6 +893,12 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowdof = 1
       option%nflowspec = 1
       option%use_isothermal = PETSC_TRUE
+    class is (pm_zflow_type)
+      option%iflowmode = ZFLOW_MODE
+      option%nphase = 1
+      option%nflowdof = 1
+      option%nflowspec = 1
+      option%use_isothermal = PETSC_TRUE
     class is (pm_th_type)
       option%iflowmode = TH_MODE
       option%nphase = 1
@@ -2848,6 +2854,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
                   option%iflowmode == RICHARDS_TS_MODE .or. &
+                  option%iflowmode == ZFLOW_MODE .or. &
                   option%iflowmode == G_MODE .or. &
                   option%iflowmode == H_MODE .or. &
                   option%iflowmode == TH_TS_MODE .or. &
@@ -2855,8 +2862,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                     .not. option%flow%th_freezing) .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
-            &modes other than RICHARDS, RICHARDS_TS, WIPP_FLOW, TH, or GENERAL. &
-            &Use SATURATION_FUNCTION.'
+            &modes other than RICHARDS, RICHARDS_TS, WIPP_FLOW, TH, ZFLOW, &
+            &or GENERAL. Use SATURATION_FUNCTION.'
           call PrintErrMsg(option)
         endif
         characteristic_curves => CharacteristicCurvesCreate()
