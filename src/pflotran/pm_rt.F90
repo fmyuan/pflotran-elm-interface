@@ -32,6 +32,7 @@ module PM_RT_class
     PetscReal :: volfrac_change_governor
     PetscReal :: cfl_governor
     PetscBool :: temperature_dependent_diffusion
+    PetscBool :: millington_quirk_tortuosity
     ! for transport only
     PetscBool :: transient_porosity
     PetscBool :: operator_split
@@ -134,6 +135,7 @@ subroutine PMRTInit(pm_rt)
   pm_rt%volfrac_change_governor = 1.d0
   pm_rt%cfl_governor = UNINITIALIZED_DOUBLE
   pm_rt%temperature_dependent_diffusion = PETSC_FALSE
+  pm_rt%millington_quirk_tortuosity = PETSC_FALSE
   ! these flags can only be true for transport only
   pm_rt%transient_porosity = PETSC_FALSE
   pm_rt%operator_split = PETSC_FALSE
@@ -198,6 +200,8 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         option%use_mc = PETSC_TRUE
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
+      case('USE_MILLINGTON_QUIRK_TORTUOSITY')
+        this%millington_quirk_tortuosity = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -304,21 +308,29 @@ subroutine PMRTSetup(this)
   use Discretization_module
   use Communicator_Structured_class
   use Communicator_Unstructured_class
-  use Grid_module 
 #endif  
+  use Grid_module 
   use Reactive_Transport_Aux_module, only : reactive_transport_param_type
+  use Material_module
+  use Variables_module, only : TORTUOSITY
   
   implicit none
   
   class(pm_rt_type) :: this
 
   type(reactive_transport_param_type), pointer :: rt_parameter
+  PetscInt :: i
+  PetscReal :: val
+  PetscErrorCode :: ierr
 
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
   
   ! pass down flags from PMRT class
+  ! these flags are set after RTSetup as been called
   rt_parameter%temperature_dependent_diffusion = &
     this%temperature_dependent_diffusion
+  rt_parameter%millington_quirk_tortuosity = &
+    this%millington_quirk_tortuosity
 
 #ifndef SIMPLIFY  
   ! set up communicator
@@ -333,6 +345,23 @@ subroutine PMRTSetup(this)
 
   ! set the communicator
   this%comm1 => this%realization%comm1
+
+  if (this%millington_quirk_tortuosity) then
+    ! check to ensure that all tortuosities are the default 1.
+    call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 TORTUOSITY,ZERO_INTEGER)
+    call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
+                                  this%realization%field%work)
+    call VecShift(this%realization%field%work,-1.d0,ierr);CHKERRQ(ierr)
+    call VecAbs(this%realization%field%work,ierr);CHKERRQ(ierr)
+    call VecMax(this%realization%field%work,i,val,ierr);CHKERRQ(ierr)
+    if (val > 1.d-40) then
+      this%option%io_buffer = 'TORTUOSITY must be set to the default value of &
+        &1 in MATERIAL_PROPERTY when using USE_MILLINGTON_QUIRK_TORTUOSITY.'
+      call PrintErrMsg(this%option)
+    endif
+  endif
 
   ! only set these flags if transport only
   if (this%option%nflowdof == 0) then
