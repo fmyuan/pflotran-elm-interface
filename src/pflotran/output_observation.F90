@@ -2265,6 +2265,7 @@ subroutine OutputMassBalance(realization_base)
   use General_module, only : GeneralComputeMassBalance
   use Hydrate_module, only : HydrateComputeMassBalance
   use WIPP_Flow_module, only : WIPPFloComputeMassBalance
+  use ZFlow_module, only : ZFlowComputeMassBalance
 
   use Global_Aux_module
   use Reactive_Transport_Aux_module
@@ -2594,11 +2595,12 @@ subroutine OutputMassBalance(realization_base)
           case(RICHARDS_MODE,RICHARDS_TS_MODE)
             call RichardsComputeMassBalance(realization_base,sum_kg(1,:))
           case(ZFLOW_MODE)
-            call PMZFlowComputeMassBalance(realization_base,sum_kg(1,:))
+            call ZFlowComputeMassBalance(realization_base,sum_kg(1,:))
           case(TH_MODE,TH_TS_MODE)
             call THComputeMassBalance(realization_base,sum_kg(1,:))
           case(MPH_MODE)
-            call MphaseComputeMassBalance(realization_base,sum_kg(:,:),sum_trapped(:))
+            call MphaseComputeMassBalance(realization_base,sum_kg(:,:), &
+                                          sum_trapped(:))
           case(G_MODE)
             call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
           case(H_MODE)

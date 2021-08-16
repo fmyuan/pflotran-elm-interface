@@ -790,7 +790,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
       temp_dof = MPH_TEMPERATURE_DOF
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
       pres_dof = RICHARDS_PRESSURE_DOF
-    case(ZFLOW)
+    case(ZFLOW_MODE)
       pres_dof = ZFLOW_PRESSURE_DOF
     case default
       this%option%io_buffer = 'PMCSubsurfaceSetAuxDataForGeomech() not ' // &

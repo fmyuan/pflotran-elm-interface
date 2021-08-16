@@ -38,6 +38,7 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use General_module
   use Hydrate_module
   use WIPP_Flow_module
+  use ZFlow_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
   use PM_Hydrate_class 
@@ -74,7 +75,7 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
         call RichardsSetup(realization)
       case(ZFLOW_MODE)
-        call PMZFlowSetup(realization)
+        call ZFlowSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)
         call MphaseSetup(realization)
@@ -117,7 +118,7 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
       case(RICHARDS_TS_MODE)
         call PMRichardsTSUpdateAuxVarsPatch(realization)
       case(ZFLOW_MODE)
-        call PMZFlowUpdateAuxVars(realization)
+        call ZFlowUpdateAuxVars(realization)
       case(MPH_MODE)
         call MphaseUpdateAuxVars(realization)
       case(G_MODE)

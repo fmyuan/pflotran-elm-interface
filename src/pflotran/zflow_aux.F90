@@ -22,6 +22,10 @@ module ZFlow_Aux_module
   PetscInt, public :: zflow_jacobian_test_xdof = 0
   PetscInt, public :: zflow_jacobian_test_rdof = 0
   PetscBool, public :: zflow_jacobian_test_active = PETSC_FALSE
+  PetscBool, public :: zflow_calc_accum = PETSC_TRUE
+  PetscBool, public :: zflow_calc_flux = PETSC_TRUE
+  PetscBool, public :: zflow_calc_bcflux = PETSC_TRUE
+  PetscBool, public :: zflow_calc_chem = PETSC_TRUE
 
   PetscInt, public :: zflow_prev_liq_res_cell(4) = 0
   PetscBool, public :: zflow_check_oscillatory_behavior = PETSC_FALSE

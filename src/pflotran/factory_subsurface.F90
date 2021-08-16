@@ -835,6 +835,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TH_class
   use PM_Richards_TS_class
   use PM_TH_TS_class
+  use PM_ZFlow_class
   use General_Aux_module
 
   implicit none
