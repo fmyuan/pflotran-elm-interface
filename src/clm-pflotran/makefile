@@ -289,6 +289,7 @@ FORCE :
 # the long list below is easier to update from the main makefile.
 clm_pflotran_interface_data.o :
 mapping.o : input_aux.o option.o pflotran_constants.o string.o
+pflotran_interface_main.o : simulation_subsurface.o pflotran_model.o
 pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    clm_pflotran_interface_data.o connection.o coupler.o \
                    discretization.o factory_geomechanics.o \

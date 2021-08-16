@@ -4605,7 +4605,13 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(TEMPERATURE)
             call PatchUnsupportedVariable('RICHARDS','TEMPERATURE',option)
           case(GAS_SATURATION)
-            call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
+            if (option%transport%nphase == 1) then
+              call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
+            endif
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(2)
+            enddo
           case(ICE_SATURATION)
             call PatchUnsupportedVariable('RICHARDS','ICE_SATURATION',option)
           case(ICE_DENSITY)
@@ -6034,7 +6040,10 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(TEMPERATURE)
             call PatchUnsupportedVariable('RICHARDS','TEMPERATURE',option)
           case(GAS_SATURATION)
-            call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
+            if (option%transport%nphase == 1) then
+              call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
+            endif
+            value = patch%aux%Global%auxvars(ghosted_id)%sat(2)
           case(GAS_DENSITY)
             call PatchUnsupportedVariable('RICHARDS','GAS_DENSITY',option)
           case(LIQUID_MOLE_FRACTION)

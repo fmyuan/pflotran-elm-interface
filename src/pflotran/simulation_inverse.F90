@@ -19,8 +19,6 @@ module Simulation_Inverse_class
   contains
     procedure, public :: Init => SimulationInverseInit
     procedure, public :: InitializeRun => SimulationInverseInitializeRun
-    procedure, public :: UpdateParameters => SimulationInvUpdateParameters
-    procedure, public :: CalculateInverse => SimulationInvCalculateInverse
     procedure, public :: ExecuteRun => SimulationInverseExecuteRun
     procedure, public :: FinalizeRun => SimulationInverseFinalizeRun
     procedure, public :: Strip => SimulationInverseStrip
@@ -89,6 +87,8 @@ subroutine SimulationInverseRead(this,option)
   use Input_Aux_module
   use String_module
   use Utility_module
+  use Inversion_ERT_class
+  use Inversion_ERT_class
 
   class(simulation_inverse_type) :: this
   type(option_type), pointer :: option
@@ -96,31 +96,44 @@ subroutine SimulationInverseRead(this,option)
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXWORDLENGTH) :: word
 
-  error_string = 'SIMULATION,MULTIREALIZATION'
+  error_string = 'SIMULATION,INVERSION'
 
   input => InputCreate(IN_UNIT,this%driver%input_filename,option)
 
   string = 'SIMULATION'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
-  word = ''
+  keyword = ''
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadCard(input,option,word)
-    call InputErrorMsg(input,option,'','SIMULATION')
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'',error_string)
 
-    call StringToUpper(word)
-    select case(trim(word))
+    call StringToUpper(keyword)
+    select case(trim(keyword))
       case('SIMULATION_TYPE')
+      case('INVERSION')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'inversion type', &
+                           trim(error_string)//','//keyword)
+        call StringToUpper(word)
+        select case(word)
+          case('ERT')
+            this%inversion => InversionERTCreate(this%driver)
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        end select
+        call this%inversion%ReadBlock(input,option)
       case('FORWARD_SIMULATION_FILENAME')
         call InputReadFilename(input,option,this%forward_simulation_filename)
-        call InputErrorMsg(input,option,word,error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
-        call InputKeywordUnrecognized(input,word,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -140,7 +153,7 @@ subroutine SimulationInverseInitializeRun(this)
   use Option_module
   use Input_Aux_module
   use Communicator_Aux_module
-  use Inversion_INSITE_class
+  use Inversion_ERT_class
 
   class(simulation_inverse_type) :: this
 
@@ -157,7 +170,6 @@ subroutine SimulationInverseInitializeRun(this)
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
-  this%inversion => InversionINSITECreate(this%driver)
 
   call SimulationBaseInitializeRun(this)
 
@@ -177,71 +189,44 @@ subroutine SimulationInverseExecuteRun(this)
   use Option_module
   use Factory_Forward_module
   use Simulation_Subsurface_class
-  use Inversion_INSITE_class
+  use Inversion_ERT_class
 
   class(simulation_inverse_type) :: this
 
   type(option_type), pointer :: option
 
-  PetscInt :: num_forward_runs
+  PetscInt :: iteration
 
-  num_forward_runs = 0
+  iteration = this%inversion%SetIterationNumber()
   do
-    if (num_forward_runs > 2) exit
+    if (this%inversion%converg_flag) exit
     option => OptionCreate()
-    write(option%group_prefix,'(i6)') num_forward_runs+1
+    write(option%group_prefix,'(i6)') iteration+1
     option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
     call OptionSetDriver(option,this%driver)
     call FactoryForwardInitialize(this%forward_simulation, &
                                   this%forward_simulation_filename,option)
     select type(i=>this%inversion)
-      class is(inversion_insite_type)
-        i%realization => this%forward_simulation%realization
+      class is(inversion_ert_type)
+      i%realization => this%forward_simulation%realization
     end select
-    call this%UpdateParameters()
+    call this%inversion%UpdateParameters()
     call this%forward_simulation%InitializeRun()
     if (option%status == PROCEED) then
       call this%forward_simulation%ExecuteRun()
     endif
-    call this%CalculateInverse()
+    call this%inversion%CheckConvergence()
+    call this%inversion%CalculateUpdate()
+    call this%inversion%WriteIterationInfo()
+    call this%inversion%UpdateRegularizationParameters()
     call this%forward_simulation%FinalizeRun()
     call this%forward_simulation%Strip()
     deallocate(this%forward_simulation)
     nullify(this%forward_simulation)
-    num_forward_runs = num_forward_runs + 1
+    iteration = iteration + 1
   enddo
 
 end subroutine SimulationInverseExecuteRun
-
-! ************************************************************************** !
-
-subroutine SimulationInvUpdateParameters(this)
-  !
-  ! Alters forward run parameters based on inverse calculation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/02/21
-
-  class(simulation_inverse_type) :: this
-
-  call this%inversion%UpdateParameters()
-
-end subroutine SimulationInvUpdateParameters
-
-! ************************************************************************** !
-
-subroutine SimulationInvCalculateInverse(this)
-  !
-  ! Calculates updated parameters
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/02/21
-
-  class(simulation_inverse_type) :: this
-
-  call this%inversion%CalculateInverse()
-
-end subroutine SimulationInvCalculateInverse
 
 ! ************************************************************************** !
 

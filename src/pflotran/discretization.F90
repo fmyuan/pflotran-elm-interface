@@ -52,6 +52,7 @@ module Discretization_module
             DiscretizationCreateColoring, &
             DiscretizationGlobalToLocal, &
             DiscretizationLocalToGlobal, &
+            DiscretizationLocalToGlobalAdd, &
             DiscretizationLocalToLocal, &
             DiscretizationGlobalToNatural, &
             DiscretizationNaturalToGlobal, &
@@ -1115,6 +1116,36 @@ subroutine DiscretizationLocalToGlobal(discretization,local_vec,global_vec,dm_in
                           ierr);CHKERRQ(ierr)
  
 end subroutine DiscretizationLocalToGlobal
+
+! ************************************************************************** !
+
+subroutine DiscretizationLocalToGlobalAdd(discretization,local_vec,global_vec,dm_index)
+  !
+  ! Performs local to global communication with DM and ADD_VALUES
+  ! Note that 'dm_index' should correspond to one of the macros defined
+  ! in 'definitions.h' such as ONEDOF, NPHASEDOF, etc.  --RTM
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 05/28/21
+  !
+
+  implicit none
+
+  type(discretization_type) :: discretization
+  Vec :: local_vec
+  Vec :: global_vec
+  PetscInt :: dm_index
+  PetscErrorCode :: ierr
+  type(dm_ptr_type), pointer :: dm_ptr
+
+  dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
+
+  call DMLocalToGlobalBegin(dm_ptr%dm,local_vec,ADD_VALUES,global_vec, &
+                            ierr);CHKERRQ(ierr)
+  call DMLocalToGlobalEnd(dm_ptr%dm,local_vec,ADD_VALUES,global_vec, &
+                          ierr);CHKERRQ(ierr)
+
+end subroutine DiscretizationLocalToGlobalAdd
 
 ! ************************************************************************** !
 

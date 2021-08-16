@@ -30,6 +30,7 @@ module Dataset_Map_HDF5_class
             DatasetMapHDF5Read, &
             DatasetMapHDF5Load, &
             DatasetMapHDF5Print, &
+            DatasetMapHDF5Strip, &
             DatasetMapHDF5Destroy
   
 contains
