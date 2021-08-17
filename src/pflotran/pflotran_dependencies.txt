@@ -321,7 +321,8 @@ init_subsurface_flow.o : co2_sw.o condition_control.o discretization.o field.o \
                          material.o mphase.o option.o patch.o \
                          pflotran_constants.o pm_base.o pm_hydrate.o \
                          pm_richards_ts.o pm_th_ts.o realization_subsurface.o \
-                         richards.o simulation_subsurface.o th.o wipp_flow.o
+                         richards.o simulation_subsurface.o th.o wipp_flow.o \
+                         zflow.o
 init_subsurface_geophysics.o : ert.o option.o pflotran_constants.o \
                                realization_subsurface.o
 init_subsurface_transport.o : condition_control.o global.o nw_transport.o \
@@ -421,7 +422,7 @@ output_observation.o : connection.o coupler.o discretization.o field.o \
                        reactive_transport.o reactive_transport_aux.o \
                        realization_base.o realization_subsurface.o region.o \
                        richards.o string.o th.o utility.o variables.o \
-                       wipp_flow.o wipp_flow_aux.o
+                       wipp_flow.o wipp_flow_aux.o zflow.o
 output_tecplot.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
                    grid.o grid_structured.o grid_unstructured_aux.o \
                    grid_unstructured_cell.o logging.o observation.o option.o \
