@@ -48,6 +48,7 @@ subroutine ZFlowSetup(realization)
   use Output_Aux_module
   use Characteristic_Curves_module
   use Matrix_Zeroing_module
+  use EOS_Water_module
 
   implicit none
 
@@ -553,6 +554,8 @@ subroutine ZFlowUpdateFixedAccum(realization)
     !geh - Ignore inactive cells with inactive materials
     imat = patch%imat(ghosted_id)
     if (imat <= 0) cycle
+    local_end = local_id * option%nflowdof
+    local_start = local_end - option%nflowdof + 1
     natural_id = grid%nG2A(ghosted_id)
     ! ZFLOW_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
     option%iflag = ZFLOW_UPDATE_FOR_FIXED_ACCUM

@@ -832,6 +832,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Reactive_Transport_Aux_module
   use NW_Transport_Aux_module
   use Global_Aux_module
+  use ZFlow_Aux_module
   use Condition_module
   use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
@@ -882,7 +883,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             ! allocate arrays that match the number of connections
             select case(option%iflowmode)
 
-              case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+              case(RICHARDS_MODE,RICHARDS_TS_MODE)
                 temp_int = 1
                 if (associated(coupler%flow_condition%pressure)) then
                   select case(coupler%flow_condition%pressure%itype)
@@ -894,6 +895,23 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 endif
                 allocate(coupler%flow_aux_real_var(temp_int,num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
+                coupler%flow_aux_real_var = 0.d0
+                coupler%flow_aux_int_var = 0
+
+              case(ZFLOW_MODE)
+                temp_int = 1
+                select case(coupler%flow_condition%pressure%itype)
+                  case(HYDROSTATIC_CONDUCTANCE_BC, &
+                       DIRICHLET_CONDUCTANCE_BC, &
+                       HET_HYDROSTATIC_CONDUCTANCE_BC)
+                    temp_int = temp_int + 1
+                end select
+                allocate(coupler%flow_bc_type(1))
+                allocate(coupler%flow_aux_mapping(ZFLOW_MAX_INDEX))
+                allocate(coupler%flow_aux_real_var(temp_int,num_connections))
+                allocate(coupler%flow_aux_int_var(1,num_connections))
+                coupler%flow_bc_type = 0
+                coupler%flow_aux_mapping = 0
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
@@ -3617,12 +3635,13 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
   ! with a coupler for ZFLOW_MODE
   !
   ! Author: Glenn Hammond
-  ! Date: 11/26/07
+  ! Date: 08/17/21
   !
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
+  use ZFlow_Aux_module
 
   use Grid_module
   use Dataset_Common_HDF5_class
@@ -3652,6 +3671,7 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
 
   flow_condition => coupler%flow_condition
   if (associated(flow_condition%pressure)) then
+    coupler%flow_aux_mapping(ZFLOW_PRESSURE_DOF) = ZFLOW_PRESSURE_DOF
     select case(flow_condition%pressure%itype)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC, &
            DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC)
@@ -3673,6 +3693,8 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
         end select
         select case(flow_condition%pressure%itype)
           case(DIRICHLET_CONDUCTANCE_BC)
+            coupler%flow_aux_mapping(ZFLOW_CONDUCTANCE_DOF) = &
+              ZFLOW_CONDUCTANCE_DOF
             coupler%flow_aux_real_var(ZFLOW_CONDUCTANCE_DOF, &
                                       1:num_connections) = &
                                            flow_condition%pressure%aux_real(1)
@@ -3692,6 +3714,8 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
             flow_condition%pressure%aux_real(1)
         endif
     end select
+    coupler%flow_bc_type(ZFLOW_LIQUID_EQUATION_INDEX) = &
+      flow_condition%pressure%itype
   endif
   if (associated(flow_condition%saturation)) then
     call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
@@ -4584,6 +4608,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
+  use ZFlow_Aux_module
   use Output_Aux_module
   use Variables_module
   use Material_Aux_class
@@ -4793,24 +4818,24 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%pres
             enddo
           case(CAPILLARY_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Richards%auxvars(grid%nL2G(local_id))%pc
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%pc
             enddo
           case(LIQUID_HEAD)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)/ &
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%pres/ &
                 EARTH_GRAVITY/ &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
+                zflow_density_kg
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(1)
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%sat
             enddo
           case default
             call PatchUnsupportedVariable('ZFLOW',ivar,option)
@@ -6085,6 +6110,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
+  use ZFlow_Aux_module
   use Material_Aux_class
 
   implicit none
@@ -6225,15 +6251,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       else if (associated(patch%aux%ZFlow)) then
         select case(ivar)
           case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pres
           case(CAPILLARY_PRESSURE)
-            value = patch%aux%Richards%auxvars(ghosted_id)%pc
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pc
           case(LIQUID_HEAD)
-            value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
-                    EARTH_GRAVITY/ &
-                    patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pres/ &
+                    EARTH_GRAVITY/zflow_density_kg
           case(LIQUID_SATURATION)
-            value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
           case default
             call PatchUnsupportedVariable('ZFLOW',ivar,option)
         end select

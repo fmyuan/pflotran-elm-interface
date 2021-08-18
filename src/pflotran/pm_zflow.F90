@@ -6,6 +6,7 @@ module PM_ZFlow_class
   use PM_Subsurface_Flow_class
 
   use PFLOTRAN_Constants_module
+  use ZFlow_Aux_module
 
   implicit none
 
@@ -90,9 +91,13 @@ subroutine PMZFlowInitObject(this)
   ! Date: 08/13/21
   !
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION
+  use EOS_Water_module, only : EOSWaterSetDensity
+
   implicit none
 
   class(pm_zflow_type) :: this
+
+  PetscReal :: array(1)
 
   allocate(this%max_change_ivar(3))
   call PMSubsurfaceFlowInit(this)
@@ -107,10 +112,14 @@ subroutine PMZFlowInitObject(this)
   this%max_change_ivar = [LIQUID_PRESSURE, LIQUID_SATURATION]
   this%check_post_convergence = PETSC_TRUE
 
+  this%max_allow_liq_pres_change_ni = 1.d20
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
   this%liq_sat_change_ts_governor = 1.d0
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
+
+  array(1) = zflow_density_kg ! dist is the aux array
+  call EOSWaterSetDensity('CONSTANT',array)
 
 end subroutine PMZFlowInitObject
 
@@ -666,14 +675,11 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: press_ptr(:)
 
   PetscInt :: local_id, ghosted_id
+  PetscReal :: tempreal
 
   PetscBool :: converged_liquid_pressure
   PetscReal :: max_abs_pressure_change_NI
   PetscInt :: max_abs_pressure_change_NI_cell
-
-  ! dX_p is subtracted to update the solution.  The max values need to be
-  ! scaled by this delta_scale for proper screen output.
-  PetscReal, parameter :: delta_scale = -1.d0
 
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -699,13 +705,14 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     if (patch%imat(ghosted_id) <= 0) cycle
 
     ! maximum absolute change in liquid pressure over Newton iteration
-    if (dabs(dX_p(local_id)) > dabs(max_abs_pressure_change_NI)) then
+    tempreal = dabs(dX_p(local_id))
+    if (tempreal > dabs(max_abs_pressure_change_NI)) then
       max_abs_pressure_change_NI_cell = local_id
-      max_abs_pressure_change_NI = delta_scale*dX_p(local_id)
+      max_abs_pressure_change_NI = tempreal
     endif
   enddo
 
-  if (dabs(max_abs_pressure_change_NI) > this%max_allow_liq_pres_change_ni) then
+  if (max_abs_pressure_change_NI > this%max_allow_liq_pres_change_ni) then
     converged_liquid_pressure = PETSC_FALSE
   endif
 
@@ -773,15 +780,13 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
 
   PetscReal, parameter :: zero_accumulation = 1.d-15
 
-  PetscBool :: converged_liquid_equation
-
-  PetscReal :: max_res_liq_
-  PetscInt :: max_res_liq_cell
+  PetscReal :: max_abs_res_liq_
+  PetscInt :: max_abs_res_liq_cell
   PetscMPIInt :: int_mpi
-  PetscBool :: cell_id_match
 
   PetscReal :: accumulation
   PetscReal :: residual
+  PetscReal :: tempreal
 
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -795,16 +800,16 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   call VecGetArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
-  converged_liquid_equation = PETSC_TRUE
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     residual = r_p(local_id)
     accumulation = accum2_p(local_id)
     ! residual
-    if (dabs(residual) > dabs(max_res_liq_)) then
-      max_res_liq_cell = local_id
-      max_res_liq_ = residual
+    tempreal = dabs(residual)
+    if (tempreal > max_abs_res_liq_) then
+      max_abs_res_liq_ = tempreal
+      max_abs_res_liq_cell = local_id
     endif
   enddo
 
@@ -812,9 +817,8 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   ! currently none
 
   ! the following flags are for REPORTING purposes only
-  this%convergence_flags(MAX_RES_LIQ) = max_res_liq_cell
-
-  this%convergence_reals(MAX_RES_LIQ) = max_res_liq_
+  this%convergence_flags(MAX_RES_LIQ) = max_abs_res_liq_cell
+  this%convergence_reals(MAX_RES_LIQ) = max_abs_res_liq_
 
   int_mpi = size(this%convergence_flags)
   call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi, &
@@ -826,10 +830,11 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   ! these conditionals cannot change order
   reason_string = '-|-'
   converged_flag = CONVERGENCE_CONVERGED
-  converged_liquid_equation = PETSC_TRUE
   if (this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI) > 0) then
     reason_string(2:2) = 'P'
+    converged_flag = CONVERGENCE_KEEP_ITERATING
   endif
+#if 0
   if (OptionPrintToScreen(option)) then
     if (option%comm%mycommsize > 1 .or. grid%nmax > 9999) then
       write(*,'(4x,"Rsn: ",a10,2es10.2)') reason_string, &
@@ -854,6 +859,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
 #endif
     endif
   endif
+#endif
   option%convergence = converged_flag
 
   call VecRestoreArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
@@ -986,7 +992,7 @@ subroutine PMZFlowMaxChange(this)
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
-  call MPI_Allreduce(max_change_local,max_change_global,SIX_INTEGER, &
+  call MPI_Allreduce(max_change_local,max_change_global,TWO_INTEGER, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   ! print them out
   if (OptionPrintToScreen(option)) then

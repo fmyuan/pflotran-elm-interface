@@ -127,7 +127,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   ! accumulation term units = m^3 liquid/s
   ! Res[m^3 liquid/sec] = sat[m^3 liquid/m^3 void] * por[m^3 void/m^3 bulk] *
   !                       vol[m^3 bulk] / dt[sec]
-  Res(1) = zflow_auxvar%sat * porosity * volume_over_dt
+  Res(1) = zflow_auxvar%sat * porosity * volume_over_dt * zflow_density_kmol
 
 end subroutine ZFlowAccumulation
 
@@ -203,9 +203,9 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
     if (kr > floweps ) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
-      v_darcy(1) = perm_ave_over_dist * kr * delta_pressure
+      v_darcy(1) = perm_ave_over_dist * kr / zflow_viscosity * delta_pressure
       ! q[m^3 liquid/sec] = v_darcy[m/sec] * area[m^2]
-      q = v_darcy(1) * area
+      q = v_darcy(1) * area * zflow_density_kmol
       ! Res[m^3 liquid/sec]
       Res = Res + q
     endif
@@ -306,12 +306,10 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        v_darcy(1) = perm_ave_over_dist * kr * delta_pressure
+        v_darcy(1) = perm_ave_over_dist * kr / zflow_viscosity * delta_pressure
       endif
     case(NEUMANN_BC)
       idof = auxvar_mapping(ZFLOW_LIQUID_FLUX_INDEX)
-      !geh: we should read in the mole fraction for both phases as the
-      !     enthalpy, etc. applies to phase, not pure component.
       if (dabs(auxvars(idof)) > floweps) then
         v_darcy(1) = auxvars(idof)
       endif
@@ -322,7 +320,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   end select
   if (dabs(v_darcy(1)) > 0.d0 .or. kr > 0.d0) then
     ! q[m^3 liquid/sec] = v_darcy[m/sec] * area[m^2]
-    q = v_darcy(1) * area
+    q = v_darcy(1) * area * zflow_density_kmol
     ! Res[m^3 liquid/sec]
     Res(1) = Res(1) + q
   endif
@@ -379,7 +377,7 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   end select
   ss_flow_vol_flux(1) = qsrc_m3
   ! Res[m^3 liquid/sec]
-  Res = qsrc_m3
+  Res = qsrc_m3 * zflow_density_kmol
 
 end subroutine ZFlowSrcSink
 

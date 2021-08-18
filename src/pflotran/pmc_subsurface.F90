@@ -130,6 +130,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
+  use PM_ZFlow_class
   use PM_RT_class
   use PM_NWT_class
   use PM_Waste_Form_class
@@ -322,6 +323,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         class is(pm_general_type)
               add_pre_check = PETSC_TRUE
         class is(pm_wippflo_type)
+              add_pre_check = PETSC_TRUE
+        class is(pm_zflow_type)
               add_pre_check = PETSC_TRUE
         class is(pm_th_type)
           if (Initialized(pm%pressure_dampening_factor) .or. &
