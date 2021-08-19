@@ -90,6 +90,7 @@ STANDARD_CFG = \
 	default/tcond/T_dep_tcond.cfg \
 	default/timestepping/timestepping.cfg \
 	default/velocity/velocity.cfg \
+	default/zflow/zflow.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
@@ -161,6 +162,7 @@ FLOW_CFG = \
 	default/infiltration1d/infiltration1d.cfg \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
+	default/zflow/zflow.cfg \
 	general/general.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg

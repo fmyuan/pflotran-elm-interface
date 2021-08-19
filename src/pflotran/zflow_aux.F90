@@ -13,9 +13,7 @@ module ZFlow_Aux_module
   PetscReal, parameter, public :: zflow_density_kmol = zflow_density_kg / FMWH2O
   PetscReal, parameter, public :: zflow_viscosity = 8.9d-4
 
-  PetscReal, public :: zflow_sat_rel_pert = 1.d-8
   PetscReal, public :: zflow_pres_rel_pert = 1.d-8
-  PetscReal, public :: zflow_sat_min_pert = 1.d-10
   PetscReal, public :: zflow_pres_min_pert = 1.d-2
 
   PetscBool, public :: zflow_residual_test = PETSC_FALSE
@@ -28,6 +26,8 @@ module ZFlow_Aux_module
   PetscBool, public :: zflow_calc_flux = PETSC_TRUE
   PetscBool, public :: zflow_calc_bcflux = PETSC_TRUE
   PetscBool, public :: zflow_calc_chem = PETSC_TRUE
+
+  PetscBool, public :: zflow_numerical_derivatives = PETSC_FALSE
 
   PetscInt, public :: zflow_prev_liq_res_cell(4) = 0
   PetscBool, public :: zflow_check_oscillatory_behavior = PETSC_FALSE
@@ -62,6 +62,7 @@ module ZFlow_Aux_module
     PetscReal :: pc   ! capillary pressure
     PetscReal :: kr   ! relative permeability
     PetscReal :: effective_porosity
+    PetscReal :: dpor_dp
     PetscReal :: dsat_dp ! derivative of saturation wrt pressure
     PetscReal :: dkr_dp  ! derivative of rel. perm. wrt pressure
     PetscReal :: pert
@@ -165,6 +166,7 @@ subroutine ZFlowAuxVarInit(auxvar,option)
   auxvar%pc = 0.d0
   auxvar%kr = 0.d0
   auxvar%effective_porosity = 0.d0
+  auxvar%dpor_dp = 0.d0
   auxvar%dsat_dp = 0.d0
   auxvar%dkr_dp = 0.d0
   auxvar%pert = 0.d0
@@ -193,6 +195,7 @@ subroutine ZFlowAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%pc = auxvar%pc
   auxvar2%kr = auxvar%kr
   auxvar2%effective_porosity = auxvar%effective_porosity
+  auxvar2%dpor_dp = auxvar%dpor_dp
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dkr_dp = auxvar%dkr_dp
   auxvar2%pert = auxvar%pert
@@ -230,17 +233,17 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
 
   PetscBool :: saturated
   PetscReal :: dkr_dsat
-  PetscReal :: dummy
-  PetscErrorCode :: ierr
 
   zflow_auxvar%pres = x(ZFLOW_LIQUID_PRESSURE_DOF)
   global_auxvar%temp = option%flow%reference_temperature
 
   if (update_porosity .and. soil_compressibility_index > 0) then
     call MaterialCompressSoil(material_auxvar,zflow_auxvar%pres, &
-                              zflow_auxvar%effective_porosity,dummy)
+                              zflow_auxvar%effective_porosity, &
+                              zflow_auxvar%dpor_dp)
   else
     zflow_auxvar%effective_porosity = material_auxvar%porosity
+    zflow_auxvar%dpor_dp = 0.d0
   endif
 !  if (option%iflag /= ZFLOW_UPDATE_FOR_DERIVATIVE) then
 !    material_auxvar%porosity = zflow_auxvar%effective_porosity
@@ -371,6 +374,7 @@ subroutine ZFlowPrintAuxVars(zflow_auxvar,global_auxvar,material_auxvar, &
   print *, '         liquid rel perm: ', zflow_auxvar%kr
   print *, ' liquid rel perm (deriv): ', zflow_auxvar%dkr_dp
   print *, '      effective porosity: ', zflow_auxvar%effective_porosity
+  print *, '   eff. porosity (deriv): ', zflow_auxvar%dpor_dp
   print *, '--------------------------------------------------------'
 
 end subroutine ZFlowPrintAuxVars
@@ -405,25 +409,26 @@ subroutine ZFlowOutputAuxVars1(zflow_auxvar,global_auxvar,material_auxvar, &
   write(string2,*) natural_id
   string2 = trim(adjustl(string)) // '_' // trim(adjustl(string2)) // '.txt'
   if (append) then
-    open(unit=86,file=string2,position='append')
+    open(unit=IUNIT_TEMP,file=string2,position='append')
   else
-    open(unit=86,file=string2)
+    open(unit=IUNIT_TEMP,file=string2)
   endif
 
-  write(86,*) '--------------------------------------------------------'
-  write(86,*) trim(string)
-  write(86,*) '             cell id: ', natural_id
-  write(86,*) '                 cell id: ', natural_id
-  write(86,*) '         liquid pressure: ', zflow_auxvar%pres
-  write(86,*) '      capillary pressure: ', zflow_auxvar%pc
-  write(86,*) '       liquid saturation: ', zflow_auxvar%sat
-  write(86,*) '      liquid sat (deriv): ', zflow_auxvar%dsat_dp
-  write(86,*) '         liquid rel perm: ', zflow_auxvar%kr
-  write(86,*) ' liquid rel perm (deriv): ', zflow_auxvar%dkr_dp
-  write(86,*) '      effective porosity: ', zflow_auxvar%effective_porosity
-  write(86,*) '--------------------------------------------------------'
+  write(IUNIT_TEMP,*) '--------------------------------------------------------'
+  write(IUNIT_TEMP,*) trim(string)
+  write(IUNIT_TEMP,*) '             cell id: ', natural_id
+  write(IUNIT_TEMP,*) '                 cell id: ', natural_id
+  write(IUNIT_TEMP,*) '         liquid pressure: ', zflow_auxvar%pres
+  write(IUNIT_TEMP,*) '      capillary pressure: ', zflow_auxvar%pc
+  write(IUNIT_TEMP,*) '       liquid saturation: ', zflow_auxvar%sat
+  write(IUNIT_TEMP,*) '      liquid sat (deriv): ', zflow_auxvar%dsat_dp
+  write(IUNIT_TEMP,*) '         liquid rel perm: ', zflow_auxvar%kr
+  write(IUNIT_TEMP,*) ' liquid rel perm (deriv): ', zflow_auxvar%dkr_dp
+  write(IUNIT_TEMP,*) '      effective porosity: ', zflow_auxvar%effective_porosity
+  write(IUNIT_TEMP,*) '   eff. porosity (deriv): ', zflow_auxvar%dpor_dp
+  write(IUNIT_TEMP,*) '--------------------------------------------------------'
 
-  close(86)
+  close(IUNIT_TEMP)
 
 end subroutine ZFlowOutputAuxVars1
 

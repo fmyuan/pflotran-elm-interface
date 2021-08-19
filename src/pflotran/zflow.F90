@@ -61,7 +61,7 @@ subroutine ZFlowSetup(realization)
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
-  PetscInt :: i, idof, count, ndof
+  PetscInt :: i, idof, count
   PetscReal :: dist(3)
   PetscBool :: error_found
   PetscInt :: flag(10)
@@ -118,10 +118,9 @@ subroutine ZFlowSetup(realization)
     call PrintErrMsg(option)
   endif
 
-  ndof = option%nflowdof
-  allocate(zflow_auxvars(0:ndof,grid%ngmax))
+  allocate(zflow_auxvars(0:option%nflowdof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    do idof = 0, ndof
+    do idof = 0, option%nflowdof
       call ZFlowAuxVarInit(zflow_auxvars(idof,ghosted_id),option)
     enddo
   enddo
@@ -264,7 +263,6 @@ subroutine ZFlowComputeMassBalance(realization,mass_balance)
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscErrorCode :: ierr
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt, parameter :: iphase = 1
@@ -533,6 +531,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
+  PetscReal :: Jdum(1,1)
 
   PetscErrorCode :: ierr
 
@@ -571,165 +570,13 @@ subroutine ZFlowUpdateFixedAccum(realization)
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
                              option,accum_p(local_id:local_id), &
-                             PETSC_FALSE)
+                             Jdum,PETSC_FALSE,PETSC_FALSE)
   enddo
 
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
 end subroutine ZFlowUpdateFixedAccum
-
-! ************************************************************************** !
-
-subroutine ZFlowNumericalJacobianTest(xx,B,realization)
-  !
-  ! Computes the a test numerical jacobian
-  !
-  ! Author: Glenn Hammond
-  ! Date: 08/13/21
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-  use Option_module
-  use Grid_module
-  use Field_module
-
-  implicit none
-
-  Vec :: xx
-  type(realization_subsurface_type) :: realization
-  Mat :: B
-
-  Vec :: xx_pert
-  Vec :: res
-  Vec :: res_pert
-  Mat :: A
-  PetscErrorCode :: ierr
-
-  PetscReal, pointer :: vec_p(:), vec2_p(:)
-
-  PetscViewer :: viewer
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(field_type), pointer :: field
-  PetscReal :: derivative, perturbation
-  PetscReal :: perturbation_tolerance = 1.d-6
-  PetscInt, save :: icall = 0
-  character(len=MAXWORDLENGTH) :: word, word2
-
-  PetscInt :: idof, idof2, icell
-
-  patch => realization%patch
-  grid => patch%grid
-  option => realization%option
-  field => realization%field
-
-  icall = icall + 1
-  call VecDuplicate(xx,xx_pert,ierr);CHKERRQ(ierr)
-  call VecDuplicate(xx,res,ierr);CHKERRQ(ierr)
-  call VecDuplicate(xx,res_pert,ierr);CHKERRQ(ierr)
-
-  call MatCreate(option%mycomm,A,ierr);CHKERRQ(ierr)
-  call MatSetType(A,MATAIJ,ierr);CHKERRQ(ierr)
-  call MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%nflowdof, &
-                   grid%nlmax*option%nflowdof, &
-                   ierr);CHKERRQ(ierr)
-  call MatSeqAIJSetPreallocation(A,27,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-  call MatSetFromOptions(A,ierr);CHKERRQ(ierr)
-  call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE, &
-                    ierr);CHKERRQ(ierr)
-
-  call VecZeroEntries(res,ierr);CHKERRQ(ierr)
-  print *, 'Unperturbed Residual'
-  call ZFlowResidual(PETSC_NULL_SNES,xx,res,realization,ierr)
-#if 0
-  word  = 'num_0.dat'
-  call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
-  call VecView(res,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif
-  call VecGetArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
-  print *, 'Perturbed Residual'
-  do icell = 1,grid%nlmax
-    if (patch%imat(grid%nL2G(icell)) <= 0) cycle
-    do idof = (icell-1)*option%nflowdof+1,icell*option%nflowdof
-
-      call VecCopy(xx,xx_pert,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
-      if (mod(idof,2) == 1) then ! liquid pressure
-        perturbation = max(zflow_pres_rel_pert * vec_p(idof), &
-                           zflow_pres_min_pert)
-      else ! gas saturation
-        perturbation = max(zflow_sat_rel_pert * vec_p(idof), &
-                           zflow_sat_min_pert)
-        if (1.d0 - vec_p(idof) - &
-            patch%characteristic_curves_array( &
-              patch%cc_id(icell))%ptr% &
-              saturation_function%Sr < 0.d0) then
-          if (vec_p(idof) + perturbation > 1.d0) then
-            perturbation = -1.d0 * perturbation
-          endif
-        else
-          perturbation = -1.d0 * perturbation
-          if (vec_p(idof) + perturbation < 0.d0) then
-            perturbation = -1.d0 * perturbation
-          endif
-        endif
-      endif
-      vec_p(idof) = vec_p(idof) + perturbation
-      call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
-
-      call VecZeroEntries(res_pert,ierr);CHKERRQ(ierr)
-      write(*,'("icell: ",i4," idof: ",i2," overall dof: ",i4,&
-                &" pert: ",1pe12.5)') &
-        icell,2-mod(idof,option%nflowdof),idof,perturbation
-      call ZFlowResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
-#if 0
-      write(word,*) idof
-      word  = 'num_' // trim(adjustl(word)) // '.dat'
-      call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
-      call VecView(res_pert,viewer,ierr);CHKERRQ(ierr)
-      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif
-      call VecGetArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
-      do idof2 = 1, grid%nlmax*option%nflowdof
-        derivative = (vec_p(idof2)-vec2_p(idof2))/perturbation
-        if (dabs(derivative) > 1.d-40) then
-          if (idof2 == zflow_jacobian_test_rdof) then
-            print *, 'dof: ', idof2, idof, '| cell: ', (idof2+1)/2, (idof+1)/2
-            print *, vec_p(idof2), vec2_p(idof2), perturbation
-          endif
-          call MatSetValue(A,idof2-1,idof-1,derivative,INSERT_VALUES, &
-                           ierr);CHKERRQ(ierr)
-        endif
-      enddo
-      call VecRestoreArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
-    enddo
-  enddo
-  call VecRestoreArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
-
-  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-
-#if 1
-  write(word,*) icall
-  word = 'numerical_jacobian-' // trim(adjustl(word)) // '.out'
-  call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
-  call MatView(A,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif
-
-!geh: uncomment to overwrite numerical Jacobian
-!  call MatCopy(A,B,DIFFERENT_NONZERO_PATTERN,ierr)
-  call MatDestroy(A,ierr);CHKERRQ(ierr)
-
-  call VecDestroy(xx_pert,ierr);CHKERRQ(ierr)
-  call VecDestroy(res,ierr);CHKERRQ(ierr)
-  call VecDestroy(res_pert,ierr);CHKERRQ(ierr)
-
-end subroutine ZFlowNumericalJacobianTest
 
 ! ************************************************************************** !
 
@@ -800,9 +647,10 @@ subroutine ZFlowResidual(snes,xx,r,realization,ierr)
   PetscInt :: k
 
   PetscInt :: icc_up, icc_dn
-  PetscReal :: Res(realization%option%nflowdof)
-  PetscReal :: temp_Res(realization%option%nflowdof)
-  PetscReal :: v_darcy(realization%option%nphase)
+  PetscReal :: Res(1)
+  PetscReal :: temp_Res(1)
+  PetscReal :: Jdum(1,1)
+  PetscReal :: v_darcy(1)
 
   discretization => realization%discretization
   option => realization%option
@@ -861,7 +709,8 @@ subroutine ZFlowResidual(snes,xx,r,realization,ierr)
       call ZFlowAccumulation(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
-                              option,Res,PETSC_FALSE)
+                              option,Res,Jdum, &
+                              PETSC_FALSE,PETSC_FALSE)
       r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
       accum_p2(local_start:local_end) = Res(:)
       if (zflow_residual_test .and. &
@@ -942,7 +791,8 @@ subroutine ZFlowResidual(snes,xx,r,realization,ierr)
                         material_auxvars(ghosted_id_dn), &
                         cur_connection_set%area(iconn), &
                         cur_connection_set%dist(:,iconn), &
-                        zflow_parameter,option,v_darcy,Res, &
+                        zflow_parameter,option,v_darcy, &
+                        Res,Jdum,Jdum, &
                         PETSC_FALSE, & ! derivative call
                         debug_connection)
 
@@ -1013,7 +863,7 @@ subroutine ZFlowResidual(snes,xx,r,realization,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       zflow_parameter,option, &
-                      v_darcy,Res, &
+                      v_darcy,Res,Jdum, &
                       PETSC_FALSE, & ! derivative call
                       PETSC_FALSE)
         patch%boundary_velocities(:,sum_connection) = v_darcy
@@ -1022,9 +872,9 @@ subroutine ZFlowResidual(snes,xx,r,realization,ierr)
         endif
         if (option%compute_mass_balance_new) then
           ! contribution to boundary
-          global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
-            global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) - &
-            Res(1:2)
+          global_auxvars_bc(sum_connection)%mass_balance_delta(:,1) = &
+            global_auxvars_bc(sum_connection)%mass_balance_delta(:,1) - &
+            Res(:)
         endif
 
         local_end = local_id * option%nflowdof
@@ -1071,8 +921,8 @@ subroutine ZFlowResidual(snes,xx,r,realization,ierr)
                           global_auxvars(ghosted_id), &
                           material_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
-                          scale,Res, &
-                          PETSC_FALSE)
+                          scale,Res,Jdum, &
+                          PETSC_FALSE,PETSC_FALSE)
 
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
@@ -1082,9 +932,9 @@ subroutine ZFlowResidual(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
-          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
-          Res(1:2)
+        global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) = &
+          global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) - &
+          Res(:)
       endif
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
@@ -1227,17 +1077,19 @@ subroutine ZFlowJacobian(snes,xx,A,B,realization,ierr)
 
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
 
-  ! Perturb aux vars
-  do ghosted_id = 1, grid%ngmax  ! For each local node do...
-    if (patch%imat(ghosted_id) <= 0) cycle
-    natural_id = grid%nG2A(ghosted_id)
-    call ZFlowAuxVarPerturb(zflow_auxvars(:,ghosted_id), &
-                              global_auxvars(ghosted_id), &
-                              material_auxvars(ghosted_id), &
-                              patch%characteristic_curves_array( &
-                                patch%cc_id(ghosted_id))%ptr, &
-                              natural_id,option)
-  enddo
+  if (zflow_numerical_derivatives) then
+    ! Perturb aux vars
+    do ghosted_id = 1, grid%ngmax  ! For each local node do...
+      if (patch%imat(ghosted_id) <= 0) cycle
+      natural_id = grid%nG2A(ghosted_id)
+      call ZFlowAuxVarPerturb(zflow_auxvars(:,ghosted_id), &
+                                global_auxvars(ghosted_id), &
+                                material_auxvars(ghosted_id), &
+                                patch%characteristic_curves_array( &
+                                  patch%cc_id(ghosted_id))%ptr, &
+                                natural_id,option)
+    enddo
+  endif
 
   if (zflow_calc_accum) then
     ! Accumulation terms ------------------------------------
@@ -1491,13 +1343,6 @@ subroutine ZFlowJacobian(snes,xx,A,B,realization,ierr)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
     call PrintMsg(option)
-  endif
-
-
-  if (zflow_jacobian_test) then
-    zflow_jacobian_test_active = PETSC_TRUE
-    call ZFlowNumericalJacobianTest(xx,A,realization)
-    zflow_jacobian_test_active = PETSC_FALSE
   endif
 
   zflow_ni_count = zflow_ni_count + 1

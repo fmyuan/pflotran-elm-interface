@@ -340,13 +340,8 @@ recursive subroutine PMZFlowInitializeRun(this)
 
   PetscInt :: i
   PetscErrorCode :: ierr
-  type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: block_string
-  class(dataset_base_type), pointer :: dataset
   type(field_type), pointer :: field
-  type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(grid_type), pointer :: grid
-  type(region_type), pointer :: region
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
 
@@ -354,6 +349,8 @@ recursive subroutine PMZFlowInitializeRun(this)
   grid => patch%grid
   field => this%realization%field
   option => this%option
+
+  zflow_numerical_derivatives = option%flow%numerical_derivatives
 
   ! need to allocate vectors for max change
   call VecDuplicateVecsF90(field%work,TWO_INTEGER,field%max_change_vecs, &
@@ -902,7 +899,7 @@ subroutine PMZFlowUpdateSolution(this)
   !
 
   use ZFlow_module, only : ZFlowUpdateSolution, &
-                               ZFlowMapBCAuxVarsToGlobal
+                           ZFlowMapBCAuxVarsToGlobal
 
   implicit none
 
