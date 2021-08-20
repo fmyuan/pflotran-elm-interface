@@ -330,7 +330,7 @@ subroutine ZFlowAuxVarPerturb(zflow_auxvar,global_auxvar, &
   ! ZFLOW_UPDATE_FOR_DERIVATIVE indicates call from perturbation
   option%iflag = ZFLOW_UPDATE_FOR_DERIVATIVE
   x = zflow_auxvar(ZERO_INTEGER)%pres
-  pert = x*perturbation_tolerance*x+min_perturbation
+  pert = x*zflow_pres_rel_pert+zflow_pres_min_pert
   zflow_auxvar(1)%pert = pert
   x_pert(1) = x + pert
   call ZFlowAuxVarCompute(x_pert,zflow_auxvar(ONE_INTEGER),global_auxvar, &

@@ -260,6 +260,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   !
   use Option_module
   use Material_Aux_class
+  use String_module
 
   implicit none
 
@@ -350,7 +351,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
       derivative_toggle = PETSC_FALSE
     case default
       option%io_buffer = &
-        'Boundary condition type not recognized in ZFlowBCFlux phase loop.'
+        'Boundary condition type (' // trim(StringWrite(bc_type)) // &
+        ') not recognized in ZFlowBCFlux phase loop.'
       call PrintErrMsg(option)
   end select
   if (dabs(v_darcy(1)) > 0.d0 .or. kr > 0.d0) then

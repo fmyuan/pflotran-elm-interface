@@ -350,8 +350,6 @@ recursive subroutine PMZFlowInitializeRun(this)
   field => this%realization%field
   option => this%option
 
-  zflow_numerical_derivatives = option%flow%numerical_derivatives
-
   ! need to allocate vectors for max change
   call VecDuplicateVecsF90(field%work,TWO_INTEGER,field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)

@@ -65,6 +65,7 @@ subroutine ZFlowSetup(realization)
   PetscReal :: dist(3)
   PetscBool :: error_found
   PetscInt :: flag(10)
+  PetscInt :: temp_int
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
@@ -118,9 +119,12 @@ subroutine ZFlowSetup(realization)
     call PrintErrMsg(option)
   endif
 
-  allocate(zflow_auxvars(0:option%nflowdof,grid%ngmax))
+  zflow_numerical_derivatives = option%flow%numerical_derivatives
+  temp_int = 0
+  if (zflow_numerical_derivatives) temp_int = 1
+  allocate(zflow_auxvars(0:temp_int,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    do idof = 0, option%nflowdof
+    do idof = 0, temp_int
       call ZFlowAuxVarInit(zflow_auxvars(idof,ghosted_id),option)
     enddo
   enddo
