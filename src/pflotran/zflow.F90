@@ -918,9 +918,9 @@ subroutine ZFlowResidual(snes,xx,r,realization,ierr)
         scale = 1.d0
       endif
 
-      call ZFlowSrcSink(option,source_sink%flow_condition%general%rate% &
+      call ZFlowSrcSink(option,source_sink%flow_condition%rate% &
                                   dataset%rarray(:), &
-                          source_sink%flow_condition%general%rate%itype, &
+                          source_sink%flow_condition%rate%itype, &
                           zflow_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
                           material_auxvars(ghosted_id), &
@@ -1289,14 +1289,13 @@ subroutine ZFlowJacobian(snes,xx,A,B,realization,ierr)
 
       Jup = 0.d0
       call ZFlowSrcSinkDerivative(option, &
-                        source_sink%flow_condition%general%rate% &
+                        source_sink%flow_condition%rate% &
                                   dataset%rarray(:), &
-                        source_sink%flow_condition%general%rate%itype, &
+                        source_sink%flow_condition%rate%itype, &
                         zflow_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
                         material_auxvars(ghosted_id), &
                         scale,Jup)
-
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
@@ -1398,7 +1397,7 @@ end subroutine ZFlowSetPlotVariables
 
 subroutine ZFlowMapBCAuxVarsToGlobal(realization)
   !
-  ! Maps variables in general auxvar to global equivalent.
+  ! Maps variables in zflow auxvar to global equivalent.
   !
   ! Author: Glenn Hammond
   ! Date: 08/13/21
