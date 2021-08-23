@@ -842,7 +842,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
              CapillaryPressure(gen_auxvar%sat(lid), &
                                gen_auxvar%pres(cpid),dpc_dsatl,option) 
       
-      !man: IFT calculation
       sigma=1.d0
       if (characteristic_curves%saturation_function%calc_int_tension) then
        call characteristic_curves%saturation_function% &
@@ -1765,8 +1764,6 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        !pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
        !  (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
 
-       !MAN: Try perturbing upward, because lower gas pressure is associated with
-       !     lower gas saturation (i.e. two-phase)
        pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
                                 x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation
 

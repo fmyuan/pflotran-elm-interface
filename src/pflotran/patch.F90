@@ -930,7 +930,6 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
               case(H_MODE)
                 allocate(coupler%flow_aux_mapping(HYDRATE_MAX_INDEX))
-                !MAN: Need to fix these
                 allocate(coupler%flow_bc_type(THREE_INTEGER))
                 allocate(coupler%flow_aux_real_var(FIVE_INTEGER, &
                                                    num_connections))
@@ -4470,6 +4469,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Reaction_Surface_Complexation_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
+  use Hydrate_Aux_module, only : hydrate_fmw => hydrate_fmw_comp, &
+                                 G_STATE, L_STATE 
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use Output_Aux_module
   use Variables_module
@@ -5024,7 +5025,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               do local_id=1,grid%nlmax
                 ghosted_id = grid%nL2G(local_id)
                 if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                    GAS_STATE) then
+                    G_STATE) then
                   vec_ptr(local_id) = &
                     patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       pres(option%liquid_phase)
@@ -5045,7 +5046,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               do local_id=1,grid%nlmax
                 ghosted_id = grid%nL2G(local_id)
                 if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                    LIQUID_STATE) then
+                    L_STATE) then
                   vec_ptr(local_id) = &
                     patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       pres(option%gas_phase)
@@ -5066,7 +5067,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               do local_id=1,grid%nlmax
                 ghosted_id = grid%nL2G(local_id)
                 if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                    LIQUID_STATE) then
+                    L_STATE) then
                   vec_ptr(local_id) = &
                     patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       pres(option%air_pressure_id)
@@ -5141,10 +5142,9 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               tempint = isubvar
               tempint2 = tempint+1
               if (tempint2 > 2) tempint2 = 1
-              !MAN: need to put in proper conversion here
-              vec_ptr(:) = vec_ptr(:)*general_fmw(tempint) / &
-                           (vec_ptr(:)*general_fmw(tempint) + &
-                            (1.d0-vec_ptr(:))*general_fmw(tempint2))
+              vec_ptr(:) = vec_ptr(:)*hydrate_fmw(tempint) / &
+                           (vec_ptr(:)*hydrate_fmw(tempint) + &
+                            (1.d0-vec_ptr(:))*hydrate_fmw(tempint2))
             endif
           case(LIQUID_MOBILITY)
             do local_id=1,grid%nlmax
@@ -5198,10 +5198,9 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               tempint = isubvar
               tempint2 = tempint+1
               if (tempint2 > 2) tempint2 = 1
-              !MAN: need to put in proper conversion here
-              vec_ptr(:) = vec_ptr(:)*general_fmw(tempint) / &
-                           (vec_ptr(:)*general_fmw(tempint) + &
-                            (1.d0-vec_ptr(:))*general_fmw(tempint2))
+              vec_ptr(:) = vec_ptr(:)*hydrate_fmw(tempint) / &
+                           (vec_ptr(:)*hydrate_fmw(tempint) + &
+                            (1.d0-vec_ptr(:))*hydrate_fmw(tempint2))
             endif
           case(GAS_MOBILITY)
             do local_id=1,grid%nlmax
@@ -5937,6 +5936,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use Variables_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
+  use Hydrate_Aux_module, only : hydrate_fmw => hydrate_fmw_comp, &
+                                 G_STATE, L_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use Material_Aux_class
 
@@ -6278,7 +6279,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                            pres(option%liquid_phase:option%gas_phase))
           case(LIQUID_PRESSURE)
             if (output_option%filter_non_state_variables) then
-              if (patch%aux%Global%auxvars(ghosted_id)%istate /= GAS_STATE) then
+              if (patch%aux%Global%auxvars(ghosted_id)%istate /= G_STATE) then
                 value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                           pres(option%liquid_phase)
               else
@@ -6291,7 +6292,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(GAS_PRESSURE)
             if (output_option%filter_non_state_variables) then
               if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                  LIQUID_STATE) then
+                  L_STATE) then
                 value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                           pres(option%gas_phase)
               else
@@ -6304,7 +6305,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(AIR_PRESSURE)
             if (output_option%filter_non_state_variables) then
               if (patch%aux%Global%auxvars(ghosted_id)%istate /= &
-                  LIQUID_STATE) then
+                  L_STATE) then
                 value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                           pres(option%air_pressure_id)
               else
@@ -6348,11 +6349,10 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             if (ivar == LIQUID_MASS_FRACTION) then
               tempint = isubvar
               tempint2 = tempint+1
-              !MAN: correct this
               if (tempint2 > 2) tempint2 = 1
-              value = value*general_fmw(tempint) / &
-                      (value*general_fmw(tempint) + &
-                       (1.d0-value)*general_fmw(tempint2))
+              value = value*hydrate_fmw(tempint) / &
+                      (value*hydrate_fmw(tempint) + &
+                       (1.d0-value)*hydrate_fmw(tempint2))
             endif
           case(LIQUID_MOBILITY)
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
@@ -6388,10 +6388,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
               tempint = isubvar
               tempint2 = tempint+1
               if (tempint2 > 2) tempint2 = 1
-              !MAN: correct this
-              value = value*general_fmw(tempint) / &
-                      (value*general_fmw(tempint) + &
-                       (1.d0-value)*general_fmw(tempint2))
+              value = value*hydrate_fmw(tempint) / &
+                      (value*hydrate_fmw(tempint) + &
+                       (1.d0-value)*hydrate_fmw(tempint2))
             endif
           case(GAS_MOBILITY)
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
