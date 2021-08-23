@@ -648,7 +648,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dden_ice_dT, dden_ice_dP
   character(len=8) :: state_char
   PetscErrorCode :: ierr, eos_henry_ierr
-  PetscReal :: dTf, h_sat_eff, i_sat_eff, liq_sat_eff, gas_sat_eff
+  PetscReal :: dTf, dTfs, h_sat_eff, i_sat_eff, liq_sat_eff, gas_sat_eff
   PetscReal :: solid_sat_eff
   PetscReal :: sigma, dP
 
@@ -1027,9 +1027,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       hyd_auxvar%xmol(acid,lid) = max(0.d0,hyd_auxvar%xmol(acid,lid))
 
-      if (hyd_auxvar%istatechng) then
-        hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
-      endif
+      hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
 
       hyd_auxvar%sat(gid) = 0.d0
       hyd_auxvar%sat(hid) = 0.d0
@@ -1042,6 +1040,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       else
         dTf = 0.d0
       endif
+
+      if (hydrate_xmol_nacl > 0.d0) then
+        call HydrateSalinityOffset(hydrate_xmol_nacl,dTfs)
+      else
+        dTfs = 0.d0
+      endif
+
+      dTf = dTf - dTfs
       
       hyd_auxvar%temp = TQD-dTf
 
@@ -1161,6 +1167,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         dTf = 0.d0
       endif
 
+      if (hydrate_xmol_nacl > 0.d0) then
+        call HydrateSalinityOffset(hydrate_xmol_nacl,dTfs)
+      else
+        dTfs = 0.d0
+      endif
+
+      dTf = dTf - dTfs
+
       hyd_auxvar%temp = TQD-dTf
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
@@ -1236,8 +1250,24 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = 1.d0 - hyd_auxvar%sat(lid) - hyd_auxvar%sat(iid)
       hyd_auxvar%sat(hid) = 0.d0
 
-      call GibbsThomsonFreezing(1.d0-hyd_auxvar%sat(iid),6017.1d0, &
+      if (hyd_auxvar%sat(gid) > hyd_auxvar%sat(iid)) then
+        gas_sat_eff = hyd_auxvar%sat(gid)+hyd_auxvar%sat(iid)
+        i_sat_eff = 2.d0 * hyd_auxvar%sat(iid)
+      else
+        gas_sat_eff = 2.d0 * hyd_auxvar%sat(gid)
+        i_sat_eff = hyd_auxvar%sat(hid) + hyd_auxvar%sat(iid)
+      endif
+
+      call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0, &
               ICE_DENSITY,TQD,dTf,characteristic_curves, material_auxvar,option)
+
+      if (hydrate_xmol_nacl > 0.d0) then
+        call HydrateSalinityOffset(hydrate_xmol_nacl,dTfs)
+      else
+        dTfs = 0.d0
+      endif
+
+      dTf = dTf - dTfs
 
       hyd_auxvar%temp = TQD-dTf
 
@@ -1254,7 +1284,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         hyd_auxvar%pres(cpid) = 0.d0
       else
         call characteristic_curves%saturation_function% &
-             CapillaryPressure(hyd_auxvar%sat(lid), &
+             CapillaryPressure(1.d0-gas_sat_eff, &
                              hyd_auxvar%pres(cpid),dpc_dsatl,option)
       endif
       
@@ -1295,6 +1325,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       else
         dTf = 0.d0
       endif
+
+      if (hydrate_xmol_nacl > 0.d0) then
+        call HydrateSalinityOffset(hydrate_xmol_nacl,dTfs)
+      else
+        dTfs = 0.d0
+      endif
+
+      dTf = dTf - dTfs
       
       !if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(iid)) then
       !  if (hyd_auxvar%sat(hid) > hyd_auxvar%sat(gid)) then
@@ -3525,8 +3563,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   PetscReal :: T_temp, dTf, dTfs, xmol
 
   if (hydrate_with_gibbs_thomson) then
-    call GibbsThomsonFreezing(1.d0-sat-hydrate_phase_chng_epsilon, &
-                              54734.d0, HYDRATE_DENSITY, T, dTf, &
+    call GibbsThomsonFreezing(1.d0-sat,54734.d0, HYDRATE_DENSITY, T, dTf, &
                               characteristic_curves, material_auxvar, option)
   else
     dTf = 0.d0
@@ -3542,20 +3579,35 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   T_temp = T + 273.15d0 + dTf
   dP = 0.d0
 
-  if (T < TQD) then
+  if (T < TQD - dTf) then
     select case(hydrate_phase_boundary)
       case(1)
         !Kamath, 1984
         PE = exp(1.4717d1-1.88679d3/T_temp)*1.d-3
+        if (hydrate_adjust_ghsz_solubility) then
+          dP = PE - exp(1.4717d1-1.88679d3/T_temp)*1.d-3
+          dP = dP * 1.d6
+        endif
       case(2)
         !Moridis, 2003
         PE = exp(-43.8921173434628 + 0.776302133739303 * T_temp &
              - 7.27291427030502d-3 * T_temp**2 + 3.85413985900724d-5 * &
              T_temp**3 - 1.03669656828834d-7 * T_temp**4 + &
              1.09882180475307d-10 * T_temp**5)
+        if (hydrate_adjust_ghsz_solubility) then
+          dP = PE - exp(-43.8921173434628 + 0.776302133739303 * (T_temp-dTf) &
+             - 7.27291427030502d-3 * (T_temp-dTf)**2 + 3.85413985900724d-5 * &
+             T_temp**3 - 1.03669656828834d-7 * (T_temp-dTf)**4 + &
+             1.09882180475307d-10 * (T_temp-dTf)**5)
+          dP = dP * 1.d6
+        endif
       case(3)
         !Moridis, 2003 simple
         PE = exp(0.0334940999*T_temp - 8.1938174346)
+        if (hydrate_adjust_ghsz_solubility) then
+          dP = PE - exp(0.0334940999*(T_temp-dTf) - 8.1938174346)
+          dP = dP * 1.d6
+        endif 
     end select
   else
     select case(hydrate_phase_boundary)
@@ -3758,14 +3810,16 @@ subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,&
   class(material_auxvar_type) :: material_auxvar
   PetscReal, intent(out) :: dTf
 
-  PetscReal :: Pc,dpc_dsatl,sigma,theta
+  PetscReal :: Pc,sat_temp,dpc_dsatl,sigma,theta
 
   sigma = 0.073d0
   theta = 0.d0
 
+  sat_temp = sat !- hydrate_phase_chng_epsilon !accounting for buffer
+
   !if (material_auxvar%pore_size < 0.d0) then
     call characteristic_curves%saturation_function% &
-             CapillaryPressure(sat,Pc,dpc_dsatl,option)
+             CapillaryPressure(sat_temp,Pc,dpc_dsatl,option)
     dTf = (Tb+273.15)*Pc/(Hf * rho * 1000.d0)
   !else
   !  dTf = (Tb+273.15)*2*sigma*cos(theta)/(Hf * rho * 1000.d0 * &
