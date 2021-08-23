@@ -700,7 +700,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
   ! cannot perform VecMin on local vector as the ghosted corner values are not
   ! updated during the local to local update.
-  call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE,ZERO_INTEGER)
+  call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
   call DiscretizationLocalToGlobal(discretization,field%work_loc,field%work, &
                                    ONEDOF)
   call VecMin(field%work,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)

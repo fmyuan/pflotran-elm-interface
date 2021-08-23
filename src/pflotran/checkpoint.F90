@@ -373,8 +373,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     select case(option%iflowmode)
       case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
       case default
-        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
-                                   STATE,ZERO_INTEGER)
+        call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                          global_vec,ONEDOF)
         call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
@@ -1081,8 +1080,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     select case(option%iflowmode)
       case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,ZFLOW_MODE)
       case default
-        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
-                                   STATE,ZERO_INTEGER)
+        call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                          global_vec,ONEDOF)
         call DiscretizationGlobalToNatural(discretization, global_vec, &
