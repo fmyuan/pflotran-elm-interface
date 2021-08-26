@@ -185,12 +185,13 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: dist_up, dist_dn
   PetscReal :: upweight
 
-  PetscReal :: perm_ave_over_dist
+  PetscReal :: perm_ave_over_dist_visc
   PetscReal :: perm_up, perm_dn
   PetscReal :: delta_pressure
   PetscReal :: gravity_term
   PetscReal :: kr, q
   PetscReal :: dkr_dpup, dkr_dpdn
+  PetscReal :: tempreal
 
   Res = 0.d0
   Jup = 0.d0
@@ -202,8 +203,9 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
-  perm_ave_over_dist = (perm_up * perm_dn) / &
-                       (dist_up*perm_dn + dist_dn*perm_up)
+  perm_ave_over_dist_visc = (perm_up * perm_dn) / &
+                            ((dist_up*perm_dn + dist_dn*perm_up) * &
+                             zflow_viscosity)
 
   if (zflow_auxvar_up%kr + zflow_auxvar_dn%kr > eps) then
 
@@ -221,20 +223,19 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
       dkr_dpdn = zflow_auxvar_dn%dkr_dp
     endif
 
-    if (kr > floweps ) then
+    if (kr > floweps) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
-      v_darcy(1) = perm_ave_over_dist * kr / zflow_viscosity * delta_pressure
+      v_darcy(1) = perm_ave_over_dist_visc * kr * delta_pressure
       ! q[m^3 liquid/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(1) * area * zflow_density_kmol
       ! Res[m^3 liquid/sec]
       Res = Res + q
 
       if (calculate_derivatives) then
-        Jup(1,1) = Res(1) / kr * dkr_dpup + &
-                   Res(1) / delta_pressure ! * 1.d0
-        Jdn(1,1) = Res(1) / kr * dkr_dpdn + &
-                   Res(1) / delta_pressure * (-1.d0)
+        tempreal = perm_ave_over_dist_visc * area * zflow_density_kmol
+        Jup(1,1) = tempreal * (delta_pressure * dkr_dpup + kr)
+        Jdn(1,1) = tempreal * (delta_pressure * dkr_dpdn - kr)
       endif
     endif
   endif
@@ -282,7 +283,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
 
   PetscInt :: bc_type
   PetscInt :: idof
-  PetscReal :: perm_ave_over_dist
+  PetscReal :: perm_ave_over_dist_visc
   PetscReal :: dist_gravity
   PetscReal :: delta_pressure
   PetscReal :: gravity_term
@@ -290,6 +291,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dkr_dp
   PetscReal :: perm_dn
   PetscReal :: boundary_pressure
+  PetscReal :: ddelta_pressure_dpdn
   PetscBool :: derivative_toggle
 
   Res = 0.d0
@@ -313,9 +315,9 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
 
         if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
           idof = auxvar_mapping(ZFLOW_LIQUID_CONDUCTANCE_INDEX)
-          perm_ave_over_dist = auxvars(idof)
+          perm_ave_over_dist_visc = auxvars(idof) / zflow_viscosity
         else
-          perm_ave_over_dist = perm_dn / dist(0)
+          perm_ave_over_dist_visc = perm_dn / (dist(0) * zflow_viscosity)
         endif
 
         boundary_pressure = zflow_auxvar_up%pres
@@ -323,12 +325,14 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         delta_pressure = boundary_pressure - &
                          zflow_auxvar_dn%pres + &
                          gravity_term
+        ddelta_pressure_dpdn = -1.d0
         if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
             bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               zflow_auxvar_up%pres - option%flow%reference_pressure < eps) then
             delta_pressure = 0.d0
+            ddelta_pressure_dpdn = 0.d0
           endif
         endif
         if (delta_pressure >= 0.d0) then
@@ -341,7 +345,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        v_darcy(1) = perm_ave_over_dist * kr / zflow_viscosity * delta_pressure
+        v_darcy(1) = perm_ave_over_dist_visc * kr * delta_pressure
       endif
     case(NEUMANN_BC)
       idof = auxvar_mapping(ZFLOW_LIQUID_FLUX_INDEX)
@@ -361,8 +365,9 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     ! Res[m^3 liquid/sec]
     Res(1) = Res(1) + q
     if (calculate_derivatives .and. derivative_toggle) then
-      Jac(1,1) = Res(1) / kr * dkr_dp + &
-                 Res(1) / delta_pressure * (-1.d0)
+      ! derivative toggle takes care of the NEUMANN side
+      Jac(1,1) = perm_ave_over_dist_visc * area * zflow_density_kmol * &
+                 (dkr_dp * delta_pressure + ddelta_pressure_dpdn * kr)
     endif
   endif
 

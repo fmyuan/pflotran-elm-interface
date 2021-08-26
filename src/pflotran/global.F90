@@ -534,15 +534,23 @@ subroutine GlobalWeightAuxVars(realization,weight)
   option => realization%option
   auxvars => realization%patch%aux%Global%auxvars
   
+  ! interpolate variables based on weight
   do ghosted_id = 1, realization%patch%aux%Global%num_aux
-    ! interpolate density and saturation based on weight
-    auxvars(ghosted_id)%den_kg(:) = &
-      (weight*auxvars(ghosted_id)%den_kg_store(:,TIME_TpDT)+ &
-       (1.d0-weight)*auxvars(ghosted_id)%den_kg_store(:,TIME_T))
     auxvars(ghosted_id)%sat(:) = &
       (weight*auxvars(ghosted_id)%sat_store(:,TIME_TpDT)+ &
        (1.d0-weight)*auxvars(ghosted_id)%sat_store(:,TIME_T))
   enddo
+
+  select case(option%iflowmode)
+    case(ZFLOW_MODE)
+    case default
+      do ghosted_id = 1, realization%patch%aux%Global%num_aux
+        ! interpolate density and saturation based on weight
+        auxvars(ghosted_id)%den_kg(:) = &
+          (weight*auxvars(ghosted_id)%den_kg_store(:,TIME_TpDT)+ &
+           (1.d0-weight)*auxvars(ghosted_id)%den_kg_store(:,TIME_T))
+      enddo
+  end select
   
   select case(option%iflowmode) 
     case(G_MODE,H_MODE)
@@ -630,6 +638,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
                                GAS_DENSITY, GAS_SATURATION, &
                                TEMPERATURE, SC_FUGA_COEFF, GAS_DENSITY_MOL, &
                                DARCY_VELOCITY
+  use ZFlow_Aux_module, only : zflow_density_kg
   
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -664,6 +673,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   ! liquid density
   select case(option%iflowmode)
     case(ZFLOW_MODE)
+      call GlobalSetAuxVarScalar(realization,zflow_density_kg,LIQUID_DENSITY)
     case default
       ! liquid density
       call GlobalUpdateSingleAuxVar(realization,LIQUID_DENSITY,time_level)

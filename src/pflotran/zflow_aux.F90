@@ -256,7 +256,6 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
   ! to blow up.  Therefore, we truncate to the max capillary pressure here.
   zflow_auxvar%pc = min(option%flow%reference_pressure - zflow_auxvar%pres, &
                         characteristic_curves%saturation_function%pcmax)
-  dkr_dsat = 0.d0
 
   if (zflow_auxvar%pc > 0.d0) then
     saturated = PETSC_FALSE
@@ -268,6 +267,7 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
     if (zflow_auxvar%dsat_dp < 1.d-40) then
       saturated = PETSC_TRUE
     else
+      dkr_dsat = 0.d0
       call characteristic_curves%liq_rel_perm_function% &
                        RelativePermeability(zflow_auxvar%sat, &
                                             zflow_auxvar%kr, &
@@ -286,6 +286,8 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
     zflow_auxvar%pc = 0.d0
     zflow_auxvar%sat = 1.d0
     zflow_auxvar%kr = 1.d0
+    zflow_auxvar%dsat_dp = 0.d0
+    zflow_auxvar%dkr_dp = 0.d0
   endif
 
   if (option%iflag /= ZFLOW_UPDATE_FOR_DERIVATIVE) then
