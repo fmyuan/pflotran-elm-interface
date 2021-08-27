@@ -2803,7 +2803,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   field => realization_base%field
 
   select case(option%iflowmode)
-    case (RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+    case (RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
       ndof=1
     case (TH_MODE,TH_TS_MODE)
       ndof=1
@@ -2841,10 +2841,12 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE)
         string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
       case(ZFLOW_MODE)
         string = "Mass_Flowrate [m^3_per_s]" // CHAR(0)
+        option%io_buffer = 'Fix mass flow rate for zflow in output_hdf5.F90'
+        call PrintErrMsg(option)
       case(TH_MODE,TH_TS_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_per_s]" // CHAR(0)

@@ -1,8 +1,8 @@
 auxiliary.o : ert_aux.o general_aux.o global_aux.o hydrate_aux.o \
               inlinesurface_aux.o material_aux.o mphase_aux.o \
-              nw_transport_aux.o pflotran_constants.o reactive_transport_aux.o \
-              richards_aux.o secondary_continuum_aux.o th_aux.o \
-              wipp_flow_aux.o zflow_aux.o
+              nw_transport_aux.o pflotran_constants.o pnf_aux.o \
+              reactive_transport_aux.o richards_aux.o \
+              secondary_continuum_aux.o th_aux.o wipp_flow_aux.o zflow_aux.o
 block_solve.o :
 block_tridiag.o : pflotran_constants.o utility.o
 characteristic_curves.o : characteristic_curves_base.o \
@@ -156,8 +156,8 @@ factory_subsurface.o : characteristic_curves.o characteristic_curves_thermal.o \
                        output_tecplot.o patch.o pflotran_constants.o \
                        pm_auxiliary.o pm_base.o pm_base_pointer.o pm_ert.o \
                        pm_general.o pm_hydrate.o pm_mphase.o pm_nwt.o \
-                       pm_osrt.o pm_richards.o pm_richards_ts.o pm_rt.o \
-                       pm_subsurface_flow.o pm_th.o pm_th_ts.o \
+                       pm_osrt.o pm_pnf.o pm_richards.o pm_richards_ts.o \
+                       pm_rt.o pm_subsurface_flow.o pm_th.o pm_th_ts.o \
                        pm_ufd_biosphere.o pm_ufd_decay.o pm_waste_form.o \
                        pm_wipp_flow.o pm_wipp_srcsink.o pm_zflow.o \
                        pmc_auxiliary.o pmc_base.o pmc_geophysics.o \
@@ -320,9 +320,9 @@ init_subsurface_flow.o : co2_sw.o condition_control.o discretization.o field.o \
                          general.o grid.o hdf5.o hydrate.o init_common.o \
                          material.o mphase.o option.o patch.o \
                          pflotran_constants.o pm_base.o pm_hydrate.o \
-                         pm_richards_ts.o pm_th_ts.o realization_subsurface.o \
-                         richards.o simulation_subsurface.o th.o wipp_flow.o \
-                         zflow.o
+                         pm_richards_ts.o pm_th_ts.o pnf.o \
+                         realization_subsurface.o richards.o \
+                         simulation_subsurface.o th.o wipp_flow.o zflow.o
 init_subsurface_geophysics.o : ert.o option.o pflotran_constants.o \
                                realization_subsurface.o
 init_subsurface_transport.o : condition_control.o global.o nw_transport.o \
@@ -440,9 +440,9 @@ patch.o : auxiliary.o characteristic_curves.o characteristic_curves_thermal.o \
           global_aux.o grid.o grid_unstructured_cell.o hydrate_aux.o \
           hydrostatic.o integral_flux.o material.o material_aux.o mphase_aux.o \
           nw_transport_aux.o nw_transport_equilibrium.o observation.o option.o \
-          output_aux.o pflotran_constants.o reaction.o reaction_aux.o \
-          reaction_base.o reaction_mineral.o reaction_mineral_aux.o \
-          reaction_redox.o reaction_surf_complex_aux.o \
+          output_aux.o pflotran_constants.o pnf_aux.o reaction.o \
+          reaction_aux.o reaction_base.o reaction_mineral.o \
+          reaction_mineral_aux.o reaction_redox.o reaction_surf_complex_aux.o \
           reactive_transport_aux.o region.o richards_aux.o \
           saturation_function.o strata.o string.o th_aux.o \
           transport_constraint.o transport_constraint_base.o \
@@ -504,6 +504,13 @@ pm_osrt.o : data_mediator.o discretization.o global.o material.o \
             material_aux.o option.o pflotran_constants.o pm_base.o pm_rt.o \
             reaction_aux.o reactive_transport.o realization_subsurface.o \
             variables.o
+pm_pnf.o : checkpoint.o convergence.o dataset.o dataset_base.o \
+           dataset_common_hdf5.o debug.o discretization.o eos_water.o field.o \
+           global.o global_aux.o grid.o hdf5.o input_aux.o material.o \
+           material_aux.o option.o patch.o pflotran_constants.o pm_base.o \
+           pm_subsurface_flow.o pnf.o pnf_aux.o realization_base.o \
+           realization_subsurface.o region.o saturation_function.o string.o \
+           upwind_direction.o utility.o variables.o
 pm_richards.o : characteristic_curves.o convergence.o field.o general_aux.o \
                 global_aux.o grid.o input_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
@@ -612,6 +619,14 @@ pmc_subsurface_osrt.o : debug.o discretization.o field.o global_aux.o grid.o \
                         timestepper_KSP.o timestepper_base.o
 pmc_third_party.o : option.o pflotran_constants.o pmc_base.o \
                     realization_subsurface.o timestepper_base.o utility.o
+pnf.o : characteristic_curves.o connection.o coupler.o debug.o \
+        discretization.o eos_water.o field.o general_aux.o global_aux.o grid.o \
+        material.o material_aux.o matrix_zeroing.o option.o output_aux.o \
+        patch.o pflotran_constants.o pnf_aux.o realization_subsurface.o \
+        upwind_direction.o variables.o
+pnf_aux.o : characteristic_curves.o global_aux.o material_aux.o \
+            matrix_zeroing.o option.o pflotran_constants.o utility.o \
+            variables.o
 preconditioner_cpr.o : option.o pflotran_constants.o string.o
 ifdef PFLOTRAN_RXN_FLAG
 reaction.o : generic.o global_aux.o input_aux.o material_aux.o option.o \

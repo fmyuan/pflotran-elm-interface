@@ -1770,7 +1770,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
@@ -1930,7 +1930,7 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'

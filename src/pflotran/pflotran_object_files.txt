@@ -43,6 +43,7 @@ mode_aux_obj = \
 	${common_src}mphase_aux.o \
 	${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
+	${common_src}pnf_aux.o \
 	${common_src}richards_aux.o \
 	${common_src}th_aux.o \
 	${common_src}zflow_aux.o \
@@ -60,6 +61,7 @@ mode_process_model_obj = \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \
 	${common_src}pm_osrt.o \
+	${common_src}pm_pnf.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_th.o \
@@ -80,6 +82,7 @@ mode_obj = \
 	${common_src}global.o \
 	${common_src}mphase.o \
 	${common_src}nw_transport.o \
+	${common_src}pnf.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
 	${common_src}richards_common.o \

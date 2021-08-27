@@ -14,6 +14,7 @@ module Auxiliary_module
   use Material_Aux_class
   use ERT_Aux_module
   use ZFlow_Aux_module
+  use PNF_Aux_module
   use Secondary_Continuum_Aux_module
   use InlineSurface_Aux_module
 
@@ -30,6 +31,7 @@ module Auxiliary_module
     type(th_type), pointer :: TH
     type(richards_type), pointer :: Richards
     type(zflow_type), pointer :: ZFlow
+    type(pnf_type), pointer :: PNF
     type(mphase_type), pointer :: Mphase
     type(general_type), pointer :: General
     type(hydrate_type), pointer :: Hydrate
@@ -66,6 +68,7 @@ subroutine AuxInit(aux)
   nullify(aux%TH)
   nullify(aux%Richards)
   nullify(aux%ZFlow)
+  nullify(aux%PNF)
   nullify(aux%ERT)
 
   nullify(aux%Mphase)
@@ -99,6 +102,7 @@ subroutine AuxDestroy(aux)
   call THAuxDestroy(aux%TH)
   call RichardsAuxDestroy(aux%Richards)
   call ZFlowAuxDestroy(aux%ZFlow)
+  call PNFAuxDestroy(aux%PNF)
   call MphaseAuxDestroy(aux%Mphase)
   call GeneralAuxDestroy(aux%General)
   call HydrateAuxDestroy(aux%Hydrate)
@@ -114,6 +118,7 @@ subroutine AuxDestroy(aux)
   nullify(aux%NWT)
   nullify(aux%Richards)
   nullify(aux%ZFlow)
+  nullify(aux%PNF)
   nullify(aux%Mphase)
   nullify(aux%General)
   nullify(aux%Hydrate)

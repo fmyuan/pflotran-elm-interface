@@ -89,7 +89,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       ! initialize to "unset"
       cur_patch%imat = UNINITIALIZED_INTEGER
       select case(option%iflowmode)
-        case(NULL_MODE)
+        case(NULL_MODE,PNF_MODE)
         case(RICHARDS_MODE,WF_MODE,ZFLOW_MODE)
           allocate(cur_patch%cc_id(grid%ngmax))
           cur_patch%cc_id = UNINITIALIZED_INTEGER
@@ -1123,6 +1123,8 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         matrix_zeroing => patch%aux%Richards%matrix_zeroing
       case(ZFLOW_MODE)
         matrix_zeroing => patch%aux%ZFlow%matrix_zeroing
+      case(PNF_MODE)
+        matrix_zeroing => patch%aux%PNF%matrix_zeroing
       case(TH_MODE,TH_TS_MODE)
         matrix_zeroing => patch%aux%TH%matrix_zeroing
       case(MPH_MODE)
@@ -1143,6 +1145,9 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(ZFLOW_MODE)
         patch%aux%ZFlow%matrix_zeroing => matrix_zeroing
         patch%aux%ZFlow%inactive_cells_exist = inactive_cells_exist
+      case(PNF_MODE)
+        patch%aux%PNF%matrix_zeroing => matrix_zeroing
+        patch%aux%PNF%inactive_cells_exist = inactive_cells_exist
       case(TH_MODE,TH_TS_MODE)
         patch%aux%TH%matrix_zeroing => matrix_zeroing
         patch%aux%TH%inactive_cells_exist = inactive_cells_exist

@@ -1166,6 +1166,9 @@ subroutine FlowConditionRead(condition,input,option)
   !     DIRICHLET_CONDUCTANCE_BC are only used in TH and RICHARDS
   select case(option%iflowmode)
     case(RICHARDS_MODE,TH_MODE,ZFLOW_MODE)
+    case(PNF_MODE)
+      option%io_buffer = 'FLOW_CONDITIONs must be set up for PNF mode'
+      call PrintErrMsg(option)
     case default
       if (pressure%itype == DIRICHLET_SEEPAGE_BC .or. &
           pressure%itype == DIRICHLET_CONDUCTANCE_BC) then
@@ -1458,6 +1461,41 @@ subroutine FlowConditionRead(condition,input,option)
       endif
 
       ! these are not used with richards
+      if (associated(temperature)) call FlowSubConditionDestroy(temperature)
+      if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
+
+    case(PNF_MODE)
+      if (.not.associated(pressure) .and. .not.associated(rate)) then
+        option%io_buffer = 'pressure and rate null in &
+                           &condition: ' // trim(condition%name)
+        call PrintErrMsg(option)
+      endif
+
+      if (associated(pressure)) then
+        condition%pressure => pressure
+      endif
+      if (associated(rate)) then
+        condition%rate => rate
+      endif
+
+      condition%num_sub_conditions = 1
+      allocate(condition%sub_condition_ptr(condition%num_sub_conditions))
+      if (associated(pressure)) then
+        condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
+      elseif (associated(rate)) then
+        condition%sub_condition_ptr(ONE_INTEGER)%ptr => rate
+      endif
+
+      allocate(condition%itype(ONE_INTEGER))
+      if (associated(pressure)) then
+        condition%itype(ONE_INTEGER) = pressure%itype
+      else if (associated(rate)) then
+        condition%itype(ONE_INTEGER) = rate%itype
+      endif
+
+      ! these are not used with PNF
+      if (associated(well)) call FlowSubConditionDestroy(well)
+      if (associated(saturation)) call FlowSubConditionDestroy(saturation)
       if (associated(temperature)) call FlowSubConditionDestroy(temperature)
       if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
 
