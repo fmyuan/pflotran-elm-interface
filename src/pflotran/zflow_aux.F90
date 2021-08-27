@@ -28,6 +28,7 @@ module ZFlow_Aux_module
   PetscBool, public :: zflow_calc_chem = PETSC_TRUE
 
   PetscBool, public :: zflow_numerical_derivatives = PETSC_FALSE
+  PetscBool, public :: zflow_simult_function_evals = PETSC_TRUE
 
   PetscInt, public :: zflow_prev_liq_res_cell(4) = 0
   PetscBool, public :: zflow_check_oscillatory_behavior = PETSC_FALSE

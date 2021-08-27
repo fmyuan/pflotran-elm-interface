@@ -22,7 +22,6 @@ module PM_ZFlow_class
     PetscReal :: liq_sat_change_ts_governor
     PetscInt :: convergence_flags(MAX_RES_LIQ)
     PetscReal :: convergence_reals(MAX_RES_LIQ)
-
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMZFlowReadSimOptionsBlock
@@ -528,12 +527,19 @@ subroutine PMZFlowResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
 
   PetscViewer :: viewer
+  Mat :: M
   character(len=MAXSTRINGLENGTH) :: string
 
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
-
   ! calculate residual
-  call ZFlowResidual(snes,xx,r,this%realization,ierr)
+  if (zflow_simult_function_evals) then
+    call SNESGetJacobian(snes,M,PETSC_NULL_MAT, &
+                         PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
+                         ierr);CHKERRQ(ierr)
+    call ZFlowResidual(snes,xx,r,M,this%realization,ierr)
+  else
+    call ZFlowResidual(snes,xx,r,PETSC_NULL_MAT,this%realization,ierr)
+  endif
 
   if (this%realization%debug%vecview_residual) then
     string = 'ZFresidual'
@@ -576,7 +582,9 @@ subroutine PMZFlowJacobian(this,snes,xx,A,B,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: norm
 
-  call ZFlowJacobian(snes,xx,A,B,this%realization,ierr)
+  if (.not.zflow_simult_function_evals) then
+    call ZFlowJacobian(snes,xx,A,B,this%realization,ierr)
+  endif
 
   if (this%realization%debug%matview_Jacobian) then
     string = 'ZFjacobian'

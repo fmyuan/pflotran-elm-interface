@@ -261,7 +261,7 @@ geometry.o : input_aux.o option.o pflotran_constants.o
 global.o : communicator_base.o connection.o coupler.o discretization.o field.o \
            global_aux.o grid.o material.o option.o output_common.o patch.o \
            pflotran_constants.o realization_base.o realization_subsurface.o \
-           variables.o
+           variables.o zflow_aux.o
 global_aux.o : option.o pflotran_constants.o utility.o
 grid.o : connection.o dm_kludge.o geometry.o grid_structured.o \
          grid_unstructured.o grid_unstructured_aux.o \
@@ -961,4 +961,5 @@ zflow_aux.o : characteristic_curves.o global_aux.o material_aux.o \
               matrix_zeroing.o option.o pflotran_constants.o utility.o \
               variables.o
 zflow_common.o : connection.o eos_gas.o eos_water.o global_aux.o \
-                 material_aux.o option.o pflotran_constants.o zflow_aux.o
+                 material_aux.o option.o pflotran_constants.o string.o \
+                 zflow_aux.o
