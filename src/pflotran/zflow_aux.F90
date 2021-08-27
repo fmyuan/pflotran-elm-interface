@@ -16,12 +16,6 @@ module ZFlow_Aux_module
   PetscReal, public :: zflow_pres_rel_pert = 1.d-8
   PetscReal, public :: zflow_pres_min_pert = 1.d-2
 
-  PetscBool, public :: zflow_residual_test = PETSC_FALSE
-  PetscInt, public :: zflow_residual_test_cell = 0
-  PetscBool, public :: zflow_jacobian_test = PETSC_FALSE
-  PetscInt, public :: zflow_jacobian_test_xdof = 0
-  PetscInt, public :: zflow_jacobian_test_rdof = 0
-  PetscBool, public :: zflow_jacobian_test_active = PETSC_FALSE
   PetscBool, public :: zflow_calc_accum = PETSC_TRUE
   PetscBool, public :: zflow_calc_flux = PETSC_TRUE
   PetscBool, public :: zflow_calc_bcflux = PETSC_TRUE
@@ -29,13 +23,6 @@ module ZFlow_Aux_module
 
   PetscBool, public :: zflow_numerical_derivatives = PETSC_FALSE
   PetscBool, public :: zflow_simult_function_evals = PETSC_TRUE
-
-  PetscInt, public :: zflow_prev_liq_res_cell(4) = 0
-  PetscBool, public :: zflow_check_oscillatory_behavior = PETSC_FALSE
-  PetscBool, public :: zflow_print_oscillatory_behavior = PETSC_FALSE
-  PetscBool, public :: zflow_print_residual = PETSC_FALSE
-  PetscBool, public :: zflow_print_solution = PETSC_FALSE
-  PetscBool, public :: zflow_print_update = PETSC_FALSE
 
   ! debugging
   PetscInt, public :: zflow_ni_count

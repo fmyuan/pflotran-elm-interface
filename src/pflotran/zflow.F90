@@ -21,7 +21,6 @@ module ZFlow_module
             ZFlowComputeMassBalance, &
             ZFlowZeroMassBalanceDelta, &
             ZFlowResidual, &
-            ZFlowJacobian, &
             ZFlowSetPlotVariables, &
             ZFlowMapBCAuxVarsToGlobal, &
             ZFlowDestroy
@@ -61,18 +60,15 @@ subroutine ZFlowSetup(realization)
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
-  PetscInt :: i, idof, count
-  PetscReal :: dist(3)
   PetscBool :: error_found
   PetscInt :: flag(10)
-  PetscInt :: temp_int
+  PetscInt :: temp_int, idof
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_bc(:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  class(characteristic_curves_type), pointer :: cc
 
   option => realization%option
   patch => realization%patch
@@ -417,7 +413,6 @@ subroutine ZFlowUpdateAuxVars(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn, natural_id
-  PetscInt :: real_index, variable
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscErrorCode :: ierr
@@ -445,13 +440,13 @@ subroutine ZFlowUpdateAuxVars(realization)
     natural_id = grid%nG2A(ghosted_id)
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
     call ZFlowAuxVarCompute(xx_loc_p(ghosted_id:ghosted_id), &
-                       zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                       global_auxvars(ghosted_id), &
-                       material_auxvars(ghosted_id), &
-                       patch%characteristic_curves_array( &
-                         patch%cc_id(ghosted_id))%ptr, &
-                       natural_id, &
-                       PETSC_TRUE,option)
+                            zflow_auxvars(ZERO_INTEGER,ghosted_id), &
+                            global_auxvars(ghosted_id), &
+                            material_auxvars(ghosted_id), &
+                            patch%characteristic_curves_array( &
+                              patch%cc_id(ghosted_id))%ptr, &
+                            natural_id, &
+                            PETSC_TRUE,option)
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
@@ -484,12 +479,12 @@ subroutine ZFlowUpdateAuxVars(realization)
       ! ZFLOW_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = ZFLOW_UPDATE_FOR_BOUNDARY
       call ZFlowAuxVarCompute(xxbc,zflow_auxvars_bc(sum_connection), &
-                                global_auxvars_bc(sum_connection), &
-                                material_auxvars(ghosted_id), &
-                                patch%characteristic_curves_array( &
-                                  patch%cc_id(ghosted_id))%ptr, &
-                                natural_id, &
-                                PETSC_FALSE,option)
+                              global_auxvars_bc(sum_connection), &
+                              material_auxvars(ghosted_id), &
+                              patch%characteristic_curves_array( &
+                                patch%cc_id(ghosted_id))%ptr, &
+                              natural_id, &
+                              PETSC_FALSE,option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -563,18 +558,18 @@ subroutine ZFlowUpdateFixedAccum(realization)
     ! ZFLOW_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
     option%iflag = ZFLOW_UPDATE_FOR_FIXED_ACCUM
     call ZFlowAuxVarCompute(xx_p(local_start:local_end), &
-                              zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                              global_auxvars(ghosted_id), &
-                              material_auxvars(ghosted_id), &
-                              patch%characteristic_curves_array( &
-                                patch%cc_id(ghosted_id))%ptr, &
-                              natural_id, &
-                              PETSC_TRUE,option)
+                            zflow_auxvars(ZERO_INTEGER,ghosted_id), &
+                            global_auxvars(ghosted_id), &
+                            material_auxvars(ghosted_id), &
+                            patch%characteristic_curves_array( &
+                              patch%cc_id(ghosted_id))%ptr, &
+                            natural_id, &
+                            PETSC_TRUE,option)
     call ZFlowAccumulation(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                             global_auxvars(ghosted_id), &
-                             material_auxvars(ghosted_id), &
-                             option,accum_p(local_id:local_id), &
-                             Jdum,PETSC_FALSE,PETSC_FALSE)
+                           global_auxvars(ghosted_id), &
+                           material_auxvars(ghosted_id), &
+                           option,accum_p(local_id:local_id), &
+                           Jdum,PETSC_FALSE)
   enddo
 
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
@@ -638,7 +633,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscReal :: scale
   PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   PetscInt :: sum_connection
-  PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
@@ -646,15 +640,12 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
   PetscReal, pointer :: vec_p(:)
-  PetscBool :: debug_connection
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: k
 
   PetscInt :: icc_up, icc_dn
   PetscReal :: Res(1)
-  PetscReal :: temp_Res(1)
-  PetscReal :: Jup(1,1),Jdn(1,1),Jtmp(1,1)
+  PetscReal :: Jup(1,1),Jdn(1,1)
   PetscReal :: v_darcy(1)
 
   discretization => realization%discretization
@@ -683,6 +674,19 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   ! override flags since they will soon be out of date
   patch%aux%ZFlow%auxvars_up_to_date = PETSC_FALSE
 
+  if (zflow_numerical_derivatives) then
+        ! Perturb aux vars
+    do ghosted_id = 1, grid%ngmax  ! For each local node do...
+      if (patch%imat(ghosted_id) <= 0) cycle
+      call ZFlowAuxVarPerturb(zflow_auxvars(:,ghosted_id), &
+                              global_auxvars(ghosted_id), &
+                              material_auxvars(ghosted_id), &
+                              patch%characteristic_curves_array( &
+                                patch%cc_id(ghosted_id))%ptr, &
+                              grid%nG2A(ghosted_id),option)
+    enddo
+  endif
+
   if (option%compute_mass_balance_new) then
     call ZFlowZeroMassBalanceDelta(realization)
   endif
@@ -696,14 +700,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   if (zflow_calc_accum) then
     call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
     r_p = -accum_p
-    if (zflow_residual_test .and. &
-        zflow_residual_test_cell  > 0) then
-      local_end = zflow_residual_test_cell * option%nflowdof
-      local_start = local_end - option%nflowdof + 1
-      write(*,'(" Aold: ",2es12.4,i5)') &
-        -1.d0*r_p(local_start:local_end)/option%flow_dt, &
-        zflow_residual_test_cell
-    endif
     call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
     ! accumulation at t(k+1)
@@ -713,25 +709,19 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       !geh - Ignore inactive cells with inactive materials
       imat = patch%imat(ghosted_id)
       if (imat <= 0) cycle
-      local_end = local_id * option%nflowdof
-      local_start = local_end - option%nflowdof + 1
       call ZFlowAccumulation(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                              global_auxvars(ghosted_id), &
-                              material_auxvars(ghosted_id), &
-                              option,Res,Jup, &
-                              zflow_simult_function_evals,PETSC_FALSE)
-      r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
-      accum_p2(local_start:local_end) = Res(:)
-      if (zflow_residual_test .and. &
-          zflow_residual_test_cell == local_id) then
-        write(*,'(" DT[y]: ",es12.4)') option%flow_dt/3600.d0/24.d0/365.d0
-        write(*,'(" A(calc): ",i5,8es12.4)') &
-          zflow_residual_test_cell, &
-          zflow_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity, &
-          zflow_auxvars(ZERO_INTEGER,ghosted_id)%sat
-        write(*,'(" A: ",2es12.4,i5)') &
-          Res(:)/option%flow_dt, zflow_residual_test_cell
+                             global_auxvars(ghosted_id), &
+                             material_auxvars(ghosted_id), &
+                             option,Res,Jup, &
+                             zflow_simult_function_evals)
+      if (zflow_numerical_derivatives) then
+        call ZFlowAccumDerivative(zflow_auxvars(:,ghosted_id), &
+                                  global_auxvars(ghosted_id), &
+                                  material_auxvars(ghosted_id), &
+                                  option,Jup)
       endif
+      r_p(local_id) =  r_p(local_id) + Res(1)
+      accum_p2(local_id) = Res(1)
       if (zflow_simult_function_evals) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -765,66 +755,36 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         icc_up = patch%cc_id(ghosted_id_up)
         icc_dn = patch%cc_id(ghosted_id_dn)
 
-        if (zflow_jacobian_test) then
-          !if (zflow_jacobian_test_rdof > 0 .and. &
-          !    .not.(ghosted_id_up == &
-          !          int((zflow_jacobian_test_rdof+1)/2) .and. &
-          !          ghosted_id_dn == &
-          !          int((zflow_jacobian_test_rdof+1)/2))) cycle
-          if (zflow_jacobian_test_rdof > 0 .and. &
-              .not.(ghosted_id_up == &
-                    int((zflow_jacobian_test_rdof+1)/2) .or. &
-                    ghosted_id_dn == &
-                    int((zflow_jacobian_test_rdof+1)/2))) cycle
-        endif
-        debug_connection = PETSC_FALSE
-        if (zflow_residual_test .and. &
-            (zflow_residual_test_cell == local_id_up .or. &
-            zflow_residual_test_cell == local_id_dn)) then
-          debug_connection = PETSC_TRUE
-        endif
-        if (zflow_print_oscillatory_behavior) then
-          if (((zflow_prev_liq_res_cell(1) == local_id_up .and. &
-                zflow_prev_liq_res_cell(2) == local_id_dn) .or. &
-              (zflow_prev_liq_res_cell(2) == local_id_up .and. &
-                zflow_prev_liq_res_cell(1) == local_id_dn)) .or. &
-              (zflow_prev_liq_res_cell(1) == &
-              zflow_prev_liq_res_cell(2) .and. &
-              (zflow_prev_liq_res_cell(1) == local_id_up .or. &
-                zflow_prev_liq_res_cell(1) == local_id_dn))) then
-            write(*,'("debug flux: ",2i5)') local_id_up, local_id_dn
-            debug_connection = PETSC_TRUE
-          endif
-        endif
         call XXFlux(zflow_auxvars(ZERO_INTEGER,ghosted_id_up), &
-                        global_auxvars(ghosted_id_up), &
-                        material_auxvars(ghosted_id_up), &
-                        zflow_auxvars(ZERO_INTEGER,ghosted_id_dn), &
-                        global_auxvars(ghosted_id_dn), &
-                        material_auxvars(ghosted_id_dn), &
-                        cur_connection_set%area(iconn), &
-                        cur_connection_set%dist(:,iconn), &
-                        zflow_parameter,option,v_darcy, &
-                        Res,Jup,Jdn, &
-                        zflow_simult_function_evals, & ! derivative call
-                        debug_connection)
-
+                    global_auxvars(ghosted_id_up), &
+                    material_auxvars(ghosted_id_up), &
+                    zflow_auxvars(ZERO_INTEGER,ghosted_id_dn), &
+                    global_auxvars(ghosted_id_dn), &
+                    material_auxvars(ghosted_id_dn), &
+                    cur_connection_set%area(iconn), &
+                    cur_connection_set%dist(:,iconn), &
+                    zflow_parameter,option,v_darcy, &
+                    Res,Jup,Jdn, &
+                    zflow_simult_function_evals)
+        if (zflow_numerical_derivatives) then
+          call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
+                                global_auxvars(ghosted_id_up), &
+                                material_auxvars(ghosted_id_up), &
+                                zflow_auxvars(:,ghosted_id_dn), &
+                                global_auxvars(ghosted_id_dn), &
+                                material_auxvars(ghosted_id_dn), &
+                                cur_connection_set%area(iconn), &
+                                cur_connection_set%dist(:,iconn), &
+                                zflow_parameter,option, &
+                                Jup,Jdn)
+        endif
         patch%internal_velocities(:,sum_connection) = v_darcy
         if (associated(patch%internal_flow_fluxes)) then
           patch%internal_flow_fluxes(:,sum_connection) = Res(:)
         endif
 
         if (local_id_up > 0) then
-          local_end = local_id_up * option%nflowdof
-          local_start = local_end - option%nflowdof + 1
-          temp_Res = Res
-          r_p(local_start:local_end) = r_p(local_start:local_end) + temp_Res(:)
-          if ((zflow_jacobian_test .and. zflow_jacobian_test_rdof > 0) .or. &
-              (zflow_residual_test .and. &
-              zflow_residual_test_cell  == local_id_up)) then
-            write(*,'(" Fup: ",2es12.4,2i5)') -1.d0*temp_Res/option%flow_dt, &
-              local_id_up, local_id_dn
-          endif
+          r_p(local_id_up) = r_p(local_id_up) + Res(1)
           if (zflow_simult_function_evals) then
             call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                           Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -834,16 +794,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         endif
 
         if (local_id_dn > 0) then
-          local_end = local_id_dn * option%nflowdof
-          local_start = local_end - option%nflowdof + 1
-          temp_Res = Res
-          r_p(local_start:local_end) = r_p(local_start:local_end) - temp_Res(:)
-          if ((zflow_jacobian_test .and. zflow_jacobian_test_rdof > 0) .or. &
-              (zflow_residual_test .and. &
-              zflow_residual_test_cell  == local_id_dn)) then
-            write(*,'(" Fdn: ",2es12.4,2i5)') temp_Res/option%flow_dt, &
-              local_id_up, local_id_dn
-          endif
+          r_p(local_id_dn) = r_p(local_id_dn) - Res(1)
           if (zflow_simult_function_evals) then
             Jup = -Jup
             Jdn = -Jdn
@@ -891,8 +842,22 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                       cur_connection_set%dist(:,iconn), &
                       zflow_parameter,option, &
                       v_darcy,Res,Jdn, &
-                      zflow_simult_function_evals, & ! derivative call
-                      PETSC_FALSE)
+                      zflow_simult_function_evals)
+        if (zflow_numerical_derivatives) then
+          call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
+                                  boundary_condition%flow_aux_mapping, &
+                                  boundary_condition% &
+                                    flow_aux_real_var(:,iconn), &
+                                  zflow_auxvars_bc(sum_connection), &
+                                  global_auxvars_bc(sum_connection), &
+                                  zflow_auxvars(:,ghosted_id), &
+                                  global_auxvars(ghosted_id), &
+                                  material_auxvars(ghosted_id), &
+                                  cur_connection_set%area(iconn), &
+                                  cur_connection_set%dist(:,iconn), &
+                                  zflow_parameter,option, &
+                                  Jdn)
+        endif
         patch%boundary_velocities(:,sum_connection) = v_darcy
         if (associated(patch%boundary_flow_fluxes)) then
           patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
@@ -903,15 +868,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             global_auxvars_bc(sum_connection)%mass_balance_delta(:,1) - &
             Res(:)
         endif
-
-        local_end = local_id * option%nflowdof
-        local_start = local_end - option%nflowdof + 1
-        r_p(local_start:local_end)= r_p(local_start:local_end) - Res(:)
-        if ((zflow_jacobian_test .and. zflow_jacobian_test_rdof > 0) .or. &
-            (zflow_residual_test .and. &
-            zflow_residual_test_cell  == local_id)) then
-          write(*,'(" BCF: ",2es12.4,i5 )') Res/option%flow_dt, local_id
-        endif
+        r_p(local_id)= r_p(local_id) - Res(1)
         if (zflow_simult_function_evals) then
           Jdn = -Jdn
           call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
@@ -936,9 +893,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      local_end = local_id * option%nflowdof
-      local_start = local_end - option%nflowdof + 1
-
       if (associated(source_sink%flow_aux_real_var)) then
         scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
       else
@@ -947,14 +901,23 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
 
       call ZFlowSrcSink(option,source_sink%flow_condition%rate% &
                                   dataset%rarray(:), &
-                          source_sink%flow_condition%rate%itype, &
-                          zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                          global_auxvars(ghosted_id), &
-                          material_auxvars(ghosted_id), &
-                          ss_flow_vol_flux, &
-                          scale,Res,Jdn, &
-                          zflow_simult_function_evals,PETSC_FALSE)
-
+                        source_sink%flow_condition%rate%itype, &
+                        zflow_auxvars(ZERO_INTEGER,ghosted_id), &
+                        global_auxvars(ghosted_id), &
+                        material_auxvars(ghosted_id), &
+                        ss_flow_vol_flux, &
+                        scale,Res,Jdn, &
+                        zflow_simult_function_evals)
+      if (zflow_numerical_derivatives) then
+        call ZFlowSrcSinkDerivative(option, &
+                                    source_sink%flow_condition%rate% &
+                                      dataset%rarray(:), &
+                                    source_sink%flow_condition%rate%itype, &
+                                    zflow_auxvars(:,ghosted_id), &
+                                    global_auxvars(ghosted_id), &
+                                    material_auxvars(ghosted_id), &
+                                    scale,Jdn)
+      endif
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
       endif
@@ -967,7 +930,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) - &
           Res(:)
       endif
-      r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
+      r_p(local_id) =  r_p(local_id) - Res(1)
       if (zflow_simult_function_evals) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1015,14 +978,13 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
     ! indicates mass being added to system.
     call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    ! geh: leave in expanded do loop form instead of VecAXPY for flexibility
+    !      in the future
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       imat = patch%imat(ghosted_id)
       if (imat <= 0) cycle
-      local_end = local_id * option%nflowdof
-      local_start = local_end - option%nflowdof + 1
-      Res = vec_p(local_start:local_end)
-      r_p(local_start:local_end) = r_p(local_start:local_end) - Res
+      r_p(local_id) = r_p(local_id) - vec_p(local_id)
     enddo
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
@@ -1051,364 +1013,6 @@ end subroutine ZFlowResidual
 
 ! ************************************************************************** !
 
-subroutine ZFlowJacobian(snes,xx,A,B,realization,ierr)
-  !
-  ! Computes the Jacobian
-  !
-  ! Author: Glenn Hammond
-  ! Date: 08/13/21
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-  use Grid_module
-  use Option_module
-  use Connection_module
-  use Coupler_module
-  use Field_module
-  use Material_Aux_class
-  use Upwind_Direction_module
-  use Debug_module
-
-  implicit none
-
-  SNES :: snes
-  Vec :: xx
-  Mat :: A, B
-  type(realization_subsurface_type) :: realization
-  PetscErrorCode :: ierr
-  PetscViewer :: viewer
-
-  Mat :: J
-  MatType :: mat_type
-  PetscReal :: norm
-
-  PetscInt :: icc_up,icc_dn
-  PetscReal :: qsrc, scale
-  PetscInt :: imat, imat_up, imat_dn
-  PetscInt :: local_id, ghosted_id, natural_id
-  PetscInt :: local_id_up, local_id_dn
-  PetscInt :: ghosted_id_up, ghosted_id_dn
-  Vec, parameter :: null_vec = tVec(0)
-
-  PetscReal :: Jup(1,1), Jdn(1,1), Jtmp(1,1)
-
-  type(coupler_type), pointer :: boundary_condition, source_sink
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
-  PetscInt :: iconn
-  PetscInt :: sum_connection
-  PetscInt, pointer :: zeros(:)
-  type(grid_type), pointer :: grid
-  type(patch_type), pointer :: patch
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  type(material_parameter_type), pointer :: material_parameter
-  type(zflow_parameter_type), pointer :: zflow_parameter
-  type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
-  type(zflow_auxvar_type), pointer :: zflow_auxvars_bc(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: k
-
-  patch => realization%patch
-  grid => patch%grid
-  option => realization%option
-  field => realization%field
-  material_parameter => patch%aux%Material%material_parameter
-  zflow_auxvars => patch%aux%ZFlow%auxvars
-  zflow_auxvars_bc => patch%aux%ZFlow%auxvars_bc
-  zflow_parameter => patch%aux%ZFlow%zflow_parameter
-  global_auxvars => patch%aux%Global%auxvars
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
-  material_auxvars => patch%aux%Material%auxvars
-
-  call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
-  if (mat_type == MATMFFD) then
-    J = B
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  else
-    J = A
-  endif
-
-  call MatZeroEntries(J,ierr);CHKERRQ(ierr)
-
-  if (zflow_numerical_derivatives) then
-    ! Perturb aux vars
-    do ghosted_id = 1, grid%ngmax  ! For each local node do...
-      if (patch%imat(ghosted_id) <= 0) cycle
-      natural_id = grid%nG2A(ghosted_id)
-      call ZFlowAuxVarPerturb(zflow_auxvars(:,ghosted_id), &
-                                global_auxvars(ghosted_id), &
-                                material_auxvars(ghosted_id), &
-                                patch%characteristic_curves_array( &
-                                  patch%cc_id(ghosted_id))%ptr, &
-                                natural_id,option)
-    enddo
-  endif
-
-  if (zflow_calc_accum) then
-    ! Accumulation terms ------------------------------------
-    do local_id = 1, grid%nlmax  ! For each local node do...
-      ghosted_id = grid%nL2G(local_id)
-      !geh - Ignore inactive cells with inactive materials
-      imat = patch%imat(ghosted_id)
-      if (imat <= 0) cycle
-      call ZFlowAccumDerivative(zflow_auxvars(:,ghosted_id), &
-                                global_auxvars(ghosted_id), &
-                                material_auxvars(ghosted_id), &
-                                option, &
-                                Jup)
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
-    enddo
-
-    if (realization%debug%matview_Jacobian_detailed) then
-      call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call DebugWriteFilename(realization%debug,string,'ZFjacobian_accum','', &
-                              zflow_ts_count,zflow_ts_cut_count, &
-                              zflow_ni_count)
-      call DebugCreateViewer(realization%debug,string,option,viewer)
-      call MatView(A,viewer,ierr);CHKERRQ(ierr)
-      call DebugViewerDestroy(realization%debug,viewer)
-    endif
-
-  endif
-
-  if (zflow_calc_flux) then
-    ! Interior Flux Terms -----------------------------------
-    connection_set_list => grid%internal_connection_set_list
-    cur_connection_set => connection_set_list%first
-    sum_connection = 0
-    do
-      if (.not.associated(cur_connection_set)) exit
-      do iconn = 1, cur_connection_set%num_connections
-        sum_connection = sum_connection + 1
-
-        ghosted_id_up = cur_connection_set%id_up(iconn)
-        ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-        imat_up = patch%imat(ghosted_id_up)
-        imat_dn = patch%imat(ghosted_id_dn)
-        if (imat_up <= 0 .or. imat_dn <= 0) cycle
-
-        local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-        local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping
-
-        icc_up = patch%cc_id(ghosted_id_up)
-        icc_dn = patch%cc_id(ghosted_id_dn)
-
-        if (zflow_jacobian_test) then
-          !if (zflow_jacobian_test_rdof > 0 .and. &
-          !   .not.(ghosted_id_up == &
-          !          int((zflow_jacobian_test_rdof+1)/2) .and. &
-          !          ghosted_id_dn == &
-          !          int((zflow_jacobian_test_rdof+1)/2))) cycle
-          if (zflow_jacobian_test_rdof > 0 .and. &
-              .not.(ghosted_id_up == &
-                    int((zflow_jacobian_test_rdof+1)/2) .or. &
-                    ghosted_id_dn == &
-                    int((zflow_jacobian_test_rdof+1)/2))) cycle
-        endif
-        call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
-                      global_auxvars(ghosted_id_up), &
-                      material_auxvars(ghosted_id_up), &
-                      zflow_auxvars(:,ghosted_id_dn), &
-                      global_auxvars(ghosted_id_dn), &
-                      material_auxvars(ghosted_id_dn), &
-                      cur_connection_set%area(iconn), &
-                      cur_connection_set%dist(:,iconn), &
-                      zflow_parameter,option, &
-                      Jup,Jdn)
-        if (local_id_up > 0) then
-          Jtmp = Jup
-          if (zflow_jacobian_test .and. zflow_jacobian_test_rdof > 0) then
-            print *, 'up-up: ',Jtmp, local_id_up
-          endif
-          call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                                        Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
-          Jtmp = Jdn
-          if (zflow_jacobian_test .and. zflow_jacobian_test_rdof > 0) then
-            print *, 'up-dn: ',Jtmp, local_id_up
-          endif
-          call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                                        Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
-        endif
-        if (local_id_dn > 0) then
-          Jup = -Jup
-          Jdn = -Jdn
-          Jtmp = Jdn
-          if (zflow_jacobian_test) then
-            print *, 'dn-dn: ',Jtmp, local_id_dn
-          endif
-          call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                                        Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
-          Jtmp = Jup
-          if (zflow_jacobian_test) then
-            print *, 'dn-up: ',Jtmp, local_id_dn
-          endif
-          call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-                                        Jtmp,ADD_VALUES,ierr);CHKERRQ(ierr)
-        endif
-      enddo
-      cur_connection_set => cur_connection_set%next
-    enddo
-
-    if (realization%debug%matview_Jacobian_detailed) then
-      call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call DebugWriteFilename(realization%debug,string,'ZFjacobian_flux','', &
-                              zflow_ts_count,zflow_ts_cut_count, &
-                              zflow_ni_count)
-      call DebugCreateViewer(realization%debug,string,option,viewer)
-      call MatView(A,viewer,ierr);CHKERRQ(ierr)
-      call DebugViewerDestroy(realization%debug,viewer)
-    endif
-
-  endif
-
-  if (zflow_calc_bcflux) then
-    ! Boundary Flux Terms -----------------------------------
-    boundary_condition => patch%boundary_condition_list%first
-    sum_connection = 0
-    do
-      if (.not.associated(boundary_condition)) exit
-
-      cur_connection_set => boundary_condition%connection_set
-
-      do iconn = 1, cur_connection_set%num_connections
-        sum_connection = sum_connection + 1
-
-        local_id = cur_connection_set%id_dn(iconn)
-        ghosted_id = grid%nL2G(local_id)
-
-        imat_dn = patch%imat(ghosted_id)
-        if (imat_dn <= 0) cycle
-
-        icc_dn = patch%cc_id(ghosted_id)
-
-        call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
-                        boundary_condition%flow_aux_mapping, &
-                        boundary_condition%flow_aux_real_var(:,iconn), &
-                        zflow_auxvars_bc(sum_connection), &
-                        global_auxvars_bc(sum_connection), &
-                        zflow_auxvars(:,ghosted_id), &
-                        global_auxvars(ghosted_id), &
-                        material_auxvars(ghosted_id), &
-                        cur_connection_set%area(iconn), &
-                        cur_connection_set%dist(:,iconn), &
-                        zflow_parameter,option, &
-                        Jdn)
-
-        Jdn = -Jdn
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
-      enddo
-      boundary_condition => boundary_condition%next
-    enddo
-
-    if (realization%debug%matview_Jacobian_detailed) then
-      call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call DebugWriteFilename(realization%debug,string,'ZFjacobian_bcflux','', &
-                              zflow_ts_count,zflow_ts_cut_count, &
-                              zflow_ni_count)
-      call DebugCreateViewer(realization%debug,string,option,viewer)
-      call MatView(A,viewer,ierr);CHKERRQ(ierr)
-      call DebugViewerDestroy(realization%debug,viewer)
-    endif
-
-  endif
-
-  ! Source/sinks
-  source_sink => patch%source_sink_list%first
-  do
-    if (.not.associated(source_sink)) exit
-
-    cur_connection_set => source_sink%connection_set
-
-    do iconn = 1, cur_connection_set%num_connections
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-
-      if (associated(source_sink%flow_aux_real_var)) then
-        scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
-      else
-        scale = 1.d0
-      endif
-
-      Jup = 0.d0
-      call ZFlowSrcSinkDerivative(option, &
-                        source_sink%flow_condition%rate% &
-                                  dataset%rarray(:), &
-                        source_sink%flow_condition%rate%itype, &
-                        zflow_auxvars(:,ghosted_id), &
-                        global_auxvars(ghosted_id), &
-                        material_auxvars(ghosted_id), &
-                        scale,Jup)
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
-
-    enddo
-    source_sink => source_sink%next
-  enddo
-
-  if (realization%debug%matview_Jacobian_detailed) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call DebugWriteFilename(realization%debug,string,'ZFjacobian_srcsink','', &
-                            zflow_ts_count,zflow_ts_cut_count, &
-                            zflow_ni_count)
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization%debug,viewer)
-  endif
-
-  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-
-  ! zero out inactive cells
-  if (patch%aux%ZFlow%inactive_cells_exist) then
-    qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%ZFlow%matrix_zeroing%n_inactive_rows, &
-                          patch%aux%ZFlow%matrix_zeroing% &
-                            inactive_rows_local_ghosted, &
-                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                          ierr);CHKERRQ(ierr)
-  endif
-
-  if (realization%debug%matview_Jacobian) then
-    call DebugWriteFilename(realization%debug,string,'ZFjacobian','', &
-                            zflow_ts_count,zflow_ts_cut_count, &
-                            zflow_ni_count)
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call DebugViewerDestroy(realization%debug,viewer)
-  endif
-  if (realization%debug%norm_Jacobian) then
-    option => realization%option
-    call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
-    write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call PrintMsg(option)
-    call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
-    write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call PrintMsg(option)
-    call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
-    write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call PrintMsg(option)
-  endif
-
-  zflow_ni_count = zflow_ni_count + 1
-
-end subroutine ZFlowJacobian
-
-! ************************************************************************** !
-
 subroutine ZFlowSetPlotVariables(realization,list)
   !
   ! Adds variables to be printed to list
@@ -1427,7 +1031,6 @@ subroutine ZFlowSetPlotVariables(realization,list)
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
-  type(output_variable_type), pointer :: output_variable
 
   if (associated(list%first)) then
     return

@@ -27,8 +27,7 @@ module ZFlow_Common_module
                          area, dist, &
                          zflow_parameter, &
                          option,v_darcy,Res,Jup,Jdn, &
-                         calculate_derivatives, &
-                         debug_connection)
+                         calculate_derivatives)
       use ZFlow_Aux_module
       use Global_Aux_module
       use Option_module
@@ -45,17 +44,15 @@ module ZFlow_Common_module
       PetscReal :: Res(1)
       PetscReal :: Jup(1,1), Jdn(1,1)
       PetscBool :: calculate_derivatives
-      PetscBool :: debug_connection
     end subroutine FluxDummy
     subroutine BCFluxDummy(ibndtype,auxvar_mapping,auxvars, &
-                         zflow_auxvar_up,global_auxvar_up, &
-                         zflow_auxvar_dn,global_auxvar_dn, &
-                         material_auxvar_dn, &
-                         area,dist, &
-                         zflow_parameter, &
-                         option,v_darcy,Res,Jdn, &
-                         calculate_derivatives, &
-                         debug_connection)
+                           zflow_auxvar_up,global_auxvar_up, &
+                           zflow_auxvar_dn,global_auxvar_dn, &
+                           material_auxvar_dn, &
+                           area,dist, &
+                           zflow_parameter, &
+                           option,v_darcy,Res,Jdn, &
+                           calculate_derivatives)
       use ZFlow_Aux_module
       use Global_Aux_module
       use Option_module
@@ -75,7 +72,6 @@ module ZFlow_Common_module
       PetscReal :: Res(1)
       PetscReal :: Jdn(1,1)
       PetscBool :: calculate_derivatives
-      PetscBool :: debug_connection
     end subroutine BCFluxDummy
   end interface
 
@@ -96,7 +92,7 @@ contains
 ! ************************************************************************** !
 
 subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
-                             option,Res,Jac,calculate_derivatives,debug_cell)
+                             option,Res,Jac,calculate_derivatives)
   !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -117,7 +113,6 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: Res(1)
   PetscReal :: Jac(1,1)
   PetscBool :: calculate_derivatives
-  PetscBool :: debug_cell
 
   PetscReal :: porosity
   PetscReal :: volume_over_dt
@@ -138,7 +133,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
 
   if (calculate_derivatives) then
     Jac(1,1) = Res(1) / zflow_auxvar%sat * zflow_auxvar%dsat_dp + &
-               Res(1) / porosity * zflow_auxvar%dpor_dp
+                Res(1) / porosity * zflow_auxvar%dpor_dp
   endif
 
 end subroutine ZFlowAccumulation
@@ -146,15 +141,14 @@ end subroutine ZFlowAccumulation
 ! ************************************************************************** !
 
 subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
-                                   material_auxvar_up, &
-                                   zflow_auxvar_dn,global_auxvar_dn, &
-                                   material_auxvar_dn, &
-                                   area, dist, &
-                                   zflow_parameter, &
-                                   option,v_darcy,Res, &
-                                   Jup,Jdn, &
-                                   calculate_derivatives, &
-                                   debug_connection)
+                                     material_auxvar_up, &
+                                     zflow_auxvar_dn,global_auxvar_dn, &
+                                     material_auxvar_dn, &
+                                     area, dist, &
+                                     zflow_parameter, &
+                                     option,v_darcy,Res, &
+                                     Jup,Jdn, &
+                                     calculate_derivatives)
   !
   ! Computes the internal flux terms for the residual based on harmonic
   ! intrinsic permeability
@@ -179,7 +173,6 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: Res(1)
   PetscReal :: Jup(1,1), Jdn(1,1)
   PetscBool :: calculate_derivatives
-  PetscBool :: debug_connection
 
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscReal :: dist_up, dist_dn
@@ -245,14 +238,13 @@ end subroutine ZFlowFluxHarmonicPermOnly
 ! ************************************************************************** !
 
 subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
-                                     zflow_auxvar_up,global_auxvar_up, &
-                                     zflow_auxvar_dn,global_auxvar_dn, &
-                                     material_auxvar_dn, &
-                                     area,dist, &
-                                     zflow_parameter, &
-                                     option,v_darcy,Res,Jac, &
-                                     calculate_derivatives, &
-                                     debug_connection)
+                                       zflow_auxvar_up,global_auxvar_up, &
+                                       zflow_auxvar_dn,global_auxvar_dn, &
+                                       material_auxvar_dn, &
+                                       area,dist, &
+                                       zflow_parameter, &
+                                       option,v_darcy,Res,Jac, &
+                                       calculate_derivatives)
   !
   ! Computes the boundary flux terms for the residual
   !
@@ -279,7 +271,6 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Res(1)
   PetscReal :: Jac(1,1)
   PetscBool :: calculate_derivatives
-  PetscBool :: debug_connection
 
   PetscInt :: bc_type
   PetscInt :: idof
@@ -367,7 +358,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     if (calculate_derivatives .and. derivative_toggle) then
       ! derivative toggle takes care of the NEUMANN side
       Jac(1,1) = perm_ave_over_dist_visc * area * zflow_density_kmol * &
-                 (dkr_dp * delta_pressure + ddelta_pressure_dpdn * kr)
+                  (dkr_dp * delta_pressure + ddelta_pressure_dpdn * kr)
     endif
   endif
 
@@ -378,7 +369,7 @@ end subroutine ZFlowBCFluxHarmonicPermOnly
 subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
                         zflow_auxvar,global_auxvar,material_auxvar, &
                         ss_flow_vol_flux,scale,Res,Jac, &
-                        calculate_derivatives,debug_cell)
+                        calculate_derivatives)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -403,7 +394,6 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: Res(1)
   PetscReal :: Jac(1,1)
   PetscBool :: calculate_derivatives
-  PetscBool :: debug_cell
 
   PetscReal :: qsrc_m3
 
@@ -459,39 +449,31 @@ subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
   PetscReal :: res(1), res_pert(1)
   PetscReal :: Jdum(1,1)
 
-  if (.not.zflow_numerical_derivatives) then
-    call ZFlowAccumulation(zflow_auxvar(ZERO_INTEGER), &
-                           global_auxvar, &
-                           material_auxvar, &
-                           option,res,J, &
-                           PETSC_TRUE,PETSC_FALSE)
-  else
-    call ZFlowAccumulation(zflow_auxvar(ZERO_INTEGER), &
-                           global_auxvar, &
-                           material_auxvar, &
-                           option,res,Jdum, &
-                           PETSC_FALSE,PETSC_FALSE)
+  call ZFlowAccumulation(zflow_auxvar(ZERO_INTEGER), &
+                         global_auxvar, &
+                         material_auxvar, &
+                         option,res,Jdum, &
+                         PETSC_FALSE)
 
-    call ZFlowAccumulation(zflow_auxvar(ONE_INTEGER), &
-                           global_auxvar, &
-                           material_auxvar, &
-                           option,res_pert,Jdum, &
-                           PETSC_FALSE,PETSC_FALSE)
-    ! J[m^3 liquid/Pa-sec]
-    J(1,1) = (res_pert(1)-res(1))/zflow_auxvar(ONE_INTEGER)%pert
-  endif
+  call ZFlowAccumulation(zflow_auxvar(ONE_INTEGER), &
+                         global_auxvar, &
+                         material_auxvar, &
+                         option,res_pert,Jdum, &
+                         PETSC_FALSE)
+  ! J[m^3 liquid/Pa-sec]
+  J(1,1) = (res_pert(1)-res(1))/zflow_auxvar(ONE_INTEGER)%pert
 
 end subroutine ZFlowAccumDerivative
 
 ! ************************************************************************** !
 
 subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
-                                 material_auxvar_up, &
-                                 zflow_auxvar_dn,global_auxvar_dn, &
-                                 material_auxvar_dn, &
-                                 area, dist, &
-                                 zflow_parameter, &
-                                 option,Jup,Jdn)
+                            material_auxvar_up, &
+                            zflow_auxvar_dn,global_auxvar_dn, &
+                            material_auxvar_dn, &
+                            area, dist, &
+                            zflow_parameter, &
+                            option,Jup,Jdn)
   !
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
@@ -522,79 +504,53 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
   Jup = 0.d0
   Jdn = 0.d0
 
-  if (.not.zflow_numerical_derivatives) then
-    call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                material_auxvar_up, &
-                zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                material_auxvar_dn, &
-                area,dist, &
-                zflow_parameter, &
-                option,v_darcy,res_up,Jup,Jdn, &
-                PETSC_TRUE,PETSC_FALSE)
-  else
-    call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                material_auxvar_up, &
-                zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                material_auxvar_dn, &
-                area,dist, &
-                zflow_parameter, &
-                option,v_darcy,res_up,Jdum,Jdum, &
-                PETSC_FALSE,PETSC_FALSE)
-    res_dn = res_up
+  call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+              material_auxvar_up, &
+              zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+              material_auxvar_dn, &
+              area,dist, &
+              zflow_parameter, &
+              option,v_darcy,res_up,Jdum,Jdum, &
+              PETSC_FALSE)
+  res_dn = res_up
 
-    if (zflow_jacobian_test) then
-      print *, 'res_dn: ', res_dn
-      print *, 'res_up: ', res_up
-    endif
-
-    ! upgradient derivatives
-    call XXFlux(zflow_auxvar_up(ONE_INTEGER),global_auxvar_up, &
-                material_auxvar_up, &
-                zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                material_auxvar_dn, &
-                area,dist, &
-                zflow_parameter, &
-                option,v_darcy,res_pert,Jdum,Jdum, &
-                PETSC_FALSE,PETSC_FALSE)
-    if (zflow_jacobian_test) then
-      if (zflow_jacobian_test_xdof > 0) then
-        print *, 'res_pert_up: ', res_pert
-      endif
-    endif
-    ! J[m^3 liquid/Pa-sec]
-    Jup(1,1) = (res_pert(1)-res_up(1)) / &
-                        zflow_auxvar_up(ONE_INTEGER)%pert
-    ! downgradient derivatives
-    call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                material_auxvar_up, &
-                zflow_auxvar_dn(ONE_INTEGER),global_auxvar_dn, &
-                material_auxvar_dn, &
-                area,dist, &
-                zflow_parameter, &
-                option,v_darcy,res_pert,Jdum,Jdum, &
-                PETSC_FALSE,PETSC_FALSE)
-    if (zflow_jacobian_test) then
-      if (zflow_jacobian_test_xdof > 0) then
-        print *, 'res_pert_dn: ', res_pert
-      endif
-    endif
-    ! J[m^3 liquid/Pa-sec]
-    Jdn(1,1) = (res_pert(1)-res_dn(1)) / &
-                      zflow_auxvar_dn(ONE_INTEGER)%pert
-  endif
+  ! upgradient derivatives
+  call XXFlux(zflow_auxvar_up(ONE_INTEGER),global_auxvar_up, &
+              material_auxvar_up, &
+              zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+              material_auxvar_dn, &
+              area,dist, &
+              zflow_parameter, &
+              option,v_darcy,res_pert,Jdum,Jdum, &
+              PETSC_FALSE)
+  ! J[m^3 liquid/Pa-sec]
+  Jup(1,1) = (res_pert(1)-res_up(1)) / &
+                      zflow_auxvar_up(ONE_INTEGER)%pert
+  ! downgradient derivatives
+  call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+              material_auxvar_up, &
+              zflow_auxvar_dn(ONE_INTEGER),global_auxvar_dn, &
+              material_auxvar_dn, &
+              area,dist, &
+              zflow_parameter, &
+              option,v_darcy,res_pert,Jdum,Jdum, &
+              PETSC_FALSE)
+  ! J[m^3 liquid/Pa-sec]
+  Jdn(1,1) = (res_pert(1)-res_dn(1)) / &
+             zflow_auxvar_dn(ONE_INTEGER)%pert
 
 end subroutine XXFluxDerivative
 
 ! ************************************************************************** !
 
 subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
-                                   zflow_auxvar_up, &
-                                   global_auxvar_up, &
-                                   zflow_auxvar_dn,global_auxvar_dn, &
-                                   material_auxvar_dn, &
-                                   area,dist, &
-                                   zflow_parameter, &
-                                   option,Jdn)
+                              zflow_auxvar_up, &
+                              global_auxvar_up, &
+                              zflow_auxvar_dn,global_auxvar_dn, &
+                              material_auxvar_dn, &
+                              area,dist, &
+                              zflow_parameter, &
+                              option,Jdn)
   !
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
@@ -626,45 +582,34 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   Jdn = 0.d0
 
-  if (.not.zflow_numerical_derivatives) then
-    call XXBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                      zflow_auxvar_up,global_auxvar_up, &
-                      zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                      material_auxvar_dn, &
-                      area,dist, &
-                      zflow_parameter, &
-                      option,v_darcy,res,Jdn, &
-                      PETSC_TRUE,PETSC_FALSE)
-  else
-    call XXBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                      zflow_auxvar_up,global_auxvar_up, &
-                      zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                      material_auxvar_dn, &
-                      area,dist, &
-                      zflow_parameter, &
-                      option,v_darcy,res,Jdum, &
-                      PETSC_FALSE,PETSC_FALSE)
+  call XXBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                zflow_auxvar_up,global_auxvar_up, &
+                zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                material_auxvar_dn, &
+                area,dist, &
+                zflow_parameter, &
+                option,v_darcy,res,Jdum, &
+                PETSC_FALSE)
 
-    ! downgradient derivatives
-    call XXBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                        zflow_auxvar_up,global_auxvar_up, &
-                        zflow_auxvar_dn(ONE_INTEGER),global_auxvar_dn, &
-                        material_auxvar_dn, &
-                        area,dist, &
-                        zflow_parameter, &
-                        option,v_darcy,res_pert,Jdum, &
-                        PETSC_FALSE,PETSC_FALSE)
-    ! J[m^3 liquid/Pa-sec]
-    Jdn(1,1) = (res_pert(1)-res(1))/zflow_auxvar_dn(ONE_INTEGER)%pert
-  endif
+  ! downgradient derivatives
+  call XXBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                zflow_auxvar_up,global_auxvar_up, &
+                zflow_auxvar_dn(ONE_INTEGER),global_auxvar_dn, &
+                material_auxvar_dn, &
+                area,dist, &
+                zflow_parameter, &
+                option,v_darcy,res_pert,Jdum, &
+                PETSC_FALSE)
+  ! J[m^3 liquid/Pa-sec]
+  Jdn(1,1) = (res_pert(1)-res(1))/zflow_auxvar_dn(ONE_INTEGER)%pert
 
 end subroutine XXBCFluxDerivative
 
 ! ************************************************************************** !
 
 subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
-                                    zflow_auxvars,global_auxvar, &
-                                    material_auxvar,scale,Jac)
+                                  zflow_auxvars,global_auxvar, &
+                                  material_auxvar,scale,Jac)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -690,27 +635,20 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   PetscReal :: Jdum(1,1)
 
   Jac = 0.d0
-  if (.not.zflow_numerical_derivatives) then
-    call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
-                        zflow_auxvars(ZERO_INTEGER),global_auxvar, &
-                        material_auxvar,dummy_real,scale,res,Jac, &
-                        PETSC_TRUE,PETSC_FALSE)
-  else
-    ! unperturbed zflow_auxvars value
-    call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
-                        zflow_auxvars(ZERO_INTEGER),global_auxvar, &
-                        material_auxvar,dummy_real,scale,res,Jdum, &
-                        PETSC_FALSE,PETSC_FALSE)
+  ! unperturbed zflow_auxvars value
+  call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
+                    zflow_auxvars(ZERO_INTEGER),global_auxvar, &
+                    material_auxvar,dummy_real,scale,res,Jdum, &
+                    PETSC_FALSE)
 
-    ! perturbed zflow_auxvars values
-    call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
-                        zflow_auxvars(ONE_INTEGER),global_auxvar, &
-                        material_auxvar,dummy_real, &
-                        scale,res_pert,Jdum, &
-                        PETSC_FALSE,PETSC_FALSE)
-    ! J[m^3 liquid/Pa-sec]
-    Jac(1,1) = (res_pert(1)-res(1))/zflow_auxvars(ONE_INTEGER)%pert
-  endif
+  ! perturbed zflow_auxvars values
+  call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
+                    zflow_auxvars(ONE_INTEGER),global_auxvar, &
+                    material_auxvar,dummy_real, &
+                    scale,res_pert,Jdum, &
+                    PETSC_FALSE)
+  ! J[m^3 liquid/Pa-sec]
+  Jac(1,1) = (res_pert(1)-res(1))/zflow_auxvars(ONE_INTEGER)%pert
 
 end subroutine ZFlowSrcSinkDerivative
 

@@ -142,12 +142,10 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
 
   type(input_type), pointer :: input
 
-  character(len=MAXWORDLENGTH) :: keyword, word, word2
+  character(len=MAXWORDLENGTH) :: keyword
   class(pm_zflow_type) :: this
   type(option_type), pointer :: option
-  PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
 
   option => this%option
@@ -172,31 +170,12 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('RESIDUAL_TEST')
-        zflow_residual_test = PETSC_TRUE
-      case('RESIDUAL_TEST_CELL')
-        call InputReadInt(input,option,zflow_residual_test_cell)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('JACOBIAN_TEST')
-        zflow_jacobian_test = PETSC_TRUE
-      case('JACOBIAN_TEST_RDOF')
-        call InputReadInt(input,option,zflow_jacobian_test_rdof)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('JACOBIAN_TEST_XDOF')
-        call InputReadInt(input,option,zflow_jacobian_test_xdof)
-        call InputErrorMsg(input,option,keyword,error_string)
       case('NO_ACCUMULATION')
         zflow_calc_accum = PETSC_FALSE
       case('NO_FLUX')
         zflow_calc_flux = PETSC_FALSE
       case('NO_BCFLUX')
         zflow_calc_bcflux = PETSC_FALSE
-      case('PRINT_RESIDUAL')
-        zflow_print_residual = PETSC_TRUE
-      case('PRINT_SOLUTION')
-        zflow_print_solution = PETSC_TRUE
-      case('PRINT_UPDATE')
-        zflow_print_update = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'ZFlow Mode',option)
     end select
@@ -208,7 +187,7 @@ end subroutine PMZFlowReadSimOptionsBlock
 ! ************************************************************************** !
 
 subroutine PMZFlowReadTSSelectCase(this,input,keyword,found, &
-                                     error_string,option)
+                                   error_string,option)
   !
   ! Read timestepper settings specific to the ZFLOW process model
   !
@@ -394,8 +373,6 @@ subroutine PMZFlowInitializeTimestep(this)
 
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
-  zflow_prev_liq_res_cell = 0
-  zflow_print_oscillatory_behavior = PETSC_FALSE
 
 end subroutine PMZFlowInitializeTimestep
 
@@ -448,8 +425,8 @@ end subroutine PMZFlowPostSolve
 ! ************************************************************************** !
 
 subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                   num_newton_iterations,tfac, &
-                                   time_step_max_growth_factor)
+                                 num_newton_iterations,tfac, &
+                                 time_step_max_growth_factor)
   !
   ! Author: Glenn Hammond
   ! Date: 08/13/21
@@ -566,7 +543,6 @@ subroutine PMZFlowJacobian(this,snes,xx,A,B,ierr)
   ! Date: 08/13/21
   !
 
-  use ZFlow_module, only : ZFlowJacobian
   use Debug_module
   use Option_module
 
@@ -582,12 +558,12 @@ subroutine PMZFlowJacobian(this,snes,xx,A,B,ierr)
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: norm
 
-  if (.not.zflow_simult_function_evals) then
-    call ZFlowJacobian(snes,xx,A,B,this%realization,ierr)
-  endif
+  ! the Jacobian was already calculated in PMZFlowResidual
 
   if (this%realization%debug%matview_Jacobian) then
-    string = 'ZFjacobian'
+    call DebugWriteFilename(this%realization%debug,string,'ZFjacobian','', &
+                            zflow_ts_count,zflow_ts_cut_count, &
+                            zflow_ni_count)
     call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -604,6 +580,8 @@ subroutine PMZFlowJacobian(this,snes,xx,A,B,ierr)
     write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
     call PrintMsg(this%option)
   endif
+
+  zflow_ni_count = zflow_ni_count + 1
 
 end subroutine PMZFlowJacobian
 
@@ -739,7 +717,7 @@ end subroutine PMZFlowCheckUpdatePost
 ! ************************************************************************** !
 
 subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
-                                     fnorm,reason,ierr)
+                                   fnorm,reason,ierr)
   ! Author: Glenn Hammond
   ! Date: 08/13/21
   !
@@ -849,17 +827,6 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
         this%convergence_reals(MAX_RES_LIQ), &
         this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI), &
         this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI)
-#if 0
-! for monitoring block
-      if (zflow_residual_test_cell > 0) then
-        local_id = zflow_residual_test_cell
-        ghosted_id = grid%nL2G(local_id)
-        write(*,'(2x,"GEH: ",i5,3es12.4)') local_id, &
-          zflow_auxvars(0,ghosted_id)%pres, &
-          zflow_auxvars(0,ghosted_id)%pc, &
-          zflow_auxvars(0,ghosted_id)%sat
-      endif
-#endif
     endif
   endif
 #endif
