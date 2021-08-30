@@ -471,11 +471,10 @@ subroutine PMERTSetupSolvers(this)
 
   solver%M_mat_type = MATAIJ
   solver%Mpre_mat_type = MATAIJ
-  !TODO(geh): XXXCreateJacobian -> XXXCreateMatrix
-  call DiscretizationCreateJacobian(this%realization%discretization, &
-                                    ONEDOF, &
-                                    solver%Mpre_mat_type, &
-                                    solver%Mpre,option)
+  call DiscretizationCreateMatrix(this%realization%discretization, &
+                                  ONEDOF, &
+                                  solver%Mpre_mat_type, &
+                                  solver%Mpre,option)
 
   call MatSetOptionsPrefix(solver%Mpre,"geop_",ierr);CHKERRQ(ierr)
   solver%M = solver%Mpre

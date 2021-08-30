@@ -560,7 +560,7 @@ subroutine PMPNFJacobian(this,snes,xx,A,B,ierr)
 
   ! the Jacobian was already calculated in PMPNFResidual
 
-  if (this%realization%debug%matview_Jacobian) then
+  if (this%realization%debug%matview_Matrix) then
     call DebugWriteFilename(this%realization%debug,string,'PNFjacobian','', &
                             pnf_ts_count,pnf_ts_cut_count, &
                             pnf_ni_count)
@@ -569,7 +569,7 @@ subroutine PMPNFJacobian(this,snes,xx,A,B,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  if (this%realization%debug%norm_Jacobian) then
+  if (this%realization%debug%norm_Matrix) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
     call PrintMsg(this%option)

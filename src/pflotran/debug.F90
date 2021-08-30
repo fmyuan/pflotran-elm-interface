@@ -16,10 +16,9 @@ module Debug_module
   type, public :: debug_type
     PetscBool :: vecview_residual
     PetscBool :: vecview_solution
-    PetscBool :: matview_Jacobian
-    PetscBool :: matview_Jacobian_detailed
-    PetscBool :: norm_Jacobian
     PetscBool :: matview_Matrix
+    PetscBool :: matview_Matrix_detailed
+    PetscBool :: norm_Matrix
 
     PetscInt  :: output_format
     PetscBool :: verbose_filename
@@ -59,10 +58,9 @@ function DebugCreate()
 
   debug%vecview_residual = PETSC_FALSE
   debug%vecview_solution = PETSC_FALSE
-  debug%matview_Jacobian = PETSC_FALSE
-  debug%matview_Jacobian_detailed = PETSC_FALSE
-  debug%norm_Jacobian = PETSC_FALSE
   debug%matview_Matrix = PETSC_FALSE
+  debug%matview_Matrix_detailed = PETSC_FALSE
+  debug%norm_Matrix = PETSC_FALSE
 
   debug%output_format = DEBUG_ASCII_FORMAT
   debug%verbose_filename = PETSC_FALSE
@@ -116,10 +114,10 @@ subroutine DebugRead(debug,input,option)
         debug%vecview_solution = PETSC_TRUE
       case('PRINT_RESIDUAL','VECVIEW_RESIDUAL','VIEW_RESIDUAL')
         debug%vecview_residual = PETSC_TRUE
-      case('PRINT_JACOBIAN','MATVIEW_JACOBIAN','VIEW_JACOBIAN')
-        debug%matview_Jacobian = PETSC_TRUE
-      case('PRINT_JACOBIAN_NORM','NORM_JACOBIAN')
-        debug%norm_Jacobian = PETSC_TRUE
+      case('PRINT_JACOBIAN','matview_Matrix','VIEW_JACOBIAN')
+        debug%matview_Matrix = PETSC_TRUE
+      case('PRINT_JACOBIAN_NORM','norm_Matrix')
+        debug%norm_Matrix = PETSC_TRUE
       case('PRINT_MATRIX','MATVIEW_MATRIX','VIEW_MATRIX')
         debug%matview_Matrix = PETSC_TRUE
       case('PRINT_REGIONS')
@@ -127,9 +125,9 @@ subroutine DebugRead(debug,input,option)
       case('PRINT_COUPLERS','PRINT_COUPLER')
         debug%print_couplers = PETSC_TRUE
         debug%coupler_string = trim(adjustl(input%buf))
-      case('PRINT_JACOBIAN_DETAILED','MATVIEW_JACOBIAN_DETAILED', &
+      case('PRINT_JACOBIAN_DETAILED','matview_Matrix_DETAILED', &
            'VIEW_JACOBIAN_DETAILED')
-        debug%matview_Jacobian_detailed = PETSC_TRUE
+        debug%matview_Matrix_detailed = PETSC_TRUE
       case('PRINT_WAYPOINTS')
         debug%print_waypoints = PETSC_TRUE
       case('APPEND_COUNTS_TO_FILENAME','APPEND_COUNTS_TO_FILENAMES')

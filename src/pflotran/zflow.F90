@@ -966,7 +966,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                             ierr);CHKERRQ(ierr)
     endif
 
-    if (realization%debug%matview_Jacobian) then
+    if (realization%debug%matview_Matrix) then
       call DebugWriteFilename(realization%debug,string,'ZFjacobian','', &
                               zflow_ts_count,zflow_ts_cut_count, &
                               zflow_ni_count)

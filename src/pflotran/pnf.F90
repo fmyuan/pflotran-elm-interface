@@ -869,7 +869,7 @@ subroutine PNFResidual(snes,xx,r,A,realization,ierr)
                             ierr);CHKERRQ(ierr)
     endif
 
-    if (realization%debug%matview_Jacobian) then
+    if (realization%debug%matview_Matrix) then
       call DebugWriteFilename(realization%debug,string,'PNFjacobian','', &
                               PNF_ts_count,PNF_ts_cut_count, &
                               PNF_ni_count)

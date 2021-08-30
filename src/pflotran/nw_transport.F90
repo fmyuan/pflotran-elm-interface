@@ -1627,7 +1627,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)  
     
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     string = 'NWTjacobian'
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
@@ -1638,7 +1638,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
 
-    if (realization%debug%matview_Jacobian) then
+    if (realization%debug%matview_Matrix) then
       string = 'NWTjacobianLog'
       call DebugCreateViewer(realization%debug,string,realization%option,viewer)
       call MatView(J,viewer,ierr);CHKERRQ(ierr)

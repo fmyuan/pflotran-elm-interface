@@ -1427,7 +1427,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'WFjacobian_accum','', &
@@ -1532,7 +1532,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
   
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'WFjacobian_flux','', &
@@ -1588,7 +1588,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
     boundary_condition => boundary_condition%next
   enddo
   
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'WFjacobian_bcflux','', &
@@ -1638,7 +1638,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
     source_sink => source_sink%next
   enddo
   
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'WFjacobian_srcsink','', &
@@ -1677,7 +1677,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
                           ierr);CHKERRQ(ierr)
   endif
   
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'WFjacobian','', &
                             wippflo_ts_count,wippflo_ts_cut_count, &
                             wippflo_ni_count)
@@ -1685,7 +1685,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call DebugViewerDestroy(realization%debug,viewer)
   endif
-  if (realization%debug%norm_Jacobian) then
+  if (realization%debug%norm_Matrix) then
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm

@@ -170,7 +170,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   ! ----- subsurface flow
     class is(pm_subsurface_flow_type)
       call PrintMsg(option,"  Beginning setup of FLOW SNES ")
-      if (solver%J_mat_type == MATAIJ .and. &
+      if (solver%M_mat_type == MATAIJ .and. &
           option%iflowmode /= RICHARDS_MODE) then
         option%io_buffer = 'AIJ matrix not supported for current &
           &mode: '// option%flowmode
@@ -208,49 +208,49 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 ! 2) If only one of J_mat_type and Jpre_mat_type are specified, then default
 !    to setting the other to the same value (except for MATMFFD case).
 ! 3) Once J_mat_type and Jpre_mat_type are set appropriately, then
-!    * If J_mat_type == Jpre_mat_type, then set solver%J = solver%Jpre
+!    * If J_mat_type == Jpre_mat_type, then set solver%M = solver%Mpre
 !    * Otherwise
 !      - Create different matrices for each.
 !      - Inside Jacobian routines, will need to check for
-!        solver%J != solver%Jpre, and populate two matrices if so.
+!        solver%M != solver%Mpre, and populate two matrices if so.
 
-      if (Uninitialized(solver%Jpre_mat_type) .and. &
-          Uninitialized(solver%J_mat_type)) then
+      if (Uninitialized(solver%Mpre_mat_type) .and. &
+          Uninitialized(solver%M_mat_type)) then
         ! Matrix types not specified, so set to default.
-        solver%Jpre_mat_type = MATBAIJ
-        solver%J_mat_type = solver%Jpre_mat_type
-      else if (Uninitialized(solver%Jpre_mat_type)) then
-        if (solver%J_mat_type == MATMFFD) then
-          solver%Jpre_mat_type = MATBAIJ
+        solver%Mpre_mat_type = MATBAIJ
+        solver%M_mat_type = solver%Mpre_mat_type
+      else if (Uninitialized(solver%Mpre_mat_type)) then
+        if (solver%M_mat_type == MATMFFD) then
+          solver%Mpre_mat_type = MATBAIJ
         else
-          solver%Jpre_mat_type = solver%J_mat_type
+          solver%Mpre_mat_type = solver%M_mat_type
         endif
-      else if (Uninitialized(solver%J_mat_type)) then
-        solver%J_mat_type = solver%Jpre_mat_type
+      else if (Uninitialized(solver%M_mat_type)) then
+        solver%M_mat_type = solver%Mpre_mat_type
       endif
 
       if (associated(solver%cprstash)) then
         call CPRWorkersCreate(pm, solver, option)
       endif
 
-      call DiscretizationCreateJacobian(pm%realization%discretization, &
+      call DiscretizationCreateMatrix(pm%realization%discretization, &
+                                      NFLOWDOF, &
+                                      solver%Mpre_mat_type, &
+                                      solver%Mpre, &
+                                      option)
+
+      call MatSetOptionsPrefix(solver%Mpre,"flow_",ierr);CHKERRQ(ierr)
+
+      if (solver%Mpre_mat_type == solver%M_mat_type) then
+        solver%M = solver%Mpre
+      else
+        call DiscretizationCreateMatrix(pm%realization%discretization, &
                                         NFLOWDOF, &
-                                        solver%Jpre_mat_type, &
-                                        solver%Jpre, &
+                                        solver%M_mat_type, &
+                                        solver%M, &
                                         option)
 
-      call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
-
-      if (solver%Jpre_mat_type == solver%J_mat_type) then
-        solver%J = solver%Jpre
-      else
-        call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                          NFLOWDOF, &
-                                          solver%J_mat_type, &
-                                          solver%J, &
-                                          option)
-
-        call MatSetOptionsPrefix(solver%J,"flow_",ierr);CHKERRQ(ierr)
+        call MatSetOptionsPrefix(solver%M,"flow_",ierr);CHKERRQ(ierr)
       endif
 
       if (solver%use_galerkin_mg) then
@@ -263,8 +263,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                        option)
       endif
 
-      if (solver%J_mat_type == MATMFFD) then
-        call MatCreateSNESMF(solver%snes,solver%J,ierr);CHKERRQ(ierr)
+      if (solver%M_mat_type == MATMFFD) then
+        call MatCreateSNESMF(solver%snes,solver%M,ierr);CHKERRQ(ierr)
       endif
 
       ! by default turn off line search
@@ -382,46 +382,46 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
     call SolverCheckCommandLine(solver)
 
     if (transport_coupling == GLOBAL_IMPLICIT) then
-      if (Uninitialized(solver%Jpre_mat_type) .and. &
-          Uninitialized(solver%J_mat_type)) then
+      if (Uninitialized(solver%Mpre_mat_type) .and. &
+          Uninitialized(solver%M_mat_type)) then
         ! Matrix types not specified, so set to default.
-        solver%Jpre_mat_type = MATBAIJ
-        solver%J_mat_type = solver%Jpre_mat_type
-      else if (Uninitialized(solver%Jpre_mat_type)) then
-        if (solver%J_mat_type == MATMFFD) then
-          solver%Jpre_mat_type = MATBAIJ
+        solver%Mpre_mat_type = MATBAIJ
+        solver%M_mat_type = solver%Mpre_mat_type
+      else if (Uninitialized(solver%Mpre_mat_type)) then
+        if (solver%M_mat_type == MATMFFD) then
+          solver%Mpre_mat_type = MATBAIJ
         else
-          solver%Jpre_mat_type = solver%J_mat_type
+          solver%Mpre_mat_type = solver%M_mat_type
         endif
-      else if (Uninitialized(solver%J_mat_type)) then
-        solver%J_mat_type = solver%Jpre_mat_type
+      else if (Uninitialized(solver%M_mat_type)) then
+        solver%M_mat_type = solver%Mpre_mat_type
       endif
 
-      call DiscretizationCreateJacobian(discretization, &
-                                        NTRANDOF, &
-                                        solver%Jpre_mat_type, &
-                                        solver%Jpre,option)
+      call DiscretizationCreateMatrix(discretization, &
+                                      NTRANDOF, &
+                                      solver%Mpre_mat_type, &
+                                      solver%Mpre,option)
     else
-      solver%J_mat_type = MATAIJ
-      solver%Jpre_mat_type = MATAIJ
-      call DiscretizationCreateJacobian(discretization, &
-                                        ONEDOF, &
-                                        solver%Jpre_mat_type, &
-                                        solver%Jpre,option)
+      solver%M_mat_type = MATAIJ
+      solver%Mpre_mat_type = MATAIJ
+      call DiscretizationCreateMatrix(discretization, &
+                                      ONEDOF, &
+                                      solver%Mpre_mat_type, &
+                                      solver%Mpre,option)
     endif
 
-    call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
+    call MatSetOptionsPrefix(solver%Mpre,"tran_",ierr);CHKERRQ(ierr)
 
-    if (solver%Jpre_mat_type == solver%J_mat_type) then
-      solver%J = solver%Jpre
+    if (solver%Mpre_mat_type == solver%M_mat_type) then
+      solver%M = solver%Mpre
     else
-      call DiscretizationCreateJacobian(discretization, &
-                                        NTRANDOF, &
-                                        solver%J_mat_type, &
-                                        solver%J, &
-                                        option)
+      call DiscretizationCreateMatrix(discretization, &
+                                      NTRANDOF, &
+                                      solver%M_mat_type, &
+                                      solver%M, &
+                                      option)
 
-      call MatSetOptionsPrefix(solver%J,"tran_",ierr);CHKERRQ(ierr)
+      call MatSetOptionsPrefix(solver%M,"tran_",ierr);CHKERRQ(ierr)
     endif
 
     if (solver%use_galerkin_mg) then
@@ -436,8 +436,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
     if (transport_coupling == GLOBAL_IMPLICIT) then
 
-      if (solver%J_mat_type == MATMFFD) then
-        call MatCreateSNESMF(solver%snes,solver%J, &
+      if (solver%M_mat_type == MATMFFD) then
+        call MatCreateSNESMF(solver%snes,solver%M, &
                              ierr);CHKERRQ(ierr)
       endif
 
@@ -492,8 +492,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                        this%pm_ptr, &
                        ierr);CHKERRQ(ierr)
   call SNESSetJacobian(solver%snes, &
-                       solver%J, &
-                       solver%Jpre, &
+                       solver%M, &
+                       solver%Mpre, &
                        PMJacobianPtr, &
                        this%pm_ptr, &
                        ierr);CHKERRQ(ierr)
@@ -576,18 +576,18 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
 
         call SolverCheckCommandLine(solver)
 
-        solver%Jpre_mat_type = MATBAIJ
+        solver%Mpre_mat_type = MATBAIJ
 
-        call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                          NFLOWDOF, &
-                                          solver%Jpre_mat_type, &
-                                          solver%Jpre, &
-                                          option)
+        call DiscretizationCreateMatrix(pm%realization%discretization, &
+                                        NFLOWDOF, &
+                                        solver%Mpre_mat_type, &
+                                        solver%Mpre, &
+                                        option)
 
-        call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
+        call MatSetOptionsPrefix(solver%Mpre,"flow_",ierr);CHKERRQ(ierr)
 
-        if (solver%J_mat_type /= MATMFFD) then
-          solver%J = solver%Jpre
+        if (solver%M_mat_type /= MATMFFD) then
+          solver%M = solver%Mpre
         endif
 
       call TSSetIFunction(solver%ts, &
@@ -597,8 +597,8 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
                           ierr);CHKERRQ(ierr)
 
       call TSSetIJacobian(solver%ts, &
-                          solver%J, &
-                          solver%Jpre, &
+                          solver%M, &
+                          solver%Mpre, &
                           PMIJacobianPtr, &
                           this%pm_ptr, &
                           ierr);CHKERRQ(ierr)
@@ -923,16 +923,16 @@ subroutine CPRWorkersCreate(pm, solver, option)
 
 
   cpr_ap_mat_type =  MATAIJ
-  call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                    ONEDOF, &
-                                    cpr_ap_mat_type, &
-                                    solver%cprstash%Ap, &
-                                    option)
-  call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                    ONEDOF, &
-                                    cpr_ap_mat_type, &
-                                    solver%cprstash%As, &
-                                    option)
+  call DiscretizationCreateMatrix(pm%realization%discretization, &
+                                  ONEDOF, &
+                                  cpr_ap_mat_type, &
+                                  solver%cprstash%Ap, &
+                                  option)
+  call DiscretizationCreateMatrix(pm%realization%discretization, &
+                                  ONEDOF, &
+                                  cpr_ap_mat_type, &
+                                  solver%cprstash%As, &
+                                  option)
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%T1r, &
                                   GLOBAL, option)

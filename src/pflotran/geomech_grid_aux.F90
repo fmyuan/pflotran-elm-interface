@@ -99,7 +99,7 @@ module Geomechanics_Grid_Aux_module
             GMCreateGMDM, &
             GMGridDMCreateVector, &
             GMGridDMCreateVectorElem, &
-            GMGridDMCreateJacobian, &
+            GMGridDMCreateMatrix, &
             GMGridMapIndices
             
   
@@ -588,12 +588,12 @@ end subroutine GMCreateGMDM
 
 ! ************************************************************************** !
 !
-! GMGridDMCreateJacobian: Creates a Jacobian matrix
+! GMGridDMCreateMatrix: Creates a matrix
 ! author: Satish Karra, LANL
 ! date: 06/05/13
 !
 ! ************************************************************************** !
-subroutine GMGridDMCreateJacobian(geomech_grid,gmdm,mat_type,J,option)
+subroutine GMGridDMCreateMatrix(geomech_grid,gmdm,mat_type,J,option)
 
 #include <petsc/finclude/petscmat.h>
   use petscmat
@@ -650,7 +650,7 @@ subroutine GMGridDMCreateJacobian(geomech_grid,gmdm,mat_type,J,option)
       o_nnz = o_nnz*gmdm%ndof
     case(MATBAIJ)
     case default
-      option%io_buffer = 'MatType not recognized in GMGridDMCreateJacobian'
+      option%io_buffer = 'MatType not recognized in GMGridDMCreateMatrix'
       call PrintErrMsg(option)
   end select 
   
@@ -669,7 +669,7 @@ subroutine GMGridDMCreateJacobian(geomech_grid,gmdm,mat_type,J,option)
   deallocate(d_nnz)
   deallocate(o_nnz)
   
-end subroutine GMGridDMCreateJacobian
+end subroutine GMGridDMCreateMatrix
 
 ! ************************************************************************** !
 !
