@@ -235,6 +235,7 @@ misc_obj = \
 	${common_src}patch.o \
 	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
+	${common_src}pmc_linear.o \
 	${common_src}pmc_subsurface.o \
 	${common_src}pmc_subsurface_osrt.o \
 	${common_src}pmc_third_party.o \

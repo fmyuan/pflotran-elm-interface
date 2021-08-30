@@ -299,18 +299,8 @@ recursive subroutine PMZFlowInitializeRun(this)
 
   use Realization_Base_class
   use Patch_module
-  use ZFlow_module, only : ZFlowUpdateAuxVars
-  use ZFlow_Aux_module
-  use Input_Aux_module
-  use Dataset_Base_class
-  use Dataset_Common_HDF5_class
-  use Dataset_module
   use Field_module
-  use Grid_module
-  use HDF5_module
   use Option_module
-  use Discretization_module
-  use Region_module
 
   implicit none
 
@@ -319,12 +309,10 @@ recursive subroutine PMZFlowInitializeRun(this)
   PetscInt :: i
   PetscErrorCode :: ierr
   type(field_type), pointer :: field
-  type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
 
   patch => this%realization%patch
-  grid => patch%grid
   field => this%realization%field
   option => this%option
 
@@ -355,13 +343,7 @@ subroutine PMZFlowInitializeTimestep(this)
   ! Author: Glenn Hammond
   ! Date: 08/13/21
   !
-
   use ZFlow_module, only : ZFlowInitializeTimestep
-  use ZFlow_Aux_module
-  use Global_module
-  use Variables_module, only : TORTUOSITY
-  use Material_module, only : MaterialAuxVarCommunicate
-  use Option_module
 
   implicit none
 
@@ -431,11 +413,8 @@ subroutine PMZFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   ! Author: Glenn Hammond
   ! Date: 08/13/21
   !
-  use Option_module
-  use Realization_Base_class, only : RealizationGetVariable
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
-  use Field_module
-  use Global_module, only : GlobalSetAuxVarVecLoc
+  use Option_module
   use Utility_module, only : Equal
 
   implicit none
@@ -542,7 +521,6 @@ subroutine PMZFlowJacobian(this,snes,xx,A,B,ierr)
   ! Author: Glenn Hammond
   ! Date: 08/13/21
   !
-
   use Debug_module
   use Option_module
 
@@ -592,15 +570,6 @@ subroutine PMZFlowCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! Author: Glenn Hammond
   ! Date: 08/13/21
   !
-  use Realization_Subsurface_class
-  use Grid_module
-  use Field_module
-  use Option_module
-  use Saturation_Function_module
-  use Patch_module
-  use ZFlow_Aux_module
-  use Global_Aux_module
-
   implicit none
 
   class(pm_zflow_type) :: this
