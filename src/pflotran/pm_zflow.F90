@@ -232,7 +232,7 @@ end subroutine PMZFlowReadTSSelectCase
 ! ************************************************************************** !
 
 subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
-                                         error_string,option)
+                                       error_string,option)
   !
   ! Reads input file parameters associated with the ZFLOW process model
   ! Newton solver convergence
@@ -619,7 +619,7 @@ end subroutine PMZFlowCheckUpdatePre
 ! ************************************************************************** !
 
 subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
-                                    X1_changed,ierr)
+                                  X1_changed,ierr)
   !
   ! Author: Glenn Hammond
   ! Date: 08/13/21
@@ -963,7 +963,7 @@ subroutine PMZFlowMaxChange(this)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
   call MPI_Allreduce(max_change_local,max_change_global,TWO_INTEGER, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   ! print them out
   if (OptionPrintToScreen(option)) then
     write(*,'("  --> max chng: dpl= ",1pe12.4, " dsl= ",1pe12.4)') &

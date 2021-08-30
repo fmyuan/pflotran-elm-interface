@@ -786,9 +786,11 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         if (local_id_up > 0) then
           r_p(local_id_up) = r_p(local_id_up) + Res(1)
           if (zflow_simult_function_evals) then
-            call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+            call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
+                                          1,ghosted_id_up-1, &
                                           Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-            call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+            call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
+                                          1,ghosted_id_dn-1, &
                                           Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         endif
@@ -798,9 +800,11 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           if (zflow_simult_function_evals) then
             Jup = -Jup
             Jdn = -Jdn
-            call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+            call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
+                                          1,ghosted_id_dn-1, &
                                           Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-            call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+            call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
+                                          1,ghosted_id_up-1, &
                                           Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         endif
@@ -1041,12 +1045,12 @@ subroutine ZFlowSetPlotVariables(realization,list)
     name = 'Liquid Pressure'
     units = 'Pa'
     call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
-                                LIQUID_PRESSURE)
+                                 LIQUID_PRESSURE)
 
     name = 'Liquid Saturation'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-                                LIQUID_SATURATION)
+                                 LIQUID_SATURATION)
   endif
 
 end subroutine ZFlowSetPlotVariables

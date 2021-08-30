@@ -133,7 +133,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
 
   if (calculate_derivatives) then
     Jac(1,1) = Res(1) / zflow_auxvar%sat * zflow_auxvar%dsat_dp + &
-                Res(1) / porosity * zflow_auxvar%dpor_dp
+               Res(1) / porosity * zflow_auxvar%dpor_dp
   endif
 
 end subroutine ZFlowAccumulation
@@ -525,7 +525,7 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
               PETSC_FALSE)
   ! J[m^3 liquid/Pa-sec]
   Jup(1,1) = (res_pert(1)-res_up(1)) / &
-                      zflow_auxvar_up(ONE_INTEGER)%pert
+             zflow_auxvar_up(ONE_INTEGER)%pert
   ! downgradient derivatives
   call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
               material_auxvar_up, &

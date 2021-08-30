@@ -193,8 +193,8 @@ end subroutine ZFlowAuxVarCopy
 ! ************************************************************************** !
 
 subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
-                                material_auxvar,characteristic_curves, &
-                                natural_id,update_porosity,option)
+                              material_auxvar,characteristic_curves, &
+                              natural_id,update_porosity,option)
   !
   ! Computes auxiliary variables for each grid cell
   !
@@ -290,9 +290,9 @@ end subroutine ZFlowAuxVarCompute
 ! ************************************************************************** !
 
 subroutine ZFlowAuxVarPerturb(zflow_auxvar,global_auxvar, &
-                                material_auxvar, &
-                                characteristic_curves,natural_id, &
-                                option)
+                              material_auxvar, &
+                              characteristic_curves,natural_id, &
+                              option)
   ! Calculates auxiliary variables for perturbed system
   !
   ! Author: Glenn Hammond
@@ -333,7 +333,7 @@ end subroutine ZFlowAuxVarPerturb
 ! ************************************************************************** !
 
 subroutine ZFlowPrintAuxVars(zflow_auxvar,global_auxvar,material_auxvar, &
-                               natural_id,string,option)
+                             natural_id,string,option)
   !
   ! Prints out the contents of an auxvar
   !
@@ -372,7 +372,7 @@ end subroutine ZFlowPrintAuxVars
 ! ************************************************************************** !
 
 subroutine ZFlowOutputAuxVars1(zflow_auxvar,global_auxvar,material_auxvar, &
-                                 natural_id,string,append,option)
+                               natural_id,string,append,option)
   !
   ! Prints out the contents of an auxvar to a file
   !
