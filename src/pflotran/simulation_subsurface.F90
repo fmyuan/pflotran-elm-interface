@@ -468,7 +468,7 @@ subroutine SimSubsurfJumpStart(this)
     if (.not.associated(flow_timestepper%cur_waypoint)) then
       if (.not. bypass_final_time_check) then
         option%io_buffer = &
-          'Null flow waypoint list; final time likely equal to start time.&
+          'Null flow waypoint list; final time likely equal to start time &
           &or final simulation time needs to be extended on a restart.'
         call PrintMsg(option)
         option%driver%status = FAIL
