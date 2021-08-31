@@ -392,7 +392,14 @@ subroutine SimSubsurfJumpStart(this)
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
+  PetscErrorCode :: ierr
+  PetscBool :: bypass_final_time_check
+  
+  bypass_final_time_check = PETSC_FALSE
 
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
+                           PETSC_NULL_CHARACTER, "-bypass_final_time_check", &
+                           bypass_final_time_check, ierr);CHKERRQ(ierr)
 #ifdef DEBUG
   call PrintMsg(this%option,'SimSubsurfJumpStart()')
 #endif
@@ -462,12 +469,30 @@ subroutine SimSubsurfJumpStart(this)
   if (output_option%plot_number == 0) output_option%plot_number = 1
 
   if (associated(flow_timestepper)) then
-    if (associated(flow_timestepper%cur_waypoint)) then
+    if (.not.associated(flow_timestepper%cur_waypoint)) then
+      if (.not. bypass_final_time_check) then
+        option%io_buffer = &
+          'Null flow waypoint list; final time likely equal to start time.&
+          &time or simulation time needs to be extended on a restart.'
+        call PrintMsg(option)
+        option%driver%status = FAIL
+        return
+      endif
+    else
       flow_timestepper%dt_max = flow_timestepper%cur_waypoint%dt_max
     endif
   endif
   if (associated(tran_timestepper)) then
-    if (associated(tran_timestepper%cur_waypoint)) then
+    if (.not.associated(tran_timestepper%cur_waypoint)) then
+      if (.not. bypass_final_time_check) then
+        option%io_buffer = &
+          'Null transport waypoint list; final time likely equal to start &
+          &time or simulation time needs to be extended on a restart.'
+        call PrintMsg(option)
+        option%driver%status = FAIL
+        return
+      endif
+    else
       tran_timestepper%dt_max = tran_timestepper%cur_waypoint%dt_max
     endif
   endif
