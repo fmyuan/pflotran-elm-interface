@@ -469,7 +469,7 @@ subroutine SimSubsurfJumpStart(this)
       if (.not. bypass_final_time_check) then
         option%io_buffer = &
           'Null flow waypoint list; final time likely equal to start time.&
-          &time or simulation time needs to be extended on a restart.'
+          &or final simulation time needs to be extended on a restart.'
         call PrintMsg(option)
         option%driver%status = FAIL
         return
@@ -483,7 +483,7 @@ subroutine SimSubsurfJumpStart(this)
       if (.not. bypass_final_time_check) then
         option%io_buffer = &
           'Null transport waypoint list; final time likely equal to start &
-          &time or simulation time needs to be extended on a restart.'
+          &or final simulation time needs to be extended on a restart.'
         call PrintMsg(option)
         option%driver%status = FAIL
         return
