@@ -130,6 +130,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
+  use PM_ZFlow_class
   use PM_RT_class
   use PM_NWT_class
   use PM_Waste_Form_class
@@ -185,6 +186,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
             write(*,'(" mode = TH: p, T")')
           case(RICHARDS_MODE)
             write(*,'(" mode = Richards: p")')
+          case(ZFLOW_MODE)
+            write(*,'(" mode = ZFlow: p")')
           case(G_MODE)
             write(*,'(" mode = General: p, sg/X, T")')
           case(H_MODE)
@@ -320,6 +323,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         class is(pm_general_type)
               add_pre_check = PETSC_TRUE
         class is(pm_wippflo_type)
+              add_pre_check = PETSC_TRUE
+        class is(pm_zflow_type)
               add_pre_check = PETSC_TRUE
         class is(pm_th_type)
           if (Initialized(pm%pressure_dampening_factor) .or. &
@@ -788,6 +793,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
       temp_dof = MPH_TEMPERATURE_DOF
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
       pres_dof = RICHARDS_PRESSURE_DOF
+    case(ZFLOW_MODE)
+      pres_dof = ZFLOW_PRESSURE_DOF
     case default
       this%option%io_buffer = 'PMCSubsurfaceSetAuxDataForGeomech() not ' // &
         'supported for ' // trim(this%option%flowmode)
@@ -817,7 +824,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           pres_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                       pres_dof)
           if (this%option%iflowmode == RICHARDS_MODE .or. &
-              this%option%iflowmode == RICHARDS_TS_MODE) then
+              this%option%iflowmode == RICHARDS_TS_MODE .or. &
+              this%option%iflowmode == ZFLOW_MODE) then
             temp_p(local_id) = this%option%flow%reference_temperature
           else
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &

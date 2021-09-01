@@ -2239,10 +2239,10 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         option%flow%reference_density(option%liquid_phase)
       global_auxvar%temp = option%flow%reference_temperature
       global_auxvar%sat(iphase) = option%flow%reference_saturation
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
       global_auxvar%temp = option%flow%reference_temperature
   end select
-        
+
   bulk_vol_to_fluid_vol = option%flow%reference_porosity* &
                           global_auxvar%sat(iphase)*1000.d0
 
@@ -2254,7 +2254,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         sum_molality = sum_molality + rt_auxvar%pri_molal(icomp)
       endif
     enddo
-    if (reaction%neqcplx > 0) then    
+    if (reaction%neqcplx > 0) then
       do i = 1, reaction%neqcplx
         sum_molality = sum_molality + rt_auxvar%sec_molal(i)
       enddo

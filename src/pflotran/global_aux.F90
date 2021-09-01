@@ -94,8 +94,8 @@ subroutine GlobalAuxVarInit(auxvar,option)
   ! Author: Glenn Hammond
   ! Date: 02/14/08
   ! 
-
   use Option_module
+  use Utility_module, only: DeallocateArray
 
   implicit none
   
@@ -154,11 +154,12 @@ subroutine GlobalAuxVarInit(auxvar,option)
   endif
  
   select case(option%iflowmode)
+    case(ZFLOW_MODE)
+      ! den_kg is only needed for transport
+      call DeallocateArray(auxvar%den)
+      ! no need for storage as density is constant
+      call DeallocateArray(auxvar%den_kg_store)
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
-!      if (option%ntrandof > 0) then
-!        allocate(auxvar%den_store(nphase,TWO_INTEGER))
-!        auxvar%den_store = 0.d0
-!      endif
     case(MPH_MODE)
       allocate(auxvar%xmass(nphase))
       auxvar%xmass = 1.d0

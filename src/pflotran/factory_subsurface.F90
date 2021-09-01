@@ -835,6 +835,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TH_class
   use PM_Richards_TS_class
   use PM_TH_TS_class
+  use PM_ZFlow_class
   use General_Aux_module
 
   implicit none
@@ -889,6 +890,12 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%air_id = 2
     class is (pm_richards_type)
       option%iflowmode = RICHARDS_MODE
+      option%nphase = 1
+      option%nflowdof = 1
+      option%nflowspec = 1
+      option%use_isothermal = PETSC_TRUE
+    class is (pm_zflow_type)
+      option%iflowmode = ZFLOW_MODE
       option%nphase = 1
       option%nflowdof = 1
       option%nflowspec = 1
@@ -977,6 +984,7 @@ subroutine FactorySubsurfaceReadFlowPM(input,option,pm)
   use PM_TH_class
   use PM_Richards_TS_class
   use PM_TH_TS_class
+  use PM_ZFlow_class
   use Init_Common_module
   use General_module
 
@@ -1034,6 +1042,8 @@ subroutine FactorySubsurfaceReadFlowPM(input,option,pm)
             pm => PMRichardsTSCreate()
           case ('TH_TS')
             pm => PMTHTSCreate()
+          case ('ZFLOW')
+            pm => PMZFlowCreate()
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -2825,6 +2835,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             (option%iflowmode == TH_MODE .and. &
              .not. option%flow%th_freezing) .or. &
             option%iflowmode == TH_TS_MODE .or. &
+            option%iflowmode == ZFLOW_MODE .or. &
             option%iflowmode == WF_MODE) then
           option%io_buffer = &
             'Must compile with legacy_saturation_function=1 to use the &
@@ -2848,15 +2859,17 @@ subroutine SubsurfaceReadInput(simulation,input)
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
                   option%iflowmode == RICHARDS_TS_MODE .or. &
+                  option%iflowmode == ZFLOW_MODE .or. &
                   option%iflowmode == G_MODE .or. &
                   option%iflowmode == H_MODE .or. &
                   option%iflowmode == TH_TS_MODE .or. &
+                  option%iflowmode == ZFLOW_MODE .or. &
                   (option%iflowmode == TH_MODE .and. &
                     .not. option%flow%th_freezing) .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
-            &modes other than RICHARDS, RICHARDS_TS, WIPP_FLOW, TH, or GENERAL. &
-            &Use SATURATION_FUNCTION.'
+            &modes other than RICHARDS, RICHARDS_TS, WIPP_FLOW, TH, ZFLOW, &
+            &or GENERAL. Use SATURATION_FUNCTION.'
           call PrintErrMsg(option)
         endif
         characteristic_curves => CharacteristicCurvesCreate()
@@ -3770,7 +3783,8 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
-      case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE,H_MODE)
+      case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE,H_MODE, &
+           ZFLOW_MODE)
         if (option%flow%steady_state) then
           option%io_buffer = 'Steady state solution is not supported with &
             &the current flow mode.'

@@ -43,6 +43,12 @@ mode_aux_obj = \
 	${common_src}mphase_aux.o \
 	${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
+	${common_src}richards_aux.o \
+	${common_src}th_aux.o \
+	${common_src}zflow_aux.o \
+	${common_src}inlinesurface_aux.o
+
+mode_process_model_obj = \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
@@ -62,9 +68,7 @@ mode_aux_obj = \
 	${common_src}pm_waste_form.o \
 	${common_src}pm_wipp_srcsink.o \
 	${common_src}pm_ufd_biosphere.o \
-	${common_src}richards_aux.o \
-	${common_src}th_aux.o \
-	${common_src}inlinesurface_aux.o
+	${common_src}pm_zflow.o \
 
 mode_obj = \
 	${common_src}general.o \
@@ -80,6 +84,8 @@ mode_obj = \
 	${common_src}richards.o \
 	${common_src}richards_common.o \
 	${common_src}th.o \
+	${common_src}zflow.o \
+	${common_src}zflow_common.o \
 	${common_src}inlinesurface.o
 
 # DO NOT place any object files that depend on the discretization within

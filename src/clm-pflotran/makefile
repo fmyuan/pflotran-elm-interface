@@ -222,7 +222,7 @@ lib_pflotran_obj = \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(grid_obj) \
 	$(relations_obj) $(properties_obj) $(dataset_obj) $(srcsink_obj) \
 	$(io_obj) $(misc_obj) $(solver_obj) $(well_obj) $(geophysics_obj) \
-	$(deriv_obj)
+	$(deriv_obj) $(mode_process_model_obj)
 
 pflotran_interface_test_obj = ${pflotran_src}pflotran_interface_main.o
 

@@ -437,6 +437,10 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
         units_string = 'MJ/' // trim(adjustl(output_option%tunit))
         call OutputWriteToHeader(IUNIT_TEMP,variable_string,units_string, &
                                  cell_string,icolumn)
+      case default
+        option%io_buffer = 'Flow mode ' // trim(option%flowmode) // &
+          ' not supported in SSSandboxOutputHeader()'
+        call PrintErrMsg(option)
     end select
     cur_srcsink => cur_srcsink%next
   enddo

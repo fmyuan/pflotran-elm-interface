@@ -1286,24 +1286,25 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
   num_mat_prop = size(material_property_array)
   num_characteristic_curves = size(characteristic_curves_array)
 
-  if (option%iflowmode /= RICHARDS_MODE .and. &
-      option%iflowmode /= RICHARDS_TS_MODE) then
-    allocate(material_parameter%soil_heat_capacity(num_mat_prop))
-    allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
-    material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
-    material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
-    do i = 1, num_mat_prop
-      if (associated(material_property_array(i)%ptr)) then
-        ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
-        material_parameter%soil_heat_capacity(i) = &
-          material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
-        material_parameter%soil_thermal_conductivity(1,i) = &
-          material_property_array(i)%ptr%thermal_conductivity_dry
-        material_parameter%soil_thermal_conductivity(2,i) = &
-          material_property_array(i)%ptr%thermal_conductivity_wet
-      endif
-    enddo
-  endif
+  select case(option%iflowmode)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,WF_MODE)
+    case default
+      allocate(material_parameter%soil_heat_capacity(num_mat_prop))
+      allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
+      material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
+      material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
+      do i = 1, num_mat_prop
+        if (associated(material_property_array(i)%ptr)) then
+          ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
+          material_parameter%soil_heat_capacity(i) = &
+            material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
+          material_parameter%soil_thermal_conductivity(1,i) = &
+            material_property_array(i)%ptr%thermal_conductivity_dry
+          material_parameter%soil_thermal_conductivity(2,i) = &
+            material_property_array(i)%ptr%thermal_conductivity_wet
+        endif
+      enddo
+  end select
 
 end subroutine MaterialSetup
 
