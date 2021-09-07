@@ -2007,7 +2007,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           call PrintMsgByRank(option)
         endif
       enddo
-      option%io_buffer = 'Free ion concentations RESULTING from &
+      option%io_buffer = 'Free ion concentrations RESULTING from &
         &constraint concentrations must be positive.'
       call PrintErrMsgByRank(option)
     endif

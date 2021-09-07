@@ -3789,7 +3789,6 @@ subroutine PatchUpdateCouplerAuxVarsPNF(patch,coupler,option)
 
   flow_condition => coupler%flow_condition
   if (associated(flow_condition%pressure)) then
-    coupler%flow_aux_mapping(ZFLOW_PRESSURE_DOF) = ZFLOW_PRESSURE_DOF
     select case(flow_condition%pressure%itype)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
         select type(dataset => &
@@ -4912,7 +4911,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       else if (associated(patch%aux%PNF)) then
 
         select case(ivar)
-          case(LIQUID_HEAD)
+          case(LIQUID_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
                 patch%aux%PNF%auxvars(grid%nL2G(local_id))%head
@@ -6359,7 +6358,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         end select
       else if (associated(patch%aux%PNF)) then
         select case(ivar)
-          case(LIQUID_HEAD)
+          case(LIQUID_PRESSURE)
             value = patch%aux%PNF%auxvars(ghosted_id)%head
           case default
             call PatchUnsupportedVariable('PNF',ivar,option)

@@ -112,7 +112,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
     cur_patch%aux%Material%num_aux = grid%ngmax
     cur_patch%aux%Material%auxvars => material_auxvars
     nullify(material_auxvars)
-    
+
     cur_patch => cur_patch%next
   enddo
 
@@ -410,8 +410,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
       call PrintErrMsgByRank(option)
     endif
     if (option%nflowdof > 0) then
-      patch%cc_id(ghosted_id) = &
-        material_property%saturation_function_id
+      if (associated(patch%cc_id)) then
+        patch%cc_id(ghosted_id) = &
+          material_property%saturation_function_id
+      endif
       if (associated(patch%cct_id)) then
         patch%cct_id(ghosted_id) = &  
           material_property%thermal_conductivity_function_id
@@ -553,7 +555,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                    PERMEABILITY_YZ,ZERO_INTEGER)
     endif
 
-    call RealLocalToLocalWithArray(realization,CC_ID_ARRAY)
+    if (associated(patch%cc_id)) then
+      call RealLocalToLocalWithArray(realization,CC_ID_ARRAY)
+    endif
     if (associated(patch%cct_id)) then
       call RealLocalToLocalWithArray(realization,CCT_ID_ARRAY)
     endif

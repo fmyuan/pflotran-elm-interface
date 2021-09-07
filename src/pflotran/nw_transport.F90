@@ -411,7 +411,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 !     (see NWTEqDissPrecipSorb), we must NWTAuxVarCompute() based on the
 !     total bulk concentration at each boundary connection just like we do
 !     for each internal grid cell above. Otherwise, the precipitate
-!     concentation of 1.d-20 is not factored into the boundary concentration
+!     concentration of 1.d-20 is not factored into the boundary concentration
 !     for pure aqueous boundaries, and this generates error. To prove this
 !     change #if 0 -> #if 1 below and run a transport simulation with a
 !     single aqueous constraint (not concentration gradient). You will see

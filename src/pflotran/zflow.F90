@@ -463,11 +463,11 @@ subroutine ZFlowUpdateAuxVars(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       select case(boundary_condition%flow_condition% &
-                    itype(RICHARDS_PRESSURE_DOF))
+                    itype(ZFLOW_PRESSURE_DOF))
         case(DIRICHLET_BC, DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
              HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
           xxbc(1) = boundary_condition% &
-                      flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
+                      flow_aux_real_var(ZFLOW_PRESSURE_DOF,iconn)
         case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC, &
              SURFACE_ZERO_GRADHEIGHT)
           xxbc(1) = xx_loc_p(local_id)

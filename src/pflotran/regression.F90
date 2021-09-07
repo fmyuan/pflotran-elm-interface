@@ -813,6 +813,19 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
           write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
           write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
         endif
+      class is(timestepper_KSP_type)
+        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+        if (OptionIsIORank(option)) then
+          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
+          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          flow_stepper%cumulative_solver_time
+          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
+          write(OUTPUT_UNIT,'(''   Linear Solver Iterations: '',i12)') &
+          flow_stepper%cumulative_linear_iterations
+          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          flow_stepper%cumulative_time_step_cuts
+          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+        endif
       class default
         option%io_buffer = 'Unsupported Flow Timestepper class in &
           &regression.F90'

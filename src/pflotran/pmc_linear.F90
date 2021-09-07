@@ -1,6 +1,6 @@
 module PMC_Linear_class
 
-  use PMC_Base_class
+  use PMC_Subsurface_class
   use Realization_Subsurface_class
 
   use PFLOTRAN_Constants_module
@@ -13,12 +13,11 @@ module PMC_Linear_class
 
   private
 
-  type, public, extends(pmc_base_type) :: pmc_linear_type
-    class(realization_subsurface_type), pointer :: realization
+  type, public, extends(pmc_subsurface_type) :: pmc_linear_type
   contains
     procedure, public :: Init => PMCLinearInit
     procedure, public :: SetupSolvers => PMCLinearSetupSolvers
-    procedure, public :: FinalizeRun => PMCLinearFinalizeRun
+!    procedure, public :: FinalizeRun => PMCLinearFinalizeRun
     procedure, public :: Destroy => PMCLinearDestroy
   end type pmc_linear_type
 
@@ -64,7 +63,7 @@ subroutine PMCLinearInit(this)
 
   class(pmc_linear_type) :: this
 
-  call PMCBaseInit(this)
+  call PMCSubsurfaceInit(this)
   this%name = 'PMCLinear'
   nullify(this%realization)
 
@@ -169,6 +168,10 @@ recursive subroutine PMCLinearFinalizeRun(this)
   ! Author: Glenn Hammond
   ! Date: 08/30/21
   !
+
+  ! remove if PMC_Base_class is included at op
+  use PMC_Base_class
+
   implicit none
 
   class(pmc_linear_type) :: this
@@ -191,7 +194,7 @@ subroutine PMCLinearStrip(this)
 
   class(pmc_linear_type) :: this
 
-  call PMCBaseStrip(this)
+  call PMCSubsurfaceStrip(this)
   nullify(this%realization)
 
 end subroutine PMCLinearStrip

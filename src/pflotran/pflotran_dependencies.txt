@@ -161,7 +161,7 @@ factory_subsurface.o : characteristic_curves.o characteristic_curves_thermal.o \
                        pm_ufd_biosphere.o pm_ufd_decay.o pm_waste_form.o \
                        pm_wipp_flow.o pm_wipp_srcsink.o pm_zflow.o \
                        pmc_auxiliary.o pmc_base.o pmc_geophysics.o \
-                       pmc_subsurface.o pmc_subsurface_osrt.o \
+                       pmc_linear.o pmc_subsurface.o pmc_subsurface_osrt.o \
                        pmc_third_party.o reaction.o reaction_aux.o \
                        reaction_database.o reaction_mineral.o \
                        reaction_solid_solution.o reactive_transport.o \
@@ -504,13 +504,11 @@ pm_osrt.o : data_mediator.o discretization.o global.o material.o \
             material_aux.o option.o pflotran_constants.o pm_base.o pm_rt.o \
             reaction_aux.o reactive_transport.o realization_subsurface.o \
             variables.o
-pm_pnf.o : checkpoint.o convergence.o dataset.o dataset_base.o \
-           dataset_common_hdf5.o debug.o discretization.o eos_water.o field.o \
-           global.o global_aux.o grid.o hdf5.o input_aux.o material.o \
-           material_aux.o option.o patch.o pflotran_constants.o pm_base.o \
+pm_pnf.o : checkpoint.o communicator_base.o discretization.o eos_water.o \
+           field.o global.o grid.o input_aux.o option.o pflotran_constants.o \
            pm_subsurface_flow.o pnf.o pnf_aux.o realization_base.o \
-           realization_subsurface.o region.o saturation_function.o string.o \
-           upwind_direction.o utility.o variables.o
+           realization_subsurface.o string.o upwind_direction.o utility.o \
+           variables.o
 pm_richards.o : characteristic_curves.o convergence.o field.o general_aux.o \
                 global_aux.o grid.o input_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
@@ -579,12 +577,10 @@ pm_wipp_srcsink.o : data_mediator_vec.o eos_gas.o eos_water.o global_aux.o \
                     output_aux.o patch.o pflotran_constants.o pm_base.o \
                     realization_base.o realization_subsurface.o region.o \
                     string.o utility.o wipp_flow_aux.o
-pm_zflow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
-             dataset_common_hdf5.o debug.o discretization.o eos_water.o \
-             field.o global.o global_aux.o grid.o hdf5.o input_aux.o \
-             material.o material_aux.o option.o patch.o pflotran_constants.o \
-             pm_base.o pm_subsurface_flow.o realization_base.o \
-             realization_subsurface.o region.o saturation_function.o string.o \
+pm_zflow.o : checkpoint.o convergence.o debug.o eos_water.o field.o global.o \
+             grid.o input_aux.o material_aux.o option.o patch.o \
+             pflotran_constants.o pm_base.o pm_subsurface_flow.o \
+             realization_base.o realization_subsurface.o string.o \
              upwind_direction.o utility.o variables.o zflow.o zflow_aux.o
 pmc_auxiliary.o : option.o pflotran_constants.o pm_auxiliary.o pmc_base.o \
                   realization_subsurface.o timestepper_base.o
@@ -602,7 +598,8 @@ pmc_geophysics.o : option.o output_aux.o pflotran_constants.o pm_base.o \
                    pm_ert.o pmc_base.o realization_subsurface.o \
                    timestepper_base.o timestepper_steady.o utility.o \
                    waypoint.o
-pmc_linear.o : discretization.o option.o pflotran_constants.o pmc_base.o \
+pmc_linear.o : discretization.o option.o pflotran_constants.o \
+               pm_subsurface_flow.o pmc_base.o pmc_subsurface.o \
                realization_subsurface.o solver.o
 pmc_subsurface.o : convergence.o discretization.o field.o general_aux.o grid.o \
                    material.o material_aux.o option.o pflotran_constants.o \
@@ -921,13 +918,14 @@ timestepper_BE.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
                    output.o output_ekg.o pflotran_constants.o pm_base.o \
                    solver.o string.o timestepper_base.o utility.o
 timestepper_KSP.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
-                    pflotran_constants.o pm_base.o solver.o string.o \
-                    timestepper_base.o units.o
+                    output_ekg.o pflotran_constants.o pm_base.o solver.o \
+                    string.o timestepper_base.o units.o
 timestepper_TS.o : input_aux.o option.o output.o pflotran_constants.o \
                    pm_base.o solver.o string.o timestepper_base.o utility.o \
                    waypoint.o
 timestepper_base.o : input_aux.o option.o output.o pflotran_constants.o \
-                     pm_base.o solver.o string.o units.o waypoint.o
+                     pm_base.o realization_base.o solver.o string.o units.o \
+                     waypoint.o
 timestepper_steady.o : convergence.o input_aux.o option.o output.o \
                        output_ekg.o pflotran_constants.o pm_base.o solver.o \
                        string.o timestepper_BE.o timestepper_base.o utility.o

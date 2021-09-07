@@ -14,7 +14,6 @@ module PM_PNF_class
   private
 
   type, public, extends(pm_subsurface_flow_type) :: pm_pnf_type
-    PetscReal :: liq_pres_change_ts_governor
     Vec :: max_pressure_change_vec
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -25,6 +24,7 @@ module PM_PNF_class
     procedure, public :: UpdateTimestep => PMPNFUpdateTimestep
     procedure, public :: FinalizeTimestep => PMPNFFinalizeTimestep
     procedure, public :: PreSolve => PMPNFPreSolve
+    procedure, public :: SetupLinearSystem => PMPNFSetupLinearSystem
     procedure, public :: PostSolve => PMPNFPostSolve
     procedure, public :: TimeCut => PMPNFTimeCut
     procedure, public :: UpdateSolution => PMPNFUpdateSolution
@@ -143,12 +143,6 @@ subroutine PMPNFReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('NO_ACCUMULATION')
-        pnf_calc_accum = PETSC_FALSE
-      case('NO_FLUX')
-        pnf_calc_flux = PETSC_FALSE
-      case('NO_BCFLUX')
-        pnf_calc_bcflux = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(input,keyword,'PNF Mode',option)
     end select
@@ -187,12 +181,6 @@ subroutine PMPNFReadTSSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-    case('LIQ_PRES_CHANGE_TS_GOVERNOR')
-      call InputReadDouble(input,option,this%liq_pres_change_ts_governor)
-      call InputErrorMsg(input,option,keyword,error_string)
-      ! units conversion since it is absolute
-      call InputReadAndConvertUnits(input,this%liq_pres_change_ts_governor, &
-                                    'Pa',keyword,option)
     case default
       found = PETSC_FALSE
   end select
@@ -209,6 +197,8 @@ recursive subroutine PMPNFInitializeRun(this)
   ! Date: 08/27/21
 
   use Discretization_module
+  use Realization_Base_class
+  use Variables_module, only : LIQUID_PRESSURE
 
   implicit none
 
@@ -217,6 +207,9 @@ recursive subroutine PMPNFInitializeRun(this)
   call DiscretizationDuplicateVector(this%realization%discretization, &
                                      this%realization%field%work, &
                                      this%max_pressure_change_vec)
+  call RealizationGetVariable(this%realization, &
+                              this%max_pressure_change_vec, &
+                              LIQUID_PRESSURE,ZERO_INTEGER)
 
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
@@ -278,17 +271,273 @@ end subroutine PMPNFPreSolve
 
 ! ************************************************************************** !
 
-subroutine PMPNFPostSolve(this)
+subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
   !
   ! Author: Glenn Hammond
   ! Date: 08/27/21
 
-  use Upwind_Direction_module
+  use Grid_module
+  use Patch_module
+  use Material_Aux_class
+  use Coupler_module
+  use Connection_module
   use Option_module
 
   implicit none
 
   class(pm_pnf_type) :: this
+  Vec :: right_hand_side
+  Vec :: solution
+  Mat :: A
+  PetscErrorCode :: ierr
+
+  PetscViewer :: viewer
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
+  type(connection_set_type), pointer :: cur_connection_set
+  type(connection_set_list_type), pointer :: connection_set_list
+
+  PetscInt :: local_id, local_id_up, local_id_dn
+  PetscInt :: ghosted_id, ghosted_id_up, ghosted_id_dn
+  PetscInt :: iconn, sum_connection
+  PetscInt :: itype
+  PetscReal :: area
+  PetscReal :: rate
+  PetscReal :: rvalue
+  PetscReal :: tempreal(1,1)
+  PetscReal, parameter :: g_sup_h_constant = 0.4217d0 * pnf_density_kg * &
+                          EARTH_GRAVITY / (12.d0 * pnf_viscosity)
+  PetscReal, pointer :: rhs_ptr(:)
+
+  solution = this%realization%field%flow_xx
+  right_hand_side = this%realization%field%flow_rhs
+
+  option => this%realization%option
+  patch => this%realization%patch
+  grid => patch%grid
+
+  material_auxvars => patch%aux%Material%auxvars
+
+  call MatZeroEntries(A,ierr);CHKERRQ(ierr)
+  call VecZeroEntries(right_hand_side,ierr);CHKERRQ(ierr)
+
+  call VecGetArrayF90(right_hand_side,rhs_ptr,ierr);CHKERRQ(ierr)
+#if 0
+  do local_id = 1, grid%nlmax  ! For each local node do...
+    ghosted_id = grid%nL2G(local_id)
+    tempreal = pnf_density_kg * material_auxvars(ghosted_id)%volume / &
+               option%flow_dt
+    call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,tempreal, &
+                           ADD_VALUES,ierr);CHKERRQ(ierr)
+    rhs_ptr(local_id) = tempreal(1,1)
+  enddo
+#endif
+
+  ! Interior Flux Terms -----------------------------------
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+      local_id_up = grid%nG2L(ghosted_id_up)
+      local_id_dn = grid%nG2L(ghosted_id_dn)
+      tempreal = g_sup_h_constant * cur_connection_set%area(iconn)**4 / &
+                 cur_connection_set%dist(0,iconn)
+      if (local_id_up > 0) then
+        call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+                               tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+                               -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+      endif
+      if (local_id_dn > 0) then
+        call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+                               tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+                               -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+      endif
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+
+  ! Boundary Flux Terms -----------------------------------
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(boundary_condition)) exit
+    itype = boundary_condition%flow_condition%itype(PNF_LIQUID_PRESSURE_DOF)
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      area = cur_connection_set%area(iconn)
+      rvalue = boundary_condition%flow_aux_real_var(1,iconn)
+      select case(itype)
+        case(DIRICHLET_BC)
+          tempreal = g_sup_h_constant * area**4 / &
+                     cur_connection_set%dist(0,iconn)
+          call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1, &
+                                 tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+          tempreal = tempreal * rvalue
+        case(NEUMANN_BC)
+          tempreal = rvalue * area * pnf_density_kg
+      end select
+      rhs_ptr(local_id) = tempreal(1,1)
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  ! Source/sink terms -------------------------------------
+  source_sink => patch%source_sink_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(source_sink)) exit
+
+    cur_connection_set => source_sink%connection_set
+    itype = source_sink%flow_condition%rate%itype
+    rate = source_sink%flow_condition%rate%dataset%rarray(1)
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      tempreal = source_sink%flow_condition%rate%dataset%rarray(1)
+      select case(itype)
+      case(MASS_RATE_SS)
+        tempreal = rate
+      case(VOLUMETRIC_RATE_SS)
+        tempreal = rate * pnf_density_kg
+        case default
+          option%io_buffer = 'src_sink_type not supported in PNFSrcSink'
+          call PrintErrMsg(option)
+      end select
+      rhs_ptr(local_id) = tempreal(1,1)
+    enddo
+    source_sink => source_sink%next
+  enddo
+
+  call VecRestoreArrayF90(right_hand_side,rhs_ptr,ierr);CHKERRQ(ierr)
+  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+  call PetscViewerASCIIOpen(option%mycomm,'PNFmatrix.mat',viewer, &
+                            ierr);CHKERRQ(ierr)
+  call MatView(A,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+
+  call PetscViewerASCIIOpen(option%mycomm,'PNFrhs.vec',viewer, &
+                            ierr);CHKERRQ(ierr)
+  call VecView(right_hand_side,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+
+  call PetscViewerASCIIOpen(option%mycomm,'PNFsolution.vec',viewer, &
+                            ierr);CHKERRQ(ierr)
+  call VecView(solution,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+
+end subroutine PMPNFSetupLinearSystem
+
+! ************************************************************************** !
+
+subroutine PMPNFPostSolve(this)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/27/21
+
+  use Option_module
+  use Grid_module
+  use Patch_module
+  use Coupler_module
+  use Connection_module
+
+  implicit none
+
+  class(pm_pnf_type) :: this
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
+  type(connection_set_type), pointer :: cur_connection_set
+  type(connection_set_list_type), pointer :: connection_set_list
+  PetscReal, pointer :: vec_ptr(:)
+
+  PetscInt :: local_id, local_id_up, local_id_dn
+  PetscInt :: ghosted_id, ghosted_id_up, ghosted_id_dn
+  PetscInt :: iconn, sum_connection
+  PetscInt :: itype
+  PetscReal :: area
+  PetscReal :: rvalue
+  PetscReal :: velocity
+  PetscReal :: tempreal
+  PetscReal, parameter :: g_sup_h_constant = 0.4217d0 * &
+                          EARTH_GRAVITY / (12.d0 * pnf_viscosity)
+  PetscErrorCode :: ierr
+
+  option => this%realization%option
+  patch => this%realization%patch
+  grid => patch%grid
+
+  call VecGetArrayReadF90(this%realization%field%flow_xx,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+
+  ! Interior Flux Terms -----------------------------------
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+      local_id_up = grid%nG2L(ghosted_id_up)
+      local_id_dn = grid%nG2L(ghosted_id_dn)
+      tempreal = g_sup_h_constant * cur_connection_set%area(iconn)**4 / &
+                 cur_connection_set%dist(0,iconn)
+      velocity = tempreal * (vec_ptr(local_id_up) - vec_ptr(local_id_dn))
+      patch%internal_velocities(1,sum_connection) = velocity
+      enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+
+  ! Boundary Flux Terms -----------------------------------
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(boundary_condition)) exit
+    itype = boundary_condition%flow_condition%itype(PNF_LIQUID_PRESSURE_DOF)
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      area = cur_connection_set%area(iconn)
+      rvalue = boundary_condition%flow_aux_real_var(1,iconn)
+      select case(itype)
+        case(DIRICHLET_BC)
+          tempreal = g_sup_h_constant * area**4 / &
+                     cur_connection_set%dist(0,iconn)
+          velocity = tempreal * (rvalue - vec_ptr(local_id))
+        case(NEUMANN_BC)
+          velocity = rvalue
+      end select
+      patch%boundary_velocities(1,sum_connection) = velocity
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  call VecRestoreArrayReadF90(this%realization%field%flow_xx,vec_ptr, &
+                              ierr);CHKERRQ(ierr)
 
 end subroutine PMPNFPostSolve
 
@@ -326,8 +575,8 @@ subroutine PMPNFUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dt_prev = dt
 
   ! calculate the time step ramping factor
-  pres_ratio = (2.d0*this%liq_pres_change_ts_governor)/ &
-               (this%liq_pres_change_ts_governor+this%max_pressure_change)
+  pres_ratio = (2.d0*this%pressure_change_governor)/ &
+               (this%pressure_change_governor+this%max_pressure_change)
   ! pick minimum time step from calc'd ramping factor or maximum ramping factor
   dt = min(pres_ratio*dt,time_step_max_growth_factor*dt)
   ! make sure time step is within bounds given in the input deck
@@ -359,12 +608,16 @@ subroutine PMPNFTimeCut(this)
   !
 
   use PNF_module, only : PNFTimeCut
+  use Discretization_module, only : DiscretizationGlobalToLocal
 
   implicit none
 
   class(pm_pnf_type) :: this
 
   call PMSubsurfaceFlowTimeCut(this)
+  call DiscretizationGlobalToLocal(this%realization%discretization, &
+                                   this%realization%field%flow_xx, &
+                                   this%realization%field%flow_xx_loc,NFLOWDOF)
   call PNFTimeCut(this%realization)
 
 end subroutine PMPNFTimeCut

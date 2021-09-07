@@ -39,6 +39,7 @@ module PM_Base_class
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
+    procedure, public :: SetupLinearSystem => PMBaseSetupLinearSystem
     procedure, public :: UpdateTimestep => PMBaseUpdateTimestep
     procedure, public :: InitializeTimestep => PMBaseThisOnly
     procedure, public :: SetupSolvers => PMBaseThisOnly
@@ -247,6 +248,18 @@ subroutine PMBaseJacobian(this,snes,xx,A,B,ierr)
   PetscErrorCode :: ierr
   call this%PrintErrMsg('PMBaseJacobian')
 end subroutine PMBaseJacobian
+
+! ************************************************************************** !
+
+subroutine PMBaseSetupLinearSystem(this,A,solution,right_hand_side,ierr)
+  implicit none
+  class(pm_base_type) :: this
+  Vec :: right_hand_side
+  Vec :: solution
+  Mat :: A
+  PetscErrorCode :: ierr
+  call this%PrintErrMsg('PMBaseSetupLinearSystem')
+end subroutine PMBaseSetupLinearSystem
 
 ! ************************************************************************** !
 

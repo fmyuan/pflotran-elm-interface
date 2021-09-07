@@ -296,11 +296,14 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
 
   use PM_Subsurface_Flow_class
   use PMC_Subsurface_class
+  use PMC_Linear_class
   use Timestepper_TS_class
   use Timestepper_BE_class
+  use Timestepper_KSP_class
   use Timestepper_Steady_class
   use PM_TH_TS_class
   use PM_Richards_TS_class
+  use PM_PNF_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -316,7 +319,12 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   class(pmc_subsurface_type), pointer :: pmc_subsurface
   character(len=MAXSTRINGLENGTH) :: string
 
-  pmc_subsurface => PMCSubsurfaceCreate()
+  select type(pm_flow)
+    class is(pm_pnf_type)
+      pmc_subsurface => PMCLinearCreate()
+    class default
+      pmc_subsurface => PMCSubsurfaceCreate()
+  end select
 
   call pmc_subsurface%SetName(pmc_name)
   call pmc_subsurface%SetOption(option)
@@ -337,6 +345,8 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
         pmc_subsurface%timestepper => TimestepperTSCreate()
       class is(pm_th_ts_type)
         pmc_subsurface%timestepper => TimestepperTSCreate()
+      class is(pm_pnf_type)
+        pmc_subsurface%timestepper => TimestepperKSPCreate()
       class default
         pmc_subsurface%timestepper => TimestepperBECreate()
     end select
@@ -352,7 +362,8 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   string = trim(pm_flow%name)
   call LoggingCreateStage(string,pmc_subsurface%stage)
   simulation%flow_process_model_coupler => pmc_subsurface
-  simulation%process_model_coupler_list => simulation%flow_process_model_coupler
+  simulation%process_model_coupler_list => &
+    simulation%flow_process_model_coupler
 
 end subroutine AddPMCSubsurfaceFlow
 
@@ -1464,22 +1475,14 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   class(simulation_subsurface_type) :: simulation
 
-  class(pmc_subsurface_type), pointer :: flow_process_model_coupler
-  class(pmc_subsurface_type), pointer :: tran_process_model_coupler
   class(pmc_auxiliary_type), pointer :: auxiliary_process_model_coupler
-  class(pmc_base_type), pointer :: cur_process_model_coupler
   class(pmc_base_type), pointer :: cur_process_model_coupler_top
-  class(pm_base_type), pointer :: cur_process_model
   class(pm_auxiliary_type), pointer :: pm_aux
 
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
-  type(waypoint_list_type), pointer :: sync_waypoint_list
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: ndof
   PetscBool, allocatable :: dof_is_active(:)
-  PetscBool :: failure
-  PetscErrorCode :: ierr
 
   realization => simulation%realization
   option => realization%option

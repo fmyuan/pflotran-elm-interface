@@ -601,11 +601,6 @@ subroutine CondControlAssignFlowInitCond(realization)
 
         call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
 
-      case(PNF_MODE)
-        option%io_buffer = 'PNF mode yet to be implemented in &
-          condition_control.F90'
-        call PrintErrMsg(option)
-
       case default
         ! assign initial conditions values to domain
         call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
@@ -1166,7 +1161,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
     call PrintMsg(option)
     option%io_buffer = '*** End Note'
     call PrintMsg(option)
-    option%io_buffer = 'Free ion concentations must be positive.  Try ' // &
+    option%io_buffer = 'Free ion concentrations must be positive.  Try ' // &
       'using a small value such as 1.e-20 or 1.e-40 instead of zero.'
     call PrintErrMsg(option)
   endif
@@ -1357,7 +1352,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
     call PrintMsg(option)
     option%io_buffer = '*** End Note'
     call PrintMsg(option)
-    option%io_buffer = 'Species concentations must be positive.  Try ' // &
+    option%io_buffer = 'Species concentrations must be positive.  Try ' // &
       'using a small value such as 1.e-20 or 1.e-40 instead of zero.'
     call PrintErrMsg(option)
   endif

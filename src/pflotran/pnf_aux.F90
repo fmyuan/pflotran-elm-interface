@@ -10,22 +10,9 @@ module PNF_Aux_module
   private
 
   PetscReal, parameter, public :: pnf_density_kg = 998.32d0
-  PetscReal, parameter, public :: pnf_density_kmol = pnf_density_kg / FMWH2O
   PetscReal, parameter, public :: pnf_viscosity = 8.9d-4
 
-  PetscReal, public :: pnf_pres_rel_pert = 1.d-8
-  PetscReal, public :: pnf_pres_min_pert = 1.d-2
-
-  PetscBool, public :: pnf_calc_accum = PETSC_TRUE
-  PetscBool, public :: pnf_calc_flux = PETSC_TRUE
-  PetscBool, public :: pnf_calc_bcflux = PETSC_TRUE
-  PetscBool, public :: pnf_calc_chem = PETSC_TRUE
-
-  PetscBool, public :: pnf_numerical_derivatives = PETSC_FALSE
-  PetscBool, public :: pnf_simult_function_evals = PETSC_TRUE
-
   ! debugging
-  PetscInt, public :: pnf_ni_count
   PetscInt, public :: pnf_ts_cut_count
   PetscInt, public :: pnf_ts_count
 
@@ -37,12 +24,6 @@ module PNF_Aux_module
   PetscInt, parameter, public :: PNF_LIQUID_FLUX_INDEX = 1
   PetscInt, parameter, public :: PNF_LIQUID_CONDUCTANCE_INDEX = 2
   PetscInt, parameter, public :: PNF_MAX_INDEX = 2
-
-  PetscInt, parameter, public :: PNF_UPDATE_FOR_DERIVATIVE = -1
-  PetscInt, parameter, public :: PNF_UPDATE_FOR_FIXED_ACCUM = 0
-  PetscInt, parameter, public :: PNF_UPDATE_FOR_ACCUM = 1
-  PetscInt, parameter, public :: PNF_UPDATE_FOR_BOUNDARY = 2
-
 
   type, public :: pnf_auxvar_type
     PetscReal :: head ! liquid head

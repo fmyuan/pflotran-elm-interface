@@ -510,8 +510,6 @@ subroutine PMZFlowResidual(this,snes,xx,r,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  call this%PostSolve()
-
 end subroutine PMZFlowResidual
 
 ! ************************************************************************** !
