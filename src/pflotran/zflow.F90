@@ -282,7 +282,7 @@ subroutine ZFlowComputeMassBalance(realization,mass_balance)
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
     ! volume_phase = saturation*porosity*volume
-    mass_balance(iphase)  = &
+    mass_balance(iphase) = mass_balance(iphase) + &
         zflow_auxvars(ZERO_INTEGER,ghosted_id)%sat* &
         zflow_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity* &
         material_auxvars(ghosted_id)%volume
