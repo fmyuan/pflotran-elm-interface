@@ -15,6 +15,7 @@ module PM_PNF_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_pnf_type
     Vec :: max_pressure_change_vec
+    PetscBool :: use_darcy
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMPNFReadSimOptionsBlock
@@ -89,6 +90,7 @@ subroutine PMPNFInitObject(this)
   this%header = 'PN FLOW'
 
   this%max_pressure_change_vec = PETSC_NULL_VEC
+  this%use_darcy = PETSC_FALSE
 
   array(1) = pnf_density_kg ! dist is the aux array
   call EOSWaterSetDensity('CONSTANT',array)
@@ -143,6 +145,8 @@ subroutine PMPNFReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
+      case('USE_DARCY')
+        this%use_darcy = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'PNF Mode',option)
     end select
@@ -310,8 +314,9 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
   PetscReal :: rate
   PetscReal :: rvalue
   PetscReal :: tempreal(1,1)
-  PetscReal, parameter :: g_sup_h_constant = 0.4217d0 * pnf_density_kg * &
-                          EARTH_GRAVITY / (12.d0 * pnf_viscosity)
+  PetscReal, parameter :: g_sup_h_constant = 0.4217d0 &
+!                          * pnf_density_kg * EARTH_GRAVITY &
+                          / (12.d0 * pnf_viscosity)
   PetscReal, pointer :: rhs_ptr(:)
 
   solution = this%realization%field%flow_xx
@@ -350,8 +355,15 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_up = grid%nG2L(ghosted_id_up)
       local_id_dn = grid%nG2L(ghosted_id_dn)
-      tempreal = g_sup_h_constant * cur_connection_set%area(iconn)**4 / &
-                 cur_connection_set%dist(0,iconn)
+      if (this%use_darcy) then
+        tempreal = pnf_density_kg * &
+                  material_auxvars(ghosted_id_up)%permeability(1) * &
+                  cur_connection_set%area(iconn) / &
+                  (pnf_viscosity * cur_connection_set%dist(0,iconn))
+      else
+        tempreal = g_sup_h_constant * cur_connection_set%area(iconn)**2 / &
+                  cur_connection_set%dist(0,iconn)
+      endif
       if (local_id_up > 0) then
         call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -383,13 +395,24 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
       rvalue = boundary_condition%flow_aux_real_var(1,iconn)
       select case(itype)
         case(DIRICHLET_BC)
-          tempreal = g_sup_h_constant * area**4 / &
-                     cur_connection_set%dist(0,iconn)
+          if (this%use_darcy) then
+            tempreal = pnf_density_kg * &
+                      material_auxvars(ghosted_id)%permeability(1) * &
+                      cur_connection_set%area(iconn) / &
+                      (pnf_viscosity * cur_connection_set%dist(0,iconn))
+          else
+            tempreal = g_sup_h_constant * area**2 / &  ! w^3*b
+                      cur_connection_set%dist(0,iconn)
+          endif
           call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1, &
                                  tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
           tempreal = tempreal * rvalue
         case(NEUMANN_BC)
-          tempreal = rvalue * area * pnf_density_kg
+          if (this%use_darcy) then
+            tempreal = rvalue * area * pnf_density_kg
+          else
+            tempreal = rvalue * area
+          endif
       end select
       rhs_ptr(local_id) = tempreal(1,1)
     enddo
@@ -457,6 +480,7 @@ subroutine PMPNFPostSolve(this)
   use Patch_module
   use Coupler_module
   use Connection_module
+  use Material_Aux_class
 
   implicit none
 
@@ -465,6 +489,7 @@ subroutine PMPNFPostSolve(this)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
+  class(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
@@ -479,13 +504,15 @@ subroutine PMPNFPostSolve(this)
   PetscReal :: rvalue
   PetscReal :: velocity
   PetscReal :: tempreal
-  PetscReal, parameter :: g_sup_h_constant = 0.4217d0 * &
-                          EARTH_GRAVITY / (12.d0 * pnf_viscosity)
+  PetscReal, parameter :: g_sup_h_constant = 0.4217d0 &
+!                          * pnf_density_kg * EARTH_GRAVITY &
+                          / (12.d0 * pnf_viscosity)
   PetscErrorCode :: ierr
-
   option => this%realization%option
   patch => this%realization%patch
   grid => patch%grid
+
+  material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayReadF90(this%realization%field%flow_xx,vec_ptr, &
                           ierr);CHKERRQ(ierr)
@@ -502,11 +529,16 @@ subroutine PMPNFPostSolve(this)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_up = grid%nG2L(ghosted_id_up)
       local_id_dn = grid%nG2L(ghosted_id_dn)
-      tempreal = g_sup_h_constant * cur_connection_set%area(iconn)**4 / &
-                 cur_connection_set%dist(0,iconn)
+      if (this%use_darcy) then
+        tempreal = material_auxvars(ghosted_id_up)%permeability(1) / &
+                  (pnf_viscosity * cur_connection_set%dist(0,iconn))
+      else
+        tempreal = g_sup_h_constant * cur_connection_set%area(iconn) / & ! **2 -> **1
+                  cur_connection_set%dist(0,iconn)
+      endif
       velocity = tempreal * (vec_ptr(local_id_up) - vec_ptr(local_id_dn))
       patch%internal_velocities(1,sum_connection) = velocity
-      enddo
+    enddo
     cur_connection_set => cur_connection_set%next
   enddo
 
@@ -525,8 +557,13 @@ subroutine PMPNFPostSolve(this)
       rvalue = boundary_condition%flow_aux_real_var(1,iconn)
       select case(itype)
         case(DIRICHLET_BC)
-          tempreal = g_sup_h_constant * area**4 / &
-                     cur_connection_set%dist(0,iconn)
+          if (this%use_darcy) then
+            tempreal = material_auxvars(ghosted_id)%permeability(1) / &
+                      (pnf_viscosity * cur_connection_set%dist(0,iconn))
+          else
+            tempreal = g_sup_h_constant * area / &   ! **2 -> **1
+                      cur_connection_set%dist(0,iconn)
+          endif
           velocity = tempreal * (rvalue - vec_ptr(local_id))
         case(NEUMANN_BC)
           velocity = rvalue

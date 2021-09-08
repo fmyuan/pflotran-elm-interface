@@ -10,7 +10,8 @@ module PNF_Aux_module
   private
 
   PetscReal, parameter, public :: pnf_density_kg = 998.32d0
-  PetscReal, parameter, public :: pnf_viscosity = 8.9d-4
+!  PetscReal, parameter, public :: pnf_viscosity = 8.9d-4
+  PetscReal, parameter, public :: pnf_viscosity = 1.d-3
 
   ! debugging
   PetscInt, public :: pnf_ts_cut_count
