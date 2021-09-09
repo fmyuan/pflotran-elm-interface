@@ -275,6 +275,19 @@ end subroutine PMPNFPreSolve
 
 ! ************************************************************************** !
 
+subroutine PMPNFPostSolve(this)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/27/21
+
+  implicit none
+
+  class(pm_pnf_type) :: this
+
+end subroutine PMPNFPostSolve
+
+! ************************************************************************** !
+
 subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
   !
   ! Author: Glenn Hammond
@@ -435,9 +448,17 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
       tempreal = source_sink%flow_condition%rate%dataset%rarray(1)
       select case(itype)
       case(MASS_RATE_SS)
-        tempreal = rate
+        if (this%use_darcy) then
+          tempreal = rate
+        else
+          tempreal = rate / pnf_density_kg
+        endif
       case(VOLUMETRIC_RATE_SS)
-        tempreal = rate * pnf_density_kg
+        if (this%use_darcy) then
+          tempreal = rate * pnf_density_kg
+        else
+          tempreal = rate
+        endif
         case default
           option%io_buffer = 'src_sink_type not supported in PNFSrcSink'
           call PrintErrMsg(option)
@@ -451,26 +472,30 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-  call PetscViewerASCIIOpen(option%mycomm,'PNFmatrix.mat',viewer, &
-                            ierr);CHKERRQ(ierr)
-  call MatView(A,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-
-  call PetscViewerASCIIOpen(option%mycomm,'PNFrhs.vec',viewer, &
-                            ierr);CHKERRQ(ierr)
-  call VecView(right_hand_side,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-
-  call PetscViewerASCIIOpen(option%mycomm,'PNFsolution.vec',viewer, &
-                            ierr);CHKERRQ(ierr)
-  call VecView(solution,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  if (this%realization%debug%matview_Matrix) then
+    call PetscViewerASCIIOpen(option%mycomm,'PNFmatrix.mat',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%vecview_residual) then
+    call PetscViewerASCIIOpen(option%mycomm,'PNFrhs.vec',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call VecView(right_hand_side,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (this%realization%debug%vecview_solution) then
+    call PetscViewerASCIIOpen(option%mycomm,'PNFsolution.vec',viewer, &
+                              ierr);CHKERRQ(ierr)
+    call VecView(solution,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine PMPNFSetupLinearSystem
 
 ! ************************************************************************** !
 
-subroutine PMPNFPostSolve(this)
+subroutine PMPNFCalculateVelocities(this)
   !
   ! Author: Glenn Hammond
   ! Date: 08/27/21
@@ -494,7 +519,7 @@ subroutine PMPNFPostSolve(this)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(connection_set_list_type), pointer :: connection_set_list
-  PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_loc_ptr(:)
 
   PetscInt :: local_id, local_id_up, local_id_dn
   PetscInt :: ghosted_id, ghosted_id_up, ghosted_id_dn
@@ -514,8 +539,8 @@ subroutine PMPNFPostSolve(this)
 
   material_auxvars => patch%aux%Material%auxvars
 
-  call VecGetArrayReadF90(this%realization%field%flow_xx,vec_ptr, &
-                          ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(this%realization%field%flow_xx_loc, &
+                          vec_loc_ptr,ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -536,7 +561,8 @@ subroutine PMPNFPostSolve(this)
         tempreal = g_sup_h_constant * cur_connection_set%area(iconn) / & ! **2 -> **1
                   cur_connection_set%dist(0,iconn)
       endif
-      velocity = tempreal * (vec_ptr(local_id_up) - vec_ptr(local_id_dn))
+      velocity = tempreal * &
+                 (vec_loc_ptr(ghosted_id_up) - vec_loc_ptr(ghosted_id_dn))
       patch%internal_velocities(1,sum_connection) = velocity
     enddo
     cur_connection_set => cur_connection_set%next
@@ -564,7 +590,7 @@ subroutine PMPNFPostSolve(this)
             tempreal = g_sup_h_constant * area / &   ! **2 -> **1
                       cur_connection_set%dist(0,iconn)
           endif
-          velocity = tempreal * (rvalue - vec_ptr(local_id))
+          velocity = tempreal * (rvalue - vec_loc_ptr(ghosted_id))
         case(NEUMANN_BC)
           velocity = rvalue
       end select
@@ -573,10 +599,10 @@ subroutine PMPNFPostSolve(this)
     boundary_condition => boundary_condition%next
   enddo
 
-  call VecRestoreArrayReadF90(this%realization%field%flow_xx,vec_ptr, &
-                              ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(this%realization%field%flow_xx_loc, &
+                              vec_loc_ptr,ierr);CHKERRQ(ierr)
 
-end subroutine PMPNFPostSolve
+end subroutine PMPNFCalculateVelocities
 
 ! ************************************************************************** !
 
@@ -675,6 +701,7 @@ subroutine PMPNFUpdateSolution(this)
 
   call PMSubsurfaceFlowUpdateSolution(this)
   call PNFUpdateSolution(this%realization)
+  call PMPNFCalculateVelocities(this)
   !call PNFMapBCAuxVarsToGlobal(this%realization)
 
 end subroutine PMPNFUpdateSolution

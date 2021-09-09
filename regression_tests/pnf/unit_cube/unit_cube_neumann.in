@@ -1,0 +1,22 @@
+#Description: Unit cube test problem for pore network flow
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE PORE_FLOW
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE ./unit_cube.txt
+
+#=========================== condition couplers ===============================
+BOUNDARY_CONDITION inlet
+  FLOW_CONDITION inlet_neumann
+  REGION inlet
+END
+
+END_SUBSURFACE

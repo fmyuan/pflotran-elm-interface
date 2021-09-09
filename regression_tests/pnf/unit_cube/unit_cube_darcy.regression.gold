@@ -1,0 +1,21 @@
+-- PRESSURE: Liquid Pressure --
+      Max:   9.5000000000000E+08
+      Min:   5.0000000000000E+07
+     Mean:   5.0000000000000E+08
+        1:   9.5000000000000E+08
+        6:   4.5000000000000E+08
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+        6:         1
+-- GENERIC: LIQUID VELOCITY [m/s] --
+        1:   1.0000000000000E+00  0.0000000000000E+00  0.0000000000000E+00
+        6:   1.0000000000000E+00  0.0000000000000E+00  0.0000000000000E+00
+-- SOLUTION: Flow --
+   Time (seconds):   6.7424774169922E-04
+   Time Steps:           14
+   Linear Solver Iterations:           14
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.8234582528810E+09
