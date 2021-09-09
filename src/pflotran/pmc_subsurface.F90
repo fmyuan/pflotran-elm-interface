@@ -84,7 +84,7 @@ subroutine PMCSubsurfaceSetupSolvers(this)
   ! Date: 06/22/18
   !
   use Option_module
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
   use Timestepper_TS_class
 
   implicit none
@@ -99,8 +99,8 @@ subroutine PMCSubsurfaceSetupSolvers(this)
     select type(ts => this%timestepper)
       class is(timestepper_TS_type)
         call PMCSubsurfaceSetupSolvers_TS(this)
-      class is(timestepper_BE_type)
-        call PMCSubsurfaceSetupSolvers_TimestepperBE(this)
+      class is(timestepper_SNES_type)
+        call PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       class default
         option%io_buffer = &
           'Unknown timestepper found in PMCSubsurfaceSetupSolvers '
@@ -112,7 +112,7 @@ end subroutine PMCSubsurfaceSetupSolvers
 
 ! ************************************************************************** !
 
-subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
+subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
   !
   ! Author: Glenn Hammond
   ! Date: 03/18/13
@@ -137,7 +137,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use PM_UFD_Decay_class
   use Solver_module
   use Timestepper_Base_class
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
 
   implicit none
 
@@ -198,7 +198,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
             write(*,'(" mode = WIPP Flow: p, sg")')
         end select
       endif
-     
+
       call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
       call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
@@ -499,7 +499,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                        ierr);CHKERRQ(ierr)
   call SolverSetSNESOptions(solver,option)
 
-end subroutine PMCSubsurfaceSetupSolvers_TimestepperBE
+end subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES
 
 ! ************************************************************************** !
 

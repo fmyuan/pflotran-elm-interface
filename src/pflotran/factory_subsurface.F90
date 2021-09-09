@@ -298,8 +298,7 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   use PMC_Subsurface_class
   use PMC_Linear_class
   use Timestepper_TS_class
-  use Timestepper_BE_class
-  use Timestepper_KSP_class
+  use Timestepper_SNES_class
   use Timestepper_Steady_class
   use PM_TH_TS_class
   use PM_Richards_TS_class
@@ -348,7 +347,7 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
       class is(pm_pnf_type)
         pmc_subsurface%timestepper => TimestepperKSPCreate()
       class default
-        pmc_subsurface%timestepper => TimestepperBECreate()
+        pmc_subsurface%timestepper => TimestepperSNESCreate()
     end select
   endif
   pmc_subsurface%timestepper%name = 'FLOW'
@@ -384,7 +383,7 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   use PM_NWT_class
   use PMC_Subsurface_class
   use PMC_Subsurface_OSRT_class
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
   use Timestepper_KSP_class
   use Timestepper_Steady_class
   use Realization_Subsurface_class
@@ -433,10 +432,10 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
         if (pm%operator_split) then
           pmc_subsurface%timestepper => TimestepperKSPCreate()
         else
-          pmc_subsurface%timestepper => TimestepperBECreate()
+          pmc_subsurface%timestepper => TimestepperSNESCreate()
         endif
       class is(pm_nwt_type)
-        pmc_subsurface%timestepper => TimestepperBECreate()
+        pmc_subsurface%timestepper => TimestepperSNESCreate()
     end select
   endif
   pmc_subsurface%timestepper%name = 'TRAN'
@@ -1468,7 +1467,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   use PM_Base_Pointer_module
   use PM_Subsurface_Flow_class
   use PM_Auxiliary_class
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
   use Waypoint_module
 
   implicit none
@@ -2172,7 +2171,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use PM_NWT_class
   use Timestepper_Base_class
   use Timestepper_KSP_class
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
   use Timestepper_Steady_class
   use Timestepper_TS_class
   use PM_Hydrate_class

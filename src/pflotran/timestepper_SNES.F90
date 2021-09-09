@@ -1,4 +1,4 @@
-module Timestepper_BE_class
+module Timestepper_SNES_class
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -12,7 +12,7 @@ module Timestepper_BE_class
 
   private
 
-  type, public, extends(timestepper_base_type) :: timestepper_BE_type
+  type, public, extends(timestepper_base_type) :: timestepper_SNES_type
 
     PetscInt :: num_newton_iterations ! number of Newton iterations in a time step
     PetscInt :: num_linear_iterations ! number of linear solver iterations in a time step
@@ -28,52 +28,52 @@ module Timestepper_BE_class
 
   contains
 
-    procedure, public :: ReadSelectCase => TimestepperBEReadSelectCase
-    procedure, public :: Init => TimestepperBEInit
+    procedure, public :: ReadSelectCase => TimestepperSNESReadSelectCase
+    procedure, public :: Init => TimestepperSNESInit
 !    procedure, public :: SetTargetTime => TimestepperBaseSetTargetTime
-    procedure, public :: StepDT => TimestepperBEStepDT
-    procedure, public :: UpdateDT => TimestepperBEUpdateDT
-    procedure, public :: CheckpointBinary => TimestepperBECheckpointBinary
-    procedure, public :: RestartBinary => TimestepperBERestartBinary
-    procedure, public :: CheckpointHDF5 => TimestepperBECheckpointHDF5
-    procedure, public :: RestartHDF5 => TimestepperBERestartHDF5
-    procedure, public :: Reset => TimestepperBEReset
-    procedure, public :: PrintInfo => TimestepperBEPrintInfo
-    procedure, public :: InputRecord => TimestepperBEInputRecord
-    procedure, public :: FinalizeRun => TimestepperBEFinalizeRun
-    procedure, public :: Strip => TimestepperBEStrip
-    procedure, public :: Destroy => TimestepperBEDestroy
+    procedure, public :: StepDT => TimestepperSNESStepDT
+    procedure, public :: UpdateDT => TimestepperSNESUpdateDT
+    procedure, public :: CheckpointBinary => TimestepperSNESCheckpointBinary
+    procedure, public :: RestartBinary => TimestepperSNESRestartBinary
+    procedure, public :: CheckpointHDF5 => TimestepperSNESCheckpointHDF5
+    procedure, public :: RestartHDF5 => TimestepperSNESRestartHDF5
+    procedure, public :: Reset => TimestepperSNESReset
+    procedure, public :: PrintInfo => TimestepperSNESPrintInfo
+    procedure, public :: InputRecord => TimestepperSNESInputRecord
+    procedure, public :: FinalizeRun => TimestepperSNESFinalizeRun
+    procedure, public :: Strip => TimestepperSNESStrip
+    procedure, public :: Destroy => TimestepperSNESDestroy
 
-  end type timestepper_BE_type
+  end type timestepper_SNES_type
 
   ! For checkpointing
-  type, public, extends(stepper_base_header_type) :: stepper_BE_header_type
+  type, public, extends(stepper_base_header_type) :: stepper_SNES_header_type
     PetscInt :: cumulative_newton_iterations
     PetscInt :: cumulative_linear_iterations
     PetscInt :: num_newton_iterations
-  end type stepper_BE_header_type
+  end type stepper_SNES_header_type
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-      import :: stepper_BE_header_type
+      import :: stepper_SNES_header_type
       implicit none
 #include "petsc/finclude/petscbag.h"
       PetscBag :: bag
-      class(stepper_BE_header_type), pointer :: header
+      class(stepper_SNES_header_type), pointer :: header
       PetscErrorCode :: ierr
     end subroutine
   end interface PetscBagGetData
 
-  public :: TimestepperBECreate, &
-            TimestepperBEPrintInfo, &
-            TimestepperBEInit, &
-            TimestepperBEReadSelectCase
+  public :: TimestepperSNESCreate, &
+            TimestepperSNESPrintInfo, &
+            TimestepperSNESInit, &
+            TimestepperSNESReadSelectCase
 
 contains
 
 ! ************************************************************************** !
 
-function TimestepperBECreate()
+function TimestepperSNESCreate()
   !
   ! Allocates and initializes a new Timestepper object
   !
@@ -83,20 +83,20 @@ function TimestepperBECreate()
 
   implicit none
 
-  class(timestepper_BE_type), pointer :: TimestepperBECreate
+  class(timestepper_SNES_type), pointer :: TimestepperSNESCreate
 
-  class(timestepper_BE_type), pointer :: stepper
+  class(timestepper_SNES_type), pointer :: stepper
 
   allocate(stepper)
   call stepper%Init()
 
-  TimestepperBECreate => stepper
+  TimestepperSNESCreate => stepper
 
-end function TimestepperBECreate
+end function TimestepperSNESCreate
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEInit(this)
+subroutine TimestepperSNESInit(this)
   !
   ! Allocates and initializes a new Timestepper object
   !
@@ -106,7 +106,7 @@ subroutine TimestepperBEInit(this)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
 
   call TimestepperBaseInit(this)
 
@@ -129,14 +129,14 @@ subroutine TimestepperBEInit(this)
   this%tfac(11) = 1.0d0; this%tfac(12) = 1.0d0
   this%tfac(13) = 1.0d0
 
-end subroutine TimestepperBEInit
+end subroutine TimestepperSNESInit
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEReadSelectCase(this,input,keyword,found, &
+subroutine TimestepperSNESReadSelectCase(this,input,keyword,found, &
                                        error_string,option)
   !
-  ! Reads select case statement for BE
+  ! Reads select case statement for SNES
   !
   ! Author: Glenn Hammond
   ! Date: 03/16/20
@@ -149,7 +149,7 @@ subroutine TimestepperBEReadSelectCase(this,input,keyword,found, &
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
@@ -180,11 +180,11 @@ subroutine TimestepperBEReadSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
   end select
 
-end subroutine TimestepperBEReadSelectCase
+end subroutine TimestepperSNESReadSelectCase
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEUpdateDT(this,process_model)
+subroutine TimestepperSNESUpdateDT(this,process_model)
   !
   ! Updates time step
   !
@@ -196,7 +196,7 @@ subroutine TimestepperBEUpdateDT(this,process_model)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   class(pm_base_type) :: process_model
 
   PetscBool :: update_time_step
@@ -235,11 +235,11 @@ subroutine TimestepperBEUpdateDT(this,process_model)
 
   endif
 
-end subroutine TimestepperBEUpdateDT
+end subroutine TimestepperSNESUpdateDT
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEStepDT(this,process_model,stop_flag)
+subroutine TimestepperSNESStepDT(this,process_model,stop_flag)
   !
   ! Steps forward one step in time
   !
@@ -256,7 +256,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   class(pm_base_type) :: process_model
   PetscInt :: stop_flag
 
@@ -484,11 +484,11 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
   if (option%print_screen_flag) print *, ""
 
-end subroutine TimestepperBEStepDT
+end subroutine TimestepperSNESStepDT
 
 ! ************************************************************************** !
 
-subroutine TimestepperBECheckpointBinary(this,viewer,option)
+subroutine TimestepperSNESCheckpointBinary(this,viewer,option)
   !
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
@@ -503,12 +503,12 @@ subroutine TimestepperBECheckpointBinary(this,viewer,option)
 #include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscbag.h"
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
 
-  class(stepper_BE_header_type), pointer :: header
-  type(stepper_BE_header_type) :: dummy_header
+  class(stepper_SNES_header_type), pointer :: header
+  type(stepper_SNES_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
   PetscSizeT :: bagsize
@@ -518,16 +518,16 @@ subroutine TimestepperBECheckpointBinary(this,viewer,option)
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
-  call TimestepperBERegisterHeader(this,bag,header)
-  call TimestepperBESetHeader(this,bag,header)
+  call TimestepperSNESRegisterHeader(this,bag,header)
+  call TimestepperSNESSetHeader(this,bag,header)
   call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
-end subroutine TimestepperBECheckpointBinary
+end subroutine TimestepperSNESCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine TimestepperBERegisterHeader(this,bag,header)
+subroutine TimestepperSNESRegisterHeader(this,bag,header)
   !
   ! Register header entries.
   !
@@ -542,8 +542,8 @@ subroutine TimestepperBERegisterHeader(this,bag,header)
 #include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscbag.h"
 
-  class(timestepper_BE_type) :: this
-  class(stepper_BE_header_type) :: header
+  class(timestepper_SNES_type) :: this
+  class(stepper_SNES_header_type) :: header
   PetscBag :: bag
 
   PetscErrorCode :: ierr
@@ -560,11 +560,11 @@ subroutine TimestepperBERegisterHeader(this,bag,header)
 
   call TimestepperBaseRegisterHeader(this,bag,header)
 
-end subroutine TimestepperBERegisterHeader
+end subroutine TimestepperSNESRegisterHeader
 
 ! ************************************************************************** !
 
-subroutine TimestepperBESetHeader(this,bag,header)
+subroutine TimestepperSNESSetHeader(this,bag,header)
   !
   ! Sets values in checkpoint header.
   !
@@ -579,8 +579,8 @@ subroutine TimestepperBESetHeader(this,bag,header)
 #include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscbag.h"
 
-  class(timestepper_BE_type) :: this
-  class(stepper_BE_header_type) :: header
+  class(timestepper_SNES_type) :: this
+  class(stepper_SNES_header_type) :: header
   PetscBag :: bag
 
   PetscErrorCode :: ierr
@@ -591,11 +591,11 @@ subroutine TimestepperBESetHeader(this,bag,header)
 
   call TimestepperBaseSetHeader(this,bag,header)
 
-end subroutine TimestepperBESetHeader
+end subroutine TimestepperSNESSetHeader
 
 ! ************************************************************************** !
 
-subroutine TimestepperBERestartBinary(this,viewer,option)
+subroutine TimestepperSNESRestartBinary(this,viewer,option)
   !
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
@@ -611,12 +611,12 @@ subroutine TimestepperBERestartBinary(this,viewer,option)
 #include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscbag.h"
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
 
-  class(stepper_BE_header_type), pointer :: header
-  type(stepper_BE_header_type) :: dummy_header
+  class(stepper_SNES_header_type), pointer :: header
+  type(stepper_SNES_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
   PetscSizeT :: bagsize
@@ -626,16 +626,16 @@ subroutine TimestepperBERestartBinary(this,viewer,option)
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
-  call TimestepperBERegisterHeader(this,bag,header)
+  call TimestepperSNESRegisterHeader(this,bag,header)
   call PetscBagLoad(viewer,bag,ierr);CHKERRQ(ierr)
-  call TimestepperBEGetHeader(this,header)
+  call TimestepperSNESGetHeader(this,header)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
-end subroutine TimestepperBERestartBinary
+end subroutine TimestepperSNESRestartBinary
 
 ! ************************************************************************** !
 
-subroutine TimestepperBECheckpointHDF5(this, h5_chk_grp_id, option)
+subroutine TimestepperSNESCheckpointHDF5(this, h5_chk_grp_id, option)
   !
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
@@ -650,7 +650,7 @@ subroutine TimestepperBECheckpointHDF5(this, h5_chk_grp_id, option)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
@@ -762,11 +762,11 @@ subroutine TimestepperBECheckpointHDF5(this, h5_chk_grp_id, option)
   deallocate(int_array)
   deallocate(real_array)
 
-end subroutine TimestepperBECheckpointHDF5
+end subroutine TimestepperSNESCheckpointHDF5
 
 ! ************************************************************************** !
 
-subroutine TimestepperBERestartHDF5(this, h5_chk_grp_id, option)
+subroutine TimestepperSNESRestartHDF5(this, h5_chk_grp_id, option)
   !
   ! Restarts parameters/variables associated with
   ! a time stepper.
@@ -782,7 +782,7 @@ subroutine TimestepperBERestartHDF5(this, h5_chk_grp_id, option)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
@@ -892,11 +892,11 @@ subroutine TimestepperBERestartHDF5(this, h5_chk_grp_id, option)
   deallocate(int_array)
   deallocate(real_array)
 
-end subroutine TimestepperBERestartHDF5
+end subroutine TimestepperSNESRestartHDF5
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEGetHeader(this,header)
+subroutine TimestepperSNESGetHeader(this,header)
   !
   ! Gets values in checkpoint header.
   !
@@ -911,8 +911,8 @@ subroutine TimestepperBEGetHeader(this,header)
 #include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscbag.h"
 
-  class(timestepper_BE_type) :: this
-  class(stepper_BE_header_type) :: header
+  class(timestepper_SNES_type) :: this
+  class(stepper_SNES_header_type) :: header
 
   this%cumulative_newton_iterations = header%cumulative_newton_iterations
   this%cumulative_linear_iterations = header%cumulative_linear_iterations
@@ -920,11 +920,11 @@ subroutine TimestepperBEGetHeader(this,header)
 
   call TimestepperBaseGetHeader(this,header)
 
-end subroutine TimestepperBEGetHeader
+end subroutine TimestepperSNESGetHeader
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEReset(this)
+subroutine TimestepperSNESReset(this)
   !
   ! Zeros timestepper object members.
   !
@@ -934,7 +934,7 @@ subroutine TimestepperBEReset(this)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
 
   this%cumulative_newton_iterations = 0
   this%cumulative_linear_iterations = 0
@@ -942,11 +942,11 @@ subroutine TimestepperBEReset(this)
 
   call TimestepperBaseReset(this)
 
-end subroutine TimestepperBEReset
+end subroutine TimestepperSNESReset
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEPrintInfo(this,option)
+subroutine TimestepperSNESPrintInfo(this,option)
   !
   ! Prints settings for base timestepper.
   !
@@ -958,7 +958,7 @@ subroutine TimestepperBEPrintInfo(this,option)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   type(option_type) :: option
 
   PetscInt :: fids(2)
@@ -990,11 +990,11 @@ subroutine TimestepperBEPrintInfo(this,option)
   call SolverPrintNewtonInfo(this%solver,this%name,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
 
-end subroutine TimestepperBEPrintInfo
+end subroutine TimestepperSNESPrintInfo
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEInputRecord(this)
+subroutine TimestepperSNESInputRecord(this)
   !
   ! Prints information about the time stepper to the input record.
   ! To get a## format, must match that in simulation types.
@@ -1005,7 +1005,7 @@ subroutine TimestepperBEInputRecord(this)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
 
   PetscInt :: id
   character(len=MAXWORDLENGTH) :: word
@@ -1019,11 +1019,11 @@ subroutine TimestepperBEInputRecord(this)
   write(word,*) this%dt_init
   write(id,'(a)') trim(adjustl(word)) // ' sec'
 
-end subroutine TimestepperBEInputRecord
+end subroutine TimestepperSNESInputRecord
 
 ! ************************************************************************** !
 
-recursive subroutine TimestepperBEFinalizeRun(this,option)
+recursive subroutine TimestepperSNESFinalizeRun(this,option)
   !
   ! Finalizes the time stepping
   !
@@ -1035,17 +1035,17 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
 
 #ifdef DEBUG
-  call PrintMsg(option,'TimestepperBEFinalizeRun()')
+  call PrintMsg(option,'TimestepperSNESFinalizeRun()')
 #endif
 
   if (OptionPrintToScreen(option)) then
-    write(*,'(/,x,a," TS BE steps = ",i6," newton = ",i8," linear = ",i10, &
+    write(*,'(/,x,a," TS SNES steps = ",i6," newton = ",i8," linear = ",i10, &
             & " cuts = ",i6)') &
             trim(this%name), &
             this%steps, &
@@ -1055,21 +1055,21 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
     write(string,'(i12)') this%cumulative_wasted_linear_iterations
 
     write(*,'(x,a)') trim(this%name) // &
-      ' TS BE Wasted Linear Iterations = ' // trim(adjustl(string))
+      ' TS SNES Wasted Linear Iterations = ' // trim(adjustl(string))
     write(string,'(i12)') this%cumulative_wasted_newton_iterations
     write(*,'(x,a)') trim(this%name) // &
-      ' TS BE Wasted Newton Iterations = ' // trim(adjustl(string))
+      ' TS SNES Wasted Newton Iterations = ' // trim(adjustl(string))
 
     write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(x,a)') trim(this%name) // ' TS BE SNES time = ' // &
+    write(*,'(x,a)') trim(this%name) // ' TS SNES SNES time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
 
-end subroutine TimestepperBEFinalizeRun
+end subroutine TimestepperSNESFinalizeRun
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEStrip(this)
+subroutine TimestepperSNESStrip(this)
   !
   ! Deallocates members of a time stepper
   !
@@ -1079,18 +1079,18 @@ subroutine TimestepperBEStrip(this)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
 
   call TimestepperBaseStrip(this)
 
   if (associated(this%tfac)) deallocate(this%tfac)
   nullify(this%tfac)
 
-end subroutine TimestepperBEStrip
+end subroutine TimestepperSNESStrip
 
 ! ************************************************************************** !
 
-subroutine TimestepperBEDestroy(this)
+subroutine TimestepperSNESDestroy(this)
   !
   ! Deallocates a time stepper
   !
@@ -1100,13 +1100,13 @@ subroutine TimestepperBEDestroy(this)
 
   implicit none
 
-  class(timestepper_BE_type) :: this
+  class(timestepper_SNES_type) :: this
 
-  call TimestepperBEStrip(this)
+  call TimestepperSNESStrip(this)
 
 !  deallocate(this)
 !  nullify(this)
 
-end subroutine TimestepperBEDestroy
+end subroutine TimestepperSNESDestroy
 
-end module Timestepper_BE_class
+end module Timestepper_SNES_class

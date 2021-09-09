@@ -8,7 +8,7 @@ module Timestepper_TS_class
 
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
-  
+
   implicit none
 
   private
@@ -43,7 +43,7 @@ module Timestepper_TS_class
   type, public, extends(stepper_base_header_type) :: timestepper_TS_header_type
     real*8 :: dt_max_allowable
   end type timestepper_TS_header_type
-  PetscSizeT, parameter, private :: bagsize = 80 ! 64 (base) + 16 (BE)
+  PetscSizeT, parameter, private :: bagsize = 80 ! 64 (base) + 16 (SNES)
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
@@ -62,39 +62,39 @@ contains
 ! ************************************************************************** !
 
 function TimestepperTSCreate()
-  ! 
+  !
   ! This routine
-  ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 06/19/18
-  ! 
-
-  implicit none
-  
-  class(timestepper_TS_type), pointer :: TimestepperTSCreate
-  
-  class(timestepper_TS_type), pointer :: ts_timestepper
-  
-  allocate(ts_timestepper)
-
-  call ts_timestepper%Init()
-  
-  TimestepperTSCreate => ts_timestepper
-  
-end function TimestepperTSCreate
-
-! ************************************************************************** !
-
-subroutine TimestepperTSInit(this)
-  ! 
-  ! This routine
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
 
   implicit none
-  
+
+  class(timestepper_TS_type), pointer :: TimestepperTSCreate
+
+  class(timestepper_TS_type), pointer :: ts_timestepper
+
+  allocate(ts_timestepper)
+
+  call ts_timestepper%Init()
+
+  TimestepperTSCreate => ts_timestepper
+
+end function TimestepperTSCreate
+
+! ************************************************************************** !
+
+subroutine TimestepperTSInit(this)
+  !
+  ! This routine
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 06/19/18
+  !
+
+  implicit none
+
   class (timestepper_TS_type) :: this
 
   call TimestepperBaseInit(this)
@@ -123,18 +123,18 @@ end subroutine TimestepperTSInit
 
 subroutine TimestepperTSReadSelectCase(this,input,keyword,found, &
                                        error_string,option)
-  ! 
+  !
   ! Reads select case statement for TS
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/20
-  ! 
+  !
 
   use Option_module
   use String_module
   use Input_Aux_module
   use Utility_module
-  
+
   implicit none
 
   class(timestepper_TS_type) :: this
@@ -143,7 +143,7 @@ subroutine TimestepperTSReadSelectCase(this,input,keyword,found, &
   PetscBool :: found
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
 
   found = PETSC_TRUE
@@ -166,17 +166,17 @@ subroutine TimestepperTSReadSelectCase(this,input,keyword,found, &
 
     case default
       found = PETSC_FALSE
-  end select 
-  
+  end select
+
 end subroutine TimestepperTSReadSelectCase
 
 ! ************************************************************************** !
 ! ************************************************************************** !
 
 subroutine TimestepperTSStepDT(this,process_model,stop_flag)
-  ! 
+  !
   ! This is a dummy routine added to be extended in timestepper_TS_type
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
@@ -186,7 +186,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   use PM_Base_class
   use Option_module
   use Output_module, only : Output
-  
+
   implicit none
 
   class(timestepper_TS_type) :: this
@@ -223,7 +223,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call TSSetStepNumber(solver%ts,ZERO_INTEGER,ierr);CHKERRQ(ierr)
   call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
                            ierr);CHKERRQ(ierr)
- 
+
   call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
   call TSSolve(solver%ts,process_model%solution_vec,ierr);CHKERRQ(ierr)
   call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
@@ -238,7 +238,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call TSGetSNESIterations(solver%ts,num_newton_iterations,ierr)
   call TSGetKSPIterations(solver%ts,num_linear_iterations,ierr)
 
-  this%num_newton_iterations = num_newton_iterations 
+  this%num_newton_iterations = num_newton_iterations
   this%cumulative_newton_iterations = this%cumulative_newton_iterations + this%num_newton_iterations
 
   this%num_linear_iterations = num_linear_iterations
@@ -298,16 +298,16 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
 
   call process_model%PostSolve()
 
-  if (option%print_screen_flag) print *, ""  
+  if (option%print_screen_flag) print *, ""
 
 end subroutine TimestepperTSStepDT
 
 ! ************************************************************************** !
 
 subroutine TimestepperTSCheckpointBinary(this,viewer,option)
-  ! 
+  !
   ! This checkpoints parameters/variables associated with surface-timestepper
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
@@ -339,9 +339,9 @@ end subroutine TimestepperTSCheckpointBinary
 ! ************************************************************************** !
 
 subroutine TimestepperTSRestartBinary(this,viewer,option)
-  ! 
+  !
   ! This checkpoints parameters/variables associated with surface-timestepper
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
@@ -373,9 +373,9 @@ end subroutine TimestepperTSRestartBinary
 ! ************************************************************************** !
 
 subroutine TimestepperTSRegisterHeader(this,bag,header)
-  ! 
+  !
   ! This subroutine register header entries for surface-flow.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
@@ -401,9 +401,9 @@ end subroutine TimestepperTSRegisterHeader
 ! ************************************************************************** !
 
 subroutine TimestepperTSSetHeader(this,bag,header)
-  ! 
+  !
   ! This subroutine sets values in checkpoint header.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
@@ -430,9 +430,9 @@ end subroutine TimestepperTSSetHeader
 ! ************************************************************************** !
 
 subroutine TimestepperTSGetHeader(this,header)
-  ! 
+  !
   ! This subroutine gets values in checkpoint header.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
@@ -471,23 +471,23 @@ end subroutine TimestepperTSReset
 ! ************************************************************************** !
 
 subroutine TimestepperTSPrintInfo(this,option)
-  ! 
+  !
   ! Prints settings for base timestepper.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
   use Option_module
 
   implicit none
-  
-#include "petsc/finclude/petscts.h"  
+
+#include "petsc/finclude/petscts.h"
 
   class(timestepper_TS_type) :: this
   type(option_type) :: option
-  
+
   PetscErrorCode :: ierr
-  
+
   if (OptionPrintToScreen(option)) then
     write(*,*) ' '
     write(*,*) 'TS Solver:'
@@ -496,27 +496,27 @@ subroutine TimestepperTSPrintInfo(this,option)
   call TimestepperBasePrintInfo(this,option)
   call SolverPrintNewtonInfo(this%solver,this%name,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
-  
+
 end subroutine TimestepperTSPrintInfo
 
 ! ************************************************************************** !
 
 subroutine TimestepperSurfInputRecord(this)
-  ! 
+  !
   ! Prints information about the time stepper to the input record.
   ! To get a## format, must match that in simulation types.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
-  
+
   implicit none
-  
+
   class(timestepper_TS_type) :: this
 
   PetscInt :: id
   character(len=MAXWORDLENGTH) :: word
-   
+
   id = INPUT_RECORD_UNIT
 
   write(id,'(a29)',advance='no') 'pmc timestepper: '
@@ -531,17 +531,17 @@ end subroutine TimestepperSurfInputRecord
 ! ************************************************************************** !
 
 subroutine TimestepperTSStrip(this)
-  ! 
+  !
   ! Deallocates members of a surface time stepper
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
 
   implicit none
-  
+
   class(timestepper_TS_type) :: this
-  
+
   call TimestepperBaseStrip(this)
 
 end subroutine TimestepperTSStrip
@@ -549,39 +549,39 @@ end subroutine TimestepperTSStrip
 ! ************************************************************************** !
 
 subroutine TimestepperTSDestroy(this)
-  ! 
+  !
   ! Deallocates a surface time stepper
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
   !
 
   implicit none
-  
+
   class(timestepper_TS_type) :: this
-  
+
   call TimestepperTSStrip(this)
-  
+
 end subroutine TimestepperTSDestroy
 
 ! ************************************************************************** !
 subroutine TimestepperTSUpdateDT(this,process_model)
-  ! 
+  !
   ! Updates time step
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/19/18
-  ! 
+  !
 
   use PM_Base_class
-  
+
   implicit none
 
   class(timestepper_TS_type) :: this
   class(pm_base_type) :: process_model
-  
+
   PetscBool :: update_time_step
-  
+
   update_time_step = PETSC_TRUE
 
   if (this%time_step_cut_flag) then
@@ -603,9 +603,9 @@ subroutine TimestepperTSUpdateDT(this,process_model)
     ! do not increase time step size
     update_time_step = PETSC_FALSE
   endif
-    
+
   if (update_time_step .and. this%iaccel /= 0) then
-      
+
     call process_model%UpdateTimestep(this%dt, &
                                       this%dt_min, &
                                       this%dt_max, &
@@ -621,26 +621,26 @@ end subroutine TimestepperTSUpdateDT
 ! ************************************************************************** !
 
 recursive subroutine TimestepperTSFinalizeRun(this,option)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 07/03/18
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(timestepper_TS_type) :: this
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
-  
+
 #ifdef DEBUG
-  call PrintMsg(option,'TimestepperBEFinalizeRun()')
+  call PrintMsg(option,'TimestepperSNESFinalizeRun()')
 #endif
-  
+
   if (OptionPrintToScreen(option)) then
     write(*,'(/,x,a," PETSc TS steps = ",i6," newton = ",i8," linear = ",i10, &
             & " cuts = ",i6)') &
@@ -653,7 +653,7 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
     write(*,'(x,a)') trim(this%name) // ' PETSc TS SNES time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
-  
+
 end subroutine TimestepperTSFinalizeRun
 
 end module Timestepper_TS_class

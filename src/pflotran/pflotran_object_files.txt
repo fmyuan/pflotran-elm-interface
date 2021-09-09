@@ -254,7 +254,7 @@ misc_obj = \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_KSP.o \
-	${common_src}timestepper_BE.o \
+	${common_src}timestepper_SNES.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
 	${common_src}upwind_direction.o \
