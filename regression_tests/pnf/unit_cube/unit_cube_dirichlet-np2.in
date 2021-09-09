@@ -13,6 +13,13 @@ SUBSURFACE
 
 EXTERNAL_FILE ./unit_cube.txt
 
+# this block overwrites direct solve set in unit_cube.txt
+NUMERICAL_METHODS FLOW
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+END
+
 #=========================== condition couplers ===============================
 BOUNDARY_CONDITION inlet
   FLOW_CONDITION inlet_dirichlet_pnf
