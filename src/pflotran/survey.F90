@@ -235,7 +235,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
 
   ! Get cell ids corrsponding to electrode positions
   allocate(survey%ipos_electrode(survey%num_electrode))
-  survey%ipos_electrode = 1
+  survey%ipos_electrode = UNINITIALIZED_INTEGER
 
   call SurveyGetElectrodeIndexFromPos(survey,grid,option)
 
