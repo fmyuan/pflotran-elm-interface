@@ -299,6 +299,7 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   use PMC_Linear_class
   use Timestepper_TS_class
   use Timestepper_SNES_class
+  use Timestepper_KSP_class
   use Timestepper_Steady_class
   use PM_TH_TS_class
   use PM_Richards_TS_class
