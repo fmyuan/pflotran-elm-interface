@@ -297,6 +297,7 @@ recursive subroutine PMERTInitializeRun(this)
   use Patch_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
+  use String_module
   use Transport_Constraint_RT_module
 
   implicit none
@@ -324,6 +325,7 @@ recursive subroutine PMERTInitializeRun(this)
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: iconn, sum_connection
   PetscInt :: local_id, ghosted_id
+  PetscInt :: i
   PetscErrorCode :: ierr
 
 
@@ -419,6 +421,26 @@ recursive subroutine PMERTInitializeRun(this)
                                  rt_auxvar%total(ispecies,1))
       source_sink => source_sink%next
     enddo
+  endif
+
+  ! ensure that electrodes are not placed in inactive cells
+  flag = PETSC_FALSE
+  do i = 1, size(this%survey%ipos_electrode)
+    local_id = this%survey%ipos_electrode(i)
+    if (local_id <= 0) cycle ! not on process
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) then
+      option%io_buffer = 'Electrode in inactive grid cell: ' // &
+        trim(StringWrite(grid%nG2A(ghosted_id)))
+      call PrintErrMsgNoStopByRank(option)
+      flag = PETSC_TRUE
+    endif
+  enddo
+  call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (flag) then
+    option%io_buffer = 'Electrodes in inactive cells (see above).'
+    call PrintErrMsg(option)
   endif
 
 end subroutine PMERTInitializeRun
@@ -566,6 +588,7 @@ subroutine PMERTPreSolve(this)
 
   material_auxvars => patch%aux%Material%auxvars
   do ghosted_id = 1, grid%ngmax
+    if (patch%imat(ghosted_id) <= 0) cycle
     por = material_auxvars(ghosted_id)%porosity
     sat = global_auxvars(ghosted_id)%sat(1)
     if (associated(rt_auxvars)) then
@@ -603,6 +626,7 @@ subroutine PMERTSolve(this,time,ierr)
   ! Date: 01/27/21
   !
   use Patch_module
+  use Debug_module
   use Grid_module
   use Solver_module
   use Field_module
@@ -633,7 +657,9 @@ subroutine PMERTSolve(this,time,ierr)
   PetscReal :: val
   PetscReal :: average_cond
   PetscReal, pointer :: vec_ptr(:)
+  character(len=MAXSTRINGLENGTH) :: string
 
+  PetscViewer :: viewer
   !PetscLogDouble :: log_start_time
   PetscLogDouble :: log_ksp_start_time
   PetscLogDouble :: log_start_time
@@ -709,14 +735,26 @@ subroutine PMERTSolve(this,time,ierr)
       vec_ptr(elec_id) = val
     endif
     call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
-    !call VecView(this%rhs,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
+
+    if (realization%debug%vecview_residual) then
+      string = 'ERTrhs_' // trim(adjustl(StringWrite(elec_id)))
+      call DebugCreateViewer(realization%debug,string,this%option,viewer)
+      call VecView(this%rhs,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
 
     ! Solve system
     call PetscTime(log_ksp_start_time,ierr); CHKERRQ(ierr)
     call KSPSolve(solver%ksp,this%rhs,field%work,ierr);CHKERRQ(ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     this%ksp_time = this%ksp_time + (log_end_time - log_ksp_start_time)
-    !call VecView(field%work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
+
+    if (realization%debug%vecview_solution) then
+      string = 'ERTsolution_' // trim(adjustl(StringWrite(elec_id)))
+      call DebugCreateViewer(realization%debug,string,this%option,viewer)
+      call VecView(field%work,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
 
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                      field%work_loc,ONEDOF)
