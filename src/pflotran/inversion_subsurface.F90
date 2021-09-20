@@ -83,7 +83,11 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
                                    error_string,option)
   if (found) return
 
+  found = PETSC_TRUE
   select case(trim(keyword))
+    case('FORWARD_SIMULATION_FILENAME')
+      call InputReadFilename(input,option,this%forward_simulation_filename)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('QUANTITY_OF_INTEREST')
       call InputReadWord(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,keyword,error_string)

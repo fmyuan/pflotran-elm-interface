@@ -20,7 +20,9 @@ module Inversion_Base_class
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseInitialize
     procedure, public :: ReadBlock => InversionBaseReadBlock
-    procedure, public :: SetIterationNumber => InversionBaseSetIterationNum
+    procedure, public :: Step => InversionBaseStep
+    procedure, public :: SetIteration => InversionBaseSetIteration
+    procedure, public :: IncrementIteration => InversionBaseIncrementIteration
     procedure, public :: UpdateParameters => InversionBaseUpdateParameters
     procedure, public :: CalculateUpdate => InversionBaseCalculateUpdate
     procedure, public :: CheckConvergence => InversionBaseCheckConvergence
@@ -146,7 +148,23 @@ end subroutine InversionBaseInitialize
 
 ! ************************************************************************** !
 
-PetscInt function InversionBaseSetIterationNum(this)
+subroutine InversionBaseSetIteration(this,i)
+  !
+  ! Sets starting iteration number
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/09/21
+
+  class(inversion_base_type) :: this
+  PetscInt :: i
+
+  this%iteration = i
+
+end subroutine InversionBaseSetIteration
+
+! ************************************************************************** !
+
+subroutine InversionBaseIncrementIteration(this)
   !
   ! Sets starting iteration number
   !
@@ -155,9 +173,9 @@ PetscInt function InversionBaseSetIterationNum(this)
 
   class(inversion_base_type) :: this
 
-  InversionBaseSetIterationNum = 0
+  this%iteration = this%iteration + 1
 
-end function InversionBaseSetIterationNum
+end subroutine InversionBaseIncrementIteration
 
 ! ************************************************************************** !
 

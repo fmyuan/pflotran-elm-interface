@@ -53,6 +53,7 @@ module Inversion_ERT_class
     procedure, public :: Init => InversionERTInit
     procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
+    procedure, public :: Step => InversionERTStep
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
@@ -480,22 +481,6 @@ subroutine InversionERTReadBlock(this,input,option)
     if (found) cycle
 
     select case(trim(keyword))
-      case('QUANTITY_OF_INTEREST')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('ELECTRICAL_CONDUCTIVITY')
-            this%iqoi = ELECTRICAL_CONDUCTIVITY
-          case default
-            call InputKeywordUnrecognized(input,word,trim(error_string)// &
-                                        & ',QUANTITY_OF_INTEREST',option)
-        end select
-      case('REFERENCE_QUANTITY_OF_INTEREST')
-        call InputReadNChars(input,option,this%ref_qoi_dataset_name, &
-                             MAXWORDLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'DATASET NAME', &
-                           keyword)
       case('MIN_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option,this%mincond)
         call InputErrorMsg(input,option,'MIN_ELECTRICAL_CONDUCTIVITY', &
@@ -783,6 +768,45 @@ subroutine InversionERTInitialize(this)
   endif
 
 end subroutine InversionERTInitialize
+
+! ************************************************************************** !
+
+subroutine InversionERTStep(this)
+  !
+  ! Execute a simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/27/21
+
+  use Option_module
+  use Factory_Forward_module
+
+  class(inversion_ert_type) :: this
+
+  type(option_type), pointer :: option
+
+  option => OptionCreate()
+  write(option%group_prefix,'(i6)') this%iteration+1
+  option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
+  call OptionSetDriver(option,this%driver)
+  call FactoryForwardInitialize(this%forward_simulation, &
+                                this%forward_simulation_filename,option)
+  this%realization => this%forward_simulation%realization
+  call this%UpdateParameters()
+  call this%forward_simulation%InitializeRun()
+  if (option%status == PROCEED) then
+    call this%forward_simulation%ExecuteRun()
+  endif
+  call this%CheckConvergence()
+  call this%CalculateUpdate()
+  call this%WriteIterationInfo()
+  call this%UpdateRegularizationParameters()
+  call this%forward_simulation%FinalizeRun()
+  call this%forward_simulation%Strip()
+  deallocate(this%forward_simulation)
+  nullify(this%forward_simulation)
+
+end subroutine InversionERTStep
 
 ! ************************************************************************** !
 
