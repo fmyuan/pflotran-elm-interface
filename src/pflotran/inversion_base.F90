@@ -161,6 +161,21 @@ end function InversionBaseSetIterationNum
 
 ! ************************************************************************** !
 
+subroutine InversionBaseStep(this)
+  !
+  ! Initializes inversion
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/04/21
+  !
+  class(inversion_base_type) :: this
+
+  call this%driver%PrintErrMsg('InversionBaseStep must be extended.')
+
+end subroutine InversionBaseStep
+
+! ************************************************************************** !
+
 subroutine InversionBaseUpdateParameters(this)
   !
   ! Initializes inversion
