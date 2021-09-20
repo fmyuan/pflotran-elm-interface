@@ -159,6 +159,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TH_TS_MODE = 7
   PetscInt, parameter, public :: H_MODE = 8
   PetscInt, parameter, public :: ZFLOW_MODE = 9
+  PetscInt, parameter, public :: PNF_MODE = 10
 
   ! transport modes
   PetscInt, parameter, public :: RT_MODE = 1

@@ -539,8 +539,10 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   material_auxvars => patch%aux%Material%auxvars
 
   dataset_vec = PETSC_NULL_VEC
+
+  if (option%iflowmode == PNF_MODE) return
   
-  if(option%iflowmode == WF_MODE) then
+  if (option%iflowmode == WF_MODE) then
     call RealizationGetVariable(realization,realization%field%work, &
                                 LIQUID_PRESSURE,ZERO_INTEGER)
   else

@@ -2104,7 +2104,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
     call MatConvert(J,mat_type_B,MAT_REUSE_MATRIX,B,ierr);CHKERRQ(ierr);
   endif
 
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'Rjacobian','', &
                             richards_ts_count,richards_ts_cut_count, &
                             richards_ni_count)
@@ -2112,7 +2112,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call DebugViewerDestroy(realization%debug,viewer)
   endif
-  if (realization%debug%norm_Jacobian) then
+  if (realization%debug%norm_Matrix) then
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
@@ -2369,7 +2369,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Rjacobian_flux','', &
@@ -2553,7 +2553,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
 
   endif
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Rjacobian_bcflux','', &
@@ -2667,7 +2667,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
 
   endif
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Rjacobian_accum','', &
@@ -2830,7 +2830,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   call RichardsSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                          global_auxvars,rich_auxvars,option)
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Rjacobian_srcsink','', &

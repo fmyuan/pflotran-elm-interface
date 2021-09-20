@@ -411,7 +411,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 !     (see NWTEqDissPrecipSorb), we must NWTAuxVarCompute() based on the
 !     total bulk concentration at each boundary connection just like we do
 !     for each internal grid cell above. Otherwise, the precipitate
-!     concentation of 1.d-20 is not factored into the boundary concentration
+!     concentration of 1.d-20 is not factored into the boundary concentration
 !     for pure aqueous boundaries, and this generates error. To prove this
 !     change #if 0 -> #if 1 below and run a transport simulation with a
 !     single aqueous constraint (not concentration gradient). You will see
@@ -1627,7 +1627,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)  
     
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     string = 'NWTjacobian'
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
@@ -1638,7 +1638,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
 
-    if (realization%debug%matview_Jacobian) then
+    if (realization%debug%matview_Matrix) then
       string = 'NWTjacobianLog'
       call DebugCreateViewer(realization%debug,string,realization%option,viewer)
       call MatView(J,viewer,ierr);CHKERRQ(ierr)

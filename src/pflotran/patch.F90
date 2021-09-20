@@ -915,6 +915,14 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
+              case(PNF_MODE)
+                allocate(coupler%flow_bc_type(1))
+                allocate(coupler%flow_aux_real_var(1,num_connections))
+                allocate(coupler%flow_aux_int_var(1,num_connections))
+                coupler%flow_bc_type = 0
+                coupler%flow_aux_real_var = 0.d0
+                coupler%flow_aux_int_var = 0
+
               case(TH_MODE,TH_TS_MODE)
                 temp_int = 2
                 select case(coupler%flow_condition%pressure%itype)
@@ -991,7 +999,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                    VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
                    HET_VOL_RATE_SS,HET_MASS_RATE_SS)
                 select case(option%iflowmode)
-                  case(RICHARDS_MODE,RICHARDS_TS_MODE)
+                  case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE)
                     allocate(coupler%flow_aux_real_var(1,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case(ZFLOW_MODE)
@@ -1161,6 +1169,8 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
             call PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
           case(ZFLOW_MODE)
             call PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
+          case(PNF_MODE)
+            call PatchUpdateCouplerAuxVarsPNF(patch,coupler,option)
         end select
       endif
     endif
@@ -3738,6 +3748,92 @@ end subroutine PatchUpdateCouplerAuxVarsZFlow
 
 ! ************************************************************************** !
 
+subroutine PatchUpdateCouplerAuxVarsPNF(patch,coupler,option)
+  !
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for PNF_MODE
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/27/21
+  !
+
+  use Option_module
+  use Condition_module
+  use PNF_Aux_module
+
+  use Grid_module
+  use Dataset_Common_HDF5_class
+  use Dataset_Gridded_HDF5_class
+  use Dataset_Ascii_class
+  use Dataset_module
+
+  implicit none
+
+  type(patch_type) :: patch
+  type(coupler_type), pointer :: coupler
+  type(option_type) :: option
+
+  type(flow_condition_type), pointer :: flow_condition
+  class(dataset_common_hdf5_type), pointer :: dataset
+  PetscBool :: update
+  PetscBool :: dof1, dof2, dof3
+  PetscReal :: temperature, p_sat
+  PetscReal :: x(option%nflowdof)
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  PetscErrorCode :: ierr
+
+  PetscInt :: idof, num_connections,sum_connection
+  PetscInt :: iconn, local_id, ghosted_id
+
+  num_connections = coupler%connection_set%num_connections
+
+  flow_condition => coupler%flow_condition
+  if (associated(flow_condition%pressure)) then
+    select case(flow_condition%pressure%itype)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
+        select type(dataset => &
+                    flow_condition%pressure%dataset)
+          class is(dataset_ascii_type)
+            coupler%flow_aux_real_var(ZFLOW_PRESSURE_DOF, &
+                                      1:num_connections) = dataset%rarray(1)
+          class is(dataset_gridded_hdf5_type)
+            call PatchUpdateCouplerGridDataset(coupler,option, &
+                                            patch%grid,dataset, &
+                                            ZFLOW_PRESSURE_DOF)
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
+          class default
+            call PrintMsg(option,'pressure%itype,DIRICHLET-type')
+            call DatasetUnknownClass(dataset,option, &
+                                     'PatchUpdateCouplerAuxVarsPNF')
+        end select
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        option%io_buffer = 'HYDROSTATIC BCs not supported in PNF flow'
+        call PrintErrMsg(option)
+      case(HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+           HET_HYDROSTATIC_CONDUCTANCE_BC)
+        option%io_buffer = 'Heterogenenous BCs not supported in PNF flow'
+        call PrintErrMsg(option)
+    end select
+    coupler%flow_bc_type(PNF_LIQUID_EQUATION_INDEX) = &
+      flow_condition%pressure%itype
+  endif
+  if (associated(flow_condition%saturation)) then
+    option%io_buffer = 'Saturation BCs not supported in PNF flow'
+    call PrintErrMsg(option)
+  endif
+  if (associated(flow_condition%rate)) then
+    select case(flow_condition%rate%itype)
+      case(SCALED_VOLUMETRIC_RATE_SS)
+        call PatchScaleSourceSink(patch,coupler, &
+                                  flow_condition%rate%isubtype,option)
+    end select
+  endif
+
+end subroutine PatchUpdateCouplerAuxVarsPNF
+
+! ************************************************************************** !
+
 subroutine PatchGetCouplerValueFromDataset(coupler,option,grid,dataset,iconn, &
                                            value)
   !
@@ -4056,7 +4152,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
            ZFLOW_MODE,WF_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
-      case(MPH_MODE)
+      case(MPH_MODE,PNF_MODE)
         option%io_buffer = 'PatchScaleSourceSink not set up for flow mode'
         call PrintErrMsg(option)
     end select
@@ -4811,6 +4907,18 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
         end select
+
+      else if (associated(patch%aux%PNF)) then
+
+        select case(ivar)
+          case(LIQUID_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%PNF%auxvars(grid%nL2G(local_id))%head
+            enddo
+          case default
+            call PatchUnsupportedVariable('PNF',ivar,option)
+          end select
 
       else if (associated(patch%aux%ZFlow)) then
 
@@ -6247,6 +6355,13 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                     patch%aux%Richards%auxvars(ghosted_id)%kvr
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
+        end select
+      else if (associated(patch%aux%PNF)) then
+        select case(ivar)
+          case(LIQUID_PRESSURE)
+            value = patch%aux%PNF%auxvars(ghosted_id)%head
+          case default
+            call PatchUnsupportedVariable('PNF',ivar,option)
         end select
       else if (associated(patch%aux%ZFlow)) then
         select case(ivar)

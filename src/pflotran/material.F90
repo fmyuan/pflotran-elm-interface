@@ -1288,6 +1288,9 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
 
   select case(option%iflowmode)
     case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,WF_MODE)
+    case(PNF_MODE)
+      option%io_buffer = 'MaterialSetup() should not be used in PNF mode'
+      call PrintErrMsg(option)
     case default
       allocate(material_parameter%soil_heat_capacity(num_mat_prop))
       allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))

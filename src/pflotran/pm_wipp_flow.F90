@@ -971,7 +971,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         endif   
       enddo 
     enddo
-    call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
          PETSC_FALSE,ierr);CHKERRQ(ierr)
     deallocate(this%dirichlet_dofs_ints)
   endif
@@ -1331,7 +1331,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     deallocate(diagonal_values)
   endif
 
-  if (this%realization%debug%matview_Jacobian) then
+  if (this%realization%debug%matview_Matrix) then
     string = 'WFjacobian'
     call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
@@ -1364,7 +1364,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     call VecPointwiseMult(residual_vec,residual_vec, &
                           this%scaling_vec,ierr);CHKERRQ(ierr)
 
-    if (this%realization%debug%matview_Jacobian) then
+    if (this%realization%debug%matview_Matrix) then
       string = 'WFscale_vec'
       call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
       call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
@@ -1382,7 +1382,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     endif
   endif
 
-  if (this%realization%debug%norm_Jacobian) then
+  if (this%realization%debug%norm_Matrix) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
     call PrintMsg(this%option)

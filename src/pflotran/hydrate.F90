@@ -1636,7 +1636,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Gjacobian_accum','', &
@@ -1701,7 +1701,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Gjacobian_flux','', &
@@ -1758,7 +1758,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
     boundary_condition => boundary_condition%next
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Gjacobian_bcflux','', &
@@ -1808,7 +1808,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
 !  call HydrateSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
 !                        hyd_auxvars,option)
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Gjacobian_srcsink','', &
@@ -1832,7 +1832,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                           ierr);CHKERRQ(ierr)
   endif
   
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'Gjacobian','', &
                             hydrate_ts_count,hydrate_ts_cut_count, &
                             hydrate_ni_count)
@@ -1840,7 +1840,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call DebugViewerDestroy(realization%debug,viewer)
   endif
-  if (realization%debug%norm_Jacobian) then
+  if (realization%debug%norm_Matrix) then
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm

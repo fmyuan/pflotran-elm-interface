@@ -89,7 +89,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       ! initialize to "unset"
       cur_patch%imat = UNINITIALIZED_INTEGER
       select case(option%iflowmode)
-        case(NULL_MODE)
+        case(NULL_MODE,PNF_MODE)
         case(RICHARDS_MODE,WF_MODE,ZFLOW_MODE)
           allocate(cur_patch%cc_id(grid%ngmax))
           cur_patch%cc_id = UNINITIALIZED_INTEGER
@@ -112,7 +112,7 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
     cur_patch%aux%Material%num_aux = grid%ngmax
     cur_patch%aux%Material%auxvars => material_auxvars
     nullify(material_auxvars)
-    
+
     cur_patch => cur_patch%next
   enddo
 
@@ -410,8 +410,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
       call PrintErrMsgByRank(option)
     endif
     if (option%nflowdof > 0) then
-      patch%cc_id(ghosted_id) = &
-        material_property%saturation_function_id
+      if (associated(patch%cc_id)) then
+        patch%cc_id(ghosted_id) = &
+          material_property%saturation_function_id
+      endif
       if (associated(patch%cct_id)) then
         patch%cct_id(ghosted_id) = &  
           material_property%thermal_conductivity_function_id
@@ -553,7 +555,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                    PERMEABILITY_YZ,ZERO_INTEGER)
     endif
 
-    call RealLocalToLocalWithArray(realization,CC_ID_ARRAY)
+    if (associated(patch%cc_id)) then
+      call RealLocalToLocalWithArray(realization,CC_ID_ARRAY)
+    endif
     if (associated(patch%cct_id)) then
       call RealLocalToLocalWithArray(realization,CCT_ID_ARRAY)
     endif
@@ -1123,6 +1127,8 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         matrix_zeroing => patch%aux%Richards%matrix_zeroing
       case(ZFLOW_MODE)
         matrix_zeroing => patch%aux%ZFlow%matrix_zeroing
+      case(PNF_MODE)
+        matrix_zeroing => patch%aux%PNF%matrix_zeroing
       case(TH_MODE,TH_TS_MODE)
         matrix_zeroing => patch%aux%TH%matrix_zeroing
       case(MPH_MODE)
@@ -1143,6 +1149,9 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       case(ZFLOW_MODE)
         patch%aux%ZFlow%matrix_zeroing => matrix_zeroing
         patch%aux%ZFlow%inactive_cells_exist = inactive_cells_exist
+      case(PNF_MODE)
+        patch%aux%PNF%matrix_zeroing => matrix_zeroing
+        patch%aux%PNF%inactive_cells_exist = inactive_cells_exist
       case(TH_MODE,TH_TS_MODE)
         patch%aux%TH%matrix_zeroing => matrix_zeroing
         patch%aux%TH%inactive_cells_exist = inactive_cells_exist

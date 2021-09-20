@@ -372,6 +372,9 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
       case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+      case(PNF_MODE)
+        option%io_buffer = 'Checkpointing must be implemented for PNF mode'
+        call PrintErrMsg(option)
       case default
         call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
