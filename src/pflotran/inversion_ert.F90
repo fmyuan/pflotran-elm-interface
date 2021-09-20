@@ -13,7 +13,6 @@ module Inversion_ERT_class
 
   type, public, extends(inversion_subsurface_type) :: inversion_ert_type
     PetscInt :: start_iteration          ! Starting iteration number
-    PetscInt :: maximum_iteration        ! Maximum iteration number
     PetscInt :: miniter,maxiter          ! min/max CGLS iterations
 
     PetscReal :: beta                    ! regularization parameter
@@ -53,6 +52,8 @@ module Inversion_ERT_class
     procedure, public :: Init => InversionERTInit
     procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
+    procedure, public :: InitializeIterationNumber => &
+                           InversionERTInitIterationNumber
     procedure, public :: Step => InversionERTStep
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
@@ -60,7 +61,6 @@ module Inversion_ERT_class
     procedure, public :: EvaluateCostFunction => InvERTEvaluateCostFunction
     procedure, public :: UpdateRegularizeParameters => &
                            InvERTUpdateRegularizParams
-    procedure, public :: SetIterationNum => InversionERTSetIterationNum
     procedure, public :: WriteIterationInfo => InversionERTWriteIterationInfo
     procedure, public :: Finalize => InversionERTFinalize
     procedure, public :: Strip => InversionERTStrip
@@ -527,10 +527,6 @@ subroutine InversionERTReadBlock(this,input,option)
         call InputErrorMsg(input,option,'START_INVERSION_ITERATION', &
                            error_string)
         this%iteration = this%start_iteration
-      case('MAX_INVERSION_ITERATION')
-        call InputReadInt(input,option,this%maximum_iteration)
-        call InputErrorMsg(input,option,'MAX_INVERSION_ITERATION', &
-                           error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -1010,7 +1006,7 @@ end subroutine InvERTUpdateRegularizParams
 
 ! ************************************************************************** !
 
-PetscInt function InversionERTSetIterationNum(this)
+subroutine InversionERTInitIterationNumber(this)
   !
   ! Sets starting iteration number
   !
@@ -1019,9 +1015,9 @@ PetscInt function InversionERTSetIterationNum(this)
 
   class(inversion_ert_type) :: this
 
-  InversionERTSetIterationNum = this%start_iteration - 1
+  this%iteration = this%start_iteration - 1
 
-end function InversionERTSetIterationNum
+end subroutine InversionERTInitIterationNumber
 
 ! ************************************************************************** !
 

@@ -83,7 +83,7 @@ subroutine SimulationInverseRead(this,option)
   use String_module
   use Utility_module
   use Inversion_ERT_class
-  use Inversion_ERT_class
+  use Inversion_Tao_class
 
   class(simulation_inverse_type) :: this
   type(option_type), pointer :: option
@@ -120,6 +120,8 @@ subroutine SimulationInverseRead(this,option)
         select case(word)
           case('ERT')
             this%inversion => InversionERTCreate(this%driver)
+          case('TAO')
+            this%inversion => InversionTaoCreate(this%driver)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         end select
@@ -169,7 +171,7 @@ subroutine SimulationInverseExecuteRun(this)
 
   class(simulation_inverse_type) :: this
 
-  call this%inversion%SetIteration(0)
+  call this%inversion%InitializeIterationNumber()
   do
     if (this%inversion%converg_flag) exit
     call this%inversion%Step()

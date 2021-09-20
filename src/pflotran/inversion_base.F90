@@ -15,13 +15,15 @@ module Inversion_Base_class
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
     PetscInt :: iteration                ! iteration number
+    PetscInt :: maximum_iteration        ! Maximum iteration number
     PetscBool :: converg_flag            ! convergence flag
   contains
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseInitialize
     procedure, public :: ReadBlock => InversionBaseReadBlock
     procedure, public :: Step => InversionBaseStep
-    procedure, public :: SetIteration => InversionBaseSetIteration
+    procedure, public :: InitializeIterationNumber => &
+                           InversionBaseInitIterationNum
     procedure, public :: IncrementIteration => InversionBaseIncrementIteration
     procedure, public :: UpdateParameters => InversionBaseUpdateParameters
     procedure, public :: CalculateUpdate => InversionBaseCalculateUpdate
@@ -36,6 +38,7 @@ module Inversion_Base_class
 
   public :: InversionBaseInit, &
             InversionBaseReadSelectCase, &
+            InversionBaseInitialize, &
             InversionBaseFinalize, &
             InversionBaseStrip, &
             InversionBaseDestroy
@@ -58,7 +61,8 @@ subroutine InversionBaseInit(this,driver)
   this%timer => TimerCreate()
   call this%timer%Start()
 
-  this%iteration = 1
+  this%iteration = 0
+  this%maximum_iteration = UNINITIALIZED_INTEGER
   this%converg_flag = PETSC_FALSE
 
 end subroutine InversionBaseInit
@@ -75,36 +79,7 @@ subroutine InversionBaseReadBlock(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
-  PetscBool :: found
-
-  error_string = 'Base Inversion'
-
-  input%ierr = 0
-  call InputPushBlock(input,option)
-  do
-
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)
-
-    found = PETSC_TRUE
-    call InversionBaseReadSelectCase(this,input,keyword,found, &
-                                     error_string,option)
-    if (found) cycle
-
-    select case(trim(keyword))
-      case default
-        call InputKeywordUnrecognized(input,keyword,error_string,option)
-    end select
-
-  enddo
-  call InputPopBlock(input,option)
+  call this%driver%PrintErrMsg('InversionBaseReadBlock must be extended.')
 
 end subroutine InversionBaseReadBlock
 
@@ -126,6 +101,10 @@ subroutine InversionBaseReadSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
+    case('MAX_INVERSION_ITERATION','MAXIMUM_NUMBER_OF_ITERATIONS')
+      call InputReadInt(input,option,this%maximum_iteration)
+      call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_ITERATIONS', &
+                         error_string)
     case default
       found = PETSC_FALSE
   end select
@@ -145,10 +124,9 @@ subroutine InversionBaseInitialize(this)
 
 end subroutine InversionBaseInitialize
 
-
 ! ************************************************************************** !
 
-subroutine InversionBaseSetIteration(this,i)
+subroutine InversionBaseInitIterationNum(this)
   !
   ! Sets starting iteration number
   !
@@ -156,11 +134,10 @@ subroutine InversionBaseSetIteration(this,i)
   ! Date: 07/09/21
 
   class(inversion_base_type) :: this
-  PetscInt :: i
 
-  this%iteration = i
+  this%iteration = 0
 
-end subroutine InversionBaseSetIteration
+end subroutine InversionBaseInitIterationNum
 
 ! ************************************************************************** !
 
