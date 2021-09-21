@@ -316,6 +316,8 @@ recursive subroutine PMZFlowInitializeRun(this)
   field => this%realization%field
   option => this%option
 
+  if (this%steady_state) zflow_calc_accum = PETSC_FALSE
+
   ! need to allocate vectors for max change
   call VecDuplicateVecsF90(field%work,TWO_INTEGER,field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
