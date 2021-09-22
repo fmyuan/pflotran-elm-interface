@@ -40,15 +40,15 @@
 # and cannot be changed. Users need to change PFLOTRAN MATERIAL block to match the
 # VoroCrust ID.
 
-#NTESS statement:
-#Sandia National Laboratories is a multimission laboratory managed and operated by
-#National Technology & Engineering Solutions of Sandia, LLC, a wholly owned subsidiary
-#of Honeywell International Inc., for the U.S. Department of Energy’s National Nuclear
-#Security Administration under contract DE-NA0003525.
+#Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC
+#(NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.
+#Government retains certain rights in this software.
 
-#Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC (NTESS).
-#Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain
-#rights in this software.
+#This is free software; you can redistribute it and/or modify it under the
+#terms of the GNU Lesser General Public License as published by the Free
+#Software Foundation. See file LICENSE for details of the the open source 
+#GNU LGPL 3.0 license.
+
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -64,10 +64,13 @@ def nan_image_connect(v1,v2):
         return -99
 
 print('**************************************************************************',\
-      'Copyright 2021 National Technology and Engineering Solutions of Sandia, LLC.',\
-      'Under the terms of Contract DE-NA0003525, there is a non-exclusive license',\
-      'for use of this work by or on behalf of the U.S. Government. Export of this',\
-      'program may require a license from the United States Government.',\
+      'Copyright 2021 National Technology & Engineering Solutions of Sandia, LLC',\
+      '(NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S.',\
+      'Government retains certain rights in this software.',\
+      'This is free software; you can redistribute it and/or modify it under the',\
+      'terms of the GNU Lesser General Public License as published by the Free',\
+      'Software Foundation. See file LICENSE for details of the the open source ',\
+      'GNU LGPL 3.0 license.',\
       '**************************************************************************',sep='\n')
 
 if len(sys.argv) != 8:
