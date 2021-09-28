@@ -52,14 +52,12 @@ module Inversion_ERT_class
     procedure, public :: Init => InversionERTInit
     procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
-    procedure, public :: InitializeIterationNumber => &
-                           InversionERTInitIterationNumber
     procedure, public :: Step => InversionERTStep
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
     procedure, public :: EvaluateCostFunction => InvERTEvaluateCostFunction
-    procedure, public :: UpdateRegularizeParameters => &
+    procedure, public :: UpdateRegularizParameters => &
                            InvERTUpdateRegularizParams
     procedure, public :: WriteIterationInfo => InversionERTWriteIterationInfo
     procedure, public :: Finalize => InversionERTFinalize
@@ -782,7 +780,7 @@ subroutine InversionERTStep(this)
   type(option_type), pointer :: option
 
   option => OptionCreate()
-  write(option%group_prefix,'(i6)') this%iteration+1
+  write(option%group_prefix,'(i6)') this%iteration
   option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
   call OptionSetDriver(option,this%driver)
   call FactoryForwardInitialize(this%forward_simulation, &
@@ -796,7 +794,7 @@ subroutine InversionERTStep(this)
   call this%CheckConvergence()
   call this%CalculateUpdate()
   call this%WriteIterationInfo()
-  call this%UpdateRegularizationParameters()
+  call this%UpdateRegularizParameters()
   call this%forward_simulation%FinalizeRun()
   call this%forward_simulation%Strip()
   deallocate(this%forward_simulation)
@@ -987,9 +985,10 @@ subroutine InvERTUpdateRegularizParams(this)
   class(inversion_ert_type) :: this
 
   ! update iteration number
-  this%iteration = this%iteration + 1
+!  this%iteration = this%iteration + 1
 
-  if (this%iteration - 1 == this%start_iteration) return
+!  if (this%iteration - 1 == this%start_iteration) return
+  if (this%iteration == this%start_iteration) return
 
   if ( (this%phi_total_0 - this%phi_total)/this%phi_total_0 <= &
                                                       this%min_phi_red ) then
@@ -1003,21 +1002,6 @@ subroutine InvERTUpdateRegularizParams(this)
   this%phi_total_0 = this%phi_total
 
 end subroutine InvERTUpdateRegularizParams
-
-! ************************************************************************** !
-
-subroutine InversionERTInitIterationNumber(this)
-  !
-  ! Sets starting iteration number
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 07/09/21
-
-  class(inversion_ert_type) :: this
-
-  this%iteration = this%start_iteration - 1
-
-end subroutine InversionERTInitIterationNumber
 
 ! ************************************************************************** !
 

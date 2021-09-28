@@ -29,7 +29,7 @@ module Inversion_Base_class
     procedure, public :: CalculateUpdate => InversionBaseCalculateUpdate
     procedure, public :: CheckConvergence => InversionBaseCheckConvergence
     procedure, public :: EvaluateCostFunction => InvBaseEvaluateCostFunction
-    procedure, public :: UpdateRegularizationParameters => &
+    procedure, public :: UpdateRegularizParameters => &
                            InvBaseUpdateRegularizParams
     procedure, public :: WriteIterationInfo => InversionBaseWriteIterationInfo
     procedure, public :: Finalize => InversionBaseFinalize
@@ -135,7 +135,7 @@ subroutine InversionBaseInitIterationNum(this)
 
   class(inversion_base_type) :: this
 
-  this%iteration = 0
+  this%iteration = 1
 
 end subroutine InversionBaseInitIterationNum
 
@@ -180,6 +180,7 @@ subroutine InversionBaseUpdateParameters(this)
   !
   class(inversion_base_type) :: this
 
+  call this%driver%PrintErrMsg('InversionBaseUpdateParameters must be extended.')
 end subroutine InversionBaseUpdateParameters
 
 ! ************************************************************************** !
@@ -192,6 +193,8 @@ subroutine InversionBaseCalculateUpdate(this)
   ! Date: 06/04/21
   !
   class(inversion_base_type) :: this
+
+  call this%driver%PrintErrMsg('InversionBaseCalculateUpdate must be extended.')
 
 end subroutine InversionBaseCalculateUpdate
 
@@ -206,6 +209,8 @@ subroutine InversionBaseCheckConvergence(this)
   !
   class(inversion_base_type) :: this
 
+  call this%driver%PrintErrMsg('InversionBaseCheckConvergence must be extended.')
+
 end subroutine InversionBaseCheckConvergence
 
 ! ************************************************************************** !
@@ -218,6 +223,8 @@ subroutine InvBaseEvaluateCostFunction(this)
   ! Date: 06/14/21
   !
   class(inversion_base_type) :: this
+
+  call this%driver%PrintErrMsg('InvBaseEvaluateCostFunction must be extended.')
 
 end subroutine InvBaseEvaluateCostFunction
 
@@ -232,6 +239,8 @@ subroutine InvBaseUpdateRegularizParams(this)
   !
   class(inversion_base_type) :: this
 
+  call this%driver%PrintErrMsg('InvBaseUpdateRegularizParams must be extended.')
+
 end subroutine InvBaseUpdateRegularizParams
 
 ! ************************************************************************** !
@@ -244,6 +253,8 @@ subroutine InversionBaseWriteIterationInfo(this)
   ! Date: 07/01/21
   !
   class(inversion_base_type) :: this
+
+  call this%driver%PrintErrMsg('InversionBaseWriteIterationInfo must be extended.')
 
 end subroutine InversionBaseWriteIterationInfo
 
