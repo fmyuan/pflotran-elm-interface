@@ -1447,7 +1447,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! CO2-specific
   PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,&
                yco2,pco2,sat_pressure,lngamco2
-  PetscInt :: iflag
+  PetscInt :: iflag, ierror
   PetscErrorCode :: ierr
 
   surface_complexation => reaction%surface_complexation
@@ -1962,9 +1962,20 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       use_log_formulation = PETSC_FALSE
     endif
 
-    ! iflag is a dummy error flag since stop_on_error = PETSC_TRUE
+    ! ierror is a dummy error flag since stop_on_error = PETSC_TRUE
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
-                use_log_formulation,PETSC_TRUE,iflag)
+                use_log_formulation,PETSC_FALSE,ierror)
+
+    if (ierror /= 0) then
+      option%io_buffer = 'A singular value was encountered while &
+        &decomposing the Jacobian within ReactionEquilibrateConstraint->&
+        &RSolve->LUDecomposition for CONSTRAINT "' // &
+        trim(constraint%name) // &
+        '". This is likely an indicator that the constraint is incorrect &
+        &or there are errors in the reaction DATABASE. Please consider &
+        &simplifying the constraint to better isolate and resolve the issue.'
+      call PrintErrMsgByRank(option)
+    endif
 
     prev_molal = rt_auxvar%pri_molal
 
@@ -5054,10 +5065,13 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation, &
     enddo
   endif
 
+  ierror = 0
   call LUDecomposition(Jac,ncomp,indices,icomp,stop_on_error,ierror)
-  call LUBackSubstitution(Jac,ncomp,indices,rhs)
+  if (ierror == 0) then
+    call LUBackSubstitution(Jac,ncomp,indices,rhs)
+    update = rhs
+  endif
   
-  update = rhs
 
 end subroutine RSolve
 
