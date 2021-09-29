@@ -5,21 +5,14 @@ module Inversion_ERT_class
 
   use PFLOTRAN_Constants_module
   use Inversion_Base_class
-  use Realization_Subsurface_class
+  use Inversion_Subsurface_class
 
   implicit none
 
   private
 
-  type, public, extends(inversion_base_type) :: inversion_ert_type
-    class(realization_subsurface_type), pointer :: realization
-    Vec :: quantity_of_interest
-    PetscInt :: iqoi
-    Vec :: ref_quantity_of_interest
-    character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
-
+  type, public, extends(inversion_subsurface_type) :: inversion_ert_type
     PetscInt :: start_iteration          ! Starting iteration number
-    PetscInt :: maximum_iteration        ! Maximum iteration number
     PetscInt :: miniter,maxiter          ! min/max CGLS iterations
 
     PetscReal :: beta                    ! regularization parameter
@@ -59,13 +52,13 @@ module Inversion_ERT_class
     procedure, public :: Init => InversionERTInit
     procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
+    procedure, public :: Step => InversionERTStep
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
     procedure, public :: EvaluateCostFunction => InvERTEvaluateCostFunction
-    procedure, public :: UpdateRegularizeParameters => &
+    procedure, public :: UpdateRegularizParameters => &
                            InvERTUpdateRegularizParams
-    procedure, public :: SetIterationNum => InversionERTSetIterationNum
     procedure, public :: WriteIterationInfo => InversionERTWriteIterationInfo
     procedure, public :: Finalize => InversionERTFinalize
     procedure, public :: Strip => InversionERTStrip
@@ -146,10 +139,9 @@ subroutine InversionERTInit(this,driver)
   class(inversion_ert_type) :: this
   class(driver_type), pointer :: driver
 
-  this%quantity_of_interest = PETSC_NULL_VEC
+  call InversionSubsurfaceInit(this,driver)
+  ! override default set in InversionSubsurfaceInit
   this%iqoi = ELECTRICAL_CONDUCTIVITY
-  this%ref_quantity_of_interest = PETSC_NULL_VEC
-  this%ref_qoi_dataset_name = ''
 
   ! Default inversion parameters
   this%miniter = 10
@@ -191,7 +183,6 @@ subroutine InversionERTInit(this,driver)
   this%constrained_block => ConstrainedBlockCreate()
 
   nullify(this%realization)
-  call InversionBaseInit(this,driver)
 
 end subroutine InversionERTInit
 
@@ -483,27 +474,11 @@ subroutine InversionERTReadBlock(this,input,option)
     call StringToUpper(keyword)
 
     found = PETSC_FALSE
-    call InversionBaseReadSelectCase(this,input,keyword,found, &
-                                     error_string,option)
+    call InversionSubsurfReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)
     if (found) cycle
 
     select case(trim(keyword))
-      case('QUANTITY_OF_INTEREST')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('ELECTRICAL_CONDUCTIVITY')
-            this%iqoi = ELECTRICAL_CONDUCTIVITY
-          case default
-            call InputKeywordUnrecognized(input,word,trim(error_string)// &
-                                        & ',QUANTITY_OF_INTEREST',option)
-        end select
-      case('REFERENCE_QUANTITY_OF_INTEREST')
-        call InputReadNChars(input,option,this%ref_qoi_dataset_name, &
-                             MAXWORDLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'DATASET NAME', &
-                           keyword)
       case('MIN_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option,this%mincond)
         call InputErrorMsg(input,option,'MIN_ELECTRICAL_CONDUCTIVITY', &
@@ -550,10 +525,6 @@ subroutine InversionERTReadBlock(this,input,option)
         call InputErrorMsg(input,option,'START_INVERSION_ITERATION', &
                            error_string)
         this%iteration = this%start_iteration
-      case('MAX_INVERSION_ITERATION')
-        call InputReadInt(input,option,this%maximum_iteration)
-        call InputErrorMsg(input,option,'MAX_INVERSION_ITERATION', &
-                           error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -794,6 +765,45 @@ end subroutine InversionERTInitialize
 
 ! ************************************************************************** !
 
+subroutine InversionERTStep(this)
+  !
+  ! Execute a simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/27/21
+
+  use Option_module
+  use Factory_Forward_module
+
+  class(inversion_ert_type) :: this
+
+  type(option_type), pointer :: option
+
+  option => OptionCreate()
+  write(option%group_prefix,'(i6)') this%iteration
+  option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
+  call OptionSetDriver(option,this%driver)
+  call FactoryForwardInitialize(this%forward_simulation, &
+                                this%forward_simulation_filename,option)
+  this%realization => this%forward_simulation%realization
+  call this%UpdateParameters()
+  call this%forward_simulation%InitializeRun()
+  if (option%status == PROCEED) then
+    call this%forward_simulation%ExecuteRun()
+  endif
+  call this%CheckConvergence()
+  call this%CalculateUpdate()
+  call this%WriteIterationInfo()
+  call this%UpdateRegularizParameters()
+  call this%forward_simulation%FinalizeRun()
+  call this%forward_simulation%Strip()
+  deallocate(this%forward_simulation)
+  nullify(this%forward_simulation)
+
+end subroutine InversionERTStep
+
+! ************************************************************************** !
+
 subroutine InversionERTCheckConvergence(this)
   !
   ! Check Inversion convergence
@@ -975,9 +985,10 @@ subroutine InvERTUpdateRegularizParams(this)
   class(inversion_ert_type) :: this
 
   ! update iteration number
-  this%iteration = this%iteration + 1
+!  this%iteration = this%iteration + 1
 
-  if (this%iteration - 1 == this%start_iteration) return
+!  if (this%iteration - 1 == this%start_iteration) return
+  if (this%iteration == this%start_iteration) return
 
   if ( (this%phi_total_0 - this%phi_total)/this%phi_total_0 <= &
                                                       this%min_phi_red ) then
@@ -991,21 +1002,6 @@ subroutine InvERTUpdateRegularizParams(this)
   this%phi_total_0 = this%phi_total
 
 end subroutine InvERTUpdateRegularizParams
-
-! ************************************************************************** !
-
-PetscInt function InversionERTSetIterationNum(this)
-  !
-  ! Sets starting iteration number
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 07/09/21
-
-  class(inversion_ert_type) :: this
-
-  InversionERTSetIterationNum = this%start_iteration - 1
-
-end function InversionERTSetIterationNum
 
 ! ************************************************************************** !
 
@@ -1950,7 +1946,7 @@ subroutine InversionERTStrip(this)
 
   PetscErrorCode :: ierr
 
-  call InversionBaseStrip(this)
+  call InversionSubsurfaceStrip(this)
 
   nullify(this%realization)
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
