@@ -747,7 +747,7 @@ subroutine PMNWTInitializeTimestep(this)
   patch => this%realization%patch
   nwt_auxvars => this%realization%patch%aux%NWT%auxvars
 
-  call PMBasePrintHeader(this)
+  !call PMBasePrintHeader(this)
 
   ! If a material change to borehole materials has happened, remove all 
   ! NWT species mass from the borehole material region.
