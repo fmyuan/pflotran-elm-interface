@@ -112,7 +112,7 @@ ert.o : connection.o coupler.o debug.o ert_aux.o field.o grid.o material_aux.o \
         survey.o
 ert_aux.o : global_aux.o material_aux.o matrix_zeroing.o option.o \
             pflotran_constants.o reactive_transport_aux.o survey.o utility.o
-factory_forward.o : checkpoint.o driver.o eos.o factory_geomechanics.o \
+factory_forward.o : checkpoint.o driver.o factory_geomechanics.o \
                     factory_subsurface.o input_aux.o logging.o option.o \
                     output_aux.o pflotran_constants.o pm_auxiliary.o pm_base.o \
                     pm_geomechanics_force.o pmc_base.o \
@@ -136,11 +136,12 @@ factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          simulation_aux.o simulation_geomechanics.o \
                          simulation_subsurface.o solver.o string.o \
                          timestepper_steady.o units.o utility.o waypoint.o
-factory_pflotran.o : communicator_aux.o driver.o factory_forward.o hdf5_aux.o \
-                     input_aux.o logging.o option.o pflotran_constants.o \
-                     simulation_base.o simulation_geomechanics.o \
-                     simulation_inverse.o simulation_multirealization.o \
-                     simulation_subsurface.o string.o
+factory_pflotran.o : communicator_aux.o driver.o eos.o factory_forward.o \
+                     hdf5_aux.o input_aux.o logging.o option.o \
+                     pflotran_constants.o simulation_base.o \
+                     simulation_geomechanics.o simulation_inverse.o \
+                     simulation_multirealization.o simulation_subsurface.o \
+                     string.o
 factory_subsurface.o : characteristic_curves.o characteristic_curves_thermal.o \
                        checkpoint.o condition.o coupler.o \
                        data_mediator_dataset.o dataset.o dataset_ascii.o \
