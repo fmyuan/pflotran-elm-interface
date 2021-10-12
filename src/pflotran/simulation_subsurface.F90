@@ -104,7 +104,6 @@ subroutine SimSubsurfInit(this,driver,option)
   use Waypoint_module
   use Driver_module
   use Option_module
-  use EOS_module
 
   implicit none
 
@@ -117,7 +116,6 @@ subroutine SimSubsurfInit(this,driver,option)
 #endif
 
   call SimulationBaseInit(this,driver)
-  call EOSInit()
   this%option => option
   this%output_option => OutputOptionCreate()
   nullify(this%checkpoint_option)

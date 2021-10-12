@@ -26,7 +26,6 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
   use Option_module
   use Output_Aux_module
   use Logging_module
-  use EOS_module
   use Input_Aux_module
   use String_module
 
@@ -52,7 +51,6 @@ subroutine FactoryForwardInitialize(simulation,input_filename,option)
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr);CHKERRQ(ierr)
   call PetscLogEventBegin(logging%event_init,ierr);CHKERRQ(ierr)
 
-  call EOSInit()
   filename = trim(option%global_prefix) // trim(option%group_prefix) // '.out'
   if (OptionIsIORank(option) .and. OptionPrintToFile(option)) then
     open(option%fid_out, file=filename, action="write", status="unknown")
