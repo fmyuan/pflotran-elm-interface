@@ -377,7 +377,7 @@ mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
 nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  field.o fluid.o global_aux.o grid.o logging.o material.o \
                  material_aux.o nw_transport_aux.o nw_transport_equilibrium.o \
-                 option.o output_aux.o pflotran_constants.o \
+                 option.o output_aux.o patch.o pflotran_constants.o \
                  realization_subsurface.o string.o transport_constraint_nwt.o \
                  utility.o wipp_flow_aux.o
 nw_transport_aux.o : input_aux.o matrix_zeroing.o option.o output_aux.o \
@@ -424,13 +424,14 @@ output_hdf5.o : connection.o coupler.o discretization.o field.o grid.o \
 output_observation.o : connection.o coupler.o discretization.o field.o \
                        general.o general_aux.o global_aux.o grid.o \
                        grid_structured.o hydrate.o integral_flux.o logging.o \
-                       material_aux.o mphase.o observation.o option.o \
-                       output_aux.o output_common.o patch.o \
-                       pflotran_constants.o reaction_aux.o \
-                       reactive_transport.o reactive_transport_aux.o \
-                       realization_base.o realization_subsurface.o region.o \
-                       richards.o string.o th.o utility.o variables.o \
-                       wipp_flow.o wipp_flow_aux.o zflow.o
+                       material_aux.o mphase.o nw_transport.o \
+                       nw_transport_aux.o observation.o option.o output_aux.o \
+                       output_common.o patch.o pflotran_constants.o \
+                       reaction_aux.o reactive_transport.o \
+                       reactive_transport_aux.o realization_base.o \
+                       realization_subsurface.o region.o richards.o string.o \
+                       th.o utility.o variables.o wipp_flow.o wipp_flow_aux.o \
+                       zflow.o
 output_tecplot.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
                    grid.o grid_structured.o grid_unstructured_aux.o \
                    grid_unstructured_cell.o logging.o observation.o option.o \
@@ -503,11 +504,11 @@ pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               reaction_aux.o reactive_transport_aux.o realization_subsurface.o \
               solver.o string.o utility.o
-pm_nwt.o : communicator_base.o condition.o convergence.o data_mediator.o \
-           field.o global.o grid.o input_aux.o integral_flux.o material.o \
-           material_aux.o nw_transport.o nw_transport_aux.o option.o \
-           output_ekg.o patch.o pflotran_constants.o pm_base.o \
-           realization_subsurface.o string.o utility.o variables.o
+pm_nwt.o : communicator_base.o condition.o convergence.o coupler.o \
+           data_mediator.o field.o global.o grid.o input_aux.o integral_flux.o \
+           material.o material_aux.o nw_transport.o nw_transport_aux.o \
+           option.o output_ekg.o patch.o pflotran_constants.o pm_base.o \
+           realization_subsurface.o region.o string.o utility.o variables.o
 pm_osrt.o : data_mediator.o discretization.o global.o material.o \
             material_aux.o option.o pflotran_constants.o pm_base.o pm_rt.o \
             reaction_aux.o reactive_transport.o realization_subsurface.o \
