@@ -15,8 +15,8 @@ module Secondary_Continuum_module
 
   ! secondary continuum cell type
   PetscInt, parameter, public :: SLAB = 0
-  PetscInt, parameter, public :: NESTED_CUBE = 1
-  PetscInt, parameter, public :: NESTED_SPHERE = 2
+  PetscInt, parameter, public :: NESTED_CUBES = 1
+  PetscInt, parameter, public :: NESTED_SPHERES = 2
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
 
@@ -78,9 +78,24 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
     
   select case (igeom)      
     case(SLAB)
-    
+      if (epsilon > 0 .and. aperture > 0) then
+        sec_continuum%slab%length = 2 * aperture / ((1 - epsilon) ** (-1/3) - 1)
+      else if (sec_continuum%slab%length > 0 .and. aperture > 0) then
+        epsilon = aperture / (sec_continuum%slab%length + aperture)
+      else if (sec_continuum%slab%length > 0 .and. epsilon > 0) then
+        aperture = (sec_continuum%slab%length * epsilon) / (1 - epsilon)
+      else
+        option%io_buffer = 'EPSILON and APERTURE, LENGTH and APERTURE' // &
+                           'or LENGTH and EPSILON' // &
+                           'must be specified for SLAB type ' 
+        call PrintErrMsg(option)
+      endif
       dy = sec_continuum%slab%length/nmat
-      aream0 = sec_continuum%slab%area
+      if (aream0 > 0) then
+        aream0 = sec_continuum%slab%area
+      else
+         aream0 = 1 / (sec_continuum%slab%length + aperture)
+      endif
       do m = 1, nmat
         volm(m) = dy*aream0
       enddo
@@ -120,7 +135,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
                                       dm2(m-1) + dm1(m)
       enddo
           
-    case(NESTED_CUBE)
+    case(NESTED_CUBES)
 
       if (sec_continuum%nested_cube%fracture_spacing > 0.d0) then
 
@@ -132,6 +147,15 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         else if (epsilon > 0.d0) then
           r0 = fracture_spacing*(1.d0-epsilon)**(1.d0/3.d0)
           aperture = r0*((1.d0-epsilon)**(-1.d0/3.d0)-1.d0)
+        else if (sec_continuum%nested_cube%matrix_block_size > 0.d0) then
+          r0 = sec_continuum%nested_cube%matrix_block_size
+          aperture = 0.5 * (fracture_spacing - r0)
+          epsilon = 1 - (r0/fracture_spacing)**3
+        else
+          option%io_buffer = 'EPSILON, APERTURE, or MATRIX BOCK SIZE' // &
+                             ' must be specified for FRACTURE SPACING' // &
+                             ' in NESTED_CUBES type ' 
+          call PrintErrMsg(option)
         endif
                                             
       else if (sec_continuum%nested_cube%matrix_block_size > 0.d0) then
@@ -145,6 +169,10 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         else if (epsilon > 0.d0) then
           fracture_spacing = r0*(1.d0-epsilon)**(-1.d0/3.d0)
           aperture = fracture_spacing - r0
+        else
+          option%io_buffer = 'EPSILON or APERTURE must be specified for' // &
+                             ' MATRIX BLOCK SIZE in NESTED_CUBES type ' 
+          call PrintErrMsg(option)
         endif
       endif
       
@@ -232,8 +260,12 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
                                       dm2(m-1) + dm1(m)
       enddo     
 
-    case(NESTED_SPHERE)
-    
+    case(NESTED_SPHERES)
+      if (epsilon < 0 ) then 
+        option%io_buffer = 'EPSILON must be specified in' // &
+                           ' NESTED_SPHERES type ' 
+        call PrintErrMsg(option)
+      endif
       dy = sec_continuum%nested_sphere%radius/nmat
       r0 = dy
 
@@ -320,7 +352,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
                                            sec_continuum_matrix_block_size, &
                                            sec_continuum_fracture_spacing, &
                                            sec_continuum_radius, &
-                                           sec_continuum_area, &
+                                           sec_continuum_area,porosity, &
                                            option)
   ! 
   ! The type, dimensions of the secondary
@@ -342,26 +374,39 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
   PetscReal :: sec_continuum_length
   PetscReal :: sec_continuum_area
   PetscReal :: sec_continuum_radius
+  PetscReal :: porosity
   character(len=MAXWORDLENGTH) :: sec_continuum_name
 
+  if (porosity < 0) then
+    option%io_buffer = 'POROSITY must be set' // &
+                       ' under SECONDARY_CONTINUUM'
+    call PrintErrMsg(option)
+  endif 
   call StringToUpper(sec_continuum_name)
   
   select case(trim(sec_continuum_name))
     case("SLAB")
       sec_continuum%itype = SLAB
       sec_continuum%slab%length = sec_continuum_length
-      if (Equal(sec_continuum_area,0.d0)) then
-        option%io_buffer = 'Keyword "AREA" not specified for SLAB type ' // &
-                           'under SECONDARY_CONTINUUM'
-        call PrintErrMsg(option)
-      endif
       sec_continuum%slab%area = sec_continuum_area
     case("NESTED_CUBES")
-      sec_continuum%itype = NESTED_CUBE
+      sec_continuum%itype = NESTED_CUBES
+      if (sec_continuum_matrix_block_size < 0.d0 .and. &
+          sec_continuum_fracture_spacing < 0.d0) then
+        option%io_buffer = 'Keyword "MATRIX_BLOCK_SIZE" or "FRACTURE_SPACING' // &
+                           'must be specified for NESTED_CUBES type ' // &
+                           'under SECONDARY_CONTINUUM'
+        call PrintErrMsg(option)
+      endif 
       sec_continuum%nested_cube%matrix_block_size = sec_continuum_matrix_block_size
       sec_continuum%nested_cube%fracture_spacing = sec_continuum_fracture_spacing
     case("NESTED_SPHERES")
-      sec_continuum%itype = NESTED_SPHERE
+      sec_continuum%itype = NESTED_SPHERES
+      if (sec_continuum_radius < 0.d0) then
+        option%io_buffer = 'Keyword "RADIUS" not specified for NESTED_SPHERES type ' // &
+                           'under SECONDARY_CONTINUUM'
+        call PrintErrMsg(option)
+      endif 
       sec_continuum%nested_sphere%radius = sec_continuum_radius
     case default
       option%io_buffer = 'Keyword "' // trim(sec_continuum_name) // '" not ' // &
@@ -551,9 +596,10 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
         multicontinuum%matrix_block_size, &
         multicontinuum%fracture_spacing, &
         multicontinuum%radius, &
-        multicontinuum%area, &
+        multicontinuum%area, multicontinuum%porosity, &
         option)
-        
+
+  
   rt_sec_transport_vars%ncells = multicontinuum%ncells
   rt_sec_transport_vars%aperture = multicontinuum%aperture
   rt_sec_transport_vars%epsilon = epsilon 
