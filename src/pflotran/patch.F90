@@ -832,6 +832,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Reactive_Transport_Aux_module
   use NW_Transport_Aux_module
   use Global_Aux_module
+  use ZFlow_Aux_module
   use Condition_module
   use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
@@ -894,6 +895,31 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 endif
                 allocate(coupler%flow_aux_real_var(temp_int,num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
+                coupler%flow_aux_real_var = 0.d0
+                coupler%flow_aux_int_var = 0
+
+              case(ZFLOW_MODE)
+                temp_int = 1
+                select case(coupler%flow_condition%pressure%itype)
+                  case(HYDROSTATIC_CONDUCTANCE_BC, &
+                       DIRICHLET_CONDUCTANCE_BC, &
+                       HET_HYDROSTATIC_CONDUCTANCE_BC)
+                    temp_int = temp_int + 1
+                end select
+                allocate(coupler%flow_bc_type(1))
+                allocate(coupler%flow_aux_mapping(ZFLOW_MAX_INDEX))
+                allocate(coupler%flow_aux_real_var(temp_int,num_connections))
+                allocate(coupler%flow_aux_int_var(1,num_connections))
+                coupler%flow_bc_type = 0
+                coupler%flow_aux_mapping = 0
+                coupler%flow_aux_real_var = 0.d0
+                coupler%flow_aux_int_var = 0
+
+              case(PNF_MODE)
+                allocate(coupler%flow_bc_type(1))
+                allocate(coupler%flow_aux_real_var(1,num_connections))
+                allocate(coupler%flow_aux_int_var(1,num_connections))
+                coupler%flow_bc_type = 0
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
@@ -973,7 +999,17 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                    VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
                    HET_VOL_RATE_SS,HET_MASS_RATE_SS)
                 select case(option%iflowmode)
-                  case(RICHARDS_MODE,RICHARDS_TS_MODE)
+                  case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE)
+                    allocate(coupler%flow_aux_real_var(1,num_connections))
+                    coupler%flow_aux_real_var = 0.d0
+                  case(ZFLOW_MODE)
+                    select case(coupler%flow_condition%rate%itype)
+                      case(SCALED_MASS_RATE_SS,MASS_RATE_SS, &
+                           HET_VOL_RATE_SS,HET_MASS_RATE_SS)
+                        option%io_buffer = 'Mass rate source/sinks not &
+                          &supported in ZFLOW mode.'
+                        call PrintErrMsg(option)
+                    end select
                     allocate(coupler%flow_aux_real_var(1,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case(TH_MODE,TH_TS_MODE)
@@ -1131,6 +1167,10 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
             call PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           case(RICHARDS_MODE, RICHARDS_TS_MODE)
             call PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
+          case(ZFLOW_MODE)
+            call PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
+          case(PNF_MODE)
+            call PatchUpdateCouplerAuxVarsPNF(patch,coupler,option)
         end select
       endif
     endif
@@ -3522,8 +3562,6 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   type(option_type) :: option
 
   type(flow_condition_type), pointer :: flow_condition
-  type(tran_condition_type), pointer :: tran_condition
-  type(flow_general_condition_type), pointer :: general
   class(dataset_common_hdf5_type), pointer :: dataset
   PetscBool :: update
   PetscBool :: dof1, dof2, dof3
@@ -3598,6 +3636,201 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   endif
 
 end subroutine PatchUpdateCouplerAuxVarsRich
+
+! ************************************************************************** !
+
+subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
+  !
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for ZFLOW_MODE
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/17/21
+  !
+
+  use Option_module
+  use Condition_module
+  use Hydrostatic_module
+  use ZFlow_Aux_module
+
+  use Grid_module
+  use Dataset_Common_HDF5_class
+  use Dataset_Gridded_HDF5_class
+  use Dataset_Ascii_class
+  use Dataset_module
+
+  implicit none
+
+  type(patch_type) :: patch
+  type(coupler_type), pointer :: coupler
+  type(option_type) :: option
+
+  type(flow_condition_type), pointer :: flow_condition
+  class(dataset_common_hdf5_type), pointer :: dataset
+  PetscBool :: update
+  PetscBool :: dof1, dof2, dof3
+  PetscReal :: temperature, p_sat
+  PetscReal :: x(option%nflowdof)
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  PetscErrorCode :: ierr
+
+  PetscInt :: idof, num_connections,sum_connection
+  PetscInt :: iconn, local_id, ghosted_id
+
+  num_connections = coupler%connection_set%num_connections
+
+  flow_condition => coupler%flow_condition
+  if (associated(flow_condition%pressure)) then
+    coupler%flow_aux_mapping(ZFLOW_PRESSURE_DOF) = ZFLOW_PRESSURE_DOF
+    select case(flow_condition%pressure%itype)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC, &
+           DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC)
+        select type(dataset => &
+                    flow_condition%pressure%dataset)
+          class is(dataset_ascii_type)
+            coupler%flow_aux_real_var(ZFLOW_PRESSURE_DOF, &
+                                      1:num_connections) = dataset%rarray(1)
+          class is(dataset_gridded_hdf5_type)
+            call PatchUpdateCouplerGridDataset(coupler,option, &
+                                            patch%grid,dataset, &
+                                            ZFLOW_PRESSURE_DOF)
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
+          class default
+            call PrintMsg(option,'pressure%itype,DIRICHLET-type')
+            call DatasetUnknownClass(dataset,option, &
+                                     'PatchUpdateCouplerAuxVarsZFlow')
+        end select
+        select case(flow_condition%pressure%itype)
+          case(DIRICHLET_CONDUCTANCE_BC)
+            coupler%flow_aux_mapping(ZFLOW_CONDUCTANCE_DOF) = &
+              ZFLOW_CONDUCTANCE_DOF
+            coupler%flow_aux_real_var(ZFLOW_CONDUCTANCE_DOF, &
+                                      1:num_connections) = &
+                                           flow_condition%pressure%aux_real(1)
+        end select
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+   !  case(SATURATION_BC)
+      case(HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+           HET_HYDROSTATIC_CONDUCTANCE_BC)
+        call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
+                flow_condition%pressure%dataset, &
+                ZFLOW_PRESSURE_DOF,option)
+        if (flow_condition%pressure%itype == &
+            HET_HYDROSTATIC_CONDUCTANCE_BC) then
+          coupler%flow_aux_real_var(ZFLOW_CONDUCTANCE_DOF, &
+                                    1:num_connections) = &
+            flow_condition%pressure%aux_real(1)
+        endif
+    end select
+    coupler%flow_bc_type(ZFLOW_LIQUID_EQUATION_INDEX) = &
+      flow_condition%pressure%itype
+  endif
+  if (associated(flow_condition%saturation)) then
+    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
+                                 patch%characteristic_curves_array, &
+                                 patch%cc_id)
+  endif
+  if (associated(flow_condition%rate)) then
+    select case(flow_condition%rate%itype)
+      case(SCALED_VOLUMETRIC_RATE_SS)
+        call PatchScaleSourceSink(patch,coupler, &
+                                  flow_condition%rate%isubtype,option)
+      case (HET_VOL_RATE_SS)
+        call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
+                flow_condition%rate%dataset, &
+                ZFLOW_PRESSURE_DOF,option)
+    end select
+  endif
+
+end subroutine PatchUpdateCouplerAuxVarsZFlow
+
+! ************************************************************************** !
+
+subroutine PatchUpdateCouplerAuxVarsPNF(patch,coupler,option)
+  !
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for PNF_MODE
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/27/21
+  !
+
+  use Option_module
+  use Condition_module
+  use PNF_Aux_module
+
+  use Grid_module
+  use Dataset_Common_HDF5_class
+  use Dataset_Gridded_HDF5_class
+  use Dataset_Ascii_class
+  use Dataset_module
+
+  implicit none
+
+  type(patch_type) :: patch
+  type(coupler_type), pointer :: coupler
+  type(option_type) :: option
+
+  type(flow_condition_type), pointer :: flow_condition
+  class(dataset_common_hdf5_type), pointer :: dataset
+  PetscBool :: update
+  PetscBool :: dof1, dof2, dof3
+  PetscReal :: temperature, p_sat
+  PetscReal :: x(option%nflowdof)
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  PetscErrorCode :: ierr
+
+  PetscInt :: idof, num_connections,sum_connection
+  PetscInt :: iconn, local_id, ghosted_id
+
+  num_connections = coupler%connection_set%num_connections
+
+  flow_condition => coupler%flow_condition
+  if (associated(flow_condition%pressure)) then
+    select case(flow_condition%pressure%itype)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
+        select type(dataset => &
+                    flow_condition%pressure%dataset)
+          class is(dataset_ascii_type)
+            coupler%flow_aux_real_var(ZFLOW_PRESSURE_DOF, &
+                                      1:num_connections) = dataset%rarray(1)
+          class is(dataset_gridded_hdf5_type)
+            call PatchUpdateCouplerGridDataset(coupler,option, &
+                                            patch%grid,dataset, &
+                                            ZFLOW_PRESSURE_DOF)
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
+          class default
+            call PrintMsg(option,'pressure%itype,DIRICHLET-type')
+            call DatasetUnknownClass(dataset,option, &
+                                     'PatchUpdateCouplerAuxVarsPNF')
+        end select
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        option%io_buffer = 'HYDROSTATIC BCs not supported in PNF flow'
+        call PrintErrMsg(option)
+      case(HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+           HET_HYDROSTATIC_CONDUCTANCE_BC)
+        option%io_buffer = 'Heterogenenous BCs not supported in PNF flow'
+        call PrintErrMsg(option)
+    end select
+    coupler%flow_bc_type(PNF_LIQUID_EQUATION_INDEX) = &
+      flow_condition%pressure%itype
+  endif
+  if (associated(flow_condition%saturation)) then
+    option%io_buffer = 'Saturation BCs not supported in PNF flow'
+    call PrintErrMsg(option)
+  endif
+  if (associated(flow_condition%rate)) then
+    select case(flow_condition%rate%itype)
+      case(SCALED_VOLUMETRIC_RATE_SS)
+        call PatchScaleSourceSink(patch,coupler, &
+                                  flow_condition%rate%isubtype,option)
+    end select
+  endif
+
+end subroutine PatchUpdateCouplerAuxVarsPNF
 
 ! ************************************************************************** !
 
@@ -3916,10 +4149,10 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       !geh: This is a scaling factor that is stored that would be applied to
       !     all phases.
       case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,H_MODE,TH_MODE,TH_TS_MODE, &
-           WF_MODE)
+           ZFLOW_MODE,WF_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
-      case(MPH_MODE)
+      case(MPH_MODE,PNF_MODE)
         option%io_buffer = 'PatchScaleSourceSink not set up for flow mode'
         call PrintErrMsg(option)
     end select
@@ -4464,12 +4697,14 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use TH_Aux_module
   use Richards_Aux_module
   use Reaction_Mineral_module
+  use Reaction_Redox_module
   use Reaction_module
   use Reactive_Transport_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
+  use ZFlow_Aux_module
   use Output_Aux_module
   use Variables_module
   use Material_Aux_class
@@ -4604,7 +4839,13 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case(TEMPERATURE)
             call PatchUnsupportedVariable('RICHARDS','TEMPERATURE',option)
           case(GAS_SATURATION)
-            call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
+            if (option%transport%nphase == 1) then
+              call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
+            endif
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(2)
+            enddo
           case(ICE_SATURATION)
             call PatchUnsupportedVariable('RICHARDS','ICE_SATURATION',option)
           case(ICE_DENSITY)
@@ -4665,6 +4906,47 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             enddo
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
+        end select
+
+      else if (associated(patch%aux%PNF)) then
+
+        select case(ivar)
+          case(LIQUID_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%PNF%auxvars(grid%nL2G(local_id))%head
+            enddo
+          case default
+            call PatchUnsupportedVariable('PNF',ivar,option)
+          end select
+
+      else if (associated(patch%aux%ZFlow)) then
+
+        select case(ivar)
+          case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%pres
+            enddo
+          case(CAPILLARY_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%pc
+            enddo
+          case(LIQUID_HEAD)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%pres/ &
+                EARTH_GRAVITY/ &
+                zflow_density_kg
+            enddo
+          case(LIQUID_SATURATION)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%sat
+            enddo
+          case default
+            call PatchUnsupportedVariable('ZFLOW',ivar,option)
         end select
 
       else if (associated(patch%aux%Mphase)) then
@@ -5408,115 +5690,36 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
 
       select case(ivar)
         case(PH)
-          if (isubvar > 0) then
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                -log10(patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)* &
-                       patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-            enddo
-          else
-            do local_id=1,grid%nlmax
-              ghosted_id = grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-               -log10(patch%aux%RT%auxvars(ghosted_id)%sec_act_coef(-isubvar)* &
-                      patch%aux%RT%auxvars(ghosted_id)%sec_molal(-isubvar))
-            enddo
-          endif
+          do local_id=1,grid%nlmax
+            ghosted_id = grid%nL2G(local_id)
+            call RRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
+                              patch%aux%Global%auxvars(ghosted_id), &
+                              reaction,ph0,option)
+            vec_ptr(local_id) = ph0
+          enddo
         case(EH)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            if (patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar) > &
-                0.d0) then
-              !geh: all the below should be calculated somewhere else, not in
-              !     patch.F90.  most likely reactive_transport.F90
-              ph0 = &
-                -log10(patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)* &
-                       patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-              ifo2 = reaction%species_idx%o2_gas_id
-              ! compute gas partial pressure
-              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-              ! activity of water
-              if (reaction%gas%paseqh2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-              endif
-              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-              enddo
-              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
-                   273.15d0
-              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-              eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
-              pe0 = eh0/ehfac
-              vec_ptr(local_id) = eh0
-            else
-              vec_ptr(local_id) = 0.d0
-            endif
+            call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+                                  patch%aux%Global%auxvars(ghosted_id), &
+                                  reaction,eh0,pe0,option)
+            vec_ptr(local_id) = eh0
           enddo
         case(PE)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            if (patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar) > &
-                0.d0) then
-              !geh: all the below should be calculated somewhere else, not in
-              !     patch.F90.  most likely reactive_transport.F90
-              ph0 = &
-                -log10(patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(isubvar)* &
-                       patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-              ifo2 = reaction%species_idx%o2_gas_id
-              ! compute gas partial pressure
-              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-              ! activity of water
-              if (reaction%gas%paseqh2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-              endif
-              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-              enddo
-              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
-                   273.15d0
-              ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-              eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
-              pe0 = eh0/ehfac
-              vec_ptr(local_id) = pe0
-            else
-              vec_ptr(local_id) = 0.d0
-            endif
+            call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+                                  patch%aux%Global%auxvars(ghosted_id), &
+                                  reaction,eh0,pe0,option)
+            vec_ptr(local_id) = pe0
           enddo
-
         case(O2)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-            if (patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar) > &
-                0.d0) then
-              !geh: all the below should be calculated somewhere else, not in
-              !     patch.F90.  most likely reactive_transport.F90
-              ifo2 = reaction%species_idx%o2_gas_id
-              ! compute gas partial pressure
-              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-              ! activity of water
-              if (reaction%gas%paseqh2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-              endif
-              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-              enddo
-              vec_ptr(local_id) = lnQKgas * LN_TO_LOG
-            else
-              vec_ptr(local_id) = 0.d0
-            endif
+            call RRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
+                                 patch%aux%Global%auxvars(ghosted_id), &
+                                 reaction,lnQKgas,option)
+            vec_ptr(local_id) = lnQKgas
           enddo
         case(PRIMARY_MOLALITY)
           do local_id=1,grid%nlmax
@@ -5860,6 +6063,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             vec_ptr(local_id) = &
               patch%aux%Richards%auxvars(grid%nL2G(local_id))%kr
           enddo
+        case(ZFLOW_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%kr
+          enddo
         case(TH_MODE,TH_TS_MODE)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
@@ -6001,6 +6209,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use Richards_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_Mineral_module
+  use Reaction_Redox_module
   use Reaction_module
   use Reaction_Mineral_Aux_module
   use Reaction_Surface_Complexation_Aux_module
@@ -6009,6 +6218,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
+  use ZFlow_Aux_module
   use Material_Aux_class
 
   implicit none
@@ -6111,7 +6321,10 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           case(TEMPERATURE)
             call PatchUnsupportedVariable('RICHARDS','TEMPERATURE',option)
           case(GAS_SATURATION)
-            call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
+            if (option%transport%nphase == 1) then
+              call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
+            endif
+            value = patch%aux%Global%auxvars(ghosted_id)%sat(2)
           case(GAS_DENSITY)
             call PatchUnsupportedVariable('RICHARDS','GAS_DENSITY',option)
           case(LIQUID_MOLE_FRACTION)
@@ -6142,6 +6355,27 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                     patch%aux%Richards%auxvars(ghosted_id)%kvr
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
+        end select
+      else if (associated(patch%aux%PNF)) then
+        select case(ivar)
+          case(LIQUID_PRESSURE)
+            value = patch%aux%PNF%auxvars(ghosted_id)%head
+          case default
+            call PatchUnsupportedVariable('PNF',ivar,option)
+        end select
+      else if (associated(patch%aux%ZFlow)) then
+        select case(ivar)
+          case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pres
+          case(CAPILLARY_PRESSURE)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pc
+          case(LIQUID_HEAD)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%pres/ &
+                    EARTH_GRAVITY/zflow_density_kg
+          case(LIQUID_SATURATION)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
+          case default
+            call PatchUnsupportedVariable('ZFLOW',ivar,option)
         end select
       else if (associated(patch%aux%Mphase)) then
         select case(ivar)
@@ -6582,89 +6816,25 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
       select case(ivar)
         case(PH)
-          if (isubvar > 0) then
-            value = -log10(patch%aux%RT%auxvars(ghosted_id)% &
-                           pri_act_coef(isubvar)* &
-                           patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-          else
-            value = -log10(patch%aux%RT%auxvars(ghosted_id)% &
-                           sec_act_coef(-isubvar)* &
-                           patch%aux%RT%auxvars(ghosted_id)%sec_molal(-isubvar))
-          endif
+          call RRedoxCalcpH(patch%aux%RT%auxvars(ghosted_id), &
+                            patch%aux%Global%auxvars(ghosted_id), &
+                            reaction,ph0,option)
+          value = ph0
         case(EH)
-          ph0 = -log10(patch%aux%RT%auxvars(ghosted_id)% &
-                         pri_act_coef(isubvar)* &
-                         patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-
-          ifo2 = reaction%species_idx%o2_gas_id
-
-      ! compute gas partial pressure
-          lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-
-      ! activity of water
-          if (reaction%gas%paseqh2oid(ifo2) > 0) then
-            lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-          endif
-          do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-            comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-            lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-          enddo
-
-          tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
-          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-          eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
-
+          call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+                                patch%aux%Global%auxvars(ghosted_id), &
+                                reaction,eh0,pe0,option)
           value = eh0
-
         case(PE)
-          ph0 = -log10(patch%aux%RT%auxvars(ghosted_id)% &
-                         pri_act_coef(isubvar)* &
-                         patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar))
-
-          ifo2 = reaction%species_idx%o2_gas_id
-
-      ! compute gas partial pressure
-          lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-
-      ! activity of water
-          if (reaction%gas%paseqh2oid(ifo2) > 0) then
-            lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-          endif
-          do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-            comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-            lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-          enddo
-
-          tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
-          ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/FARADAY
-          eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
-          pe0 = eh0/ehfac
+          call RRedoxCalcEhpe(patch%aux%RT%auxvars(ghosted_id), &
+                                patch%aux%Global%auxvars(ghosted_id), &
+                                reaction,eh0,pe0,option)
           value = pe0
-
         case(O2)
-
-      ! compute gas partial pressure
-              ifo2 = reaction%species_idx%o2_gas_id
-              lnQKgas = -reaction%gas%paseqlogK(ifo2)*LOG_TO_LN
-
-      ! activity of water
-              if (reaction%gas%paseqh2oid(ifo2) > 0) then
-                lnQKgas = lnQKgas + reaction%gas%paseqh2ostoich(ifo2) * &
-                    patch%aux%RT%auxvars(ghosted_id)%ln_act_h2o
-              endif
-              do jcomp = 1, reaction%gas%paseqspecid(0,ifo2)
-                comp_id = reaction%gas%paseqspecid(jcomp,ifo2)
-                lnQKgas = lnQKgas + reaction%gas%paseqstoich(jcomp,ifo2)* &
-                      log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
-                        patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
-              enddo
-           value = lnQKgas * LN_TO_LOG
+          call RRedoxCalcLnFO2(patch%aux%RT%auxvars(ghosted_id), &
+                               patch%aux%Global%auxvars(ghosted_id), &
+                               reaction,lnQKgas,option)
+          value = lnQKgas * LN_TO_LOG
         case(PRIMARY_MOLALITY)
           value = patch%aux%RT%auxvars(ghosted_id)%pri_molal(isubvar)
         case(PRIMARY_MOLARITY)
@@ -6853,6 +7023,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       select case(option%iflowmode)
         case(RICHARDS_MODE)
           value = patch%aux%Richards%auxvars(ghosted_id)%kr
+        case(ZFLOW_MODE)
+          value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%kr
         case(TH_MODE,TH_TS_MODE)
           value = patch%aux%TH%auxvars(ghosted_id)%kvr / &
                   patch%aux%TH%auxvars(ghosted_id)%vis
@@ -6894,9 +7066,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         endif
       endif
     case(ELECTRICAL_POTENTIAL)
-      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
+      value = patch%aux%ERT%auxvars(ghosted_id)%potential(isubvar)
     case(ELECTRICAL_JACOBIAN)
-      value = patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
+      value = patch%aux%ERT%auxvars(ghosted_id)%jacobian(isubvar)
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)
     case(NATURAL_ID)

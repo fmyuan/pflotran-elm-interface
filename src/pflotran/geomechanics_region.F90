@@ -368,8 +368,8 @@ subroutine GeomechRegionReadFromFileId(region,input,option)
     enddo
 
     ! Depending on processor rank, save only a portion of data
-    region%num_verts = count/option%mycommsize
-      remainder = count - region%num_verts*option%mycommsize
+    region%num_verts = count/option%comm%mycommsize
+      remainder = count - region%num_verts*option%comm%mycommsize
     if (option%myrank < remainder) region%num_verts = region%num_verts + 1
     istart = 0
     iend   = 0

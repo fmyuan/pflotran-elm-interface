@@ -769,7 +769,7 @@ subroutine PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         option%convergence = CONVERGENCE_KEEP_ITERATING
         if (this%logging_verbosity > 0) then
           string = '   ' // trim(tol_string(itol)) // ', Liquid Pressure'
-          if (option%mycommsize == 1) then
+          if (option%comm%mycommsize == 1) then
             string = trim(string) // ' (' // &
               trim(StringFormatInt(this%converged_cell(itol))) &
               // ')'

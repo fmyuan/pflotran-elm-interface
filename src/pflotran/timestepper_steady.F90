@@ -4,7 +4,7 @@ module Timestepper_Steady_class
   use petscsys
   use Solver_module
   use Convergence_module
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
 
   use PFLOTRAN_Constants_module
 
@@ -12,7 +12,7 @@ module Timestepper_Steady_class
 
   private
 
-  type, public, extends(timestepper_BE_type) :: timestepper_steady_type
+  type, public, extends(timestepper_SNES_type) :: timestepper_steady_type
 
   contains
 
@@ -155,7 +155,7 @@ subroutine TimestepperSteadySetTargetTime(this,sync_time,option,stop_flag, &
   PetscBool :: checkpoint_flag
 
   this%target_time = sync_time
-  do 
+  do
     if (.not.associated(this%cur_waypoint)) exit
     if (sync_time >= this%cur_waypoint%time) then
       if (Equal(sync_time,this%cur_waypoint%time)) then

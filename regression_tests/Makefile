@@ -32,6 +32,10 @@ ifdef CHECK
 	TEST_OPTIONS += --check-only
 endif
 
+ifdef RUN_ONLY
+	TEST_OPTIONS += --run-only
+endif
+
 ifdef NEW
 	TEST_OPTIONS += --new-tests
 endif
@@ -58,6 +62,7 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/reaction_sandbox/reaction_sandbox.cfg \
 	default/batch/batch.cfg \
 	default/debug/debug.cfg \
@@ -85,6 +90,8 @@ STANDARD_CFG = \
 	default/tcond/T_dep_tcond.cfg \
 	default/timestepping/timestepping.cfg \
 	default/velocity/velocity.cfg \
+	default/zflow/zflow.cfg \
+	pnf/unit_cube/unit_cube.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
@@ -132,6 +139,7 @@ GEOCHEMISTRY_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/batch/batch.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
@@ -155,6 +163,8 @@ FLOW_CFG = \
 	default/infiltration1d/infiltration1d.cfg \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
+	default/zflow/zflow.cfg \
+	pnf/unit_cube/unit_cube.cfg \
 	general/general.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
@@ -163,6 +173,7 @@ FLOW_CFG = \
 TRANSPORT_CFG = \
 	default/543/543.cfg \
 	default/column/column.cfg \
+	default/constraint/constraint.cfg \
 	default/dispersion/dispersion.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/velocity/velocity.cfg \
@@ -363,4 +374,4 @@ clean-tests :
 	-rm -f default/timestepping/20x20_xz.h5
 	-rm -f geophys/ert/*.h5
 	-rm -f geophys/ert/*.dat
-	-rm -f geophys/ert/ert-simulated.srv
+	-rm -f geophys/ert/*-ert-*

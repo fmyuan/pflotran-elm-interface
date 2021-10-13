@@ -648,7 +648,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
                      MPI_DOUBLE_PRECISION, &
                      MPI_SUM,option%mycomm,ierr)   
                      
-  if (option%myrank == option%io_rank) then                   
+  if (OptionIsIORank(option)) then                   
     print *, 'L2 error:', sqrt(error_L2_global)
     print *, 'H1 error:', sqrt(error_H1_global)
   endif
@@ -896,11 +896,11 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
     endif
     ! Find the inverse of J_map
     ! Set identity matrix
-    call ludcmp(J_map,THREE_INTEGER,indx,d)
+    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
     do i = 1, THREE_INTEGER
       eye_three = 0.d0
       eye_three(i) = 1.d0
-      call lubksb(J_map,THREE_INTEGER,indx,eye_three)
+      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
       inv_J_map(:,i) = eye_three
     enddo
     B = matmul(shapefunction%DN,inv_J_map)
@@ -1031,11 +1031,11 @@ subroutine GeomechForceLocalElemError(size_elenodes,local_coordinates, &
     endif
     ! Find the inverse of J_map
     ! Set identity matrix
-    call ludcmp(J_map,THREE_INTEGER,indx,d)
+    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
     do i = 1, THREE_INTEGER
       eye_three = 0.d0
       eye_three(i) = 1.d0
-      call lubksb(J_map,THREE_INTEGER,indx,eye_three)
+      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
       inv_J_map(:,i) = eye_three
     enddo
     B = matmul(shapefunction%DN,inv_J_map)
@@ -1184,11 +1184,11 @@ subroutine GeomechForceLocalElemJacobian(size_elenodes,local_coordinates, &
     endif
     ! Find the inverse of J_map
     ! Set identity matrix
-    call ludcmp(J_map,THREE_INTEGER,indx,d)
+    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
     do i = 1, THREE_INTEGER
       eye_three = 0.d0
       eye_three(i) = 1.d0
-      call lubksb(J_map,THREE_INTEGER,indx,eye_three)
+      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
       inv_J_map(:,i) = eye_three
     enddo
     B = matmul(shapefunction%DN,inv_J_map)
@@ -1325,7 +1325,7 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
 
   call GeomechForceJacobianPatch(snes,xx,J,J,geomech_realization,ierr)
 
-  if (geomech_realization%geomech_debug%matview_Jacobian) then
+  if (geomech_realization%geomech_debug%matview_Matrix) then
     call PetscViewerASCIIOpen(geomech_realization%option%mycomm, &
                               'Geomech_jacobian.out', &
                               viewer,ierr);CHKERRQ(ierr)
@@ -1333,7 +1333,7 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-  if (geomech_realization%geomech_debug%norm_Jacobian) then
+  if (geomech_realization%geomech_debug%norm_Matrix) then
     option => geomech_realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
@@ -2175,11 +2175,11 @@ subroutine GeomechForceLocalElemStressStrain(size_elenodes,local_coordinates, &
     shapefunction%zeta = shapefunction%coord(ivertex,:)
     call ShapeFunctionCalculate(shapefunction)
     J_map = matmul(transpose(local_coordinates),shapefunction%DN)
-    call ludcmp(J_map,THREE_INTEGER,indx,d)
+    call LUDecomposition(J_map,THREE_INTEGER,indx,d)
     do i = 1, THREE_INTEGER
       eye_three = 0.d0
       eye_three(i) = 1.d0
-      call lubksb(J_map,THREE_INTEGER,indx,eye_three)
+      call LUBackSubstitution(J_map,THREE_INTEGER,indx,eye_three)
       inv_J_map(:,i) = eye_three
     enddo
     B = matmul(shapefunction%DN,inv_J_map)

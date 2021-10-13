@@ -7,7 +7,7 @@ module PM_Subsurface_Flow_class
 !geh: using Init_Subsurface_module here fails with gfortran (internal compiler error)
 !  use Init_Subsurface_module
   use Realization_Subsurface_class
-  use Communicator_Base_module
+  use Communicator_Base_class
   use Option_module
   
   use PFLOTRAN_Constants_module
@@ -539,8 +539,10 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   material_auxvars => patch%aux%Material%auxvars
 
   dataset_vec = PETSC_NULL_VEC
+
+  if (option%iflowmode == PNF_MODE) return
   
-  if(option%iflowmode == WF_MODE) then
+  if (option%iflowmode == WF_MODE) then
     call RealizationGetVariable(realization,realization%field%work, &
                                 LIQUID_PRESSURE,ZERO_INTEGER)
   else

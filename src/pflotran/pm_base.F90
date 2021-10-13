@@ -39,6 +39,7 @@ module PM_Base_class
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
+    procedure, public :: SetupLinearSystem => PMBaseSetupLinearSystem
     procedure, public :: UpdateTimestep => PMBaseUpdateTimestep
     procedure, public :: InitializeTimestep => PMBaseThisOnly
     procedure, public :: SetupSolvers => PMBaseThisOnly
@@ -158,7 +159,7 @@ subroutine PMBaseReadPMBlock(this,input)
   implicit none
   class(pm_base_type) :: this
   type(input_type), pointer :: input
-  this%option%exit_code = EXIT_FAILURE
+  this%option%driver%exit_code = EXIT_FAILURE
   this%option%io_buffer = 'A member routine PMBaseReadPMBlock must &
              &extend for: ' // trim(this%name)
   call PrintErrMsg(this%option)
@@ -247,6 +248,18 @@ subroutine PMBaseJacobian(this,snes,xx,A,B,ierr)
   PetscErrorCode :: ierr
   call this%PrintErrMsg('PMBaseJacobian')
 end subroutine PMBaseJacobian
+
+! ************************************************************************** !
+
+subroutine PMBaseSetupLinearSystem(this,A,solution,right_hand_side,ierr)
+  implicit none
+  class(pm_base_type) :: this
+  Vec :: right_hand_side
+  Vec :: solution
+  Mat :: A
+  PetscErrorCode :: ierr
+  call this%PrintErrMsg('PMBaseSetupLinearSystem')
+end subroutine PMBaseSetupLinearSystem
 
 ! ************************************************************************** !
 
@@ -475,7 +488,7 @@ subroutine PMBasePrintErrMsg(this,subroutine_name)
   implicit none
   class(pm_base_type) :: this
   character(len=*) :: subroutine_name
-  this%option%exit_code = EXIT_FAILURE
+  this%option%driver%exit_code = EXIT_FAILURE
   this%option%io_buffer = 'A member routine ' // trim(subroutine_name) // &
          ' must extend for: ' //  trim(this%name)
   call PrintErrMsg(this%option)

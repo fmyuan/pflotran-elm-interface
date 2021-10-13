@@ -55,6 +55,7 @@ CHEMISTRY
       SPECIES_NAME A(aq)
       HALF_SATURATION_CONSTANT 1.d-20        ! A is the donor
     /
+    CONCENTRATION_UNITS ACTIVITY
   /
   DATABASE ../../../database/hanford.dat
   ACTIVITY_COEFFICIENTS OFF

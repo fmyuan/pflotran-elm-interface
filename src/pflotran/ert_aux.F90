@@ -4,6 +4,7 @@ module ERT_Aux_module
   use petscsys
 
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -20,6 +21,7 @@ module ERT_Aux_module
     PetscInt :: num_aux
     ! ert auxvars for local and ghosted cells
     type(ert_auxvar_type), pointer :: auxvars(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type ert_type
 
   public :: ERTAuxCreate, ERTAuxDestroy, &
@@ -51,6 +53,7 @@ function ERTAuxCreate()
   aux%num_aux = 0
 
   nullify(aux%auxvars)
+  nullify(aux%matrix_zeroing)
 
   ERTAuxCreate => aux
 
@@ -68,7 +71,6 @@ subroutine ERTAuxVarInit(auxvar,survey,option)
 
   use Option_module
   use Survey_module
-  use PFLOTRAN_Constants_module, only : UNINITIALIZED_DOUBLE
 
   implicit none
 
@@ -184,6 +186,8 @@ subroutine ERTAuxDestroy(aux)
     deallocate(aux%auxvars)
   endif
   nullify(aux%auxvars)
+
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   deallocate(aux)
   nullify(aux)

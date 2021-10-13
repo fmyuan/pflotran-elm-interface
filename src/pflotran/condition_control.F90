@@ -604,12 +604,12 @@ subroutine CondControlAssignFlowInitCond(realization)
       case default
         ! assign initial conditions values to domain
         call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-      
+
         xx_p = UNINITIALIZED_DOUBLE
-      
+
         initial_condition => cur_patch%initial_condition_list%first
         do
-      
+
           if (.not.associated(initial_condition)) exit
 
           dataset_flag = PETSC_FALSE
@@ -634,7 +634,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                         field%flow_xx,GLOBAL)
                 call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
             end select
-          enddo            
+          enddo
           if (.not.associated(initial_condition%flow_aux_real_var) .and. &
               .not.associated(initial_condition%flow_condition)) then
             option%io_buffer = 'Flow condition is NULL in initial condition'
@@ -687,7 +687,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   enddo
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
     case default
       call GlobalUpdateState(realization)
   end select
@@ -700,7 +700,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
   ! cannot perform VecMin on local vector as the ghosted corner values are not
   ! updated during the local to local update.
-  call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE,ZERO_INTEGER)
+  call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
   call DiscretizationLocalToGlobal(discretization,field%work_loc,field%work, &
                                    ONEDOF)
   call VecMin(field%work,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
@@ -1161,7 +1161,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
     call PrintMsg(option)
     option%io_buffer = '*** End Note'
     call PrintMsg(option)
-    option%io_buffer = 'Free ion concentations must be positive.  Try ' // &
+    option%io_buffer = 'Free ion concentrations must be positive.  Try ' // &
       'using a small value such as 1.e-20 or 1.e-40 instead of zero.'
     call PrintErrMsg(option)
   endif
@@ -1352,7 +1352,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
     call PrintMsg(option)
     option%io_buffer = '*** End Note'
     call PrintMsg(option)
-    option%io_buffer = 'Species concentations must be positive.  Try ' // &
+    option%io_buffer = 'Species concentrations must be positive.  Try ' // &
       'using a small value such as 1.e-20 or 1.e-40 instead of zero.'
     call PrintErrMsg(option)
   endif
@@ -1493,17 +1493,24 @@ subroutine CondControlScaleSourceSink(realization)
   PetscInt :: icount
   PetscInt :: x_count, y_count, z_count
   PetscInt, parameter :: x_width = 1, y_width = 1, z_width = 0
-  
+
   PetscInt :: ghosted_neighbors(0:27)
-  
+
   option => realization%option
   discretization => realization%discretization
   field => realization%field
   patch => realization%patch
   material_auxvars => realization%patch%aux%Material%auxvars
-  
+
   ! GB: grid was uninitialized
   grid => patch%grid
+
+  select case(option%iflowmode)
+    case(TH_MODE,TH_TS_MODE,MPH_MODE,PNF_MODE)
+      option%io_buffer = 'Flow mode ' // trim(option%flowmode) // ' not &
+        &supported in CondControlScaleSourceSink().'
+      call PrintErrMsg(option)
+  end select
 
   cur_patch => realization%patch_list%first
   do
@@ -1521,13 +1528,14 @@ subroutine CondControlScaleSourceSink(realization)
       call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
       cur_connection_set => cur_source_sink%connection_set
-    
+
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE,H_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE,H_MODE,&
+               ZFLOW_MODE)
               call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                           x_width,y_width,z_width, &
                                           x_count,y_count,z_count, &
@@ -1543,22 +1551,22 @@ subroutine CondControlScaleSourceSink(realization)
                               neighbor_ghosted_id),PERMEABILITY_X) * &
                             grid%structured_grid%dy(neighbor_ghosted_id)* &
                             grid%structured_grid%dz(neighbor_ghosted_id)
-                 
+
               enddo
               ! y-direction
               do while (icount < x_count + y_count)
                 icount = icount + 1
-                neighbor_ghosted_id = ghosted_neighbors(icount)                 
+                neighbor_ghosted_id = ghosted_neighbors(icount)
                 sum = sum + MaterialAuxVarGetValue(material_auxvars( &
                               neighbor_ghosted_id),PERMEABILITY_X) * &
                             grid%structured_grid%dx(neighbor_ghosted_id)* &
                             grid%structured_grid%dz(neighbor_ghosted_id)
-                 
+
               enddo
               ! z-direction
               do while (icount < x_count + y_count + z_count)
                 icount = icount + 1
-                neighbor_ghosted_id = ghosted_neighbors(icount)                 
+                neighbor_ghosted_id = ghosted_neighbors(icount)
                 sum = sum + MaterialAuxVarGetValue(material_auxvars( &
                               neighbor_ghosted_id),PERMEABILITY_X) * &
                             grid%structured_grid%dx(neighbor_ghosted_id)* &
@@ -1570,26 +1578,25 @@ subroutine CondControlScaleSourceSink(realization)
         end select
 
       enddo
-        
+
       call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
       call VecNorm(field%work,NORM_1,scale,ierr);CHKERRQ(ierr)
       scale = 1.d0/scale
       call VecScale(field%work,scale,ierr);CHKERRQ(ierr)
 
       call VecGetArrayF90(field%work,vec_ptr, ierr);CHKERRQ(ierr)
-      do iconn = 1, cur_connection_set%num_connections      
+      do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         select case(option%iflowmode)
-          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE,H_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE,H_MODE, &
+               ZFLOW_MODE)
             cur_source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
               vec_ptr(local_id)
-          case(TH_MODE,TH_TS_MODE)
-          case(MPH_MODE)
         end select
 
       enddo
       call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-        
+
       cur_source_sink => cur_source_sink%next
     enddo
     cur_patch => cur_patch%next

@@ -11,6 +11,10 @@ module Reaction_Microbial_Aux_module
   
   private 
 
+  PetscInt, parameter, public :: MICROBIAL_MOLALITY = 1
+  PetscInt, parameter, public :: MICROBIAL_ACTIVITY = 2
+  PetscInt, parameter, public :: MICROBIAL_MOLARITY = 3
+
   PetscInt, parameter, public :: INHIBITION_THRESHOLD = 1
   PetscInt, parameter, public :: INHIBITION_THERMODYNAMIC = 2
   PetscInt, parameter, public :: INHIBITION_MONOD = 3
@@ -60,6 +64,7 @@ module Reaction_Microbial_Aux_module
     type(microbial_rxn_type), pointer :: microbial_rxn_list
 
     ! microbial reactions
+    PetscInt :: concentration_units
     PetscReal, pointer :: rate_constant(:)
     PetscReal, pointer :: activation_energy(:)
     PetscReal, pointer :: stoich(:,:)
@@ -129,6 +134,7 @@ function MicrobialCreate()
   nullify(microbial%inhibition_specid)
   nullify(microbial%inhibition_C)
   nullify(microbial%inhibition_C2)
+  microbial%concentration_units = UNINITIALIZED_INTEGER
   
   MicrobialCreate => microbial
   

@@ -25,6 +25,7 @@ module Dataset_Global_HDF5_class
             DatasetGlobalHDF5Cast, &
             DatasetGlobalHDF5Load, &
             DatasetGlobalHDF5Print, &
+            DatasetGlobalHDF5Strip, &
             DatasetGlobalHDF5Destroy
   
 contains
@@ -240,7 +241,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   if (ndims > 1) then
     file_rank2_size = int(dims(2))
   else
-    if (option%mycommsize > 1) then
+    if (option%comm%mycommsize > 1) then
       option%io_buffer = 'Dataset "' // trim(this%hdf5_dataset_name) // &
         '" in file "' // trim (this%filename) // &
         '" must be a 2D dataset (time,cell) if PFLOTRAN is run in parallel.'

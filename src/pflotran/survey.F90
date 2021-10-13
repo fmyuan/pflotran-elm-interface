@@ -23,6 +23,7 @@ module Survey_module
     PetscReal, pointer :: dsim(:)               ! Simulated data
     PetscReal, pointer :: dobs(:)               ! Observed data
     PetscReal, pointer :: Wd(:)                 ! data weight
+    PetscInt, pointer :: Wd_cull(:)             ! data culling weight
 
     PetscReal :: apparent_conductivity          ! app cond for an ERT survey
     PetscReal :: average_conductivity           ! avg cond of given cond model
@@ -68,6 +69,7 @@ function SurveyCreate()
   nullify(survey%dsim)
   nullify(survey%dobs)
   nullify(survey%Wd)
+  nullify(survey%Wd_cull)
 
   SurveyCreate => survey
 
@@ -113,7 +115,7 @@ subroutine SurveyRead(survey,input,option)
       survey%filename = word
     case('FORMAT')
       call InputReadCard(input,option,word)
-      call InputErrorMsg(input,option,'keyword','GRID')
+      call InputErrorMsg(input,option,'FORMAT','SURVEY')
       call StringToUpper(word)
       select case (trim(word))
       case ('E4D_SRV')
@@ -156,6 +158,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
 
   PetscInt :: ielec, idata
   PetscInt :: itemp
+  PetscReal :: wd
   character(len=MAXWORDLENGTH) :: error_string
   character(len=MAXWORDLENGTH) :: string_ielec,string_idata
 
@@ -223,16 +226,25 @@ subroutine SurveyReadERT(survey,grid,input,option)
     call InputReadDouble(input,option,survey%dobs(idata))
     call InputErrorMsg(input,option,'data dobs for data ' &
                                     //string_idata,error_string)
-    call InputReadDouble(input,option,survey%Wd(idata))
+    call InputReadDouble(input,option,wd)
     call InputErrorMsg(input,option,'weight Wd for data ' &
                                     //string_idata,error_string)
+    if (wd <= 0) wd = 1.d15
+    survey%Wd(idata) = 1 / wd
   enddo
 
   ! Get cell ids corrsponding to electrode positions
   allocate(survey%ipos_electrode(survey%num_electrode))
-  survey%ipos_electrode = 1
+  survey%ipos_electrode = UNINITIALIZED_INTEGER
 
   call SurveyGetElectrodeIndexFromPos(survey,grid,option)
+
+  ! TODO: only for inversion
+  allocate(survey%Wd_cull(survey%num_measurement))
+  survey%Wd_cull = 1
+
+  ! calculate apparent conductivity from survey data
+  call SurveyCalculateApparentCond(survey)
 
 end subroutine SurveyReadERT
 
@@ -364,7 +376,7 @@ subroutine SurveyCalculateApparentCond(survey)
     if (ib/=0 .and. in/=0) GFbn = GeometricFactor(ib,in,B_pos,N_pos)
 
     ! Total Geometric Factor
-    GF = (GFam - GFan - GFbm + GFbn) / 2*PI
+    GF = 0.5d0*(GFam - GFan - GFbm + GFbn) / PI
 
     ! TODO: CHANGE dsim to dobs
     if (survey%dobs(idata) /= 0) cond = GF/survey%dobs(idata)
@@ -432,6 +444,7 @@ subroutine SurveyDestroy(survey)
   call DeallocateArray(survey%dsim)
   call DeallocateArray(survey%dobs)
   call DeallocateArray(survey%Wd)
+  call DeallocateArray(survey%Wd_cull)
 
   deallocate(survey)
   nullify(survey)

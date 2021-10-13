@@ -1,12 +1,9 @@
 # Description: 1D tracer constant flow rate
-# S. Karra/P.C. Lichtner
+# S. Karra/P.C. Lichtner/R. Leone
 # PFLOTRAN shortcourse
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE RICHARDS
-    /
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
       OPTIONS
@@ -17,6 +14,11 @@ SIMULATION
 END
 
 SUBSURFACE
+#=========================== useful tranport parameters ==================
+SPECIFIED_VELOCITY #Darcy flux / specific discharge (vol/area/time)
+  UNIFORM? YES
+  DATASET 5d-6 0.d0 0.d0 m/d
+END
 #=========================== numerical methods ========================
 NUMERICAL_METHODS TRANSPORT
   NEWTON_SOLVER
@@ -27,10 +29,15 @@ END
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    A(aq)
+     Tracer
    /
 
-  MOLAL
+  RADIOACTIVE_DECAY_REACTION
+    REACTION Tracer <->
+    HALF_LIFE 12.35 y
+  /
+  LOG_FORMULATION
+  DATABASE ../../../database/hanford.dat
   OUTPUT
     All
     TOTAL
@@ -44,7 +51,7 @@ GRID
   NXYZ 100 1 1
   BOUNDS
     0.d0 0.d0 0.d0
-    0.04d0 1.d0 1.d0
+    10.d0 1.d0 1.d0
   /
 END
 
@@ -59,73 +66,52 @@ MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 1.d0
   TORTUOSITY 1.d0
-  ROCK_DENSITY 2.8E3
-  SPECIFIC_HEAT 1E3
-  THERMAL_CONDUCTIVITY_WET 0.5
-  CHARACTERISTIC_CURVES default 
-  PERMEABILITY 
-    PERM_X 1.d-15
-    PERM_Y 1.d-15
-    PERM_Z 1.d-15
-  /
+  ROCK_DENSITY 2700.d0 #kg/m3
+  LONGITUDINAL_DISPERSIVITY 0.5 #m
+
   SECONDARY_CONTINUUM
     TYPE SLAB
-    LENGTH 0.009
-    AREA 1.75e-6
-    NUM_CELLS 5
-    EPSILON 0.4167d0
-    DIFFUSION_COEFFICIENT 0.8d-9
-    POROSITY 0.4464
+    LENGTH 1.0
+    AREA 1.0
+    NUM_CELLS 50
+    EPSILON 0.00005d0
+    DIFFUSION_COEFFICIENT 1.6d-10
+    POROSITY 0.01
    /
-END
-
-#========================= characteristic curves ==================
-CHARACTERISTIC_CURVES default
-  SATURATION_FUNCTION VAN_GENUCHTEN
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    M 0.762
-    ALPHA 7.5d-4
-    MAX_CAPILLARY_PRESSURE 1.d6
-  /
-  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
-    M 0.762
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-  /
-  PERMEABILITY_FUNCTION MUALEM_VG_GAS
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    GAS_RESIDUAL_SATURATION 0.0
-    M 0.762
-  /
 END
 
 #========================= output options =========================
 OUTPUT
-   TIMES s 2.6042e4 3.9063e4 5.2083e4 1.e6
-   PERIODIC_OBSERVATION TIMESTEP 1 
-   PRINT_COLUMN_IDS
-   FORMAT TECPLOT POINT
-/
+  SNAPSHOT_FILE
+    TIMES d 100.
+    FORMAT TECPLOT POINT
+    NO_PRINT_INITIAL
+  /
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+    PRINT_COLUMN_IDS
+  /
+  VELOCITY_AT_CENTER
+END
 
 #======================== times ====================================
 TIME
-  FINAL_TIME 1.d6 s
-  INITIAL_TIMESTEP_SIZE 1.d-6 s
-  MAXIMUM_TIMESTEP_SIZE 10.d0 s
-  MAXIMUM_TIMESTEP_SIZE 1.d2 s at 5.d3 s
-  MAXIMUM_TIMESTEP_SIZE 1.d3 s at 5.e4 s
+  FINAL_TIME 500.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-3 d
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
 /
 #=========================== regions ===============================
 REGION all
   COORDINATES
-    0.d0 0.d0 0.d0
-    0.04d0 1.d0 1.d0
+    0.d0  0.d0  0.d0
+    10.d0 1.d0  1.d0
   /
 END
 
 REGION west
   FACE WEST
   COORDINATES
-    0.d0 0.d0 0.d0
+    0.d0 0.d0  0.d0
     0.d0 1.d0 1.d0
   /
 END
@@ -133,80 +119,52 @@ END
 REGION east
   FACE EAST
   COORDINATES
-    0.04d0 0.d0 0.d0
-    0.04d0 1.d0 1.d0
+    10.d0 0.d0  0.d0
+    10.d0 1.d0  1.d0
   /
 END
 
 REGION obs
-  COORDINATES
-    0.04d0 0.d0 0.d0
-    0.04d0 1.d0 1.d0
-  /
+  COORDINATE 2.0 0.5 0.5
 END
 
 OBSERVATION 
   REGION obs
   SECONDARY_CONCENTRATION
-  SECONDARY_MINERAL_VOLFRAC
 /
 
-#==== flow conditions =========================================================
-FLOW_CONDITION initial_pressure
-  TYPE
-    PRESSURE DIRICHLET
-  /
-  PRESSURE 201325.d0
-END
-
-FLOW_CONDITION inlet_flux
-  TYPE
-    FLUX NEUMANN
-  /
-  FLUX 14.4d0 m/y
-END
 #==== transport conditions=====================================================
-TRANSPORT_CONDITION initial
-  TYPE DIRICHLET
+TRANSPORT_CONDITION background
+  TYPE zero_gradient
   CONSTRAINT_LIST
-    0.d0 initial
+    0.d0 initial_constraint
   /
 END
 
-TRANSPORT_CONDITION west
+TRANSPORT_CONDITION inlet
   TYPE DIRICHLET
   CONSTRAINT_LIST
-    0.d0 west
-  / 
-/
-
-TRANSPORT_CONDITION east
-  TYPE ZERO_GRADIENT
-  CONSTRAINT_LIST
-    0.d0 east
+    0.d0 inlet_constraint
   / 
 /
 
 #========================== initial and boundary conditions =================
 # initial condition
 INITIAL_CONDITION
-  FLOW_CONDITION initial_pressure
-  TRANSPORT_CONDITION initial
+  TRANSPORT_CONDITION background
   REGION all
 END
 
-# west boundary condition
+# east boundary condition
 BOUNDARY_CONDITION outlet
-  FLOW_CONDITION initial_pressure
-  TRANSPORT_CONDITION west
-  REGION west
+  TRANSPORT_CONDITION background
+  REGION east
 END
 
-# east boundary condition
+# west boundary condition
 BOUNDARY_CONDITION inlet
-  FLOW_CONDITION inlet_flux
-  TRANSPORT_CONDITION east
-  REGION east
+  TRANSPORT_CONDITION inlet
+  REGION west
 END
 
 #===================== stratigraphy couplers ==============================
@@ -216,27 +174,24 @@ STRATA
 END
 
 #=========================== constraints ======================================
-CONSTRAINT initial
+CONSTRAINT initial_constraint
   CONCENTRATIONS
-    A(aq)  0.1  T 
+    Tracer  1.d-20  T 
   /
 /
 
-CONSTRAINT west
-  CONCENTRATIONS
-    A(aq)  1.e-8  T
-  /
-/
 
-CONSTRAINT east
+CONSTRAINT inlet_constraint
   CONCENTRATIONS
-    A(aq)  1.E-02  T
+    Tracer  1.0  T
   /
 /
 
 #==================== secondary continuum initial constraint ==================
 SECONDARY_CONSTRAINT sec
   CONCENTRATIONS
-    A(aq)  0.1  T 
+    Tracer  1.d-20  T 
   /
 /
+
+END_SUBSURFACE

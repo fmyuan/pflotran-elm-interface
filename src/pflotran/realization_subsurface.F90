@@ -290,17 +290,23 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%flow_accum2)
 
     ! ndof degrees of freedom, local
-    call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx_loc, &
-                                    LOCAL,option)
+    call DiscretizationCreateVector(discretization,NFLOWDOF, &
+                                    field%flow_xx_loc,LOCAL,option)
 
     if ((option%iflowmode == RICHARDS_TS_MODE) .or. &
         (option%iflowmode == TH_TS_MODE)) then
-      call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot, &
+      call DiscretizationCreateVector(discretization,NFLOWDOF, &
+                                      field%flow_xxdot, &
                                       GLOBAL,option)
 
-      call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot_loc, &
+      call DiscretizationCreateVector(discretization,NFLOWDOF, &
+                                      field%flow_xxdot_loc, &
                                       LOCAL,option)
+    endif
 
+    if (option%iflowmode == PNF_MODE) then
+      call DiscretizationDuplicateVector(discretization,field%flow_xx, &
+                                         field%flow_rhs)
     endif
 
   endif
@@ -907,26 +913,28 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     if (.not.associated(cur_material_property)) exit
 
     ! obtain saturation function id
-    if (option%iflowmode /= NULL_MODE) then
-      if (associated(patch%saturation_function_array)) then
-        cur_material_property%saturation_function_id = &
-          SaturationFunctionGetID(patch%saturation_functions, &
-                             cur_material_property%saturation_function_name, &
-                             cur_material_property%name,option)
-      endif
-      if (associated(patch%characteristic_curves_array)) then
-        cur_material_property%saturation_function_id = &
-          CharacteristicCurvesGetID(patch%characteristic_curves_array, &
-                             cur_material_property%saturation_function_name, &
-                             cur_material_property%name,option)
-      endif
-      if (cur_material_property%saturation_function_id == 0) then
-        option%io_buffer = 'Characteristic curve "' // &
-          trim(cur_material_property%saturation_function_name) // &
-          '" not found.'
-        call PrintErrMsg(option)
-      endif
-    endif
+    select case(option%iflowmode)
+      case(NULL_MODE,PNF_MODE)
+      case default
+        if (associated(patch%saturation_function_array)) then
+          cur_material_property%saturation_function_id = &
+            SaturationFunctionGetID(patch%saturation_functions, &
+                               cur_material_property%saturation_function_name, &
+                               cur_material_property%name,option)
+        endif
+        if (associated(patch%characteristic_curves_array)) then
+          cur_material_property%saturation_function_id = &
+            CharacteristicCurvesGetID(patch%characteristic_curves_array, &
+                               cur_material_property%saturation_function_name, &
+                               cur_material_property%name,option)
+        endif
+        if (cur_material_property%saturation_function_id == 0) then
+          option%io_buffer = 'Characteristic curve "' // &
+            trim(cur_material_property%saturation_function_name) // &
+            '" not found.'
+          call PrintErrMsg(option)
+        endif
+    end select
 
     ! thermal conducitivity function id
     if (associated(patch%char_curves_thermal_array)) then
@@ -978,15 +986,35 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           call PrintErrMsg(option)
       end select
     endif
+    if (associated(cur_material_property%electrical_conductivity_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),ELECTRICAL_CONDUCTIVITY'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_material_property% &
+                                electrical_conductivity_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%electrical_conductivity_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%electrical_conductivity_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for electrical &
+                             &conductivity.'
+          call PrintErrMsg(option)
+      end select
+    endif
     if (associated(cur_material_property%multicontinuum)) then
       if (associated(cur_material_property%multicontinuum%epsilon_dataset)) then
         string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                  '),EPSILON'
         dataset => &
           DatasetBaseGetPointer(realization%datasets, &
-                                cur_material_property%multicontinuum%epsilon_dataset%name, &
+                                cur_material_property% &
+                                  multicontinuum%epsilon_dataset%name, &
                                 string,option)
-        call DatasetDestroy(cur_material_property%multicontinuum%epsilon_dataset)
+        call DatasetDestroy(cur_material_property% &
+                              multicontinuum%epsilon_dataset)
         select type(dataset)
           class is (dataset_common_hdf5_type)
             cur_material_property%multicontinuum%epsilon_dataset => dataset
@@ -2515,7 +2543,7 @@ subroutine RealizationPrintGridStatistics(realization)
                      MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
 
   ! why I cannot use *100, I do not know....geh
-  inactive_percentages = dble(temp_int_out)/dble(option%mycommsize)*10.d0
+  inactive_percentages = dble(temp_int_out)/dble(option%comm%mycommsize)*10.d0
   inactive_percentages = inactive_percentages+1.d-8
 
   r1 = 0.d0
@@ -2560,7 +2588,7 @@ subroutine RealizationPrintGridStatistics(realization)
               & "                                        Check : ",1f7.2,/)') &
            global_total_count, &
            global_active_count, &
-           option%mycommsize, &
+           option%comm%mycommsize, &
            i1,i2,i3, &
            int(total_max+1.d-4), &
            int(total_min+1.d-4), &
@@ -2611,7 +2639,7 @@ subroutine RealizationPrintGridStatistics(realization)
                & "                                        Check : ",1f7.2,/)') &
            global_total_count, &
            global_active_count, &
-           option%mycommsize, &
+           option%comm%mycommsize, &
            i1,i2,i3, &
            int(total_max+1.d-4), &
            int(total_min+1.d-4), &

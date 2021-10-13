@@ -592,10 +592,10 @@ function MphaseInitGuessCheck(realization)
   enddo
 
   call MPI_Barrier(option%mycomm,ierr)
-  if (option%mycommsize > 1) then
+  if (option%comm%mycommsize > 1) then
     call MPI_Allreduce(ipass,ipass0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                          option%mycomm,ierr)
-    if (ipass0 < option%mycommsize) ipass=-1
+    if (ipass0 < option%comm%mycommsize) ipass=-1
   endif
   MphaseInitGuessCheck =ipass
 end function MphaseInitGuessCheck
@@ -754,10 +754,10 @@ subroutine MPhaseUpdateReason(reason, realization)
 
   call MPI_Barrier(realization%option%mycomm,ierr)
   
-  if (realization%option%mycommsize > 1) then
+  if (realization%option%comm%mycommsize > 1) then
     call MPI_Allreduce(re,re0,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                         realization%option%mycomm,ierr)
-    if (re0<realization%option%mycommsize) re=0
+    if (re0<realization%option%comm%mycommsize) re=0
   endif
   reason=re
   
@@ -3157,13 +3157,13 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
     cur_patch => cur_patch%next
   enddo
 
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     string = 'MPHjacobian'
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-  if (realization%debug%norm_Jacobian) then
+  if (realization%debug%norm_Matrix) then
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
@@ -3564,7 +3564,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
                                   ierr);CHKERRQ(ierr)
   end do
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     string = 'jacobian_srcsink'
@@ -3701,7 +3701,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 #endif
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
  ! print *,'end inter flux'
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -3711,7 +3711,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 #if 0
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call PetscViewerASCIIOpen(option%mycomm,'jacobian_bcflux.out',viewer, &

@@ -1789,7 +1789,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
                           ierr);CHKERRQ(ierr)
   endif
 
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     string = 'Tmatrix'
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(T,viewer,ierr);CHKERRQ(ierr)
@@ -1905,7 +1905,8 @@ subroutine RTReact(realization)
     call RReact(tran_xx_p,rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
 !                tran_xx_p(istart:iend), &
-                num_iterations,reaction,grid%nG2A(ghosted_id),option,ierror)
+                num_iterations,reaction,grid%nG2A(ghosted_id),option, &
+                PETSC_TRUE,PETSC_TRUE,ierror)
     ! set primary dependent var back to free-ion molality
     tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal
     if (reaction%immobile%nimmobile > 0) then
@@ -3180,7 +3181,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
 
   call PetscLogEventEnd(logging%event_rt_jacobian2,ierr);CHKERRQ(ierr)
     
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     string = 'RTjacobian'
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
@@ -3191,7 +3192,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
 
-    if (realization%debug%matview_Jacobian) then
+    if (realization%debug%matview_Matrix) then
       string = 'RTjacobianLog'
       call DebugCreateViewer(realization%debug,string,realization%option,viewer)
       call MatView(J,viewer,ierr);CHKERRQ(ierr)

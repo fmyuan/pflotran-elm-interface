@@ -18,7 +18,29 @@ module String_module
   PetscInt, parameter, public :: STRING_NO = 0
   PetscInt, parameter, public :: STRING_OTHER = UNINITIALIZED_INTEGER
 
-  public :: StringCompare, &
+  character(len=1), parameter :: C_ESC = achar(27)
+  character(len=2), parameter, public :: C_START = C_ESC // '['
+  character(len=1), parameter, public :: C_END = 'm'
+  character(len=*), parameter, public :: C_DARK_GREY = '90'
+  character(len=*), parameter, public :: C_PEACH = '91'
+  character(len=*), parameter, public :: C_LIGHT_GREEN = '92'
+  character(len=*), parameter, public :: C_LIGHT_YELLOW = '93'
+  character(len=*), parameter, public :: C_LIGHT_BLUE = '94'
+  character(len=*), parameter, public :: C_PINK = '95'
+  character(len=*), parameter, public :: C_LIGHT_ACQUA = '96'
+  character(len=*), parameter, public :: C_PEARL_WHITE = '97'
+  character(len=*), parameter, public :: C_BLACK = '30'
+  character(len=*), parameter, public :: C_RED = '31'
+  character(len=*), parameter, public :: C_GREEN = '32'
+  character(len=*), parameter, public :: C_YELLOW = '33'
+  character(len=*), parameter, public :: C_BLUE = '34'
+  character(len=*), parameter, public :: C_MAGENTA = '35'
+  character(len=*), parameter, public :: C_CYAN = '36'
+  character(len=*), parameter, public :: C_WHITE = '37'
+  character(len=*), parameter :: C_CLEAR = C_START // '0' // C_END
+
+  public :: StringColor, &
+            StringCompare, &
             StringCompareIgnoreCase, &
             StringToUpper, &
             StringToLower, &
@@ -43,7 +65,10 @@ module String_module
             StringWriteToUnit, &
             StringWriteToUnits, &
             String1Or2, &
-            StringGetMaximumLength
+            StringGetMaximumLength, &
+            StringGetFilename, &
+            StringGetPath, &
+            StringStripFilenameSuffix
 
   interface StringWrite
     module procedure StringWriteI
@@ -76,6 +101,26 @@ module String_module
   end interface
 
 contains
+
+! ************************************************************************** !
+
+function StringColor(string,c_code) result(color_string)
+  !
+  ! Convert str to colored string
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/02/21
+  !
+
+  implicit none
+
+  character(len=*), intent(in) :: string
+  character(len=*), intent(in) :: c_code
+  character(len=:), allocatable :: color_string
+
+  color_string = C_START // c_code // C_END // string // C_CLEAR
+
+end function StringColor
 
 ! ************************************************************************** !
 
@@ -1179,6 +1224,87 @@ function StringGetMaximumLength(strings)
   enddo
 
 end function StringGetMaximumLength
+
+! ************************************************************************** !
+
+function StringGetFilename(filename_and_path)
+  ! 
+  ! Strips the path from a full path and filename
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/02/21
+
+  implicit none
+ 
+  character(len=*) :: filename_and_path
+
+  character(len=MAXSTRINGLENGTH) :: StringGetFilename
+
+  PetscInt :: i
+
+  i = index(filename_and_path,'/',PETSC_TRUE)
+
+  StringGetFilename = filename_and_path
+  if (i > 0) then
+    StringGetFilename = trim(filename_and_path(i+1:))
+  endif
+
+end function StringGetFilename
+
+! ************************************************************************** !
+
+function StringGetPath(filename_and_path)
+  ! 
+  ! Strips the filename from a full path and filename
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/02/21
+
+  implicit none
+ 
+  character(len=*) :: filename_and_path
+
+  character(len=MAXSTRINGLENGTH) :: StringGetPath
+
+  PetscInt :: i
+
+  i = index(filename_and_path,'/',PETSC_TRUE)
+
+  StringGetPath = ''
+  if (i > 0) then
+    StringGetPath = trim(filename_and_path(1:i-1))
+  endif
+
+end function StringGetPath
+
+! ************************************************************************** !
+
+function StringStripFilenameSuffix(filename)
+  ! 
+  ! Writes a string to multipel file units (one of which could be the screen)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=*) :: filename
+
+  character(len=MAXSTRINGLENGTH) :: StringStripFilenameSuffix
+
+  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
+
+  strings => StringSplit(filename,'.')
+  if (size(strings) > 1) then
+    StringStripFilenameSuffix = StringsMerge(strings(1:size(strings)-1),'.')
+  else
+    StringStripFilenameSuffix = strings(1)
+  endif
+  deallocate(strings)
+  nullify(strings)
+
+end function StringStripFilenameSuffix
 
 ! ************************************************************************** !
 

@@ -850,8 +850,8 @@ function PMWFSpacerMechCreate()
 ! LOCAL VARIABLES:
 ! ================
 ! ----------------------------------------------
-  type(spacer_mechanism_base_type), pointer :: PMWFSpacerMechCreate
-  type(spacer_mechanism_base_type), pointer :: spc
+  class(spacer_mechanism_base_type), pointer :: PMWFSpacerMechCreate
+  class(spacer_mechanism_base_type), pointer :: spc
 ! ----------------------------------------------
 
   allocate(spc)
@@ -2724,7 +2724,7 @@ subroutine PMWFSetup(this)
   ! point the waste form region to the desired region 
   call PMWFAssociateRegion(this,this%realization%patch%region_list)
   
-  allocate(ranks(option%mycommsize))
+  allocate(ranks(option%comm%mycommsize))
   
   waste_form_id = 0
   nullify(prev_waste_form)
@@ -2784,12 +2784,12 @@ subroutine PMWFSetup(this)
       cur_waste_form%id = 0
       ranks(option%myrank+1) = 0
     endif
-    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%mycommsize,MPI_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,ranks,option%comm%mycommsize,MPI_INTEGER, &
                        MPI_SUM,option%mycomm,ierr)
     newcomm_size = sum(ranks)
     allocate(cur_waste_form%rank_list(newcomm_size))
     j = 0
-    do i = 1,option%mycommsize
+    do i = 1,option%comm%mycommsize
       if (ranks(i) == 1) then
         j = j + 1
         cur_waste_form%rank_list(j) = (i - 1)  ! (world ranks)
@@ -3630,9 +3630,9 @@ subroutine PMWFInitializeTimestep(this)
       enddo
       ! linear solve steps
       ! solve step 1/2: get LU decomposition
-      call ludcmp(Jacobian,num_species,indices,i)
+      call LUDecomposition(Jacobian,num_species,indices,i)
       ! solve step 2/2: LU back substitution linear solve
-      call lubksb(Jacobian,num_species,indices,rhs)
+      call LUBackSubstitution(Jacobian,num_species,indices,rhs)
       rhs = dsign(1.d0,rhs)*min(dabs(rhs),10.d0)
       ! update the solution
       solution = solution*exp(-rhs)
@@ -7380,7 +7380,7 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   PetscReal :: fuelDisRate 
 
   ! features
-  PetscReal :: f(6)
+  PetscReal :: f(4)
   PetscReal :: yTme
 
   PetscReal :: qoi_ave
@@ -7397,10 +7397,8 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
 
   f(1) = log10(current_temp_C + 273.15d0)
   f(2) = log10(conc(1)) ! Env_CO3_2n
-  f(3) = log10(conc(2)) ! Env_O2
-  f(4) = log10(conc(3)) ! Env_Fe_2p
-  f(5) = log10(conc(4)) ! Env_H2
-  f(6) = log10(dose_rate(yTme,decay_time,burnup))
+  f(3) = log10(conc(4)) ! Env_H2
+  f(4) = log10(dose_rate(yTme,decay_time,burnup))
 
   allocate(knnr_results(nn))
 
@@ -7474,7 +7472,7 @@ subroutine KnnrReadH5File(this, option)
   
   call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
 
-  allocate(this%table_data(7,dims_h5(1)))
+  allocate(this%table_data(5,dims_h5(1)))
 
 
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(1,:), dims_h5, &
@@ -7484,16 +7482,12 @@ subroutine KnnrReadH5File(this, option)
 
   dataset_name = 'Env_CO3_2n'
   call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,2)
-  dataset_name = 'Env_O2'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,3)
-  dataset_name = 'Env_Fe_2p'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,4)
   dataset_name = 'Env_H2'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,5)
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,3)
   dataset_name = 'Dose Rate d0'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,6)
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,4)
   dataset_name = 'UO2 Surface Flux'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,7)
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,5)
 
   deallocate(dims_h5)
   deallocate(max_dims_h5)
@@ -7506,8 +7500,7 @@ subroutine KnnrReadH5File(this, option)
   this%table_data(2,:) = log10(this%table_data(2,:))
   this%table_data(3,:) = log10(this%table_data(3,:))
   this%table_data(4,:) = log10(this%table_data(4,:))
-  this%table_data(5,:) = log10(this%table_data(5,:))
-  this%table_data(6,:) = log10(this%table_data(6,:))
+
 
 end subroutine KnnrReadH5File
 

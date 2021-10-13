@@ -971,7 +971,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         endif   
       enddo 
     enddo
-    call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
+    call MatSetOption(this%solver%M,MAT_NEW_NONZERO_ALLOCATION_ERR, &
          PETSC_FALSE,ierr);CHKERRQ(ierr)
     deallocate(this%dirichlet_dofs_ints)
   endif
@@ -1331,7 +1331,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     deallocate(diagonal_values)
   endif
 
-  if (this%realization%debug%matview_Jacobian) then
+  if (this%realization%debug%matview_Matrix) then
     string = 'WFjacobian'
     call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
@@ -1341,7 +1341,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   call SNESGetFunction(snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   if (this%scale_linear_system) then
-!    if (this%option%mycommsize > 1) then
+!    if (this%option%comm%mycommsize > 1) then
 !      this%option%io_buffer = 'WIPP FLOW matrix scaling not allowed in &
 !        &parallel.'
 !      call PrintErrMsg(this%option)
@@ -1364,7 +1364,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     call VecPointwiseMult(residual_vec,residual_vec, &
                           this%scaling_vec,ierr);CHKERRQ(ierr)
 
-    if (this%realization%debug%matview_Jacobian) then
+    if (this%realization%debug%matview_Matrix) then
       string = 'WFscale_vec'
       call DebugCreateViewer(this%realization%debug,string,this%option,viewer)
       call VecView(this%scaling_vec,viewer,ierr);CHKERRQ(ierr)
@@ -1382,7 +1382,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     endif
   endif
 
-  if (this%realization%debug%norm_Jacobian) then
+  if (this%realization%debug%norm_Matrix) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
     call PrintMsg(this%option)
@@ -1992,7 +1992,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
   ! if running in parallel, we can no longer report the sign on the maximum
   ! change variables as the sign may differ across processes.
-  if (option%mycommsize > 1) then
+  if (option%comm%mycommsize > 1) then
     this%convergence_reals(1:MIN_LIQ_PRES-1) = &
       dabs(this%convergence_reals(1:MIN_LIQ_PRES-1))
   endif
@@ -2121,7 +2121,7 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
       ! just overwrite the character, the flag/real matches FORCE_ITERATION
       reason_string(7:7) = 'B'
     endif
-    if (option%mycommsize > 1 .or. grid%nmax > 9999) then
+    if (option%comm%mycommsize > 1 .or. grid%nmax > 9999) then
       write(*,'(4x,"Rsn: ",a10,4es10.2)') reason_string, &
         this%convergence_reals(MAX_NORMAL_RES_LIQ), &
         this%convergence_reals(MAX_NORMAL_RES_GAS), &

@@ -38,6 +38,8 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use General_module
   use Hydrate_module
   use WIPP_Flow_module
+  use ZFlow_module
+  use PNF_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
   use PM_Hydrate_class 
@@ -62,7 +64,7 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,ZFLOW_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
@@ -73,8 +75,12 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call THSetup(realization)
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
         call RichardsSetup(realization)
+      case(ZFLOW_MODE)
+        call ZFlowSetup(realization)
+      case(PNF_MODE)
+        call PNFSetup(realization)
       case(MPH_MODE)
-        call init_span_wagner(option)      
+        call init_span_wagner(option)
         call MphaseSetup(realization)
       case(WF_MODE)
         call WIPPFloSetup(realization)
@@ -114,6 +120,10 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call RichardsUpdateAuxVars(realization)
       case(RICHARDS_TS_MODE)
         call PMRichardsTSUpdateAuxVarsPatch(realization)
+      case(ZFLOW_MODE)
+        call ZFlowUpdateAuxVars(realization)
+      case(PNF_MODE)
+        call PNFUpdateAuxVars(realization)
       case(MPH_MODE)
         call MphaseUpdateAuxVars(realization)
       case(G_MODE)
@@ -186,9 +196,8 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &
-
                        trim(option%flowmode)
-  endif      
+  endif
 
   cur_patch => realization%patch_list%first
   do

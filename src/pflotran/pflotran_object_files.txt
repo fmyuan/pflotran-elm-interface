@@ -3,6 +3,8 @@
 # DO NOT place any object files that depend on the discretization within
 # util_obj
 util_obj = \
+	${common_src}communicator_aux.o \
+	${common_src}driver.o \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -41,6 +43,13 @@ mode_aux_obj = \
 	${common_src}mphase_aux.o \
 	${common_src}nw_transport_aux.o \
 	${common_src}kdtree.o \
+	${common_src}pnf_aux.o \
+	${common_src}richards_aux.o \
+	${common_src}th_aux.o \
+	${common_src}zflow_aux.o \
+	${common_src}inlinesurface_aux.o
+
+mode_process_model_obj = \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
@@ -52,6 +61,7 @@ mode_aux_obj = \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \
 	${common_src}pm_osrt.o \
+	${common_src}pm_pnf.o \
 	${common_src}pm_rt.o \
 	${common_src}pm_subsurface_flow.o \
 	${common_src}pm_th.o \
@@ -60,9 +70,7 @@ mode_aux_obj = \
 	${common_src}pm_waste_form.o \
 	${common_src}pm_wipp_srcsink.o \
 	${common_src}pm_ufd_biosphere.o \
-	${common_src}richards_aux.o \
-	${common_src}th_aux.o \
-	${common_src}inlinesurface_aux.o
+	${common_src}pm_zflow.o \
 
 mode_obj = \
 	${common_src}general.o \
@@ -74,10 +82,13 @@ mode_obj = \
 	${common_src}global.o \
 	${common_src}mphase.o \
 	${common_src}nw_transport.o \
+	${common_src}pnf.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
 	${common_src}richards_common.o \
 	${common_src}th.o \
+	${common_src}zflow.o \
+	${common_src}zflow_common.o \
 	${common_src}inlinesurface.o
 
 # DO NOT place any object files that depend on the discretization within
@@ -114,15 +125,17 @@ chem_obj = \
 	${common_src}reaction_base.o \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_clm.o \
+	${common_src}reaction_redox.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
-	${common_src}reaction_sandbox_biodeg.o \
-	${common_src}reaction_sandbox_flexbiodeg.o \
+	${common_src}reaction_sandbox_biohill.o \
+	${common_src}reaction_sandbox_flexbiohill.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
-	${common_src}reaction_sandbox_simple.o \
+    ${common_src}reaction_sandbox_simple.o \
+    ${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
@@ -205,6 +218,7 @@ misc_obj = \
 	${common_src}data_mediator_vec.o \
 	${common_src}data_mediator_base.o \
 	${common_src}debug.o \
+	${common_src}factory_forward.o \
 	${common_src}factory_pflotran.o \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \
@@ -214,12 +228,16 @@ misc_obj = \
 	${common_src}init_subsurface_flow.o \
 	${common_src}init_subsurface_transport.o \
 	${common_src}integral_flux.o \
+	${common_src}inversion_base.o \
+	${common_src}inversion_ert.o \
+	${common_src}inversion_subsurface.o \
+	${common_src}inversion_tao.o \
 	${common_src}matrix_buffer.o \
-	${common_src}multisimulation.o \
 	${common_src}observation.o \
 	${common_src}patch.o \
 	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
+	${common_src}pmc_linear.o \
 	${common_src}pmc_subsurface.o \
 	${common_src}pmc_subsurface_osrt.o \
 	${common_src}pmc_third_party.o \
@@ -231,12 +249,14 @@ misc_obj = \
 	${common_src}secondary_continuum.o \
 	${common_src}simulation_aux.o \
 	${common_src}simulation_base.o \
+	${common_src}simulation_inverse.o \
+	${common_src}simulation_multirealization.o \
 	${common_src}simulation_subsurface.o \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
 	${common_src}timestepper_KSP.o \
-	${common_src}timestepper_BE.o \
+	${common_src}timestepper_SNES.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \
 	${common_src}upwind_direction.o \
@@ -274,7 +294,7 @@ geomech_obj = \
 geophysics_obj = \
 	${common_src}ert.o \
 	${common_src}ert_aux.o \
-	${common_srt}init_subsurface_geophysics.o \
+	${common_src}init_subsurface_geophysics.o \
 	${common_src}pm_ert.o \
 	${common_src}pmc_geophysics.o \
 	${common_src}survey.o

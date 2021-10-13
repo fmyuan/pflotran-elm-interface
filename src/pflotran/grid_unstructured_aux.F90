@@ -171,7 +171,7 @@ module Grid_Unstructured_Aux_module
             UGridExplicitCreate, &
             UGridPolyhedraCreate, &
             UGridMapIndices, &
-            UGridDMCreateJacobian, &
+            UGridDMCreateMatrix, &
             UGridDMCreateVector, &
             UGridDestroy, &
             UGridCreateUGDM, &
@@ -771,7 +771,7 @@ subroutine UGridCreateUGDMShell(unstructured_grid,da,ugdm,ndof,option)
   call VecDestroy(local_vec,ierr);CHKERRQ(ierr)
 
   ! GB: Can mat_type passed as an argument to this subroutine?
-  !call UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,jac,option)
+  !call UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,jac,option)
   !call DMShellSetMatrix(J,ierr);CHKERRQ(ierr)
   !call MatDestroy(J,ierr);CHKERRQ(ierr)
 
@@ -779,9 +779,9 @@ end subroutine UGridCreateUGDMShell
 
 ! ************************************************************************** !
 
-subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
+subroutine UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,J,option)
   ! 
-  ! Creates a Jacobian matrix based on the unstructured
+  ! Creates a matrix based on the unstructured
   ! grid dual
   ! 
   ! Author: Glenn Hammond
@@ -910,7 +910,7 @@ subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
   call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-end subroutine UGridDMCreateJacobian
+end subroutine UGridDMCreateMatrix
 
 ! ************************************************************************** !
 
@@ -1088,10 +1088,10 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
 #endif
 
   ! calculate the number of local grid cells on each processor
-  allocate(cell_counts(option%mycommsize))
+  allocate(cell_counts(option%comm%mycommsize))
   ! ISPartitioningCount takes a ISPartitioning and determines the number of  
   ! resulting elements on each (partition) process - petsc
-  tempint = option%mycommsize
+  tempint = option%comm%mycommsize
   call ISPartitioningCount(is_new,tempint,cell_counts,ierr);CHKERRQ(ierr)
   num_cells_local_new = cell_counts(option%myrank+1) 
   call MPI_Allreduce(num_cells_local_new,iflag,ONE_INTEGER_MPI,MPIU_INTEGER, &
@@ -1652,8 +1652,8 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       if (dual_id < 1) exit
       count = count + 1
       ! flag ghosted cells in dual as negative
-      !geh: these negative dual ids are used later in UGridDMCreateJacobian() 
-      !     to specify off processor connectity in the Jacobian
+      !geh: these negative dual ids are used later in UGridDMCreateMatrix() 
+      !     to specify off processor connectity in the matrix
       if (dual_id > ugrid%nlmax) dual_id = -dual_id
       ugrid%cell_neighbors_local_ghosted(idual,local_id) = dual_id
     enddo
@@ -1752,8 +1752,8 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     !                 ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
     
     send_size_mpi = ugrid%nlmax*stride
-    !allocate(rcv_sizes_mpi(option%mycommsize))
-    allocate(rcv_sizes_mpi(0:(option%mycommsize-1)))
+    !allocate(rcv_sizes_mpi(option%comm%mycommsize))
+    allocate(rcv_sizes_mpi(0:(option%comm%mycommsize-1)))
     rcv_sizes_mpi = 0
     call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI, &
                        MPIU_INTEGER, &
@@ -1761,8 +1761,8 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
                        ONE_INTEGER_MPI, &
                        MPIU_INTEGER,option%mycomm,ierr)
 
-    !allocate(disp_mpi(option%mycommsize))
-    allocate(disp_mpi(0:(option%mycommsize-1)))
+    !allocate(disp_mpi(option%comm%mycommsize))
+    allocate(disp_mpi(0:(option%comm%mycommsize-1)))
     disp_mpi = 0
 
     !displacement with 0-based index
@@ -1848,7 +1848,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 
       !build array of number of ghost of each proc for use in MPI_Allgatherv
       send_size_mpi = ugrid%num_ghost_cells
-      allocate(rcv_sizes_mpi(0:(option%mycommsize-1)))
+      allocate(rcv_sizes_mpi(0:(option%comm%mycommsize-1)))
       rcv_sizes_mpi = 0
       call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI, &
                          MPIU_INTEGER, &
@@ -1857,7 +1857,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
                          MPIU_INTEGER,option%mycomm,ierr)
       !
       !build array of pointers to ghost section petsc ids for each proc
-      allocate(disp_mpi(0:(option%mycommsize-1)))
+      allocate(disp_mpi(0:(option%comm%mycommsize-1)))
       disp_mpi = 0
       !displacement with 0-based index
       ghost_global_offset = 0

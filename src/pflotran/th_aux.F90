@@ -572,6 +572,10 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                   auxvar%dsat_dp
   auxvar%dKe_dT = 0.d0
 
+  if (size(global_auxvar%sat) > 1) then
+    global_auxvar%sat(2) = 1.d0 - global_auxvar%sat(1)
+  endif
+
 end subroutine THAuxVarComputeNoFreezing
 
 ! ************************************************************************** !

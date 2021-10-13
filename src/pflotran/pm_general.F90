@@ -1323,7 +1323,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                 string = '   ' // trim(tol_string(itol)) // ', ' // &
                  trim(state_string(istate)) // ', ' // dof_string(idof,istate)
               endif
-              if (option%mycommsize == 1) then
+              if (option%comm%mycommsize == 1) then
                 string = trim(string) // ' (' // &
                   trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &
                   // ')' 
@@ -1547,13 +1547,13 @@ subroutine PMGeneralMaxChange(this)
   call MPI_Allreduce(max_change_local,max_change_global,SIX_INTEGER, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   ! print them out
-  if (OptionPrintToScreen(option)) then
+  if (option%print_screen_flag) then
     write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
       & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
       & " dsg= ",1pe12.4)') &
       max_change_global(1:6)
   endif
-  if (OptionPrintToFile(option)) then
+  if (option%print_file_flag) then
     write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
       & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4, &
       & " dsg= ",1pe12.4)') &

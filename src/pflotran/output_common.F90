@@ -457,7 +457,7 @@ subroutine OutputGetVertexCoordinates(grid,vec,direction,option)
   PetscReal, allocatable :: values(:)
   PetscErrorCode :: ierr
   
-  if (option%mycommsize == 1) then
+  if (option%comm%mycommsize == 1) then
     call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
     select case(direction)
       case(X_COORDINATE)
@@ -1661,13 +1661,13 @@ end subroutine OutputGetExplicitFlowrates
 ! ************************************************************************** !
 
 subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
-  ! 
+  !
   ! Calculates density at the face
   ! between a connection
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 07/17/13
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -1717,7 +1717,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   PetscReal :: upweight
   PetscBool :: is_flowing
 
-  
+
   patch => realization_base%patch
   option => realization_base%option
   field => realization_base%field
@@ -1730,48 +1730,52 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   call VecGetArrayF90(vec_proc,vec_proc_ptr,ierr);CHKERRQ(ierr)
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
-  sum_connection = 0  
-  count = 0 
-  do 
+  sum_connection = 0
+  count = 0
+  do
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
       ghosted_id_up = cur_connection_set%id_up(iconn)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_up = grid%nG2L(ghosted_id_up)
-      local_id_dn = grid%nG2L(ghosted_id_dn) 
+      local_id_dn = grid%nG2L(ghosted_id_dn)
       icc_up = patch%cc_id(ghosted_id_up)
       icc_dn = patch%cc_id(ghosted_id_dn)
       if (option%myrank == int(vec_proc_ptr(sum_connection))) then
         count = count + 1
 
         select case (option%iflowmode)
-           case(TH_MODE,TH_TS_MODE)
-              th_auxvars => patch%aux%TH%auxvars
-              if (th_auxvars(ghosted_id_up)%kvr > eps .or. &
-                  th_auxvars(ghosted_id_dn)%kvr > eps ) then
-                is_flowing = PETSC_TRUE
-              endif   
-           case(RICHARDS_MODE, RICHARDS_TS_MODE)
-              rich_auxvars => patch%aux%Richards%auxvars
-              if(rich_auxvars(ghosted_id_up)%kvr > eps .or. &
-                 rich_auxvars(ghosted_id_dn)%kvr > eps ) then
-                is_flowing = PETSC_TRUE
-              endif
+          case(TH_MODE,TH_TS_MODE)
+            th_auxvars => patch%aux%TH%auxvars
+            if (th_auxvars(ghosted_id_up)%kvr > eps .or. &
+                th_auxvars(ghosted_id_dn)%kvr > eps ) then
+              is_flowing = PETSC_TRUE
+            endif
+          case(RICHARDS_MODE, RICHARDS_TS_MODE)
+            rich_auxvars => patch%aux%Richards%auxvars
+            if(rich_auxvars(ghosted_id_up)%kvr > eps .or. &
+               rich_auxvars(ghosted_id_dn)%kvr > eps ) then
+              is_flowing = PETSC_TRUE
+            endif
+          case default
+            option%io_buffer = 'Flow mode ' // trim(option%flowmode) // &
+              'does not support subroutine OutputGetExplicitAuxVars()'
+            call PrintErrMsg(option)
         end select
-           
+
         if (is_flowing) then
-          if (global_auxvar(ghosted_id_up)%sat(1) <eps) then 
+          if (global_auxvar(ghosted_id_up)%sat(1) <eps) then
             upweight = 0.d0
-          else if (global_auxvar(ghosted_id_dn)%sat(1) <eps) then 
+          else if (global_auxvar(ghosted_id_dn)%sat(1) <eps) then
             upweight = 1.d0
           endif
-    
+
           density(count) = upweight*global_auxvar(ghosted_id_up)%den(1)+ &
                   (1.D0 - upweight)*global_auxvar(ghosted_id_dn)%den(1)
         endif
-      endif  
-          
+      endif
+
     enddo
     cur_connection_set => cur_connection_set%next
   enddo

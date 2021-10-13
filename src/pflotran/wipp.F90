@@ -715,7 +715,7 @@ subroutine CreepClosureConvertListToArray(list,array,option)
     count = count + 1
     array(count)%ptr => cur_creep_closure
     !if (cur_creep_closure%test .and. &
-    !    option%myrank == option%io_rank) then
+    !    OptionIsIORank(option)) then
     !  call CreepClosureTest(cur_creep_closure,option)
     !endif
     cur_creep_closure => cur_creep_closure%next

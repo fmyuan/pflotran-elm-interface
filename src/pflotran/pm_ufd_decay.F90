@@ -1329,9 +1329,9 @@ subroutine PMUFDDecaySolve(this,time,ierr)
         enddo
         ! linear solve steps
         ! solve step 1/2: get LU decomposition
-        call ludcmp(Jacobian,this%num_isotopes,indices,i)
+        call LUDecomposition(Jacobian,this%num_isotopes,indices,i)
         ! solve step 2/2: LU back substitution linear solve
-        call lubksb(Jacobian,this%num_isotopes,indices,rhs)
+        call LUBackSubstitution(Jacobian,this%num_isotopes,indices,rhs)
         rhs = dsign(1.d0,rhs)*min(dabs(rhs),10.d0)
         ! update the solution
         solution = solution*exp(-rhs)
