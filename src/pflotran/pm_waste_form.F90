@@ -485,7 +485,7 @@ module PM_Waste_Form_class
     type(criticality_event_type), pointer :: crit_event
     class(dataset_ascii_type), pointer :: rad_dataset
     class(dataset_ascii_type), pointer :: heat_dataset
-    type(crit_heat_type), pointer :: crit_heat_dataset
+    class(crit_heat_type), pointer :: crit_heat_dataset
     class(crit_mechanism_base_type), pointer :: next
   end type crit_mechanism_base_type
 
@@ -3181,7 +3181,7 @@ subroutine PMWFInitializeTimestep(this)
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(crit_mechanism_base_type), pointer :: cur_criticality
+  class(crit_mechanism_base_type), pointer :: cur_criticality
   PetscReal :: dV
   PetscReal :: dt
   PetscReal :: avg_temp_local, avg_temp_global
@@ -3749,7 +3749,7 @@ subroutine PMWFSolve(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
-  type(crit_mechanism_base_type), pointer :: cur_criticality
+  class(crit_mechanism_base_type), pointer :: cur_criticality
   type(option_type), pointer :: option
 ! -----------------------------------------------------------
 
