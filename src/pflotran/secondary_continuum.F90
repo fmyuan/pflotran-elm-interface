@@ -78,12 +78,12 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
     
   select case (igeom)      
     case(SLAB)
-      if (epsilon > 0 .and. aperture > 0) then
-        sec_continuum%slab%length = 2 * aperture / ((1 - epsilon) ** (-1/3) - 1)
-      else if (sec_continuum%slab%length > 0 .and. aperture > 0) then
+      if (epsilon > 0.d0 .and. aperture > 0.d0) then
+        sec_continuum%slab%length = 2.d0 * aperture / ((1.d0 - epsilon) ** (-1.d0/3.d0) - 1.d0)
+      else if (sec_continuum%slab%length > 0.d0 .and. aperture > 0.d0) then
         epsilon = aperture / (sec_continuum%slab%length + aperture)
-      else if (sec_continuum%slab%length > 0 .and. epsilon > 0) then
-        aperture = (sec_continuum%slab%length * epsilon) / (1 - epsilon)
+      else if (sec_continuum%slab%length > 0.d0 .and. epsilon > 0.d0) then
+        aperture = (sec_continuum%slab%length * epsilon) / (1.d0 - epsilon)
       else
         option%io_buffer = 'EPSILON and APERTURE, LENGTH and APERTURE' // &
                            'or LENGTH and EPSILON' // &

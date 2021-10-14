@@ -771,7 +771,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
           select case(trim(word))
             case('MATRIX_BLOCK_SIZE')
-              if (material_property%multicontinuum%name /= trim("NESTED_CUBES")) then
+              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_CUBES")) then
                 option%io_buffer = 'MATRIX_BLOCK_SIZE is &
                                     &only supported for NESTED_CUBES.'
                 call PrintErrMsg(option)
@@ -781,7 +781,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'matrix_block_size', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('FRACTURE_SPACING')
-              if (material_property%multicontinuum%name /= trim("NESTED_CUBES")) then
+              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_CUBES")) then
                 option%io_buffer = 'FRACTURE_SPACING is &
                                     &only supported for NESTED_CUBES.'
                 call PrintErrMsg(option)
@@ -791,7 +791,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'fracture_spacing', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('RADIUS')
-              if (material_property%multicontinuum%name /= trim("NESTED_SPHERES")) then
+              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
                 option%io_buffer = 'RADIUS is &
                                     &only supported for NESTED_SPHERES.'
                 call PrintErrMsg(option)
@@ -801,7 +801,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'radius', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('LENGTH')
-              if (material_property%multicontinuum%name /= trim("SLAB")) then
+              if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
                 option%io_buffer = 'LENGTH is &
                                     &only supported for SLAB.'
                 call PrintErrMsg(option)
@@ -811,7 +811,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'length', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('AREA')
-              if (material_property%multicontinuum%name /= trim("SLAB")) then
+              if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
                 option%io_buffer = 'AREA is &
                                     &only supported for SLAB.'
                 call PrintErrMsg(option)
@@ -831,7 +831,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 material_property%multicontinuum%epsilon_dataset, &
                 'epsilon', 'MATERIAL_PROPERTY',option)
             case('APERTURE')
-              if (material_property%multicontinuum%name == trim("NESTED_SPHERES")) then
+              if (StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
                 option%io_buffer = 'APERTURE is &
                                     &only supported for SLAB and NESTED_CUBES.'
                 call PrintErrMsg(option)
@@ -872,18 +872,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%multicontinuum%mnrl_area)
               call InputErrorMsg(input,option,'secondary cont. mnrl area', &
                            'MATERIAL_PROPERTY')
-            case('LOG_GRID_SPACING')
-              if (material_property%multicontinuum%name == trim("SLAB")) then
-                option%io_buffer = 'LOG_GRID_SPACING is &
-                                    &temporarily disable for multiple &
-                                    continuum model.'
-                call PrintErrMsg(option)
-              endif
-              call InputReadDouble(input,option, &
-                             material_property%multicontinuum%outer_spacing)
-              call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
-                             'MATERIAL_PROPERTY')
-              material_property%multicontinuum%log_spacing = PETSC_TRUE
+            case('LOG_GRID_SPACING') 
+              option%io_buffer = 'LOG_GRID_SPACING is &
+                                  &temporarily disable for multiple &
+                                  continuum model.'
+              call PrintErrMsg(option)
+           !  call InputReadDouble(input,option, &
+           !                   material_property%multicontinuum%outer_spacing)
+           !   call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
+           !                  'MATERIAL_PROPERTY')
+           !   material_property%multicontinuum%log_spacing = PETSC_TRUE
             case('AREA_SCALING_FACTOR')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%area_scaling)
