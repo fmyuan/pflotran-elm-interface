@@ -2805,8 +2805,9 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
   ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
   ! - implying tiny timestep in model, which potentially crashes model
 
-  dtmin = option%tran_dt         ! this 'dtmin' may be accelerating the timing
-  nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin   ! positive with unit: moles
+  dtmin = option%tran_dt
+  nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin/0.45d0   ! positive with unit: moles
+  ! BSulman: Adjusting nratecap to prevent N from being (almost) totally depleted which causes problems
 
   if(this%species_id_nh4 > 0) then
     if (nratecap*fnh4_inhibit_no3 > c_nh4*volume) then       ! c_nh4 unit: moles/m3 bulk soil
