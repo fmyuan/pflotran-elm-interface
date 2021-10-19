@@ -94,7 +94,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
       if (aream0 > 0) then
         aream0 = sec_continuum%slab%area
       else
-         aream0 = 1 / (sec_continuum%slab%length + aperture)
+         aream0 = 1.0 / (sec_continuum%slab%length + aperture)
       endif
       do m = 1, nmat
         volm(m) = dy*aream0
@@ -150,7 +150,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         else if (sec_continuum%nested_cube%matrix_block_size > 0.d0) then
           r0 = sec_continuum%nested_cube%matrix_block_size
           aperture = 0.5 * (fracture_spacing - r0)
-          epsilon = 1 - (r0/fracture_spacing)**3
+          epsilon = 1.0 - (r0/fracture_spacing)**3
         else
           option%io_buffer = 'EPSILON, APERTURE, or MATRIX BOCK SIZE' // &
                              ' must be specified for FRACTURE SPACING' // &
@@ -261,7 +261,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
       enddo     
 
     case(NESTED_SPHERES)
-      if (epsilon < 0 ) then 
+      if (epsilon < 0.0 ) then 
         option%io_buffer = 'EPSILON must be specified in' // &
                            ' NESTED_SPHERES type ' 
         call PrintErrMsg(option)
