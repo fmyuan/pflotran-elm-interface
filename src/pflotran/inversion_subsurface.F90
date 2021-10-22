@@ -664,8 +664,6 @@ subroutine InversionSubsurfaceInvert(this)
 
   class(inversion_subsurface_type) :: this
 
-  stop
-
 end subroutine InversionSubsurfaceInvert
 
 ! ************************************************************************** !

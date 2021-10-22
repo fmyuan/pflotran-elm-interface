@@ -207,7 +207,6 @@ subroutine InversionPerturbationStep(this)
 
   this%converg_flag = PETSC_FALSE
   if (this%iteration > this%maximum_iteration) this%converg_flag = PETSC_TRUE
-  this%converg_flag = PETSC_TRUE
 
 end subroutine InversionPerturbationStep
 
