@@ -20,8 +20,8 @@ module Inversion_Subsurface_class
     type(inversion_aux_type), pointer :: inversion_aux
     PetscReal, pointer :: measurement(:)
     PetscInt, pointer :: imeasurement(:)
-    Vec :: quantity_of_interest
     PetscInt :: iqoi
+    Vec :: quantity_of_interest
     Vec :: ref_quantity_of_interest
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
     PetscBool :: print_sensitivity_jacobian

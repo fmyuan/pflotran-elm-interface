@@ -13,24 +13,22 @@ module Inversion_Perturbation_class
 
   type, public, extends(inversion_subsurface_type) :: &
                                             inversion_perturbation_type
-    Mat :: Jsensitivity_pert
     Vec :: quantity_of_interest_base
     PetscInt :: ndof
     PetscInt :: idof_pert
     PetscReal :: pert
     PetscReal :: perturbation_tolerance
+    PetscReal, pointer :: base_solution_measurement(:)
   contains
     procedure, public :: Init => InversionPerturbationInit
     procedure, public :: ReadBlock => InversionPerturbationReadBlock
     procedure, public :: Initialize => InversionPerturbationInitialize
     procedure, public :: Step => InversionPerturbationStep
     procedure, public :: ConnectToForwardRun => InvPerturbationConnectForwardRun
-    procedure, public :: Finalize => InversionPerturbationFinalize
     procedure, public :: Strip => InversionPerturbationStrip
   end type inversion_perturbation_type
 
   public :: InversionPerturbationCreate, &
-            InversionPerturbationFinalize, &
             InversionPerturbationStrip, &
             InversionPerturbationDestroy
 
@@ -74,15 +72,13 @@ subroutine InversionPerturbationInit(this,driver)
   call InversionSubsurfaceInit(this,driver)
 
   this%quantity_of_interest_base = PETSC_NULL_VEC
-  this%Jsensitivity_pert = PETSC_NULL_MAT
 
   this%ndof = 0
   this%idof_pert = 0
   this%pert = 0.d0
   this%perturbation_tolerance = 1.d-6
 
-  nullify(this%measurement)
-  nullify(this%imeasurement)
+  nullify(this%base_solution_measurement)
 
   zflow_calc_adjoint = PETSC_FALSE
 
@@ -146,8 +142,6 @@ subroutine InversionPerturbationInitialize(this)
   ! Date: 09/24/21
   !
   class(inversion_perturbation_type) :: this
-
-  PetscInt :: num_measurement
 
   call InversionSubsurfInitialize(this)
 
@@ -232,9 +226,11 @@ subroutine InvPerturbationConnectForwardRun(this)
 
   ! on first pass, store and set thereafter
   if (this%idof_pert == 0) then
+    allocate(this%base_solution_measurement(size(this%imeasurement)))
+    this%base_solution_measurement = UNINITIALIZED_DOUBLE
     call MatDuplicate(this%inversion_aux%Jsensitivity, &
                       MAT_SHARE_NONZERO_PATTERN, &
-                      this%Jsensitivity_pert,ierr);CHKERRQ(ierr)
+                      this%inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
     call VecGetSize(this%realization%field%work,this%ndof,ierr);CHKERRQ(ierr)
     call VecDuplicate(this%quantity_of_interest, &
                       this%quantity_of_interest_base,ierr);CHKERRQ(ierr)
@@ -286,17 +282,18 @@ subroutine InversionPerturbationFillColumn(this,iteration)
   Mat :: M
   PetscErrorCode :: ierr
 
-  num_measurement = size(this%measurement)
+  num_measurement = size(this%imeasurement)
   call RealizationGetVariable(this%realization, &
                               this%realization%field%work, &
                               LIQUID_PRESSURE,ZERO_INTEGER)
 
-  call VecGetArrayReadF90(this%realization%field%work,soln_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(this%realization%field%work,soln_ptr, &
+                          ierr);CHKERRQ(ierr)
   if (iteration == 0) then
     do i = 1, num_measurement
-      this%measurement(i) = soln_ptr(this%imeasurement(i))
+      this%base_solution_measurement(i) = soln_ptr(this%imeasurement(i))
     enddo
-    call MatZeroEntries(this%Jsensitivity_pert,ierr);CHKERRQ(ierr)
+    call MatZeroEntries(this%inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
   else
     allocate(temp_array(num_measurement))
     print *, 'pert: ', this%pert
@@ -304,11 +301,13 @@ subroutine InversionPerturbationFillColumn(this,iteration)
     print *, 'soln: ', soln_ptr(:)
     temp_array = 0.d0
     do i = 1, num_measurement
-      temp_array(i) = soln_ptr(this%imeasurement(i)) - this%measurement(i)
+      temp_array(i) = soln_ptr(this%imeasurement(i)) - &
+                      this%base_solution_measurement(i)
     enddo
     temp_array = temp_array / this%pert
   endif
-  call VecRestoreArrayReadF90(this%realization%field%work,soln_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(this%realization%field%work,soln_ptr, &
+                              ierr);CHKERRQ(ierr)
 
   if (iteration == 0) return
 
@@ -317,40 +316,20 @@ subroutine InversionPerturbationFillColumn(this,iteration)
     rows(i) = i-1
   enddo
   cols = iteration-1
-  call MatSetValues(this%Jsensitivity_pert, &
+  call MatSetValues(this%inversion_aux%Jsensitivity, &
                     num_measurement,rows,1,cols, &
                     temp_array,INSERT_VALUES,ierr);CHKERRQ(ierr)
   deallocate(rows)
   deallocate(temp_array)
 
   if (iteration == this%ndof) then
-    call MatAssemblyBegin(this%Jsensitivity_pert,MAT_FINAL_ASSEMBLY, &
+    call MatAssemblyBegin(this%inversion_aux%Jsensitivity,MAT_FINAL_ASSEMBLY, &
                           ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(this%Jsensitivity_pert,MAT_FINAL_ASSEMBLY, &
+    call MatAssemblyEnd(this%inversion_aux%Jsensitivity,MAT_FINAL_ASSEMBLY, &
                         ierr);CHKERRQ(ierr)
-    ! on last iteration, have to point sensitivity matrix to this one in
-    ! order to print the matrix at the end; avoids having  so swap
-    M = this%Jsensitivity_pert
-    this%Jsensitivity_pert = this%inversion_aux%Jsensitivity
-    this%inversion_aux%Jsensitivity = M
   endif
 
 end subroutine InversionPerturbationFillColumn
-
-! ************************************************************************** !
-
-subroutine InversionPerturbationFinalize(this)
-  !
-  ! Finalizes inversion
-  !
-  ! Author: Glenn Hammond
-  ! Date: 09/24/21
-  !
-  class(inversion_perturbation_type) :: this
-
-  call InversionBaseStrip(this)
-
-end subroutine InversionPerturbationFinalize
 
 ! ************************************************************************** !
 
@@ -361,15 +340,18 @@ subroutine InversionPerturbationStrip(this)
   ! Author: Glenn Hammond
   ! Date: 09/24/21
   !
+  use Utility_module
+
   class(inversion_perturbation_type) :: this
 
   PetscErrorCode :: ierr
 
    call InversionSubsurfaceStrip(this)
 
-   call MatDestroy(this%Jsensitivity_pert,ierr);CHKERRQ(ierr)
-   call VecDestroy(this%quantity_of_interest,ierr);CHKERRQ(ierr)
-   call VecDestroy(this%quantity_of_interest_base,ierr);CHKERRQ(ierr)
+   call DeallocateArray(this%base_solution_measurement)
+   if (this%quantity_of_interest_base /= PETSC_NULL_VEC) then
+    call VecDestroy(this%quantity_of_interest_base,ierr);CHKERRQ(ierr)
+   endif
 
 end subroutine InversionPerturbationStrip
 
