@@ -83,7 +83,9 @@ subroutine SimulationInverseRead(this,option)
   use String_module
   use Utility_module
   use Inversion_ERT_class
+  use Inversion_Perturbation_class
   use Inversion_Tao_class
+  use Inversion_Test_class
 
   class(simulation_inverse_type) :: this
   type(option_type), pointer :: option
@@ -122,6 +124,10 @@ subroutine SimulationInverseRead(this,option)
             this%inversion => InversionERTCreate(this%driver)
           case('TAO')
             this%inversion => InversionTaoCreate(this%driver)
+          case('PERTURBATION')
+            this%inversion => InversionPerturbationCreate(this%driver)
+          case('TEST')
+            this%inversion => InversionTestCreate(this%driver)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         end select

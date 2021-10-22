@@ -4,6 +4,7 @@ module ZFlow_Aux_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Matrix_Zeroing_module
+  use Inversion_Aux_module
 
   implicit none
 
@@ -16,6 +17,7 @@ module ZFlow_Aux_module
   PetscReal, public :: zflow_pres_rel_pert = 1.d-8
   PetscReal, public :: zflow_pres_min_pert = 1.d-2
 
+  PetscBool, public :: zflow_calc_adjoint = PETSC_FALSE
   PetscBool, public :: zflow_calc_accum = PETSC_TRUE
   PetscBool, public :: zflow_calc_flux = PETSC_TRUE
   PetscBool, public :: zflow_calc_bcflux = PETSC_TRUE
@@ -69,6 +71,7 @@ module ZFlow_Aux_module
     type(zflow_auxvar_type), pointer :: auxvars_bc(:)
     type(zflow_auxvar_type), pointer :: auxvars_ss(:)
     type(matrix_zeroing_type), pointer :: matrix_zeroing
+    type(inversion_aux_type), pointer :: inversion_aux
   end type zflow_type
 
   interface ZFlowAuxVarDestroy
@@ -124,6 +127,7 @@ function ZFlowAuxCreate(option)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
   nullify(aux%matrix_zeroing)
+  nullify(aux%inversion_aux)
 
   allocate(aux%zflow_parameter)
   aux%zflow_parameter%check_post_converged = PETSC_FALSE
@@ -537,6 +541,7 @@ subroutine ZFlowAuxDestroy(aux)
   call ZFlowAuxVarDestroy(aux%auxvars_ss)
 
   call MatrixZeroingDestroy(aux%matrix_zeroing)
+  call InversionAuxDestroy(aux%inversion_aux)
 
   if (associated(aux%zflow_parameter)) then
   endif
