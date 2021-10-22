@@ -48,7 +48,6 @@ subroutine ZFlowSetup(realization)
   use Characteristic_Curves_module
   use Matrix_Zeroing_module
   use EOS_Water_module
-  use Inversion_Aux_module
 
   implicit none
 
@@ -59,14 +58,11 @@ subroutine ZFlowSetup(realization)
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
   type(material_parameter_type), pointer :: material_parameter
-  type(coupler_type), pointer :: boundary_condition
-  type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
   PetscBool :: error_found
   PetscInt :: flag(10)
   PetscInt :: temp_int, idof
-  PetscInt, allocatable :: int_array(:)
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
@@ -162,57 +158,6 @@ subroutine ZFlowSetup(realization)
 
   XXFlux => ZFlowFluxHarmonicPermOnly
   XXBCFlux => ZFlowBCFluxHarmonicPermOnly
-
-  if (associated(option%inversion)) then
-    patch%aux%ZFlow%inversion_aux => InversionAuxCreate()
-    call GridMapCellsToConnections(patch%grid, &
-                                   patch%aux%Zflow%inversion_aux% &
-                                     cell_to_internal_connection)
-    sum_connection = &
-      ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
-    allocate(patch%aux%ZFlow%inversion_aux%dFluxdIntConn(6,sum_connection))
-    patch%aux%ZFlow%inversion_aux%dFluxdIntConn = 0.d0
-    sum_connection = &
-      CouplerGetNumConnectionsInList(patch%boundary_condition_list)
-    allocate(patch%aux%ZFlow%inversion_aux%dFluxdBCConn(2,sum_connection))
-    patch%aux%ZFlow%inversion_aux%dFluxdBCConn = 0.d0
-
-    allocate(int_array(grid%nlmax))
-    int_array = 0
-    boundary_condition => patch%boundary_condition_list%first
-    sum_connection = 0
-    do
-      if (.not.associated(boundary_condition)) exit
-      cur_connection_set => boundary_condition%connection_set
-      do iconn = 1, cur_connection_set%num_connections
-        sum_connection = sum_connection + 1
-        local_id = cur_connection_set%id_dn(iconn)
-        int_array(local_id) = int_array(local_id) + 1
-      enddo
-      boundary_condition => boundary_condition%next
-    enddo
-    iconn = maxval(int_array)
-    deallocate(int_array)
-    allocate(patch%aux%ZFlow%inversion_aux% &
-               cell_to_bc_connection(0:iconn,grid%nlmax))
-    patch%aux%ZFlow%inversion_aux%cell_to_bc_connection = 0
-    boundary_condition => patch%boundary_condition_list%first
-    sum_connection = 0
-    do
-      if (.not.associated(boundary_condition)) exit
-      cur_connection_set => boundary_condition%connection_set
-      do iconn = 1, cur_connection_set%num_connections
-        sum_connection = sum_connection + 1
-        local_id = cur_connection_set%id_dn(iconn)
-        patch%aux%ZFlow%inversion_aux%cell_to_bc_connection(0,local_id) = &
-          patch%aux%ZFlow%inversion_aux%cell_to_bc_connection(0,local_id) + 1
-          patch%aux%ZFlow%inversion_aux%cell_to_bc_connection( &
-            patch%aux%ZFlow%inversion_aux%cell_to_bc_connection(0,local_id), &
-            local_id) = sum_connection
-      enddo
-      boundary_condition => boundary_condition%next
-    enddo
-  endif
 
   zflow_ts_count = 0
   zflow_ts_cut_count = 0
@@ -729,9 +674,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
-  if (associated(patch%aux%ZFlow%inversion_aux)) then
-    dMdK => patch%aux%ZFlow%inversion_aux%dMdK
-    dbdK => patch%aux%ZFlow%inversion_aux%dbdK
+  if (associated(patch%aux%inversion_aux)) then
+    dMdK => patch%aux%inversion_aux%dMdK
+    dbdK => patch%aux%inversion_aux%dbdK
   else
     nullify(dMdK)
     nullify(dbdK)
@@ -869,8 +814,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         endif
 
         if (zflow_simult_function_evals .and. &
-            associated(patch%aux%ZFlow%inversion_aux)) then
-          patch%aux%ZFlow%inversion_aux%dFluxdIntConn(:,sum_connection) = &
+            associated(patch%aux%inversion_aux)) then
+          patch%aux%inversion_aux%dFluxdIntConn(:,sum_connection) = &
             [dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1), &
              drhsdKup(1),drhsdKdn(1)]
         endif
@@ -1015,10 +960,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           Jdn = -Jdn
           call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                         ADD_VALUES,ierr);CHKERRQ(ierr)
-          if (associated(patch%aux%ZFlow%inversion_aux)) then
+          if (associated(patch%aux%inversion_aux)) then
             dJdndKdn = -dJdndKdn
             ! no need to flip sign on rhs since downwind
-            patch%aux%ZFlow%inversion_aux%dFluxdBCConn(:,sum_connection) = &
+            patch%aux%inversion_aux%dFluxdBCConn(:,sum_connection) = &
               [dJdndKdn(1),drhsdKdn(1)]
           endif
           if (associated(dMdK)) then

@@ -149,7 +149,7 @@ subroutine InversionPerturbationInitialize(this)
 
   PetscInt :: num_measurement
 
-  call InversionBaseInitialize(this)
+  call InversionSubsurfInitialize(this)
 
   if (Uninitialized(this%iqoi)) then
     call this%driver%PrintErrMsg('Quantity of interest not specified in &
@@ -283,7 +283,7 @@ subroutine InversionPerturbationFillColumn(this,iteration)
   PetscInt :: cols(1)
   PetscInt :: num_measurement
   PetscInt :: i
-  Mat :: M 
+  Mat :: M
   PetscErrorCode :: ierr
 
   num_measurement = size(this%measurement)

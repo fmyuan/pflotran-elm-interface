@@ -28,6 +28,7 @@ module Inversion_Subsurface_class
     PetscBool :: debug_adjoint
   contains
     procedure, public :: Init => InversionSubsurfaceInit
+    procedure, public :: Initialize => InversionSubsurfInitialize
     procedure, public :: Step => InversionSubsurfaceStep
     procedure, public :: ConnectToForwardRun => InvSubsurfConnectToForwardRun
     procedure, public :: CalculateSensitivity => InvSubsurfCalculateSensitivity
@@ -37,6 +38,7 @@ module Inversion_Subsurface_class
 
   public :: InversionSubsurfaceInit, &
             InversionSubsurfReadSelectCase, &
+            InversionSubsurfInitialize, &
             InvSubsurfConnectToForwardRun, &
             InvSubsurfOutputSensitivity, &
             InversionSubsurfaceStrip
@@ -175,6 +177,87 @@ end subroutine InversionSubsurfReadSelectCase
 
 ! ************************************************************************** !
 
+subroutine InversionSubsurfInitialize(this)
+  !
+  ! Initializes inversion
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/04/21
+  !
+  use Connection_module
+  use Coupler_module
+  use Grid_module
+  use Patch_module
+
+  class(inversion_subsurface_type) :: this
+
+  type(coupler_type), pointer :: boundary_condition
+  type(connection_set_type), pointer :: cur_connection_set
+  type(inversion_aux_type), pointer :: inversion_aux
+  type(patch_type), pointer :: patch
+  PetscInt :: local_id
+  PetscInt :: iconn
+  PetscInt :: sum_connection
+  PetscInt, allocatable :: int_array(:)
+
+  !TODO(geh): compress the mappings
+
+  if (.not.associated(this%inversion_aux)) then
+    patch => this%realization%patch
+    inversion_aux => InversionAuxCreate()
+    call GridMapCellsToConnections(patch%grid, &
+                                   inversion_aux%cell_to_internal_connection)
+    sum_connection = &
+      ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
+    allocate(inversion_aux%dFluxdIntConn(6,sum_connection))
+    inversion_aux%dFluxdIntConn = 0.d0
+    sum_connection = &
+      CouplerGetNumConnectionsInList(patch%boundary_condition_list)
+    allocate(inversion_aux%dFluxdBCConn(2,sum_connection))
+    inversion_aux%dFluxdBCConn = 0.d0
+
+    allocate(int_array(patch%grid%nlmax))
+    int_array = 0
+    boundary_condition => patch%boundary_condition_list%first
+    sum_connection = 0
+    do
+      if (.not.associated(boundary_condition)) exit
+      cur_connection_set => boundary_condition%connection_set
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+        local_id = cur_connection_set%id_dn(iconn)
+        int_array(local_id) = int_array(local_id) + 1
+      enddo
+      boundary_condition => boundary_condition%next
+    enddo
+    iconn = maxval(int_array)
+    deallocate(int_array)
+    allocate(inversion_aux% &
+               cell_to_bc_connection(0:iconn,patch%grid%nlmax))
+    inversion_aux%cell_to_bc_connection = 0
+    boundary_condition => patch%boundary_condition_list%first
+    sum_connection = 0
+    do
+      if (.not.associated(boundary_condition)) exit
+      cur_connection_set => boundary_condition%connection_set
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+        local_id = cur_connection_set%id_dn(iconn)
+        inversion_aux%cell_to_bc_connection(0,local_id) = &
+          inversion_aux%cell_to_bc_connection(0,local_id) + 1
+          inversion_aux%cell_to_bc_connection( &
+            inversion_aux%cell_to_bc_connection(0,local_id), &
+            local_id) = sum_connection
+      enddo
+      boundary_condition => boundary_condition%next
+    enddo
+    this%inversion_aux => inversion_aux
+  endif
+
+end subroutine InversionSubsurfInitialize
+
+! ************************************************************************** !
+
 subroutine InversionSubsurfaceStep(this)
   !
   ! Execute a simulation
@@ -235,15 +318,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
   PetscInt :: num_measurements
   PetscErrorCode :: ierr
 
-  if (.not.associated(this%inversion_aux)) then
-    select case(this%realization%option%iflowmode)
-      case(ZFLOW_MODE)
-        this%inversion_aux => this%realization%patch%aux%ZFlow%inversion_aux
-      case default
-        call this%driver%PrintErrMsg('Unsupported process model in &
-                                    &InvSubsurfConnectToForwardRun.')
-    end select
-  endif
+  this%realization%patch%aux%inversion_aux => this%inversion_aux
 
   ! on first pass, store and set thereafter
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
@@ -684,7 +759,7 @@ subroutine InversionSubsurfaceStrip(this)
   call InversionBaseStrip(this)
 
   nullify(this%realization)
-  nullify(this%inversion_aux)
+  call InversionAuxDestroy(this%inversion_aux)
   if (associated(this%forward_simulation)) then
     print *, 'Why is forward simulation still associated in &
              &InversionSubSurfStrip?'
