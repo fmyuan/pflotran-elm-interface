@@ -24,7 +24,8 @@ module Inversion_Perturbation_class
     procedure, public :: ReadBlock => InversionPerturbationReadBlock
     procedure, public :: Initialize => InversionPerturbationInitialize
     procedure, public :: Step => InversionPerturbationStep
-    procedure, public :: ConnectToForwardRun => InvPerturbationConnectForwardRun
+    procedure, public :: ConnectToForwardRun => &
+                           InvPerturbationConnectForwardRun
     procedure, public :: Strip => InversionPerturbationStrip
   end type inversion_perturbation_type
 
@@ -143,7 +144,15 @@ subroutine InversionPerturbationInitialize(this)
   !
   class(inversion_perturbation_type) :: this
 
+  PetscErrorCode :: ierr
+
   call InversionSubsurfInitialize(this)
+
+  if (this%idof_pert == 0) then
+    allocate(this%base_solution_measurement(size(this%imeasurement)))
+    this%base_solution_measurement = UNINITIALIZED_DOUBLE
+    this%ndof = this%realization%patch%grid%nmax
+  endif
 
   if (Uninitialized(this%iqoi)) then
     call this%driver%PrintErrMsg('Quantity of interest not specified in &
@@ -225,15 +234,11 @@ subroutine InvPerturbationConnectForwardRun(this)
   call InvSubsurfConnectToForwardRun(this)
 
   ! on first pass, store and set thereafter
-  if (this%idof_pert == 0) then
-    allocate(this%base_solution_measurement(size(this%imeasurement)))
-    this%base_solution_measurement = UNINITIALIZED_DOUBLE
-    call MatDuplicate(this%inversion_aux%Jsensitivity, &
-                      MAT_SHARE_NONZERO_PATTERN, &
-                      this%inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
-    call VecGetSize(this%realization%field%work,this%ndof,ierr);CHKERRQ(ierr)
+  if (this%quantity_of_interest_base == PETSC_NULL_VEC) then
     call VecDuplicate(this%quantity_of_interest, &
                       this%quantity_of_interest_base,ierr);CHKERRQ(ierr)
+  endif
+  if (this%idof_pert == 0) then
     call VecCopy(this%quantity_of_interest,this%quantity_of_interest_base, &
                                      ierr);CHKERRQ(ierr)
   else

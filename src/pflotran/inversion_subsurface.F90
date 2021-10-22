@@ -193,28 +193,36 @@ subroutine InversionSubsurfInitialize(this)
 
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
-  type(inversion_aux_type), pointer :: inversion_aux
   type(patch_type), pointer :: patch
   PetscInt :: local_id
   PetscInt :: iconn
   PetscInt :: sum_connection
+  PetscInt :: num_measurements
   PetscInt, allocatable :: int_array(:)
-
-  !TODO(geh): compress the mappings
+  PetscErrorCode :: ierr
 
   if (.not.associated(this%inversion_aux)) then
     patch => this%realization%patch
-    inversion_aux => InversionAuxCreate()
+    this%inversion_aux => InversionAuxCreate()
+    num_measurements = size(this%imeasurement)
+    call MatCreateDense(this%driver%comm%mycomm, &
+                        num_measurements, &
+                        patch%grid%nlmax, &
+                        num_measurements, &
+                        patch%grid%nmax, &
+                        PETSC_NULL_SCALAR, &
+                        this%inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
+    !TODO(geh): compress the mappings
     call GridMapCellsToConnections(patch%grid, &
-                                   inversion_aux%cell_to_internal_connection)
+                               this%inversion_aux%cell_to_internal_connection)
     sum_connection = &
       ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
-    allocate(inversion_aux%dFluxdIntConn(6,sum_connection))
-    inversion_aux%dFluxdIntConn = 0.d0
+    allocate(this%inversion_aux%dFluxdIntConn(6,sum_connection))
+    this%inversion_aux%dFluxdIntConn = 0.d0
     sum_connection = &
       CouplerGetNumConnectionsInList(patch%boundary_condition_list)
-    allocate(inversion_aux%dFluxdBCConn(2,sum_connection))
-    inversion_aux%dFluxdBCConn = 0.d0
+    allocate(this%inversion_aux%dFluxdBCConn(2,sum_connection))
+    this%inversion_aux%dFluxdBCConn = 0.d0
 
     allocate(int_array(patch%grid%nlmax))
     int_array = 0
@@ -232,9 +240,9 @@ subroutine InversionSubsurfInitialize(this)
     enddo
     iconn = maxval(int_array)
     deallocate(int_array)
-    allocate(inversion_aux% &
+    allocate(this%inversion_aux% &
                cell_to_bc_connection(0:iconn,patch%grid%nlmax))
-    inversion_aux%cell_to_bc_connection = 0
+    this%inversion_aux%cell_to_bc_connection = 0
     boundary_condition => patch%boundary_condition_list%first
     sum_connection = 0
     do
@@ -243,15 +251,14 @@ subroutine InversionSubsurfInitialize(this)
       do iconn = 1, cur_connection_set%num_connections
         sum_connection = sum_connection + 1
         local_id = cur_connection_set%id_dn(iconn)
-        inversion_aux%cell_to_bc_connection(0,local_id) = &
-          inversion_aux%cell_to_bc_connection(0,local_id) + 1
-          inversion_aux%cell_to_bc_connection( &
-            inversion_aux%cell_to_bc_connection(0,local_id), &
+        this%inversion_aux%cell_to_bc_connection(0,local_id) = &
+          this%inversion_aux%cell_to_bc_connection(0,local_id) + 1
+          this%inversion_aux%cell_to_bc_connection( &
+            this%inversion_aux%cell_to_bc_connection(0,local_id), &
             local_id) = sum_connection
       enddo
       boundary_condition => boundary_condition%next
     enddo
-    this%inversion_aux => inversion_aux
   endif
 
 end subroutine InversionSubsurfInitialize
@@ -315,14 +322,14 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   class(inversion_subsurface_type) :: this
 
-  PetscInt :: num_measurements
   PetscErrorCode :: ierr
 
   this%realization%patch%aux%inversion_aux => this%inversion_aux
 
   ! on first pass, store and set thereafter
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
-    num_measurements = size(this%imeasurement)
+    ! can't move VecDuplicate earlier as it will not be null for the
+    ! conditional above
     call VecDuplicate(this%realization%field%work, &
                       this%quantity_of_interest,ierr);CHKERRQ(ierr)
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
@@ -331,15 +338,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
     call DiscretizationLocalToGlobal(this%realization%discretization, &
                                      this%realization%field%work_loc, &
                                      this%quantity_of_interest,ONEDOF)
-    call MatCreateDense(this%driver%comm%mycomm, &
-                        num_measurements, &
-                        this%realization%patch%grid%nlmax, &
-                        num_measurements, &
-                        this%realization%patch%grid%nmax, &
-                        PETSC_NULL_SCALAR, &
-                        this%inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
   endif
-
   call DiscretizationGlobalToLocal(this%realization%discretization, &
                                    this%quantity_of_interest, &
                                    this%realization%field%work_loc,ONEDOF)
