@@ -198,7 +198,7 @@ subroutine InversionPerturbationStep(this)
     endif
     call InversionPerturbationFillColumn(this,iteration)
     if (iteration == this%ndof) then
-      call this%OutputSensitivity('pert')
+      call this%OutputSensitivity('')
     endif
     call this%forward_simulation%FinalizeRun()
     call this%forward_simulation%Strip()

@@ -242,6 +242,9 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       this%debug_adjoint = PETSC_TRUE
     case('STORE_ADJOINT_MATRICES')
       this%store_adjoint_matrices = PETSC_TRUE
+    case('COMPARE_ADJOINT_MATRICES_AND_RHS')
+      this%store_adjoint_matrices = PETSC_TRUE
+      this%compare_adjoint_mat_and_rhs = PETSC_TRUE
     case default
       found = PETSC_FALSE
   end select
@@ -385,7 +388,7 @@ subroutine InversionSubsurfaceStep(this)
     call this%forward_simulation%ExecuteRun()
   endif
   call this%CalculateSensitivity()
-  call this%OutputSensitivity('adjoint')
+  call this%OutputSensitivity('')
   nullify(this%realization)
   call this%forward_simulation%FinalizeRun()
   call this%forward_simulation%Strip()
@@ -551,7 +554,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
       if (this%debug_adjoint) then
         if (associated(inversion_aux%dMdK) .and. &
             this%compare_adjoint_mat_and_rhs) then
-          print *, 'dMdK_petsc ', i
+          print *, 'dMdK_stored ', i
           call MatView(inversion_aux%dMdK(i),PETSC_VIEWER_STDOUT_WORLD, &
                        ierr);CHKERRQ(ierr)
         endif
@@ -559,7 +562,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
         call MatView(dMdK_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
         if (associated(inversion_aux%dbdK) .and. &
             this%compare_adjoint_mat_and_rhs) then
-          print *, 'dbdK_petsc ', i
+          print *, 'dbdK_stored ', i
           call VecView(inversion_aux%dbdK(i),PETSC_VIEWER_STDOUT_WORLD, &
                        ierr);CHKERRQ(ierr)
         endif
@@ -760,7 +763,7 @@ subroutine InvSubsurfOutputSensitivity(this,suffix)
 
   character(len=MAXSTRINGLENGTH) :: filename_prefix
 
-  filename_prefix = 'Jsensitivity'
+  filename_prefix = trim(this%driver%global_prefix) // '_Jsense'
   if (len_trim(suffix) > 0) filename_prefix = trim(filename_prefix) // '_' // &
                             suffix
   call InvSubsurfOutputSensitivityASCII(this,this%inversion_aux%Jsensitivity, &
