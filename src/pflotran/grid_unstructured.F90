@@ -3450,6 +3450,7 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
 #include "petsc/finclude/petscmat.h"
   use petscmat
   use Option_module
+  use String_module
 
   implicit none
 
@@ -3472,7 +3473,6 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
   PetscInt :: int_array4(4)
   PetscInt :: int_array4_0(4)
   PetscInt, allocatable :: boundary_faces(:)
-  PetscInt, allocatable :: temp_int(:,:)
   PetscInt :: boundary_face_count
   PetscInt :: mapped_face_count
   PetscInt :: nfaces, nvertices
@@ -3486,6 +3486,7 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
   PetscInt, pointer :: cell_ids_for_all_boundary_faces(:)
   PetscInt, pointer :: face_ids_for_all_boundary_faces(:)
   PetscInt, pointer :: ia_p(:),ja_p(:)
+  PetscInt, allocatable :: temp_int(:)
   PetscInt :: nrow
   PetscInt :: row, col
   PetscInt :: min_nverts
@@ -3739,6 +3740,23 @@ subroutine UGridMapSideSet2(unstructured_grid,face_vertices,n_ss_faces, &
   call MatDestroy(Mat_region_face_to_vert,ierr);CHKERRQ(ierr)
   deallocate(face_ids_for_all_boundary_faces)
   deallocate(cell_ids_for_all_boundary_faces)
+
+  allocate(temp_int(2))
+  temp_int(1) = mapped_face_count
+  temp_int(2) = n_ss_faces
+  call MPI_Allreduce(MPI_IN_PLACE,temp_int, &
+                     TWO_INTEGER_MPI,MPI_INTEGER,MPI_SUM, &
+                     option%mycomm,ierr)
+  if (temp_int(1) /= temp_int(2)) then
+    option%io_buffer = 'The number of faces mapped in UGridMapSideSet2 (' // &
+      trim(StringWrite(temp_int(1))) // &
+      ') does not match the number of faces in REGION "' // &
+      trim(region_name) // '" (' // trim(StringWrite(temp_int(2))) // &
+      '). Perhaps there are non-boundary faces included in the region. &
+      &A boundary face must be connected to a single grid cell.'
+    call PrintErrMsg(option)
+  endif
+  deallocate(temp_int)
 
 end subroutine UGridMapSideSet2
 
