@@ -26,8 +26,11 @@ module Inversion_Subsurface_class
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
     PetscBool :: print_sensitivity_jacobian
     PetscBool :: debug_adjoint
+    PetscBool :: store_adjoint_matrices
+    PetscBool :: compare_adjoint_mat_and_rhs
   contains
     procedure, public :: Init => InversionSubsurfaceInit
+    procedure, public :: ReadBlock => InversionSubsurfReadBlock
     procedure, public :: Initialize => InversionSubsurfInitialize
     procedure, public :: Step => InversionSubsurfaceStep
     procedure, public :: ConnectToForwardRun => InvSubsurfConnectToForwardRun
@@ -36,7 +39,8 @@ module Inversion_Subsurface_class
     procedure, public :: Invert => InversionSubsurfaceInvert
   end type inversion_subsurface_type
 
-  public :: InversionSubsurfaceInit, &
+  public :: InversionSubsurfaceCreate, &
+            InversionSubsurfaceInit, &
             InversionSubsurfReadSelectCase, &
             InversionSubsurfInitialize, &
             InvSubsurfConnectToForwardRun, &
@@ -44,6 +48,26 @@ module Inversion_Subsurface_class
             InversionSubsurfaceStrip
 
 contains
+
+! ************************************************************************** !
+
+function InversionSubsurfaceCreate(driver)
+  !
+  ! Allocates and initializes a new subsurface inversion object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/25/21
+  !
+  use Driver_module
+
+  class(driver_type), pointer :: driver
+
+  class(inversion_subsurface_type), pointer :: InversionSubsurfaceCreate
+
+  allocate(InversionSubsurfaceCreate)
+  call InversionSubsurfaceCreate%Init(driver)
+
+end function InversionSubsurfaceCreate
 
 ! ************************************************************************** !
 
@@ -68,6 +92,8 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%ref_qoi_dataset_name = ''
   this%forward_simulation_filename = ''
   this%print_sensitivity_jacobian = PETSC_FALSE
+  this%store_adjoint_matrices = PETSC_FALSE
+  this%compare_adjoint_mat_and_rhs = PETSC_FALSE
   this%debug_adjoint = PETSC_FALSE
 
   nullify(this%measurement)
@@ -80,6 +106,51 @@ subroutine InversionSubsurfaceInit(this,driver)
   zflow_calc_adjoint = PETSC_TRUE
 
 end subroutine InversionSubsurfaceInit
+
+! ************************************************************************** !
+
+subroutine InversionSubsurfReadBlock(this,input,option)
+
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  class(inversion_subsurface_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  error_string = 'Test Inversion'
+
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    found = PETSC_TRUE
+    call InversionSubsurfReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+    if (found) cycle
+
+    select case(trim(keyword))
+      case default
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
+
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine InversionSubsurfReadBlock
 
 ! ************************************************************************** !
 
@@ -169,6 +240,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       this%print_sensitivity_jacobian = PETSC_TRUE
     case('DEBUG_ADJOINT')
       this%debug_adjoint = PETSC_TRUE
+    case('STORE_ADJOINT_MATRICES')
+      this%store_adjoint_matrices = PETSC_TRUE
     case default
       found = PETSC_FALSE
   end select
@@ -259,6 +332,24 @@ subroutine InversionSubsurfInitialize(this)
       enddo
       boundary_condition => boundary_condition%next
     enddo
+
+    ! leave this allocated and deallocated for each forward run
+    if (this%store_adjoint_matrices) then
+      allocate(this%inversion_aux%dMdK(this%realization%patch%grid%nmax))
+      this%inversion_aux%dMdK = PETSC_NULL_MAT
+      allocate(this%inversion_aux%dbdK(this%realization%patch%grid%nmax))
+      this%inversion_aux%dbdK = PETSC_NULL_VEC
+      do local_id = 1, size(this%inversion_aux%dMdK)
+        call MatDuplicate(this%forward_simulation%flow_process_model_coupler% &
+                            timestepper%solver%M, &
+                          MAT_SHARE_NONZERO_PATTERN, &
+                          this%inversion_aux%dMdK(local_id),ierr);CHKERRQ(ierr)
+      enddo
+      do local_id = 1, size(this%inversion_aux%dbdK)
+        call VecDuplicate(this%realization%field%work, &
+                          this%inversion_aux%dbdK(local_id),ierr);CHKERRQ(ierr)
+      enddo
+    endif
   endif
 
 end subroutine InversionSubsurfInitialize
@@ -370,25 +461,22 @@ subroutine InvSubsurfCalculateSensitivity(this)
 
   class(inversion_subsurface_type) :: this
 
-  type(connection_set_type), pointer :: connection_set
   type(grid_type), pointer :: grid
   type(inversion_aux_type), pointer :: inversion_aux
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(solver_type), pointer :: solver
   PetscReal, pointer :: vec_ptr(:)
-  PetscReal, allocatable :: flux_coef(:)
   PetscReal :: tempreal
-  PetscInt :: i, j, k
+  PetscInt :: i, j
   PetscInt :: icell_measurement
-  PetscInt :: local_id, local_id_up, local_id_dn
-  PetscInt :: iconn
   PetscReal :: hTdMdKTlambda, dbdKTlambda
   Vec :: work
   Vec :: solution
   Vec :: p, lambda
   Mat :: M, Pmat
   Mat :: dMdK_
+  Mat :: dMdK_diff
   Vec :: dbdK
   PetscErrorCode :: ierr
 
@@ -397,17 +485,20 @@ subroutine InvSubsurfCalculateSensitivity(this)
   option => this%realization%option
   patch => this%realization%patch
   grid => patch%grid
-  connection_set => grid%internal_connection_set_list%first
   inversion_aux => this%inversion_aux
 
-  allocate(flux_coef(size(inversion_aux%dFluxdIntConn,1)))
   work = this%realization%field%work ! DO NOT DESTROY!
   solution = this%realization%field%flow_xx ! DO NOT DESTROY!
   call VecDuplicate(work,p,ierr);CHKERRQ(ierr)
   call VecDuplicate(work,lambda,ierr);CHKERRQ(ierr)
 
+  dMdK_diff = PETSC_NULL_MAT
   call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_, &
                     ierr);CHKERRQ(ierr)
+  if (this%compare_adjoint_mat_and_rhs) then
+    call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
+                      ierr);CHKERRQ(ierr)
+  endif
   call VecDuplicate(work,dbdK,ierr);CHKERRQ(ierr)
 
   call MatZeroEntries(inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
@@ -446,78 +537,49 @@ subroutine InvSubsurfCalculateSensitivity(this)
     endif
 
     do i = 1, grid%nmax
-
-      call MatZeroEntries(dMdK_,ierr);CHKERRQ(ierr)
-      call VecZeroEntries(dbdK,ierr);CHKERRQ(ierr)
-
-      local_id = i
-      do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
-        iconn = inversion_aux%cell_to_internal_connection(k,local_id)
-        local_id_up = grid%nG2L(connection_set%id_up(iconn))
-        local_id_dn = grid%nG2L(connection_set%id_dn(iconn))
-        flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
-        if (local_id_up == local_id) then
-          call MatSetValue(dMdK_,local_id_up-1,local_id_up-1, &
-                            flux_coef(1), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValue(dMdK_,local_id_up-1,local_id_dn-1, &
-                            flux_coef(3), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValue(dMdK_,local_id_dn-1,local_id_dn-1, &
-                            -1.d0*flux_coef(3), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValue(dMdK_,local_id_dn-1,local_id_up-1, &
-                            -1.d0*flux_coef(1), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call VecSetValue(dbdK,local_id_up-1, &
-                            -1.d0*flux_coef(5), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call VecSetValue(dbdK,local_id_dn-1, &
-                            flux_coef(5), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-        elseif (local_id_dn == local_id) then
-          call MatSetValue(dMdK_,local_id_up-1,local_id_up-1, &
-                            flux_coef(2), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValue(dMdK_,local_id_up-1,local_id_dn-1, &
-                            flux_coef(4), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValue(dMdK_,local_id_dn-1,local_id_dn-1, &
-                            -1.d0*flux_coef(4), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValue(dMdK_,local_id_dn-1,local_id_up-1, &
-                            -1.d0*flux_coef(2), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call VecSetValue(dbdK,local_id_up-1, &
-                            -1.d0*flux_coef(6), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
-          call VecSetValue(dbdK,local_id_dn-1, &
-                            flux_coef(6), &
-                            ADD_VALUES,ierr);CHKERRQ(ierr)
+      if (associated(inversion_aux%dMdK)) then
+        if (this%compare_adjoint_mat_and_rhs) then
+          call InvSubsrfSetupAdjointMatAndRhs(this,i,dMdK_,dbdK)
         else
-          option%io_buffer = 'Incorrect mapping of connection'
-          call PrintErrMsg(option)
+          call MatCopy(inversion_aux%dMdK(i),dMdK_,SAME_NONZERO_PATTERN, &
+                       ierr);CHKERRQ(ierr)
+          call VecCopy(inversion_aux%dbdK(i),dbdK,ierr);CHKERRQ(ierr)
         endif
-      enddo
-      flux_coef = 0.d0
-      do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
-        iconn = inversion_aux%cell_to_bc_connection(k,local_id)
-        flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
-        call MatSetValue(dMdK_,local_id-1,local_id-1, &
-                          flux_coef(1),ADD_VALUES,ierr);CHKERRQ(ierr)
-        call VecSetValue(dbdK,local_id-1,flux_coef(2),ADD_VALUES, &
-                          ierr);CHKERRQ(ierr)
-      enddo
-      call MatAssemblyBegin(dMdK_,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call MatAssemblyEnd(dMdK_,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call VecAssemblyBegin(dbdK,ierr);CHKERRQ(ierr)
-      call VecAssemblyEnd(dbdK,ierr);CHKERRQ(ierr)
-
+      else
+        call InvSubsrfSetupAdjointMatAndRhs(this,i,dMdK_,dbdK)
+      endif
       if (this%debug_adjoint) then
+        if (associated(inversion_aux%dMdK) .and. &
+            this%compare_adjoint_mat_and_rhs) then
+          print *, 'dMdK_petsc ', i
+          call MatView(inversion_aux%dMdK(i),PETSC_VIEWER_STDOUT_WORLD, &
+                       ierr);CHKERRQ(ierr)
+        endif
         print *, 'dMdK ', i
         call MatView(dMdK_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+        if (associated(inversion_aux%dbdK) .and. &
+            this%compare_adjoint_mat_and_rhs) then
+          print *, 'dbdK_petsc ', i
+          call VecView(inversion_aux%dbdK(i),PETSC_VIEWER_STDOUT_WORLD, &
+                       ierr);CHKERRQ(ierr)
+        endif
         print *, 'dbdK ', i
         call VecView(dbdK,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+      endif
+      if (associated(inversion_aux%dMdK) .and. &
+          this%compare_adjoint_mat_and_rhs) then
+        call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
+                          ierr);CHKERRQ(ierr)
+        call MatCopy(inversion_aux%dMdK(i),dMdK_diff,SAME_NONZERO_PATTERN, &
+                     ierr);CHKERRQ(ierr)
+        call MatAXPY(dMdK_diff,-1.d0,dMdK_,SAME_NONZERO_PATTERN, &
+                     ierr);CHKERRQ(ierr)
+        call MatNorm(dMdK_diff,NORM_FROBENIUS,tempreal,ierr);CHKERRQ(ierr)
+        print *, 'dMdK diff norm: ', tempreal
+        call VecCopy(inversion_aux%dbdK(i),work,ierr);CHKERRQ(ierr)
+        call VecAXPY(work,-1.d0,dbdK,ierr);CHKERRQ(ierr)
+        call VecNorm(work,NORM_2,tempreal,ierr);CHKERRQ(ierr)
+        print *, 'dbdK diff norm: ', tempreal
       endif
       call MatMultTranspose(dMdK_,lambda,work,ierr);CHKERRQ(ierr)
       if (this%debug_adjoint) then
@@ -544,6 +606,9 @@ subroutine InvSubsurfCalculateSensitivity(this)
     enddo
   enddo
   call MatDestroy(dMdK_,ierr);CHKERRQ(ierr)
+  if (dMdK_diff /= PETSC_NULL_MAT) then
+    call MatDestroy(dMdK_diff,ierr);CHKERRQ(ierr)
+  endif
   call VecDestroy(dbdK,ierr);CHKERRQ(ierr)
   call VecDestroy(p,ierr);CHKERRQ(ierr)
   call VecDestroy(lambda,ierr);CHKERRQ(ierr)
@@ -551,9 +616,108 @@ subroutine InvSubsurfCalculateSensitivity(this)
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(inversion_aux%Jsensitivity, &
                       MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  deallocate(flux_coef)
 
 end subroutine InvSubsurfCalculateSensitivity
+
+! ************************************************************************** !
+
+subroutine InvSubsrfSetupAdjointMatAndRhs(this,local_id,dMdK,dbdK)
+  !
+  ! Calculates the derivative of matrix M and rhs wrt parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/25/21
+  !
+  use Connection_module
+  use Grid_module
+  use Option_module
+
+  class(inversion_subsurface_type) :: this
+  PetscInt :: local_id
+  Mat :: dMdK
+  Vec :: dbdK
+
+  type(connection_set_type), pointer :: connection_set
+  type(grid_type), pointer :: grid
+  type(inversion_aux_type), pointer :: inversion_aux
+  PetscReal, allocatable :: flux_coef(:)
+  PetscInt :: k
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt :: iconn
+  PetscErrorCode :: ierr
+
+  grid => this%realization%patch%grid
+  connection_set => grid%internal_connection_set_list%first
+  inversion_aux => this%inversion_aux
+
+  allocate(flux_coef(size(inversion_aux%dFluxdIntConn,1)))
+  call MatZeroEntries(dMdK,ierr);CHKERRQ(ierr)
+  call VecZeroEntries(dbdK,ierr);CHKERRQ(ierr)
+
+  do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
+    iconn = inversion_aux%cell_to_internal_connection(k,local_id)
+    local_id_up = grid%nG2L(connection_set%id_up(iconn))
+    local_id_dn = grid%nG2L(connection_set%id_dn(iconn))
+    flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
+    if (local_id_up == local_id) then
+      call MatSetValue(dMdK,local_id_up-1,local_id_up-1, &
+                       flux_coef(1), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValue(dMdK,local_id_up-1,local_id_dn-1, &
+                       flux_coef(3), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValue(dMdK,local_id_dn-1,local_id_dn-1, &
+                       -1.d0*flux_coef(3), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValue(dMdK,local_id_dn-1,local_id_up-1, &
+                       -1.d0*flux_coef(1), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call VecSetValue(dbdK,local_id_up-1, &
+                       -1.d0*flux_coef(5), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call VecSetValue(dbdK,local_id_dn-1, &
+                       flux_coef(5), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+    elseif (local_id_dn == local_id) then
+      call MatSetValue(dMdK,local_id_up-1,local_id_up-1, &
+                       flux_coef(2), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValue(dMdK,local_id_up-1,local_id_dn-1, &
+                       flux_coef(4), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValue(dMdK,local_id_dn-1,local_id_dn-1, &
+                       -1.d0*flux_coef(4), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call MatSetValue(dMdK,local_id_dn-1,local_id_up-1, &
+                       -1.d0*flux_coef(2), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call VecSetValue(dbdK,local_id_up-1, &
+                       -1.d0*flux_coef(6), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+      call VecSetValue(dbdK,local_id_dn-1, &
+                       flux_coef(6), &
+                       ADD_VALUES,ierr);CHKERRQ(ierr)
+    else
+      this%realization%option%io_buffer = 'Incorrect mapping of connection'
+      call PrintErrMsg(this%realization%option)
+    endif
+  enddo
+  flux_coef = 0.d0
+  do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
+    iconn = inversion_aux%cell_to_bc_connection(k,local_id)
+    flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
+    call MatSetValue(dMdK,local_id-1,local_id-1, &
+                     flux_coef(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValue(dbdK,local_id-1,flux_coef(2),ADD_VALUES, &
+                     ierr);CHKERRQ(ierr)
+  enddo
+  deallocate(flux_coef)
+  call MatAssemblyBegin(dMdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(dMdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call VecAssemblyBegin(dbdK,ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(dbdK,ierr);CHKERRQ(ierr)
+
+end subroutine InvSubsrfSetupAdjointMatAndRhs
 
 ! ************************************************************************** !
 
