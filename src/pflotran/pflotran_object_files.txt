@@ -235,7 +235,6 @@ misc_obj = \
 	${common_src}inversion_perturbation.o \
 	${common_src}inversion_subsurface.o \
 	${common_src}inversion_tao.o \
-	${common_src}inversion_test.o \
 	${common_src}matrix_buffer.o \
 	${common_src}observation.o \
 	${common_src}patch.o \

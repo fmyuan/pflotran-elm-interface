@@ -1,5 +1,5 @@
 auxiliary.o : ert_aux.o general_aux.o global_aux.o hydrate_aux.o \
-              inlinesurface_aux.o material_aux.o mphase_aux.o \
+              inlinesurface_aux.o inversion_aux.o material_aux.o mphase_aux.o \
               nw_transport_aux.o pflotran_constants.o pnf_aux.o \
               reactive_transport_aux.o richards_aux.o \
               secondary_continuum_aux.o th_aux.o wipp_flow_aux.o zflow_aux.o
@@ -348,9 +348,10 @@ inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
 inversion_perturbation.o : debug.o discretization.o driver.o factory_forward.o \
                            input_aux.o inversion_base.o inversion_subsurface.o \
                            material.o option.o pflotran_constants.o \
-                           realization_base.o string.o variables.o zflow_aux.o
-inversion_subsurface.o : connection.o debug.o discretization.o driver.o \
-                         factory_forward.o grid.o hdf5.o input_aux.o \
+                           realization_base.o string.o utility.o variables.o \
+                           zflow_aux.o
+inversion_subsurface.o : connection.o coupler.o debug.o discretization.o \
+                         driver.o factory_forward.o grid.o hdf5.o input_aux.o \
                          inversion_aux.o inversion_base.o material.o option.o \
                          output_hdf5.o patch.o pflotran_constants.o pm_base.o \
                          pm_zflow.o realization_base.o \
@@ -359,10 +360,6 @@ inversion_subsurface.o : connection.o debug.o discretization.o driver.o \
 inversion_tao.o : driver.o factory_forward.o input_aux.o inversion_base.o \
                   inversion_subsurface.o option.o pflotran_constants.o \
                   string.o
-inversion_test.o : connection.o debug.o driver.o grid.o input_aux.o \
-                   inversion_aux.o inversion_base.o inversion_subsurface.o \
-                   option.o patch.o pflotran_constants.o pm_base.o pm_zflow.o \
-                   realization_base.o solver.o string.o
 kdtree.o :
 logging.o : pflotran_constants.o
 lookup_table.o : input_aux.o option.o pflotran_constants.o units.o utility.o
@@ -874,8 +871,8 @@ simulation_geomechanics.o : driver.o geomechanics_realization.o \
                             timestepper_steady.o utility.o waypoint.o
 simulation_inverse.o : communicator_aux.o driver.o input_aux.o \
                        inversion_base.o inversion_ert.o \
-                       inversion_perturbation.o inversion_tao.o \
-                       inversion_test.o option.o pflotran_constants.o \
+                       inversion_perturbation.o inversion_subsurface.o \
+                       inversion_tao.o option.o pflotran_constants.o \
                        simulation_base.o string.o utility.o
 simulation_multirealization.o : communicator_aux.o driver.o factory_forward.o \
                                 input_aux.o option.o pflotran_constants.o \
@@ -994,13 +991,12 @@ wipp_flow_common.o : connection.o eos_gas.o eos_water.o global_aux.o \
                      upwind_direction.o wipp_flow_aux.o
 zflow.o : characteristic_curves.o connection.o coupler.o debug.o \
           discretization.o eos_water.o field.o general_aux.o global_aux.o \
-          grid.o inversion_aux.o material.o material_aux.o matrix_zeroing.o \
-          option.o output_aux.o patch.o pflotran_constants.o \
-          realization_subsurface.o upwind_direction.o variables.o zflow_aux.o \
-          zflow_common.o
-zflow_aux.o : characteristic_curves.o global_aux.o inversion_aux.o \
-              material_aux.o matrix_zeroing.o option.o pflotran_constants.o \
-              utility.o variables.o
+          grid.o material.o material_aux.o matrix_zeroing.o option.o \
+          output_aux.o patch.o pflotran_constants.o realization_subsurface.o \
+          upwind_direction.o variables.o zflow_aux.o zflow_common.o
+zflow_aux.o : characteristic_curves.o global_aux.o material_aux.o \
+              matrix_zeroing.o option.o pflotran_constants.o utility.o \
+              variables.o
 zflow_common.o : connection.o eos_gas.o eos_water.o global_aux.o \
                  material_aux.o option.o pflotran_constants.o string.o \
                  zflow_aux.o
