@@ -815,6 +815,12 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   
   enddo  
   call InputPopBlock(input,option)
+
+  if (.not.associated(constraint%aqueous_species)) then
+    option%io_buffer = 'A CONCENTRATION block is missing in constraint "' // &
+      trim(constraint%name) // '".'
+    call PrintErrMsg(option)
+  endif
   
   call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
 
