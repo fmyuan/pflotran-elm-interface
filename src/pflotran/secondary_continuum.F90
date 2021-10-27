@@ -91,7 +91,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         call PrintErrMsg(option)
       endif
       dy = sec_continuum%slab%length/nmat
-      if (aream0 > 0) then
+      if (aream0 > 0.d0) then
         aream0 = sec_continuum%slab%area
       else
          aream0 = 1.0 / (sec_continuum%slab%length + aperture)
@@ -377,7 +377,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
   PetscReal :: porosity
   character(len=MAXWORDLENGTH) :: sec_continuum_name
 
-  if (porosity < 0) then
+  if (porosity < 0.d0) then
     option%io_buffer = 'POROSITY must be set' // &
                        ' under SECONDARY_CONTINUUM'
     call PrintErrMsg(option)

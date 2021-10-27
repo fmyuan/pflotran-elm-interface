@@ -874,7 +874,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            'MATERIAL_PROPERTY')
             case('LOG_GRID_SPACING') 
               option%io_buffer = 'LOG_GRID_SPACING is &
-                                  &temporarily disable for multiple &
+                                  &temporarily disabled for multiple &
                                   continuum model.'
               call PrintErrMsg(option)
            !  call InputReadDouble(input,option, &
