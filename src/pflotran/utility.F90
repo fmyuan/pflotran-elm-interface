@@ -1225,7 +1225,6 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
   character(len=MAXSTRINGLENGTH) :: err_string
   PetscBool :: continuation_flag
   PetscInt :: value
-  PetscInt, parameter :: max_char_in_line = 480
   PetscInt, pointer :: temp_array(:)
   PetscInt :: temp_array_size
 
