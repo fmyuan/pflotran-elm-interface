@@ -1225,6 +1225,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
   character(len=MAXSTRINGLENGTH) :: err_string
   PetscBool :: continuation_flag
   PetscInt :: value
+  PetscInt, parameter :: max_char_in_line = 480
   PetscInt, pointer :: temp_array(:)
   PetscInt :: temp_array_size
 
@@ -1264,6 +1265,8 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
     call InputReadPflotranString(input2,option)
     call InputReadStringErrorMsg(input2,option,comment)
   endif
+
+  call UtilityEnforceUseOfContinuation(input2,option,comment)
   
   icount = 0
   do
@@ -1429,6 +1432,8 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
     call InputReadStringErrorMsg(input2,option,comment)
   endif
 
+  call UtilityEnforceUseOfContinuation(input2,option,comment)
+
   icount = 0
   do
 
@@ -1521,6 +1526,46 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
   nullify(temp_array)
 
 end subroutine UtilityReadRealArray
+
+! ************************************************************************** !
+
+subroutine UtilityEnforceUseOfContinuation(input,option,comment)
+  ! 
+  ! Checks for excessively long strings being read by UtilityReadArray 
+  ! and forces user to use continuation ('\')
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/27/21
+  ! 
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: comment
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt, parameter :: max_char_in_line = 480
+
+  if (len_trim(input%buf) > max_char_in_line) then
+    word = StringWrite(max_char_in_line)
+    option%io_buffer = 'The number of characters in the input buffer in &
+      &UtilityReadIntArray() exceeds ' // trim(word)
+    if (len_trim(comment) > 0) then
+      option%io_buffer = trim(option%io_buffer) // &
+      ' for "' // trim(comment) // '"'
+    endif
+    option%io_buffer = trim(option%io_buffer) // &
+      '. Please shorten input file lines to less than ' // trim(word) // &
+      ' characters and append a backslash ("\") for continuation. Search &
+      &on "backslash" in the PFLOTRAN documentation for more info.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine
 
 ! ************************************************************************** !
 
