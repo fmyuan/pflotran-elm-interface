@@ -358,6 +358,7 @@ subroutine THSetupPatch(realization)
           multicontinuum%fracture_spacing, &
         patch%material_property_array(1)%ptr%multicontinuum%radius, &
         patch%material_property_array(1)%ptr%multicontinuum%area, &
+        patch%material_property_array(1)%ptr%multicontinuum%porosity, &
         option)
         
       TH_sec_heat_vars(local_id)%ncells = &
