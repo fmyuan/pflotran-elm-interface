@@ -845,10 +845,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
               call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_up-1, &
                                             1,ghosted_id_dn-1, &
                                             dJdndKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call VecSetValue(dbdK(local_id_up),ghosted_id_up-1, &
-                               drhsdKup(1),ADD_VALUES,ierr);CHKERRQ(ierr)
-              call VecSetValue(dbdK(local_id_dn),ghosted_id_up-1, &
-                               drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+              call VecSetValueLocal(dbdK(local_id_up),ghosted_id_up-1, &
+                                    drhsdKup(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+              call VecSetValueLocal(dbdK(local_id_dn),ghosted_id_up-1, &
+                                    drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
           endif
         endif
@@ -883,10 +883,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
               call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_dn-1, &
                                             1,ghosted_id_up-1, &
                                             dJupdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call VecSetValue(dbdK(local_id_up),ghosted_id_dn-1, &
-                               drhsdKup(1),ADD_VALUES,ierr);CHKERRQ(ierr)
-              call VecSetValue(dbdK(local_id_dn),ghosted_id_dn-1, &
-                               drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+              call VecSetValueLocal(dbdK(local_id_up),ghosted_id_dn-1, &
+                                    drhsdKup(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+              call VecSetValueLocal(dbdK(local_id_dn),ghosted_id_dn-1, &
+                                    drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
            endif
           endif
         endif
@@ -970,8 +970,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             call MatSetValuesBlockedLocal(dMdK(local_id),1,ghosted_id-1, &
                                           1,ghosted_id-1, &
                                           dJdndKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-            call VecSetValue(dbdK(local_id),ghosted_id-1, &
-                             drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+            call VecSetValueLocal(dbdK(local_id),ghosted_id-1, &
+                                  drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         endif
       enddo

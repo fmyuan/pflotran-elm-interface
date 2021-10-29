@@ -291,7 +291,7 @@ subroutine InversionSubsurfInitialize(this)
     ! JsensitivityT is the transpose of the sensitivity Jacobian
     ! with num measurement columns and num parameter rows
     call MatCreateDense(this%driver%comm%mycomm, &
-                        num_parameters_local,num_measurements, &
+                        num_parameters_local,PETSC_DECIDE, &
                         num_parameters_global,num_measurements, &
                         PETSC_NULL_SCALAR, &
                         this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
@@ -460,6 +460,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   !
   use Connection_module
   use Debug_module
+  use Discretization_module
   use Grid_module
   use Option_module
   use Patch_module
@@ -472,6 +473,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   class(inversion_subsurface_type) :: this
 
   type(grid_type), pointer :: grid
+  type(discretization_type), pointer :: discretization
   type(inversion_aux_type), pointer :: inversion_aux
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -488,11 +490,13 @@ subroutine InvSubsurfCalculateSensitivity(this)
   Mat :: dMdK_
   Mat :: dMdK_diff
   Vec :: dbdK
+  Vec :: natural_vec
   PetscErrorCode :: ierr
 
   solver => this%forward_simulation%flow_process_model_coupler% &
               timestepper%solver
   option => this%realization%option
+  discretization => this%realization%discretization
   patch => this%realization%patch
   grid => patch%grid
   inversion_aux => this%inversion_aux
@@ -501,6 +505,8 @@ subroutine InvSubsurfCalculateSensitivity(this)
   solution = this%realization%field%flow_xx ! DO NOT DESTROY!
   call VecDuplicate(work,p,ierr);CHKERRQ(ierr)
   call VecDuplicate(work,lambda,ierr);CHKERRQ(ierr)
+  call DiscretizationCreateVector(discretization,ONEDOF, &
+                                  natural_vec,NATURAL,option)
 
   dMdK_diff = PETSC_NULL_MAT
   call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_, &
@@ -530,11 +536,16 @@ subroutine InvSubsurfCalculateSensitivity(this)
     call MatView(M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
   do imeasurement = 1, size(this%imeasurement)
-    call VecZeroEntries(p,ierr);CHKERRQ(ierr)
-    tempreal = 1.d0
-    icell_measurement = this%imeasurement(imeasurement)
-    call VecSetValue(p,icell_measurement-1,tempreal, &
-                      INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+    if (option%myrank == 0) then
+      tempreal = 1.d0
+      icell_measurement = this%imeasurement(imeasurement)
+      call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
+                       INSERT_VALUES,ierr);CHKERRQ(ierr)
+    endif
+    call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+    call DiscretizationNaturalToGlobal(discretization,natural_vec,p,ONEDOF)
     if (this%debug_adjoint) then
       if (OptionPrintToScreen(option)) print *, 'p'
       call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
@@ -550,18 +561,15 @@ subroutine InvSubsurfCalculateSensitivity(this)
       endif
     endif
 
-    do iparameter = 1, grid%nlmax
-      if (associated(inversion_aux%dMdK)) then
-        if (this%compare_adjoint_mat_and_rhs) then
-          call InvSubsrfSetupAdjointMatAndRhs(this,iparameter,dMdK_,dbdK)
-        else
-          call MatCopy(inversion_aux%dMdK(iparameter),dMdK_,SAME_NONZERO_PATTERN, &
-                       ierr);CHKERRQ(ierr)
-          call VecCopy(inversion_aux%dbdK(iparameter),dbdK,ierr);CHKERRQ(ierr)
-        endif
-      else
-        call InvSubsrfSetupAdjointMatAndRhs(this,iparameter,dMdK_,dbdK)
+    do iparameter = 1, grid%nmax
+      call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+      if (option%myrank == 0) then
+        call VecSetValue(natural_vec,iparameter-1,1.d0,ADD_VALUES, &
+                        ierr);CHKERRQ(ierr)
       endif
+      call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+      call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+      call InvSubsrfSetupAdjointMatAndRhs(this,natural_vec,dMdK_,dbdK)
       if (this%debug_adjoint) then
         if (associated(inversion_aux%dMdK) .and. &
             this%compare_adjoint_mat_and_rhs) then
@@ -618,7 +626,9 @@ subroutine InvSubsurfCalculateSensitivity(this)
       ! remember: parameters are rows and measurements columns
       call MatSetValue(inversion_aux%JsensitivityT,iparameter-1,imeasurement-1, &
                        -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
+      print *, 'here3: ', option%myrank, iparameter
     enddo
+    print *, 'here4: ', option%myrank, imeasurement
   enddo
   call MatDestroy(dMdK_,ierr);CHKERRQ(ierr)
   if (dMdK_diff /= PETSC_NULL_MAT) then
@@ -627,16 +637,72 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call VecDestroy(dbdK,ierr);CHKERRQ(ierr)
   call VecDestroy(p,ierr);CHKERRQ(ierr)
   call VecDestroy(lambda,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call MatAssemblyBegin(inversion_aux%JsensitivityT, &
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(inversion_aux%JsensitivityT, &
                       MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-
+print *, 'here5: ', option%myrank
 end subroutine InvSubsurfCalculateSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsrfSetupAdjointMatAndRhs(this,local_id,dMdK,dbdK)
+subroutine InvSubsrfSetupAdjointMatAndRhs(this,natural_vec,dMdK,dbdK)
+  !
+  ! Calculates the derivative of matrix M and rhs wrt parameters
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/25/21
+  !
+  use Connection_module
+  use Discretization_module
+  use Grid_module
+  use Option_module
+
+  class(inversion_subsurface_type) :: this
+  Vec :: natural_vec
+  Mat :: dMdK
+  Vec :: dbdK
+
+  type(inversion_aux_type), pointer :: inversion_aux
+  PetscInt :: local_id
+  PetscReal, pointer :: vec_ptr(:)
+  PetscErrorCode :: ierr
+
+  inversion_aux => this%inversion_aux
+
+  call MatZeroEntries(dMdK,ierr);CHKERRQ(ierr)
+  call VecZeroEntries(dbdK,ierr);CHKERRQ(ierr)
+  call DiscretizationNaturalToGlobal(this%realization%discretization, &
+                                     natural_vec,this%realization%field%work, &
+                                     ONEDOF)
+  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  do local_id = 1, this%realization%patch%grid%nlmax
+    if (vec_ptr(local_id) > 0.d0) then
+      if (associated(inversion_aux%dMdK)) then
+        if (this%compare_adjoint_mat_and_rhs) then
+          call InvSubsrfSetupAdjMatRhsSingle(this,local_id,dMdK,dbdK)
+        else
+          call MatCopy(inversion_aux%dMdK(local_id),dMdK,SAME_NONZERO_PATTERN, &
+                      ierr);CHKERRQ(ierr)
+          call VecCopy(inversion_aux%dbdK(local_id),dbdK,ierr);CHKERRQ(ierr)
+        endif
+      else
+        call InvSubsrfSetupAdjMatRhsSingle(this,local_id,dMdK,dbdK)
+      endif
+    endif
+  enddo
+  call VecRestoreArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  call MatAssemblyBegin(dMdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(dMdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call VecAssemblyBegin(dbdK,ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(dbdK,ierr);CHKERRQ(ierr)
+
+end subroutine InvSubsrfSetupAdjointMatAndRhs
+
+! ************************************************************************** !
+
+subroutine InvSubsrfSetupAdjMatRhsSingle(this,local_id,dMdK,dbdK)
   !
   ! Calculates the derivative of matrix M and rhs wrt parameters
   !
@@ -658,6 +724,8 @@ subroutine InvSubsrfSetupAdjointMatAndRhs(this,local_id,dMdK,dbdK)
   PetscReal, allocatable :: flux_coef(:)
   PetscInt :: k
   PetscInt :: local_id_up, local_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: ghosted_id
   PetscInt :: iconn
   PetscErrorCode :: ierr
 
@@ -665,51 +733,51 @@ subroutine InvSubsrfSetupAdjointMatAndRhs(this,local_id,dMdK,dbdK)
   connection_set => grid%internal_connection_set_list%first
   inversion_aux => this%inversion_aux
 
+  ghosted_id = grid%nL2G(local_id)
   allocate(flux_coef(size(inversion_aux%dFluxdIntConn,1)))
-  call MatZeroEntries(dMdK,ierr);CHKERRQ(ierr)
-  call VecZeroEntries(dbdK,ierr);CHKERRQ(ierr)
-
   do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
     iconn = inversion_aux%cell_to_internal_connection(k,local_id)
-    local_id_up = grid%nG2L(connection_set%id_up(iconn))
-    local_id_dn = grid%nG2L(connection_set%id_dn(iconn))
+    ghosted_id_up = connection_set%id_up(iconn)
+    ghosted_id_dn = connection_set%id_dn(iconn)
+    local_id_up = grid%nG2L(ghosted_id_up)
+    local_id_dn = grid%nG2L(ghosted_id_dn)
     flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
     if (local_id_up == local_id) then
-      call MatSetValue(dMdK,local_id_up-1,local_id_up-1, &
+      call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                        flux_coef(1), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValue(dMdK,local_id_up-1,local_id_dn-1, &
+      call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                        flux_coef(3), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValue(dMdK,local_id_dn-1,local_id_dn-1, &
+      call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                        -1.d0*flux_coef(3), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValue(dMdK,local_id_dn-1,local_id_up-1, &
+      call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                        -1.d0*flux_coef(1), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call VecSetValue(dbdK,local_id_up-1, &
+      call VecSetValueLocal(dbdK,ghosted_id_up-1, &
                        -1.d0*flux_coef(5), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call VecSetValue(dbdK,local_id_dn-1, &
+      call VecSetValueLocal(dbdK,ghosted_id_dn-1, &
                        flux_coef(5), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
     elseif (local_id_dn == local_id) then
-      call MatSetValue(dMdK,local_id_up-1,local_id_up-1, &
+      call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                        flux_coef(2), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValue(dMdK,local_id_up-1,local_id_dn-1, &
+      call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                        flux_coef(4), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValue(dMdK,local_id_dn-1,local_id_dn-1, &
+      call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                        -1.d0*flux_coef(4), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call MatSetValue(dMdK,local_id_dn-1,local_id_up-1, &
+      call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                        -1.d0*flux_coef(2), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call VecSetValue(dbdK,local_id_up-1, &
+      call VecSetValueLocal(dbdK,ghosted_id_up-1, &
                        -1.d0*flux_coef(6), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
-      call VecSetValue(dbdK,local_id_dn-1, &
+      call VecSetValueLocal(dbdK,ghosted_id_dn-1, &
                        flux_coef(6), &
                        ADD_VALUES,ierr);CHKERRQ(ierr)
     else
@@ -721,18 +789,14 @@ subroutine InvSubsrfSetupAdjointMatAndRhs(this,local_id,dMdK,dbdK)
   do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
     iconn = inversion_aux%cell_to_bc_connection(k,local_id)
     flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
-    call MatSetValue(dMdK,local_id-1,local_id-1, &
-                     flux_coef(1),ADD_VALUES,ierr);CHKERRQ(ierr)
-    call VecSetValue(dbdK,local_id-1,flux_coef(2),ADD_VALUES, &
+    call MatSetValuesLocal(dMdK,1,ghosted_id-1,1,ghosted_id-1, &
+                           flux_coef(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+    call VecSetValueLocal(dbdK,ghosted_id-1,flux_coef(2),ADD_VALUES, &
                      ierr);CHKERRQ(ierr)
   enddo
   deallocate(flux_coef)
-  call MatAssemblyBegin(dMdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(dMdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call VecAssemblyBegin(dbdK,ierr);CHKERRQ(ierr)
-  call VecAssemblyEnd(dbdK,ierr);CHKERRQ(ierr)
 
-end subroutine InvSubsrfSetupAdjointMatAndRhs
+end subroutine InvSubsrfSetupAdjMatRhsSingle
 
 ! ************************************************************************** !
 
@@ -883,13 +947,15 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   call h5eset_auto_f(ON,hdf5_err)
 
   num_measurement = size(this%measurement)
-  call VecCreateMPI(this%realization%option%mycomm,num_measurement, &
+  call VecCreateMPI(this%realization%option%mycomm,PETSC_DECIDE, &
                     num_measurement, &
                     row_vec,ierr);CHKERRQ(ierr)
   do imeasurement = 1, num_measurement
     call VecZeroEntries(row_vec,ierr);CHKERRQ(ierr)
-    call VecSetValue(row_vec,imeasurement-1,1.d0,INSERT_VALUES, &
-                     ierr);CHKERRQ(ierr)
+    if (this%realization%option%myrank == 0) then
+      call VecSetValue(row_vec,imeasurement-1,1.d0,INSERT_VALUES, &
+                       ierr);CHKERRQ(ierr)
+    endif
     call VecAssemblyBegin(row_vec,ierr);CHKERRQ(ierr)
     call VecAssemblyEnd(row_vec,ierr);CHKERRQ(ierr)
     call MatMult(JsensitivityT,row_vec, &
