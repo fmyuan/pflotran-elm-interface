@@ -280,8 +280,8 @@ subroutine InversionPerturbationFillColumn(this,iteration)
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal, pointer :: soln_ptr(:)
   PetscReal, allocatable :: temp_array(:)
-  PetscInt, allocatable :: rows(:)
-  PetscInt :: cols(1)
+  PetscInt, allocatable :: cols(:)
+  PetscInt :: rows(1)
   PetscInt :: num_measurement
   PetscInt :: i
   Mat :: M
@@ -298,7 +298,7 @@ subroutine InversionPerturbationFillColumn(this,iteration)
     do i = 1, num_measurement
       this%base_solution_measurement(i) = soln_ptr(this%imeasurement(i))
     enddo
-    call MatZeroEntries(this%inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
+    call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
   else
     allocate(temp_array(num_measurement))
     print *, 'pert: ', this%pert
@@ -316,21 +316,24 @@ subroutine InversionPerturbationFillColumn(this,iteration)
 
   if (iteration == 0) return
 
-  allocate(rows(num_measurement))
+  allocate(cols(num_measurement))
   do i = 1, num_measurement
-    rows(i) = i-1
+    cols(i) = i-1
   enddo
-  cols = iteration-1
-  call MatSetValues(this%inversion_aux%Jsensitivity, &
-                    num_measurement,rows,1,cols, &
+  rows = iteration-1
+  ! remember the Jacobian is a transpose
+  ! icol = measurement
+  ! irow = parameter
+  call MatSetValues(this%inversion_aux%JsensitivityT, &
+                    1,rows,num_measurement,cols, &
                     temp_array,INSERT_VALUES,ierr);CHKERRQ(ierr)
-  deallocate(rows)
+  deallocate(cols)
   deallocate(temp_array)
 
   if (iteration == this%ndof) then
-    call MatAssemblyBegin(this%inversion_aux%Jsensitivity,MAT_FINAL_ASSEMBLY, &
+    call MatAssemblyBegin(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
                           ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(this%inversion_aux%Jsensitivity,MAT_FINAL_ASSEMBLY, &
+    call MatAssemblyEnd(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
                         ierr);CHKERRQ(ierr)
   endif
 

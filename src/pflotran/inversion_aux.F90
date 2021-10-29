@@ -15,7 +15,7 @@ module Inversion_Aux_module
 #endif
 
   type, public :: inversion_aux_type
-    Mat :: Jsensitivity
+    Mat :: JsensitivityT
     PetscInt :: num_aux
 !    class(inversion_auxvar_type), pointer :: auxvars(:)
     PetscReal, pointer :: dFluxdIntConn(:,:)
@@ -61,7 +61,7 @@ function InversionAuxCreate()
   nullify(aux%dMdK)
   nullify(aux%dbdK)
 
-  aux%Jsensitivity = PETSC_NULL_MAT
+  aux%JsensitivityT = PETSC_NULL_MAT
 
   InversionAuxCreate => aux
 
@@ -149,7 +149,7 @@ subroutine InversionAuxDestroy(aux)
   endif
 
   ! these objects are destroyed elsewhere, do not destroy
-  aux%Jsensitivity = PETSC_NULL_MAT
+  aux%JsensitivityT = PETSC_NULL_MAT
 
   deallocate(aux)
   nullify(aux)

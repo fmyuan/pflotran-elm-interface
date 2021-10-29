@@ -21,6 +21,7 @@ module Inversion_Subsurface_class
     PetscReal, pointer :: measurement(:)
     PetscInt, pointer :: imeasurement(:)
     PetscInt :: iqoi
+    PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest
     Vec :: ref_quantity_of_interest
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
@@ -88,6 +89,7 @@ subroutine InversionSubsurfaceInit(this,driver)
 
   this%quantity_of_interest = PETSC_NULL_VEC
   this%iqoi = UNINITIALIZED_INTEGER
+  this%n_qoi_per_cell = UNINITIALIZED_INTEGER
   this%ref_quantity_of_interest = PETSC_NULL_VEC
   this%ref_qoi_dataset_name = ''
   this%forward_simulation_filename = ''
@@ -274,20 +276,25 @@ subroutine InversionSubsurfInitialize(this)
   PetscInt :: iconn
   PetscInt :: sum_connection
   PetscInt :: num_measurements
+  PetscInt :: num_parameters_local, num_parameters_global
   PetscInt, allocatable :: int_array(:)
   PetscErrorCode :: ierr
 
   if (.not.associated(this%inversion_aux)) then
+    this%n_qoi_per_cell = 1 ! 1 perm per cell
+
     patch => this%realization%patch
     this%inversion_aux => InversionAuxCreate()
     num_measurements = size(this%imeasurement)
+    num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
+    num_parameters_global = patch%grid%nmax*this%n_qoi_per_cell
+    ! JsensitivityT is the transpose of the sensitivity Jacobian
+    ! with num measurement columns and num parameter rows
     call MatCreateDense(this%driver%comm%mycomm, &
-                        num_measurements, &
-                        patch%grid%nlmax, &
-                        num_measurements, &
-                        patch%grid%nmax, &
+                        num_parameters_local,num_measurements, &
+                        num_parameters_global,num_measurements, &
                         PETSC_NULL_SCALAR, &
-                        this%inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
+                        this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
     !TODO(geh): compress the mappings
     call GridMapCellsToConnections(patch%grid, &
                                this%inversion_aux%cell_to_internal_connection)
@@ -471,7 +478,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   type(solver_type), pointer :: solver
   PetscReal, pointer :: vec_ptr(:)
   PetscReal :: tempreal
-  PetscInt :: i, j
+  PetscInt :: iparameter, imeasurement
   PetscInt :: icell_measurement
   PetscReal :: hTdMdKTlambda, dbdKTlambda
   Vec :: work
@@ -504,108 +511,113 @@ subroutine InvSubsurfCalculateSensitivity(this)
   endif
   call VecDuplicate(work,dbdK,ierr);CHKERRQ(ierr)
 
-  call MatZeroEntries(inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
+  call MatZeroEntries(inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
   if (this%debug_adjoint) then
-    print *, 'solution'
+    if (OptionPrintToScreen(option)) print *, 'solution'
     call VecView(solution,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(solution,vec_ptr,ierr);CHKERRQ(ierr)
-    print *, vec_ptr(:)
-    call VecRestoreArrayF90(solution,vec_ptr,ierr);CHKERRQ(ierr)
-    print *, 'residual'
+    if (option%comm%mycommsize == 1) then
+      call VecGetArrayF90(solution,vec_ptr,ierr);CHKERRQ(ierr)
+      print *, vec_ptr(:)
+      call VecRestoreArrayF90(solution,vec_ptr,ierr);CHKERRQ(ierr)
+    endif
+    if (OptionPrintToScreen(option)) print *, 'residual'
     call VecView(this%realization%field%flow_r,PETSC_VIEWER_STDOUT_WORLD, &
                   ierr);CHKERRQ(ierr)
-    print *, 'J'
+                  if (OptionPrintToScreen(option)) print *, 'J'
     call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
     call KSPGetOperators(solver%ksp,M,Pmat,ierr);CHKERRQ(ierr)
-    print *, 'M'
+    if (OptionPrintToScreen(option)) print *, 'M'
     call MatView(M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
-  do j = 1, size(this%imeasurement)
+  do imeasurement = 1, size(this%imeasurement)
     call VecZeroEntries(p,ierr);CHKERRQ(ierr)
     tempreal = 1.d0
-    icell_measurement = this%imeasurement(j)
+    icell_measurement = this%imeasurement(imeasurement)
     call VecSetValue(p,icell_measurement-1,tempreal, &
                       INSERT_VALUES,ierr);CHKERRQ(ierr)
     if (this%debug_adjoint) then
-      print *, 'p'
+      if (OptionPrintToScreen(option)) print *, 'p'
       call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
     endif
     call KSPSolveTranspose(solver%ksp,p,lambda,ierr);CHKERRQ(ierr)
     if (this%debug_adjoint) then
-      print *, 'lambda'
+      if (OptionPrintToScreen(option)) print *, 'lambda'
       call VecView(lambda,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(lambda,vec_ptr,ierr);CHKERRQ(ierr)
-      print *, vec_ptr(:)
-      call VecRestoreArrayF90(lambda,vec_ptr,ierr);CHKERRQ(ierr)
+      if (option%comm%mycommsize == 1) then
+        call VecGetArrayF90(lambda,vec_ptr,ierr);CHKERRQ(ierr)
+        print *, vec_ptr(:)
+        call VecRestoreArrayF90(lambda,vec_ptr,ierr);CHKERRQ(ierr)
+      endif
     endif
 
-    do i = 1, grid%nmax
+    do iparameter = 1, grid%nlmax
       if (associated(inversion_aux%dMdK)) then
         if (this%compare_adjoint_mat_and_rhs) then
-          call InvSubsrfSetupAdjointMatAndRhs(this,i,dMdK_,dbdK)
+          call InvSubsrfSetupAdjointMatAndRhs(this,iparameter,dMdK_,dbdK)
         else
-          call MatCopy(inversion_aux%dMdK(i),dMdK_,SAME_NONZERO_PATTERN, &
+          call MatCopy(inversion_aux%dMdK(iparameter),dMdK_,SAME_NONZERO_PATTERN, &
                        ierr);CHKERRQ(ierr)
-          call VecCopy(inversion_aux%dbdK(i),dbdK,ierr);CHKERRQ(ierr)
+          call VecCopy(inversion_aux%dbdK(iparameter),dbdK,ierr);CHKERRQ(ierr)
         endif
       else
-        call InvSubsrfSetupAdjointMatAndRhs(this,i,dMdK_,dbdK)
+        call InvSubsrfSetupAdjointMatAndRhs(this,iparameter,dMdK_,dbdK)
       endif
       if (this%debug_adjoint) then
         if (associated(inversion_aux%dMdK) .and. &
             this%compare_adjoint_mat_and_rhs) then
-          print *, 'dMdK_stored ', i
-          call MatView(inversion_aux%dMdK(i),PETSC_VIEWER_STDOUT_WORLD, &
+          if (OptionPrintToScreen(option)) print *, 'dMdK_stored ', iparameter
+          call MatView(inversion_aux%dMdK(iparameter),PETSC_VIEWER_STDOUT_WORLD, &
                        ierr);CHKERRQ(ierr)
         endif
-        print *, 'dMdK ', i
+        if (OptionPrintToScreen(option)) print *, 'dMdK ', iparameter
         call MatView(dMdK_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
         if (associated(inversion_aux%dbdK) .and. &
             this%compare_adjoint_mat_and_rhs) then
-          print *, 'dbdK_stored ', i
-          call VecView(inversion_aux%dbdK(i),PETSC_VIEWER_STDOUT_WORLD, &
+          if (OptionPrintToScreen(option)) print *, 'dbdK_stored ', iparameter
+          call VecView(inversion_aux%dbdK(iparameter),PETSC_VIEWER_STDOUT_WORLD, &
                        ierr);CHKERRQ(ierr)
         endif
-        print *, 'dbdK ', i
+        if (OptionPrintToScreen(option)) print *, 'dbdK ', iparameter
         call VecView(dbdK,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
       endif
       if (associated(inversion_aux%dMdK) .and. &
           this%compare_adjoint_mat_and_rhs) then
         call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
                           ierr);CHKERRQ(ierr)
-        call MatCopy(inversion_aux%dMdK(i),dMdK_diff,SAME_NONZERO_PATTERN, &
+        call MatCopy(inversion_aux%dMdK(iparameter),dMdK_diff,SAME_NONZERO_PATTERN, &
                      ierr);CHKERRQ(ierr)
         call MatAXPY(dMdK_diff,-1.d0,dMdK_,SAME_NONZERO_PATTERN, &
                      ierr);CHKERRQ(ierr)
         call MatNorm(dMdK_diff,NORM_FROBENIUS,tempreal,ierr);CHKERRQ(ierr)
-        print *, 'dMdK diff norm: ', tempreal
-        call VecCopy(inversion_aux%dbdK(i),work,ierr);CHKERRQ(ierr)
+        if (OptionPrintToScreen(option)) print *, 'dMdK diff norm: ', tempreal
+        call VecCopy(inversion_aux%dbdK(iparameter),work,ierr);CHKERRQ(ierr)
         call VecAXPY(work,-1.d0,dbdK,ierr);CHKERRQ(ierr)
         call VecNorm(work,NORM_2,tempreal,ierr);CHKERRQ(ierr)
-        print *, 'dbdK diff norm: ', tempreal
+        if (OptionPrintToScreen(option)) print *, 'dbdK diff norm: ', tempreal
       endif
       call MatMultTranspose(dMdK_,lambda,work,ierr);CHKERRQ(ierr)
       if (this%debug_adjoint) then
-        print *, 'dMdK^T * lambda'
+        if (OptionPrintToScreen(option)) print *, 'dMdK^T * lambda'
         call VecView(work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
       endif
       call VecDot(solution,work,hTdMdKTlambda,ierr);CHKERRQ(ierr)
-      if (this%debug_adjoint) then
+      if (this%debug_adjoint .and. OptionPrintToScreen(option)) then
         print *, '-h^T * dMdK^T * lambda'
-        print *, i, ' : ', -hTdMdKTlambda
+        print *, iparameter, ' : ', -hTdMdKTlambda
       endif
       call VecDot(dbdK,lambda,dbdKTlambda,ierr);CHKERRQ(ierr)
-      if (this%debug_adjoint) then
+      if (this%debug_adjoint .and. OptionPrintToScreen(option)) then
         print *, 'dbdK^T * lambda'
-        print *, i, ' : ', dbdKTlambda
+        print *, iparameter, ' : ', dbdKTlambda
       endif
       tempreal = dbdKTlambda-hTdMdKTlambda
-      if (this%debug_adjoint) then
+      if (this%debug_adjoint .and. OptionPrintToScreen(option)) then
         print *, '(dbdK^T - h^T * dMdK^T) * lambda'
-        print *, i, ' : ', tempreal
+        print *, iparameter, ' : ', tempreal
       endif
-      call MatSetValue(inversion_aux%Jsensitivity,j-1,i-1,-tempreal, &
-                        INSERT_VALUES,ierr);CHKERRQ(ierr)
+      ! remember: parameters are rows and measurements columns
+      call MatSetValue(inversion_aux%JsensitivityT,iparameter-1,imeasurement-1, &
+                       -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
     enddo
   enddo
   call MatDestroy(dMdK_,ierr);CHKERRQ(ierr)
@@ -615,9 +627,9 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call VecDestroy(dbdK,ierr);CHKERRQ(ierr)
   call VecDestroy(p,ierr);CHKERRQ(ierr)
   call VecDestroy(lambda,ierr);CHKERRQ(ierr)
-  call MatAssemblyBegin(inversion_aux%Jsensitivity, &
+  call MatAssemblyBegin(inversion_aux%JsensitivityT, &
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(inversion_aux%Jsensitivity, &
+  call MatAssemblyEnd(inversion_aux%JsensitivityT, &
                       MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
 end subroutine InvSubsurfCalculateSensitivity
@@ -724,7 +736,7 @@ end subroutine InvSubsrfSetupAdjointMatAndRhs
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfScaleSensitivity(this,Jsensitivity)
+subroutine InvSubsurfScaleSensitivity(this,JsensitivityT)
   !
   ! Writes sensitivity Jacobian to an ASCII output file
   !
@@ -735,15 +747,16 @@ subroutine InvSubsurfScaleSensitivity(this,Jsensitivity)
   use Variables_module, only : PERMEABILITY
 
   class(inversion_subsurface_type) :: this
-  Mat :: Jsensitivity
+  Mat :: JsensitivityT
 
   PetscErrorCode :: ierr
 
   call RealizationGetVariable(this%realization, &
                               this%realization%field%work, &
                               PERMEABILITY,ZERO_INTEGER)
-  call MatDiagonalScale(Jsensitivity,PETSC_NULL_VEC, &
-                        this%realization%field%work, &
+  call MatDiagonalScale(JsensitivityT, &
+                        this%realization%field%work, & ! scales rows
+                        PETSC_NULL_VEC, &  ! scales columns
                         ierr);CHKERRQ(ierr)
 
 end subroutine InvSubsurfScaleSensitivity
@@ -766,16 +779,16 @@ subroutine InvSubsurfOutputSensitivity(this,suffix)
   filename_prefix = trim(this%driver%global_prefix) // '_Jsense'
   if (len_trim(suffix) > 0) filename_prefix = trim(filename_prefix) // '_' // &
                             suffix
-  call InvSubsurfOutputSensitivityASCII(this,this%inversion_aux%Jsensitivity, &
+  call InvSubsurfOutputSensitivityASCII(this,this%inversion_aux%JsensitivityT, &
                                         filename_prefix)
-  call InvSubsurfOutputSensitivityHDF5(this,this%inversion_aux%Jsensitivity, &
+  call InvSubsurfOutputSensitivityHDF5(this,this%inversion_aux%JsensitivityT, &
                                        filename_prefix)
 
 end subroutine InvSubsurfOutputSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfOutputSensitivityASCII(this,Jsensitivity,filename_prefix)
+subroutine InvSubsurfOutputSensitivityASCII(this,JsensitivityT,filename_prefix)
   !
   ! Writes sensitivity Jacobian to an ASCII output file
   !
@@ -786,7 +799,7 @@ subroutine InvSubsurfOutputSensitivityASCII(this,Jsensitivity,filename_prefix)
   use Variables_module, only : PERMEABILITY
 
   class(inversion_subsurface_type) :: this
-  Mat :: Jsensitivity
+  Mat :: JsensitivityT
   character(len=*) :: filename_prefix
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -801,14 +814,14 @@ subroutine InvSubsurfOutputSensitivityASCII(this,Jsensitivity,filename_prefix)
   string = trim(filename_prefix) // '.txt'
   call PetscViewerASCIIOpen(this%realization%option%mycomm,string,viewer, &
                             ierr);CHKERRQ(ierr)
-  call MatView(Jsensitivity,viewer,ierr);CHKERRQ(ierr)
+  call MatView(JsensitivityT,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 
 end subroutine InvSubsurfOutputSensitivityASCII
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfOutputSensitivityHDF5(this,Jsensitivity,filename_prefix)
+subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   !
   ! Writes sensitivity Jacobian to an HDF5 output file
   !
@@ -821,7 +834,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,Jsensitivity,filename_prefix)
   use String_module
 
   class(inversion_subsurface_type) :: this
-  Mat :: Jsensitivity
+  Mat :: JsensitivityT
   character(len=*) :: filename_prefix
 
   Vec :: row_vec
@@ -879,9 +892,9 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,Jsensitivity,filename_prefix)
                      ierr);CHKERRQ(ierr)
     call VecAssemblyBegin(row_vec,ierr);CHKERRQ(ierr)
     call VecAssemblyEnd(row_vec,ierr);CHKERRQ(ierr)
-    call MatMultTranspose(Jsensitivity,row_vec, &
-                          this%realization%field%work, &
-                          ierr);CHKERRQ(ierr)
+    call MatMult(JsensitivityT,row_vec, &
+                 this%realization%field%work, &
+                 ierr);CHKERRQ(ierr)
     string = 'Measurement ' // StringWrite(this%imeasurement(imeasurement))
     call HDF5WriteStructDataSetFromVec(string,this%realization, &
                                        this%realization%field%work,grp_id, &
