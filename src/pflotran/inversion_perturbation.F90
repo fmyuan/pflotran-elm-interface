@@ -14,6 +14,7 @@ module Inversion_Perturbation_class
   type, public, extends(inversion_subsurface_type) :: &
                                             inversion_perturbation_type
     Vec :: quantity_of_interest_base
+    Vec :: natural_vec
     PetscInt :: ndof
     PetscInt :: idof_pert
     PetscReal :: pert
@@ -73,6 +74,7 @@ subroutine InversionPerturbationInit(this,driver)
   call InversionSubsurfaceInit(this,driver)
 
   this%quantity_of_interest_base = PETSC_NULL_VEC
+  this%natural_vec = PETSC_NULL_VEC
 
   this%ndof = 0
   this%idof_pert = 0
@@ -143,8 +145,6 @@ subroutine InversionPerturbationInitialize(this)
   ! Date: 09/24/21
   !
   class(inversion_perturbation_type) :: this
-
-  PetscErrorCode :: ierr
 
   call InversionSubsurfInitialize(this)
 
@@ -227,8 +227,11 @@ subroutine InvPerturbationConnectForwardRun(this)
 
   class(inversion_perturbation_type) :: this
 
+  type(discretization_type), pointer :: discretization
+  Vec :: work
   PetscReal, pointer :: vec_ptr(:)
   PetscInt, parameter :: isubdof = ZERO_INTEGER
+  PetscReal :: rmin, rmax
   PetscErrorCode :: ierr
 
   call InvSubsurfConnectToForwardRun(this)
@@ -242,20 +245,41 @@ subroutine InvPerturbationConnectForwardRun(this)
     call VecCopy(this%quantity_of_interest,this%quantity_of_interest_base, &
                                      ierr);CHKERRQ(ierr)
   else
+    discretization => this%realization%discretization
+    work = this%realization%field%work
+    call DiscretizationCreateVector(discretization, &
+                                    ONEDOF,this%natural_vec, &
+                                    NATURAL,this%realization%option)
     call VecCopy(this%quantity_of_interest_base,this%quantity_of_interest, &
                  ierr);CHKERRQ(ierr)
     call VecGetArrayF90(this%quantity_of_interest,vec_ptr, &
                         ierr);CHKERRQ(ierr)
-    this%pert = this%perturbation_tolerance*vec_ptr(this%idof_pert)
-    vec_ptr(this%idof_pert) = vec_ptr(this%idof_pert) + this%pert
-    call VecRestoreArrayF90(this%quantity_of_interest,vec_ptr, &
-                            ierr);CHKERRQ(ierr)
+    call VecZeroEntries(this%natural_vec,ierr);CHKERRQ(ierr)
+    if (this%driver%comm%myrank == 0) then
+      call VecSetValue(this%natural_vec,this%idof_pert-1, &
+                       this%perturbation_tolerance,INSERT_VALUES, &
+                       ierr);CHKERRQ(ierr)
+    endif
+    call VecAssemblyBegin(this%natural_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(this%natural_vec,ierr);CHKERRQ(ierr)
+    call DiscretizationNaturalToGlobal(discretization,this%natural_vec, &
+                                       work,ONEDOF)
+    call VecPointwiseMult(work,work,this%quantity_of_interest,ierr);CHKERRQ(ierr)
+    call VecMax(work,PETSC_NULL_INTEGER,rmax,ierr);CHKERRQ(ierr)
+    call VecMin(work,PETSC_NULL_INTEGER,rmin,ierr);CHKERRQ(ierr)
+    if (rmax > 0.d0) then
+      this%pert = rmax
+    else
+      this%pert = rmin
+    endif
+    call VecAXPY(this%quantity_of_interest,1.d0,work,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(this%realization%discretization, &
                                      this%quantity_of_interest, &
                                      this%realization%field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
                                  this%iqoi,isubdof)
+    call VecDestroy(this%natural_vec,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine InvPerturbationConnectForwardRun
@@ -359,6 +383,9 @@ subroutine InversionPerturbationStrip(this)
    call DeallocateArray(this%base_solution_measurement)
    if (this%quantity_of_interest_base /= PETSC_NULL_VEC) then
     call VecDestroy(this%quantity_of_interest_base,ierr);CHKERRQ(ierr)
+   endif
+   if (this%natural_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(this%natural_vec,ierr);CHKERRQ(ierr)
    endif
 
 end subroutine InversionPerturbationStrip
