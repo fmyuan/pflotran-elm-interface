@@ -9038,6 +9038,7 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
   use Grid_module
   use Option_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_Aux_module
 
   implicit none
 
@@ -9050,7 +9051,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   PetscReal :: aq_species_mass    ! [mol]
   PetscReal :: sorb_species_mass  ! [mol]
   PetscReal :: ppt_species_mass   ! [mol]
@@ -9063,8 +9066,16 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
 
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  rt_auxvars => patch%aux%RT%auxvars
-  reaction => patch%reaction
+
+  select case(option%itranmode)
+    case(RT_MODE)
+      rt_auxvars => patch%aux%RT%auxvars
+      reaction => patch%reaction
+    case(NWT_MODE)
+      nwt_auxvars => patch%aux%NWT%auxvars
+      reaction_nw => patch%reaction_nw
+  end select
+ 
   local_total_mass = 0.d0
   global_total_mass = 0.d0
 
@@ -9077,43 +9088,51 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
                global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     m3_bulk = material_auxvars(ghosted_id)%volume                ! [m^3-bulk]
-    ! Loop through aqueous and sorbed species:
-    do j = 1,reaction%ncomp
-      aq_species_mass = 0.d0
-      sorb_species_mass = 0.d0
-      ! aqueous species; units [mol/L-water]*[m^3-water]*[1000L/m^3-water]=[mol]
-      aq_species_mass = rt_auxvars(ghosted_id)%total(j,LIQUID_PHASE) * &
-                        m3_water * 1.0d3     
-      if (reaction%print_total_mass_kg) then
-        ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
-        aq_species_mass = aq_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
-      endif
-      if (associated(rt_auxvars(ghosted_id)%total_sorb_eq)) then
-        ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
-        sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
-        if (reaction%print_total_mass_kg) then
-          ! sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
-          sorb_species_mass = sorb_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
-        endif
-      else
-        sorb_species_mass = 0.d0
-      endif
-      local_total_mass = local_total_mass + aq_species_mass + &
-                                            sorb_species_mass
-    enddo
-    ! Loop through precipitated species:
-    do m = 1,reaction%mineral%nkinmnrl
-      ppt_species_mass = 0.d0
-      ! precip. species; units [m^3-mnrl/m^3-bulk]*[m^3-bulk]/[m^3-mnrl/mol-mnrl]=[mol]
-      ppt_species_mass = rt_auxvars(ghosted_id)%mnrl_volfrac(m) * m3_bulk / &
-                         reaction%mineral%kinmnrl_molar_vol(m)
-      if (reaction%print_total_mass_kg) then
-        ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
-        ppt_species_mass = ppt_species_mass * reaction%mineral%kinmnrl_molar_wt(j) * &
-                           1.0d-3
-      endif
-      local_total_mass = local_total_mass + ppt_species_mass
-    enddo
+    select case(option%itranmode)
+      case(RT_MODE)
+        ! Loop through aqueous and sorbed species:
+        do j = 1,reaction%ncomp
+          aq_species_mass = 0.d0
+          sorb_species_mass = 0.d0
+          ! aqueous species; units [mol/L-water]*[m^3-water]*[1000L/m^3-water]=[mol]
+          aq_species_mass = rt_auxvars(ghosted_id)%total(j,LIQUID_PHASE) * &
+                            m3_water * 1.0d3
+          if (reaction%print_total_mass_kg) then
+            ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
+            aq_species_mass = aq_species_mass * &
+                              reaction%primary_spec_molar_wt(j) * 1.0d-3
+          endif
+          if (associated(rt_auxvars(ghosted_id)%total_sorb_eq)) then
+            ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
+            sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * &
+                                m3_bulk
+          else
+            sorb_species_mass = 0.d0
+          endif
+          local_total_mass = local_total_mass + aq_species_mass + &
+                                                sorb_species_mass
+        enddo
+        ! Loop through precipitated species:
+        do m = 1,reaction%mineral%nkinmnrl
+          ppt_species_mass = 0.d0
+          ! precip. species; units [m^3-mnrl/m^3-bulk]*[m^3-bulk]/[m^3-mnrl/mol-mnrl]=[mol]
+          ppt_species_mass = rt_auxvars(ghosted_id)%mnrl_volfrac(m) * m3_bulk / &
+                             reaction%mineral%kinmnrl_molar_vol(m)
+          if (reaction%print_total_mass_kg) then
+            ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
+            ppt_species_mass = ppt_species_mass * &
+                               reaction%mineral%kinmnrl_molar_wt(j) * 1.0d-3
+          endif
+          local_total_mass = local_total_mass + ppt_species_mass
+        enddo
+      case(NWT_MODE)
+        ! loop through species
+        do j = 1,reaction_nw%params%nspecies
+          local_total_mass = local_total_mass + &
+                             nwt_auxvars(ghosted_id)%total_bulk_conc(j) * &
+                             m3_bulk
+        enddo
+    end select  
   enddo ! Cell loop
 
   ! Sum the local_total_mass across all processes that own the region:
