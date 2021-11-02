@@ -35,6 +35,7 @@ module Output_HDF5_module
             OutputH5CloseGroup, &
             OutputXMFOpenFile, &
             DetermineNumVertices, &
+            OutputHDF5WriteStructCoordGroup, &
             WriteHDF5CoordinatesUGridXDMF
 
 contains

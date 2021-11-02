@@ -16,6 +16,7 @@ module ZFlow_Aux_module
   PetscReal, public :: zflow_pres_rel_pert = 1.d-8
   PetscReal, public :: zflow_pres_min_pert = 1.d-2
 
+  PetscBool, public :: zflow_calc_adjoint = PETSC_FALSE
   PetscBool, public :: zflow_calc_accum = PETSC_TRUE
   PetscBool, public :: zflow_calc_flux = PETSC_TRUE
   PetscBool, public :: zflow_calc_bcflux = PETSC_TRUE

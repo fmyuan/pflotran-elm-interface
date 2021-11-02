@@ -6,6 +6,7 @@ module Inversion_Base_class
   use PFLOTRAN_Constants_module
   use Driver_module
   use Timer_class
+  use Option_Inversion_module
 
   implicit none
 
@@ -14,6 +15,7 @@ module Inversion_Base_class
   type, public :: inversion_base_type
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
+    type(inversion_option_type), pointer :: inversion_option
     PetscInt :: iteration                ! iteration number
     PetscInt :: maximum_iteration        ! Maximum iteration number
     PetscBool :: converg_flag            ! convergence flag
@@ -21,17 +23,20 @@ module Inversion_Base_class
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseInitialize
     procedure, public :: ReadBlock => InversionBaseReadBlock
-    procedure, public :: Step => InversionBaseStep
+    procedure, public :: Step => InversionBaseThisOnly
+    procedure, public :: ConnectToFowardRun => InversionBaseThisOnly
     procedure, public :: InitializeIterationNumber => &
                            InversionBaseInitIterationNum
     procedure, public :: IncrementIteration => InversionBaseIncrementIteration
-    procedure, public :: UpdateParameters => InversionBaseUpdateParameters
-    procedure, public :: CalculateUpdate => InversionBaseCalculateUpdate
-    procedure, public :: CheckConvergence => InversionBaseCheckConvergence
-    procedure, public :: EvaluateCostFunction => InvBaseEvaluateCostFunction
-    procedure, public :: UpdateRegularizParameters => &
-                           InvBaseUpdateRegularizParams
-    procedure, public :: WriteIterationInfo => InversionBaseWriteIterationInfo
+    procedure, public :: UpdateParameters => InversionBaseThisOnly
+    procedure, public :: CalculateUpdate => InversionBaseThisOnly
+    procedure, public :: CalculateSensitivity => InversionBaseThisOnly
+    procedure, public :: OutputSensitivity => InversionBaseOutputSensitivity
+    procedure, public :: Invert => InversionBaseThisOnly
+    procedure, public :: CheckConvergence => InversionBaseThisOnly
+    procedure, public :: EvaluateCostFunction => InversionBaseThisOnly
+    procedure, public :: UpdateRegularizParameters => InversionBaseThisOnly
+    procedure, public :: WriteIterationInfo => InversionBaseThisOnly
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
   end type inversion_base_type
@@ -60,6 +65,7 @@ subroutine InversionBaseInit(this,driver)
   this%driver => driver
   this%timer => TimerCreate()
   call this%timer%Start()
+  this%inversion_option => OptionInversionCreate()
 
   this%iteration = 0
   this%maximum_iteration = UNINITIALIZED_INTEGER
@@ -126,6 +132,17 @@ end subroutine InversionBaseInitialize
 
 ! ************************************************************************** !
 
+subroutine InversionBaseThisOnly(this)
+
+  class(inversion_base_type) :: this
+
+  call this%driver%PrintErrMsg('An inversion routine that passes only "this" &
+    &must be extended from the Base implementation.')
+
+end subroutine InversionBaseThisOnly
+
+! ************************************************************************** !
+
 subroutine InversionBaseInitIterationNum(this)
   !
   ! Sets starting iteration number
@@ -156,107 +173,15 @@ end subroutine InversionBaseIncrementIteration
 
 ! ************************************************************************** !
 
-subroutine InversionBaseStep(this)
-  !
-  ! Initializes inversion
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/04/21
-  !
+subroutine InversionBaseOutputSensitivity(this,suffix)
+
   class(inversion_base_type) :: this
+  character(len=*) :: suffix
 
-  call this%driver%PrintErrMsg('InversionBaseStep must be extended.')
+  call this%driver%PrintErrMsg('InversionBaseOutputSensitivity &
+    &must be extended from the Base implementation.')
 
-end subroutine InversionBaseStep
-
-! ************************************************************************** !
-
-subroutine InversionBaseUpdateParameters(this)
-  !
-  ! Initializes inversion
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/04/21
-  !
-  class(inversion_base_type) :: this
-
-  call this%driver%PrintErrMsg('InversionBaseUpdateParameters must be extended.')
-end subroutine InversionBaseUpdateParameters
-
-! ************************************************************************** !
-
-subroutine InversionBaseCalculateUpdate(this)
-  !
-  ! Initializes inversion
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/04/21
-  !
-  class(inversion_base_type) :: this
-
-  call this%driver%PrintErrMsg('InversionBaseCalculateUpdate must be extended.')
-
-end subroutine InversionBaseCalculateUpdate
-
-! ************************************************************************** !
-
-subroutine InversionBaseCheckConvergence(this)
-  !
-  ! Check inversion convergence
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 06/14/21
-  !
-  class(inversion_base_type) :: this
-
-  call this%driver%PrintErrMsg('InversionBaseCheckConvergence must be extended.')
-
-end subroutine InversionBaseCheckConvergence
-
-! ************************************************************************** !
-
-subroutine InvBaseEvaluateCostFunction(this)
-  !
-  ! Computes cost functions
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 06/14/21
-  !
-  class(inversion_base_type) :: this
-
-  call this%driver%PrintErrMsg('InvBaseEvaluateCostFunction must be extended.')
-
-end subroutine InvBaseEvaluateCostFunction
-
-! ************************************************************************** !
-
-subroutine InvBaseUpdateRegularizParams(this)
-  !
-  ! Computes cost functions
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 06/18/21
-  !
-  class(inversion_base_type) :: this
-
-  call this%driver%PrintErrMsg('InvBaseUpdateRegularizParams must be extended.')
-
-end subroutine InvBaseUpdateRegularizParams
-
-! ************************************************************************** !
-
-subroutine InversionBaseWriteIterationInfo(this)
-  !
-  ! Writes inversion run info
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 07/01/21
-  !
-  class(inversion_base_type) :: this
-
-  call this%driver%PrintErrMsg('InversionBaseWriteIterationInfo must be extended.')
-
-end subroutine InversionBaseWriteIterationInfo
+end subroutine InversionBaseOutputSensitivity
 
 ! ************************************************************************** !
 
@@ -289,6 +214,7 @@ subroutine InversionBaseStrip(this)
 
   nullify(this%driver)
   call TimerDestroy(this%timer)
+  call OptionInversionDestroy(this%inversion_option)
 
 end subroutine InversionBaseStrip
 

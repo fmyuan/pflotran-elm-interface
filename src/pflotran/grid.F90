@@ -8,18 +8,18 @@ module Grid_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Polyhedra_module
   use Connection_module
- 
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
 
-  type, public :: grid_type 
-  
+  type, public :: grid_type
+
     character(len=MAXWORDLENGTH) :: ctype
     PetscInt :: itype  ! type of grid (e.g. structured_grid, implicit_unstructured_grid, etc.)
-    
+
     PetscInt :: nmax   ! Total number of nodes in global domain
     PetscInt :: nlmax  ! Total number of non-ghosted nodes in local domain.
     PetscInt :: ngmax  ! Number of ghosted & non-ghosted nodes in local domain.
@@ -28,33 +28,33 @@ module Grid_module
     PetscInt :: ngmax_faces  ! Number of ghosted & non-ghosted faces in local domain.
     PetscInt :: nmax_faces  ! Number of ghosted & non-ghosted faces in local domain.
     PetscInt :: global_cell_offset, global_faces_offset  ! offsets for LP formulation
-   
-    ! Below, we define several arrays used for mapping between different 
+
+    ! Below, we define several arrays used for mapping between different
     ! types of array indices.  Our terminology is as follows:
     !
-    ! 'Local' indices are used to access arrays containing values that are 
-    ! entirely local to the MPI process -- these arrays contain no "ghost" 
-    ! entries used to hold copies of values that are owned by neighboring 
+    ! 'Local' indices are used to access arrays containing values that are
+    ! entirely local to the MPI process -- these arrays contain no "ghost"
+    ! entries used to hold copies of values that are owned by neighboring
     ! processes.
     !
-    ! 'Ghosted local' (or simply 'ghost') indices are used to access arrays 
-    ! that contain additional entries that hold copies of values that are 
-    ! owned by neighboring processes.  (These entries are filled in by 
+    ! 'Ghosted local' (or simply 'ghost') indices are used to access arrays
+    ! that contain additional entries that hold copies of values that are
+    ! owned by neighboring processes.  (These entries are filled in by
     ! DMGlobalToLocalBegin/End() in the structured grid case.)
     !
-    ! Entries of a vector created with DMCreateGlobalVector() should be 
-    ! indexed using 'local' indices.  The array returned from a call to 
-    ! VecGetArrayF90() on such a vector consists of local entries only and 
+    ! Entries of a vector created with DMCreateGlobalVector() should be
+    ! indexed using 'local' indices.  The array returned from a call to
+    ! VecGetArrayF90() on such a vector consists of local entries only and
     ! NO ghost points.
     !
-    ! Entries of a vector created with DMCreateLocalVector() should be 
-    ! indexed using 'ghosted local' indices.  The array returned from a call 
-    ! to VecGetArrayF90() on such a vector contains the truly3 local entries 
+    ! Entries of a vector created with DMCreateLocalVector() should be
+    ! indexed using 'ghosted local' indices.  The array returned from a call
+    ! to VecGetArrayF90() on such a vector contains the truly3 local entries
     ! as well as ghost points.
     !
     ! The index mapping arrays are the following:
-    ! nL2G :  not collective, local processor: local  =>  ghosted local  
-    ! nG2L :  not collective, local processor:  ghosted local => local  
+    ! nL2G :  not collective, local processor: local  =>  ghosted local
+    ! nG2L :  not collective, local processor:  ghosted local => local
     ! nG2A :  not collective, ghosted local => natural
 
     PetscInt, pointer :: nL2G(:), nG2L(:)
@@ -77,16 +77,16 @@ module Grid_module
 
     type(grid_structured_type), pointer :: structured_grid
     type(grid_unstructured_type), pointer :: unstructured_grid
-    
+
     type(connection_set_list_type), pointer :: internal_connection_set_list
     type(connection_set_list_type), pointer :: boundary_connection_set_list
 
     ! list of connections defined over specific regions
     type(connection_set_list_type), pointer :: reg_internal_connection_set_list
     type(connection_set_list_type), pointer :: reg_boundary_connection_set_list
-    
+
   end type grid_type
-  
+
   type, public :: face_type
     type(connection_set_type), pointer :: conn_set_ptr
     PetscInt :: id
@@ -116,26 +116,27 @@ module Grid_module
             GridGetLocalIDFromCoordinate, &
             GridRestrictRegionalConnect, &
             GridPrintExtents, &
-            GridSetupCellNeighbors
-  
+            GridSetupCellNeighbors, &
+            GridMapCellsToConnections
+
 contains
 
 ! ************************************************************************** !
 
 function GridCreate()
-  ! 
+  !
   ! Creates a structured or unstructured grid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/23/07
-  ! 
+  !
 
   implicit none
-  
+
   type(grid_type), pointer :: GridCreate
-  
+
   type(grid_type), pointer :: grid
-  
+
   allocate(grid)
   grid%ctype = ''
   grid%itype = 0
@@ -169,7 +170,7 @@ function GridCreate()
   grid%z_max_local = -MAX_DOUBLE
 
   grid%nmax = 0
-  grid%nlmax = 0 
+  grid%nlmax = 0
   grid%ngmax = 0
   grid%global_offset = 0
 
@@ -184,37 +185,37 @@ end function GridCreate
 ! ************************************************************************** !
 
 subroutine GridComputeInternalConnect(grid,option,ugdm)
-  ! 
+  !
   ! computes internal connectivity of a grid
   ! sp modified December 2010
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/17/07
-  ! 
+  !
 
   use Connection_module
   use Option_module
   use Grid_Unstructured_Explicit_module
   use Grid_Unstructured_Polyhedra_module
-    
+
   implicit none
-  
+
   PetscInt ierr
 
   type(grid_type) :: grid
   type(option_type) :: option
   type(ugdm_type), optional :: ugdm
-  
+
   type(connection_set_type), pointer :: connection_set, connection_bound_set
   type(connection_set_type), pointer :: connection_set_2
   nullify(connection_set); nullify(connection_bound_set)
-  
+
   select case(grid%itype)
     case(STRUCTURED_GRID)
       connection_set => &
         StructGridComputeInternConnect( grid%structured_grid, grid%x, grid%y, &
                                     grid%z, option)
-    case(IMPLICIT_UNSTRUCTURED_GRID) 
+    case(IMPLICIT_UNSTRUCTURED_GRID)
       connection_set => &
         UGridComputeInternConnect(grid%unstructured_grid,grid%x,grid%y, &
                                   grid%z,option)
@@ -232,14 +233,14 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
       call UGridPolyhedraComputeOutputInfo(grid%unstructured_grid, grid%nL2G, &
                                            grid%nG2L, grid%nG2A, option)
   end select
-  
+
   allocate(grid%internal_connection_set_list)
   call ConnectionInitList(grid%internal_connection_set_list)
   call ConnectionAddToList(connection_set,grid%internal_connection_set_list)
 
 
   select case(grid%itype)
-    case(IMPLICIT_UNSTRUCTURED_GRID) 
+    case(IMPLICIT_UNSTRUCTURED_GRID)
 !      connection_bound_set => &
 !        UGridComputeBoundConnect(grid%unstructured_grid,option)
   end select
@@ -249,19 +250,19 @@ end subroutine GridComputeInternalConnect
 ! ************************************************************************** !
 
 function ConnectionSetIntersectRegion(connection_set,region) result(reg_connection_set)
-  ! 
+  !
   ! Returns a pointer to a new connection set created from the input
   ! set, where cell ids belong to the input region. Important: the
   ! cell ids of the regional set are local to the region.
   !
   ! Author: Nathan Collier
   ! Date: 09/2015
-  ! 
+  !
 
   use Region_module
-  
+
   implicit none
-  type(connection_set_type), pointer :: connection_set,reg_connection_set  
+  type(connection_set_type), pointer :: connection_set,reg_connection_set
   type(region_type),         pointer :: region
 
   PetscInt, allocatable :: ids(:,:)
@@ -303,22 +304,22 @@ function ConnectionSetIntersectRegion(connection_set,region) result(reg_connecti
 
   ! cleanup and return
   deallocate(ids)
-  
+
 end function ConnectionSetIntersectRegion
 
 ! ************************************************************************** !
 
 subroutine GridRestrictRegionalConnect(grid,region)
-  ! 
+  !
   ! Populates the internal regional connection list of a grid
-  ! 
+  !
   ! Author: Nathan Collier
   ! Date: 09/2015
   !
   use Region_module
-  
+
   implicit none
-  
+
   type(grid_type)           :: grid
   type(region_type),pointer :: region
 
@@ -332,7 +333,7 @@ subroutine GridRestrictRegionalConnect(grid,region)
 
   ! populate the list
   cur_connection_set => grid%internal_connection_set_list%first
-  do 
+  do
      if (.not.associated(cur_connection_set)) exit
      reg_connection_set => ConnectionSetIntersectRegion(cur_connection_set,region)
      if (associated(reg_connection_set)) then
@@ -340,40 +341,40 @@ subroutine GridRestrictRegionalConnect(grid,region)
      endif
      cur_connection_set => cur_connection_set%next
   enddo
-  
+
 end subroutine GridRestrictRegionalConnect
 
 ! ************************************************************************** !
 
 subroutine GridPopulateConnection(grid,connection,iface,iconn,cell_id_local, &
                                   option)
-  ! 
+  !
   ! computes connectivity coupler to a grid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/09/07
-  ! 
+  !
 
   use Connection_module
   use Grid_Structured_module
   use Option_module
-  
+
   implicit none
- 
+
   type(grid_type) :: grid
   type(connection_set_type) :: connection
   PetscInt :: iface
   PetscInt :: iconn
   PetscInt :: cell_id_local
   type(option_type) :: option
-  
+
   PetscInt :: cell_id_ghosted
-  
+
   cell_id_ghosted = grid%nL2G(cell_id_local)
   ! Use ghosted index to access dx, dy, dz because we have
   ! already done a global-to-local scatter for computing the
   ! interior node connections.
-  
+
   select case(grid%itype)
     case(STRUCTURED_GRID)
       call StructGridPopulateConnection(grid%x,grid%structured_grid,connection, &
@@ -391,13 +392,13 @@ end subroutine GridPopulateConnection
 ! ************************************************************************** !
 
 subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
-  ! 
+  !
   ! maps global, local and natural indices of cells
   ! to each other
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/24/07
-  ! 
+  !
 
 #include "petsc/finclude/petscdm.h"
   use petscdm
@@ -406,7 +407,7 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
   use DM_Kludge_module
 
   implicit none
-  
+
   type(grid_type) :: grid
   type(dm_ptr_type) :: dm_ptr
   PetscEnum :: sgrid_stencil_type
@@ -416,7 +417,7 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
 ! PetscInt, pointer :: int_tmp(:)
   PetscInt :: n
   PetscOffset :: i_da
-  
+
   select case(grid%itype)
     case(STRUCTURED_GRID)
       call StructGridMapIndices(grid%structured_grid,sgrid_stencil_type, &
@@ -428,58 +429,58 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
                            dm_ptr%ugdm, &
                            grid%nG2L,grid%nL2G,grid%nG2A,option)
   end select
- 
- 
+
+
 end subroutine GridMapIndices
 
 ! ************************************************************************** !
 
 subroutine GridComputeSpacing(grid,origin_global,option)
-  ! 
+  !
   ! Computes grid spacing (only for structured grid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/07
-  ! 
+  !
   use Option_module
 
   implicit none
-  
+
   type(grid_type) :: grid
   PetscReal :: origin_global(3)
   type(option_type) :: option
-  
+
   select case(grid%itype)
     case(STRUCTURED_GRID)
       call StructGridComputeSpacing(grid%structured_grid,origin_global,option)
     case(IMPLICIT_UNSTRUCTURED_GRID)
   end select
-  
+
 end subroutine GridComputeSpacing
 
 ! ************************************************************************** !
 
 subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
-  ! 
+  !
   ! Computes x,y,z coordinates of grid cells
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/24/07
-  ! 
+  !
 
   use Option_module
   use Grid_Unstructured_Explicit_module
   use Grid_Unstructured_Polyhedra_module
-  
+
   implicit none
 
   type(grid_type) :: grid
   PetscReal :: origin_global(3)
   type(option_type) :: option
-  type(ugdm_type), optional :: ugdm ! sp 
+  type(ugdm_type), optional :: ugdm ! sp
   PetscInt :: icell
-  
-  PetscErrorCode :: ierr  
+
+  PetscErrorCode :: ierr
 
   allocate(grid%x(grid%ngmax))
   grid%x = 0.d0
@@ -487,7 +488,7 @@ subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
   grid%y = 0.d0
   allocate(grid%z(grid%ngmax))
   grid%z = 0.d0
-  
+
   select case(grid%itype)
     case(STRUCTURED_GRID)
       call StructGridComputeCoord(grid%structured_grid,option, &
@@ -537,23 +538,23 @@ end subroutine GridComputeCoordinates
 ! ************************************************************************** !
 
 subroutine GridComputeVolumes(grid,volume,option)
-  ! 
+  !
   ! Computes the volumes of cells in structured grid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
-  ! 
+  !
 
   use Option_module
   use Grid_Unstructured_Explicit_module
   use Grid_Unstructured_Polyhedra_module
-  
+
   implicit none
 
   type(grid_type) :: grid
   type(option_type) :: option
   Vec :: volume
-  
+
   select case(grid%itype)
     case(STRUCTURED_GRID)
       call StructGridComputeVolumes(grid%x,grid%structured_grid,option, &
@@ -573,21 +574,21 @@ end subroutine GridComputeVolumes
 ! ************************************************************************** !
 
 subroutine GridComputeAreas(grid,area,option)
-  ! 
+  !
   ! Computes the areas for 2D-mesh
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 03/07/2012
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   type(grid_type) :: grid
   type(option_type) :: option
   Vec :: area
-  
+
   select case(grid%itype)
     case(IMPLICIT_UNSTRUCTURED_GRID)
       call UGridComputeAreas(grid%unstructured_grid,option,area)
@@ -602,23 +603,23 @@ end subroutine GridComputeAreas
 ! ************************************************************************** !
 
 subroutine GridLocalizeRegions(grid,region_list,option)
-  ! 
+  !
   ! Resticts regions to cells local to processor
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07
-  ! 
+  !
 
   use Option_module
   use Region_module
   use Geometry_module
 
   implicit none
-  
+
   type(region_list_type), pointer :: region_list
   type(grid_type), pointer :: grid
   type(option_type) :: option
-  
+
   type(region_type), pointer :: region
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt, allocatable :: temp_int_array(:)
@@ -690,10 +691,10 @@ subroutine GridLocalizeRegions(grid,region_list,option)
         endif
         call GridLocalizeExplicitFaceset(grid%unstructured_grid,region, &
                                          option)
-        ! For explicit unstructured grids, the face locations are not 
-        ! defined in the grid. They are in the boundary connections. We 
-        ! must update the global bounds of the domain to account for 
-        ! these faces. Otherwise, algorithms such as hydrostatic, etc. 
+        ! For explicit unstructured grids, the face locations are not
+        ! defined in the grid. They are in the boundary connections. We
+        ! must update the global bounds of the domain to account for
+        ! these faces. Otherwise, algorithms such as hydrostatic, etc.
         ! may not span the proper bounds.
         update_grid_bounds = PETSC_TRUE
         if (associated(region%explicit_faceset)) then
@@ -759,17 +760,17 @@ subroutine GridLocalizeRegions(grid,region_list,option)
   ! must be calculated again for explicit unstructured grids
   if (update_grid_bounds) then
     ! compute global max/min from the local max/in
-    call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, & 
+    call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, &
                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-    call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, & 
+    call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, &
                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-    call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, & 
+    call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, &
                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-    call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, & 
+    call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-    call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, & 
+    call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-    call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, & 
+    call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   endif
 
@@ -778,10 +779,10 @@ end subroutine GridLocalizeRegions
 ! ************************************************************************** !
 
 subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
-  ! 
+  !
   ! Redistributed cells ids in a grid based on natural numbering to their
   ! respective global index (PETSc ordering). Sets face information too.
-  ! 
+  !
   ! Author: Gautam Bisht, Glenn Hammond
   ! Date: 5/30/2011, 09/14/16
 
@@ -820,9 +821,9 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
                     vec_cell_ids, ierr);CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DECIDE, &
                     vec_cell_ids_loc, ierr);CHKERRQ(ierr)
-    
+
   call VecZeroEntries(vec_cell_ids, ierr);CHKERRQ(ierr)
-    
+
   allocate(tmp_int_array(region%num_cells))
   allocate(tmp_scl_array(region%num_cells))
 
@@ -847,7 +848,7 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
 
   call VecSetValues(vec_cell_ids, region%num_cells, tmp_int_array, &
                     tmp_scl_array, ADD_VALUES, ierr);CHKERRQ(ierr)
-  
+
   deallocate(tmp_int_array)
   deallocate(tmp_scl_array)
 
@@ -860,12 +861,12 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
     natural_id = grid%nG2A(grid%nL2G(local_id))
     tmp_int_array(local_id) = natural_id
   enddo
-  
+
   tmp_int_array = tmp_int_array - 1
   call ISCreateBlock(option%mycomm, 1, grid%nlmax, &
                      tmp_int_array, PETSC_COPY_VALUES, is_from,  &
                      ierr);CHKERRQ(ierr)
-  
+
   call VecGetOwnershipRange(vec_cell_ids_loc,istart,iend,ierr);CHKERRQ(ierr)
   do ii=1,grid%nlmax
     tmp_int_array(ii) = ii + istart
@@ -876,12 +877,12 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
                       tmp_int_array, PETSC_COPY_VALUES, is_to,  &
                      ierr);CHKERRQ(ierr)
   deallocate(tmp_int_array)
-  
+
   call VecScatterCreate(vec_cell_ids,is_from,vec_cell_ids_loc,is_to, &
                         vec_scat, ierr);CHKERRQ(ierr)
   call ISDestroy(is_from, ierr);CHKERRQ(ierr)
   call ISDestroy(is_to, ierr);CHKERRQ(ierr)
-  
+
   call VecScatterBegin(vec_scat, vec_cell_ids, vec_cell_ids_loc, &
                        INSERT_VALUES, SCATTER_FORWARD, ierr);CHKERRQ(ierr)
   call VecScatterEnd(vec_scat, vec_cell_ids, vec_cell_ids_loc, &
@@ -908,7 +909,7 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
       count = count + 1
     endif
   enddo
-    
+
   region%num_cells = count
   call DeallocateArray(region%cell_ids)
   call DeallocateArray(region%faces)
@@ -947,9 +948,9 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
       endif
     enddo
   endif
-  
+
   call VecRestoreArrayF90(vec_cell_ids_loc,v_loc_p,ierr);CHKERRQ(ierr)
-  
+
   call VecDestroy(vec_cell_ids,ierr);CHKERRQ(ierr)
   call VecDestroy(vec_cell_ids_loc,ierr);CHKERRQ(ierr)
 
@@ -958,18 +959,18 @@ end subroutine GridLocalizeRegionsFromCellIDs
 ! ************************************************************************** !
 
 subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
-  ! 
+  !
   ! GridLocalizeExplicitFaceset
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/10/12
-  ! 
+  !
 
   use Region_module
   use Option_module
 
   implicit none
-  
+
   type(grid_unstructured_type) :: ugrid
   type(region_type) :: region
   type(option_type) :: option
@@ -977,7 +978,7 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
 
   type(unstructured_explicit_type), pointer :: explicit_grid
   type(region_explicit_face_type), pointer :: faceset
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: icell, count
   PetscInt, allocatable :: int_array(:)
@@ -986,7 +987,7 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
 
   explicit_grid => ugrid%explicit_grid
   faceset => region%explicit_faceset
-  
+
   call RegionCheckCellIndexBounds(region,ugrid%nmax,option)
 
   ! convert ids to petsc
@@ -994,8 +995,8 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
   call AOApplicationToPetsc(ugrid%ao_natural_to_petsc,size(region%cell_ids), &
                             region%cell_ids,ierr);CHKERRQ(ierr)
   region%cell_ids = region%cell_ids + 1
-  
-  ! if petsc ids are below global_offset or above global_offset + nlmax, 
+
+  ! if petsc ids are below global_offset or above global_offset + nlmax,
   ! they are off processor; otherwise, local
 
   allocate(int_array(size(region%cell_ids)))
@@ -1021,7 +1022,7 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
       endif
     endif
   enddo
-  
+
   deallocate(region%cell_ids)
   allocate(region%cell_ids(count))
   region%cell_ids = int_array(1:count)
@@ -1032,7 +1033,7 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
     deallocate(faceset%face_areas)
     allocate(faceset%face_centroids(count))
     allocate(faceset%face_areas(count))
-  
+
     do icell = 1, count
       faceset%face_centroids(icell)%x = real_array_2d(1,icell)
       faceset%face_centroids(icell)%y = real_array_2d(2,icell)
@@ -1041,10 +1042,10 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
     enddo
     deallocate(real_array_2d)
   endif
-  
+
 
   region%num_cells = count
-  
+
   if (region%num_cells == 0) then
     deallocate(region%cell_ids)
     nullify(region%cell_ids)
@@ -1079,83 +1080,83 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
     endif
     close(86)
   endif
-#endif  
+#endif
 
 end subroutine GridLocalizeExplicitFaceset
 
 ! ************************************************************************** !
 
 subroutine GridCopyIntegerArrayToVec(grid, array,vector,num_values)
-  ! 
+  !
   ! Copies values from an integer array into a
   ! PETSc Vec
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/18/07
-  ! 
+  !
   implicit none
 
   type(grid_type) :: grid
   PetscInt :: array(:)
   Vec :: vector
   PetscInt :: num_values
-  
+
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
-  
+
   call VecGetArrayF90( vector,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(1:num_values) = array(1:num_values)
   call VecRestoreArrayF90( vector,vec_ptr,ierr);CHKERRQ(ierr)
-  
+
 end subroutine GridCopyIntegerArrayToVec
 
 ! ************************************************************************** !
 
 subroutine GridCopyRealArrayToVec(grid,array,vector,num_values)
-  ! 
+  !
   ! Copies values from an integer array into a
   ! PETSc Vec
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/18/07
-  ! 
+  !
   implicit none
-    
+
   type(grid_type) :: grid
   PetscReal :: array(:)
   Vec :: vector
   PetscInt :: num_values
-  
+
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
-  
+
   call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(1:num_values) = array(1:num_values)
   call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  
+
 end subroutine GridCopyRealArrayToVec
 
 ! ************************************************************************** !
 
 subroutine GridCopyVecToIntegerArray(grid,array,vector,num_values)
-  ! 
+  !
   ! Copies values from a PETSc Vec to an
   ! integer array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/18/07
-  ! 
+  !
   implicit none
-  
+
   type(grid_type) :: grid
   PetscInt :: array(:)
   Vec :: vector
   PetscInt :: num_values
-  
+
   PetscInt :: i
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
-  
+
   call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
   do i=1,num_values
     if (vec_ptr(i) > 0.d0) then
@@ -1165,52 +1166,52 @@ subroutine GridCopyVecToIntegerArray(grid,array,vector,num_values)
     endif
   enddo
   call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  
+
 end subroutine GridCopyVecToIntegerArray
 
 ! ************************************************************************** !
 
 subroutine GridCopyVecToRealArray(grid,array,vector,num_values)
-  ! 
+  !
   ! Copies values from a PETSc Vec to an integer
   ! array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/18/07
-  ! 
+  !
   implicit none
-    
+
   type(grid_type) :: grid
   PetscReal :: array(:)
   Vec :: vector
   PetscInt :: num_values
-  
+
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
-  
+
   call VecGetArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
   array(1:num_values) = vec_ptr(1:num_values)
   call VecRestoreArrayF90(vector,vec_ptr,ierr);CHKERRQ(ierr)
-  
+
 end subroutine GridCopyVecToRealArray
 
 ! ************************************************************************** !
 
 subroutine GridCreateNaturalToGhostedHash(grid,option)
-  ! 
+  !
   ! Creates a hash table for looking up the
   ! local ghosted id of a natural id, if it
   ! exists
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/07/07
-  ! 
+  !
 
   use Option_module
-  use Logging_module  
-  
+  use Logging_module
+
   implicit none
-  
+
   type(grid_type) :: grid
   type(option_type) :: option
 
@@ -1223,7 +1224,7 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
   if (associated(grid%hash)) return
 
   call PetscLogEventBegin(logging%event_hash_create,ierr);CHKERRQ(ierr)
-                          
+
   max_num_ids_per_hash = 0
   ! initial guess of 10% of ids per hash
   ! must be at least 5 so that reallocation (*1.2) works below
@@ -1232,15 +1233,15 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
   allocate(hash(2,0:num_ids_per_hash,grid%num_hash_bins))
   hash(:,:,:) = 0
 
-  
+
   do local_ghosted_id = 1, grid%ngmax
     natural_id = grid%nG2A(local_ghosted_id) !nG2A is 1-based
-    hash_id = mod(natural_id,grid%num_hash_bins)+1 
+    hash_id = mod(natural_id,grid%num_hash_bins)+1
     num_in_hash = hash(1,0,hash_id)
     num_in_hash = num_in_hash+1
     if (num_in_hash > max_num_ids_per_hash) max_num_ids_per_hash = num_in_hash
     ! if a hash runs out of space reallocate
-    if (num_in_hash > num_ids_per_hash) then 
+    if (num_in_hash > num_ids_per_hash) then
       allocate(temp_hash(2,0:num_ids_per_hash,grid%num_hash_bins))
       ! copy old hash
       temp_hash(1:2,0:num_ids_per_hash,1:grid%num_hash_bins) = &
@@ -1264,7 +1265,7 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
   enddo
 
   grid%hash => hash
-  
+
 !  call GridPrintHashTable(grid)
   call MPI_Allreduce(max_num_ids_per_hash,num_in_hash,ONE_INTEGER_MPI, &
                      MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
@@ -1278,21 +1279,21 @@ end subroutine GridCreateNaturalToGhostedHash
 ! ************************************************************************** !
 
 PetscInt function GridGetLocalIdFromNaturalId(grid,natural_id)
-  ! 
+  !
   ! GetLocalIdFromNaturalId: Returns the local id corresponding to a natural
   ! id or 0, if the natural id is off-processor
   ! WARNING: Extremely inefficient for large jobs
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/07/07
-  ! 
+  !
 
   implicit none
 
   type(grid_type) :: grid
 
   PetscInt :: natural_id, local_id
-  
+
   do local_id = 1, grid%nlmax
     if (natural_id == grid%nG2A(grid%nL2G(local_id))) then
       GridGetLocalIdFromNaturalId = local_id
@@ -1306,28 +1307,28 @@ end function GridGetLocalIdFromNaturalId
 ! ************************************************************************** !
 
 PetscInt function GridGetLocalGhostedIdFromNatId(grid,natural_id)
-  ! 
+  !
   ! Returns the local ghosted id corresponding
   ! to a natural id or 0, if the natural id
   ! is off-processor
   ! WARNING: Extremely inefficient for large jobs
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/07/07
-  ! 
+  !
 
   implicit none
 
   type(grid_type) :: grid
   PetscInt :: natural_id
-  
+
   PetscInt :: local_ghosted_id
-  
+
   do local_ghosted_id = 1, grid%ngmax
     !geh: nG2A is 1-based
     if (natural_id == grid%nG2A(local_ghosted_id)) then
       GridGetLocalGhostedIdFromNatId = local_ghosted_id
-      return 
+      return
     endif
   enddo
   GridGetLocalGhostedIdFromNatId = 0
@@ -1337,23 +1338,23 @@ end function GridGetLocalGhostedIdFromNatId
 ! ************************************************************************** !
 
 PetscInt function GridGetLocalGhostedIdFromHash(grid,natural_id)
-  ! 
+  !
   ! Returns the local ghosted id of a natural
   ! id, if it exists.  Otherwise 0 is returned
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/07/07
-  ! 
+  !
 
   implicit none
 
   type(grid_type) :: grid
   PetscInt :: natural_id
-  
+
   PetscInt :: hash_id, id
 
   GridGetLocalGhostedIdFromHash = 0
-  hash_id = mod(natural_id,grid%num_hash_bins)+1 
+  hash_id = mod(natural_id,grid%num_hash_bins)+1
   do id = 1, grid%hash(1,0,hash_id)
     if (grid%hash(1,id,hash_id) == natural_id) then
       GridGetLocalGhostedIdFromHash = grid%hash(2,id,hash_id)
@@ -1366,18 +1367,18 @@ end function GridGetLocalGhostedIdFromHash
 ! ************************************************************************** !
 
 subroutine GridDestroyHashTable(grid)
-  ! 
+  !
   ! Deallocates the hash table
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/07/07
-  ! 
+  !
   use Utility_module, only : DeallocateArray
-  
+
   implicit none
 
   type(grid_type), pointer :: grid
-  
+
   call DeallocateArray(grid%hash)
 
   nullify(grid%hash)
@@ -1388,20 +1389,20 @@ end subroutine GridDestroyHashTable
 ! ************************************************************************** !
 
 subroutine GridPrintHashTable(grid)
-  ! 
+  !
   ! UnstructGridPrintHashTable: Prints the hashtable for viewing
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/09/07
-  ! 
+  !
 
   implicit none
 
   type(grid_type) :: grid
-  
+
   PetscInt :: ihash, id, fid
 
-  fid = 87 
+  fid = 87
   open(fid,file='hashtable.dat',action='write')
   do ihash=1,grid%num_hash_bins
     write(fid,'(a4,i3,a,i5,a2,x,200(i6,x))') 'Hash',ihash,'(', &
@@ -1442,7 +1443,7 @@ subroutine GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
   PetscInt :: y_count
   PetscInt :: z_count
   PetscInt :: ghosted_neighbors(*)
-  
+
   select case(grid%itype)
     case(STRUCTURED_GRID)
       call StructGridGetGhostedNeighbors(grid%structured_grid, &
@@ -1451,7 +1452,7 @@ subroutine GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
                                          stencil_width_j,stencil_width_k, &
                                          x_count,y_count,z_count, &
                                          ghosted_neighbors,option)
-    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID) 
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID)
       option%io_buffer = 'GridGetNeighbors not currently supported for ' // &
         'unstructured grids.'
       call PrintErrMsg(option)
@@ -1465,16 +1466,16 @@ subroutine GridGetGhostedNeighborsWithCorners(grid,ghosted_id,stencil_type, &
                                    stencil_width_i,stencil_width_j, &
                                    stencil_width_k,icount, &
                                    ghosted_neighbors,option)
-  ! 
+  !
   ! Returns an array of neighboring cells along with corner cells
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 02/19/12
-  ! 
+  !
   use Option_module
 
   implicit none
-  
+
   type(grid_type) :: grid
   type(option_type) :: option
   PetscInt :: ghosted_id
@@ -1494,7 +1495,7 @@ subroutine GridGetGhostedNeighborsWithCorners(grid,ghosted_id,stencil_type, &
                                          stencil_width_k, &
                                          icount, &
                                          ghosted_neighbors,option)
-    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID) 
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID)
       option%io_buffer = 'GridGetNeighbors not currently supported for ' // &
         'unstructured grids.'
       call PrintErrMsg(option)
@@ -1623,12 +1624,12 @@ end subroutine GridCheckCellNeighbors
 ! ************************************************************************** !
 
 subroutine GridDestroy(grid)
-  ! 
+  !
   ! Deallocates a grid
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/07
-  ! 
+  !
   use Utility_module, only : DeallocateArray
 
   implicit none
@@ -1666,29 +1667,29 @@ end subroutine GridDestroy
 ! ************************************************************************** !
 
 function GridIndexToCellID(vec,index,grid,vec_type)
-  ! 
+  !
   ! Returns the local grid cell id of a Petsc Vec index
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/07/09
-  ! 
+  !
 
   implicit none
-  
+
   Vec :: vec
   PetscInt :: index
   type(grid_type) :: grid
   PetscInt :: vec_type
-  
+
   PetscInt :: GridIndexToCellID
-  
+
   PetscInt :: low
   PetscInt :: high
   PetscInt :: ndof
   PetscInt :: cell_id
   PetscErrorCode :: ierr
 
-  
+
   cell_id = -1
   call VecGetOwnershipRange(vec,low,high,ierr);CHKERRQ(ierr)
   call VecGetBlockSize(vec,ndof,ierr);CHKERRQ(ierr)
@@ -1700,7 +1701,7 @@ function GridIndexToCellID(vec,index,grid,vec_type)
       cell_id = grid%nG2A(cell_id) !nG2A is 1-based
     endif
   endif
-  
+
   call MPI_Allreduce(cell_id,GridIndexToCellID,ONE_INTEGER_MPI,MPIU_INTEGER, &
                      MPI_MAX,PETSC_COMM_WORLD,ierr)
 
@@ -1709,23 +1710,23 @@ end function GridIndexToCellID
 ! ************************************************************************** !
 
 subroutine GridLocalizeRegionFromBlock(grid,region,option)
-  ! 
+  !
   ! This routine resticts regions to cells local to processor when the region
   ! was defined using a BLOCK from inputfile.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 09/04/12
-  ! 
+  !
 
   use Option_module
   use Region_module
 
   implicit none
-  
+
   type(region_type), pointer :: region
   type(grid_type), pointer :: grid
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt, allocatable :: temp_int_array(:)
   PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
@@ -1743,7 +1744,7 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
        ' structured grids'
      call PrintErrMsg(option)
   endif
-  
+
   ! convert indexing from global (entire domain) to local processor
   region%i1 = region%i1 - grid%structured_grid%lxs
   region%i2 = region%i2 - grid%structured_grid%lxs
@@ -1751,7 +1752,7 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
   region%j2 = region%j2 - grid%structured_grid%lys
   region%k1 = region%k1 - grid%structured_grid%lzs
   region%k2 = region%k2 - grid%structured_grid%lzs
-          
+
   ! clip region to within local processor domain
   region%i1 = max(region%i1,1)
   region%i2 = min(region%i2,grid%structured_grid%nlx)
@@ -1759,8 +1760,8 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
   region%j2 = min(region%j2,grid%structured_grid%nly)
   region%k1 = max(region%k1,1)
   region%k2 = min(region%k2,grid%structured_grid%nlz)
-   
-  count = 0  
+
+  count = 0
   if (region%i1 <= region%i2 .and. &
       region%j1 <= region%j2 .and. &
       region%k1 <= region%k2) then
@@ -1802,23 +1803,23 @@ end subroutine GridLocalizeRegionFromBlock
 ! ************************************************************************** !
 
 subroutine GridLocalizeRegionFromCartBound(grid,region,option)
-  ! 
+  !
   ! This routine resticts regions to cells local to processor when the region
   ! was defined using a BLOCK from inputfile.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 09/04/12
-  ! 
+  !
 
   use Option_module
   use Region_module
 
   implicit none
-  
+
   type(region_type), pointer :: region
   type(grid_type), pointer :: grid
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt, allocatable :: temp_int_array(:)
   PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
@@ -1843,7 +1844,7 @@ subroutine GridLocalizeRegionFromCartBound(grid,region,option)
   region%j2 = grid%structured_grid%ny
   region%k1 = 1
   region%k2 = grid%structured_grid%nz
-  
+
   select case(region%iface)
     case(WEST_FACE)
       region%i2 = region%i1
@@ -1866,23 +1867,23 @@ end subroutine GridLocalizeRegionFromCartBound
 ! ************************************************************************** !
 
 subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
-  ! 
+  !
   ! This routine resticts regions to cells local to processor when the region
   ! was defined using COORDINATES from inputfile.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 09/04/12
-  ! 
+  !
 
   use Option_module
   use Region_module
 
   implicit none
-  
+
   type(region_type), pointer :: region
   type(grid_type), pointer :: grid
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt, allocatable :: temp_int_array(:)
   PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
@@ -1914,7 +1915,7 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
       same_point = PETSC_TRUE
     endif
   endif
-   
+
   ! treat two identical coordinates the same as a single coordinate
   if (size(region%coordinates) == ONE_INTEGER .or. same_point) then
     call GridGetLocalIDFromCoordinate(grid,region%coordinates(ONE_INTEGER), &
@@ -1936,7 +1937,7 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
     ! the next test as designed will only work on a uniform grid
     call MPI_Allreduce(region%num_cells,count, &
                         ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                        option%mycomm,ierr)   
+                        option%mycomm,ierr)
     if (count == 0) then
       write(option%io_buffer,*) 'Region: (coord)', &
             region%coordinates(ONE_INTEGER)%x, &
@@ -1966,20 +1967,20 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
                 region%coordinates(TWO_INTEGER)%z)
     z_max = max(region%coordinates(ONE_INTEGER)%z, &
                 region%coordinates(TWO_INTEGER)%z)
-                
+
     if (grid%itype == STRUCTURED_GRID) then
       ! shift box slightly inward
       x_shift = 1.d-8*(grid%x_max_global-grid%x_min_global)
-      x_min = x_min+x_shift            
+      x_min = x_min+x_shift
       x_max = x_max-x_shift
       y_shift = 1.d-8*(grid%y_max_global-grid%y_min_global)
-      y_min = y_min+y_shift            
+      y_min = y_min+y_shift
       y_max = y_max-y_shift
       z_shift = 1.d-8*(grid%z_max_global-grid%z_min_global)
-      z_min = z_min+z_shift            
+      z_min = z_min+z_shift
       z_max = z_max-z_shift
-         
-      ! if plane or line, ensure it is within the grid cells     
+
+      ! if plane or line, ensure it is within the grid cells
       if (x_max-x_min < 1.d-10) then
         x_max = region%coordinates(ONE_INTEGER)%x
         x_shift = 1.d-8*(grid%x_max_global-grid%x_min_global)
@@ -2031,8 +2032,8 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
         endif
         z_min = z_max
       endif
-    endif   
-             
+    endif
+
     ! ensure overlap
     if (x_min <= grid%x_max_local .and. &
         x_max >= grid%x_min_local .and. &
@@ -2040,7 +2041,7 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
         y_max >= grid%y_min_local .and. &
         z_min <= grid%z_max_local .and. &
         z_max >= grid%z_min_local) then
-        
+
       ! get I,J,K bounds
       select case(grid%itype)
         case(STRUCTURED_GRID)
@@ -2161,12 +2162,12 @@ end subroutine GridLocalizeRegionFromCoordinates
 
 subroutine GridMapCellsInPolVol(grid,polygonal_volume, &
                                 region_name,option,cell_ids)
-  ! 
+  !
   ! Maps all global boundary cells within a polygonal volume to a region
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/16/15
-  ! 
+  !
   use Option_module
   use Geometry_module
 
@@ -2181,7 +2182,7 @@ subroutine GridMapCellsInPolVol(grid,polygonal_volume, &
   PetscInt :: local_id, ghosted_id, icount
   PetscBool :: found
   PetscInt, allocatable :: temp_int(:)
-  
+
   allocate(temp_int(grid%nlmax))
   temp_int = 0
   icount = 0
@@ -2193,24 +2194,24 @@ subroutine GridMapCellsInPolVol(grid,polygonal_volume, &
                                            polygonal_volume,option)
     if (found) then
       icount = icount + 1
-      temp_int(icount) = local_id  
+      temp_int(icount) = local_id
     endif
   enddo
   allocate(cell_ids(icount))
   cell_ids = temp_int(1:icount)
   deallocate(temp_int)
-  
+
 end subroutine GridMapCellsInPolVol
 
 ! ************************************************************************** !
 
 subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
-  ! 
+  !
   ! Returns the local id of the grid cell occupied by a coordinate
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/16/15
-  ! 
+  !
   use Option_module
   use Geometry_module
 
@@ -2221,7 +2222,7 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
   type(option_type) :: option
   PetscInt :: local_id, champion
   PetscReal :: champion_distance, min_distance_global
-  
+
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
   PetscReal :: x_shift, y_shift, z_shift
   PetscReal :: dx, dy, dz, min_dx, min_dy, min_dz
@@ -2236,7 +2237,7 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
       coordinate%z >= grid%z_min_global .and. &
       coordinate%z <= grid%z_max_global) then
     ! If a point is on the corner of 4 or 8 patches in AMR, the region
-    ! will be assigned to all 4/8 patches...a problem.  To avoid this, 
+    ! will be assigned to all 4/8 patches...a problem.  To avoid this,
     ! we are going to perturb all point coordinates slightly upwind, as
     ! long as they are not on a global boundary (i.e. boundary condition)
     ! -- shift the coorindate slightly upwind
@@ -2246,7 +2247,7 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
               pert*(grid%y_max_global-grid%y_min_global)
     z_shift = coordinate%z - &
               pert*(grid%z_max_global-grid%z_min_global)
-    ! if the coodinate is shifted out of the global domain or 
+    ! if the coodinate is shifted out of the global domain or
     ! onto an exterior edge, set it back to the original value
     if (x_shift - grid%x_min_global < tol) &
       x_shift = coordinate%x
@@ -2312,24 +2313,99 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
           call PrintErrMsg(option)
     end select
   endif
-  
-  ! Several of the subroutines above may return local_id = 0, therefore, we 
+
+  ! Several of the subroutines above may return local_id = 0, therefore, we
   ! need to ensure that local_id is reset back to uninitiazed if 0
   if (local_id <= 0) then
     local_id = UNINITIALIZED_INTEGER
   endif
-    
+
 end subroutine GridGetLocalIDFromCoordinate
 
 ! ************************************************************************** !
 
+subroutine GridMapCellsToConnections(grid,cell_to_internal_connection)
+  !
+  ! Maps a list of connections to each cell
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/14/21
+  !
+  use Connection_module
+
+  implicit none
+
+  type(grid_type) :: grid
+  PetscInt, pointer :: cell_to_internal_connection(:,:)
+
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: sum_connection
+  PetscInt :: iconn
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt, allocatable :: num_connections(:)
+
+  allocate(num_connections(grid%nlmax))
+  num_connections = 0
+  ! calculate maximum number of connections for a single cell
+  cur_connection_set => grid%internal_connection_set_list%first
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      local_id_up = grid%nG2L(cur_connection_set%id_up(iconn))
+      local_id_dn = grid%nG2L(cur_connection_set%id_dn(iconn))
+      if (local_id_up > 0) then
+        num_connections(local_id_up) = num_connections(local_id_up) + 1
+      endif
+      if (local_id_dn > 0) then
+        num_connections(local_id_dn) = num_connections(local_id_dn) + 1
+      endif
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+
+  iconn = maxval(num_connections) ! this can be local to the process
+  deallocate(num_connections)
+  allocate(cell_to_internal_connection(0:iconn,grid%nlmax))
+  cell_to_internal_connection = 0
+
+  ! map connections to cells
+  sum_connection = 0
+  cur_connection_set => grid%internal_connection_set_list%first
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id_up = grid%nG2L(cur_connection_set%id_up(iconn))
+      local_id_dn = grid%nG2L(cur_connection_set%id_dn(iconn))
+      if (local_id_up > 0) then
+        cell_to_internal_connection(0,local_id_up) = &
+          cell_to_internal_connection(0,local_id_up) + 1
+        cell_to_internal_connection( &
+          cell_to_internal_connection(0,local_id_up),local_id_up) = &
+            sum_connection
+      endif
+      if (local_id_dn > 0) then
+        cell_to_internal_connection(0,local_id_dn) = &
+          cell_to_internal_connection(0,local_id_dn) + 1
+        cell_to_internal_connection( &
+          cell_to_internal_connection(0,local_id_dn),local_id_dn) = &
+            sum_connection
+      endif
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+
+end subroutine GridMapCellsToConnections
+
+! ************************************************************************** !
+
 subroutine GridPrintExtents(grid,option)
-  ! 
+  !
   ! Prints the extents of the gridded domain.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/20/18
-  ! 
+  !
   use Option_module
 
   implicit none

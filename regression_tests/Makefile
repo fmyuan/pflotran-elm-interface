@@ -58,57 +58,58 @@ endif
 STANDARD_CFG = \
 	ascem/batch/batch.cfg \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
-	default/input_format/input_format.cfg \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
+	default/batch/batch.cfg \
 	default/column/column.cfg \
 	default/constraint/constraint.cfg \
-	default/reaction_sandbox/reaction_sandbox.cfg \
-	default/batch/batch.cfg \
-	default/debug/debug.cfg \
-	default/eos/eos.cfg \
-	default/dispersion/dispersion.cfg \
-	default/materials/materials.cfg \
-	default/materials/soil_compressibility/soil_compressibility.cfg \
-	default/materials/mineral_volume/mineral_volume.cfg \
-	default/materials/full_tensor/full_tensor.cfg \
-	default/infiltrometer/infiltrometer.cfg \
-	default/infiltration1d/infiltration1d.cfg \
-	default/numerical/numerical.cfg \
-	default/output/output.cfg \
-	default/output/compare/compare.cfg \
-	default/restart/restart.cfg \
-	default/restart/skip/skip.cfg \
-	default/steady/steady.cfg \
 	default/condition/condition.cfg \
 	default/condition/dataset/dataset.cfg \
+	default/debug/debug.cfg \
+	default/dispersion/dispersion.cfg \
+	default/eos/eos.cfg \
+	default/infiltrometer/infiltrometer.cfg \
+	default/infiltration1d/infiltration1d.cfg \
+	default/input_format/input_format.cfg \
+	default/integral_flux/integral_flux.cfg \
+	default/materials/full_tensor/full_tensor.cfg \
+	default/materials/materials.cfg \
+	default/materials/mineral_volume/mineral_volume.cfg \
+	default/materials/soil_compressibility/soil_compressibility.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	default/scco2/mphase/mphase.cfg \
-	default/regions/regions.cfg \
+	default/numerical/numerical.cfg \
+	default/output/compare/compare.cfg \
+	default/output/output.cfg \
+	default/restart/restart.cfg \
+	default/restart/skip/skip.cfg \
+	default/reaction_sandbox/reaction_sandbox.cfg \
 	default/regions/cell_mapping/cell_mapping.cfg \
+	default/regions/regions.cfg \
 	default/salinity/salinity.cfg \
+	default/scco2/mphase/mphase.cfg \
+	default/steady/steady.cfg \
 	default/tcond/T_dep_tcond.cfg \
 	default/timestepping/timestepping.cfg \
 	default/velocity/velocity.cfg \
 	default/zflow/zflow.cfg \
-	pnf/unit_cube/unit_cube.cfg \
-	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
+	geophys/ert/ert.cfg \
+	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
+	inversion/inversion.cfg \
 	ngee/ngee.cfg \
+	pnf/unit_cube/unit_cube.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
-	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
+	shortcourse/regional_doublet/regional_doublet.cfg \
 	ufd/ufd.cfg \
-	wipp/wipp_flow/condition/condition.cfg \
-	wipp/wipp_flow/input_format/input_format.cfg \
-	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/nuts/nuts.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
 	wipp/transport/wipp_regular.cfg \
-	default/integral_flux/integral_flux.cfg \
-	geophys/ert/ert.cfg
+	wipp/wipp_flow/condition/condition.cfg \
+	wipp/wipp_flow/gas_generation/gas_generation.cfg \
+	wipp/wipp_flow/input_format/input_format.cfg 
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
@@ -121,8 +122,8 @@ STANDARD_CFG += \
 	default/discretization/discretization.cfg \
 	default/materials/materials_ug.cfg \
 	default/output/output_ug.cfg \
-	default/regions/regions_ug.cfg \
 	default/regions/cell_mapping/cell_mapping_ug.cfg \
+	default/regions/regions_ug.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
 	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
@@ -137,10 +138,10 @@ GEOCHEMISTRY_CFG = \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
 	ascem/batch/batch.cfg \
 	default/543/543.cfg \
-	default/anisothermal/anisothermal.cfg \
-	default/column/column.cfg \
-	default/constraint/constraint.cfg \
 	default/batch/batch.cfg \
+	default/anisothermal/anisothermal.cfg \
+	default/constraint/constraint.cfg \
+	default/column/column.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	ngee/ngee.cfg \
@@ -150,22 +151,22 @@ GEOCHEMISTRY_CFG = \
 	wipp/nuts/nuts.cfg
 
 GEOMECHANICS_CFG = \
-	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
 	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
+	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/terzaghi/terzaghi.cfg
 
 FLOW_CFG = \
 	default/543/543.cfg \
 	default/condition/condition.cfg \
 	default/eos/eos.cfg \
-	default/infiltrometer/infiltrometer.cfg \
 	default/infiltration1d/infiltration1d.cfg \
+	default/infiltrometer/infiltrometer.cfg \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
 	default/zflow/zflow.cfg \
-	pnf/unit_cube/unit_cube.cfg \
 	general/general.cfg \
+	pnf/unit_cube/unit_cube.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg
@@ -191,26 +192,6 @@ MFD_CFG = \
 
 CHECK_CFG = \
 	ascem/1d/1d-calcite/1d-calcite.cfg
-
-NOHDF5_CFG = \
-	default/column/column.cfg \
-	geothermal_hpt/1D_Calcite/calcite_hpt.cfg \
-	default/materials/soil_compressibility/soil_compressibility.cfg \
-	wipp/nuts/nuts.cfg \
-	default/multicontinuum/multicontinuum.cfg \
-	ufd/ufd.cfg \
-	ascem/1d/1d-calcite/1d-calcite.cfg \
-	default/materials/mineral_volume/mineral_volume.cfg \
-	default/batch/batch.cfg \
-	shortcourse/1D_Calcite/calcite.cfg \
-	ascem/batch/batch.cfg \
-	default/scco2/mphase/mphase.cfg \
-	default/input_format/input_format.cfg \
-	shortcourse/copper_leaching/cu_leaching.cfg \
-	default/eos/eos.cfg \
-	default/regions/regions.cfg \
-	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 TCOND_CFG = \
     default/tcond/T_dep_tcond.cfg
@@ -291,11 +272,6 @@ ngee-biogeochemistry :
 test_mimetic :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(MFD_CFG)
-
-nonhdf5_test :
-	$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
-		--suite standard standard_parallel \
-		--config-files $(NOHDF5_CFG)
 
 tcond_test :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
