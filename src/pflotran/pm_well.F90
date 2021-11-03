@@ -14,18 +14,34 @@ module PM_Well_class
 
   private
 
-  ! I don't yet know if this well model will need its own realization that comes
-  ! with a grid and all that. Probably? Because it can't actually share the grid
-  ! in the main subsurface realization.
   type :: well_grid_type
-    PetscInt :: nsegments       ! number of well segments
-    PetscReal :: dh             ! delta h discretization of each segment center
-    PetscReal, pointer :: h(:)  ! h coordinate of each segment center
+    ! number of well segments
+    PetscInt :: nsegments      
+    ! delta h discretization of each segment center       
+    PetscReal, pointer :: dh(:)      
+    ! h coordinate of each segment center 
+    PetscReal, pointer :: h(:)        
+    ! gravity vector magnitude
+    PetscReal :: g
   end type well_grid_type
+
+  type :: well_type
+    ! cross-sectional area of each well segment
+    PetscReal, pointer :: area(:)         
+    ! diameter of each well segment      
+    PetscReal, pointer :: diameter(:) 
+    ! volume of each well segment
+    PetscReal, pointer :: volume(:) 
+    ! friction ceofficient of each well segment        
+    PetscReal, pointer :: f(:)      
+    ! well index of each well segment [0,1]  0 = cased; 1 = open     
+    PetscReal, pointer :: WI(:)    
+  end type well_type
 
   type, public, extends(pm_base_type) :: pm_well_type
     class(realization_subsurface_type), pointer :: realization
     type(well_grid_type), pointer :: grid
+    type(well_type), pointer :: well
   contains
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
@@ -64,10 +80,21 @@ function PMWellCreate()
 
   nullify(PMWellCreate%realization)
 
+  ! create the grid object:
   nullify(PMWellCreate%grid)
   PMWellCreate%grid%nsegments = UNINITIALIZED_INTEGER
-  PMWellCreate%grid%dh = UNINITIALIZED_DOUBLE
+  nullify(PMWellCreate%grid%dh)
   nullify(PMWellCreate%grid%h)
+  PMWellCreate%grid%g = 9.81
+
+  ! create the well object:
+  nullify(PMWellCreate%well)
+  nullify(PMWellCreate%well%area)
+  nullify(PMWellCreate%well%diameter)
+  nullify(PMWellCreate%well%volume)
+  nullify(PMWellCreate%well%f)
+  nullify(PMWellCreate%well%WI)
+
 
 end function PMWellCreate
 
