@@ -485,7 +485,7 @@ module PM_Waste_Form_class
     type(criticality_event_type), pointer :: crit_event
     class(dataset_ascii_type), pointer :: rad_dataset
     class(dataset_ascii_type), pointer :: heat_dataset
-    type(crit_heat_type), pointer :: crit_heat_dataset
+    class(crit_heat_type), pointer :: crit_heat_dataset
     class(crit_mechanism_base_type), pointer :: next
   end type crit_mechanism_base_type
 
@@ -3181,7 +3181,7 @@ subroutine PMWFInitializeTimestep(this)
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(crit_mechanism_base_type), pointer :: cur_criticality
+  class(crit_mechanism_base_type), pointer :: cur_criticality
   PetscReal :: dV
   PetscReal :: dt
   PetscReal :: avg_temp_local, avg_temp_global
@@ -3749,7 +3749,7 @@ subroutine PMWFSolve(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
-  type(crit_mechanism_base_type), pointer :: cur_criticality
+  class(crit_mechanism_base_type), pointer :: cur_criticality
   type(option_type), pointer :: option
 ! -----------------------------------------------------------
 
@@ -6525,6 +6525,10 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                   call new_crit_mech%crit_heat_dataset%Read(new_crit_mech% &
                                                             crit_heat_dataset% &
                                                             file_name,option)
+              !-----------------------------
+                case default
+                  call InputKeywordUnrecognized(input,word,error_string,option)
+              !-----------------------------
               end select
             enddo
             call InputPopBlock(input,option)
@@ -6532,12 +6536,16 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
           case('DECAY_HEAT')
             call InputReadCard(input,option,word)
             select case (trim(word))
+            !-----------------------------
               case('TOTAL')
                 new_crit_mech%heat_source_cond = 1
+            !-----------------------------
               case('ADDITIONAL')
                 new_crit_mech%heat_source_cond = 2
+            !-----------------------------
               case('CYCLIC')
                 new_crit_mech%heat_source_cond = 3
+            !-----------------------------
             end select
             call InputPushBlock(input,option)
             do
@@ -6546,6 +6554,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               if (InputCheckExit(input,option)) exit
               call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
+              !-----------------------------
                 case('DATASET')
                   internal_units = 'MW'
                   new_crit_mech%heat_dataset => DatasetAsciiCreate()
@@ -6556,6 +6565,10 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           internal_units,error_string,option)
                   new_crit_mech%heat_dataset%time_storage% &
                           time_interpolation_method = 2
+              !-----------------------------
+                case default
+                  call InputKeywordUnrecognized(input,word,error_string,option)
+              !-----------------------------
               end select
             enddo
             call InputPopBlock(input,option)
@@ -6568,6 +6581,7 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
               if (InputCheckExit(input,option)) exit
               call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
+              !-----------------------------
                 case('DATASET')
                   internal_units = 'g/g'
                   new_crit_mech%rad_dataset => DatasetAsciiCreate()
@@ -6578,6 +6592,10 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           internal_units,error_string,option)
                   new_crit_mech%rad_dataset%time_storage% &
                           time_interpolation_method = 2
+              !-----------------------------
+                case default
+                  call InputKeywordUnrecognized(input,word,error_string,option)
+              !-----------------------------
               end select
             enddo
             call InputPopBlock(input,option)
@@ -7362,7 +7380,7 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
   PetscReal :: fuelDisRate 
 
   ! features
-  PetscReal :: f(6)
+  PetscReal :: f(4)
   PetscReal :: yTme
 
   PetscReal :: qoi_ave
@@ -7379,10 +7397,8 @@ subroutine KnnrQuery(this,sTme,current_temp_C)
 
   f(1) = log10(current_temp_C + 273.15d0)
   f(2) = log10(conc(1)) ! Env_CO3_2n
-  f(3) = log10(conc(2)) ! Env_O2
-  f(4) = log10(conc(3)) ! Env_Fe_2p
-  f(5) = log10(conc(4)) ! Env_H2
-  f(6) = log10(dose_rate(yTme,decay_time,burnup))
+  f(3) = log10(conc(4)) ! Env_H2
+  f(4) = log10(dose_rate(yTme,decay_time,burnup))
 
   allocate(knnr_results(nn))
 
@@ -7456,7 +7472,7 @@ subroutine KnnrReadH5File(this, option)
   
   call h5sget_simple_extent_dims_f(file_space_id,dims_h5,max_dims_h5,hdf5_err)
 
-  allocate(this%table_data(7,dims_h5(1)))
+  allocate(this%table_data(5,dims_h5(1)))
 
 
   call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE, this%table_data(1,:), dims_h5, &
@@ -7466,16 +7482,12 @@ subroutine KnnrReadH5File(this, option)
 
   dataset_name = 'Env_CO3_2n'
   call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,2)
-  dataset_name = 'Env_O2'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,3)
-  dataset_name = 'Env_Fe_2p'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,4)
   dataset_name = 'Env_H2'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,5)
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,3)
   dataset_name = 'Dose Rate d0'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,6)
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,4)
   dataset_name = 'UO2 Surface Flux'
-  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,7)
+  call KnnrReadH5Dataset(this,group_id,dims_h5,option,h5_name,dataset_name,5)
 
   deallocate(dims_h5)
   deallocate(max_dims_h5)
@@ -7488,8 +7500,7 @@ subroutine KnnrReadH5File(this, option)
   this%table_data(2,:) = log10(this%table_data(2,:))
   this%table_data(3,:) = log10(this%table_data(3,:))
   this%table_data(4,:) = log10(this%table_data(4,:))
-  this%table_data(5,:) = log10(this%table_data(5,:))
-  this%table_data(6,:) = log10(this%table_data(6,:))
+
 
 end subroutine KnnrReadH5File
 

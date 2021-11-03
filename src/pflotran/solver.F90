@@ -52,15 +52,8 @@ module Solver_module
     PetscBool :: convergence_ir
     PetscBool :: convergence_iu
 
-    ! Jacobian matrix
-    Mat :: J    ! Jacobian
-    Mat :: Jpre ! Jacobian to be used in preconditioner
-    MatType :: J_mat_type
-    MatType :: Jpre_mat_type
-
-    ! Geophysics
     Mat :: M    ! system matrix
-    Mat :: Mpre ! Matrix Preconditioner
+    Mat :: Mpre ! preconditioning matrix
     MatType :: M_mat_type
     MatType :: Mpre_mat_type
 
@@ -165,11 +158,6 @@ function SolverCreate()
   solver%convergence_2u = PETSC_TRUE
   solver%convergence_ir = PETSC_TRUE
   solver%convergence_iu = PETSC_TRUE
-
-  solver%J = PETSC_NULL_MAT
-  solver%Jpre = PETSC_NULL_MAT
-  solver%J_mat_type = PETSC_NULL_CHARACTER
-  solver%Jpre_mat_type = PETSC_NULL_CHARACTER
 
   solver%M = PETSC_NULL_MAT
   solver%Mpre = PETSC_NULL_MAT
@@ -278,7 +266,7 @@ subroutine SolverSetupCustomKSP(solver, option)
   endif
   if (len_trim(solver%pc_type) > 1) then
     if (associated(solver%cprstash)) then
-      call SolverCPRInit(solver%J, solver%cprstash, solver%pc, ierr, option)
+      call SolverCPRInit(solver%M, solver%cprstash, solver%pc, ierr, option)
     else
       call PCSetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
     endif
@@ -1158,16 +1146,16 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
       call StringToUpper(word)
       select case(trim(word))
         case('BAIJ')
-          solver%J_mat_type = MATBAIJ
+          solver%M_mat_type = MATBAIJ
         case('AIJ')
-          solver%J_mat_type = MATBAIJ
-          solver%J_mat_type = MATAIJ
+          solver%M_mat_type = MATBAIJ
+          solver%M_mat_type = MATAIJ
         case('MFFD','MATRIX_FREE')
-          solver%J_mat_type = MATMFFD
+          solver%M_mat_type = MATMFFD
         case('HYPRESTRUCT')
-          solver%J_mat_type = MATHYPRESTRUCT
+          solver%M_mat_type = MATHYPRESTRUCT
         case('SELL')
-          solver%J_mat_type = MATSELL
+          solver%M_mat_type = MATSELL
         case default
           option%io_buffer = 'Matrix type: ' // trim(word) // ' unknown.'
           call PrintErrMsg(option)
@@ -1179,18 +1167,18 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
       call StringToUpper(word)
       select case(trim(word))
         case('BAIJ')
-          solver%Jpre_mat_type = MATBAIJ
+          solver%Mpre_mat_type = MATBAIJ
         case('AIJ')
-          solver%Jpre_mat_type = MATBAIJ
-          solver%Jpre_mat_type = MATAIJ
+          solver%Mpre_mat_type = MATBAIJ
+          solver%Mpre_mat_type = MATAIJ
         case('MFFD','MATRIX_FREE')
-          solver%Jpre_mat_type = MATMFFD
+          solver%Mpre_mat_type = MATMFFD
         case('HYPRESTRUCT')
-           solver%Jpre_mat_type = MATHYPRESTRUCT
+           solver%Mpre_mat_type = MATHYPRESTRUCT
         case('SELL')
-          solver%J_mat_type = MATSELL
+          solver%M_mat_type = MATSELL
         case('SHELL')
-           solver%Jpre_mat_type = MATSHELL
+           solver%Mpre_mat_type = MATSHELL
         case default
           option%io_buffer  = 'Preconditioner Matrix type: ' // &
             trim(word) // ' unknown.'
@@ -1338,8 +1326,8 @@ subroutine SolverPrintNewtonInfo(solver,header,option)
   strings(10) = 'max iter: ' // StringWrite(solver%newton_max_iterations)
   strings(11) = 'min iter: ' // StringWrite(solver%newton_min_iterations)
   strings(12) = 'maxf: ' // StringWrite(solver%newton_maxf)
-  strings(13) = 'matrix type: ' // StringWrite(solver%J_mat_type)
-  strings(14) = 'precond. matrix type: ' // StringWrite(solver%Jpre_mat_type)
+  strings(13) = 'matrix type: ' // StringWrite(solver%M_mat_type)
+  strings(14) = 'precond. matrix type: ' // StringWrite(solver%Mpre_mat_type)
   strings(15) = 'inexact newton: ' // &
                    StringWrite(String1Or2(solver%inexact_newton,'on','off'))
   strings(16) = 'print convergence: ' // &
@@ -1383,6 +1371,8 @@ subroutine SolverCheckCommandLine(solver)
 
   if (solver%snes /= PETSC_NULL_SNES) then
     call SNESGetOptionsPrefix(solver%snes, prefix, ierr);CHKERRQ(ierr)
+  else if (solver%ksp /= PETSC_NULL_KSP) then
+    call KSPGetOptionsPrefix(solver%ksp, prefix, ierr);CHKERRQ(ierr)
   else
     prefix = PETSC_NULL_CHARACTER
   endif
@@ -1390,11 +1380,11 @@ subroutine SolverCheckCommandLine(solver)
   ! Parse the options to determine if the matrix type has been specified.
   call PetscOptionsGetString(PETSC_NULL_OPTIONS,prefix, '-mat_type', mat_type, &
                              is_present,ierr);CHKERRQ(ierr)
-  if (is_present) solver%J_mat_type = trim(mat_type)
+  if (is_present) solver%M_mat_type = trim(mat_type)
 
   call PetscOptionsGetString(PETSC_NULL_OPTIONS,prefix, '-pre_mat_type', &
                              mat_type, is_present,ierr);CHKERRQ(ierr)
-  if (is_present) solver%Jpre_mat_type = trim(mat_type)
+  if (is_present) solver%Mpre_mat_type = trim(mat_type)
 
   ! Parse the options for the Galerkin multigrid solver.
   ! Users can specify the number of levels of coarsening via the
@@ -1426,7 +1416,7 @@ subroutine SolverCheckCommandLine(solver)
   if (is_present) solver%use_galerkin_mg = PETSC_TRUE
 
   if (solver%use_galerkin_mg) then
-    solver%J_mat_type = MATAIJ
+    solver%M_mat_type = MATAIJ
       ! Must use AIJ above, as BAIJ is not supported for Galerkin MG solver.
     solver%galerkin_mg_levels = max(solver%galerkin_mg_levels_x, &
                                     solver%galerkin_mg_levels_y, &
@@ -1763,14 +1753,6 @@ subroutine SolverDestroy(solver)
 
   if (.not.associated(solver)) return
 
-  if (solver%Jpre == solver%J) then
-    solver%Jpre = PETSC_NULL_MAT
-  else if (solver%Jpre /= PETSC_NULL_MAT) then
-    call MatDestroy(solver%Jpre,ierr);CHKERRQ(ierr)
-  endif
-  if (solver%J /= PETSC_NULL_MAT) then
-    call MatDestroy(solver%J,ierr);CHKERRQ(ierr)
-  endif
   if (solver%Mpre == solver%M) then
     solver%Mpre = PETSC_NULL_MAT
   else if (solver%Mpre /= PETSC_NULL_MAT) then

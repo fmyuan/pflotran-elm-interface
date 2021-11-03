@@ -1447,7 +1447,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! CO2-specific
   PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,&
                yco2,pco2,sat_pressure,lngamco2
-  PetscInt :: iflag
+  PetscInt :: iflag, ierror
   PetscErrorCode :: ierr
 
   surface_complexation => reaction%surface_complexation
@@ -1962,9 +1962,20 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       use_log_formulation = PETSC_FALSE
     endif
 
-    ! iflag is a dummy error flag since stop_on_error = PETSC_TRUE
+    ! ierror is a dummy error flag since stop_on_error = PETSC_TRUE
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
-                use_log_formulation,PETSC_TRUE,iflag)
+                use_log_formulation,PETSC_FALSE,ierror)
+
+    if (ierror /= 0) then
+      option%io_buffer = 'A singular value was encountered while &
+        &decomposing the Jacobian within ReactionEquilibrateConstraint->&
+        &RSolve->LUDecomposition for CONSTRAINT "' // &
+        trim(constraint%name) // &
+        '". This is likely an indicator that the constraint is incorrect &
+        &or there are errors in the reaction DATABASE. Please consider &
+        &simplifying the constraint to better isolate and resolve the issue.'
+      call PrintErrMsgByRank(option)
+    endif
 
     prev_molal = rt_auxvar%pri_molal
 
@@ -2007,7 +2018,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           call PrintMsgByRank(option)
         endif
       enddo
-      option%io_buffer = 'Free ion concentations RESULTING from &
+      option%io_buffer = 'Free ion concentrations RESULTING from &
         &constraint concentrations must be positive.'
       call PrintErrMsgByRank(option)
     endif
@@ -2239,10 +2250,10 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         option%flow%reference_density(option%liquid_phase)
       global_auxvar%temp = option%flow%reference_temperature
       global_auxvar%sat(iphase) = option%flow%reference_saturation
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
       global_auxvar%temp = option%flow%reference_temperature
   end select
-        
+
   bulk_vol_to_fluid_vol = option%flow%reference_porosity* &
                           global_auxvar%sat(iphase)*1000.d0
 
@@ -2254,7 +2265,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         sum_molality = sum_molality + rt_auxvar%pri_molal(icomp)
       endif
     enddo
-    if (reaction%neqcplx > 0) then    
+    if (reaction%neqcplx > 0) then
       do i = 1, reaction%neqcplx
         sum_molality = sum_molality + rt_auxvar%sec_molal(i)
       enddo
@@ -5054,10 +5065,13 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation, &
     enddo
   endif
 
+  ierror = 0
   call LUDecomposition(Jac,ncomp,indices,icomp,stop_on_error,ierror)
-  call LUBackSubstitution(Jac,ncomp,indices,rhs)
+  if (ierror == 0) then
+    call LUBackSubstitution(Jac,ncomp,indices,rhs)
+    update = rhs
+  endif
   
-  update = rhs
 
 end subroutine RSolve
 

@@ -187,7 +187,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     ! flow since we are performing sequential coupling). Although
     ! SNESSetJacobian is called, nothing is done there and PETSc just 
     ! re-uses the linear Jacobian at all iterations and times
-    call GeomechForceJacobianLinearPart(timestepper%solver%J,geomech_realization)
+    call GeomechForceJacobianLinearPart(timestepper%solver%M,geomech_realization)
     nullify(simulation%process_model_coupler_list)                             
   endif
   ! sim_aux: Create PETSc Vectors and VectorScatters
@@ -1031,7 +1031,7 @@ stop
   
   call PrintMsg(option,"  Beginning setup of GEOMECH SNES ")
     
-  if (solver%J_mat_type == MATAIJ) then
+  if (solver%M_mat_type == MATAIJ) then
     option%io_buffer = 'AIJ matrix not supported for geomechanics.'
     call PrintErrMsg(option)
   endif
@@ -1041,16 +1041,16 @@ stop
                             ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
         
-  if (solver%Jpre_mat_type == '') then
-    solver%Jpre_mat_type = solver%J_mat_type
+  if (solver%Mpre_mat_type == '') then
+    solver%Mpre_mat_type = solver%M_mat_type
   endif
-  call GeomechDiscretizationCreateJacobian(geomech_realization% &
-                                            geomech_discretization,NGEODOF, &
-                                            solver%Jpre_mat_type, &
-                                            solver%Jpre,option)
+  call GeomechDiscretizationCreateMatrix(geomech_realization% &
+                                         geomech_discretization,NGEODOF, &
+                                         solver%Mpre_mat_type, &
+                                         solver%Mpre,option)
 
-  solver%J = solver%Jpre
-  call MatSetOptionsPrefix(solver%Jpre,"geomech_", &
+  solver%M = solver%Mpre
+  call MatSetOptionsPrefix(solver%Mpre,"geomech_", &
                             ierr);CHKERRQ(ierr)
     
   ! by default turn off line search

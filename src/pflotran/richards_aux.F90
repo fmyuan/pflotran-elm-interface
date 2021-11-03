@@ -348,6 +348,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%kr = kr  ! stored solely for output purposes
   auxvar%kvr = kr/visl
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
+
+  if (size(global_auxvar%sat) > 1) then
+    global_auxvar%sat(2) = 1.d0 - global_auxvar%sat(1)
+  endif
   
 end subroutine RichardsAuxVarCompute
 

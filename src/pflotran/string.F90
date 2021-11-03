@@ -18,7 +18,29 @@ module String_module
   PetscInt, parameter, public :: STRING_NO = 0
   PetscInt, parameter, public :: STRING_OTHER = UNINITIALIZED_INTEGER
 
-  public :: StringCompare, &
+  character(len=1), parameter :: C_ESC = achar(27)
+  character(len=2), parameter, public :: C_START = C_ESC // '['
+  character(len=1), parameter, public :: C_END = 'm'
+  character(len=*), parameter, public :: C_DARK_GREY = '90'
+  character(len=*), parameter, public :: C_PEACH = '91'
+  character(len=*), parameter, public :: C_LIGHT_GREEN = '92'
+  character(len=*), parameter, public :: C_LIGHT_YELLOW = '93'
+  character(len=*), parameter, public :: C_LIGHT_BLUE = '94'
+  character(len=*), parameter, public :: C_PINK = '95'
+  character(len=*), parameter, public :: C_LIGHT_ACQUA = '96'
+  character(len=*), parameter, public :: C_PEARL_WHITE = '97'
+  character(len=*), parameter, public :: C_BLACK = '30'
+  character(len=*), parameter, public :: C_RED = '31'
+  character(len=*), parameter, public :: C_GREEN = '32'
+  character(len=*), parameter, public :: C_YELLOW = '33'
+  character(len=*), parameter, public :: C_BLUE = '34'
+  character(len=*), parameter, public :: C_MAGENTA = '35'
+  character(len=*), parameter, public :: C_CYAN = '36'
+  character(len=*), parameter, public :: C_WHITE = '37'
+  character(len=*), parameter :: C_CLEAR = C_START // '0' // C_END
+
+  public :: StringColor, &
+            StringCompare, &
             StringCompareIgnoreCase, &
             StringToUpper, &
             StringToLower, &
@@ -79,6 +101,26 @@ module String_module
   end interface
 
 contains
+
+! ************************************************************************** !
+
+function StringColor(string,c_code) result(color_string)
+  !
+  ! Convert str to colored string
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/02/21
+  !
+
+  implicit none
+
+  character(len=*), intent(in) :: string
+  character(len=*), intent(in) :: c_code
+  character(len=:), allocatable :: color_string
+
+  color_string = C_START // c_code // C_END // string // C_CLEAR
+
+end function StringColor
 
 ! ************************************************************************** !
 

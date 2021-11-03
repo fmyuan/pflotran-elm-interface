@@ -31,7 +31,7 @@ module Geomechanics_Discretization_module
             GeomechDiscretizationDestroy, &
             GeomechDiscretizationCreateVector, &
             GeomechDiscretizationDuplicateVector, &         
-            GeomechDiscretizationCreateJacobian, &
+            GeomechDiscretizationCreateMatrix, &
             GeomechDiscretizationGlobalToLocal, &
             GeomechDiscretizationLocalToGlobal, &
             GeomechDiscretizationLocalToGlobalAdd, &
@@ -271,12 +271,11 @@ end function GeomechDiscretizationGetDMPtrFromIndex
 
 ! ************************************************************************** !
 
-subroutine GeomechDiscretizationCreateJacobian(geomech_discretization, &
-                                               dm_index, &
-                                               mat_type,Jacobian,option)
+subroutine GeomechDiscretizationCreateMatrix(geomech_discretization, &
+                                              dm_index, &
+                                             mat_type,Matrix,option)
   ! 
-  ! Creates Jacobian matrix associated
-  ! with geomechanics discretization
+  ! Creates a matrix associated with geomechanics discretization
   ! 
   ! Author: Satish Karra, LANL
   ! Date: 06/05/13
@@ -292,19 +291,19 @@ subroutine GeomechDiscretizationCreateJacobian(geomech_discretization, &
   PetscInt :: dm_index
   PetscErrorCode :: ierr
   MatType :: mat_type
-  Mat :: Jacobian
+  Mat :: Matrix
 
   dm_ptr => GeomechDiscretizationGetDMPtrFromIndex(geomech_discretization, &
                                                     dm_index)
 
 
-  call GMGridDMCreateJacobian(geomech_discretization%grid,dm_ptr%gmdm, &
-                              mat_type,Jacobian,option)
-  call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE, &
+  call GMGridDMCreateMatrix(geomech_discretization%grid,dm_ptr%gmdm, &
+                            mat_type,Matrix,option)
+  call MatSetOption(Matrix,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE, &
                     ierr);CHKERRQ(ierr)
-  call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr);CHKERRQ(ierr)
+  call MatSetOption(Matrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr);CHKERRQ(ierr)
 
-end subroutine GeomechDiscretizationCreateJacobian
+end subroutine GeomechDiscretizationCreateMatrix
 
 ! ************************************************************************** !
 

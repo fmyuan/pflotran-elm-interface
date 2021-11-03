@@ -3,10 +3,11 @@
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
-    SUBSURFACE_GEOPHYSICS geop
+    SUBSURFACE_GEOPHYSICS geophysics
       MODE ERT
       OPTIONS
         COMPUTE_JACOBIAN
+        OUTPUT_ALL_SURVEYS
       /
     /
   /
@@ -16,17 +17,14 @@ SUBSURFACE
 
 #=========================== numerical methods ================================
 NUMERICAL_METHODS GEOPHYSICS
-
   LINEAR_SOLVER
     SOLVER BCGS
     PC_TYPE BLOCK_JACOBI
     ATOL 1.d-12
   /
-
 END
 
 #=========================== regression =======================================
-
 REGRESSION
   CELLS_PER_PROCESS 3
   CELL_IDS
@@ -34,8 +32,8 @@ REGRESSION
   /
   VARIABLES
     ELECTRICAL_CONDUCTIVITY
-    ELECTRICAL_POTENTIAL
-    ELECTRICAL_JACOBIAN
+    ELECTRICAL_POTENTIAL 2
+    ELECTRICAL_JACOBIAN 1
   /
 END
 
@@ -46,19 +44,9 @@ SURVEY
 END  
 
 #=========================== Output options ==-================================
-
 OUTPUT
-  #FORMAT TECPLOT BLOCK
   FORMAT HDF5
-  VARIABLES
-    ELECTRICAL_CONDUCTIVITY
-    ELECTRICAL_POTENTIAL 1
-    ELECTRICAL_JACOBIAN 1
-  /
-  NO_PRINT_INITIAL
 END
-
-#=========================== solver options ===================================
 
 #=========================== discretization ===================================
 GRID
@@ -69,7 +57,6 @@ GRID
     5.d0 4.d0 3.d0
   /
 END
-
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
@@ -85,10 +72,18 @@ REGION all
   /
 END
 
-REGION top
+REGION top1
   FACE TOP
   COORDINATES
     0.d0 0.d0 3.d0
+    2.d0 4.d0 3.d0
+  /
+END
+
+REGION top2
+  FACE TOP
+  COORDINATES
+    3.d0 0.d0 3.d0
     5.d0 4.d0 3.d0
   /
 END
@@ -125,22 +120,49 @@ REGION north
   /
 END
 
-#=========================== times ============================================
-TIME
-  FINAL_TIME 10.d0 y
-  INITIAL_TIMESTEP_SIZE 1.d0 h
-  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+REGION infiltrometer
+  FACE TOP
+  COORDINATES
+    2.d0 1.d0 3.d0
+    3.d0 4.d0 3.d0
+  /
 END
 
-#=========================== geophyscs conditions ==================================
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d0 h
+END
+
+#=========================== geophyscs conditions =============================
 GEOPHYSICS_CONDITION boundary_potential
   TYPE DIRICHLET
 END
 
+GEOPHYSICS_CONDITION zero_flux
+  TYPE ZERO_GRADIENT
+END
+
 #=========================== condition couplers ===============================
-BOUNDARY_CONDITION top_bc
+INITIAL_CONDITION
   GEOPHYSICS_CONDITION boundary_potential
-  REGION top
+  REGION all
+END
+
+BOUNDARY_CONDITION top_bc1
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top1
+END
+
+BOUNDARY_CONDITION infiltrometer
+  GEOPHYSICS_CONDITION zero_flux
+  REGION infiltrometer
+END
+
+BOUNDARY_CONDITION top_bc2
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top2
 END
 
 BOUNDARY_CONDITION east_bc
@@ -168,6 +190,5 @@ STRATA
   REGION all
   MATERIAL soil1
 END
-
 
 END_SUBSURFACE

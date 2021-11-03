@@ -104,7 +104,6 @@ subroutine SimSubsurfInit(this,driver,option)
   use Waypoint_module
   use Driver_module
   use Option_module
-  use EOS_module
 
   implicit none
 
@@ -117,7 +116,6 @@ subroutine SimSubsurfInit(this,driver,option)
 #endif
 
   call SimulationBaseInit(this,driver)
-  call EOSInit()
   this%option => option
   this%output_option => OutputOptionCreate()
   nullify(this%checkpoint_option)
@@ -307,6 +305,10 @@ subroutine SimSubsurfInputRecord(this)
       write(id,'(a)') 'multi-phase'
     case(RICHARDS_MODE)
       write(id,'(a)') 'richards'
+    case(ZFLOW_MODE)
+      write(id,'(a)') 'zflow'
+    case(PNF_MODE)
+      write(id,'(a)') 'pore network flow'
     case(RICHARDS_TS_MODE)
       write(id,'(a)') 'richards_ts'
     case(G_MODE)
@@ -388,7 +390,14 @@ subroutine SimSubsurfJumpStart(this)
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
+  PetscErrorCode :: ierr
+  PetscBool :: bypass_final_time_check
+  
+  bypass_final_time_check = PETSC_FALSE
 
+  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
+                           PETSC_NULL_CHARACTER, "-bypass_final_time_check", &
+                           bypass_final_time_check, ierr);CHKERRQ(ierr)
 #ifdef DEBUG
   call PrintMsg(this%option,'SimSubsurfJumpStart()')
 #endif
@@ -459,24 +468,28 @@ subroutine SimSubsurfJumpStart(this)
 
   if (associated(flow_timestepper)) then
     if (.not.associated(flow_timestepper%cur_waypoint)) then
-      option%io_buffer = &
-        'Null flow waypoint list; final time likely equal to start time.&
-        &time or simulation time needs to be extended on a restart.'
-      call PrintMsg(option)
-      option%driver%status = FAIL
-      return
+      if (.not. bypass_final_time_check) then
+        option%io_buffer = &
+          'Null flow waypoint list; final time likely equal to start time &
+          &or final simulation time needs to be extended on a restart.'
+        call PrintMsg(option)
+        option%driver%status = FAIL
+        return
+      endif
     else
       flow_timestepper%dt_max = flow_timestepper%cur_waypoint%dt_max
     endif
   endif
   if (associated(tran_timestepper)) then
     if (.not.associated(tran_timestepper%cur_waypoint)) then
-      option%io_buffer = &
-        'Null transport waypoint list; final time likely equal to start &
-        &time or simulation time needs to be extended on a restart.'
-      call PrintMsg(option)
-      option%driver%status = FAIL
-      return
+      if (.not. bypass_final_time_check) then
+        option%io_buffer = &
+          'Null transport waypoint list; final time likely equal to start &
+          &or final simulation time needs to be extended on a restart.'
+        call PrintMsg(option)
+        option%driver%status = FAIL
+        return
+      endif
     else
       tran_timestepper%dt_max = tran_timestepper%cur_waypoint%dt_max
     endif
@@ -535,10 +548,17 @@ subroutine SimSubsurfExecuteRun(this)
     return
   endif
 
-  append_name = '-restart'
-
   final_time = SimSubsurfGetFinalWaypointTime(this)
   cur_waypoint => this%waypoint_list_outer%first
+  if (cur_waypoint%print_checkpoint) then
+    append_name = &
+         CheckpointAppendNameAtTime(this%process_model_coupler_list% &
+                                        checkpoint_option, &
+                                        this%process_model_coupler_list% &
+                                        option%time, &
+                                        this%process_model_coupler_list%option)
+    call this%process_model_coupler_list%Checkpoint(append_name)
+  endif
   call WaypointSkipToTime(cur_waypoint,this%option%time)
   do
     if (this%stop_flag /= TS_CONTINUE) exit ! end simulation
@@ -546,6 +566,7 @@ subroutine SimSubsurfExecuteRun(this)
     call this%RunToTime(min(final_time,cur_waypoint%time))
     cur_waypoint => cur_waypoint%next
   enddo
+  append_name = '-restart'
   if (associated(this%process_model_coupler_list%checkpoint_option)) then
     call this%process_model_coupler_list%Checkpoint(append_name)
   endif

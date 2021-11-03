@@ -3,8 +3,10 @@ module Inversion_Base_class
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
+  use PFLOTRAN_Constants_module
   use Driver_module
   use Timer_class
+  use Option_Inversion_module
 
   implicit none
 
@@ -13,16 +15,35 @@ module Inversion_Base_class
   type, public :: inversion_base_type
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
+    type(inversion_option_type), pointer :: inversion_option
+    PetscInt :: iteration                ! iteration number
+    PetscInt :: maximum_iteration        ! Maximum iteration number
+    PetscBool :: converg_flag            ! convergence flag
   contains
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseInitialize
-    procedure, public :: UpdateParameters => InversionBaseUpdateParameters
-    procedure, public :: CalculateInverse => InversionBaseCalculateInverse
+    procedure, public :: ReadBlock => InversionBaseReadBlock
+    procedure, public :: Step => InversionBaseThisOnly
+    procedure, public :: ConnectToFowardRun => InversionBaseThisOnly
+    procedure, public :: InitializeIterationNumber => &
+                           InversionBaseInitIterationNum
+    procedure, public :: IncrementIteration => InversionBaseIncrementIteration
+    procedure, public :: UpdateParameters => InversionBaseThisOnly
+    procedure, public :: CalculateUpdate => InversionBaseThisOnly
+    procedure, public :: CalculateSensitivity => InversionBaseThisOnly
+    procedure, public :: OutputSensitivity => InversionBaseOutputSensitivity
+    procedure, public :: Invert => InversionBaseThisOnly
+    procedure, public :: CheckConvergence => InversionBaseThisOnly
+    procedure, public :: EvaluateCostFunction => InversionBaseThisOnly
+    procedure, public :: UpdateRegularizParameters => InversionBaseThisOnly
+    procedure, public :: WriteIterationInfo => InversionBaseThisOnly
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
   end type inversion_base_type
 
   public :: InversionBaseInit, &
+            InversionBaseReadSelectCase, &
+            InversionBaseInitialize, &
             InversionBaseFinalize, &
             InversionBaseStrip, &
             InversionBaseDestroy
@@ -44,8 +65,57 @@ subroutine InversionBaseInit(this,driver)
   this%driver => driver
   this%timer => TimerCreate()
   call this%timer%Start()
+  this%inversion_option => OptionInversionCreate()
+
+  this%iteration = 0
+  this%maximum_iteration = UNINITIALIZED_INTEGER
+  this%converg_flag = PETSC_FALSE
 
 end subroutine InversionBaseInit
+
+! ************************************************************************** !
+
+subroutine InversionBaseReadBlock(this,input,option)
+
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  class(inversion_base_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  call this%driver%PrintErrMsg('InversionBaseReadBlock must be extended.')
+
+end subroutine InversionBaseReadBlock
+
+! ************************************************************************** !
+
+subroutine InversionBaseReadSelectCase(this,input,keyword,found, &
+                                       error_string,option)
+
+  use Input_Aux_module
+  use Option_module
+
+  class(inversion_base_type) :: this
+  type(input_type) :: input
+
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('MAX_INVERSION_ITERATION','MAXIMUM_NUMBER_OF_ITERATIONS')
+      call InputReadInt(input,option,this%maximum_iteration)
+      call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_ITERATIONS', &
+                         error_string)
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine InversionBaseReadSelectCase
 
 ! ************************************************************************** !
 
@@ -62,29 +132,56 @@ end subroutine InversionBaseInitialize
 
 ! ************************************************************************** !
 
-subroutine InversionBaseUpdateParameters(this)
-  !
-  ! Initializes inversion
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/04/21
-  !
+subroutine InversionBaseThisOnly(this)
+
   class(inversion_base_type) :: this
 
-end subroutine InversionBaseUpdateParameters
+  call this%driver%PrintErrMsg('An inversion routine that passes only "this" &
+    &must be extended from the Base implementation.')
+
+end subroutine InversionBaseThisOnly
 
 ! ************************************************************************** !
 
-subroutine InversionBaseCalculateInverse(this)
+subroutine InversionBaseInitIterationNum(this)
   !
-  ! Initializes inversion
+  ! Sets starting iteration number
   !
-  ! Author: Glenn Hammond
-  ! Date: 06/04/21
-  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/09/21
+
   class(inversion_base_type) :: this
 
-end subroutine InversionBaseCalculateInverse
+  this%iteration = 1
+
+end subroutine InversionBaseInitIterationNum
+
+! ************************************************************************** !
+
+subroutine InversionBaseIncrementIteration(this)
+  !
+  ! Sets starting iteration number
+  !
+  ! Author: Piyoosh Jaysaval
+  ! Date: 07/09/21
+
+  class(inversion_base_type) :: this
+
+  this%iteration = this%iteration + 1
+
+end subroutine InversionBaseIncrementIteration
+
+! ************************************************************************** !
+
+subroutine InversionBaseOutputSensitivity(this,suffix)
+
+  class(inversion_base_type) :: this
+  character(len=*) :: suffix
+
+  call this%driver%PrintErrMsg('InversionBaseOutputSensitivity &
+    &must be extended from the Base implementation.')
+
+end subroutine InversionBaseOutputSensitivity
 
 ! ************************************************************************** !
 
@@ -117,6 +214,7 @@ subroutine InversionBaseStrip(this)
 
   nullify(this%driver)
   call TimerDestroy(this%timer)
+  call OptionInversionDestroy(this%inversion_option)
 
 end subroutine InversionBaseStrip
 

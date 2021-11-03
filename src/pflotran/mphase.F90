@@ -208,6 +208,7 @@ subroutine MphaseSetupPatch(realization)
         patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
         patch%material_property_array(1)%ptr%multicontinuum%radius, &
         patch%material_property_array(1)%ptr%multicontinuum%area, &
+        patch%material_property_array(1)%ptr%multicontinuum%porosity, &
         option)
         
       mphase_sec_heat_vars(local_id)%ncells = &
@@ -3157,13 +3158,13 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
     cur_patch => cur_patch%next
   enddo
 
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     string = 'MPHjacobian'
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-  if (realization%debug%norm_Jacobian) then
+  if (realization%debug%norm_Matrix) then
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
@@ -3564,7 +3565,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
                                   ierr);CHKERRQ(ierr)
   end do
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     string = 'jacobian_srcsink'
@@ -3701,7 +3702,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 #endif
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
  ! print *,'end inter flux'
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -3711,7 +3712,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 #if 0
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call PetscViewerASCIIOpen(option%mycomm,'jacobian_bcflux.out',viewer, &

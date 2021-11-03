@@ -1,27 +1,28 @@
 module Timestepper_KSP_class
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Solver_module
   use Convergence_module
   use Timestepper_Base_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-  
+
   type, public, extends(timestepper_base_type) :: timestepper_KSP_type
-  
+
     PetscInt :: num_linear_iterations ! number of linear solver iterations in a time step
     PetscInt :: cumulative_linear_iterations     ! Total number of linear iterations
     PetscInt :: cumulative_wasted_linear_iterations
   contains
-    
+
     procedure, public :: ReadSelectCase => TimestepperKSPReadSelectCase
     procedure, public :: Init => TimestepperKSPInit
     procedure, public :: UpdateDT => TimestepperKSPUpdateDT
+    procedure, public :: StepDT => TimestepperKSPStepDT
     procedure, public :: CheckpointBinary => TimestepperKSPCheckpointBinary
     procedure, public :: RestartBinary => TimestepperKSPRestartBinary
     procedure, public :: CheckpointHDF5 => TimestepperKSPCheckpointHDF5
@@ -32,9 +33,9 @@ module Timestepper_KSP_class
     procedure, public :: FinalizeRun => TimestepperKSPFinalizeRun
     procedure, public :: Strip => TimestepperKSPStrip
     procedure, public :: Destroy => TimestepperKSPDestroy
-    
+
   end type timestepper_KSP_type
-  
+
   ! For checkpointing
   type, public, extends(stepper_base_header_type) :: stepper_KSP_header_type
     PetscInt :: cumulative_linear_iterations
@@ -44,12 +45,12 @@ module Timestepper_KSP_class
     subroutine PetscBagGetData(bag,header,ierr)
       import :: stepper_KSP_header_type
       implicit none
-#include "petsc/finclude/petscbag.h"      
+#include "petsc/finclude/petscbag.h"
       PetscBag :: bag
       class(stepper_KSP_header_type), pointer :: header
       PetscErrorCode :: ierr
     end subroutine
-  end interface PetscBagGetData  
+  end interface PetscBagGetData
 
   public :: TimestepperKSPCreate, TimestepperKSPPrintInfo, &
             TimestepperKSPInit
@@ -59,63 +60,63 @@ contains
 ! ************************************************************************** !
 
 function TimestepperKSPCreate()
-  ! 
+  !
   ! Allocates and initializes a new Timestepper object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_KSP_type), pointer :: TimestepperKSPCreate
-  
+
   class(timestepper_KSP_type), pointer :: stepper
-  
+
   allocate(stepper)
   call stepper%Init()
-  
+
   stepper%solver => SolverCreate()
-  
+
   TimestepperKSPCreate => stepper
-  
+
 end function TimestepperKSPCreate
 
 ! ************************************************************************** !
 
 subroutine TimestepperKSPInit(this)
-  ! 
+  !
   ! Allocates and initializes a new Timestepper object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_KSP_type) :: this
-  
+
   call TimestepperBaseInit(this)
-  
+
   this%num_linear_iterations = 0
 
   this%cumulative_linear_iterations = 0
   this%cumulative_wasted_linear_iterations = 0
 
   nullify(this%solver)
-  
+
 end subroutine TimestepperKSPInit
 
 ! ************************************************************************** !
 
 subroutine TimestepperKSPReadSelectCase(this,input,keyword,found, &
                                         error_string,option)
-  ! 
+  !
   ! Updates time step
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/20/13
-  ! 
+  !
 
   use Option_module
   use String_module
@@ -147,24 +148,24 @@ end subroutine TimestepperKSPReadSelectCase
 ! ************************************************************************** !
 
 subroutine TimestepperKSPUpdateDT(this,process_model)
-  ! 
+  !
   ! Updates time step
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   use PM_Base_class
-  
+
   implicit none
 
   class(timestepper_KSP_type) :: this
   class(pm_base_type) :: process_model
-  
+
   PetscBool :: update_time_step
   PetscInt :: dummy_int
   PetscReal :: dummy_array(1)
-  
+
   update_time_step = PETSC_TRUE
 
   if (this%time_step_cut_flag) then
@@ -186,40 +187,246 @@ subroutine TimestepperKSPUpdateDT(this,process_model)
     ! do not increase time step size
     update_time_step = PETSC_FALSE
   endif
-    
+
   if (update_time_step) then
-      
+
     call process_model%UpdateTimestep(this%dt, &
                                       this%dt_min, &
                                       this%dt_max, &
                                       dummy_int, dummy_int, dummy_array, &
                                       this%time_step_max_growth_factor)
-    
+
   endif
 
 end subroutine TimestepperKSPUpdateDT
 
 ! ************************************************************************** !
 
+subroutine TimestepperKSPStepDT(this,process_model,stop_flag)
+  !
+  ! Steps forward one step in time
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/03/21
+  !
+
+#include "petsc/finclude/petscksp.h"
+  use petscksp
+  use PM_Base_class
+  use Option_module
+  use Output_EKG_module, only : IUNIT_EKG
+
+  implicit none
+
+  class(timestepper_KSP_type) :: this
+  class(pm_base_type) :: process_model
+  PetscInt :: stop_flag
+
+
+  type(solver_type), pointer :: solver
+  type(option_type), pointer :: option
+
+  PetscLogDouble :: log_start_time
+  PetscLogDouble :: log_end_time
+  PetscInt :: num_linear_iterations
+  PetscInt :: sum_linear_iterations
+  PetscInt :: sum_wasted_linear_iterations
+  PetscInt :: icut
+  character(len=MAXWORDLENGTH) :: tunit
+  PetscReal :: tconv
+
+  Vec :: rhs
+  Vec :: solution
+  KSPConvergedReason :: ksp_reason
+
+  PetscErrorCode :: ierr
+
+  solver => process_model%solver
+  option => process_model%option
+
+  tconv = process_model%output_option%tconv
+  tunit = process_model%output_option%tunit
+  sum_linear_iterations = 0
+  sum_wasted_linear_iterations = 0
+  icut = 0
+
+  option%dt = this%dt
+  option%time = this%target_time-this%dt
+
+  call process_model%InitializeTimestep()
+
+  do
+
+    ! these pointers are set within SetupLinearSystem()
+    solution = PETSC_NULL_VEC
+    rhs = PETSC_NULL_VEC
+    call process_model%SetupLinearSystem(solver%M,solution,rhs,ierr)
+
+    call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
+
+    call KSPSetOperators(solver%ksp,solver%M,solver%Mpre,ierr);CHKERRQ(ierr)
+    call KSPSolve(solver%ksp,rhs,solution,ierr);CHKERRQ(ierr)
+
+    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+
+    this%cumulative_solver_time = &
+      this%cumulative_solver_time + &
+      (log_end_time - log_start_time)
+
+    call KSPGetIterationNumber(solver%ksp,num_linear_iterations, &
+                               ierr);CHKERRQ(ierr)
+    call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr);CHKERRQ(ierr)
+
+    sum_linear_iterations = sum_linear_iterations + num_linear_iterations
+
+    if (ksp_reason <= 0 .or. .not. process_model%AcceptSolution()) then
+      sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
+           num_linear_iterations
+      ! The linear solver diverged, so try reducing the time step.
+      call this%CutDT(process_model,icut,stop_flag,option)
+!TODO(geh): remove the below and add this%CutDT to Timestepper_BE
+#if 0
+      icut = icut + 1
+      this%time_step_cut_flag = PETSC_TRUE
+      ! if a cut occurs on the last time step, the stop_flag will have been
+      ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
+      ! premature ending of simulation.
+      if (stop_flag /= TS_STOP_MAX_TIME_STEP) stop_flag = TS_CONTINUE
+
+      if (icut > this%max_time_step_cuts .or. this%dt < this%dt_min) then
+
+        if (icut > this%max_time_step_cuts) then
+          option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
+          call PrintMsg(option)
+          write(option%io_buffer, &
+                '("    icut =",i3,", max_time_step_cuts=",i3)') &
+                icut,this%max_time_step_cuts
+          call PrintMsg(option)
+        endif
+        if (this%dt < this%dt_min) then
+          option%io_buffer = ' Stopping: Time step size is less than the &
+                             &minimum allowable time step.'
+          call PrintMsg(option)
+          write(option%io_buffer, &
+                '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
+               this%dt/tconv,this%dt_min/tconv,trim(tunit)
+          call PrintMsg(option)
+       endif
+
+        process_model%output_option%plot_name = trim(process_model%name)// &
+          '_cut_to_failure'
+        snapshot_plot_flag = PETSC_TRUE
+        observation_plot_flag = PETSC_FALSE
+        massbal_plot_flag = PETSC_FALSE
+        call Output(process_model%realization_base,snapshot_plot_flag, &
+                    observation_plot_flag,massbal_plot_flag)
+        stop_flag = TS_STOP_FAILURE
+        return
+      endif
+
+      this%target_time = this%target_time - this%dt
+
+      this%dt = this%time_step_reduction_factor * this%dt
+
+#endif
+      write(option%io_buffer,'(''-> Cut time step: ksp='',i3, &
+           &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
+           &   1pe12.5)')  ksp_reason,icut, &
+           this%cumulative_time_step_cuts+icut, &
+           option%time/tconv, &
+           this%dt/tconv
+      call PrintMsg(option)
+      if (ksp_reason < 0) then
+        call SolverLinearPrintFailedReason(solver,option)
+        if (solver%verbose_logging) then
+          ! add any verbose logging (see timestepper_BE)
+        endif
+      endif
+
+      this%target_time = this%target_time + this%dt
+      option%dt = this%dt
+      call process_model%TimeCut()
+
+    else
+      ! The Newton solver converged, so we can exit.
+      exit
+    endif
+  enddo
+
+  this%steps = this%steps + 1
+  this%cumulative_linear_iterations = &
+    this%cumulative_linear_iterations + sum_linear_iterations
+  this%cumulative_wasted_linear_iterations = &
+       this%cumulative_wasted_linear_iterations + sum_wasted_linear_iterations
+  this%cumulative_time_step_cuts = &
+    this%cumulative_time_step_cuts + icut
+
+  this%num_linear_iterations = num_linear_iterations
+
+  call process_model%PostSolve()
+
+  ! print screen output
+  if (option%print_screen_flag) then
+      write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
+           & " [",a,"]", " ksp_conv_reason: ",i4,/, &
+           & " linear = ",i5," [",i10,"]"," cuts = ",i2, &
+           & " [",i4,"]")') &
+           this%steps, &
+           this%target_time/tconv, &
+           this%dt/tconv, &
+           trim(tunit),ksp_reason,sum_linear_iterations, &
+           this%cumulative_linear_iterations,icut, &
+           this%cumulative_time_step_cuts
+  endif
+
+  if (option%print_file_flag) then
+    write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
+      & " [",a,"]"," ksp_conv_reason: ",i4,/, &
+      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+      this%steps, &
+      this%target_time/tconv, &
+      this%dt/tconv, &
+      trim(tunit),ksp_reason,sum_linear_iterations, &
+      this%cumulative_linear_iterations,icut, &
+      this%cumulative_time_step_cuts
+  endif
+
+  option%time = this%target_time
+  call process_model%FinalizeTimestep()
+
+  if (this%print_ekg .and. OptionPrintToFile(option)) then
+100 format(a32," TIMESTEP ",i10,2es16.8,a,i3,i5,i5,i10)
+    write(IUNIT_EKG,100) trim(this%name), this%steps, this%target_time/tconv, &
+      this%dt/tconv, trim(tunit), &
+      icut, this%cumulative_time_step_cuts, &
+      sum_linear_iterations, this%cumulative_linear_iterations
+  endif
+
+  if (option%print_screen_flag) print *, ""
+
+end subroutine TimestepperKSPStepDT
+
+! ************************************************************************** !
+
 subroutine TimestepperKSPCheckpointBinary(this,viewer,option)
-  ! 
+  !
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
   use Option_module
 
   implicit none
 
 #include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscbag.h"
-  
+
   class(timestepper_KSP_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
-  
+
   class(stepper_KSP_header_type), pointer :: header
   type(stepper_KSP_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
@@ -241,12 +448,12 @@ end subroutine TimestepperKSPCheckpointBinary
 ! ************************************************************************** !
 
 subroutine TimestepperKSPRegisterHeader(this,bag,header)
-  ! 
+  !
   ! Register header entries.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   use Option_module
 
@@ -258,27 +465,27 @@ subroutine TimestepperKSPRegisterHeader(this,bag,header)
   class(timestepper_KSP_type) :: this
   class(stepper_KSP_header_type) :: header
   PetscBag :: bag
-  
+
   PetscErrorCode :: ierr
-  
+
   call PetscBagRegisterInt(bag,header%cumulative_linear_iterations,0, &
                            "cumulative_linear_iterations","", &
                            ierr);CHKERRQ(ierr)
 ! need to add cumulative wasted linear iterations
 
   call TimestepperBaseRegisterHeader(this,bag,header)
-  
+
 end subroutine TimestepperKSPRegisterHeader
 
 ! ************************************************************************** !
 
 subroutine TimestepperKSPSetHeader(this,bag,header)
-  ! 
+  !
   ! Sets values in checkpoint header.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   use Option_module
 
@@ -290,25 +497,25 @@ subroutine TimestepperKSPSetHeader(this,bag,header)
   class(timestepper_KSP_type) :: this
   class(stepper_KSP_header_type) :: header
   PetscBag :: bag
-  
+
   PetscErrorCode :: ierr
-  
+
   header%cumulative_linear_iterations = this%cumulative_linear_iterations
 
   call TimestepperBaseSetHeader(this,bag,header)
-  
+
 end subroutine TimestepperKSPSetHeader
 
 ! ************************************************************************** !
 
 subroutine TimestepperKSPRestartBinary(this,viewer,option)
-  ! 
+  !
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   use Option_module
 
@@ -320,7 +527,7 @@ subroutine TimestepperKSPRestartBinary(this,viewer,option)
   class(timestepper_KSP_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
-  
+
   class(stepper_KSP_header_type), pointer :: header
   type(stepper_KSP_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
@@ -329,7 +536,7 @@ subroutine TimestepperKSPRestartBinary(this,viewer,option)
   PetscErrorCode :: ierr
 
   bagsize = size(transfer(dummy_header,dummy_char))
-  
+
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
   call TimestepperKSPRegisterHeader(this,bag,header)
@@ -355,7 +562,7 @@ subroutine TimestepperKSPCheckpointHDF5(this, h5_chk_grp_id, option)
   use Checkpoint_module, only : CheckPointWriteRealDatasetHDF5
 
   implicit none
-  
+
   class(timestepper_KSP_type) :: this
   integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
@@ -369,7 +576,7 @@ subroutine TimestepperKSPCheckpointHDF5(this, h5_chk_grp_id, option)
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
   PetscReal, pointer :: real_array(:)
@@ -475,7 +682,7 @@ subroutine TimestepperKSPRestartHDF5(this, h5_chk_grp_id, option)
   use Checkpoint_module, only : CheckPointReadRealDatasetHDF5
 
   implicit none
-  
+
   class(timestepper_KSP_type) :: this
   integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
@@ -489,7 +696,7 @@ subroutine TimestepperKSPRestartHDF5(this, h5_chk_grp_id, option)
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
   character(len=MAXSTRINGLENGTH) :: string
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_array(:)
   PetscReal, pointer :: real_array(:)
@@ -579,12 +786,12 @@ end subroutine TimestepperKSPRestartHDF5
 ! ************************************************************************** !
 
 subroutine TimestepperKSPGetHeader(this,header)
-  ! 
+  !
   ! Gets values in checkpoint header.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   use Option_module
 
@@ -595,42 +802,42 @@ subroutine TimestepperKSPGetHeader(this,header)
 
   class(timestepper_KSP_type) :: this
   class(stepper_KSP_header_type) :: header
-  
+
   this%cumulative_linear_iterations = header%cumulative_linear_iterations
 
   call TimestepperBaseGetHeader(this,header)
-  
+
 end subroutine TimestepperKSPGetHeader
 
 ! ************************************************************************** !
 
 subroutine TimestepperKSPReset(this)
-  ! 
+  !
   ! Zeros timestepper object members.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   implicit none
 
   class(timestepper_KSP_type) :: this
-  
+
   this%cumulative_linear_iterations = 0
 
   call TimestepperBaseReset(this)
-  
+
 end subroutine TimestepperKSPReset
 
 ! ************************************************************************** !
 
 subroutine TimestepperKSPPrintInfo(this,option)
-  ! 
+  !
   ! Prints settings for base timestepper.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
   use Option_module
   use String_module
 
@@ -650,29 +857,29 @@ subroutine TimestepperKSPPrintInfo(this,option)
   call TimestepperBasePrintInfo(this,option)
   call SolverPrintNewtonInfo(this%solver,this%name,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
-  
+
 end subroutine TimestepperKSPPrintInfo
 
 ! ************************************************************************** !
 
 subroutine TimestepperKSPInputRecord(this)
-  ! 
+  !
   ! Prints information about the time stepper to the input record.
   ! To get a## format, must match that in simulation types.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 12/06/19
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(timestepper_KSP_type) :: this
 
   PetscInt :: id
   character(len=MAXWORDLENGTH) :: word
-   
+
   id = INPUT_RECORD_UNIT
-  
+
   write(id,'(a29)',advance='no') 'pmc timestepper: '
   write(id,'(a)') this%name
 
@@ -685,26 +892,26 @@ end subroutine TimestepperKSPInputRecord
 ! ************************************************************************** !
 
 recursive subroutine TimestepperKSPFinalizeRun(this,option)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(timestepper_KSP_type) :: this
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
-  
+
 #ifdef DEBUG
   call PrintMsg(option,'TimestepperKSPFinalizeRun()')
 #endif
-  
+
   if (OptionPrintToScreen(option)) then
     write(*,'(/,x,a," TS KSP steps = ",i6," linear = ",i10, &
             & " cuts = ",i6)') &
@@ -719,23 +926,23 @@ recursive subroutine TimestepperKSPFinalizeRun(this,option)
     write(*,'(x,a)') trim(this%name) // ' TS KSP KSP time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
-  
+
 end subroutine TimestepperKSPFinalizeRun
 
 ! ************************************************************************** !
 
 subroutine TimestepperKSPStrip(this)
-  ! 
+  !
   ! Deallocates members of a time stepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_KSP_type) :: this
-  
+
   call TimestepperBaseStrip(this)
 
 end subroutine TimestepperKSPStrip
@@ -743,19 +950,19 @@ end subroutine TimestepperKSPStrip
 ! ************************************************************************** !
 
 subroutine TimestepperKSPDestroy(this)
-  ! 
+  !
   ! Deallocates a time stepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/06/19
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_KSP_type) :: this
-  
+
   call TimestepperKSPStrip(this)
-  
+
 end subroutine TimestepperKSPDestroy
 
 end module Timestepper_KSP_class

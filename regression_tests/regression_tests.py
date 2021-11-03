@@ -136,6 +136,7 @@ class RegressionTest(object):
         self._skip_check_regression = False
         self._check_performance = False
         self._test_name = None
+        self._regression_filename_root = None
         self._diff_ascii_output_filenames = None
         self._compare_ascii_output_filenames = None
         self._output_files = None
@@ -195,8 +196,14 @@ class RegressionTest(object):
         self._set_test_data(cfg_criteria, test_data,
                             timeout, check_performance, testlog)
 
+        if self._regression_filename_root == None:
+            self._regression_filename_root = self.name()
+
     def name(self):
         return self._test_name
+
+    def regression_root(self):
+        return self._regression_filename_root
 
     def run(self, mpiexec, executable, dry_run, status, testlog):
         """Run the test.
@@ -585,7 +592,7 @@ class RegressionTest(object):
 
         if not self._skip_check_regression:
             gold_name = self.name() + run_id + ".regression.gold"
-            current_name = self.name() + run_id + ".regression"
+            current_name = self.regression_root() + run_id + ".regression"
             # this routine is defined below
             self._compare_regression_files(current_name,gold_name,
                                            status,testlog)
@@ -757,7 +764,7 @@ class RegressionTest(object):
         # compare .regression from the restarted file with .regression.gold
         # from original
         gold_name = self.name() + ".regression.gold"
-        restart_filename="{0}-{1}".format(self._RESTART_PREFIX, self.name())
+        restart_filename="{0}-{1}".format(self._RESTART_PREFIX, self.regression_root())
         restart_filename = restart_filename + ".regression"
         self._compare_regression_files(restart_filename,gold_name,
                                        status,testlog)
@@ -1139,7 +1146,7 @@ class RegressionTest(object):
                   self.name()), file=testlog)
             return
 
-        filename = self.name()+".regression"
+        filename = self.regression_root()+".regression"
         if self._skip_check_regression:
             print("  skipping update of '{0}' because regression gold files "
                   "are not compared".format(filename+".gold"), file=testlog)
@@ -1147,10 +1154,10 @@ class RegressionTest(object):
             if self._stochastic_realizations is not None:
                 for i in range(1, self._stochastic_realizations + 1):
                     run_id = "R{0}".format(i)
-                    filename = self.name() + run_id + ".regression"
+                    filename = self.regression_root() + run_id + ".regression"
                     self.update_gold_file(filename, status, testlog)
             else:
-                filename = self.name() + ".regression"
+                filename = self.regression_root() + ".regression"
                 self.update_gold_file(filename, status, testlog)
 
         if self._diff_ascii_output_filenames is not None:
@@ -1216,7 +1223,7 @@ class RegressionTest(object):
         file to gold.
         """
         gold_name = self.name() + ".regression.gold"
-        current_name = self.name() + ".regression"
+        current_name = self.regression_root() + ".regression"
 
         # check if the gold file exists already
 #        if os.path.isfile(gold_name):
@@ -1594,16 +1601,19 @@ class RegressionTest(object):
             self._timeout = float(timeout[0])
 
         # compare these ascii output files with gold standards
-        self._diff_ascii_output_filenames = test_data.pop('diff_ascii_output', 
-                                                     None)
+        self._diff_ascii_output_filenames = \
+            test_data.pop('diff_ascii_output',None)
         
         # compare these ascii output files with gold standards
-        self._compare_ascii_output_filenames = test_data.pop('compare_ascii_output', 
-                                                     None)
+        self._compare_ascii_output_filenames = \
+            test_data.pop('compare_ascii_output',None)
+
+        # regression filename (use if different from root name)
+        self._regression_filename_root = \
+            test_data.pop('regression_filename_root',None)
 
         # list of output files that must exist at end of simulation
-        self._output_files = test_data.pop('output_files_must_exist', 
-                                           None)
+        self._output_files = test_data.pop('output_files_must_exist',None)
 
         self._set_criteria(self._TIME, cfg_criteria, test_data)
 

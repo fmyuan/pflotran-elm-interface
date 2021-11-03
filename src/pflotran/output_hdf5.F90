@@ -35,6 +35,7 @@ module Output_HDF5_module
             OutputH5CloseGroup, &
             OutputXMFOpenFile, &
             DetermineNumVertices, &
+            OutputHDF5WriteStructCoordGroup, &
             WriteHDF5CoordinatesUGridXDMF
 
 contains
@@ -127,7 +128,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
-  PetscReal, pointer :: array(:)
   PetscInt :: i
   PetscInt :: nviz_flow, nviz_tran, nviz_dof
   PetscInt :: current_component
@@ -150,46 +150,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   grid => patch%grid
   if (first) then
     call OutputHDF5Provenance(option, output_option, file_id)
-
-    ! create a group for the coordinates data set
-    string = "Coordinates"
-    call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
-
-    !GEH - Structured Grid Dependence - Begin
-    ! write out coordinates in x, y, and z directions
-    string = "X [m]"
-    allocate(array(grid%structured_grid%nx+1))
-    array(1) = discretization%origin_global(X_DIRECTION)
-    do i=2,grid%structured_grid%nx+1
-      array(i) = array(i-1) + grid%structured_grid%dx_global(i-1)
-    enddo
-    call WriteHDF5Coordinates(string,option,grid%structured_grid%nx+1, &
-                              array,grp_id)
-    deallocate(array)
-
-    string = "Y [m]"
-    allocate(array(grid%structured_grid%ny+1))
-    array(1) = discretization%origin_global(Y_DIRECTION)
-    do i=2,grid%structured_grid%ny+1
-      array(i) = array(i-1) + grid%structured_grid%dy_global(i-1)
-    enddo
-    call WriteHDF5Coordinates(string,option,grid%structured_grid%ny+1, &
-                              array,grp_id)
-    deallocate(array)
-
-    string = "Z [m]"
-    allocate(array(grid%structured_grid%nz+1))
-    array(1) = discretization%origin_global(Z_DIRECTION)
-    do i=2,grid%structured_grid%nz+1
-      array(i) = array(i-1) + grid%structured_grid%dz_global(i-1)
-    enddo
-    call WriteHDF5Coordinates(string,option,grid%structured_grid%nz+1, &
-                              array,grp_id)
-    deallocate(array)
-    !GEH - Structured Grid Dependence - End
-
-    call h5gclose_f(grp_id,hdf5_err)
-
+    call OutputHDF5WriteStructCoordGroup(file_id,discretization,grid,option)
   endif
         
   ! create a group for the data set
@@ -537,7 +498,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
-  PetscReal, pointer :: array(:)
   PetscInt :: i
   PetscInt :: nviz_flow, nviz_tran, nviz_dof
   PetscInt :: current_component
@@ -935,7 +895,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
-  PetscReal, pointer :: array(:)
   PetscInt :: i
   PetscInt :: nviz_flow, nviz_tran, nviz_dof
   PetscInt :: current_component
@@ -1520,6 +1479,75 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   trick_hdf5 = PETSC_FALSE
 
 end subroutine WriteHDF5FluxVelocities
+
+! ************************************************************************** !
+
+subroutine OutputHDF5WriteStructCoordGroup(file_id,discretization,grid,option)
+  !
+  ! Writes the Coordinates group to an structured HDF5 output file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/12/21
+  !
+  use hdf5
+  use Discretization_module
+  use Option_module
+  use Grid_module
+  use String_module
+
+  implicit none
+
+  integer(HID_T) :: file_id
+  type(discretization_type), pointer :: discretization
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+
+  integer(HID_T) :: grp_id
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal, pointer :: array(:)
+  PetscInt :: i
+  PetscMPIInt :: hdf5_err
+
+  ! create a group for the coordinates data set
+  string = "Coordinates"
+  call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
+
+  !GEH - Structured Grid Dependence - Begin
+  ! write out coordinates in x, y, and z directions
+  string = "X [m]"
+  allocate(array(grid%structured_grid%nx+1))
+  array(1) = discretization%origin_global(X_DIRECTION)
+  do i=2,grid%structured_grid%nx+1
+    array(i) = array(i-1) + grid%structured_grid%dx_global(i-1)
+  enddo
+  call WriteHDF5Coordinates(string,option,grid%structured_grid%nx+1, &
+                            array,grp_id)
+  deallocate(array)
+
+  string = "Y [m]"
+  allocate(array(grid%structured_grid%ny+1))
+  array(1) = discretization%origin_global(Y_DIRECTION)
+  do i=2,grid%structured_grid%ny+1
+    array(i) = array(i-1) + grid%structured_grid%dy_global(i-1)
+  enddo
+  call WriteHDF5Coordinates(string,option,grid%structured_grid%ny+1, &
+                            array,grp_id)
+  deallocate(array)
+
+  string = "Z [m]"
+  allocate(array(grid%structured_grid%nz+1))
+  array(1) = discretization%origin_global(Z_DIRECTION)
+  do i=2,grid%structured_grid%nz+1
+    array(i) = array(i-1) + grid%structured_grid%dz_global(i-1)
+  enddo
+  call WriteHDF5Coordinates(string,option,grid%structured_grid%nz+1, &
+                            array,grp_id)
+  deallocate(array)
+  !GEH - Structured Grid Dependence - End
+
+  call h5gclose_f(grp_id,hdf5_err)
+
+end subroutine OutputHDF5WriteStructCoordGroup
 
 ! ************************************************************************** !
 
@@ -2803,7 +2831,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   field => realization_base%field
 
   select case(option%iflowmode)
-    case (RICHARDS_MODE,RICHARDS_TS_MODE)
+    case (RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
       ndof=1
     case (TH_MODE,TH_TS_MODE)
       ndof=1
@@ -2841,8 +2869,12 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE)
         string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
+      case(ZFLOW_MODE)
+        string = "Mass_Flowrate [m^3_per_s]" // CHAR(0)
+        option%io_buffer = 'Fix mass flow rate for zflow in output_hdf5.F90'
+        call PrintErrMsg(option)
       case(TH_MODE,TH_TS_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_per_s]" // CHAR(0)

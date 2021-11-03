@@ -13,8 +13,11 @@ module Auxiliary_module
   use WIPP_Flow_Aux_module
   use Material_Aux_class
   use ERT_Aux_module
+  use ZFlow_Aux_module
+  use PNF_Aux_module
   use Secondary_Continuum_Aux_module
   use InlineSurface_Aux_module
+  use Inversion_Aux_module
 
   use PFLOTRAN_Constants_module
 
@@ -28,6 +31,8 @@ module Auxiliary_module
     type(nw_transport_type), pointer :: NWT
     type(th_type), pointer :: TH
     type(richards_type), pointer :: Richards
+    type(zflow_type), pointer :: ZFlow
+    type(pnf_type), pointer :: PNF
     type(mphase_type), pointer :: Mphase
     type(general_type), pointer :: General
     type(hydrate_type), pointer :: Hydrate
@@ -37,6 +42,7 @@ module Auxiliary_module
     type(sc_heat_type), pointer :: SC_heat
     type(sc_rt_type), pointer :: SC_RT
     type(inlinesurface_type), pointer :: InlineSurface
+    type(inversion_aux_type), pointer :: inversion_aux
   end type auxiliary_type
 
   public :: AuxInit, &
@@ -63,6 +69,8 @@ subroutine AuxInit(aux)
   nullify(aux%NWT)
   nullify(aux%TH)
   nullify(aux%Richards)
+  nullify(aux%ZFlow)
+  nullify(aux%PNF)
   nullify(aux%ERT)
 
   nullify(aux%Mphase)
@@ -73,6 +81,7 @@ subroutine AuxInit(aux)
   nullify(aux%SC_heat)
   nullify(aux%SC_RT)
   nullify(aux%InlineSurface)
+  nullify(aux%inversion_aux)
 
 end subroutine AuxInit
 
@@ -95,6 +104,8 @@ subroutine AuxDestroy(aux)
   call NWTAuxDestroy(aux%NWT)
   call THAuxDestroy(aux%TH)
   call RichardsAuxDestroy(aux%Richards)
+  call ZFlowAuxDestroy(aux%ZFlow)
+  call PNFAuxDestroy(aux%PNF)
   call MphaseAuxDestroy(aux%Mphase)
   call GeneralAuxDestroy(aux%General)
   call HydrateAuxDestroy(aux%Hydrate)
@@ -104,11 +115,14 @@ subroutine AuxDestroy(aux)
   call SecondaryAuxHeatDestroy(aux%SC_heat)
   call SecondaryAuxRTDestroy(aux%SC_RT)
   call InlineSurfaceAuxDestroy(aux%InlineSurface)
+  ! DO NOT destroy aux%inversion_aux; it is destroyed elsewhere
 
   nullify(aux%Global)
   nullify(aux%RT)
   nullify(aux%NWT)
   nullify(aux%Richards)
+  nullify(aux%ZFlow)
+  nullify(aux%PNF)
   nullify(aux%Mphase)
   nullify(aux%General)
   nullify(aux%Hydrate)
@@ -118,6 +132,7 @@ subroutine AuxDestroy(aux)
   nullify(aux%SC_Heat)
   nullify(aux%SC_RT)
   nullify(aux%InlineSurface)
+  nullify(aux%inversion_aux)
 
 end subroutine AuxDestroy
 

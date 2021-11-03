@@ -1,0 +1,197 @@
+#Description: 3D Geophysics Electrical Resistivity Tomography  problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_GEOPHYSICS geophysics
+      MODE ERT
+      OPTIONS
+        COMPUTE_JACOBIAN
+        OUTPUT_ALL_SURVEYS
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS GEOPHYSICS
+  LINEAR_SOLVER
+    SOLVER BCGS
+    PC_TYPE BLOCK_JACOBI
+    ATOL 1.d-12
+  /
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 3
+  CELL_IDS
+    29
+  /
+  VARIABLES
+    ELECTRICAL_CONDUCTIVITY
+    ELECTRICAL_POTENTIAL 2
+    ELECTRICAL_JACOBIAN 1
+  /
+END
+
+#=========================== Geophysics survey  ================================
+SURVEY
+  FILE_NAME ert.srv
+  FORMAT E4D_SRV
+END  
+
+#=========================== Output options ==-================================
+OUTPUT
+  FORMAT HDF5
+  VARIABLES
+    ELECTRICAL_CONDUCTIVITY
+  /  
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 4 6
+  BOUNDS
+    0.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  ELECTRICAL_CONDUCTIVITY 0.1d0
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION top1
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 3.d0
+    2.d0 4.d0 3.d0
+  /
+END
+
+REGION top2
+  FACE TOP
+  COORDINATES
+    3.d0 0.d0 3.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 4.d0 3.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    5.d0 0.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION south
+  FACE SOUTH
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 0.d0 3.d0
+  /
+END
+
+REGION north
+  FACE NORTH
+  COORDINATES
+    0.d0 4.d0 0.d0
+    5.d0 4.d0 3.d0
+  /
+END
+
+REGION infiltrometer
+  FACE TOP
+  COORDINATES
+    2.d0 1.d0 3.d0
+    3.d0 4.d0 3.d0
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d0 h
+END
+
+#=========================== geophyscs conditions =============================
+GEOPHYSICS_CONDITION boundary_potential
+  TYPE DIRICHLET
+END
+
+GEOPHYSICS_CONDITION zero_flux
+  TYPE ZERO_GRADIENT
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION all
+END
+
+BOUNDARY_CONDITION top_bc1
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top1
+END
+
+BOUNDARY_CONDITION infiltrometer
+  GEOPHYSICS_CONDITION zero_flux
+  REGION infiltrometer
+END
+
+BOUNDARY_CONDITION top_bc2
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION top2
+END
+
+BOUNDARY_CONDITION east_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION east
+END
+
+BOUNDARY_CONDITION west_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION west
+END
+
+BOUNDARY_CONDITION south_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION south
+END
+
+BOUNDARY_CONDITION north_bc
+  GEOPHYSICS_CONDITION boundary_potential
+  REGION north
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+END_SUBSURFACE

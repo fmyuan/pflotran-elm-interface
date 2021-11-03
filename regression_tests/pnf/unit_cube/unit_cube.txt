@@ -1,0 +1,122 @@
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 2
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 10 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1.d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  NO_PRINT_INITIAL
+  NO_PRINT_FINAL
+  FORMAT TECPLOT POINT
+  VELOCITY_AT_CENTER
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 5.d0 s
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 1.d0 s
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION inlet
+  FACE WEST
+  COORDINATE 0.d0 0.5d0 0.d0
+END
+
+REGION outlet
+  FACE EAST
+  COORDINATE 1.d0 0.5d0 1.d0
+END
+
+REGION center
+  COORDINATE 0.5d0 0.5d0 0.5d0
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE DIRICHLET
+  /
+  PRESSURE 0.d0
+END
+
+FLOW_CONDITION inlet_dirichlet_darcy
+  TYPE
+    PRESSURE DIRICHLET
+  /
+  PRESSURE 1.d9            ! for Darcy      (1.d-12 / 1.d-3)^-1
+END
+
+FLOW_CONDITION inlet_dirichlet_pnf
+  TYPE
+    PRESSURE DIRICHLET
+  /
+  PRESSURE 2.84562485d-2   ! for pore flow  (0.4217 / (12 * 1.d-3))^-1
+END
+
+FLOW_CONDITION inlet_neumann
+  TYPE
+    FLUX NEUMANN
+  /
+  FLUX 1.d0 m/s
+END
+
+FLOW_CONDITION inlet_ss
+  TYPE
+    RATE VOLUMETRIC_RATE
+  /
+  RATE 1.d0 m^3/s
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION outlet
+  FLOW_CONDITION initial
+  REGION outlet
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+

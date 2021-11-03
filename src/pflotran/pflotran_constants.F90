@@ -158,6 +158,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: RICHARDS_TS_MODE = 6
   PetscInt, parameter, public :: TH_TS_MODE = 7
   PetscInt, parameter, public :: H_MODE = 8
+  PetscInt, parameter, public :: ZFLOW_MODE = 9
+  PetscInt, parameter, public :: PNF_MODE = 10
 
   ! transport modes
   PetscInt, parameter, public :: RT_MODE = 1
@@ -232,6 +234,9 @@ module PFLOTRAN_Constants_module
 
   PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
   PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
+
+  PetscInt, parameter, public :: ZFLOW_PRESSURE_DOF = 1
+  PetscInt, parameter, public :: ZFLOW_CONDUCTANCE_DOF = 2
 
   PetscInt, parameter, public :: MIS_PRESSURE_DOF = 1
   PetscInt, parameter, public :: MIS_CONCENTRATION_DOF = 2

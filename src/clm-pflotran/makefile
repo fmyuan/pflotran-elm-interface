@@ -33,7 +33,6 @@ STANDARD_CFG = \
 	regression_tests/clm_pflotran.cfg
 
 MYFLAGS = -I.
-MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
 MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH
 #MYFLAGS += ${FC_DEFINE_FLAG}LEGACY_SATURATION_FUNCTION
@@ -222,7 +221,7 @@ lib_pflotran_obj = \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(grid_obj) \
 	$(relations_obj) $(properties_obj) $(dataset_obj) $(srcsink_obj) \
 	$(io_obj) $(misc_obj) $(solver_obj) $(well_obj) $(geophysics_obj) \
-	$(deriv_obj)
+	$(deriv_obj) $(mode_process_model_obj)
 
 pflotran_interface_test_obj = ${pflotran_src}pflotran_interface_main.o
 
@@ -289,6 +288,7 @@ FORCE :
 # the long list below is easier to update from the main makefile.
 clm_pflotran_interface_data.o :
 mapping.o : input_aux.o option.o pflotran_constants.o string.o
+pflotran_interface_main.o : simulation_subsurface.o pflotran_model.o
 pflotran_model.o : characteristic_curves.o characteristic_curves_common.o \
                    clm_pflotran_interface_data.o connection.o coupler.o \
                    discretization.o factory_geomechanics.o \

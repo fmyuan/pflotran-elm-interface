@@ -290,17 +290,23 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%flow_accum2)
 
     ! ndof degrees of freedom, local
-    call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx_loc, &
-                                    LOCAL,option)
+    call DiscretizationCreateVector(discretization,NFLOWDOF, &
+                                    field%flow_xx_loc,LOCAL,option)
 
     if ((option%iflowmode == RICHARDS_TS_MODE) .or. &
         (option%iflowmode == TH_TS_MODE)) then
-      call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot, &
+      call DiscretizationCreateVector(discretization,NFLOWDOF, &
+                                      field%flow_xxdot, &
                                       GLOBAL,option)
 
-      call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot_loc, &
+      call DiscretizationCreateVector(discretization,NFLOWDOF, &
+                                      field%flow_xxdot_loc, &
                                       LOCAL,option)
+    endif
 
+    if (option%iflowmode == PNF_MODE) then
+      call DiscretizationDuplicateVector(discretization,field%flow_xx, &
+                                         field%flow_rhs)
     endif
 
   endif
@@ -907,26 +913,28 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     if (.not.associated(cur_material_property)) exit
 
     ! obtain saturation function id
-    if (option%iflowmode /= NULL_MODE) then
-      if (associated(patch%saturation_function_array)) then
-        cur_material_property%saturation_function_id = &
-          SaturationFunctionGetID(patch%saturation_functions, &
-                             cur_material_property%saturation_function_name, &
-                             cur_material_property%name,option)
-      endif
-      if (associated(patch%characteristic_curves_array)) then
-        cur_material_property%saturation_function_id = &
-          CharacteristicCurvesGetID(patch%characteristic_curves_array, &
-                             cur_material_property%saturation_function_name, &
-                             cur_material_property%name,option)
-      endif
-      if (cur_material_property%saturation_function_id == 0) then
-        option%io_buffer = 'Characteristic curve "' // &
-          trim(cur_material_property%saturation_function_name) // &
-          '" not found.'
-        call PrintErrMsg(option)
-      endif
-    endif
+    select case(option%iflowmode)
+      case(NULL_MODE,PNF_MODE)
+      case default
+        if (associated(patch%saturation_function_array)) then
+          cur_material_property%saturation_function_id = &
+            SaturationFunctionGetID(patch%saturation_functions, &
+                               cur_material_property%saturation_function_name, &
+                               cur_material_property%name,option)
+        endif
+        if (associated(patch%characteristic_curves_array)) then
+          cur_material_property%saturation_function_id = &
+            CharacteristicCurvesGetID(patch%characteristic_curves_array, &
+                               cur_material_property%saturation_function_name, &
+                               cur_material_property%name,option)
+        endif
+        if (cur_material_property%saturation_function_id == 0) then
+          option%io_buffer = 'Characteristic curve "' // &
+            trim(cur_material_property%saturation_function_name) // &
+            '" not found.'
+          call PrintErrMsg(option)
+        endif
+    end select
 
     ! thermal conducitivity function id
     if (associated(patch%char_curves_thermal_array)) then
