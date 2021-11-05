@@ -307,13 +307,14 @@ subroutine InversionSubsurfInitialize(this)
                         num_parameters_global,num_measurements, &
                         PETSC_NULL_SCALAR, &
                         this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
+    ! cannot pass in this%measurement_vec as it is initialized to
+    ! PETSC_NULL_VEC and MatCreateVecs keys off that input
     call MatCreateVecs(this%inversion_aux%JsensitivityT,v,PETSC_NULL_VEC, &
                        ierr);CHKERRQ(ierr)
     this%measurement_vec = v
     call MatGetLocalSize(this%inversion_aux%JsensitivityT, &
                          PETSC_NULL_INTEGER, &
                          num_measurements_local,ierr);CHKERRQ(ierr)
-    print *, 'num_measurements_local: ', num_measurements_local
     ! must initialize to zero...must be a bug in MPICh
     this%measurement_offset = 0
     call MPI_Exscan(num_measurements_local,this%measurement_offset, &
@@ -997,7 +998,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   endif
   call h5eset_auto_f(ON,hdf5_err)
 
-  num_measurement = size(this%measurement)
+  num_measurement = size(this%imeasurement)
   call VecCreateMPI(this%realization%option%mycomm,PETSC_DECIDE, &
                     num_measurement, &
                     row_vec,ierr);CHKERRQ(ierr)
