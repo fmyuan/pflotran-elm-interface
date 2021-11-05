@@ -20,15 +20,18 @@ module Inversion_Subsurface_class
     type(inversion_aux_type), pointer :: inversion_aux
     PetscReal, pointer :: measurement(:)
     PetscInt, pointer :: imeasurement(:)
+    PetscInt :: measurement_offset
     PetscInt :: iqoi
     PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest
     Vec :: ref_quantity_of_interest
+    Vec :: measurement_vec
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
     PetscBool :: print_sensitivity_jacobian
     PetscBool :: debug_adjoint
     PetscBool :: store_adjoint_matrices
     PetscBool :: compare_adjoint_mat_and_rhs
+    VecScatter :: scatter_global_to_measurement
   contains
     procedure, public :: Init => InversionSubsurfaceInit
     procedure, public :: ReadBlock => InversionSubsurfReadBlock
@@ -90,6 +93,7 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%quantity_of_interest = PETSC_NULL_VEC
   this%iqoi = UNINITIALIZED_INTEGER
   this%n_qoi_per_cell = UNINITIALIZED_INTEGER
+  this%measurement_vec = PETSC_NULL_VEC
   this%ref_quantity_of_interest = PETSC_NULL_VEC
   this%ref_qoi_dataset_name = ''
   this%forward_simulation_filename = ''
@@ -97,6 +101,8 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%store_adjoint_matrices = PETSC_FALSE
   this%compare_adjoint_mat_and_rhs = PETSC_FALSE
   this%debug_adjoint = PETSC_FALSE
+  this%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
+  this%measurement_offset = UNINITIALIZED_INTEGER
 
   nullify(this%measurement)
   nullify(this%imeasurement)
@@ -263,6 +269,7 @@ subroutine InversionSubsurfInitialize(this)
   ! Date: 06/04/21
   !
   use Connection_module
+  use Discretization_module
   use Coupler_module
   use Grid_module
   use Patch_module
@@ -274,10 +281,15 @@ subroutine InversionSubsurfInitialize(this)
   type(patch_type), pointer :: patch
   PetscInt :: local_id
   PetscInt :: iconn
+  PetscInt :: i
   PetscInt :: sum_connection
-  PetscInt :: num_measurements
+  PetscInt :: num_measurements, num_measurements_local
   PetscInt :: num_parameters_local, num_parameters_global
   PetscInt, allocatable :: int_array(:)
+  PetscReal, pointer :: vec_ptr(:)
+  PetscReal :: tempreal
+  Vec :: v
+  IS :: is_petsc
   PetscErrorCode :: ierr
 
   if (.not.associated(this%inversion_aux)) then
@@ -295,6 +307,18 @@ subroutine InversionSubsurfInitialize(this)
                         num_parameters_global,num_measurements, &
                         PETSC_NULL_SCALAR, &
                         this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
+    call MatCreateVecs(this%inversion_aux%JsensitivityT,v,PETSC_NULL_VEC, &
+                       ierr);CHKERRQ(ierr)
+    this%measurement_vec = v
+    call MatGetLocalSize(this%inversion_aux%JsensitivityT, &
+                         PETSC_NULL_INTEGER, &
+                         num_measurements_local,ierr);CHKERRQ(ierr)
+    print *, 'num_measurements_local: ', num_measurements_local
+    ! must initialize to zero...must be a bug in MPICh
+    this%measurement_offset = 0
+    call MPI_Exscan(num_measurements_local,this%measurement_offset, &
+                    ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                    this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
     !TODO(geh): compress the mappings
     call GridMapCellsToConnections(patch%grid, &
                                this%inversion_aux%cell_to_internal_connection)
@@ -360,6 +384,35 @@ subroutine InversionSubsurfInitialize(this)
                           this%inversion_aux%dbdK(local_id),ierr);CHKERRQ(ierr)
       enddo
     endif
+
+    ! map measurement vec to the solution vector
+    if (this%driver%comm%myrank == 0) then
+      do i = 1, num_measurements
+        tempreal = dble(this%imeasurement(i))
+        call VecSetValue(this%measurement_vec,i-1,tempreal, &
+                         INSERT_VALUES,ierr);CHKERRQ(ierr)
+      enddo
+    endif
+    call VecAssemblyBegin(this%measurement_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(this%measurement_vec,ierr);CHKERRQ(ierr)
+    allocate(int_array(num_measurements_local))
+    call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    do i = 1, num_measurements_local
+      int_array(i) = int(vec_ptr(i)+1.d-5)
+    enddo
+    int_array = int_array - 1
+    call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call DiscretAOApplicationToPetsc(this%realization%discretization, &
+                                     int_array)
+    call ISCreateGeneral(this%driver%comm%mycomm,num_measurements_local, &
+                         int_array, &
+                         PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
+    call VecScatterCreate(this%realization%field%work,is_petsc, &
+                          this%measurement_vec,PETSC_NULL_IS, &
+                          this%scatter_global_to_measurement, &
+                          ierr);CHKERRQ(ierr)
+    call ISDestroy(is_petsc,ierr);
+    deallocate(int_array)
   endif
 
 end subroutine InversionSubsurfInitialize
@@ -626,9 +679,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
       ! remember: parameters are rows and measurements columns
       call MatSetValue(inversion_aux%JsensitivityT,iparameter-1,imeasurement-1, &
                        -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
-      print *, 'here3: ', option%myrank, iparameter
     enddo
-    print *, 'here4: ', option%myrank, imeasurement
   enddo
   call MatDestroy(dMdK_,ierr);CHKERRQ(ierr)
   if (dMdK_diff /= PETSC_NULL_MAT) then
@@ -642,7 +693,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(inversion_aux%JsensitivityT, &
                       MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-print *, 'here5: ', option%myrank
+
 end subroutine InvSubsurfCalculateSensitivity
 
 ! ************************************************************************** !
@@ -1016,6 +1067,13 @@ subroutine InversionSubsurfaceStrip(this)
   endif
   if (this%ref_quantity_of_interest /= PETSC_NULL_VEC) then
     call VecDestroy(this%ref_quantity_of_interest,ierr);CHKERRQ(ierr)
+  endif
+  if (this%measurement_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(this%measurement_vec,ierr);CHKERRQ(ierr)
+  endif
+  if (this%scatter_global_to_measurement /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(this%scatter_global_to_measurement, &
+                           ierr);CHKERRQ(ierr)
   endif
 
   call DeallocateArray(this%imeasurement)

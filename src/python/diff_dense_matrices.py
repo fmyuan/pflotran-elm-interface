@@ -3,7 +3,7 @@ import sys
 import numpy as np
 
 if len(sys.argv) < 3:
-    sys.exit("ERROR: Must include at least two matrix files and a potential 'tranpose' flag in diff_matrix.py")
+    sys.exit("ERROR: Must include at least two matrix files and a potential 'transpose' flag in diff_matrix.py")
     
 filename1 = sys.argv[1]
 filename2 = sys.argv[2]
