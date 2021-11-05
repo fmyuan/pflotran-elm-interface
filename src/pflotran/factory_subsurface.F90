@@ -20,7 +20,8 @@ module Factory_Subsurface_module
             FactorySubsurfaceReadWasteFormPM, &
             FactorySubsurfaceReadUFDDecayPM, &
             FactorySubsurfReadUFDBiospherePM, &
-            FactorySubsurfReadGeophysicsPM
+            FactorySubsurfReadGeophysicsPM, &
+            FactorySubsurfReadWellPM
 
 contains
 
@@ -851,19 +852,14 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
 
   nullify(pmc_dummy)
 
-  string = 'WELL_MODEL'
+  string = 'WELLBORE_MODEL'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
   call pm_well%ReadPMBlock(input)
 
   if (option%iflowmode /= WF_MODE) then
-     option%io_buffer = 'The WELL_MODEL process model can only be used with &
-       &WIPP_FLOW at the moment.'
-     call PrintErrMsg(option)
-  endif
-  if (option%ntrandof /= 0) then
-     option%io_buffer = 'The WELL_MODEL process model cannot be used with &
-       &any transport mode at the moment. So sorry!'
+     option%io_buffer = 'The WELLBORE_MODEL process model can only be &
+                        &used with WIPP_FLOW mode at the moment.'
      call PrintErrMsg(option)
   endif
 
@@ -877,7 +873,7 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
   pmc_well%realization => realization
 
   ! set up logging stage
-  string = 'WELL_MODEL'
+  string = 'WELLBORE_MODEL'
   call LoggingCreateStage(string,pmc_well%stage)
   call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_well),PM_CHILD, &
          PMCCastToBase(simulation%flow_process_model_coupler), &
@@ -2304,13 +2300,14 @@ subroutine SubsurfaceReadInput(simulation,input)
   use PM_Base_class
   use PM_RT_class
   use PM_NWT_class
+  use PM_Well_class
+  use PM_Hydrate_class
+  use PM_Base_class
   use Timestepper_Base_class
   use Timestepper_KSP_class
   use Timestepper_SNES_class
   use Timestepper_Steady_class
   use Timestepper_TS_class
-  use PM_Hydrate_class
-  use PM_Base_class
   use Time_Storage_module
   use TH_Aux_module
   use Survey_module
@@ -3916,6 +3913,10 @@ subroutine SubsurfaceReadInput(simulation,input)
         call SurveyRead(survey,input,option)
         realization%survey => survey
         nullify(survey)
+
+!....................
+      case ('WELLBORE_MODEL')
+        call PMWellReadPass2(input,option)
 
 !....................
       case ('END_SUBSURFACE')

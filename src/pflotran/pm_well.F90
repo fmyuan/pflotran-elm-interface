@@ -20,17 +20,20 @@ module PM_Well_class
     ! delta h discretization of each segment center       
     PetscReal, pointer :: dh(:)      
     ! h coordinate of each segment center 
-    PetscReal, pointer :: h(:)        
+    PetscReal, pointer :: h(:,:)    
+    ! coordinate of the top/bottom of the well 
+    PetscReal :: tophole(3)
+    PetscReal :: bottomhole(3)     
     ! gravity vector magnitude
     PetscReal :: g
   end type well_grid_type
 
   type :: well_type
-    ! cross-sectional area of each well segment
+    ! cross-sectional area of each well segment [calc'd]
     PetscReal, pointer :: area(:)         
-    ! diameter of each well segment      
+    ! diameter of each well segment       
     PetscReal, pointer :: diameter(:) 
-    ! volume of each well segment
+    ! volume of each well segment [calc'd]
     PetscReal, pointer :: volume(:) 
     ! friction ceofficient of each well segment        
     PetscReal, pointer :: f(:)      
@@ -58,7 +61,7 @@ module PM_Well_class
     procedure, public :: Destroy => PMWellDestroy
   end type pm_well_type
 
-  public :: PMWellCreate
+  public :: PMWellCreate, PMWellReadPMBlock, PMWellReadPass2
 
   contains
 
@@ -78,17 +81,21 @@ function PMWellCreate()
   allocate(PMWellCreate)
   call PMBaseInit(PMWellCreate)
 
+  PMWellCreate%header = 'WELLBORE_MODEL'
+
   nullify(PMWellCreate%realization)
 
   ! create the grid object:
-  nullify(PMWellCreate%grid)
+  allocate(PMWellCreate%grid)
   PMWellCreate%grid%nsegments = UNINITIALIZED_INTEGER
   nullify(PMWellCreate%grid%dh)
   nullify(PMWellCreate%grid%h)
+  PMWellCreate%grid%tophole(:) = UNINITIALIZED_DOUBLE
+  PMWellCreate%grid%bottomhole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%g = 9.81
 
   ! create the well object:
-  nullify(PMWellCreate%well)
+  allocate(PMWellCreate%well)
   nullify(PMWellCreate%well%area)
   nullify(PMWellCreate%well%diameter)
   nullify(PMWellCreate%well%volume)
@@ -112,7 +119,38 @@ subroutine PMWellSetup(this)
   
   class(pm_well_type) :: this
   
-  ! placeholder
+  PetscReal :: diff_x,diff_y,diff_z
+  PetscReal :: dh_x,dh_y,dh_z
+  PetscReal :: total_length
+  PetscInt :: k
+
+  allocate(this%grid%dh(this%grid%nsegments))
+  allocate(this%grid%h(this%grid%nsegments,3))
+
+  diff_x = this%grid%tophole(1)-this%grid%bottomhole(1)
+  diff_y = this%grid%tophole(2)-this%grid%bottomhole(2)
+  diff_z = this%grid%tophole(3)-this%grid%bottomhole(3)
+
+  dh_x = diff_x/this%grid%nsegments
+  dh_y = diff_y/this%grid%nsegments
+  dh_z = diff_z/this%grid%nsegments
+
+  diff_x = diff_x*diff_x
+  diff_y = diff_y*diff_y
+  diff_z = diff_z*diff_z
+
+  total_length = sqrt(diff_x+diff_y+diff_z)
+
+  do k = 1,this%grid%nsegments
+    this%grid%h(k,1) = this%grid%bottomhole(1)+(dh_x*(k-0.5))
+    this%grid%h(k,2) = this%grid%bottomhole(2)+(dh_y*(k-0.5))
+    this%grid%h(k,3) = this%grid%bottomhole(3)+(dh_z*(k-0.5))
+  enddo
+
+  this%grid%dh(:) = total_length/this%grid%nsegments
+
+  allocate(this%well%area(this%grid%nsegments))
+  allocate(this%well%volume(this%grid%nsegments))
 
 end subroutine PMWellSetup
 
@@ -137,13 +175,309 @@ subroutine PMWellReadPMBlock(this,input)
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
 
   option => this%option
+  input%ierr = 0
+  error_string = 'WELLBORE_MODEL'
   
-  option%io_buffer = 'pflotran card:: WELL_MODEL'
+  option%io_buffer = 'pflotran card:: WELLBORE_MODEL'
   call PrintMsg(option)
 
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(word)
+
+    found = PETSC_FALSE
+
+    ! Read keywords within WELLBORE_MODEL block:
+    select case(trim(word))
+    !-------------------------------------
+      case('ACTION1')
+        ! do some action or assignment
+        cycle
+    !-------------------------------------
+      case('ACTION2')
+        ! do some action or assignment
+        cycle
+    !-------------------------------------
+    end select
+
+    ! Read sub-blocks within WELLBORE_MODEL block:
+    error_string = 'WELLBORE_MODEL'
+    call PMWellReadGrid(this,input,option,word,error_string,found)
+    if (found) cycle
+    
+    error_string = 'WELLBORE_MODEL'
+    call PMWellReadWell(this,input,option,word,error_string,found)
+    if (found) cycle
+
+    if (.not. found) then
+      option%io_buffer = 'Keyword "' // trim(word) // &
+                         '" does not exist for WELLBORE_MODEL.'
+      call PrintErrMsg(option)
+    endif
+
+  enddo
+  call InputPopBlock(input,option)
+
+  ! error checking - did the user provide the right amount of vector values
+  ! that matches nsegments?
+
 end subroutine PMWellReadPMBlock
+
+! ************************************************************************** !
+
+subroutine PMWellReadGrid(this,input,option,keyword,error_string,found)
+  ! 
+  ! Reads input file parameters associated with the well model grid.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 11/03/2021
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  PetscInt :: num_errors
+  character(len=MAXWORDLENGTH) :: word
+
+  error_string = trim(error_string) // ',GRID'
+  found = PETSC_TRUE
+  num_errors = 0
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('GRID')
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('NUMBER_OF_SEGMENTS')
+            call InputReadInt(input,option,this%grid%nsegments)
+            call InputErrorMsg(input,option,'NUMBER_OF_SEGMENTS',error_string)
+        !-----------------------------
+          case('TOP_OF_HOLE')
+            call InputReadDouble(input,option,this%grid%tophole(1))
+            call InputErrorMsg(input,option,'TOP_OF_HOLE x-coordinate', &
+                               error_string)
+            call InputReadDouble(input,option,this%grid%tophole(2))
+            call InputErrorMsg(input,option,'TOP_OF_HOLE y-coordinate', &
+                               error_string)
+            call InputReadDouble(input,option,this%grid%tophole(3))
+            call InputErrorMsg(input,option,'TOP_OF_HOLE z-coordinate', &
+                               error_string)
+        !-----------------------------
+          case('BOTTOM_OF_HOLE')
+            call InputReadDouble(input,option,this%grid%bottomhole(1))
+            call InputErrorMsg(input,option,'BOTTOM_OF_HOLE x-coordinate', &
+                               error_string)
+            call InputReadDouble(input,option,this%grid%bottomhole(2))
+            call InputErrorMsg(input,option,'BOTTOM_OF_HOLE y-coordinate', &
+                               error_string)
+            call InputReadDouble(input,option,this%grid%bottomhole(3))
+            call InputErrorMsg(input,option,'BOTTOM_OF_HOLE z-coordinate', &
+                               error_string)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
+      ! ----------------- error messaging -------------------------------------
+      if (Uninitialized(this%grid%nsegments)) then
+        option%io_buffer = 'ERROR: NUMBER_OF_SEGMENTS must be specified &
+                           &in the ' // trim(error_string) // ' block.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (Uninitialized(this%grid%tophole(1)) .or. &
+          Uninitialized(this%grid%tophole(2)) .or. &
+          Uninitialized(this%grid%tophole(3))) then
+        option%io_buffer = 'ERROR: TOP_OF_HOLE must be specified &
+                           &in the ' // trim(error_string) // ' block.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+      if (Uninitialized(this%grid%bottomhole(1)) .or. &
+          Uninitialized(this%grid%bottomhole(2)) .or. &
+          Uninitialized(this%grid%bottomhole(3))) then
+        option%io_buffer = 'ERROR: BOTTOM_OF_HOLE must be specified &
+                           &in the ' // trim(error_string) // ' block.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
+
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
+                       &the WELLBORE_MODEL,GRID block. See above error messages.'
+    call PrintErrMsg(option)
+  endif
+
+  end subroutine PMWellReadGrid
+
+! ************************************************************************** !
+
+subroutine PMWellReadWell(this,input,option,keyword,error_string,found)
+  ! 
+  ! Reads input file parameters associated with the well model 
+  ! well properties.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 11/03/2021
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  PetscInt :: num_errors
+  character(len=MAXWORDLENGTH) :: word
+
+  error_string = trim(error_string) // ',WELL'
+  found = PETSC_TRUE
+  num_errors = 0
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('WELL')
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('AREA')
+        !-----------------------------
+          case('DIAMETER')
+        !-----------------------------
+          case('FRICTION_COEFFICIENT')
+        !-----------------------------
+          case('WELL_INDEX')
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
+      ! ----------------- error messaging -------------------------------------
+      
+
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
+                  &the WELLBORE_MODEL,WELL block. See above error messages.'
+    call PrintErrMsg(option)
+  endif
+
+  end subroutine PMWellReadWell
+
+! ************************************************************************** !
+
+subroutine PMWellReadPass2(input,option)
+  ! 
+  ! Reads input file parameters associated with the well process model.
+  ! Second pass dummy read.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 11/03/2021
+
+  use Input_Aux_module
+  use String_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  
+  error_string = 'SUBSURFACE,WELLBORE_MODEL'
+
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+    !--------------------
+    case('GRID')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+        enddo
+    !--------------------
+    case('WELL')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+        enddo
+    !--------------------
+    end select
+
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine PMWellReadPass2
 
 ! ************************************************************************** !
 
