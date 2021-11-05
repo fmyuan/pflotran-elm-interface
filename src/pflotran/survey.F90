@@ -11,7 +11,7 @@ module Survey_module
 
   type, public :: survey_type
     character(len=MAXWORDLENGTH) :: name
-    character(len=MAXWORDLENGTH) :: filename
+    character(len=MAXSTRINGLENGTH) :: filename
 
     PetscInt :: num_electrode                   ! Number of electrodes
     PetscInt, pointer :: ipos_electrode(:)      ! cell id of electrode pos
