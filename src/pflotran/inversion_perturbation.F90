@@ -14,11 +14,11 @@ module Inversion_Perturbation_class
   type, public, extends(inversion_subsurface_type) :: &
                                             inversion_perturbation_type
     Vec :: quantity_of_interest_base
+    Vec :: base_measurement_vec
     PetscInt :: ndof
     PetscInt :: idof_pert
     PetscReal :: pert
     PetscReal :: perturbation_tolerance
-    PetscReal, pointer :: base_solution_measurement(:)
   contains
     procedure, public :: Init => InversionPerturbationInit
     procedure, public :: ReadBlock => InversionPerturbationReadBlock
@@ -73,13 +73,12 @@ subroutine InversionPerturbationInit(this,driver)
   call InversionSubsurfaceInit(this,driver)
 
   this%quantity_of_interest_base = PETSC_NULL_VEC
+  this%base_measurement_vec = PETSC_NULL_VEC
 
   this%ndof = 0
   this%idof_pert = 0
   this%pert = 0.d0
   this%perturbation_tolerance = 1.d-6
-
-  nullify(this%base_solution_measurement)
 
   zflow_calc_adjoint = PETSC_FALSE
 
@@ -149,9 +148,9 @@ subroutine InversionPerturbationInitialize(this)
   call InversionSubsurfInitialize(this)
 
   if (this%idof_pert == 0) then
-    allocate(this%base_solution_measurement(size(this%imeasurement)))
-    this%base_solution_measurement = UNINITIALIZED_DOUBLE
     this%ndof = this%realization%patch%grid%nmax
+    call VecDuplicate(this%measurement_vec,this%base_measurement_vec, &
+                      ierr);CHKERRQ(ierr)
   endif
 
   if (Uninitialized(this%iqoi)) then
@@ -179,6 +178,9 @@ subroutine InversionPerturbationStep(this)
   type(option_type), pointer :: option
   PetscInt :: iteration
 
+  PetscViewer :: viewer
+  PetscErrorCode :: ierr
+
   iteration = 0
   do
     this%idof_pert = iteration
@@ -196,7 +198,7 @@ subroutine InversionPerturbationStep(this)
     if (option%status == PROCEED) then
       call this%forward_simulation%ExecuteRun()
     endif
-    call InversionPerturbationFillColumn(this,iteration)
+    call InversionPerturbationFillRow(this,iteration)
     if (iteration == this%ndof) then
       call this%OutputSensitivity('')
     endif
@@ -227,8 +229,12 @@ subroutine InvPerturbationConnectForwardRun(this)
 
   class(inversion_perturbation_type) :: this
 
+  type(discretization_type), pointer :: discretization
+  Vec :: work
+  Vec :: natural_vec
   PetscReal, pointer :: vec_ptr(:)
   PetscInt, parameter :: isubdof = ZERO_INTEGER
+  PetscReal :: rmin, rmax
   PetscErrorCode :: ierr
 
   call InvSubsurfConnectToForwardRun(this)
@@ -242,27 +248,48 @@ subroutine InvPerturbationConnectForwardRun(this)
     call VecCopy(this%quantity_of_interest,this%quantity_of_interest_base, &
                                      ierr);CHKERRQ(ierr)
   else
+    discretization => this%realization%discretization
+    work = this%realization%field%work
+    call DiscretizationCreateVector(discretization, &
+                                    ONEDOF,natural_vec, &
+                                    NATURAL,this%realization%option)
     call VecCopy(this%quantity_of_interest_base,this%quantity_of_interest, &
                  ierr);CHKERRQ(ierr)
     call VecGetArrayF90(this%quantity_of_interest,vec_ptr, &
                         ierr);CHKERRQ(ierr)
-    this%pert = this%perturbation_tolerance*vec_ptr(this%idof_pert)
-    vec_ptr(this%idof_pert) = vec_ptr(this%idof_pert) + this%pert
-    call VecRestoreArrayF90(this%quantity_of_interest,vec_ptr, &
-                            ierr);CHKERRQ(ierr)
+    call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+    if (this%driver%comm%myrank == 0) then
+      call VecSetValue(natural_vec,this%idof_pert-1, &
+                       this%perturbation_tolerance,INSERT_VALUES, &
+                       ierr);CHKERRQ(ierr)
+    endif
+    call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+    call DiscretizationNaturalToGlobal(discretization,natural_vec, &
+                                       work,ONEDOF)
+    call VecPointwiseMult(work,work,this%quantity_of_interest,ierr);CHKERRQ(ierr)
+    call VecMax(work,PETSC_NULL_INTEGER,rmax,ierr);CHKERRQ(ierr)
+    call VecMin(work,PETSC_NULL_INTEGER,rmin,ierr);CHKERRQ(ierr)
+    if (rmax > 0.d0) then
+      this%pert = rmax
+    else
+      this%pert = rmin
+    endif
+    call VecAXPY(this%quantity_of_interest,1.d0,work,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(this%realization%discretization, &
                                      this%quantity_of_interest, &
                                      this%realization%field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
                                  this%iqoi,isubdof)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine InvPerturbationConnectForwardRun
 
 ! ************************************************************************** !
 
-subroutine InversionPerturbationFillColumn(this,iteration)
+subroutine InversionPerturbationFillRow(this,iteration)
   !
   ! Initializes inversion
   !
@@ -278,63 +305,58 @@ subroutine InversionPerturbationFillColumn(this,iteration)
   PetscInt :: iteration
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscReal, pointer :: soln_ptr(:)
-  PetscReal, allocatable :: temp_array(:)
-  PetscInt, allocatable :: rows(:)
-  PetscInt :: cols(1)
-  PetscInt :: num_measurement
+  PetscReal, pointer :: vec_ptr(:)
   PetscInt :: i
-  Mat :: M
   PetscErrorCode :: ierr
 
-  num_measurement = size(this%imeasurement)
   call RealizationGetVariable(this%realization, &
                               this%realization%field%work, &
-                              LIQUID_PRESSURE,ZERO_INTEGER)
-
-  call VecGetArrayReadF90(this%realization%field%work,soln_ptr, &
-                          ierr);CHKERRQ(ierr)
+                            LIQUID_PRESSURE,ZERO_INTEGER)
+  call VecScatterBegin(this%scatter_global_to_measurement, &
+                       this%realization%field%work, &
+                       this%measurement_vec, &
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_global_to_measurement, &
+                     this%realization%field%work, &
+                     this%measurement_vec, &
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   if (iteration == 0) then
-    do i = 1, num_measurement
-      this%base_solution_measurement(i) = soln_ptr(this%imeasurement(i))
-    enddo
-    call MatZeroEntries(this%inversion_aux%Jsensitivity,ierr);CHKERRQ(ierr)
+    call VecCopy(this%measurement_vec,this%base_measurement_vec, &
+                 ierr);CHKERRQ(ierr)
+    call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
   else
-    allocate(temp_array(num_measurement))
-    print *, 'pert: ', this%pert
-    print *, 'meas: ', this%measurement(:)
-    print *, 'soln: ', soln_ptr(:)
-    temp_array = 0.d0
-    do i = 1, num_measurement
-      temp_array(i) = soln_ptr(this%imeasurement(i)) - &
-                      this%base_solution_measurement(i)
-    enddo
-    temp_array = temp_array / this%pert
+    call VecAXPY(this%measurement_vec,-1.d0,this%base_measurement_vec, &
+                 ierr);CHKERRQ(ierr)
+    call VecScale(this%measurement_vec,1.d0/this%pert,ierr);CHKERRQ(ierr)
   endif
-  call VecRestoreArrayReadF90(this%realization%field%work,soln_ptr, &
-                              ierr);CHKERRQ(ierr)
 
   if (iteration == 0) return
 
-  allocate(rows(num_measurement))
-  do i = 1, num_measurement
-    rows(i) = i-1
+#if 0
+  ! not implemented in PETSc 3.13; use this functionality later
+  call MatDenseGetColumnVecWrite(this%inversion_aux%JsensitivityT, &
+                                 iteration-1,mat_col_vec,ierr);CHKERRQ(ierr)
+  call VecCopy(this%measurement_vec,mat_col_vec,ierr);CHKERRQ(ierr)
+  call MatDenseRestoreColumnVecWrite(this%inversion_aux%JsensitivityT, &
+                                     iteration-1,mat_col_vec,ierr);CHKERRQ(ierr)
+#else
+  call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  do i = 1, size(vec_ptr)
+    call MatSetValue(this%inversion_aux%JsensitivityT,iteration-1, &
+                     this%measurement_offset+i-1,vec_ptr(i), &
+                     INSERT_VALUES,ierr);CHKERRQ(ierr)
   enddo
-  cols = iteration-1
-  call MatSetValues(this%inversion_aux%Jsensitivity, &
-                    num_measurement,rows,1,cols, &
-                    temp_array,INSERT_VALUES,ierr);CHKERRQ(ierr)
-  deallocate(rows)
-  deallocate(temp_array)
+  call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+#endif
 
   if (iteration == this%ndof) then
-    call MatAssemblyBegin(this%inversion_aux%Jsensitivity,MAT_FINAL_ASSEMBLY, &
+    call MatAssemblyBegin(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
                           ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(this%inversion_aux%Jsensitivity,MAT_FINAL_ASSEMBLY, &
+    call MatAssemblyEnd(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
                         ierr);CHKERRQ(ierr)
   endif
 
-end subroutine InversionPerturbationFillColumn
+end subroutine InversionPerturbationFillRow
 
 ! ************************************************************************** !
 
@@ -351,12 +373,14 @@ subroutine InversionPerturbationStrip(this)
 
   PetscErrorCode :: ierr
 
-   call InversionSubsurfaceStrip(this)
+  call InversionSubsurfaceStrip(this)
 
-   call DeallocateArray(this%base_solution_measurement)
-   if (this%quantity_of_interest_base /= PETSC_NULL_VEC) then
+  if (this%quantity_of_interest_base /= PETSC_NULL_VEC) then
     call VecDestroy(this%quantity_of_interest_base,ierr);CHKERRQ(ierr)
-   endif
+  endif
+  if (this%base_measurement_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(this%base_measurement_vec,ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine InversionPerturbationStrip
 
