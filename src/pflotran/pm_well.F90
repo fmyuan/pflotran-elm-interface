@@ -45,6 +45,7 @@ module PM_Well_class
     class(realization_subsurface_type), pointer :: realization
     type(well_grid_type), pointer :: grid
     type(well_type), pointer :: well
+    PetscInt :: nphase 
   contains
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
@@ -84,6 +85,7 @@ function PMWellCreate()
   PMWellCreate%header = 'WELLBORE_MODEL'
 
   nullify(PMWellCreate%realization)
+  PMWellCreate%nphase = 0
 
   ! create the grid object:
   allocate(PMWellCreate%grid)
@@ -119,21 +121,27 @@ subroutine PMWellSetup(this)
   
   class(pm_well_type) :: this
   
+  type(option_type), pointer :: option
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
+  PetscReal :: temp_real
+  PetscInt :: nsegments
   PetscInt :: k
 
-  allocate(this%grid%dh(this%grid%nsegments))
-  allocate(this%grid%h(this%grid%nsegments,3))
+  option => this%option
+  nsegments = this%grid%nsegments
+
+  allocate(this%grid%dh(nsegments))
+  allocate(this%grid%h(nsegments,3))
 
   diff_x = this%grid%tophole(1)-this%grid%bottomhole(1)
   diff_y = this%grid%tophole(2)-this%grid%bottomhole(2)
   diff_z = this%grid%tophole(3)-this%grid%bottomhole(3)
 
-  dh_x = diff_x/this%grid%nsegments
-  dh_y = diff_y/this%grid%nsegments
-  dh_z = diff_z/this%grid%nsegments
+  dh_x = diff_x/nsegments
+  dh_y = diff_y/nsegments
+  dh_z = diff_z/nsegments
 
   diff_x = diff_x*diff_x
   diff_y = diff_y*diff_y
@@ -147,10 +155,62 @@ subroutine PMWellSetup(this)
     this%grid%h(k,3) = this%grid%bottomhole(3)+(dh_z*(k-0.5))
   enddo
 
-  this%grid%dh(:) = total_length/this%grid%nsegments
+  this%grid%dh(:) = total_length/nsegments
 
-  allocate(this%well%area(this%grid%nsegments))
-  allocate(this%well%volume(this%grid%nsegments))
+  if (size(this%well%diameter) /= nsegments) then
+    if (size(this%well%diameter) == 1) then
+      temp_real = this%well%diameter(1)
+      deallocate(this%well%diameter)
+      allocate(this%well%diameter(nsegments))
+      this%well%diameter(:) = temp_real
+    else
+      option%io_buffer = 'The number of values provided in &
+        &WELLBORE_MODEL,WELL,DIAMETER must match the number &
+        &of well segments provided in &
+        &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
+        a single value is provided in WELLBORE_MODEL,WELL,DIAMETER, &
+        &it will be applied to all segments of the well.'
+      call PrintErrMsg(option)
+    endif
+  endif
+  if (size(this%well%WI) /= nsegments) then
+    if (size(this%well%WI) == 1) then
+      temp_real = this%well%WI(1)
+      deallocate(this%well%WI)
+      allocate(this%well%WI(nsegments))
+      this%well%WI(:) = temp_real
+    else
+      option%io_buffer = 'The number of values provided in &
+        &WELLBORE_MODEL,WELL,WELL_INDEX must match the number &
+        &of well segments provided in &
+        &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
+        a single value is provided in WELLBORE_MODEL,WELL,WELL_INDEX, &
+        &it will be applied to all segments of the well.'
+      call PrintErrMsg(option)
+    endif
+  endif
+  if (size(this%well%f) /= nsegments) then
+    if (size(this%well%f) == 1) then
+      temp_real = this%well%f(1)
+      deallocate(this%well%f)
+      allocate(this%well%f(nsegments))
+      this%well%f(:) = temp_real
+    else
+      option%io_buffer = 'The number of values provided in &
+        &WELLBORE_MODEL,WELL,FRICTION_COEFFICIENT must match the number &
+        &of well segments provided in &
+        &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
+        a single value is provided in WELLBORE_MODEL,WELL,FRICTION_COEFFICIENT, &
+        &it will be applied to all segments of the well.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
+  allocate(this%well%area(nsegments))
+  this%well%area = 3.14159*(this%well%diameter/2.0)*(this%well%diameter/2.0)
+
+  allocate(this%well%volume(nsegments))
+  this%well%volume = this%well%area*this%grid%dh
 
 end subroutine PMWellSetup
 
@@ -199,12 +259,12 @@ subroutine PMWellReadPMBlock(this,input)
     ! Read keywords within WELLBORE_MODEL block:
     select case(trim(word))
     !-------------------------------------
-      case('ACTION1')
-        ! do some action or assignment
+      case('SINGLE_PHASE')
+        this%nphase = 1
         cycle
     !-------------------------------------
-      case('ACTION2')
-        ! do some action or assignment
+      case('TWO_PHASE')
+        this%nphase = 2
         cycle
     !-------------------------------------
     end select
@@ -227,8 +287,13 @@ subroutine PMWellReadPMBlock(this,input)
   enddo
   call InputPopBlock(input,option)
 
-  ! error checking - did the user provide the right amount of vector values
-  ! that matches nsegments?
+  if (this%nphase == 0) then
+    option%io_buffer = 'The number of fluid phases must be indicated &
+      &in the WELLBORE_MODEL block using one of these keywords: &
+      &SINGLE_PHASE, TWO_PHASE.'
+    call PrintErrMsg(option)
+  endif
+    
 
 end subroutine PMWellReadPMBlock
 
@@ -380,7 +445,7 @@ subroutine PMWellReadWell(this,input,option,keyword,error_string,found)
   found = PETSC_TRUE
   num_errors = 0
 
-  read_max = 100
+  read_max = 200
   allocate(temp_diameter(read_max))
   allocate(temp_friction(read_max))
   allocate(temp_well_index(read_max))
@@ -401,8 +466,6 @@ subroutine PMWellReadWell(this,input,option,keyword,error_string,found)
         call StringToUpper(word)
         num_read = 0
         select case(trim(word))
-        !-----------------------------
-          case('AREA')
         !-----------------------------
           case('DIAMETER')
             do k = 1,read_max
@@ -454,7 +517,21 @@ subroutine PMWellReadWell(this,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-      
+      if (.not.associated(this%well%WI)) then
+        option%io_buffer = 'Keyword WELL_INDEX must be provided in &
+                           &the ' // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
+      endif
+      if (.not.associated(this%well%f)) then
+        option%io_buffer = 'Keyword FRICTION_COEFFICIENT must be provided in &
+                           &the ' // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
+      endif
+      if (.not.associated(this%well%diameter)) then
+        option%io_buffer = 'Keyword DIAMETER must be provided in &
+                           &the ' // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
+      endif    
 
   !-------------------------------------
     case default
