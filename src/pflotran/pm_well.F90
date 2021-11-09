@@ -19,7 +19,7 @@ module PM_Well_class
     PetscInt :: nsegments      
     ! delta h discretization of each segment center       
     PetscReal, pointer :: dh(:)      
-    ! h coordinate of each segment center 
+    ! h coordinate of each segment center (seg#,x-y-z)
     PetscReal, pointer :: h(:,:)    
     ! coordinate of the top/bottom of the well 
     PetscReal :: tophole(3)
@@ -369,12 +369,24 @@ subroutine PMWellReadWell(this,input,option,keyword,error_string,found)
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
 
-  PetscInt :: num_errors
+  PetscInt :: k
+  PetscInt :: num_errors,read_max,num_read
   character(len=MAXWORDLENGTH) :: word
+  PetscReal, pointer :: temp_diameter(:)
+  PetscReal, pointer :: temp_friction(:)
+  PetscReal, pointer :: temp_well_index(:)
 
   error_string = trim(error_string) // ',WELL'
   found = PETSC_TRUE
   num_errors = 0
+
+  read_max = 100
+  allocate(temp_diameter(read_max))
+  allocate(temp_friction(read_max))
+  allocate(temp_well_index(read_max))
+  temp_diameter(:) = UNINITIALIZED_DOUBLE
+  temp_friction(:) = UNINITIALIZED_DOUBLE
+  temp_well_index(:) = UNINITIALIZED_DOUBLE
 
   select case(trim(keyword))
   !-------------------------------------
@@ -387,15 +399,52 @@ subroutine PMWellReadWell(this,input,option,keyword,error_string,found)
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
+        num_read = 0
         select case(trim(word))
         !-----------------------------
           case('AREA')
         !-----------------------------
           case('DIAMETER')
+            do k = 1,read_max
+              call InputReadDouble(input,option,temp_diameter(k))
+              if (InputError(input)) exit
+              num_read = num_read + 1
+            enddo
+            if (num_read == 0) then
+              option%io_buffer = 'At least one value for DIAMETER must be &
+                &provided in the ' // trim(error_string) // ' block.'
+              call PrintErrMsg(option)
+            endif
+            allocate(this%well%diameter(num_read))
+            this%well%diameter(1:num_read) = temp_diameter(1:num_read)
         !-----------------------------
           case('FRICTION_COEFFICIENT')
+            do k = 1,read_max
+              call InputReadDouble(input,option,temp_friction(k))
+              if (InputError(input)) exit
+              num_read = num_read + 1
+            enddo
+            if (num_read == 0) then
+              option%io_buffer = 'At least one value for FRICTION_COEFFICIENT &
+                &must be provided in the ' // trim(error_string) // ' block.'
+              call PrintErrMsg(option)
+            endif
+            allocate(this%well%f(num_read))
+            this%well%f(1:num_read) = temp_friction(1:num_read)
         !-----------------------------
           case('WELL_INDEX')
+            do k = 1,read_max
+              call InputReadDouble(input,option,temp_well_index(k))
+              if (InputError(input)) exit
+              num_read = num_read + 1
+            enddo
+            if (num_read == 0) then
+              option%io_buffer = 'At least one value for WELL_INDEX &
+                &must be provided in the ' // trim(error_string) // ' block.'
+              call PrintErrMsg(option)
+            endif
+            allocate(this%well%WI(num_read))
+            this%well%WI(1:num_read) = temp_well_index(1:num_read)
         !-----------------------------
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -419,6 +468,10 @@ subroutine PMWellReadWell(this,input,option,keyword,error_string,found)
                   &the WELLBORE_MODEL,WELL block. See above error messages.'
     call PrintErrMsg(option)
   endif
+
+  deallocate(temp_well_index)
+  deallocate(temp_friction)
+  deallocate(temp_diameter)
 
   end subroutine PMWellReadWell
 
