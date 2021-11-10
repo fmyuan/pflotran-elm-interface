@@ -352,9 +352,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
       material_property => &
         patch%material_property_array(material_id)%ptr
 
-    call GeomechanicsSubsurfacePropsAuxvarInit( &
-          material_property%geomechanics_subsurface_properties, &
-          patch%aux%Material%auxvars(ghosted_id))
+      if (option%geomech_on) then
+        call GeomechanicsSubsurfacePropsAuxvarInit( &
+              material_property%geomechanics_subsurface_properties, &
+              patch%aux%Material%auxvars(ghosted_id))
+      endif
 
       ! lookup creep closure table id from creep closure table name
       if (option%flow%creep_closure_on) then
