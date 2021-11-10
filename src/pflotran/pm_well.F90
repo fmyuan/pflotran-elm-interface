@@ -41,10 +41,24 @@ module PM_Well_class
     PetscReal, pointer :: WI(:)    
   end type well_type
 
+  type :: well_soln_type
+    ! number of primary variables
+    PetscInt :: ndof
+    ! residual vector
+    PetscReal, pointer :: residual(:)
+    ! residual vector component - pressure (P)
+    PetscReal, pointer :: res_p(:)
+    ! residual vector component - mixture velocity (vm)
+    PetscReal, pointer :: res_vm(:)
+    ! residual vector component - gas saturation (sg)
+    PetscReal, pointer :: res_sg(:)
+  end type well_soln_type
+
   type, public, extends(pm_base_type) :: pm_well_type
     class(realization_subsurface_type), pointer :: realization
     type(well_grid_type), pointer :: grid
     type(well_type), pointer :: well
+    type(well_soln_type), pointer :: soln
     PetscInt :: nphase 
   contains
     procedure, public :: Setup => PMWellSetup
@@ -55,8 +69,8 @@ module PM_Well_class
     procedure, public :: InitializeTimestep => PMWellInitializeTimestep
     procedure, public :: UpdateTimestep => PMWellUpdateTimestep
     procedure, public :: FinalizeTimestep => PMWellFinalizeTimestep
-    procedure, public :: Residual => PMWellResidual
-    procedure, public :: Jacobian => PMWellJacobian
+    !procedure, public :: Residual => PMWellResidual
+    !procedure, public :: Jacobian => PMWellJacobian
     procedure, public :: PreSolve => PMWellPreSolve
     procedure, public :: PostSolve => PMWellPostSolve
     procedure, public :: Destroy => PMWellDestroy
@@ -82,12 +96,12 @@ function PMWellCreate()
   allocate(PMWellCreate)
   call PMBaseInit(PMWellCreate)
 
-  PMWellCreate%header = 'WELLBORE_MODEL'
+  PMWellCreate%header = 'WELLBORE MODEL'
 
   nullify(PMWellCreate%realization)
   PMWellCreate%nphase = 0
 
-  ! create the grid object:
+  ! create the well grid object:
   allocate(PMWellCreate%grid)
   PMWellCreate%grid%nsegments = UNINITIALIZED_INTEGER
   nullify(PMWellCreate%grid%dh)
@@ -103,6 +117,14 @@ function PMWellCreate()
   nullify(PMWellCreate%well%volume)
   nullify(PMWellCreate%well%f)
   nullify(PMWellCreate%well%WI)
+
+  ! create the well solution object:
+  allocate(PMWellCreate%soln)
+  nullify(PMWellCreate%soln%residual)
+  nullify(PMWellCreate%soln%res_p)
+  nullify(PMWellCreate%soln%res_vm)
+  nullify(PMWellCreate%soln%res_sg)
+  PMWellCreate%soln%ndof = UNINITIALIZED_INTEGER
 
 
 end function PMWellCreate
@@ -168,7 +190,7 @@ subroutine PMWellSetup(this)
         &WELLBORE_MODEL,WELL,DIAMETER must match the number &
         &of well segments provided in &
         &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
-        a single value is provided in WELLBORE_MODEL,WELL,DIAMETER, &
+        &a single value is provided in WELLBORE_MODEL,WELL,DIAMETER, &
         &it will be applied to all segments of the well.'
       call PrintErrMsg(option)
     endif
@@ -184,7 +206,7 @@ subroutine PMWellSetup(this)
         &WELLBORE_MODEL,WELL,WELL_INDEX must match the number &
         &of well segments provided in &
         &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
-        a single value is provided in WELLBORE_MODEL,WELL,WELL_INDEX, &
+        &a single value is provided in WELLBORE_MODEL,WELL,WELL_INDEX, &
         &it will be applied to all segments of the well.'
       call PrintErrMsg(option)
     endif
@@ -200,7 +222,7 @@ subroutine PMWellSetup(this)
         &WELLBORE_MODEL,WELL,FRICTION_COEFFICIENT must match the number &
         &of well segments provided in &
         &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
-        a single value is provided in WELLBORE_MODEL,WELL,FRICTION_COEFFICIENT, &
+        &a single value is provided in WELLBORE_MODEL,WELL,FRICTION_COEFFICIENT, &
         &it will be applied to all segments of the well.'
       call PrintErrMsg(option)
     endif
@@ -211,6 +233,8 @@ subroutine PMWellSetup(this)
 
   allocate(this%well%volume(nsegments))
   this%well%volume = this%well%area*this%grid%dh
+
+  this%soln%ndof = this%nphase + 1
 
 end subroutine PMWellSetup
 
@@ -622,10 +646,6 @@ subroutine PMWellSetRealization(this,realization)
   
   class(pm_well_type) :: this
   class(realization_subsurface_type), pointer :: realization
-
-  ! There will probably need to be a realization_well created because we need
-  ! our own grid and solution vectors and all that. But we will still need to
-  ! be connected to the subsurface realization too.
   
   this%realization => realization
   this%realization_base => realization
@@ -645,7 +665,22 @@ recursive subroutine PMWellInitializeRun(this)
 
   class(pm_well_type) :: this
   
-  ! placeholder
+  PetscInt :: nsegments 
+
+  nsegments = this%grid%nsegments 
+
+  allocate(this%soln%residual(nsegments*this%soln%ndof))
+  this%soln%residual(:) = UNINITIALIZED_DOUBLE
+
+  allocate(this%soln%res_p(nsegments))
+  allocate(this%soln%res_vm(nsegments))
+  this%soln%res_p(:) = UNINITIALIZED_DOUBLE
+  this%soln%res_vm(:) = UNINITIALIZED_DOUBLE
+
+  if (this%nphase == 2) then
+    allocate(this%soln%res_sg(nsegments))
+    this%soln%res_sg(:) = UNINITIALIZED_DOUBLE
+  endif
   
 end subroutine PMWellInitializeRun
 
@@ -683,7 +718,7 @@ subroutine PMWellInitializeTimestep(this)
   
   class(pm_well_type) :: this
 
-  ! placeholder
+  call PMWellResidual(this)
 
 end subroutine PMWellInitializeTimestep
 
@@ -729,7 +764,7 @@ end subroutine PMWellFinalizeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMWellResidual(this,snes,xx,r,ierr)
+subroutine PMWellResidual(this)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
@@ -737,14 +772,155 @@ subroutine PMWellResidual(this,snes,xx,r,ierr)
   implicit none
   
   class(pm_well_type) :: this
-  SNES :: snes
-  Vec :: xx
-  Vec :: r
-  PetscErrorCode :: ierr
+  !SNES :: snes
+  !Vec :: xx
+  !Vec :: r
+  !PetscErrorCode :: ierr
+  PetscInt :: i, k 
     
-  ! placeholder
+  call PMWellResidualP(this)
+  
+  call PMWellResidualVm(this)
+
+  if (this%nphase == 2) then
+    call PMWellResidualSg(this)
+  endif
+
+  ! form the full residual vector
+  ! -------------------------------------
+  ! |1,2,3, |4,5,6, |7,8,9, |...|
+  ! |p,vm,sg|p,vm,sg|p,vm,sg|...|p,vm,sg|
+  ! | seg 1 | seg 2 | seg 3 |...| seg n |
+  ! -------------------------------------
+  ! |bottom | inter | inter |...| top   |
+  i = 1
+  do k = 1,(this%grid%nsegments*this%soln%ndof)
+    if (mod((k-1),this%soln%ndof) == 0) then
+      this%soln%residual(k) = this%soln%res_p(i)
+      this%soln%residual(k+1) = this%soln%res_vm(i)
+      if (this%nphase == 2) then
+        this%soln%residual(k+2) = this%soln%res_sg(i) 
+      endif 
+      i = i + 1
+    endif 
+  enddo
 
 end subroutine PMWellResidual
+
+! ************************************************************************** !
+
+subroutine PMWellResidualP(this)
+  ! 
+  ! Calculates the residual for the well pressure. 
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 11/09/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  PetscReal :: dpress(this%grid%nsegments)
+  PetscReal :: dpress_a(this%grid%nsegments)
+  PetscReal :: dpress_f(this%grid%nsegments)
+  PetscReal :: dpress_h(this%grid%nsegments)
+  PetscInt :: k
+
+  do k = 1,this%grid%nsegments
+    if (k == 1) then ! top segment
+      dpress(k) = 0.0d0
+      dpress_h(k) = 0.0d0
+      dpress_f(k) = 0.0d0
+      dpress_a(k) = 0.0d0
+    else if (k == this%grid%nsegments) then ! bottom segment
+      dpress(k) = 0.0d0
+      dpress_h(k) = 0.0d0
+      dpress_f(k) = 0.0d0
+      dpress_a(k) = 0.0d0
+    else ! interior segment(s)
+      dpress(k) = 0.0d0
+      dpress_h(k) = 0.0d0
+      dpress_f(k) = 0.0d0
+      dpress_a(k) = 0.0d0
+    endif
+  enddo
+  this%soln%res_p = dpress - dpress_h - dpress_f - dpress_a
+
+end subroutine PMWellResidualP
+
+! ************************************************************************** !
+
+subroutine PMWellResidualVm(this)
+  ! 
+  ! Calculates the residual for the well mixture velocity. 
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 11/09/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  PetscReal :: accum(this%grid%nsegments)
+  PetscReal :: flux(this%grid%nsegments)
+  PetscReal :: srcsink(this%grid%nsegments)
+  PetscInt :: k
+
+  do k = 1,this%grid%nsegments
+    if (k == 1) then ! top segment
+      accum(k) = 1.0d0
+      flux(k) = 1.0d0
+      srcsink(k) = 1.0d0
+    else if (k == this%grid%nsegments) then ! bottom segment
+      accum(k) = 1.0d0
+      flux(k) = 1.0d0
+      srcsink(k) = 1.0d0
+    else ! interior segment(s)
+      accum(k) = 1.0d0
+      flux(k) = 1.0d0
+      srcsink(k) = 1.0d0      
+    endif
+  enddo
+  this%soln%res_vm = accum + flux - srcsink
+
+end subroutine PMWellResidualVm
+
+! ************************************************************************** !
+
+subroutine PMWellResidualSg(this)
+  ! 
+  ! Calculates the residual for the well mixture velocity. 
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 11/09/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  PetscReal :: accum(this%grid%nsegments)
+  PetscReal :: flux(this%grid%nsegments)
+  PetscReal :: srcsink(this%grid%nsegments)
+  PetscInt :: k
+
+  do k = 1,this%grid%nsegments
+    if (k == 1) then ! top segment
+      accum(k) = 1.5d0
+      flux(k) = 1.5d0
+      srcsink(k) = 1.5d0
+    else if (k == this%grid%nsegments) then ! bottom segment
+      accum(k) = 1.5d0
+      flux(k) = 1.5d0
+      srcsink(k) = 1.5d0
+    else ! interior segment(s)
+      accum(k) = 1.5d0
+      flux(k) = 1.5d0
+      srcsink(k) = 1.5d0
+    endif
+  enddo
+  this%soln%res_sg = accum + flux - srcsink
+
+end subroutine PMWellResidualSg
 
 ! ************************************************************************** !
 
@@ -814,6 +990,21 @@ subroutine PMWellDestroy(this)
   call PMBaseDestroy(this)
 
   call DeallocateArray(this%grid%h)
+  call DeallocateArray(this%grid%dh)
+  nullify(this%grid)
+
+  call DeallocateArray(this%well%area)
+  call DeallocateArray(this%well%diameter)
+  call DeallocateArray(this%well%volume)
+  call DeallocateArray(this%well%f)
+  call DeallocateArray(this%well%WI)
+  nullify(this%well)
+
+  call DeallocateArray(this%soln%residual)
+  call DeallocateArray(this%soln%res_p)
+  call DeallocateArray(this%soln%res_vm)
+  call DeallocateArray(this%soln%res_sg)
+  nullify(this%soln)
   
 end subroutine PMWellDestroy
 
