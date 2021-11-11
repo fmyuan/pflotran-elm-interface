@@ -646,7 +646,19 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscInt :: icc_up, icc_dn
   PetscReal :: Res(1)
   PetscReal :: Jup(1,1),Jdn(1,1)
+  PetscReal :: dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1)
+  PetscReal :: drhsdKup(1),drhsdKdn(1)
+  Mat, pointer :: dMdK(:)
+  Vec, pointer :: dbdK(:)
   PetscReal :: v_darcy(1)
+  PetscReal :: dM(2)
+
+  dJupdKup = 0.d0
+  dJupdKdn = 0.d0
+  dJdndKdn = 0.d0
+  dJdndKup = 0.d0
+  drhsdKup = 0.d0
+  drhsdKdn = 0.d0
 
   discretization => realization%discretization
   option => realization%option
@@ -662,8 +674,24 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
+  if (associated(patch%aux%inversion_aux)) then
+    dMdK => patch%aux%inversion_aux%dMdK
+    dbdK => patch%aux%inversion_aux%dbdK
+  else
+    nullify(dMdK)
+    nullify(dbdK)
+  endif
+
   if (zflow_simult_function_evals) then
     call MatZeroEntries(A,ierr);CHKERRQ(ierr)
+    if (associated(dMdK)) then
+      do i = 1, size(dMdK)
+        call MatZeroEntries(dMdK(i),ierr);CHKERRQ(ierr)
+      enddo
+      do i = 1, size(dbdK)
+        call VecZeroEntries(dbdK(i),ierr);CHKERRQ(ierr)
+      enddo
+    endif
   endif
 
   ! Communication -----------------------------------------
@@ -765,6 +793,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                     cur_connection_set%dist(:,iconn), &
                     zflow_parameter,option,v_darcy, &
                     Res,Jup,Jdn, &
+                    dJupdKup,dJupdKdn,dJdndKup,dJdndKdn, &
+                    drhsdKup,drhsdKdn, &
                     zflow_simult_function_evals)
         if (zflow_numerical_derivatives) then
           call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
@@ -783,6 +813,13 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           patch%internal_flow_fluxes(:,sum_connection) = Res(:)
         endif
 
+        if (zflow_simult_function_evals .and. &
+            associated(patch%aux%inversion_aux)) then
+          patch%aux%inversion_aux%dFluxdIntConn(:,sum_connection) = &
+            [dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1), &
+             drhsdKup(1),drhsdKdn(1)]
+        endif
+
         if (local_id_up > 0) then
           r_p(local_id_up) = r_p(local_id_up) + Res(1)
           if (zflow_simult_function_evals) then
@@ -792,6 +829,27 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
                                           1,ghosted_id_dn-1, &
                                           Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+            if (associated(dMdK)) then
+              ! flip sign for rhs of equation
+              drhsdKup = -drhsdKup
+              drhsdKdn = -drhsdKdn
+              call MatSetValuesBlockedLocal(dMdK(local_id_up),1,ghosted_id_up-1, &
+                                            1,ghosted_id_up-1, &
+                                            dJupdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call MatSetValuesBlockedLocal(dMdK(local_id_up),1,ghosted_id_up-1, &
+                                            1,ghosted_id_dn-1, &
+                                            dJdndKup,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_up-1, &
+                                            1,ghosted_id_up-1, &
+                                            dJupdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_up-1, &
+                                            1,ghosted_id_dn-1, &
+                                            dJdndKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call VecSetValueLocal(dbdK(local_id_up),ghosted_id_up-1, &
+                                    drhsdKup(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+              call VecSetValueLocal(dbdK(local_id_dn),ghosted_id_up-1, &
+                                    drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+            endif
           endif
         endif
 
@@ -806,6 +864,30 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
                                           1,ghosted_id_up-1, &
                                           Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+            if (associated(dMdK)) then
+              dJupdKup = -dJupdKup
+              dJdndKup = -dJdndKup
+              dJupdKdn = -dJupdKdn
+              dJdndKdn = -dJdndKdn
+              drhsdKup = -drhsdKup
+              drhsdKdn = -drhsdKdn
+              call MatSetValuesBlockedLocal(dMdK(local_id_up),1,ghosted_id_dn-1, &
+                                            1,ghosted_id_dn-1, &
+                                            dJdndKup,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call MatSetValuesBlockedLocal(dMdK(local_id_up),1,ghosted_id_dn-1, &
+                                            1,ghosted_id_up-1, &
+                                            dJupdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_dn-1, &
+                                            1,ghosted_id_dn-1, &
+                                            dJdndKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_dn-1, &
+                                            1,ghosted_id_up-1, &
+                                            dJupdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call VecSetValueLocal(dbdK(local_id_up),ghosted_id_dn-1, &
+                                    drhsdKup(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+              call VecSetValueLocal(dbdK(local_id_dn),ghosted_id_dn-1, &
+                                    drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+           endif
           endif
         endif
       enddo
@@ -846,6 +928,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                       cur_connection_set%dist(:,iconn), &
                       zflow_parameter,option, &
                       v_darcy,Res,Jdn, &
+                      dJdndKdn,drhsdKdn, &
                       zflow_simult_function_evals)
         if (zflow_numerical_derivatives) then
           call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
@@ -877,6 +960,19 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           Jdn = -Jdn
           call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                         ADD_VALUES,ierr);CHKERRQ(ierr)
+          if (associated(patch%aux%inversion_aux)) then
+            dJdndKdn = -dJdndKdn
+            ! no need to flip sign on rhs since downwind
+            patch%aux%inversion_aux%dFluxdBCConn(:,sum_connection) = &
+              [dJdndKdn(1),drhsdKdn(1)]
+          endif
+          if (associated(dMdK)) then
+            call MatSetValuesBlockedLocal(dMdK(local_id),1,ghosted_id-1, &
+                                          1,ghosted_id-1, &
+                                          dJdndKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+            call VecSetValueLocal(dbdK(local_id),ghosted_id-1, &
+                                  drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+          endif
         endif
       enddo
       boundary_condition => boundary_condition%next
@@ -956,6 +1052,17 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
       ! zero out inactive cells
+
+    if (associated(dMdK)) then
+      do i = 1, size(dMdK)
+        call MatAssemblyBegin(dMdK(i),MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+        call MatAssemblyEnd(dMdK(i),MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+      enddo
+      do i = 1, size(dbdK)
+        call VecAssemblyBegin(dbdK(i),ierr);CHKERRQ(ierr)
+        call VecAssemblyEnd(dbdK(i),ierr);CHKERRQ(ierr)
+      enddo
+    endif
 
     if (patch%aux%ZFlow%inactive_cells_exist) then
       scale = 1.d0 ! solely a temporary variable in this conditional

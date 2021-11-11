@@ -11,7 +11,7 @@ module Survey_module
 
   type, public :: survey_type
     character(len=MAXWORDLENGTH) :: name
-    character(len=MAXWORDLENGTH) :: filename
+    character(len=MAXSTRINGLENGTH) :: filename
 
     PetscInt :: num_electrode                   ! Number of electrodes
     PetscInt, pointer :: ipos_electrode(:)      ! cell id of electrode pos
@@ -110,9 +110,8 @@ subroutine SurveyRead(survey,input,option)
     call StringToUpper(word)
     select case(trim(word))
     case('FILE_NAME')
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadFilename(input,option,survey%filename)
       call InputErrorMsg(input,option,'FILENAME','SURVEY')
-      survey%filename = word
     case('FORMAT')
       call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'FORMAT','SURVEY')

@@ -17,6 +17,7 @@ module Auxiliary_module
   use PNF_Aux_module
   use Secondary_Continuum_Aux_module
   use InlineSurface_Aux_module
+  use Inversion_Aux_module
 
   use PFLOTRAN_Constants_module
 
@@ -41,6 +42,7 @@ module Auxiliary_module
     type(sc_heat_type), pointer :: SC_heat
     type(sc_rt_type), pointer :: SC_RT
     type(inlinesurface_type), pointer :: InlineSurface
+    type(inversion_aux_type), pointer :: inversion_aux
   end type auxiliary_type
 
   public :: AuxInit, &
@@ -79,6 +81,7 @@ subroutine AuxInit(aux)
   nullify(aux%SC_heat)
   nullify(aux%SC_RT)
   nullify(aux%InlineSurface)
+  nullify(aux%inversion_aux)
 
 end subroutine AuxInit
 
@@ -112,6 +115,7 @@ subroutine AuxDestroy(aux)
   call SecondaryAuxHeatDestroy(aux%SC_heat)
   call SecondaryAuxRTDestroy(aux%SC_RT)
   call InlineSurfaceAuxDestroy(aux%InlineSurface)
+  ! DO NOT destroy aux%inversion_aux; it is destroyed elsewhere
 
   nullify(aux%Global)
   nullify(aux%RT)
@@ -128,6 +132,7 @@ subroutine AuxDestroy(aux)
   nullify(aux%SC_Heat)
   nullify(aux%SC_RT)
   nullify(aux%InlineSurface)
+  nullify(aux%inversion_aux)
 
 end subroutine AuxDestroy
 

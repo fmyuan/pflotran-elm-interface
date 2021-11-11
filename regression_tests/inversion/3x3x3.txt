@@ -1,0 +1,149 @@
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.d-2
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 3 3 3
+skip
+  BOUNDS
+    0.d0 0.d0 0.d0
+    3.d0 3.d0 3.d0
+  /
+noskip
+  DXYZ
+    1.15d0 0.75d0 1.1d0
+    0.95d0 1.d0 1.05d0
+    0.99d0 1.01d0 1.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+MATERIAL_PROPERTY soil2
+  ID 2
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-15
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  DEFAULT
+END
+
+#=========================== output options ===================================
+OUTPUT
+  FORMAT TECPLOT POINT
+  VARIABLES
+    LIQUID_PRESSURE
+    PERMEABILITY
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 10.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d200 y
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 -1.d20 -1.d20
+    0.d0 1.d20 1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    3.d0 -1.d20 -1.d20
+    3.d0 1.d20 1.d20
+  /
+END
+
+REGION middle
+  COORDINATE 1.5d0 0.5d0 1.5d0
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  DATUM 0.d0 0.d0 8.d0
+  GRADIENT 
+#    PRESSURE -0.3d0 0.d0 0.d0
+#    PRESSURE -1.d-3 0.d0 0.d0
+  /
+  PRESSURE 101325.d0
+END
+
+FLOW_CONDITION east
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  DATUM 0.d0 0.d0 8.d0
+  GRADIENT 
+    PRESSURE -0.3d0 0.d0 0.d0
+  /
+  PRESSURE 101325.d0
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION east
+  REGION east
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+STRATA
+  REGION middle
+  MATERIAL soil2
+END
+
