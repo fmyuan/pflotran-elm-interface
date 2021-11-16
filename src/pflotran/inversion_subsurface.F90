@@ -935,7 +935,6 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
   PetscInt :: iconn
   PetscInt :: icol, irow
   PetscReal :: coef
-  PetscErrorCode :: ierr
 
   grid => this%realization%patch%grid
   connection_set => grid%internal_connection_set_list%first
@@ -952,94 +951,46 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
     local_id_dn = grid%nG2L(ghosted_id_dn)
     flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
     if (local_id_up == local_id) then
-      ! call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-      !                  flux_coef(1), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_up
       icol = ghosted_id_up
       call InvSubsurfSwapRowCol(irow,icol)
       coef = flux_coef(1)
-      if (this%debug_verbosity > 2) then
-        print *, '1 interior true:', irow, icol, coef
-      endif
       work(irow) = work(irow) + coef*lambda_ptr(icol)
-      ! call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-      !                  flux_coef(3), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_up
       icol = ghosted_id_dn
       coef = flux_coef(3)
       call InvSubsurfSwapRowCol(irow,icol)
-      if (this%debug_verbosity > 2) then
-        print *, '2 interior true:', irow, icol, coef
-      endif
       work(irow) = work(irow) + coef*lambda_ptr(icol)
-      ! call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-      !                  -1.d0*flux_coef(3), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_dn
       icol = ghosted_id_dn
       coef = -flux_coef(3)
       call InvSubsurfSwapRowCol(irow,icol)
-      if (this%debug_verbosity > 2) then
-        print *, '3 interior true:', irow, icol, coef
-      endif
       work(irow) = work(irow) + coef*lambda_ptr(icol)
-      ! call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-      !                  -1.d0*flux_coef(1), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_dn
       icol = ghosted_id_up
       coef = -flux_coef(1)
       call InvSubsurfSwapRowCol(irow,icol)
-      if (this%debug_verbosity > 2) then
-        print *, '4 interior true:', irow, icol, coef
-      endif
       work(irow) = work(irow) + coef*lambda_ptr(icol)
     elseif (local_id_dn == local_id) then
-      ! call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-      !                  flux_coef(2), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_up
       icol = ghosted_id_up
       coef = flux_coef(2)
       call InvSubsurfSwapRowCol(irow,icol)
-      if (this%debug_verbosity > 2) then
-        print *, '5 interior false:', irow, icol, coef
-      endif
       work(irow) = work(irow) + coef*lambda_ptr(icol)
-      ! call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-      !                  flux_coef(4), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_up
       icol = ghosted_id_dn
       coef = flux_coef(4)
       call InvSubsurfSwapRowCol(irow,icol)
-      if (this%debug_verbosity > 2) then
-        print *, '6 interior false:', irow, icol, coef
-      endif
       work(irow) = work(irow) + coef*lambda_ptr(icol)
-      ! call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-      !                  -1.d0*flux_coef(4), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_dn
       icol = ghosted_id_dn
       coef = -flux_coef(4)
       call InvSubsurfSwapRowCol(irow,icol)
-      if (this%debug_verbosity > 2) then
-        print *, '7 interior false:', irow, icol, coef
-      endif
       work(irow) = work(irow) + coef*lambda_ptr(icol)
-      ! call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-      !                  -1.d0*flux_coef(2), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_dn
       icol = ghosted_id_up
       coef = -flux_coef(2)
       call InvSubsurfSwapRowCol(irow,icol)
-      if (this%debug_verbosity > 2) then
-        print *, '8 interior false:', irow, icol, coef
-      endif
       work(irow) = work(irow) + coef*lambda_ptr(icol)
     else
       this%realization%option%io_buffer = 'Incorrect mapping of connection'
@@ -1050,22 +1001,14 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
   do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
     iconn = inversion_aux%cell_to_bc_connection(k,local_id)
     flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
-    ! call MatSetValuesLocal(dMdK,1,ghosted_id-1,1,ghosted_id-1, &
-    !                        flux_coef(1),ADD_VALUES,ierr);CHKERRQ(ierr)
-      irow = ghosted_id
-      icol = ghosted_id
-      call InvSubsurfSwapRowCol(irow,icol)
-      coef = flux_coef(1)
-      if (this%debug_verbosity > 2) then
-        print *, '9 bc:', irow, icol, coef
-      endif
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
+    irow = ghosted_id
+    icol = ghosted_id
+    call InvSubsurfSwapRowCol(irow,icol)
+    coef = flux_coef(1)
+    work(irow) = work(irow) + coef*lambda_ptr(icol)
   enddo
 
   value_ = -1.d0*dot_product(solution,work)
-  if (this%debug_verbosity > 2) then
-    print *, '-h^T*dMdK^T*lamba: ', value_
-  endif
 
   work = 0.d0
   do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
@@ -1076,42 +1019,18 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
     local_id_dn = grid%nG2L(ghosted_id_dn)
     flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
     if (local_id_up == local_id) then
-      ! call VecSetValueLocal(dbdK,ghosted_id_up-1, &
-      !                  -1.d0*flux_coef(5), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_up
       coef = -flux_coef(5)
-      if (this%debug_verbosity > 2) then
-        print *, '10 rhs true:', icol, coef
-      endif
       work(irow) = work(irow) + coef
-      ! call VecSetValueLocal(dbdK,ghosted_id_dn-1, &
-      !                  flux_coef(5), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_dn
       coef = flux_coef(5)
-      if (this%debug_verbosity > 2) then
-        print *, '11 rhs true:', icol, coef
-      endif
       work(irow) = work(irow) + coef
     elseif (local_id_dn == local_id) then
-      ! call VecSetValueLocal(dbdK,ghosted_id_up-1, &
-      !                  -1.d0*flux_coef(6), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_up
       coef = -flux_coef(6)
-      if (this%debug_verbosity > 2) then
-        print *, '12 rhs false:', icol, coef
-      endif
       work(irow) = work(irow) + coef
-      ! call VecSetValueLocal(dbdK,ghosted_id_dn-1, &
-      !                  flux_coef(6), &
-      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
       irow = ghosted_id_dn
       coef = flux_coef(6)
-      if (this%debug_verbosity > 2) then
-        print *, '13 rhs false:', icol, coef
-      endif
       work(irow) = work(irow) + coef
     else
       this%realization%option%io_buffer = 'Incorrect mapping of connection'
@@ -1121,20 +1040,12 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
   do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
     iconn = inversion_aux%cell_to_bc_connection(k,local_id)
     flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
-    ! call VecSetValueLocal(dbdK,ghosted_id-1,flux_coef(2),ADD_VALUES, &
-    !                  ierr);CHKERRQ(ierr)
     irow = ghosted_id
     coef = flux_coef(2)
-    if (this%debug_verbosity > 2) then
-      print *, '14 rhs bc:', icol, coef
-    endif
     work(irow) = work(irow) + coef
   enddo
 
   coef = dot_product(work,lambda_ptr)
-  if (this%debug_verbosity > 2) then
-    print *, 'dbdK^T*lambda: ', coef
-  endif
   value_ = value_ + coef
 
   deallocate(flux_coef)
