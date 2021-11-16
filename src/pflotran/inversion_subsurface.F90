@@ -530,6 +530,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   use Patch_module
   use Solver_module
   use String_module
+  use Timer_class
 
   use PM_Base_class
   use PM_ZFlow_class
@@ -559,6 +560,8 @@ subroutine InvSubsurfCalculateSensitivity(this)
   Mat :: dMdK_diff
   Vec :: dbdK
   Vec :: natural_vec
+  class(timer_type), pointer :: timer
+  class(timer_type), pointer :: timer2
   PetscErrorCode :: ierr
 
   lambda_loc = PETSC_NULL_VEC
@@ -571,6 +574,11 @@ subroutine InvSubsurfCalculateSensitivity(this)
   patch => this%realization%patch
   grid => patch%grid
   inversion_aux => this%inversion_aux
+
+  timer => TimerCreate()
+  timer2 => TimerCreate()
+
+  call timer%Start()
 
   work = this%realization%field%work ! DO NOT DESTROY!
   solution = this%realization%field%flow_xx ! DO NOT DESTROY!
@@ -642,14 +650,12 @@ subroutine InvSubsurfCalculateSensitivity(this)
 
     if (this%local_adjoint) then
       call DiscretizationGlobalToLocal(discretization,lambda,lambda_loc,ONEDOF)
+      call timer2%Start()
       call VecGetArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(solution_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(work_loc,vec_ptr3,ierr);CHKERRQ(ierr)
       do iparameter = 1, grid%nlmax
         call InvSubsrfBMinusHM(this,iparameter,vec_ptr,vec_ptr2,vec_ptr3,tempreal)
-        if (this%debug_verbosity > 2) then
-          print *, 'value_: ', iparameter, imeasurement, tempreal
-        endif
         natural_id = grid%nG2A(grid%nL2G(iparameter))
         call MatSetValue(inversion_aux%JsensitivityT,natural_id-1,imeasurement-1, &
                          -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
@@ -657,6 +663,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
       call VecRestoreArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
       call VecRestoreArrayF90(solution_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       call VecRestoreArrayF90(work_loc,vec_ptr3,ierr);CHKERRQ(ierr)
+      call timer2%Stop()
       if (this%debug_adjoint) then
         print *, 'adjoint for measurement: ' // trim(StringWrite(imeasurement)) // &
                  ' : ' // trim(StringWrite(this%imeasurement(imeasurement)))
@@ -748,6 +755,16 @@ subroutine InvSubsurfCalculateSensitivity(this)
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(inversion_aux%JsensitivityT, &
                       MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+  call timer%Stop()
+  option%io_buffer = '    ' // &
+    trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) // &
+    '    ' // &
+    trim(StringWrite('(f20.1)',timer2%GetCumulativeTime())) &
+    // ' seconds to build Jsensitivity.'
+  call PrintMsg(option)
+  call TimerDestroy(timer)
+  call TimerDestroy(timer2)
 
 end subroutine InvSubsurfCalculateSensitivity
 
@@ -927,14 +944,11 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
   type(connection_set_type), pointer :: connection_set
   type(grid_type), pointer :: grid
   type(inversion_aux_type), pointer :: inversion_aux
-  PetscReal, allocatable :: flux_coef(:)
+  PetscReal :: flux_coef(6)
   PetscInt :: k
-  PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: ghosted_id
   PetscInt :: iconn
-  PetscInt :: icol, irow
-  PetscReal :: coef
 
   grid => this%realization%patch%grid
   connection_set => grid%internal_connection_set_list%first
@@ -942,70 +956,30 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
 
   work = 0.d0
   ghosted_id = grid%nL2G(local_id)
-  allocate(flux_coef(size(inversion_aux%dFluxdIntConn,1)))
   do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
     iconn = inversion_aux%cell_to_internal_connection(k,local_id)
     ghosted_id_up = connection_set%id_up(iconn)
     ghosted_id_dn = connection_set%id_dn(iconn)
-    local_id_up = grid%nG2L(ghosted_id_up)
-    local_id_dn = grid%nG2L(ghosted_id_dn)
-    flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
-    if (local_id_up == local_id) then
-      irow = ghosted_id_up
-      icol = ghosted_id_up
-      call InvSubsurfSwapRowCol(irow,icol)
-      coef = flux_coef(1)
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
-      irow = ghosted_id_up
-      icol = ghosted_id_dn
-      coef = flux_coef(3)
-      call InvSubsurfSwapRowCol(irow,icol)
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
-      irow = ghosted_id_dn
-      icol = ghosted_id_dn
-      coef = -flux_coef(3)
-      call InvSubsurfSwapRowCol(irow,icol)
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
-      irow = ghosted_id_dn
-      icol = ghosted_id_up
-      coef = -flux_coef(1)
-      call InvSubsurfSwapRowCol(irow,icol)
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
-    elseif (local_id_dn == local_id) then
-      irow = ghosted_id_up
-      icol = ghosted_id_up
-      coef = flux_coef(2)
-      call InvSubsurfSwapRowCol(irow,icol)
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
-      irow = ghosted_id_up
-      icol = ghosted_id_dn
-      coef = flux_coef(4)
-      call InvSubsurfSwapRowCol(irow,icol)
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
-      irow = ghosted_id_dn
-      icol = ghosted_id_dn
-      coef = -flux_coef(4)
-      call InvSubsurfSwapRowCol(irow,icol)
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
-      irow = ghosted_id_dn
-      icol = ghosted_id_up
-      coef = -flux_coef(2)
-      call InvSubsurfSwapRowCol(irow,icol)
-      work(irow) = work(irow) + coef*lambda_ptr(icol)
+    flux_coef = inversion_aux%dFluxdIntConn(1:6,iconn)
+    if (ghosted_id == ghosted_id_up) then
+      work(ghosted_id_up) = work(ghosted_id_up) + flux_coef(1)*lambda_ptr(ghosted_id_up)
+      work(ghosted_id_dn) = work(ghosted_id_dn) + flux_coef(3)*lambda_ptr(ghosted_id_up)
+      work(ghosted_id_dn) = work(ghosted_id_dn) - flux_coef(3)*lambda_ptr(ghosted_id_dn)
+      work(ghosted_id_up) = work(ghosted_id_up) - flux_coef(1)*lambda_ptr(ghosted_id_dn)
+    elseif (ghosted_id == ghosted_id_dn) then
+      work(ghosted_id_up) = work(ghosted_id_up) + flux_coef(2)*lambda_ptr(ghosted_id_up)
+      work(ghosted_id_dn) = work(ghosted_id_dn) + flux_coef(4)*lambda_ptr(ghosted_id_up)
+      work(ghosted_id_dn) = work(ghosted_id_dn) - flux_coef(4)*lambda_ptr(ghosted_id_dn)
+      work(ghosted_id_up) = work(ghosted_id_up) - flux_coef(2)*lambda_ptr(ghosted_id_dn)
     else
       this%realization%option%io_buffer = 'Incorrect mapping of connection'
       call PrintErrMsg(this%realization%option)
     endif
   enddo
-  flux_coef = 0.d0
+
   do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
     iconn = inversion_aux%cell_to_bc_connection(k,local_id)
-    flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
-    irow = ghosted_id
-    icol = ghosted_id
-    call InvSubsurfSwapRowCol(irow,icol)
-    coef = flux_coef(1)
-    work(irow) = work(irow) + coef*lambda_ptr(icol)
+    work(ghosted_id) = work(ghosted_id) + inversion_aux%dFluxdBCConn(1,iconn)*lambda_ptr(ghosted_id)
   enddo
 
   value_ = -1.d0*dot_product(solution,work)
@@ -1015,23 +989,12 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
     iconn = inversion_aux%cell_to_internal_connection(k,local_id)
     ghosted_id_up = connection_set%id_up(iconn)
     ghosted_id_dn = connection_set%id_dn(iconn)
-    local_id_up = grid%nG2L(ghosted_id_up)
-    local_id_dn = grid%nG2L(ghosted_id_dn)
-    flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
-    if (local_id_up == local_id) then
-      irow = ghosted_id_up
-      coef = -flux_coef(5)
-      work(irow) = work(irow) + coef
-      irow = ghosted_id_dn
-      coef = flux_coef(5)
-      work(irow) = work(irow) + coef
-    elseif (local_id_dn == local_id) then
-      irow = ghosted_id_up
-      coef = -flux_coef(6)
-      work(irow) = work(irow) + coef
-      irow = ghosted_id_dn
-      coef = flux_coef(6)
-      work(irow) = work(irow) + coef
+    if (ghosted_id == ghosted_id_up) then
+      work(ghosted_id_up) = work(ghosted_id_up) - inversion_aux%dFluxdIntConn(5,iconn)
+      work(ghosted_id_dn) = work(ghosted_id_dn) + inversion_aux%dFluxdIntConn(5,iconn)
+    elseif (ghosted_id == ghosted_id_dn) then
+      work(ghosted_id_up) = work(ghosted_id_up) - inversion_aux%dFluxdIntConn(6,iconn)
+      work(ghosted_id_dn) = work(ghosted_id_dn) + inversion_aux%dFluxdIntConn(6,iconn)
     else
       this%realization%option%io_buffer = 'Incorrect mapping of connection'
       call PrintErrMsg(this%realization%option)
@@ -1039,16 +1002,10 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
   enddo
   do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
     iconn = inversion_aux%cell_to_bc_connection(k,local_id)
-    flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
-    irow = ghosted_id
-    coef = flux_coef(2)
-    work(irow) = work(irow) + coef
+    work(ghosted_id) = work(ghosted_id) + inversion_aux%dFluxdBCConn(2,iconn)
   enddo
 
-  coef = dot_product(work,lambda_ptr)
-  value_ = value_ + coef
-
-  deallocate(flux_coef)
+  value_ = value_ + dot_product(work,lambda_ptr)
 
 end subroutine InvSubsrfBMinusHM
 
