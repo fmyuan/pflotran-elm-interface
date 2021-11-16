@@ -1009,28 +1009,7 @@ subroutine InvSubsrfBMinusSM(this,local_id,lambda_ptr,solution,value_)
 
   value_ = dot_product(rhs,lambda_ptr) - dot_product(solution,Mlambda)
 
-
 end subroutine InvSubsrfBMinusSM
-
-! ************************************************************************** !
-
-subroutine InvSubsurfSwapRowCol(irow,icol)
-  !
-  ! Swaps row and column indices
-  !
-  ! Author: Glenn hammond
-  ! Date: 11/15/21
-  !
-  PetscInt :: irow
-  PetscInt :: icol
-
-  PetscInt :: temp_int
-
-  temp_int = irow
-  irow = icol
-  icol = temp_int
-
-end subroutine InvSubsurfSwapRowCol
 
 ! ************************************************************************** !
 
