@@ -29,8 +29,10 @@ module Inversion_Subsurface_class
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
     PetscBool :: print_sensitivity_jacobian
     PetscBool :: debug_adjoint
+    PetscInt :: debug_verbosity
     PetscBool :: store_adjoint_matrices
     PetscBool :: compare_adjoint_mat_and_rhs
+    PetscBool :: local_adjoint
     VecScatter :: scatter_global_to_measurement
   contains
     procedure, public :: Init => InversionSubsurfaceInit
@@ -101,6 +103,8 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%store_adjoint_matrices = PETSC_FALSE
   this%compare_adjoint_mat_and_rhs = PETSC_FALSE
   this%debug_adjoint = PETSC_FALSE
+  this%local_adjoint = PETSC_FALSE
+  this%debug_verbosity = UNINITIALIZED_INTEGER
   this%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   this%measurement_offset = UNINITIALIZED_INTEGER
 
@@ -248,11 +252,17 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       this%print_sensitivity_jacobian = PETSC_TRUE
     case('DEBUG_ADJOINT')
       this%debug_adjoint = PETSC_TRUE
+      call InputReadInt(input,option,i)
+      if (input%ierr == 0) then
+        this%debug_verbosity = i
+      endif
     case('STORE_ADJOINT_MATRICES')
       this%store_adjoint_matrices = PETSC_TRUE
     case('COMPARE_ADJOINT_MATRICES_AND_RHS')
       this%store_adjoint_matrices = PETSC_TRUE
       this%compare_adjoint_mat_and_rhs = PETSC_TRUE
+    case('LOCAL_ADJOINT')
+      this%local_adjoint = PETSC_TRUE
     case default
       found = PETSC_FALSE
   end select
@@ -533,19 +543,26 @@ subroutine InvSubsurfCalculateSensitivity(this)
   type(patch_type), pointer :: patch
   type(solver_type), pointer :: solver
   PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
+  PetscReal, pointer :: vec_ptr3(:)
   PetscReal :: tempreal
   PetscInt :: iparameter, imeasurement
   PetscInt :: icell_measurement
+  PetscInt :: natural_id
   PetscReal :: hTdMdKTlambda, dbdKTlambda
   Vec :: work
   Vec :: solution
   Vec :: p, lambda
+  Vec :: work_loc, solution_loc, lambda_loc
   Mat :: M, Pmat
   Mat :: dMdK_
   Mat :: dMdK_diff
   Vec :: dbdK
   Vec :: natural_vec
   PetscErrorCode :: ierr
+
+  lambda_loc = PETSC_NULL_VEC
+  solution_loc = PETSC_NULL_VEC
 
   solver => this%forward_simulation%flow_process_model_coupler% &
               timestepper%solver
@@ -562,6 +579,14 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
 
+  if (this%local_adjoint) then
+    work_loc = this%realization%field%work_loc ! DO NOT DESTROY!
+    call VecDuplicate(work_loc,solution_loc,ierr);CHKERRQ(ierr)
+    call VecDuplicate(work_loc,lambda_loc,ierr);CHKERRQ(ierr)
+    call DiscretizationGlobalToLocal(discretization,solution, &
+                                     solution_loc,ONEDOF)
+  endif
+
   dMdK_diff = PETSC_NULL_MAT
   call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_, &
                     ierr);CHKERRQ(ierr)
@@ -572,7 +597,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call VecDuplicate(work,dbdK,ierr);CHKERRQ(ierr)
 
   call MatZeroEntries(inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
-  if (this%debug_adjoint) then
+  if (this%debug_verbosity > 2) then
     if (OptionPrintToScreen(option)) print *, 'solution'
     call VecView(solution,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
     if (option%comm%mycommsize == 1) then
@@ -600,12 +625,12 @@ subroutine InvSubsurfCalculateSensitivity(this)
     call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
     call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
     call DiscretizationNaturalToGlobal(discretization,natural_vec,p,ONEDOF)
-    if (this%debug_adjoint) then
+    if (this%debug_verbosity > 2) then
       if (OptionPrintToScreen(option)) print *, 'p'
       call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
     endif
     call KSPSolveTranspose(solver%ksp,p,lambda,ierr);CHKERRQ(ierr)
-    if (this%debug_adjoint) then
+    if (this%debug_verbosity > 2) then
       if (OptionPrintToScreen(option)) print *, 'lambda'
       call VecView(lambda,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
       if (option%comm%mycommsize == 1) then
@@ -615,76 +640,105 @@ subroutine InvSubsurfCalculateSensitivity(this)
       endif
     endif
 
-    do iparameter = 1, grid%nmax
-      call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
-      if (option%myrank == 0) then
-        call VecSetValue(natural_vec,iparameter-1,1.d0,ADD_VALUES, &
-                        ierr);CHKERRQ(ierr)
-      endif
-      call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
-      call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
-      call InvSubsrfSetupAdjointMatAndRhs(this,natural_vec,dMdK_,dbdK)
+    if (this%local_adjoint) then
+      call DiscretizationGlobalToLocal(discretization,lambda,lambda_loc,ONEDOF)
+      call VecGetArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(solution_loc,vec_ptr2,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(work_loc,vec_ptr3,ierr);CHKERRQ(ierr)
+      do iparameter = 1, grid%nlmax
+        call InvSubsrfBMinusHM(this,iparameter,vec_ptr,vec_ptr2,vec_ptr3,tempreal)
+        if (this%debug_verbosity > 2) then
+          print *, 'value_: ', iparameter, imeasurement, tempreal
+        endif
+        natural_id = grid%nG2A(grid%nL2G(iparameter))
+        call MatSetValue(inversion_aux%JsensitivityT,natural_id-1,imeasurement-1, &
+                         -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
+      enddo
+      call VecRestoreArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayF90(solution_loc,vec_ptr2,ierr);CHKERRQ(ierr)
+      call VecRestoreArrayF90(work_loc,vec_ptr3,ierr);CHKERRQ(ierr)
       if (this%debug_adjoint) then
+        print *, 'adjoint for measurement: ' // trim(StringWrite(imeasurement)) // &
+                 ' : ' // trim(StringWrite(this%imeasurement(imeasurement)))
+      endif
+    else
+      do iparameter = 1, grid%nmax
+        call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+        if (option%myrank == 0) then
+          call VecSetValue(natural_vec,iparameter-1,1.d0,ADD_VALUES, &
+                          ierr);CHKERRQ(ierr)
+        endif
+        call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+        call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+        call InvSubsrfSetupAdjointMatAndRhs(this,natural_vec,dMdK_,dbdK)
+        if (this%debug_verbosity > 2) then
+          if (associated(inversion_aux%dMdK) .and. &
+              this%compare_adjoint_mat_and_rhs) then
+            if (OptionPrintToScreen(option)) print *, 'dMdK_stored ', iparameter
+            call MatView(inversion_aux%dMdK(iparameter),PETSC_VIEWER_STDOUT_WORLD, &
+                        ierr);CHKERRQ(ierr)
+          endif
+          if (OptionPrintToScreen(option)) print *, 'dMdK ', iparameter
+          call MatView(dMdK_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+          if (associated(inversion_aux%dbdK) .and. &
+              this%compare_adjoint_mat_and_rhs) then
+            if (OptionPrintToScreen(option)) print *, 'dbdK_stored ', iparameter
+            call VecView(inversion_aux%dbdK(iparameter),PETSC_VIEWER_STDOUT_WORLD, &
+                        ierr);CHKERRQ(ierr)
+          endif
+          if (OptionPrintToScreen(option)) print *, 'dbdK ', iparameter
+          call VecView(dbdK,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+        endif
         if (associated(inversion_aux%dMdK) .and. &
             this%compare_adjoint_mat_and_rhs) then
-          if (OptionPrintToScreen(option)) print *, 'dMdK_stored ', iparameter
-          call MatView(inversion_aux%dMdK(iparameter),PETSC_VIEWER_STDOUT_WORLD, &
-                       ierr);CHKERRQ(ierr)
+          call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
+                            ierr);CHKERRQ(ierr)
+          call MatCopy(inversion_aux%dMdK(iparameter),dMdK_diff,SAME_NONZERO_PATTERN, &
+                      ierr);CHKERRQ(ierr)
+          call MatAXPY(dMdK_diff,-1.d0,dMdK_,SAME_NONZERO_PATTERN, &
+                      ierr);CHKERRQ(ierr)
+          call MatNorm(dMdK_diff,NORM_FROBENIUS,tempreal,ierr);CHKERRQ(ierr)
+          if (OptionPrintToScreen(option)) print *, 'dMdK diff norm: ', tempreal
+          call VecCopy(inversion_aux%dbdK(iparameter),work,ierr);CHKERRQ(ierr)
+          call VecAXPY(work,-1.d0,dbdK,ierr);CHKERRQ(ierr)
+          call VecNorm(work,NORM_2,tempreal,ierr);CHKERRQ(ierr)
+          if (OptionPrintToScreen(option)) print *, 'dbdK diff norm: ', tempreal
         endif
-        if (OptionPrintToScreen(option)) print *, 'dMdK ', iparameter
-        call MatView(dMdK_,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-        if (associated(inversion_aux%dbdK) .and. &
-            this%compare_adjoint_mat_and_rhs) then
-          if (OptionPrintToScreen(option)) print *, 'dbdK_stored ', iparameter
-          call VecView(inversion_aux%dbdK(iparameter),PETSC_VIEWER_STDOUT_WORLD, &
-                       ierr);CHKERRQ(ierr)
+        call MatMultTranspose(dMdK_,lambda,work,ierr);CHKERRQ(ierr)
+        if (this%debug_verbosity > 2) then
+          if (OptionPrintToScreen(option)) print *, 'dMdK^T * lambda'
+          call VecView(work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
         endif
-        if (OptionPrintToScreen(option)) print *, 'dbdK ', iparameter
-        call VecView(dbdK,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-      endif
-      if (associated(inversion_aux%dMdK) .and. &
-          this%compare_adjoint_mat_and_rhs) then
-        call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
-                          ierr);CHKERRQ(ierr)
-        call MatCopy(inversion_aux%dMdK(iparameter),dMdK_diff,SAME_NONZERO_PATTERN, &
-                     ierr);CHKERRQ(ierr)
-        call MatAXPY(dMdK_diff,-1.d0,dMdK_,SAME_NONZERO_PATTERN, &
-                     ierr);CHKERRQ(ierr)
-        call MatNorm(dMdK_diff,NORM_FROBENIUS,tempreal,ierr);CHKERRQ(ierr)
-        if (OptionPrintToScreen(option)) print *, 'dMdK diff norm: ', tempreal
-        call VecCopy(inversion_aux%dbdK(iparameter),work,ierr);CHKERRQ(ierr)
-        call VecAXPY(work,-1.d0,dbdK,ierr);CHKERRQ(ierr)
-        call VecNorm(work,NORM_2,tempreal,ierr);CHKERRQ(ierr)
-        if (OptionPrintToScreen(option)) print *, 'dbdK diff norm: ', tempreal
-      endif
-      call MatMultTranspose(dMdK_,lambda,work,ierr);CHKERRQ(ierr)
-      if (this%debug_adjoint) then
-        if (OptionPrintToScreen(option)) print *, 'dMdK^T * lambda'
-        call VecView(work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-      endif
-      call VecDot(solution,work,hTdMdKTlambda,ierr);CHKERRQ(ierr)
-      if (this%debug_adjoint .and. OptionPrintToScreen(option)) then
-        print *, '-h^T * dMdK^T * lambda'
-        print *, iparameter, ' : ', -hTdMdKTlambda
-      endif
-      call VecDot(dbdK,lambda,dbdKTlambda,ierr);CHKERRQ(ierr)
-      if (this%debug_adjoint .and. OptionPrintToScreen(option)) then
-        print *, 'dbdK^T * lambda'
-        print *, iparameter, ' : ', dbdKTlambda
-      endif
-      tempreal = dbdKTlambda-hTdMdKTlambda
-      if (this%debug_adjoint .and. OptionPrintToScreen(option)) then
-        print *, '(dbdK^T - h^T * dMdK^T) * lambda'
-        print *, iparameter, ' : ', tempreal
-      endif
-      ! remember: parameters are rows and measurements columns
-      call MatSetValue(inversion_aux%JsensitivityT,iparameter-1,imeasurement-1, &
-                       -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
-    enddo
+        call VecDot(solution,work,hTdMdKTlambda,ierr);CHKERRQ(ierr)
+        if (this%debug_verbosity > 2 .and. OptionPrintToScreen(option)) then
+          print *, '-h^T * dMdK^T * lambda'
+          print *, iparameter, ' : ', -hTdMdKTlambda
+        endif
+        call VecDot(dbdK,lambda,dbdKTlambda,ierr);CHKERRQ(ierr)
+        if (this%debug_verbosity > 2 .and. OptionPrintToScreen(option)) then
+          print *, 'dbdK^T * lambda'
+          print *, iparameter, ' : ', dbdKTlambda
+        endif
+        tempreal = dbdKTlambda-hTdMdKTlambda
+        if (this%debug_verbosity > 2 .and. OptionPrintToScreen(option)) then
+          print *, '(dbdK^T - h^T * dMdK^T) * lambda'
+          print *, iparameter, ' : ', tempreal
+        endif
+        ! remember: parameters are rows and measurements columns
+        call MatSetValue(inversion_aux%JsensitivityT,iparameter-1,imeasurement-1, &
+                        -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
+      enddo
+    endif
   enddo
   call MatDestroy(dMdK_,ierr);CHKERRQ(ierr)
   if (dMdK_diff /= PETSC_NULL_MAT) then
     call MatDestroy(dMdK_diff,ierr);CHKERRQ(ierr)
+  endif
+  if (lambda_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(lambda_loc,ierr);CHKERRQ(ierr)
+  endif
+  if (solution_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(solution_loc,ierr);CHKERRQ(ierr)
   endif
   call VecDestroy(dbdK,ierr);CHKERRQ(ierr)
   call VecDestroy(p,ierr);CHKERRQ(ierr)
@@ -849,6 +903,263 @@ subroutine InvSubsrfSetupAdjMatRhsSingle(this,local_id,dMdK,dbdK)
   deallocate(flux_coef)
 
 end subroutine InvSubsrfSetupAdjMatRhsSingle
+
+! ************************************************************************** !
+
+subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
+  !
+  !
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/15/21
+  !
+  use Connection_module
+  use Grid_module
+  use Option_module
+
+  class(inversion_subsurface_type) :: this
+  PetscInt :: local_id
+  PetscReal, pointer :: lambda_ptr(:)
+  PetscReal, pointer :: solution(:)
+  PetscReal, pointer :: work(:)
+  PetscReal :: value_
+
+  type(connection_set_type), pointer :: connection_set
+  type(grid_type), pointer :: grid
+  type(inversion_aux_type), pointer :: inversion_aux
+  PetscReal, allocatable :: flux_coef(:)
+  PetscInt :: k
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: ghosted_id
+  PetscInt :: iconn
+  PetscInt :: icol, irow
+  PetscReal :: coef
+  PetscErrorCode :: ierr
+
+  grid => this%realization%patch%grid
+  connection_set => grid%internal_connection_set_list%first
+  inversion_aux => this%inversion_aux
+
+  work = 0.d0
+  ghosted_id = grid%nL2G(local_id)
+  allocate(flux_coef(size(inversion_aux%dFluxdIntConn,1)))
+  do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
+    iconn = inversion_aux%cell_to_internal_connection(k,local_id)
+    ghosted_id_up = connection_set%id_up(iconn)
+    ghosted_id_dn = connection_set%id_dn(iconn)
+    local_id_up = grid%nG2L(ghosted_id_up)
+    local_id_dn = grid%nG2L(ghosted_id_dn)
+    flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
+    if (local_id_up == local_id) then
+      ! call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+      !                  flux_coef(1), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_up
+      icol = ghosted_id_up
+      call InvSubsurfSwapRowCol(irow,icol)
+      coef = flux_coef(1)
+      if (this%debug_verbosity > 2) then
+        print *, '1 interior true:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+      ! call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+      !                  flux_coef(3), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_up
+      icol = ghosted_id_dn
+      coef = flux_coef(3)
+      call InvSubsurfSwapRowCol(irow,icol)
+      if (this%debug_verbosity > 2) then
+        print *, '2 interior true:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+      ! call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+      !                  -1.d0*flux_coef(3), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_dn
+      icol = ghosted_id_dn
+      coef = -flux_coef(3)
+      call InvSubsurfSwapRowCol(irow,icol)
+      if (this%debug_verbosity > 2) then
+        print *, '3 interior true:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+      ! call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+      !                  -1.d0*flux_coef(1), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_dn
+      icol = ghosted_id_up
+      coef = -flux_coef(1)
+      call InvSubsurfSwapRowCol(irow,icol)
+      if (this%debug_verbosity > 2) then
+        print *, '4 interior true:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+    elseif (local_id_dn == local_id) then
+      ! call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+      !                  flux_coef(2), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_up
+      icol = ghosted_id_up
+      coef = flux_coef(2)
+      call InvSubsurfSwapRowCol(irow,icol)
+      if (this%debug_verbosity > 2) then
+        print *, '5 interior false:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+      ! call MatSetValuesLocal(dMdK,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+      !                  flux_coef(4), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_up
+      icol = ghosted_id_dn
+      coef = flux_coef(4)
+      call InvSubsurfSwapRowCol(irow,icol)
+      if (this%debug_verbosity > 2) then
+        print *, '6 interior false:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+      ! call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+      !                  -1.d0*flux_coef(4), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_dn
+      icol = ghosted_id_dn
+      coef = -flux_coef(4)
+      call InvSubsurfSwapRowCol(irow,icol)
+      if (this%debug_verbosity > 2) then
+        print *, '7 interior false:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+      ! call MatSetValuesLocal(dMdK,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+      !                  -1.d0*flux_coef(2), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_dn
+      icol = ghosted_id_up
+      coef = -flux_coef(2)
+      call InvSubsurfSwapRowCol(irow,icol)
+      if (this%debug_verbosity > 2) then
+        print *, '8 interior false:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+    else
+      this%realization%option%io_buffer = 'Incorrect mapping of connection'
+      call PrintErrMsg(this%realization%option)
+    endif
+  enddo
+  flux_coef = 0.d0
+  do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
+    iconn = inversion_aux%cell_to_bc_connection(k,local_id)
+    flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
+    ! call MatSetValuesLocal(dMdK,1,ghosted_id-1,1,ghosted_id-1, &
+    !                        flux_coef(1),ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id
+      icol = ghosted_id
+      call InvSubsurfSwapRowCol(irow,icol)
+      coef = flux_coef(1)
+      if (this%debug_verbosity > 2) then
+        print *, '9 bc:', irow, icol, coef
+      endif
+      work(irow) = work(irow) + coef*lambda_ptr(icol)
+  enddo
+
+  value_ = -1.d0*dot_product(solution,work)
+  if (this%debug_verbosity > 2) then
+    print *, '-h^T*dMdK^T*lamba: ', value_
+  endif
+
+  work = 0.d0
+  do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
+    iconn = inversion_aux%cell_to_internal_connection(k,local_id)
+    ghosted_id_up = connection_set%id_up(iconn)
+    ghosted_id_dn = connection_set%id_dn(iconn)
+    local_id_up = grid%nG2L(ghosted_id_up)
+    local_id_dn = grid%nG2L(ghosted_id_dn)
+    flux_coef = inversion_aux%dFluxdIntConn(:,iconn)
+    if (local_id_up == local_id) then
+      ! call VecSetValueLocal(dbdK,ghosted_id_up-1, &
+      !                  -1.d0*flux_coef(5), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_up
+      coef = -flux_coef(5)
+      if (this%debug_verbosity > 2) then
+        print *, '10 rhs true:', icol, coef
+      endif
+      work(irow) = work(irow) + coef
+      ! call VecSetValueLocal(dbdK,ghosted_id_dn-1, &
+      !                  flux_coef(5), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_dn
+      coef = flux_coef(5)
+      if (this%debug_verbosity > 2) then
+        print *, '11 rhs true:', icol, coef
+      endif
+      work(irow) = work(irow) + coef
+    elseif (local_id_dn == local_id) then
+      ! call VecSetValueLocal(dbdK,ghosted_id_up-1, &
+      !                  -1.d0*flux_coef(6), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_up
+      coef = -flux_coef(6)
+      if (this%debug_verbosity > 2) then
+        print *, '12 rhs false:', icol, coef
+      endif
+      work(irow) = work(irow) + coef
+      ! call VecSetValueLocal(dbdK,ghosted_id_dn-1, &
+      !                  flux_coef(6), &
+      !                  ADD_VALUES,ierr);CHKERRQ(ierr)
+      irow = ghosted_id_dn
+      coef = flux_coef(6)
+      if (this%debug_verbosity > 2) then
+        print *, '13 rhs false:', icol, coef
+      endif
+      work(irow) = work(irow) + coef
+    else
+      this%realization%option%io_buffer = 'Incorrect mapping of connection'
+      call PrintErrMsg(this%realization%option)
+    endif
+  enddo
+  do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
+    iconn = inversion_aux%cell_to_bc_connection(k,local_id)
+    flux_coef(1:2) = inversion_aux%dFluxdBCConn(:,iconn)
+    ! call VecSetValueLocal(dbdK,ghosted_id-1,flux_coef(2),ADD_VALUES, &
+    !                  ierr);CHKERRQ(ierr)
+    irow = ghosted_id
+    coef = flux_coef(2)
+    if (this%debug_verbosity > 2) then
+      print *, '14 rhs bc:', icol, coef
+    endif
+    work(irow) = work(irow) + coef
+  enddo
+
+  coef = dot_product(work,lambda_ptr)
+  if (this%debug_verbosity > 2) then
+    print *, 'dbdK^T*lambda: ', coef
+  endif
+  value_ = value_ + coef
+
+  deallocate(flux_coef)
+
+end subroutine InvSubsrfBMinusHM
+
+! ************************************************************************** !
+
+subroutine InvSubsurfSwapRowCol(irow,icol)
+  !
+  ! Swaps row and column indices
+  !
+  ! Author: Glenn hammond
+  ! Date: 11/15/21
+  !
+  PetscInt :: irow
+  PetscInt :: icol
+
+  PetscInt :: temp_int
+
+  temp_int = irow
+  irow = icol
+  icol = temp_int
+
+end subroutine InvSubsurfSwapRowCol
 
 ! ************************************************************************** !
 
