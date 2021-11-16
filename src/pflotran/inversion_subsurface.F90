@@ -653,16 +653,14 @@ subroutine InvSubsurfCalculateSensitivity(this)
       call timer2%Start()
       call VecGetArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(solution_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(work_loc,vec_ptr3,ierr);CHKERRQ(ierr)
       do iparameter = 1, grid%nlmax
-        call InvSubsrfBMinusHM(this,iparameter,vec_ptr,vec_ptr2,vec_ptr3,tempreal)
+        call InvSubsrfBMinusSM(this,iparameter,vec_ptr,vec_ptr2,tempreal)
         natural_id = grid%nG2A(grid%nL2G(iparameter))
         call MatSetValue(inversion_aux%JsensitivityT,natural_id-1,imeasurement-1, &
                          -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
       enddo
       call VecRestoreArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
       call VecRestoreArrayF90(solution_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(work_loc,vec_ptr3,ierr);CHKERRQ(ierr)
       call timer2%Stop()
       if (this%debug_adjoint) then
         print *, 'adjoint for measurement: ' // trim(StringWrite(imeasurement)) // &
@@ -923,7 +921,7 @@ end subroutine InvSubsrfSetupAdjMatRhsSingle
 
 ! ************************************************************************** !
 
-subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
+subroutine InvSubsrfBMinusSM(this,local_id,lambda_ptr,solution,value_)
   !
   !
   !
@@ -938,76 +936,81 @@ subroutine InvSubsrfBMinusHM(this,local_id,lambda_ptr,solution,work,value_)
   PetscInt :: local_id
   PetscReal, pointer :: lambda_ptr(:)
   PetscReal, pointer :: solution(:)
-  PetscReal, pointer :: work(:)
   PetscReal :: value_
 
   type(connection_set_type), pointer :: connection_set
   type(grid_type), pointer :: grid
   type(inversion_aux_type), pointer :: inversion_aux
-  PetscReal :: flux_coef(6)
-  PetscInt :: k
+  PetscReal :: Mlambda_up
+  PetscReal :: Mlambda_dn
+  PetscReal :: rhs_up
+  PetscReal :: rhs_dn
+  PetscReal :: Mlambda(this%realization%patch%grid%ngmax)
+  PetscReal :: rhs(this%realization%patch%grid%ngmax)
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: ghosted_id
   PetscInt :: iconn
+  PetscInt :: i
 
   grid => this%realization%patch%grid
   connection_set => grid%internal_connection_set_list%first
   inversion_aux => this%inversion_aux
 
-  work = 0.d0
+  Mlambda = 0.d0
+  rhs = 0.d0
   ghosted_id = grid%nL2G(local_id)
-  do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
-    iconn = inversion_aux%cell_to_internal_connection(k,local_id)
+  do i = 1, inversion_aux%cell_to_internal_connection(0,local_id)
+    iconn = inversion_aux%cell_to_internal_connection(i,local_id)
     ghosted_id_up = connection_set%id_up(iconn)
     ghosted_id_dn = connection_set%id_dn(iconn)
-    flux_coef = inversion_aux%dFluxdIntConn(1:6,iconn)
+    Mlambda_up = 0.d0
+    Mlambda_dn = 0.d0
+    rhs_up = 0.d0
+    rhs_dn = 0.d0
     if (ghosted_id == ghosted_id_up) then
-      work(ghosted_id_up) = work(ghosted_id_up) + flux_coef(1)*lambda_ptr(ghosted_id_up)
-      work(ghosted_id_dn) = work(ghosted_id_dn) + flux_coef(3)*lambda_ptr(ghosted_id_up)
-      work(ghosted_id_dn) = work(ghosted_id_dn) - flux_coef(3)*lambda_ptr(ghosted_id_dn)
-      work(ghosted_id_up) = work(ghosted_id_up) - flux_coef(1)*lambda_ptr(ghosted_id_dn)
+      Mlambda_up = Mlambda_up + &
+        inversion_aux%dFluxdIntConn(1,iconn)*lambda_ptr(ghosted_id_up)
+      Mlambda_dn = Mlambda_dn + &
+        inversion_aux%dFluxdIntConn(3,iconn)*lambda_ptr(ghosted_id_up)
+      Mlambda_dn = Mlambda_dn - &
+        inversion_aux%dFluxdIntConn(3,iconn)*lambda_ptr(ghosted_id_dn)
+      Mlambda_up = Mlambda_up - &
+        inversion_aux%dFluxdIntConn(1,iconn)*lambda_ptr(ghosted_id_dn)
+      rhs_up = rhs_up - inversion_aux%dFluxdIntConn(5,iconn)
+      rhs_dn = rhs_dn + inversion_aux%dFluxdIntConn(5,iconn)
     elseif (ghosted_id == ghosted_id_dn) then
-      work(ghosted_id_up) = work(ghosted_id_up) + flux_coef(2)*lambda_ptr(ghosted_id_up)
-      work(ghosted_id_dn) = work(ghosted_id_dn) + flux_coef(4)*lambda_ptr(ghosted_id_up)
-      work(ghosted_id_dn) = work(ghosted_id_dn) - flux_coef(4)*lambda_ptr(ghosted_id_dn)
-      work(ghosted_id_up) = work(ghosted_id_up) - flux_coef(2)*lambda_ptr(ghosted_id_dn)
+      Mlambda_up = Mlambda_up + &
+        inversion_aux%dFluxdIntConn(2,iconn)*lambda_ptr(ghosted_id_up)
+      Mlambda_dn = Mlambda_dn + &
+        inversion_aux%dFluxdIntConn(4,iconn)*lambda_ptr(ghosted_id_up)
+      Mlambda_dn = Mlambda_dn - &
+        inversion_aux%dFluxdIntConn(4,iconn)*lambda_ptr(ghosted_id_dn)
+      Mlambda_up = Mlambda_up - &
+        inversion_aux%dFluxdIntConn(2,iconn)*lambda_ptr(ghosted_id_dn)
+      rhs_up = rhs_up - inversion_aux%dFluxdIntConn(6,iconn)
+      rhs_dn = rhs_dn + inversion_aux%dFluxdIntConn(6,iconn)
     else
       this%realization%option%io_buffer = 'Incorrect mapping of connection'
       call PrintErrMsg(this%realization%option)
     endif
+    Mlambda(ghosted_id_up) = Mlambda(ghosted_id_up) + Mlambda_up
+    Mlambda(ghosted_id_dn) = Mlambda(ghosted_id_dn) + Mlambda_dn
+    rhs(ghosted_id_up) = rhs(ghosted_id_up) + rhs_up
+    rhs(ghosted_id_dn) = rhs(ghosted_id_dn) + rhs_dn
   enddo
 
-  do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
-    iconn = inversion_aux%cell_to_bc_connection(k,local_id)
-    work(ghosted_id) = work(ghosted_id) + inversion_aux%dFluxdBCConn(1,iconn)*lambda_ptr(ghosted_id)
+  do i = 1, inversion_aux%cell_to_bc_connection(0,local_id)
+    iconn = inversion_aux%cell_to_bc_connection(i,local_id)
+    Mlambda(ghosted_id) = Mlambda(ghosted_id) + &
+      inversion_aux%dFluxdBCConn(1,iconn)*lambda_ptr(ghosted_id)
+    rhs(ghosted_id) = rhs(ghosted_id) + &
+      inversion_aux%dFluxdBCConn(2,iconn)
   enddo
 
-  value_ = -1.d0*dot_product(solution,work)
+  value_ = dot_product(rhs,lambda_ptr) - dot_product(solution,Mlambda)
 
-  work = 0.d0
-  do k = 1, inversion_aux%cell_to_internal_connection(0,local_id)
-    iconn = inversion_aux%cell_to_internal_connection(k,local_id)
-    ghosted_id_up = connection_set%id_up(iconn)
-    ghosted_id_dn = connection_set%id_dn(iconn)
-    if (ghosted_id == ghosted_id_up) then
-      work(ghosted_id_up) = work(ghosted_id_up) - inversion_aux%dFluxdIntConn(5,iconn)
-      work(ghosted_id_dn) = work(ghosted_id_dn) + inversion_aux%dFluxdIntConn(5,iconn)
-    elseif (ghosted_id == ghosted_id_dn) then
-      work(ghosted_id_up) = work(ghosted_id_up) - inversion_aux%dFluxdIntConn(6,iconn)
-      work(ghosted_id_dn) = work(ghosted_id_dn) + inversion_aux%dFluxdIntConn(6,iconn)
-    else
-      this%realization%option%io_buffer = 'Incorrect mapping of connection'
-      call PrintErrMsg(this%realization%option)
-    endif
-  enddo
-  do k = 1, inversion_aux%cell_to_bc_connection(0,local_id)
-    iconn = inversion_aux%cell_to_bc_connection(k,local_id)
-    work(ghosted_id) = work(ghosted_id) + inversion_aux%dFluxdBCConn(2,iconn)
-  enddo
 
-  value_ = value_ + dot_product(work,lambda_ptr)
-
-end subroutine InvSubsrfBMinusHM
+end subroutine InvSubsrfBMinusSM
 
 ! ************************************************************************** !
 
