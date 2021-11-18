@@ -95,8 +95,8 @@ subroutine GeomechanicsSubsurfacePropsAuxvarInit( &
   ! Author: Satish Karra
   ! Date: 07/29/16
   !
-
   use Material_Aux_class
+  use Utility_module
   
   implicit none
   
@@ -104,6 +104,8 @@ subroutine GeomechanicsSubsurfacePropsAuxvarInit( &
     this 
   class(material_auxvar_type), intent(inout) :: auxvar    
    
+  ! deallocate in case already allocated due to evolving strata
+  call DeallocateArray(auxvar%geomechanics_subsurface_prop)
   allocate(auxvar%geomechanics_subsurface_prop(7))
   auxvar%geomechanics_subsurface_prop = 0.d0
 

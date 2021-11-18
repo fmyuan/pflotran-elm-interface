@@ -339,8 +339,6 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 
-  PetscInt :: ndof
-
   ierr = 0
   call InitSubsurfAssignMatIDsToRegns(this%realization)
   call InitSubsurfAssignMatProperties(this%realization)
