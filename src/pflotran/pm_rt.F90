@@ -1264,7 +1264,8 @@ subroutine PMRTComputeMassBalance(this,mass_balance_array)
   PetscReal :: mass_balance_array(:)
 
 #ifndef SIMPLIFY 
-  call RTComputeMassBalance(this%realization,-999,mass_balance_array)
+  call RTComputeMassBalance(this%realization, &
+       this%realization_base%patch%grid%nlmax,-999,mass_balance_array)
 #endif
 
 end subroutine PMRTComputeMassBalance
