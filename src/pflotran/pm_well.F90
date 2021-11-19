@@ -6,6 +6,7 @@ module PM_Well_class
   use petscsnes
   use PM_Base_class
   use Option_module
+  use Geometry_module
   use Realization_Subsurface_class
   
   use PFLOTRAN_Constants_module
@@ -19,14 +20,26 @@ module PM_Well_class
     PetscInt :: nsegments      
     ! delta h discretization of each segment center       
     PetscReal, pointer :: dh(:)      
-    ! h coordinate of each segment center (seg#,x-y-z)
-    PetscReal, pointer :: h(:,:)    
+    ! h coordinate of each segment center
+    type(point3d_type), pointer :: h(:)  
+    ! the local id of the reservoir grid cell within which each segment 
+    ! center resides 
+    PetscInt, pointer :: h_local_id(:)
     ! coordinate of the top/bottom of the well 
     PetscReal :: tophole(3)
     PetscReal :: bottomhole(3)     
     ! gravity vector magnitude
     PetscReal :: g
   end type well_grid_type
+
+  type :: well_reservoir_type
+    ! reservoir pressure     
+    PetscReal, pointer :: p(:) 
+    ! reservoir liquid saturation
+    PetscReal, pointer :: s_l(:)
+    ! reservoir gas saturation
+    PetscReal, pointer :: s_g(:)
+  end type
 
   type :: well_type
     ! cross-sectional area of each well segment [calc'd]
@@ -39,7 +52,34 @@ module PM_Well_class
     PetscReal, pointer :: f(:)      
     ! well index of each well segment [0,1]  0 = cased; 1 = open     
     PetscReal, pointer :: WI(:)    
+    ! well mixture density     
+    PetscReal, pointer :: mixrho(:)
+    ! well pressure     
+    PetscReal, pointer :: p(:) 
+    ! well mixture velocity    
+    PetscReal, pointer :: vm(:)
   end type well_type
+
+  type :: well_fluid_type
+    ! fluid phase ID (liq/gas)
+    PetscInt :: ifluid
+    ! fluid mobility (phase_permeability/viscosity)
+    PetscReal :: mobility
+    ! fluid reference density
+    PetscReal :: rho0
+    ! fluid density
+    PetscReal, pointer :: rho(:)
+    ! fluid saturation
+    PetscReal, pointer :: s(:)
+    ! equation of state for density
+    !procedure(rho_interface), pointer, nopass :: update_rho_ptr => null()
+  end type well_fluid_type
+
+  !interface
+  !  subroutine rho_interface(fluid)
+  !    type(well_fluid_type) :: fluid
+  !  end subroutine rho_interface
+  !end interface
 
   type :: well_soln_type
     ! number of primary variables
@@ -58,6 +98,9 @@ module PM_Well_class
     class(realization_subsurface_type), pointer :: realization
     type(well_grid_type), pointer :: grid
     type(well_type), pointer :: well
+    type(well_reservoir_type), pointer :: reservoir 
+    type(well_fluid_type), pointer :: liq
+    type(well_fluid_type), pointer :: gas
     type(well_soln_type), pointer :: soln
     PetscInt :: nphase 
   contains
@@ -106,6 +149,7 @@ function PMWellCreate()
   PMWellCreate%grid%nsegments = UNINITIALIZED_INTEGER
   nullify(PMWellCreate%grid%dh)
   nullify(PMWellCreate%grid%h)
+  nullify(PMWellCreate%grid%h_local_id)
   PMWellCreate%grid%tophole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%bottomhole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%g = 9.81
@@ -117,6 +161,33 @@ function PMWellCreate()
   nullify(PMWellCreate%well%volume)
   nullify(PMWellCreate%well%f)
   nullify(PMWellCreate%well%WI)
+  nullify(PMWellCreate%well%mixrho)
+  nullify(PMWellCreate%well%p)
+  nullify(PMWellCreate%well%vm)
+
+  ! create the reservoir object:
+  allocate(PMWellCreate%reservoir)
+  nullify(PMWellCreate%reservoir%p)
+  nullify(PMWellCreate%reservoir%s_l)
+  nullify(PMWellCreate%reservoir%s_g)
+
+  ! create the fluid/liq objects:
+  allocate(PMWellCreate%liq)
+  PMWellCreate%liq%ifluid = 1 
+  PMWellCreate%liq%mobility = UNINITIALIZED_DOUBLE
+  PMWellCreate%liq%rho0 = UNINITIALIZED_DOUBLE
+  nullify(PMWellCreate%liq%rho)
+  nullify(PMWellCreate%liq%s)
+  !PMWellCreate%liq%update_rho_ptr => PMWellRhoIncompress
+
+  ! create the fluid/gas objects:
+  allocate(PMWellCreate%gas)
+  PMWellCreate%gas%ifluid = 2 
+  PMWellCreate%gas%mobility = UNINITIALIZED_DOUBLE
+  PMWellCreate%gas%rho0 = UNINITIALIZED_DOUBLE
+  nullify(PMWellCreate%gas%rho)
+  nullify(PMWellCreate%gas%s)
+  !PMWellCreate%gas%update_rho_ptr => PMWellRhoIncompress
 
   ! create the well solution object:
   allocate(PMWellCreate%soln)
@@ -139,23 +210,30 @@ subroutine PMWellSetup(this)
   ! Date: 08/04/2021
   ! 
 
+  use Option_module
+  use Grid_module
+
   implicit none
   
   class(pm_well_type) :: this
   
   type(option_type), pointer :: option
+  type(grid_type), pointer :: res_grid
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
   PetscReal :: temp_real
+  PetscInt :: local_id
   PetscInt :: nsegments
   PetscInt :: k
 
   option => this%option
+  res_grid => this%realization%patch%grid
   nsegments = this%grid%nsegments
 
   allocate(this%grid%dh(nsegments))
-  allocate(this%grid%h(nsegments,3))
+  allocate(this%grid%h(nsegments))
+  allocate(this%grid%h_local_id(nsegments))
 
   diff_x = this%grid%tophole(1)-this%grid%bottomhole(1)
   diff_y = this%grid%tophole(2)-this%grid%bottomhole(2)
@@ -172,12 +250,21 @@ subroutine PMWellSetup(this)
   total_length = sqrt(diff_x+diff_y+diff_z)
 
   do k = 1,this%grid%nsegments
-    this%grid%h(k,1) = this%grid%bottomhole(1)+(dh_x*(k-0.5))
-    this%grid%h(k,2) = this%grid%bottomhole(2)+(dh_y*(k-0.5))
-    this%grid%h(k,3) = this%grid%bottomhole(3)+(dh_z*(k-0.5))
+    this%grid%h(k)%id = k
+    this%grid%h(k)%x = this%grid%bottomhole(1)+(dh_x*(k-0.5))
+    this%grid%h(k)%y = this%grid%bottomhole(2)+(dh_y*(k-0.5))
+    this%grid%h(k)%z = this%grid%bottomhole(3)+(dh_z*(k-0.5))
   enddo
 
   this%grid%dh(:) = total_length/nsegments
+
+  ! Get the local_id for each well segment center from the reservoir grid
+  this%grid%h_local_id(:) = -1  
+  do k = 1,this%grid%nsegments
+    call GridGetLocalIDFromCoordinate(res_grid,this%grid%h(k), &
+                                      option,local_id)
+    this%grid%h_local_id(k) = local_id
+  enddo
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -291,6 +378,18 @@ subroutine PMWellReadPMBlock(this,input)
         this%nphase = 2
         cycle
     !-------------------------------------
+      case('LIQUID_MOBILITY')
+        call InputReadDouble(input,option,this%liq%mobility)
+        call InputErrorMsg(input,option,'LIQUID_MOBILITY value', &
+                           error_string)
+        cycle
+    !-------------------------------------
+      case('GAS_MOBILITY')
+        call InputReadDouble(input,option,this%gas%mobility)
+        call InputErrorMsg(input,option,'GAS_MOBILITY value', &
+                           error_string)
+        cycle
+    !-------------------------------------
     end select
 
     ! Read sub-blocks within WELLBORE_MODEL block:
@@ -315,6 +414,18 @@ subroutine PMWellReadPMBlock(this,input)
     option%io_buffer = 'The number of fluid phases must be indicated &
       &in the WELLBORE_MODEL block using one of these keywords: &
       &SINGLE_PHASE, TWO_PHASE.'
+    call PrintErrMsg(option)
+  endif
+
+  if (Uninitialized(this%liq%mobility)) then
+    option%io_buffer = 'LIQUID_MOBILITY must be provided in the &
+                       &WELLBORE_MODEL block.'
+    call PrintErrMsg(option)
+  endif
+
+  if ((this%nphase == 2) .and. (Uninitialized(this%gas%mobility))) then
+    option%io_buffer = 'GAS_MOBILITY must be provided in the &
+                       &WELLBORE_MODEL block.'
     call PrintErrMsg(option)
   endif
     
@@ -681,6 +792,25 @@ recursive subroutine PMWellInitializeRun(this)
     allocate(this%soln%res_sg(nsegments))
     this%soln%res_sg(:) = UNINITIALIZED_DOUBLE
   endif
+
+  allocate(this%well%mixrho(nsegments))
+  allocate(this%well%p(nsegments))
+  allocate(this%well%vm(nsegments))
+
+  allocate(this%liq%s(nsegments))
+  this%liq%rho0 = this%option%flow%reference_density(1)
+  allocate(this%liq%rho(nsegments))
+  this%liq%rho(:) = this%liq%rho0
+  if (this%nphase == 2) then
+    allocate(this%gas%s(nsegments))
+    this%gas%rho0 = this%option%flow%reference_density(2)
+    allocate(this%gas%rho(nsegments))
+    this%gas%rho(:) = this%gas%rho0
+  endif
+
+  allocate(this%reservoir%p(nsegments))
+  allocate(this%reservoir%s_l(nsegments))
+  allocate(this%reservoir%s_g(nsegments))
   
 end subroutine PMWellInitializeRun
 
@@ -761,6 +891,21 @@ subroutine PMWellFinalizeTimestep(this)
   ! placeholder
   
 end subroutine PMWellFinalizeTimestep
+
+! ************************************************************************** !
+
+subroutine PMWellRhoIncompress(fluid)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 11/09/2021
+
+  implicit none
+  
+  type(well_fluid_type) :: fluid
+
+  fluid%rho(:) = fluid%rho0
+
+end subroutine PMWellRhoIncompress
 
 ! ************************************************************************** !
 
@@ -989,7 +1134,7 @@ subroutine PMWellDestroy(this)
     
   call PMBaseDestroy(this)
 
-  call DeallocateArray(this%grid%h)
+  !call DeallocateArray(this%grid%h)
   call DeallocateArray(this%grid%dh)
   nullify(this%grid)
 
@@ -998,6 +1143,9 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%volume)
   call DeallocateArray(this%well%f)
   call DeallocateArray(this%well%WI)
+  call DeallocateArray(this%well%mixrho)
+  call DeallocateArray(this%well%p)
+  call DeallocateArray(this%well%vm)
   nullify(this%well)
 
   call DeallocateArray(this%soln%residual)
