@@ -70,6 +70,12 @@ subroutine InversionAuxDestroy(aux)
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
     next_inversion_ts_aux => cur_inversion_ts_aux%next
+    if (.not.associated(next_inversion_ts_aux)) then
+      print *
+      print *, '  Last Inversion TS Aux timestep and time: ', &
+        cur_inversion_ts_aux%timestep, cur_inversion_ts_aux%time
+      print *
+    endif
     call InversionTSAuxDestroy(cur_inversion_ts_aux)
     cur_inversion_ts_aux => next_inversion_ts_aux
   enddo

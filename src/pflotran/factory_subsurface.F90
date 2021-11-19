@@ -1536,7 +1536,7 @@ subroutine SubsurfaceInitSimulation(simulation)
     nullify(pm_aux)
   endif
 
-  if (.false. .and. associated(option%inversion)) then
+  if (associated(option%inversion)) then
     allocate(pm_aux)
     call PMAuxiliaryInit(pm_aux)
     string = 'INVERSION'
@@ -1546,7 +1546,7 @@ subroutine SubsurfaceInitSimulation(simulation)
 
     pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
     ! place the material process model as %peer for the top pmc
-    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_CHILD, &
            PMCCastToBase(simulation%process_model_coupler_list), &
            pmc_dummy,PM_APPEND)
     nullify(pm_aux)

@@ -113,8 +113,8 @@ recursive subroutine PMCAuxiliaryRunToTime(this,sync_time,stop_flag)
   call this%GetAuxData()
 
   local_stop_flag = TS_CONTINUE
-  ! if at end of simulation, skip update of material properties
-  if (stop_flag /= TS_STOP_END_SIMULATION) then
+  if (stop_flag /= TS_STOP_END_SIMULATION .or. &
+      this%pm_aux%evaluate_at_end_of_simulation) then
     call this%PrintHeader()
     ! must use ierr here due to 32-/64-bit integer issues
     call this%pm_aux%Evaluate(sync_time,ierr)

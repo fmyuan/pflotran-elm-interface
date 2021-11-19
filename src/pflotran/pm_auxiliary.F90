@@ -5,7 +5,7 @@ module PM_Auxiliary_class
   use PM_Base_class
   use Realization_Subsurface_class
   use Communicator_Base_class
-  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -17,6 +17,7 @@ module PM_Auxiliary_class
     class(communicator_type), pointer :: comm1
     character(len=MAXWORDLENGTH) :: ctype
     type(pm_auxiliary_salinity_type), pointer :: salinity
+    PetscBool :: evaluate_at_end_of_simulation
     procedure(PMAuxliaryEvaluate), pointer :: Evaluate => null()
   contains
     procedure, public :: Setup => PMAuxiliarySetup
@@ -32,7 +33,7 @@ module PM_Auxiliary_class
     PetscInt :: ispecies(6)
     PetscReal :: molecular_weights(6)
   end type pm_auxiliary_salinity_type
-  
+
   ! interface blocks
   interface
     subroutine PMAuxliaryEvaluate(this,time,ierr)
@@ -40,97 +41,98 @@ module PM_Auxiliary_class
       implicit none
       class(pm_auxiliary_type) :: this
       PetscReal :: time
-      PetscErrorCode :: ierr      
+      PetscErrorCode :: ierr
     end subroutine PMAuxliaryEvaluate
   end interface
-  
+
   public :: PMAuxiliaryCreate, &
             PMAuxiliaryInit, &
             PMAuxiliaryCast, &
             PMAuxiliaryRead, &
             PMAuxiliaryInputRecord, &
             PMAuxiliarySetFunctionPointer
-  
+
 contains
 
 ! ************************************************************************** !
 
 function PMAuxiliaryCreate()
-  ! 
+  !
   ! Creates reactive transport process models shell
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/14/13
-  ! 
+  !
 
   implicit none
-  
+
   class(pm_auxiliary_type), pointer :: PMAuxiliaryCreate
 
   class(pm_auxiliary_type), pointer :: pm
 
   allocate(pm)
   call PMAuxiliaryInit(pm)
-  
+
   PMAuxiliaryCreate => pm
 
 end function PMAuxiliaryCreate
-  
+
 ! ************************************************************************** !
 
 subroutine PMAuxiliaryInit(this)
-  ! 
+  !
   ! Initializes auxiliary process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
 
   implicit none
-  
-  class(pm_auxiliary_type) :: this  
+
+  class(pm_auxiliary_type) :: this
 
   nullify(this%realization)
   nullify(this%comm1)
   nullify(this%salinity)
   this%ctype = ''
   this%name = ''
-  
+  this%evaluate_at_end_of_simulation = PETSC_TRUE
+
   call PMBaseInit(this)
   ! restart not currently supported for auxiliary pm's, and not needed.
   this%skip_restart = PETSC_TRUE
-  
+
 end subroutine PMAuxiliaryInit
 
 ! ************************************************************************** !
 
 subroutine PMAuxiliarySetup(this)
-  ! 
+  !
   ! Sets up auxiliary process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/02/16
 
   implicit none
-  
-  class(pm_auxiliary_type) :: this  
+
+  class(pm_auxiliary_type) :: this
 
 end subroutine PMAuxiliarySetup
 
 ! ************************************************************************** !
 
 function PMAuxiliaryCast(this)
-  ! 
+  !
   ! Initializes auxiliary process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
 
   implicit none
-  
-  class(pm_base_type), pointer :: this  
 
-  class(pm_auxiliary_type), pointer :: PMAuxiliaryCast  
-  
+  class(pm_base_type), pointer :: this
+
+  class(pm_auxiliary_type), pointer :: PMAuxiliaryCast
+
   nullify(PMAuxiliaryCast)
   if (.not.associated(this)) return
   select type (this)
@@ -139,13 +141,13 @@ function PMAuxiliaryCast(this)
     class default
       !geh: have default here to pass a null pointer if not of type ascii
   end select
-  
+
 end function PMAuxiliaryCast
 
 ! ************************************************************************** !
 
 subroutine PMAuxiliaryRead(input, option, this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 06/11/13
   !
@@ -235,25 +237,29 @@ end subroutine PMAuxiliaryRead
 ! ************************************************************************** !
 
 subroutine PMAuxiliarySetFunctionPointer(this,string)
-  ! 
+  !
   ! Initializes auxiliary process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
 
   use Option_module
-  
+
   implicit none
-  
+
   class(pm_auxiliary_type) :: this
   character(len=*) :: string
-  
+
   this%ctype = trim(string)
   select case(string)
     case('EVOLVING_STRATA')
       this%Evaluate => PMAuxiliaryEvolvingStrata
       this%name = 'auxiliary evolving strata'
       this%header = 'AUXILIARY EVOLVING STRATA'
+      this%evaluate_at_end_of_simulation = PETSC_FALSE
+    case('INVERSION')
+      this%Evaluate => PMAuxiliaryInversion
+      this%header = 'AUXILIARY INVERSION'
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
       this%header = 'AUXILIARY SALINITY'
@@ -262,28 +268,28 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
         &found among available functions in PMAuxiliarySetFunctionPointer.'
       call PrintErrMsg(this%option)
   end select
-  
+
 end subroutine PMAuxiliarySetFunctionPointer
 
 ! ************************************************************************** !
 
 recursive subroutine PMAuxiliaryInitializeRun(this)
-  ! 
+  !
   ! Initializes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
-  ! Date: 02/10/16 
+  ! Date: 02/10/16
 
   use Reaction_Aux_module
 
   implicit none
 
   class(pm_auxiliary_type) :: this
-  
+
   PetscReal :: time
   PetscInt :: i
   PetscErrorCode :: ierr
-  
+
   ierr = 0
   time = 0.d0
   select case(this%ctype)
@@ -292,32 +298,33 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
 !                        ierr);CHKERRQ(ierr)
 !      call MatSetOption(Jacobian,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE, &
 !                        ierr);CHKERRQ(ierr)
+    case('INVERSION')
     case('SALINITY')
       ! set up species names
       do i =1, this%salinity%nspecies
         this%salinity%ispecies(i) = &
           GetPrimarySpeciesIDFromName(this%salinity%species_names(i), &
                                       this%realization%patch%reaction, &
-                                      this%option) 
+                                      this%option)
         if (Uninitialized(this%salinity%molecular_weights(i))) then
           this%salinity%molecular_weights(i) = this%realization%patch% &
             reaction%primary_spec_molar_wt(this%salinity%ispecies(i))
         endif
       enddo
       call this%Evaluate(time,ierr)
-  end select  
+  end select
 
 end subroutine PMAuxiliaryInitializeRun
 
 ! ************************************************************************** !
 
 recursive subroutine PMAuxiliaryFinalizeRun(this)
-  ! 
+  !
   ! Finalizes the run
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/22/18
-  ! 
+  !
 
   implicit none
 
@@ -334,16 +341,16 @@ end subroutine PMAuxiliaryFinalizeRun
 ! ************************************************************************** !
 
 subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
-  ! 
+  !
   ! Initializes auxiliary process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
 
   use Init_Subsurface_module
 
   implicit none
-  
+
   class(pm_auxiliary_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
@@ -352,33 +359,57 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   call InitSubsurfAssignMatIDsToRegns(this%realization)
   call InitSubsurfAssignMatProperties(this%realization)
   call InitSubsurfaceSetupZeroArrays(this%realization)
-  
+
 end subroutine PMAuxiliaryEvolvingStrata
 
 ! ************************************************************************** !
 
-subroutine PMAuxiliarySalinity(this,time,ierr)
-  ! 
+subroutine PMAuxiliaryInversion(this,time,ierr)
+  !
   ! Initializes auxiliary process model
-  ! 
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/10/16
+
+  use Inversion_TS_Aux_module
+
+  implicit none
+
+  class(pm_auxiliary_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: ierr
+
+  ierr = 0
+  this%realization%patch%aux%inversion_ts_aux%time = time
+  this%realization%patch%aux%inversion_ts_aux => &
+    InversionTSAuxCreate(this%realization%patch%aux%inversion_ts_aux)
+
+end subroutine PMAuxiliaryInversion
+
+! ************************************************************************** !
+
+subroutine PMAuxiliarySalinity(this,time,ierr)
+  !
+  ! Initializes auxiliary process model
+  !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
   !
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  
+
   implicit none
-  
+
   class(pm_auxiliary_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
-  
+
   PetscInt :: ghosted_id, i, j, ispecies, num_auxvars
   PetscReal :: sum_mass_species, xnacl, mass_h2o
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt, parameter :: iphase = 1
-    
+
   ierr = 0
   do j = 1, 2
     if (j == 1) then
@@ -404,21 +435,21 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
       global_auxvars(ghosted_id)%m_nacl(iphase) = xnacl
     enddo
   enddo
-  
+
 end subroutine PMAuxiliarySalinity
 
 ! ************************************************************************** !
 
 subroutine PMAuxiliaryInputRecord(this)
-  ! 
+  !
   ! Writes ingested information to the input record file.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 04/21/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(pm_auxiliary_type) :: this
 
   character(len=MAXWORDLENGTH) :: word
@@ -434,16 +465,16 @@ end subroutine PMAuxiliaryInputRecord
 ! ************************************************************************** !
 
 subroutine PMAuxiliaryDestroy(this)
-  ! 
+  !
   ! Destroys auxiliary process model
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/10/16
 
   implicit none
-  
+
   class(pm_auxiliary_type) :: this
-  
+
   call PMBaseDestroy(this)
 
   ! destroyed in realization
@@ -456,7 +487,7 @@ subroutine PMAuxiliaryDestroy(this)
     deallocate(this%salinity)
     nullify(this%salinity)
   endif
-  
+
 end subroutine PMAuxiliaryDestroy
 
 end module PM_Auxiliary_class

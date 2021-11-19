@@ -44,6 +44,7 @@ module Inversion_Subsurface_class
     procedure, public :: CalculateSensitivity => InvSubsurfCalculateSensitivity
     procedure, public :: OutputSensitivity => InvSubsurfOutputSensitivity
     procedure, public :: Invert => InversionSubsurfaceInvert
+    procedure, public :: Strip => InversionSubsurfaceStrip
   end type inversion_subsurface_type
 
   public :: InversionSubsurfaceCreate, &
@@ -573,7 +574,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   patch => this%realization%patch
   grid => patch%grid
   inversion_aux => this%inversion_aux
-  inversion_ts_aux => this%realization%patch%aux%inversion_ts_aux
+  inversion_ts_aux => inversion_aux%inversion_ts_aux_list
 
   timer => TimerCreate()
   timer2 => TimerCreate()
