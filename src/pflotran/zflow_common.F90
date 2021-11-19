@@ -247,12 +247,10 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
           tempreal = denominator * denominator * zflow_viscosity
           dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
           dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
-          tempreal = area * zflow_density_kmol * &
-                     (delta_pressure * dkr_dpup + kr)
+          tempreal = area * zflow_density_kmol * kr
           dJupdKup(1) = dperm_ave_dKup * tempreal
           dJupdKdn(1) = dperm_ave_dKdn * tempreal
-          tempreal = area * zflow_density_kmol * &
-                     (delta_pressure * dkr_dpdn - kr)
+          tempreal = -1.d0 * area * zflow_density_kmol * kr
           dJdndKup(1) = dperm_ave_dKup * tempreal
           dJdndKdn(1) = dperm_ave_dKdn * tempreal
           tempreal = area * zflow_density_kmol * kr * gravity_term

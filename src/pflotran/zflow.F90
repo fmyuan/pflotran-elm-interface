@@ -674,9 +674,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
-  if (associated(patch%aux%inversion_aux)) then
-    dMdK => patch%aux%inversion_aux%dMdK
-    dbdK => patch%aux%inversion_aux%dbdK
+  if (associated(patch%aux%inversion_ts_aux)) then
+    dMdK => patch%aux%inversion_ts_aux%dMdK
+    dbdK => patch%aux%inversion_ts_aux%dbdK
   else
     nullify(dMdK)
     nullify(dbdK)
@@ -814,8 +814,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         endif
 
         if (zflow_simult_function_evals .and. &
-            associated(patch%aux%inversion_aux)) then
-          patch%aux%inversion_aux%dFluxdIntConn(:,sum_connection) = &
+            associated(patch%aux%inversion_ts_aux)) then
+          patch%aux%inversion_ts_aux%dFluxdIntConn(:,sum_connection) = &
             [dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1), &
              drhsdKup(1),drhsdKdn(1)]
         endif
@@ -960,10 +960,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           Jdn = -Jdn
           call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                         ADD_VALUES,ierr);CHKERRQ(ierr)
-          if (associated(patch%aux%inversion_aux)) then
+          if (associated(patch%aux%inversion_ts_aux)) then
             dJdndKdn = -dJdndKdn
             ! no need to flip sign on rhs since downwind
-            patch%aux%inversion_aux%dFluxdBCConn(:,sum_connection) = &
+            patch%aux%inversion_ts_aux%dFluxdBCConn(:,sum_connection) = &
               [dJdndKdn(1),drhsdKdn(1)]
           endif
           if (associated(dMdK)) then
