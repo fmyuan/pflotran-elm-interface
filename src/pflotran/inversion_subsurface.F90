@@ -915,7 +915,7 @@ subroutine InvSubsrfSetupAdjMatRhsSingle(this,local_id,dMdK,dbdK)
     call MatSetValuesLocal(dMdK,1,ghosted_id-1,1,ghosted_id-1, &
                            flux_coef(1),ADD_VALUES,ierr);CHKERRQ(ierr)
     call VecSetValueLocal(dbdK,ghosted_id-1,flux_coef(2),ADD_VALUES, &
-                     ierr);CHKERRQ(ierr)
+                          ierr);CHKERRQ(ierr)
   enddo
   deallocate(flux_coef)
 

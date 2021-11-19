@@ -778,15 +778,12 @@ subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
 
   nullify(pmc_dummy)
 
+  pm_auxiliary%realization => realization
+
   string = 'salinity'
   if (StringCompareIgnoreCase(pm_auxiliary%ctype,string)) then
     if (option%itranmode == RT_MODE) then
-      pmc_auxiliary => PMCAuxiliaryCreate()
-      call pmc_auxiliary%SetName(pmc_name)
-      call pmc_auxiliary%SetOption(option)
-      pm_auxiliary%realization => realization
-      pmc_auxiliary%pm_list => pm_auxiliary
-      pmc_auxiliary%pm_aux => pm_auxiliary
+      pmc_auxiliary => PMCAuxiliaryCreate(pmc_name,pm_auxiliary)
       call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
              PMCCastToBase(simulation%tran_process_model_coupler), &
              pmc_dummy,PM_APPEND)
@@ -1475,8 +1472,9 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   class(simulation_subsurface_type) :: simulation
 
-  class(pmc_auxiliary_type), pointer :: auxiliary_process_model_coupler
+  class(pmc_auxiliary_type), pointer :: pmc_auxiliary
   class(pmc_base_type), pointer :: cur_process_model_coupler_top
+  class(pmc_base_type), pointer :: pmc_dummy
   class(pm_auxiliary_type), pointer :: pm_aux
 
   class(realization_subsurface_type), pointer :: realization
@@ -1530,13 +1528,28 @@ subroutine SubsurfaceInitSimulation(simulation)
     pm_aux%realization => realization
     pm_aux%option => option
 
-    auxiliary_process_model_coupler => PMCAuxiliaryCreate()
-    auxiliary_process_model_coupler%pm_list => pm_aux
-    auxiliary_process_model_coupler%pm_aux => pm_aux
-    auxiliary_process_model_coupler%option => option
+    pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
     ! place the material process model as %peer for the top pmc
-    simulation%process_model_coupler_list%peer => &
-      auxiliary_process_model_coupler
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
+           PMCCastToBase(simulation%process_model_coupler_list), &
+           pmc_dummy,PM_APPEND)
+    nullify(pm_aux)
+  endif
+
+  if (.false. .and. associated(option%inversion)) then
+    allocate(pm_aux)
+    call PMAuxiliaryInit(pm_aux)
+    string = 'INVERSION'
+    call PMAuxiliarySetFunctionPointer(pm_aux,string)
+    pm_aux%realization => realization
+    pm_aux%option => option
+
+    pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
+    ! place the material process model as %peer for the top pmc
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
+           PMCCastToBase(simulation%process_model_coupler_list), &
+           pmc_dummy,PM_APPEND)
+    nullify(pm_aux)
   endif
 
   ! For each ProcessModel, set:
