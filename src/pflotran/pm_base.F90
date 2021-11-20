@@ -460,6 +460,7 @@ subroutine PMBasePrintHeader(this)
   ! Author: Glenn Hammond
   ! Date: 08/06/18
   !
+  use Utility_module
   use Option_module
   use String_module
 
@@ -467,18 +468,7 @@ subroutine PMBasePrintHeader(this)
 
   class(pm_base_type) :: this
 
-  character(len=MAXSTRINGLENGTH) :: string
-
-  if (len_trim(this%header) == 0) then
-    this%option%io_buffer = &
-      'header name needs to be set for PMBaseInitializeTimestep'
-    call PrintErrMsg(this%option)
-  endif
-  string = '(2("=")," ' // trim(this%header) // ' ",' // &
-           trim(StringWrite(80-len_trim(this%header)-4)) // '("="))'
-  write(string,string)
-  call OptionPrint('',this%option)
-  call OptionPrint(string,this%option)
+  call PrintHeader(this%header,this%option)
 
 end subroutine PMBasePrintHeader
 

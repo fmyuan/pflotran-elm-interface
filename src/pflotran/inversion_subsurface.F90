@@ -530,6 +530,104 @@ subroutine InvSubsurfCalculateSensitivity(this)
   use Solver_module
   use String_module
   use Timer_class
+  use Utility_module
+
+  use PM_Base_class
+  use PM_ZFlow_class
+
+  class(inversion_subsurface_type) :: this
+
+  type(grid_type), pointer :: grid
+  type(discretization_type), pointer :: discretization
+  type(inversion_aux_type), pointer :: inversion_aux
+  type(inversion_ts_aux_type), pointer :: cur_inversion_ts_aux
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(solver_type), pointer :: solver
+  PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
+  PetscReal, pointer :: vec_ptr3(:)
+  PetscReal :: tempreal
+  PetscInt :: iparameter, imeasurement
+  PetscInt :: icell_measurement
+  PetscInt :: natural_id
+  PetscReal :: hTdMdKTlambda, dbdKTlambda
+  Vec :: work
+  Vec :: solution
+  Vec :: p, lambda
+  Vec :: work_loc, solution_loc, lambda_loc
+  Mat :: M, Pmat
+  Mat :: dMdK_
+  Mat :: dMdK_diff
+  Vec :: dbdK
+  Vec :: natural_vec
+  class(timer_type), pointer :: timer
+  class(timer_type), pointer :: timer2
+  PetscErrorCode :: ierr
+
+  lambda_loc = PETSC_NULL_VEC
+  solution_loc = PETSC_NULL_VEC
+
+  solver => this%forward_simulation%flow_process_model_coupler% &
+              timestepper%solver
+  option => this%realization%option
+  discretization => this%realization%discretization
+  patch => this%realization%patch
+  grid => patch%grid
+  inversion_aux => this%inversion_aux
+
+  timer => TimerCreate()
+
+  call timer%Start()
+
+  call PrintHeader('SENSITIVITY JACOBIAN',option)
+
+  ! go to end of list
+  cur_inversion_ts_aux => inversion_aux%inversion_ts_aux_list
+  if (.not.associated(cur_inversion_ts_aux)) then
+    option%io_buffer = 'Inversion timestep auxiliary list is NULL.'
+    call PrintErrMsg(option)
+  endif
+  do
+    if (.not.associated(cur_inversion_ts_aux%next)) exit
+    cur_inversion_ts_aux => cur_inversion_ts_aux%next
+  enddo
+
+  ! work backward through list
+  do
+    if (.not.associated(cur_inversion_ts_aux)) exit
+    print *, 'call InvSubsurfCalcSensitivityTS: ', cur_inversion_ts_aux%timestep
+    call InvSubsurfCalcSensitivityTS(this,cur_inversion_ts_aux)
+    cur_inversion_ts_aux => cur_inversion_ts_aux%prev
+  enddo
+
+  call timer%Stop()
+  option%io_buffer = '    ' // &
+    trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) // &
+    ' seconds to build all Jsensitivity.'
+  call PrintMsg(option)
+  call TimerDestroy(timer)
+
+end subroutine InvSubsurfCalculateSensitivity
+
+! ************************************************************************** !
+
+subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
+  !
+  ! Calculates sensitivity matrix Jsensitivity
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/17/21
+  !
+  use Connection_module
+  use Debug_module
+  use Discretization_module
+  use Grid_module
+  use Option_module
+  use Patch_module
+  use Solver_module
+  use String_module
+  use Timer_class
 
   use PM_Base_class
   use PM_ZFlow_class
@@ -574,7 +672,6 @@ subroutine InvSubsurfCalculateSensitivity(this)
   patch => this%realization%patch
   grid => patch%grid
   inversion_aux => this%inversion_aux
-  inversion_ts_aux => inversion_aux%inversion_ts_aux_list
 
   timer => TimerCreate()
   timer2 => TimerCreate()
@@ -757,15 +854,20 @@ subroutine InvSubsurfCalculateSensitivity(this)
 
   call timer%Stop()
   option%io_buffer = '    ' // &
-    trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) // &
-    '    ' // &
-    trim(StringWrite('(f20.1)',timer2%GetCumulativeTime())) &
-    // ' seconds to build Jsensitivity.'
+    trim(StringWrite('(f20.1)',timer%GetCumulativeTime()))
+  tempreal = timer2%GetCumulativeTime()
+  if (tempreal > 1.d-40) then
+    option%io_buffer = trim(option%io_buffer) // &
+      '    (' // &
+      trim(StringWrite('(f20.1)',tempreal)) // ')'
+  endif
+  option%io_buffer = trim(option%io_buffer) // &
+    ' seconds to build Jsensitivity.'
   call PrintMsg(option)
   call TimerDestroy(timer)
   call TimerDestroy(timer2)
 
-end subroutine InvSubsurfCalculateSensitivity
+end subroutine InvSubsurfCalcSensitivityTS
 
 ! ************************************************************************** !
 

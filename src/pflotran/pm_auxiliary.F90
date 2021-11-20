@@ -260,6 +260,8 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
     case('INVERSION')
       this%Evaluate => PMAuxiliaryInversion
       this%header = 'AUXILIARY INVERSION'
+      ! no need to add an inversion time step at end of simulation
+      this%evaluate_at_end_of_simulation = PETSC_FALSE
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
       this%header = 'AUXILIARY SALINITY'
