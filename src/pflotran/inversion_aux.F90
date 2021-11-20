@@ -11,6 +11,8 @@ module Inversion_Aux_module
 
   type, public :: inversion_aux_type
     Mat :: JsensitivityT
+    Mat :: M ! solely a pointer
+    Vec :: solution ! solely a pointer
     PetscInt, pointer :: cell_to_internal_connection(:,:)
     PetscInt, pointer :: cell_to_bc_connection(:,:)
     type(inversion_ts_aux_type), pointer :: inversion_ts_aux_list
@@ -82,6 +84,8 @@ subroutine InversionAuxDestroy(aux)
 
   ! these objects are destroyed elsewhere, do not destroy
   aux%JsensitivityT = PETSC_NULL_MAT
+  aux%M = PETSC_NULL_MAT
+  aux%solution = PETSC_NULL_VEC
 
   deallocate(aux)
   nullify(aux)

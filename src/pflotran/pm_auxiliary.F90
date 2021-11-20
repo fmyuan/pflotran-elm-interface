@@ -383,6 +383,10 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
 
   ierr = 0
   this%realization%patch%aux%inversion_ts_aux%time = time
+  ! store solution
+  call InvTSAuxStoreCopyGlobalMatVecs(this%realization%patch%aux% &
+                                        inversion_ts_aux)
+  ! append next time step
   this%realization%patch%aux%inversion_ts_aux => &
     InversionTSAuxCreate(this%realization%patch%aux%inversion_ts_aux)
 
