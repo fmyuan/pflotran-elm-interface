@@ -196,10 +196,10 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   !----------------------------------------------------------------------------
   ! zero-order (A -> C)
-  ! This rate constant is calculated to deplete all mass in 1 m^3 of water at 
-  ! 1.d-3 mol/liter in 25 years. The reaction must be run in batch mode with
-  ! a single grid cell of size 1 m^3 and a 25 year simulation time. Increasing
-  ! the rate will cause simulation failure unless the run time is reduced.
+  ! This rate constant is calculated to deplete a concentration of 1.d-3
+  ! mol/liter in 25 years. The reaction must be run in batch mode (i.e. no
+  ! transport). Increasing the rate constant will result in simulation failure
+  ! unless the run time is reduced.
   !uncomment: k = 1.26839d-12  ! [mol/L water-sec]
   !uncomment: stoichA = -1.d0
   !uncomment: stoichC = 1.d0
