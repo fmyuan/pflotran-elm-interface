@@ -67,8 +67,10 @@ module Characteristic_Curves_Thermal_module
   end type kT_cubic_polynomial_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_linear_resistivity_type
-    PetscReal :: ref_temp
+    PetscReal :: ref_temp, ref_por, por_exp
     PetscReal :: a(2)  ! 1/(a(1) + a(2)*T)
+    PetscReal :: b(2)  ! b(1) + b(2)*T
+    PetscBool :: porosity_effect
   contains
     procedure, public :: Verify => TCFLinearResistivityVerify
     procedure, public :: CalculateTCond => TCFLinearResistivityConductivity
@@ -191,7 +193,7 @@ end subroutine TCFBaseVerify
 
 ! ************************************************************************** !
 
-subroutine TCFBaseConductivity(this,liquid_saturation,temperature, &
+subroutine TCFBaseConductivity(this,liquid_saturation,temperature,porosity, &
      thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
@@ -199,7 +201,7 @@ subroutine TCFBaseConductivity(this,liquid_saturation,temperature, &
   implicit none
 
   class(thermal_conductivity_base_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -216,14 +218,14 @@ end subroutine TCFBaseConductivity
 ! ************************************************************************** !
 
 subroutine TCFBaseConductivity2(this,liquid_saturation,ice_saturation, &
-     temperature,thermal_conductivity,dkT_dsatl,dkT_dsati,dkT_dtemp,option)
+     temperature,porosity,thermal_conductivity,dkT_dsatl,dkT_dsati,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(thermal_conductivity_base_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, ice_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, ice_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dsati, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -280,22 +282,24 @@ subroutine TCFBaseTest(this,tcc_name,option)
   temp_vec = [(temp_min + i*deltaTemp, i=0,nt-1)]
   sat_vec = [(sat_min + i*deltaSat, i=0,ns-1)]
 
+  ! does not test variation with porosity
+
   do i = 1,nt
     do j = 1,ns
       ! base case with analytical derivatives
-      call this%CalculateTCond(sat_vec(j),temp_vec(i), &
+      call this%CalculateTCond(sat_vec(j),temp_vec(i),0.d0, &
            kT(i,j),dkT_dsat(i,j),dkT_dtemp(i,j),option)
 
       ! calculate numerical derivatives via finite differences
       perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
-      call this%CalculateTCond(sat_vec(j),perturbed_temp, &
+      call this%CalculateTCond(sat_vec(j),perturbed_temp,0.d0, &
            kT_temp_pert,unused1,unused2,option)
 
       dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/(temp_vec(i)* &
                                   perturbation)
 
       perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
-      call this%CalculateTCond(perturbed_sat,temp_vec(i), &
+      call this%CalculateTCond(perturbed_sat,temp_vec(i),0.d0, &
            kT_sat_pert,unused1,unused2,option)
 
       dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/(sat_vec(j)* &
@@ -500,7 +504,7 @@ end subroutine TCFDefaultVerify
 
 ! ************************************************************************** !
 
-subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
+subroutine TCFDefaultConductivity(this,liquid_saturation,temperature,porosity, &
      thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
@@ -508,7 +512,7 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   implicit none
 
   class(kT_default_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -590,7 +594,7 @@ end subroutine TCFLinearVerify
 
 ! ************************************************************************** !
 
-subroutine TCFLinearConductivity(this,liquid_saturation,temperature, &
+subroutine TCFLinearConductivity(this,liquid_saturation,temperature,porosity, &
                                  thermal_conductivity,dkT_dsatl,dkT_dtemp, &
                                  option)
 
@@ -599,7 +603,7 @@ subroutine TCFLinearConductivity(this,liquid_saturation,temperature, &
   implicit none
 
   class(kT_linear_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -685,7 +689,7 @@ end subroutine TCFASMDryVerify
 
 ! ************************************************************************** !
 
-subroutine TCFASMDryConductivity(this,liquid_saturation,temperature, &
+subroutine TCFASMDryConductivity(this,liquid_saturation,temperature,porosity, &
      thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
@@ -693,7 +697,7 @@ subroutine TCFASMDryConductivity(this,liquid_saturation,temperature, &
   implicit none
 
   class(kT_ASM_dry_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -803,14 +807,14 @@ end subroutine TCFASMWaterFilledVerify
 ! ************************************************************************** !
 
 subroutine TCFASMWaterFilledConductivity(this,liquid_saturation, &
-     temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     temperature,porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_ASM_water_filled_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -930,14 +934,14 @@ end subroutine TCFASMRadialVerify
 ! ************************************************************************** !
 
 subroutine TCFASMRadialConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_ASM_radial_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -1061,14 +1065,14 @@ end subroutine TCFASMAxialVerify
 ! ************************************************************************** !
 
 subroutine TCFASMAxialConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_ASM_axial_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -1134,14 +1138,14 @@ end subroutine TCFConstantVerify
 ! ************************************************************************** !
 
 subroutine TCFConstantConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_constant_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -1217,14 +1221,14 @@ end subroutine TCFPowerVerify
 ! ************************************************************************** !
 
 subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_power_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -1232,7 +1236,7 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
   PetscReal :: tempreal, kT_base, shifted_temp, unused
 
   ! saturation behavior from default function
-  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0, &
+  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
        kT_base,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
@@ -1315,14 +1319,14 @@ end subroutine TCFCubicPolyVerify
 ! ************************************************************************** !
 
 subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_cubic_polynomial_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -1330,7 +1334,7 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
   PetscReal :: kT_base, shifted_temp, unused, tempreal
 
   ! saturation behavior from default function
-  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0, &
+  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
        kT_base,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
@@ -1374,6 +1378,11 @@ function TCFLinearResistivityCreate()
   TCFLinearResistivityCreate%kT_xy  = UNINITIALIZED_DOUBLE
   TCFLinearResistivityCreate%kT_xz  = UNINITIALIZED_DOUBLE
   TCFLinearResistivityCreate%kT_yz  = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%porosity_effect = PETSC_FALSE
+  TCFLinearResistivityCreate%ref_por = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%por_exp = UNINITIALIZED_DOUBLE
+  TCFLinearResistivityCreate%b = [ UNINITIALIZED_DOUBLE, &
+                                   UNINITIALIZED_DOUBLE]
 
 end function TCFLinearResistivityCreate
 
@@ -1410,28 +1419,55 @@ subroutine TCFLinearResistivityVerify(this,name,option)
           'RESISTIVITY_COEFFCIENTS 1/(a(1) + a(2)*T)',string)
      call PrintErrMsg(option)
   endif
+  ! default: porosity_effect is false, all variables uninitialized
+  if ((.not. Uninitialized(this%ref_por)) .and. &
+      (.not. Uninitialized(this%por_exp)) .and. &
+      (.not. Uninitialized(this%b(1))) .and. &
+      (.not. Uninitialized(this%b(2)))) then
+     ! all required variables are set: turn on porosity effect
+     this%porosity_effect = PETSC_TRUE
+  else if ((.not. Uninitialized(this%ref_por)) .or. &
+           (.not. Uninitialized(this%por_exp)) .or. &
+           (.not. Uninitialized(this%b(1))) .or. &
+           (.not. Uninitialized(this%b(2)))) then
+     ! some are initialized, but not all: error message
+     if (Uninitialized(this%ref_por)) then
+        option%io_buffer = UninitializedMessage('REFERENCE_POROSITY',string)
+        call PrintErrMsg(option)
+     endif
+     if (Uninitialized(this%por_exp)) then
+        option%io_buffer = UninitializedMessage('POROSITY_EXPONENT',string)
+        call PrintErrMsg(option)
+     endif
+     if (Uninitialized(this%b(1)) .or. Unintialized(this%b(2))) then
+        option%io_buffer = UninitializedMessage( &
+             'FLUID_LINEAR_COEFFICIENTS b(1) + b(2)*T',string)
+        call PrintErrMsg(option)
+     endif
+  endif
 
 end subroutine TCFLinearResistivityVerify
 
 ! ************************************************************************** !
 
 subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
-     temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     temperature,porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_linear_resistivity_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
-  PetscReal :: relkT, shifted_temp, tempreal, unused
+  PetscReal :: dkT_dtemp_from_por(2)
+  PetscReal :: relkT, shifted_temp, tempreal, unused, scaled_por, solid_term
 
   ! saturation behavior from default function
-  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0, &
+  call this%kT_default_type%CalculateTCond(liquid_saturation,0.d0,0.d0, &
        relkT,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
@@ -1442,7 +1478,27 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
   tempreal = this%a(1) + shifted_temp*this%a(2)
   thermal_conductivity = relkT / tempreal
 
-  dkT_dtemp = -this%a(2) * thermal_conductivity / tempreal
+  if (this%porosity_effect) then
+     ! from GRS-281 (2012) Tab B.4 for granular salt (Salzgrus) with
+     ! air-filled porosity at Gorleben (VSG)
+     ! kT = (1 - por/ref_por)^por_exp * kT_solid + ...
+     !      (por/ref_por) * (b(1) + b(2)*T)
+     scaled_por = porosity / this%ref_por
+
+     solid_term = (1.d0 - scaled_por) ** this%por_exp
+     thermal_conductivity = thermal_conductivity * solid_term
+     thermal_conductivity = thermal_conductivity + scaled_por * &
+          (this%b(1) + this%b(2)*shifted_temp)
+
+     dkT_dtemp_from_por(1) = solid_term
+     dkT_dtemp_from_por(2) = scaled_por * this%b(2)
+  else
+     dkT_dtemp_from_por(1) = 1.d0
+     dkT_dtemp_from_por(2) = 0.d0
+  end if
+
+  dkT_dtemp = -this%a(2) * thermal_conductivity / tempreal * &
+       dkT_dtemp_from_por(1) + dkT_dtemp_from_por(2)
   dkT_dsatl = dkT_dsatl / tempreal
 
 end subroutine TCFLinearResistivityConductivity
@@ -1537,14 +1593,14 @@ end subroutine TCFFrozenVerify
 ! ************************************************************************** !
 
 subroutine TCFFrozenConductivity1(this,liquid_saturation,temperature, & 
-     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_frozen_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -1566,7 +1622,8 @@ end subroutine TCFFrozenConductivity1
 ! ************************************************************************** !
 
 subroutine TCFFrozenConductivity2(this,liquid_saturation,ice_saturation,   & 
-     temperature,thermal_conductivity,dkT_dsatl,dkT_dsati,dkT_dtemp,option)
+     temperature,porosity,thermal_conductivity, &
+     dkT_dsatl,dkT_dsati,dkT_dtemp,option)
 
   use Option_module
 
@@ -1574,6 +1631,7 @@ subroutine TCFFrozenConductivity2(this,liquid_saturation,ice_saturation,   &
 
   class(kT_frozen_type) :: this
   PetscReal, intent(in) :: liquid_saturation, ice_saturation, temperature
+  PetscReal, intent(in) :: porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dsati, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -1683,14 +1741,14 @@ end subroutine TCFCompositeTest
 ! ************************************************************************** !
 
 subroutine TCFCompositeConductivity(this,liquid_saturation, &
-     temperature,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+     temperature,porosity,thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
   class(kT_composite_type) :: this
-  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(in) :: liquid_saturation, temperature, porosity
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
@@ -1720,7 +1778,7 @@ subroutine TCFCompositeConductivity(this,liquid_saturation, &
     select type(tcf => this%ckT(i)%ptr%thermal_conductivity_function)
     class is(thermal_conductivity_base_type)
       scaling(i) = dabs(dist(i))**2/mag
-      call tcf%CalculateTCond(liquid_saturation,temperature,tmpkT(i), &
+      call tcf%CalculateTCond(liquid_saturation,temperature,0.d0,tmpkT(i), &
                               tmpdkT_dsatl(i),tmpdkT_dtemp(i),option)
       
       thermal_conductivity = thermal_conductivity + &
@@ -2127,6 +2185,18 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadNDoubles(input,option,tcf%a,2)
         call InputErrorMsg(input,option, &
              'linear thermal resistivity coefficients',error_string)
+      case('REFERENCE_POROSITY')
+        call InputReadDouble(input,option,tcf%ref_por)
+        call InputErrorMsg(input,option, 'reference porosity', &
+             error_string)
+      case('POROSITY_EXPONENT')
+        call InputReadDouble(input,option,tcf%por_exp)
+        call InputErrorMsg(input,option, 'porosity exponent', &
+             error_string)
+      case('FLUID_LINEAR_COEFFICIENTS')
+        call InputReadNDoubles(input,option,tcf%b,2)
+        call InputErrorMsg(input,option, 'fluid thermal conductivity linear coefficients', &
+             error_string)
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string, &
           'linear resistivity',option)
@@ -3365,6 +3435,22 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a29)',advance='no') 'T coefficient: '
         write(word1,*) tcf%a(2)
         write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'porosity effect: '
+        write(word1,*) tcf%porosity_effect
+        if (tcf%porosity_effect) then
+           write(id,'(a29)',advance='no') 'reference por.: '
+           write(word1,*) tcf%ref_por
+           write(id,'(a)') adjustl(trim(word1))
+           write(id,'(a29)',advance='no') 'por. exponent: '
+           write(word1,*) tcf%por_exp
+           write(id,'(a)') adjustl(trim(word1))
+           write(id,'(a29)',advance='no') 'fluid TC const. term: '
+           write(word1,*) tcf%b(1)
+           write(id,'(a)') adjustl(trim(word1))
+           write(id,'(a29)',advance='no') 'fluid TC linear term: '
+           write(word1,*) tcf%b(2)
+           write(id,'(a)') adjustl(trim(word1))
+        end if
         !---------------------------------
       class is (kT_frozen_type)
         write(id,'(a)') 'liquid and ice sat.-dependent (frozen)'
