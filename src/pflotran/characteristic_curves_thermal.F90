@@ -258,7 +258,7 @@ subroutine TCFBaseTest(this,tcc_name,option)
   PetscInt, parameter :: ns = 31
   PetscReal, parameter :: perturbation = 1.0D-6
   PetscReal :: deltaTemp, deltaSat, deltaPor
-  PetscReal :: temp0, sat0, por0
+  PetscReal :: temp0, sat0, por0, pmult
   PetscReal :: kT, dkT_dsat, dkT_dsat_numerical
   PetscReal :: dkT_dtemp, dkT_dtemp_numerical
   PetscReal :: dkT_dpor_numerical
@@ -272,15 +272,16 @@ subroutine TCFBaseTest(this,tcc_name,option)
   temp_max = 250.0d0
   sat_min = 1.0d-3
   sat_max = 1.0d0
-  por_min = 0.d0
 
   select type(this)
   class is(kT_linear_resistivity_type)
-     ! this is the only tcc porosity-variation is implemented for
+     ! this is the only tcc hwere porosity-variation is implemented
      por_max = this%ref_por
+     por_min = min(por_max / 10.0, 1.0D-4)
      np = 21
      deltaPor = (por_max - por_min)/(np - 1)
   class default
+     por_min = 1.0D-4
      por_max = por_min
      deltaPor = 0.d0
      np = 1
@@ -315,18 +316,28 @@ subroutine TCFBaseTest(this,tcc_name,option)
           dkT_dtemp_numerical = (kT_temp_pert - kT)/(temp0 * &
                perturbation)
 
-          perturbed_sat = sat0 * (1.d0 + perturbation)
+          if (j == ns) then
+             pmult = -1.d0  ! backwards diff
+          else
+             pmult =1.d0
+          endif
+          perturbed_sat = sat0 * (1.d0 + pmult * perturbation)
           call this%CalculateTCond(perturbed_sat,temp0,por0, &
                kT_sat_pert,unused1,unused2,option)
 
-          dkT_dsat_numerical = (kT_sat_pert - kT)/(sat0* &
+          dkT_dsat_numerical = (pmult * kT_sat_pert - pmult * kT)/(sat0 * &
                perturbation)
 
-          perturbed_por = por0 * (1.d0 + perturbation)
+          if (k > 1 .and. k == np) then
+             pmult = -1.d0
+          else
+             pmult = 1.d0
+          endif
+          perturbed_por = por0 * (1.d0 + pmult * perturbation)
           call this%CalculateTCond(sat0,temp0,perturbed_por, &
                kT_por_pert,unused1,unused2,option)
 
-          dkT_dpor_numerical = (kT_por_pert - kT)/(por0* &
+          dkT_dpor_numerical = (pmult * kT_por_pert - pmult * kT)/(por0 * &
                perturbation)
 
           write(86,'(9(ES14.6,1X))') temp0, sat0, por0, &
@@ -1457,7 +1468,7 @@ subroutine TCFLinearResistivityVerify(this,name,option)
      endif
      if (Uninitialized(this%b(1)) .or. Uninitialized(this%b(2))) then
         option%io_buffer = UninitializedMessage( &
-             'FLUID_LINEAR_COEFFICIENTS b(1) + b(2)*T',string)
+             'INITIAL_LINEAR_COEFFICIENTS b(1) + b(2)*T',string)
         call PrintErrMsg(option)
      endif
   endif
@@ -1479,7 +1490,7 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
-  PetscReal :: dkT_dtemp_from_por(2)
+  PetscReal :: dkT_from_por(2)
   PetscReal :: relkT, shifted_temp, tempreal, unused, scaled_por, solid_term
 
   ! saturation behavior from default function
@@ -1497,7 +1508,7 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
   if (this%porosity_effect) then
      ! from GRS-281 (2012) Tab B.4 for granular salt (Salzgrus) with
      ! air-filled porosity at Gorleben (VSG)
-     ! kT = (1 - por/ref_por)^por_exp * kT_solid + ...
+     ! kT = (1 - por/ref_por)^por_exp * kT_intact + ...
      !      (por/ref_por) * (b(1) + b(2)*T)
      scaled_por = porosity / this%ref_por
 
@@ -1506,16 +1517,16 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
      thermal_conductivity = thermal_conductivity + scaled_por * &
           (this%b(1) + this%b(2)*shifted_temp)
 
-     dkT_dtemp_from_por(1) = solid_term
-     dkT_dtemp_from_por(2) = scaled_por * this%b(2)
+     dkT_from_por(1) = solid_term
+     dkT_from_por(2) = scaled_por * this%b(2)
   else
-     dkT_dtemp_from_por(1) = 1.d0
-     dkT_dtemp_from_por(2) = 0.d0
+     dkT_from_por(1) = 1.d0
+     dkT_from_por(2) = 0.d0
   end if
 
   dkT_dtemp = -this%a(2) * thermal_conductivity / tempreal * &
-       dkT_dtemp_from_por(1) + dkT_dtemp_from_por(2)
-  dkT_dsatl = dkT_dsatl / tempreal
+       dkT_from_por(1) + dkT_from_por(2)
+  dkT_dsatl = dkT_dsatl * dkT_from_por(1) / tempreal
 
 end subroutine TCFLinearResistivityConductivity
 
@@ -2209,9 +2220,9 @@ subroutine TCFRead(thermal_conductivity_function,input,option)
         call InputReadDouble(input,option,tcf%por_exp)
         call InputErrorMsg(input,option, 'porosity exponent', &
              error_string)
-      case('FLUID_LINEAR_COEFFICIENTS')
+      case('INITIAL_LINEAR_COEFFICIENTS')
         call InputReadNDoubles(input,option,tcf%b,2)
-        call InputErrorMsg(input,option, 'fluid thermal conductivity linear coefficients', &
+        call InputErrorMsg(input,option, 'initial thermal conductivity linear coefficients', &
              error_string)
       case default
         call TCFDefaultRead(tcf,input,keyword,error_string, &
