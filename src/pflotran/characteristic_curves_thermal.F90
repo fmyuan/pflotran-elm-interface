@@ -257,69 +257,85 @@ subroutine TCFBaseTest(this,tcc_name,option)
   PetscInt, parameter :: nt = 71
   PetscInt, parameter :: ns = 31
   PetscReal, parameter :: perturbation = 1.0D-6
-  PetscReal :: deltaTemp, deltaSat
-  PetscReal :: temp_vec(nt)
-  PetscReal :: sat_vec(ns)
-  PetscReal :: kT(nt,ns)
-  PetscReal :: dkT_dsat(nt,ns)
-  PetscReal :: dkT_dsat_numerical(nt,ns)
-  PetscReal :: dkT_dtemp(nt,ns)
-  PetscReal :: dkT_dtemp_numerical(nt,ns)
-  PetscReal :: perturbed_temp, perturbed_sat
-  PetscReal :: kT_temp_pert, kT_sat_pert, unused1, unused2
-  PetscReal :: temp_min, temp_max, sat_min, sat_max
-  PetscInt :: i,j
+  PetscReal :: deltaTemp, deltaSat, deltaPor
+  PetscReal :: temp0, sat0, por0
+  PetscReal :: kT, dkT_dsat, dkT_dsat_numerical
+  PetscReal :: dkT_dtemp, dkT_dtemp_numerical
+  PetscReal :: dkT_dpor_numerical
+  PetscReal :: perturbed_temp, perturbed_sat, temp_por, perturbed_por
+  PetscReal :: kT_temp_pert, kT_sat_pert, kT_por_pert, unused1, unused2
+  PetscReal :: temp_min, temp_max, sat_min, sat_max, por_min, por_max
+  PetscInt :: i,j,k, np
 
-  ! thermal conductivity as a function of temp. and liq. sat.
+  ! thermal conductivity as a function of temp., liq. sat., and porosity
   temp_min = 1.0d0 ! Celsius
   temp_max = 250.0d0
   sat_min = 1.0d-3
   sat_max = 1.0d0
+  por_min = 0.d0
+
+  select type(this)
+  class is(kT_linear_resistivity_type)
+     ! this is the only tcc porosity-variation is implemented for
+     por_max = this%ref_por
+     np = 21
+     deltaPor = (por_max - por_min)/(np - 1)
+  class default
+     por_max = por_min
+     deltaPor = 0.d0
+     np = 1
+  end select
 
   deltaTemp = (temp_max - temp_min)/(nt - 1)
   deltaSat = (sat_max - sat_min)/(ns - 1)
 
-  temp_vec = [(temp_min + i*deltaTemp, i=0,nt-1)]
-  sat_vec = [(sat_min + i*deltaSat, i=0,ns-1)]
-
-  ! does not test variation with porosity
-
-  do i = 1,nt
-    do j = 1,ns
-      ! base case with analytical derivatives
-      call this%CalculateTCond(sat_vec(j),temp_vec(i),0.d0, &
-           kT(i,j),dkT_dsat(i,j),dkT_dtemp(i,j),option)
-
-      ! calculate numerical derivatives via finite differences
-      perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
-      call this%CalculateTCond(sat_vec(j),perturbed_temp,0.d0, &
-           kT_temp_pert,unused1,unused2,option)
-
-      dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/(temp_vec(i)* &
-                                  perturbation)
-
-      perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
-      call this%CalculateTCond(perturbed_sat,temp_vec(i),0.d0, &
-           kT_sat_pert,unused1,unused2,option)
-
-      dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/(sat_vec(j)* &
-                                 perturbation)
-    enddo
-  enddo
-
   write(string,*) tcc_name
-  string = trim(tcc_name) // '_kT_vs_sat_and_temp.dat'
+  string = trim(tcc_name) // '_kT_vs_sat_temp_and_por.dat'
   open(unit=86,file=string)
-  write(86,*) '"temperature [C]", "liquid saturation [-]", "kT [W/m*K]", &
-       &"dkT/dsat", "dkT/dT", "dkT/dsat_numerical", "dkT/dT_numerical"'
+  write(86,*) '"temperature [C]", "liquid saturation [-]", "porosity [-]",' &
+       //'"kT [W/m*K]", "dkT/dsat", "dkT/dT", "dkT/dsat_numerical",' &
+       //'"dkT/dT_numerical", "dkT/dpor_numerical"'
+
   do i = 1,nt
-    do j = 1,ns
-      write(86,'(7(ES14.6))') temp_vec(i), sat_vec(j), &
-           kT(i,j), dkT_dsat(i,j), dkT_dtemp(i,j), &
-           dkT_dsat_numerical(i,j), dkT_dtemp_numerical(i,j)
+     temp0 = temp_min + deltaTemp * (i - 1)
+     do j = 1,ns
+        sat0 = sat_min + deltaSat * (j - 1)
+        do k = 1,np
+          por0 = por_min + deltaPor * (k - 1)
+
+          ! base case with analytical derivatives
+          call this%CalculateTCond(sat0,temp0,por0, &
+               kT,dkT_dsat,dkT_dtemp,option)
+
+          ! calculate numerical derivatives via finite differences
+          perturbed_temp = temp0 * (1.d0 + perturbation)
+          call this%CalculateTCond(sat0,perturbed_temp,por0, &
+               kT_temp_pert,unused1,unused2,option)
+
+          dkT_dtemp_numerical = (kT_temp_pert - kT)/(temp0 * &
+               perturbation)
+
+          perturbed_sat = sat0 * (1.d0 + perturbation)
+          call this%CalculateTCond(perturbed_sat,temp0,por0, &
+               kT_sat_pert,unused1,unused2,option)
+
+          dkT_dsat_numerical = (kT_sat_pert - kT)/(sat0* &
+               perturbation)
+
+          perturbed_por = por0 * (1.d0 + perturbation)
+          call this%CalculateTCond(sat0,temp0,perturbed_por, &
+               kT_por_pert,unused1,unused2,option)
+
+          dkT_dpor_numerical = (kT_por_pert - kT)/(por0* &
+               perturbation)
+
+          write(86,'(9(ES14.6,1X))') temp0, sat0, por0, &
+               kT, dkT_dsat, dkT_dtemp, dkT_dsat_numerical, &
+               dkT_dtemp_numerical, dkT_dpor_numerical
+       enddo
     enddo
-  enddo
-  close(86)
+ enddo
+ close(86)
 
 end subroutine TCFBaseTest
 
@@ -384,26 +400,26 @@ subroutine TCFFrozenTest(this,tcc_name,option)
       do k = 1,ni
         ! base case with analytical derivatives
         call this%CalculateFTCond(sat_vec(j),ice_vec(k),temp_vec(i), &
-           kT(i,j,k),dkT_dsat(i,j,k),dkT_dice(i,j,k),dkT_dtemp(i,j,k),option)
+           0.d0,kT(i,j,k),dkT_dsat(i,j,k),dkT_dice(i,j,k),dkT_dtemp(i,j,k),option)
   
         ! calculate numerical derivatives via finite differences
         perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
         call this%CalculateFTCond(sat_vec(j),ice_vec(k),perturbed_temp, &
-             kT_temp_pert,unused1,unused2,unused3,option)
+             0.d0,kT_temp_pert,unused1,unused2,unused3,option)
   
         dkT_dtemp_numerical(i,j,k) = (kT_temp_pert - kT(i,j,k))/ & 
                                    (temp_vec(i)*perturbation)
   
         perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
         call this%CalculateFTCond(perturbed_sat,ice_vec(k),temp_vec(i), &
-             kT_sat_pert,unused1,unused2,unused3,option)
+             0.d0,kT_sat_pert,unused1,unused2,unused3,option)
   
         dkT_dsat_numerical(i,j,k) = (kT_sat_pert - kT(i,j,k))/ & 
                                   (sat_vec(j)*perturbation)
         
         perturbed_ice = ice_vec(k) * (1.d0 + perturbation)
         call this%CalculateFTCond(sat_vec(j),perturbed_ice,temp_vec(i), &
-             kT_ice_pert,unused1,unused2,unused3,option)
+             0.d0,kT_ice_pert,unused1,unused2,unused3,option)
              
         dkT_dice_numerical(i,j,k) = (kT_ice_pert - kT(i,j,k))/ & 
                                    (ice_vec(k)*perturbation)
@@ -414,10 +430,10 @@ subroutine TCFFrozenTest(this,tcc_name,option)
   write(string,*) tcc_name
   string = trim(tcc_name) // '_kT_vs_sat_and_temp.dat'
   open(unit=86,file=string)
-  write(86,*) '"temperature [C]", "liquid saturation [-]", &
-               "ice saturation [-]", "kT [W/m*K]", "dkT/dsatl", "dkT/dsati", &  
-               "dkT/dT", "dkT/dsatl_numerical", "dkT/dsati_numerical", &
-               "dkT/dT_numerical"'
+  write(86,*) '"temperature [C]", "liquid saturation [-]",' &
+               //'"ice saturation [-]", "kT [W/m*K]", "dkT/dsatl", "dkT/dsati",' &
+               //'"dkT/dT", "dkT/dsatl_numerical", "dkT/dsati_numerical",' &
+               //'"dkT/dT_numerical"'
   do i = 1,nt
     do j = 1,ns
       do k = 1,ni
@@ -1439,7 +1455,7 @@ subroutine TCFLinearResistivityVerify(this,name,option)
         option%io_buffer = UninitializedMessage('POROSITY_EXPONENT',string)
         call PrintErrMsg(option)
      endif
-     if (Uninitialized(this%b(1)) .or. Unintialized(this%b(2))) then
+     if (Uninitialized(this%b(1)) .or. Uninitialized(this%b(2))) then
         option%io_buffer = UninitializedMessage( &
              'FLUID_LINEAR_COEFFICIENTS b(1) + b(2)*T',string)
         call PrintErrMsg(option)
