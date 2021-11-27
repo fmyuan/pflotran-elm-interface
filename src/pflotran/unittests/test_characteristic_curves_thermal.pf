@@ -286,7 +286,7 @@ contains
     class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
 
     PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
-                 porosity,dkT_dsatl, dkT_dtemp
+                 porosity, dkT_dsatl, dkT_dtemp
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-7
     character(len=128) :: string
@@ -328,7 +328,7 @@ contains
     class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
 
     PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
-                 dkT_dsatl, dkT_dtemp
+                 porosity, dkT_dsatl, dkT_dtemp
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
