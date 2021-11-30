@@ -531,8 +531,11 @@ subroutine ZFlowUpdateFixedAccum(realization)
   PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
   PetscReal :: Jdum(1,1)
+  PetscReal, pointer :: vec_ptr(:)
 
   PetscErrorCode :: ierr
+
+  if (.not.zflow_calc_accum) return
 
   option => realization%option
   field => realization%field
@@ -569,7 +572,10 @@ subroutine ZFlowUpdateFixedAccum(realization)
                            global_auxvars(ghosted_id), &
                            material_auxvars(ghosted_id), &
                            option,accum_p(local_id:local_id), &
-                           Jdum,PETSC_FALSE)
+                           Jdum,zflow_calc_adjoint)
+    if (zflow_calc_adjoint) then
+      patch%aux%inversion_ts_aux%dJdpkm1(local_id) = Jdum(1,1)
+    endif
   enddo
 
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)

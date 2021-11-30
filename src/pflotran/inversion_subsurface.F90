@@ -305,14 +305,13 @@ subroutine InversionSubsurfInitialize(this)
   IS :: is_petsc
   PetscErrorCode :: ierr
 
+  nullify(vec_ptr)
+
   if (.not.associated(this%inversion_aux)) then
     this%n_qoi_per_cell = 1 ! 1 perm per cell
 
     patch => this%realization%patch
     this%inversion_aux => InversionAuxCreate()
-    this%inversion_aux%M = &
-      this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
-    this%inversion_aux%solution = this%realization%field%flow_xx
     num_measurements = size(this%imeasurement)
     num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
     num_parameters_global = patch%grid%nmax*this%n_qoi_per_cell
@@ -323,6 +322,7 @@ subroutine InversionSubsurfInitialize(this)
                         num_parameters_global,num_measurements, &
                         PETSC_NULL_SCALAR, &
                         this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
+    call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
     ! cannot pass in this%measurement_vec as it is initialized to
     ! PETSC_NULL_VEC and MatCreateVecs keys off that input
     call MatCreateVecs(this%inversion_aux%JsensitivityT,v,PETSC_NULL_VEC, &
@@ -343,13 +343,19 @@ subroutine InversionSubsurfInitialize(this)
     ! create inversion_ts_aux for first time step
     nullify(inversion_ts_aux) ! must pass in null object
     inversion_ts_aux => InversionTSAuxCreate(inversion_ts_aux)
+    ! set up pointers to M matrix and solution
+    inversion_ts_aux%mat_vec_solution_ptr%M = &
+      this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
+    inversion_ts_aux%mat_vec_solution_ptr%solution = &
+      this%realization%field%flow_xx
+
     this%inversion_aux%inversion_ts_aux_list => inversion_ts_aux
     sum_connection = &
       ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
     sum_connection2 = &
       CouplerGetNumConnectionsInList(patch%boundary_condition_list)
-    call InvTSAuxAllocateFluxCoefArrays(inversion_ts_aux,sum_connection, &
-                                        sum_connection2)
+    call InvTSAuxAllocateFluxCoefArrays(inversion_ts_aux,patch%grid%nlmax, &
+                                        sum_connection,sum_connection2)
 
     allocate(int_array(patch%grid%nlmax))
     int_array = 0
@@ -606,7 +612,6 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   type(solver_type), pointer :: solver
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
-  PetscReal, pointer :: vec_ptr3(:)
   PetscReal :: tempreal
   PetscInt :: iparameter, imeasurement
   PetscInt :: icell_measurement
@@ -614,7 +619,8 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   PetscReal :: hTdMdKTlambda, dbdKTlambda
   Vec :: work
   Vec :: solution
-  Vec :: p, lambda
+  Vec :: p
+  Vec :: dJkp1dpklambdak
   Vec :: work_loc, solution_loc, lambda_loc
   Mat :: M, Pmat
   Mat :: dMdK_
@@ -624,6 +630,9 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   class(timer_type), pointer :: timer
   class(timer_type), pointer :: timer2
   PetscErrorCode :: ierr
+
+  nullify(vec_ptr)
+  nullify(vec_ptr2)
 
   lambda_loc = PETSC_NULL_VEC
   solution_loc = PETSC_NULL_VEC
@@ -644,7 +653,7 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   work = this%realization%field%work ! DO NOT DESTROY!
   solution = this%realization%field%flow_xx ! DO NOT DESTROY!
   call VecDuplicate(work,p,ierr);CHKERRQ(ierr)
-  call VecDuplicate(work,lambda,ierr);CHKERRQ(ierr)
+  call VecDuplicate(work,dJkp1dpklambdak,ierr);CHKERRQ(ierr)
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
 
@@ -665,7 +674,6 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   endif
   call VecDuplicate(work,dbdK,ierr);CHKERRQ(ierr)
 
-  call MatZeroEntries(inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
   if (this%debug_verbosity > 2) then
     if (OptionPrintToScreen(option)) print *, 'solution'
     call VecView(solution,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
@@ -683,6 +691,8 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
     if (OptionPrintToScreen(option)) print *, 'M'
     call MatView(M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
+  call VecDuplicateVecsF90(work,size(this%imeasurement), &
+                           inversion_ts_aux%lambda,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(this%imeasurement)
     call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
     if (option%myrank == 0) then
@@ -698,19 +708,37 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
       if (OptionPrintToScreen(option)) print *, 'p'
       call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
     endif
-    call KSPSolveTranspose(solver%ksp,p,lambda,ierr);CHKERRQ(ierr)
+    if (associated(inversion_ts_aux%next)) then
+      call VecGetArrayF90(dJkp1dpklambdak,vec_ptr,ierr);CHKERRQ(ierr)
+      vec_ptr(:) = inversion_ts_aux%next%dJdpkm1(:)
+      call VecRestoreArrayF90(dJkp1dpklambdak,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecPointwiseMult(dJkp1dpklambdak,dJkp1dpklambdak, &
+                            inversion_ts_aux%next%lambda(imeasurement), &
+                            ierr);CHKERRQ(ierr)
+    else
+      call VecZeroEntries(dJkp1dpklambdak,ierr);CHKERRQ(ierr)
+    endif
+    call VecAXPY(p,1.d0,dJkp1dpklambdak,ierr);CHKERRQ(ierr)
+    call KSPSolveTranspose(solver%ksp,p, &
+                           inversion_ts_aux%lambda(imeasurement), &
+                           ierr);CHKERRQ(ierr)
     if (this%debug_verbosity > 2) then
       if (OptionPrintToScreen(option)) print *, 'lambda'
-      call VecView(lambda,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+      call VecView(inversion_ts_aux%lambda(imeasurement), &
+                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
       if (option%comm%mycommsize == 1) then
-        call VecGetArrayF90(lambda,vec_ptr,ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(inversion_ts_aux%lambda(imeasurement), &
+                            vec_ptr,ierr);CHKERRQ(ierr)
         print *, vec_ptr(:)
-        call VecRestoreArrayF90(lambda,vec_ptr,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(inversion_ts_aux%lambda(imeasurement), &
+                                vec_ptr,ierr);CHKERRQ(ierr)
       endif
     endif
 
     if (this%local_adjoint) then
-      call DiscretizationGlobalToLocal(discretization,lambda,lambda_loc,ONEDOF)
+      call DiscretizationGlobalToLocal(discretization, &
+                                       inversion_ts_aux%lambda(imeasurement), &
+                                       lambda_loc,ONEDOF)
       call timer2%Start()
       call VecGetArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(solution_loc,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -770,7 +798,8 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
           call VecNorm(work,NORM_2,tempreal,ierr);CHKERRQ(ierr)
           if (OptionPrintToScreen(option)) print *, 'dbdK diff norm: ', tempreal
         endif
-        call MatMultTranspose(dMdK_,lambda,work,ierr);CHKERRQ(ierr)
+        call MatMultTranspose(dMdK_,inversion_ts_aux%lambda(imeasurement), &
+                              work,ierr);CHKERRQ(ierr)
         if (this%debug_verbosity > 2) then
           if (OptionPrintToScreen(option)) print *, 'dMdK^T * lambda'
           call VecView(work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
@@ -780,7 +809,8 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
           print *, '-h^T * dMdK^T * lambda'
           print *, iparameter, ' : ', -hTdMdKTlambda
         endif
-        call VecDot(dbdK,lambda,dbdKTlambda,ierr);CHKERRQ(ierr)
+        call VecDot(dbdK,inversion_ts_aux%lambda(imeasurement), &
+                    dbdKTlambda,ierr);CHKERRQ(ierr)
         if (this%debug_verbosity > 2 .and. OptionPrintToScreen(option)) then
           print *, 'dbdK^T * lambda'
           print *, iparameter, ' : ', dbdKTlambda
@@ -808,7 +838,7 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   endif
   call VecDestroy(dbdK,ierr);CHKERRQ(ierr)
   call VecDestroy(p,ierr);CHKERRQ(ierr)
-  call VecDestroy(lambda,ierr);CHKERRQ(ierr)
+  call VecDestroy(dJkp1dpklambdak,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call MatAssemblyBegin(inversion_aux%JsensitivityT, &
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)

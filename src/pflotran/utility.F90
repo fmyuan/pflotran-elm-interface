@@ -2639,8 +2639,7 @@ subroutine PrintHeader(header,option)
   character(len=MAXSTRINGLENGTH) :: string
 
   if (len_trim(header) == 0) then
-    option%io_buffer = &
-      'header name needs to be set for PMBaseInitializeTimestep'
+    option%io_buffer = 'Empty headers in utility.F90:PrintHeader().'
     call PrintErrMsg(option)
   endif
   string = '(2("=")," ' // trim(header) // ' ",' // &

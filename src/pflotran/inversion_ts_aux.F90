@@ -13,6 +13,8 @@ module Inversion_TS_Aux_module
     PetscReal :: time
     Mat :: M
     Vec :: solution
+    Vec, pointer :: lambda(:)
+    PetscReal, pointer :: dJdpkm1(:)
     PetscReal, pointer :: dFluxdIntConn(:,:)
     PetscReal, pointer :: dFluxdBCConn(:,:)
     Mat, pointer :: dMdK(:)
@@ -57,8 +59,10 @@ function InversionTSAuxCreate(prev_ts_aux)
   aux%time = UNINITIALIZED_DOUBLE
   aux%M = PETSC_NULL_MAT
   aux%solution = PETSC_NULL_VEC
+  nullify(aux%lambda)
 
   nullify(aux%mat_vec_solution_ptr)
+  nullify(aux%dJdpkm1)
   nullify(aux%dFluxdIntConn)
   nullify(aux%dFluxdBCConn)
   nullify(aux%dMdK)
@@ -72,6 +76,7 @@ function InversionTSAuxCreate(prev_ts_aux)
     prev_ts_aux%next => aux
     aux%prev => prev_ts_aux
     call InvTSAuxAllocateFluxCoefArrays(aux, &
+                                        size(prev_ts_aux%dJdpkm1), &
                                         size(prev_ts_aux%dFluxdIntConn,2), &
                                         size(prev_ts_aux%dFluxdBCConn,2))
     if (associated(prev_ts_aux%dMdK)) then
@@ -112,7 +117,8 @@ end subroutine InvTSAuxStoreCopyGlobalMatVecs
 
 ! ************************************************************************** !
 
-subroutine InvTSAuxAllocateFluxCoefArrays(aux,num_internal,num_boundary)
+subroutine InvTSAuxAllocateFluxCoefArrays(aux,num_unknown,num_internal, &
+                                          num_boundary)
   !
   ! Allocated array holding internal flux coefficients
   !
@@ -120,9 +126,12 @@ subroutine InvTSAuxAllocateFluxCoefArrays(aux,num_internal,num_boundary)
   ! Date: 11/19/21
 
   type(inversion_ts_aux_type), pointer :: aux
+  PetscInt :: num_unknown
   PetscInt :: num_internal
   PetscInt :: num_boundary
 
+  allocate(aux%dJdpkm1(num_unknown))
+  aux%dJdpkm1 = 0.d0
   allocate(aux%dFluxdIntConn(6,num_internal))
   aux%dFluxdIntConn = 0.d0
   allocate(aux%dFluxdBCConn(2,num_boundary))
@@ -187,8 +196,17 @@ subroutine InversionTSAuxDestroy(aux)
     deallocate(aux%mat_vec_solution_ptr)
   endif
   nullify(aux%mat_vec_solution_ptr)
-  call MatDestroy(aux%M,ierr);CHKERRQ(ierr)
-  call VecDestroy(aux%solution,ierr);CHKERRQ(ierr)
+  if (aux%M /= PETSC_NULL_MAT) then
+    call MatDestroy(aux%M,ierr);CHKERRQ(ierr)
+  endif
+  if (aux%solution /= PETSC_NULL_VEC) then
+    call VecDestroy(aux%solution,ierr);CHKERRQ(ierr)
+  endif
+  if (associated(aux%lambda)) then
+    call VecDestroyVecs(size(aux%lambda),aux%lambda,ierr);CHKERRQ(ierr)
+    nullify(aux%lambda)
+  endif
+  call DeallocateArray(aux%dJdpkm1)
   call DeallocateArray(aux%dFluxdIntConn)
   call DeallocateArray(aux%dFluxdBCConn)
   if (associated(aux%dMdK)) then
