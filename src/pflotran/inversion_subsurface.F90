@@ -542,6 +542,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   type(inversion_ts_aux_type), pointer :: prev_inversion_ts_aux
   type(option_type), pointer :: option
   class(timer_type), pointer :: timer
+  PetscErrorCode :: ierr
 
   option => this%realization%option
   inversion_aux => this%inversion_aux
@@ -583,26 +584,35 @@ subroutine InvSubsurfCalculateSensitivity(this)
   endif
 
   ! work backward through list
+  call OptionPrint(' Working backward through inversion_ts_aux list &
+                   &calculating lambdas.',option)
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
-    print *, 'call InvSubsurfCalcLambda: ', cur_inversion_ts_aux%timestep
+    print *, '  call InvSubsurfCalcLambda: ', cur_inversion_ts_aux%timestep
     call InvSubsurfCalcLambda(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%prev
   enddo
 
   ! work forward through list
+  call OptionPrint(' Working forward through inversion_ts_aux list &
+                   &calculating sensitivity coefficients.',option)
+  call MatZeroEntries(inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
   cur_inversion_ts_aux => inversion_aux%inversion_ts_aux_list
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
-    print *, 'call InvSubsurfAddSensitivity: ', cur_inversion_ts_aux%timestep
+    print *, '  call InvSubsurfAddSensitivity: ', cur_inversion_ts_aux%timestep
     call InvSubsurfAddSensitivity(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%next
   enddo
+  call MatAssemblyBegin(inversion_aux%JsensitivityT, &
+                        MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(inversion_aux%JsensitivityT, &
+                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
   call timer%Stop()
   option%io_buffer = '    ' // &
     trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) // &
-    ' seconds to build all Jsensitivity.'
+    ' seconds to build all sensitivities.'
   call PrintMsg(option)
   call TimerDestroy(timer)
 
@@ -835,7 +845,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
         call InvSubsrfBMinusSM(this,iparameter,vec_ptr,vec_ptr2,tempreal)
         natural_id = grid%nG2A(grid%nL2G(iparameter))
         call MatSetValue(inversion_aux%JsensitivityT,natural_id-1,imeasurement-1, &
-                         -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
+                         -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
       enddo
       call VecRestoreArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
       call VecRestoreArrayF90(solution_loc,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -909,9 +919,11 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
           print *, '(dbdK^T - h^T * dMdK^T) * lambda'
           print *, iparameter, ' : ', tempreal
         endif
-        ! remember: parameters are rows and measurements columns
-        call MatSetValue(inversion_aux%JsensitivityT,iparameter-1,imeasurement-1, &
-                        -tempreal,INSERT_VALUES,ierr);CHKERRQ(ierr)
+        if (this%realization%option%myrank == 0) then
+          ! remember: parameters are rows and measurements columns
+          call MatSetValue(inversion_aux%JsensitivityT,iparameter-1,imeasurement-1, &
+                          -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
+        endif
       enddo
     endif
   enddo
@@ -927,10 +939,6 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   endif
   call VecDestroy(dbdK,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
-  call MatAssemblyBegin(inversion_aux%JsensitivityT, &
-                        MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-  call MatAssemblyEnd(inversion_aux%JsensitivityT, &
-                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
   call timer%Stop()
   option%io_buffer = '    ' // &
