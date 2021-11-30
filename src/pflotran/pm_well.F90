@@ -839,7 +839,7 @@ end subroutine PMWellFinalizeRun
 
 subroutine PMWellInitializeTimestep(this)
   !
-  ! Initializes the time step for the well process model.
+  ! Initializes and takes the time step for the well process model.
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
@@ -965,27 +965,31 @@ subroutine PMWellResidualP(this)
   
   class(pm_well_type) :: this
 
+  type(well_grid_type), pointer :: grid
+  type(well_type), pointer :: well 
   PetscReal :: dpress(this%grid%nsegments)
   PetscReal :: dpress_a(this%grid%nsegments)
   PetscReal :: dpress_f(this%grid%nsegments)
   PetscReal :: dpress_h(this%grid%nsegments)
   PetscInt :: k
 
-  do k = 1,this%grid%nsegments
+  grid => this%grid
+  well => this%well
+
+  do k = 1,grid%nsegments
+    dpress_h(k) = well%mixrho(k)*grid%g*grid%dh(k)
+    dpress_f(k) = (well%f(k)*well%mixrho(k)*well%vm(k)* &
+                  abs(well%vm(k))*grid%dh(k))/(2.d0*well%diameter(k))
+    ! note: how should we handle the dpress(k) term for the top and bottom 
+    !       segment given pressure boundary conditions?
     if (k == 1) then ! top segment
-      dpress(k) = 0.0d0
-      dpress_h(k) = 0.0d0
-      dpress_f(k) = 0.0d0
-      dpress_a(k) = 0.0d0
-    else if (k == this%grid%nsegments) then ! bottom segment
-      dpress(k) = 0.0d0
-      dpress_h(k) = 0.0d0
-      dpress_f(k) = 0.0d0
-      dpress_a(k) = 0.0d0
+      dpress(k) = 0.0d0 ! hold
+      dpress_a(k) = 0.0d0 ! hold
+    else if (k == grid%nsegments) then ! bottom segment
+      dpress(k) = 0.0d0 ! hold
+      dpress_a(k) = 0.0d0 ! hold
     else ! interior segment(s)
-      dpress(k) = 0.0d0
-      dpress_h(k) = 0.0d0
-      dpress_f(k) = 0.0d0
+      dpress(k) = well%p(k+1)-well%p(k)
       dpress_a(k) = 0.0d0
     endif
   enddo
