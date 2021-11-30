@@ -539,6 +539,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
 
   type(inversion_aux_type), pointer :: inversion_aux
   type(inversion_ts_aux_type), pointer :: cur_inversion_ts_aux
+  type(inversion_ts_aux_type), pointer :: prev_inversion_ts_aux
   type(option_type), pointer :: option
   class(timer_type), pointer :: timer
 
@@ -561,6 +562,25 @@ subroutine InvSubsurfCalculateSensitivity(this)
     if (.not.associated(cur_inversion_ts_aux%next)) exit
     cur_inversion_ts_aux => cur_inversion_ts_aux%next
   enddo
+
+  ! the last link should be allocated, but not populated. this is by design
+  if (cur_inversion_ts_aux%M /= PETSC_NULL_MAT) then
+    option%io_buffer = 'Last link in Inversion timestep auxiliary list &
+      &is not NULL.'
+    call PrintErrMsg(option)
+  else
+    ! remove the last link
+    prev_inversion_ts_aux => cur_inversion_ts_aux%prev
+    if (.not.associated(prev_inversion_ts_aux)) then
+      option%io_buffer = 'Next to last link in Inversion timestep &
+        &auxiliary list is NULL.'
+      call PrintErrMsg(option)
+    endif
+    nullify(prev_inversion_ts_aux%next)
+    call InversionTSAuxDestroy(cur_inversion_ts_aux)
+    ! point cur_inversion_ts_aux to the end of the list
+    cur_inversion_ts_aux => prev_inversion_ts_aux
+  endif
 
   ! work backward through list
   do
@@ -652,14 +672,8 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
                                   natural_vec,NATURAL,option)
 
   if (this%debug_verbosity > 2) then
-    if (OptionPrintToScreen(option)) print *, 'residual'
-    call VecView(this%realization%field%flow_r,PETSC_VIEWER_STDOUT_WORLD, &
-                  ierr);CHKERRQ(ierr)
-    if (OptionPrintToScreen(option)) print *, 'J'
-    call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-    call KSPGetOperators(solver%ksp,M,Pmat,ierr);CHKERRQ(ierr)
     if (OptionPrintToScreen(option)) print *, 'M'
-    call MatView(M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+    call MatView(inversion_ts_aux%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
   call VecDuplicateVecsF90(work,size(this%imeasurement), &
                            inversion_ts_aux%lambda,ierr);CHKERRQ(ierr)
@@ -689,6 +703,8 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
       call VecZeroEntries(dJkp1dpklambdak,ierr);CHKERRQ(ierr)
     endif
     call VecAXPY(p,1.d0,dJkp1dpklambdak,ierr);CHKERRQ(ierr)
+    call KSPSetOperators(solver%ksp,inversion_ts_aux%M, &
+                         inversion_ts_aux%M,ierr);CHKERRQ(ierr)
     call KSPSolveTranspose(solver%ksp,p, &
                            inversion_ts_aux%lambda(imeasurement), &
                            ierr);CHKERRQ(ierr)
@@ -800,10 +816,10 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   endif
 
   dMdK_diff = PETSC_NULL_MAT
-  call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_, &
+  call MatDuplicate(inversion_ts_aux%M,MAT_SHARE_NONZERO_PATTERN,dMdK_, &
                     ierr);CHKERRQ(ierr)
   if (this%compare_adjoint_mat_and_rhs) then
-    call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
+    call MatDuplicate(inversion_ts_aux%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
                       ierr);CHKERRQ(ierr)
   endif
   call VecDuplicate(work,dbdK,ierr);CHKERRQ(ierr)
@@ -858,7 +874,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
         endif
         if (associated(inversion_ts_aux%dMdK) .and. &
             this%compare_adjoint_mat_and_rhs) then
-          call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
+          call MatDuplicate(inversion_ts_aux%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
                             ierr);CHKERRQ(ierr)
           call MatCopy(inversion_ts_aux%dMdK(iparameter),dMdK_diff,SAME_NONZERO_PATTERN, &
                       ierr);CHKERRQ(ierr)
