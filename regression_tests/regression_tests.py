@@ -642,13 +642,14 @@ class RegressionTest(object):
                     with open(gold_name, 'r') as gold_file:
                         gold_output = gold_file.readlines()
 
-                print("    diff {0} {1}".format(gold_name, 
-                      current_name), file=testlog)
-                
                 if diff:
+                    print("    diff {0} {1}".format(gold_name, 
+                          current_name), file=testlog)
                     self._diff_ascii_output(current_output, gold_output, 
                                             status, testlog)
                 else:
+                    print("    compare {0} {1}".format(gold_name, 
+                          current_name), file=testlog)
                     self._compare_ascii_output(current_output, gold_output, 
                                                status, testlog, tec)
             if diff:
