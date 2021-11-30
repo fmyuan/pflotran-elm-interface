@@ -565,9 +565,18 @@ subroutine InvSubsurfCalculateSensitivity(this)
   ! work backward through list
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
-    print *, 'call InvSubsurfCalcSensitivityTS: ', cur_inversion_ts_aux%timestep
-    call InvSubsurfCalcSensitivityTS(this,cur_inversion_ts_aux)
+    print *, 'call InvSubsurfCalcLambda: ', cur_inversion_ts_aux%timestep
+    call InvSubsurfCalcLambda(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%prev
+  enddo
+
+  ! work forward through list
+  cur_inversion_ts_aux => inversion_aux%inversion_ts_aux_list
+  do
+    if (.not.associated(cur_inversion_ts_aux)) exit
+    print *, 'call InvSubsurfAddSensitivity: ', cur_inversion_ts_aux%timestep
+    call InvSubsurfAddSensitivity(this,cur_inversion_ts_aux)
+    cur_inversion_ts_aux => cur_inversion_ts_aux%next
   enddo
 
   call timer%Stop()
@@ -581,7 +590,7 @@ end subroutine InvSubsurfCalculateSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
+subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   !
   ! Calculates sensitivity matrix Jsensitivity
   !
@@ -611,31 +620,18 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   type(patch_type), pointer :: patch
   type(solver_type), pointer :: solver
   PetscReal, pointer :: vec_ptr(:)
-  PetscReal, pointer :: vec_ptr2(:)
   PetscReal :: tempreal
-  PetscInt :: iparameter, imeasurement
+  PetscInt :: imeasurement
   PetscInt :: icell_measurement
-  PetscInt :: natural_id
-  PetscReal :: hTdMdKTlambda, dbdKTlambda
   Vec :: work
-  Vec :: solution
   Vec :: p
   Vec :: dJkp1dpklambdak
-  Vec :: work_loc, solution_loc, lambda_loc
   Mat :: M, Pmat
-  Mat :: dMdK_
-  Mat :: dMdK_diff
-  Vec :: dbdK
   Vec :: natural_vec
   class(timer_type), pointer :: timer
-  class(timer_type), pointer :: timer2
   PetscErrorCode :: ierr
 
   nullify(vec_ptr)
-  nullify(vec_ptr2)
-
-  lambda_loc = PETSC_NULL_VEC
-  solution_loc = PETSC_NULL_VEC
 
   solver => this%forward_simulation%flow_process_model_coupler% &
               timestepper%solver
@@ -646,46 +642,20 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   inversion_aux => this%inversion_aux
 
   timer => TimerCreate()
-  timer2 => TimerCreate()
 
   call timer%Start()
 
   work = this%realization%field%work ! DO NOT DESTROY!
-  solution = this%realization%field%flow_xx ! DO NOT DESTROY!
   call VecDuplicate(work,p,ierr);CHKERRQ(ierr)
   call VecDuplicate(work,dJkp1dpklambdak,ierr);CHKERRQ(ierr)
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
 
-  if (this%local_adjoint) then
-    work_loc = this%realization%field%work_loc ! DO NOT DESTROY!
-    call VecDuplicate(work_loc,solution_loc,ierr);CHKERRQ(ierr)
-    call VecDuplicate(work_loc,lambda_loc,ierr);CHKERRQ(ierr)
-    call DiscretizationGlobalToLocal(discretization,solution, &
-                                     solution_loc,ONEDOF)
-  endif
-
-  dMdK_diff = PETSC_NULL_MAT
-  call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_, &
-                    ierr);CHKERRQ(ierr)
-  if (this%compare_adjoint_mat_and_rhs) then
-    call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
-                      ierr);CHKERRQ(ierr)
-  endif
-  call VecDuplicate(work,dbdK,ierr);CHKERRQ(ierr)
-
   if (this%debug_verbosity > 2) then
-    if (OptionPrintToScreen(option)) print *, 'solution'
-    call VecView(solution,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-    if (option%comm%mycommsize == 1) then
-      call VecGetArrayF90(solution,vec_ptr,ierr);CHKERRQ(ierr)
-      print *, vec_ptr(:)
-      call VecRestoreArrayF90(solution,vec_ptr,ierr);CHKERRQ(ierr)
-    endif
     if (OptionPrintToScreen(option)) print *, 'residual'
     call VecView(this%realization%field%flow_r,PETSC_VIEWER_STDOUT_WORLD, &
                   ierr);CHKERRQ(ierr)
-                  if (OptionPrintToScreen(option)) print *, 'J'
+    if (OptionPrintToScreen(option)) print *, 'J'
     call MatView(solver%M,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
     call KSPGetOperators(solver%ksp,M,Pmat,ierr);CHKERRQ(ierr)
     if (OptionPrintToScreen(option)) print *, 'M'
@@ -734,7 +704,110 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
                                 vec_ptr,ierr);CHKERRQ(ierr)
       endif
     endif
+  enddo
+  call VecDestroy(p,ierr);CHKERRQ(ierr)
+  call VecDestroy(dJkp1dpklambdak,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
+  call timer%Stop()
+  option%io_buffer = '    ' // &
+    trim(StringWrite('(f20.1)',timer%GetCumulativeTime()))
+  option%io_buffer = trim(option%io_buffer) // &
+    ' seconds to build Jsensitivity.'
+  call PrintMsg(option)
+  call TimerDestroy(timer)
+
+end subroutine InvSubsurfCalcLambda
+
+! ************************************************************************** !
+
+subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
+  !
+  ! Calculates sensitivity matrix Jsensitivity
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/17/21
+  !
+  use Connection_module
+  use Debug_module
+  use Discretization_module
+  use Grid_module
+  use Option_module
+  use Patch_module
+  use Solver_module
+  use String_module
+  use Timer_class
+
+  use PM_Base_class
+  use PM_ZFlow_class
+
+  class(inversion_subsurface_type) :: this
+
+  type(grid_type), pointer :: grid
+  type(discretization_type), pointer :: discretization
+  type(inversion_aux_type), pointer :: inversion_aux
+  type(inversion_ts_aux_type), pointer :: inversion_ts_aux
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(solver_type), pointer :: solver
+  PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
+  PetscReal :: tempreal
+  PetscInt :: iparameter, imeasurement
+  PetscInt :: natural_id
+  PetscReal :: hTdMdKTlambda, dbdKTlambda
+  Vec :: work
+  Vec :: solution
+  Vec :: work_loc, solution_loc, lambda_loc
+  Mat :: dMdK_
+  Mat :: dMdK_diff
+  Vec :: dbdK
+  Vec :: natural_vec
+  class(timer_type), pointer :: timer
+  class(timer_type), pointer :: timer2
+  PetscErrorCode :: ierr
+
+  nullify(vec_ptr)
+  nullify(vec_ptr2)
+
+  lambda_loc = PETSC_NULL_VEC
+  solution_loc = PETSC_NULL_VEC
+
+  solver => this%forward_simulation%flow_process_model_coupler% &
+              timestepper%solver
+  option => this%realization%option
+  discretization => this%realization%discretization
+  patch => this%realization%patch
+  grid => patch%grid
+  inversion_aux => this%inversion_aux
+
+  timer => TimerCreate()
+  timer2 => TimerCreate()
+
+  call timer%Start()
+
+  work = this%realization%field%work ! DO NOT DESTROY!
+  solution = this%realization%field%flow_xx ! DO NOT DESTROY!
+  call DiscretizationCreateVector(discretization,ONEDOF, &
+                                  natural_vec,NATURAL,option)
+
+  if (this%local_adjoint) then
+    work_loc = this%realization%field%work_loc ! DO NOT DESTROY!
+    call VecDuplicate(work_loc,solution_loc,ierr);CHKERRQ(ierr)
+    call VecDuplicate(work_loc,lambda_loc,ierr);CHKERRQ(ierr)
+    call DiscretizationGlobalToLocal(discretization,solution, &
+                                     solution_loc,ONEDOF)
+  endif
+
+  dMdK_diff = PETSC_NULL_MAT
+  call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_, &
+                    ierr);CHKERRQ(ierr)
+  if (this%compare_adjoint_mat_and_rhs) then
+    call MatDuplicate(solver%M,MAT_SHARE_NONZERO_PATTERN,dMdK_diff, &
+                      ierr);CHKERRQ(ierr)
+  endif
+  call VecDuplicate(work,dbdK,ierr);CHKERRQ(ierr)
+  do imeasurement = 1, size(this%imeasurement)
     if (this%local_adjoint) then
       call DiscretizationGlobalToLocal(discretization, &
                                        inversion_ts_aux%lambda(imeasurement), &
@@ -837,8 +910,6 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
     call VecDestroy(solution_loc,ierr);CHKERRQ(ierr)
   endif
   call VecDestroy(dbdK,ierr);CHKERRQ(ierr)
-  call VecDestroy(p,ierr);CHKERRQ(ierr)
-  call VecDestroy(dJkp1dpklambdak,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call MatAssemblyBegin(inversion_aux%JsensitivityT, &
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -860,7 +931,7 @@ subroutine InvSubsurfCalcSensitivityTS(this,inversion_ts_aux)
   call TimerDestroy(timer)
   call TimerDestroy(timer2)
 
-end subroutine InvSubsurfCalcSensitivityTS
+end subroutine InvSubsurfAddSensitivity
 
 ! ************************************************************************** !
 
