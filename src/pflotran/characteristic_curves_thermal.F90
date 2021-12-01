@@ -3471,10 +3471,10 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
            write(id,'(a29)',advance='no') 'por. exponent: '
            write(word1,*) tcf%por_exp
            write(id,'(a)') adjustl(trim(word1))
-           write(id,'(a29)',advance='no') 'fluid TC const. term: '
+           write(id,'(a29)',advance='no') 'initial TC, constant term: '
            write(word1,*) tcf%b(1)
            write(id,'(a)') adjustl(trim(word1))
-           write(id,'(a29)',advance='no') 'fluid TC linear term: '
+           write(id,'(a29)',advance='no') 'initial TC, linear term: '
            write(word1,*) tcf%b(2)
            write(id,'(a)') adjustl(trim(word1))
         end if
