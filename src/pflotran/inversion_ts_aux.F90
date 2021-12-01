@@ -14,7 +14,8 @@ module Inversion_TS_Aux_module
     Mat :: M
     Vec :: solution
     Vec, pointer :: lambda(:)
-    PetscReal, pointer :: dJdpkm1(:)
+    ! derivative of residual wrt unknown at old time level (k)
+    PetscReal, pointer :: dRes_du_k(:)
     PetscReal, pointer :: dFluxdIntConn(:,:)
     PetscReal, pointer :: dFluxdBCConn(:,:)
     Mat, pointer :: dMdK(:)
@@ -62,7 +63,7 @@ function InversionTSAuxCreate(prev_ts_aux)
   nullify(aux%lambda)
 
   nullify(aux%mat_vec_solution_ptr)
-  nullify(aux%dJdpkm1)
+  nullify(aux%dRes_du_k)
   nullify(aux%dFluxdIntConn)
   nullify(aux%dFluxdBCConn)
   nullify(aux%dMdK)
@@ -76,7 +77,7 @@ function InversionTSAuxCreate(prev_ts_aux)
     prev_ts_aux%next => aux
     aux%prev => prev_ts_aux
     call InvTSAuxAllocateFluxCoefArrays(aux, &
-                                        size(prev_ts_aux%dJdpkm1), &
+                                        size(prev_ts_aux%dRes_du_k), &
                                         size(prev_ts_aux%dFluxdIntConn,2), &
                                         size(prev_ts_aux%dFluxdBCConn,2))
     if (associated(prev_ts_aux%dMdK)) then
@@ -130,8 +131,8 @@ subroutine InvTSAuxAllocateFluxCoefArrays(aux,num_unknown,num_internal, &
   PetscInt :: num_internal
   PetscInt :: num_boundary
 
-  allocate(aux%dJdpkm1(num_unknown))
-  aux%dJdpkm1 = 0.d0
+  allocate(aux%dRes_du_k(num_unknown))
+  aux%dRes_du_k = 0.d0
   allocate(aux%dFluxdIntConn(6,num_internal))
   aux%dFluxdIntConn = 0.d0
   allocate(aux%dFluxdBCConn(2,num_boundary))
@@ -206,7 +207,7 @@ subroutine InversionTSAuxDestroy(aux)
     call VecDestroyVecs(size(aux%lambda),aux%lambda,ierr);CHKERRQ(ierr)
     nullify(aux%lambda)
   endif
-  call DeallocateArray(aux%dJdpkm1)
+  call DeallocateArray(aux%dRes_du_k)
   call DeallocateArray(aux%dFluxdIntConn)
   call DeallocateArray(aux%dFluxdBCConn)
   if (associated(aux%dMdK)) then

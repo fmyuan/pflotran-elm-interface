@@ -655,8 +655,9 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   PetscInt :: icell_measurement
   Vec :: work
   Vec :: p
-  Vec :: dJkp1dpklambdak
-  Mat :: M, Pmat
+  ! derivative of residual at k+1 time level wrt unknown at k time level
+  ! times lambda at k time level
+  Vec :: dReskp1_duk_lambdak
   Vec :: natural_vec
   class(timer_type), pointer :: timer
   PetscErrorCode :: ierr
@@ -677,7 +678,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
 
   work = this%realization%field%work ! DO NOT DESTROY!
   call VecDuplicate(work,p,ierr);CHKERRQ(ierr)
-  call VecDuplicate(work,dJkp1dpklambdak,ierr);CHKERRQ(ierr)
+  call VecDuplicate(work,dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
 
@@ -687,6 +688,8 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   endif
   call VecDuplicateVecsF90(work,size(this%imeasurement), &
                            inversion_ts_aux%lambda,ierr);CHKERRQ(ierr)
+  call KSPSetOperators(solver%ksp,inversion_ts_aux%M, &
+                       inversion_ts_aux%M,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(this%imeasurement)
     call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
     if (option%myrank == 0) then
@@ -703,18 +706,16 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
       call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
     endif
     if (associated(inversion_ts_aux%next)) then
-      call VecGetArrayF90(dJkp1dpklambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      vec_ptr(:) = inversion_ts_aux%next%dJdpkm1(:)
-      call VecRestoreArrayF90(dJkp1dpklambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecPointwiseMult(dJkp1dpklambdak,dJkp1dpklambdak, &
+      call VecGetArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
+      vec_ptr(:) = inversion_ts_aux%next%dRes_du_k(:)
+      call VecRestoreArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecPointwiseMult(dReskp1_duk_lambdak,dReskp1_duk_lambdak, &
                             inversion_ts_aux%next%lambda(imeasurement), &
                             ierr);CHKERRQ(ierr)
     else
-      call VecZeroEntries(dJkp1dpklambdak,ierr);CHKERRQ(ierr)
+      call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
     endif
-    call VecAXPY(p,1.d0,dJkp1dpklambdak,ierr);CHKERRQ(ierr)
-    call KSPSetOperators(solver%ksp,inversion_ts_aux%M, &
-                         inversion_ts_aux%M,ierr);CHKERRQ(ierr)
+    call VecAXPY(p,1.d0,dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
     call KSPSolveTranspose(solver%ksp,p, &
                            inversion_ts_aux%lambda(imeasurement), &
                            ierr);CHKERRQ(ierr)
@@ -732,7 +733,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
     endif
   enddo
   call VecDestroy(p,ierr);CHKERRQ(ierr)
-  call VecDestroy(dJkp1dpklambdak,ierr);CHKERRQ(ierr)
+  call VecDestroy(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
   call timer%Stop()
