@@ -82,6 +82,8 @@ module PM_Well_class
     PetscReal, pointer :: rho(:)
     ! fluid saturation
     PetscReal, pointer :: s(:)
+    ! fluid source/sink in/out of well [kg/s]??   
+    PetscReal, pointer :: Q(:)
     ! equation of state for density
     !procedure(rho_interface), pointer, nopass :: update_rho_ptr => null()
   end type well_fluid_type
@@ -198,6 +200,7 @@ function PMWellCreate()
   PMWellCreate%liq%rho0 = UNINITIALIZED_DOUBLE
   nullify(PMWellCreate%liq%rho)
   nullify(PMWellCreate%liq%s)
+  nullify(PMWellCreate%liq%Q)
   !PMWellCreate%liq%update_rho_ptr => PMWellRhoIncompress
 
   ! create the fluid/gas objects:
@@ -207,6 +210,7 @@ function PMWellCreate()
   PMWellCreate%gas%rho0 = UNINITIALIZED_DOUBLE
   nullify(PMWellCreate%gas%rho)
   nullify(PMWellCreate%gas%s)
+  nullify(PMWellCreate%gas%Q)
   !PMWellCreate%gas%update_rho_ptr => PMWellRhoIncompress
 
   ! create the well solution object:
@@ -949,11 +953,13 @@ recursive subroutine PMWellInitializeRun(this)
   this%liq%rho0 = this%option%flow%reference_density(1)
   allocate(this%liq%rho(nsegments))
   this%liq%rho(:) = this%liq%rho0
+  allocate(this%liq%Q(nsegments))
   if (this%nphase == 2) then
     allocate(this%gas%s(nsegments))
     this%gas%rho0 = this%option%flow%reference_density(2)
     allocate(this%gas%rho(nsegments))
     this%gas%rho(:) = this%gas%rho0
+    allocate(this%gas%Q(nsegments))
   endif
 
   allocate(this%reservoir%p(nsegments))
@@ -1002,6 +1008,19 @@ subroutine PMWellInitializeTimestep(this)
   call PMWellUpdateReservoir(this)
 
   call PMWellResidual(this)
+  ! the residual equations will include the src/sink term which will be
+  ! defined by the difference between p_res and p_well.
+
+  call PMWellJacobian(this)
+
+  ! use Newton's method to solve for the well pressure
+  call PMWellSolve(this)
+
+  ! update the well src/sink Q vector
+  call PMWellUpdateWellQ(this)
+
+  ! calculate the phase Darcy velocity
+  call PMWellCalcVelocity(this)
 
 end subroutine PMWellInitializeTimestep
 
@@ -1277,7 +1296,7 @@ end subroutine PMWellResidualSg
 
 ! ************************************************************************** !
 
-subroutine PMWellJacobian(this,snes,xx,A,B,ierr)
+subroutine PMWellJacobian(this)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
@@ -1285,10 +1304,6 @@ subroutine PMWellJacobian(this,snes,xx,A,B,ierr)
   implicit none
   
   class(pm_well_type) :: this
-  SNES :: snes
-  Vec :: xx
-  Mat :: A, B
-  PetscErrorCode :: ierr
   
   ! placeholder
 
@@ -1311,6 +1326,21 @@ end subroutine PMWellPreSolve
 
 ! ************************************************************************** !
 
+subroutine PMWellSolve(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/01/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  
+  ! placeholder
+  
+end subroutine PMWellSolve
+
+! ************************************************************************** !
+
 subroutine PMWellPostSolve(this)
   ! 
   ! Author: Jennifer M. Frederick
@@ -1323,6 +1353,47 @@ subroutine PMWellPostSolve(this)
   ! placeholder
   
 end subroutine PMWellPostSolve
+
+! ************************************************************************** !
+
+subroutine PMWellUpdateWellQ(this)
+  !
+  ! Updates the src/sink vector for the fluid object.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/01/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  type(well_fluid_type), pointer :: liq
+  type(well_fluid_type), pointer :: gas
+
+  liq => this%liq
+  gas => this%gas
+  
+  liq%Q = liq%rho*liq%mobility*this%well%WI*(this%reservoir%p-this%well%p)
+  gas%Q = gas%rho*gas%mobility*this%well%WI*(this%reservoir%p-this%well%p)
+  
+end subroutine PMWellUpdateWellQ
+
+! ************************************************************************** !
+
+subroutine PMWellCalcVelocity(this)
+  !
+  ! Calculates the Darcy velocity in the well given the well pressure.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/01/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  
+  ! placeholder
+  
+end subroutine PMWellCalcVelocity
 
 ! ************************************************************************** !
 
@@ -1366,8 +1437,10 @@ subroutine PMWellDestroy(this)
 
   call DeallocateArray(this%liq%rho)
   call DeallocateArray(this%liq%s)
+  call DeallocateArray(this%liq%Q)
   call DeallocateArray(this%gas%rho)
   call DeallocateArray(this%gas%s)
+  call DeallocateArray(this%gas%Q)
   nullify(this%liq)
   nullify(this%gas)
 
