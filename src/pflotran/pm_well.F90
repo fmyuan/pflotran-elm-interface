@@ -18,46 +18,57 @@ module PM_Well_class
   type :: well_grid_type
     ! number of well segments
     PetscInt :: nsegments      
-    ! delta h discretization of each segment center       
+    ! delta h discretization of each segment center [m]       
     PetscReal, pointer :: dh(:)      
-    ! h coordinate of each segment center
+    ! h coordinate of each segment center [m]
     type(point3d_type), pointer :: h(:)  
     ! the local id of the reservoir grid cell within which each segment 
     ! center resides 
-    PetscInt, pointer :: h_local_id(:)
-    ! coordinate of the top/bottom of the well 
+    PetscInt, pointer :: h_local_id(:) 
+    ! the ghosted id of the reservoir grid cell within which each segment 
+    ! center resides 
+    PetscInt, pointer :: h_ghosted_id(:)
+    ! coordinate of the top/bottom of the well [m]
     PetscReal :: tophole(3)
     PetscReal :: bottomhole(3)     
-    ! gravity vector magnitude
+    ! gravity vector magnitude [m/s2]
     PetscReal :: g
   end type well_grid_type
 
   type :: well_reservoir_type
-    ! reservoir pressure     
+    ! reservoir pressure [Pa]    
     PetscReal, pointer :: p(:) 
     ! reservoir liquid saturation
     PetscReal, pointer :: s_l(:)
     ! reservoir gas saturation
     PetscReal, pointer :: s_g(:)
+    ! reservoir liquid mobility
+    PetscReal, pointer :: mobility_l(:)
+    ! reservoir gas mobility
+    PetscReal, pointer :: mobility_g(:)
   end type
 
   type :: well_type
-    ! cross-sectional area of each well segment [calc'd]
+    ! cross-sectional area of each well segment [calc'd] [m2]
     PetscReal, pointer :: area(:)         
-    ! diameter of each well segment       
+    ! diameter of each well segment [m]      
     PetscReal, pointer :: diameter(:) 
-    ! volume of each well segment [calc'd]
+    ! volume of each well segment [calc'd] [m3]
     PetscReal, pointer :: volume(:) 
     ! friction ceofficient of each well segment        
     PetscReal, pointer :: f(:)      
     ! well index of each well segment [0,1]  0 = cased; 1 = open     
     PetscReal, pointer :: WI(:)    
-    ! well mixture density     
+    ! well mixture density [kg/m3]    
     PetscReal, pointer :: mixrho(:)
-    ! well pressure     
+    ! well pressure [Pa]     
     PetscReal, pointer :: p(:) 
-    ! well mixture velocity    
+    ! well mixture velocity [m/s]   
     PetscReal, pointer :: vm(:)
+    ! well bottom of hole pressure BC [Pa]
+    PetscReal :: bh_p 
+    ! well top of hole pressure BC [Pa]
+    PetscReal :: th_p
   end type well_type
 
   type :: well_fluid_type
@@ -65,9 +76,9 @@ module PM_Well_class
     PetscInt :: ifluid
     ! fluid mobility (phase_permeability/viscosity)
     PetscReal :: mobility
-    ! fluid reference density
+    ! fluid reference density [kg/m3]
     PetscReal :: rho0
-    ! fluid density
+    ! fluid density [kg/m3]
     PetscReal, pointer :: rho(:)
     ! fluid saturation
     PetscReal, pointer :: s(:)
@@ -92,6 +103,10 @@ module PM_Well_class
     PetscReal, pointer :: res_vm(:)
     ! residual vector component - gas saturation (sg)
     PetscReal, pointer :: res_sg(:)
+    ! flag for bottom of hole pressure BC
+    PetscBool :: bh_p
+    ! flag for top of hole pressure BC
+    PetscBool :: th_p
   end type well_soln_type
 
   type, public, extends(pm_base_type) :: pm_well_type
@@ -150,6 +165,7 @@ function PMWellCreate()
   nullify(PMWellCreate%grid%dh)
   nullify(PMWellCreate%grid%h)
   nullify(PMWellCreate%grid%h_local_id)
+  nullify(PMWellCreate%grid%h_ghosted_id)
   PMWellCreate%grid%tophole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%bottomhole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%g = 9.81
@@ -164,12 +180,16 @@ function PMWellCreate()
   nullify(PMWellCreate%well%mixrho)
   nullify(PMWellCreate%well%p)
   nullify(PMWellCreate%well%vm)
+  PMWellCreate%well%bh_p = UNINITIALIZED_DOUBLE
+  PMWellCreate%well%th_p = UNINITIALIZED_DOUBLE
 
   ! create the reservoir object:
   allocate(PMWellCreate%reservoir)
   nullify(PMWellCreate%reservoir%p)
   nullify(PMWellCreate%reservoir%s_l)
   nullify(PMWellCreate%reservoir%s_g)
+  nullify(PMWellCreate%reservoir%mobility_l)
+  nullify(PMWellCreate%reservoir%mobility_g)
 
   ! create the fluid/liq objects:
   allocate(PMWellCreate%liq)
@@ -196,6 +216,8 @@ function PMWellCreate()
   nullify(PMWellCreate%soln%res_vm)
   nullify(PMWellCreate%soln%res_sg)
   PMWellCreate%soln%ndof = UNINITIALIZED_INTEGER
+  PMWellCreate%soln%bh_p = PETSC_FALSE
+  PMWellCreate%soln%th_p = PETSC_FALSE
 
 
 end function PMWellCreate
@@ -234,6 +256,7 @@ subroutine PMWellSetup(this)
   allocate(this%grid%dh(nsegments))
   allocate(this%grid%h(nsegments))
   allocate(this%grid%h_local_id(nsegments))
+  allocate(this%grid%h_ghosted_id(nsegments))
 
   diff_x = this%grid%tophole(1)-this%grid%bottomhole(1)
   diff_y = this%grid%tophole(2)-this%grid%bottomhole(2)
@@ -264,6 +287,7 @@ subroutine PMWellSetup(this)
     call GridGetLocalIDFromCoordinate(res_grid,this%grid%h(k), &
                                       option,local_id)
     this%grid%h_local_id(k) = local_id
+    this%grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
   enddo
 
   if (size(this%well%diameter) /= nsegments) then
@@ -399,6 +423,10 @@ subroutine PMWellReadPMBlock(this,input)
     
     error_string = 'WELLBORE_MODEL'
     call PMWellReadWell(this,input,option,word,error_string,found)
+    if (found) cycle
+
+    error_string = 'WELLBORE_MODEL'
+    call PMWellReadWellBCs(this,input,option,word,error_string,found)
     if (found) cycle
 
     if (.not. found) then
@@ -689,6 +717,130 @@ subroutine PMWellReadWell(this,input,option,keyword,error_string,found)
 
 ! ************************************************************************** !
 
+subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
+  ! 
+  ! Reads input file parameters associated with the well model 
+  ! boundary conditions.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 12/01/2021
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  character(len=MAXWORDLENGTH) :: word
+
+  error_string = trim(error_string) // ',WELL_BOUNDARY_CONDITIONS'
+  found = PETSC_TRUE
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('WELL_BOUNDARY_CONDITIONS')
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('BOTTOM_OF_HOLE')
+            call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'keyword',error_string)
+                call StringToUpper(word)
+                select case(trim(word))
+                  !-----------------------------
+                    case('PRESSURE')
+                      call InputReadDouble(input,option,this%well%bh_p)
+                      if (InputError(input)) exit
+                  !-----------------------------
+                    case('FLUX')
+                  !-----------------------------
+                    case default
+                      call InputKeywordUnrecognized(input,word, &
+                                                    error_string,option)
+                  !-----------------------------
+                end select
+              enddo
+            call InputPopBlock(input,option)
+        !-----------------------------
+          case('TOP_OF_HOLE')
+            call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'keyword',error_string)
+                call StringToUpper(word)
+                select case(trim(word))
+                  !-----------------------------
+                    case('PRESSURE')
+                      call InputReadDouble(input,option,this%well%th_p)
+                      if (InputError(input)) exit
+                  !-----------------------------
+                    case('FLUX')
+                  !-----------------------------
+                    case default
+                      call InputKeywordUnrecognized(input,word, &
+                                                    error_string,option)
+                  !-----------------------------
+                end select
+              enddo
+            call InputPopBlock(input,option)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
+      ! ----------------- error messaging -------------------------------------
+      if (Uninitialized(this%well%bh_p) .and. &
+          Uninitialized(this%well%th_p)) then
+        option%io_buffer = 'Keyword BOTTOM_OF_HOLE,PRESSURE or keyword &
+          &TOP_OF_HOLE,PRESSURE must be provided in the ' &
+          // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
+      endif
+      if (Initialized(this%well%bh_p) .and. Initialized(this%well%th_p)) then
+        option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE or keyword &
+          &TOP_OF_HOLE,PRESSURE must be provided in the ' &
+          // trim(error_string) // ' block, but NOT BOTH.'
+        call PrintErrMsg(option)
+      endif
+
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+  if (Uninitialized(this%well%bh_p)) this%soln%bh_p = PETSC_TRUE
+  if (Uninitialized(this%well%th_p)) this%soln%th_p = PETSC_TRUE
+
+  end subroutine PMWellReadWellBCs
+
+! ************************************************************************** !
+
 subroutine PMWellReadPass2(input,option)
   ! 
   ! Reads input file parameters associated with the well process model.
@@ -707,6 +859,7 @@ subroutine PMWellReadPass2(input,option)
 
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: card
   
   error_string = 'SUBSURFACE,WELLBORE_MODEL'
 
@@ -714,6 +867,7 @@ subroutine PMWellReadPass2(input,option)
   call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
+    call InputReadStringErrorMsg(input,option,card)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
@@ -723,24 +877,18 @@ subroutine PMWellReadPass2(input,option)
 
     select case(trim(keyword))
     !--------------------
-    case('GRID')
-        do
-          call InputReadPflotranString(input,option)
-          if (InputError(input)) exit
-          if (InputCheckExit(input,option)) exit
-        enddo
+    case('GRID','WELL')
+      call InputSkipToEND(input,option,card)
     !--------------------
-    case('WELL')
-        do
-          call InputReadPflotranString(input,option)
-          if (InputError(input)) exit
-          if (InputCheckExit(input,option)) exit
-        enddo
+    case('WELL_BOUNDARY_CONDITIONS')
+      call InputSkipToEND(input,option,card) 
+      call InputSkipToEND(input,option,card)
     !--------------------
     end select
 
   enddo
   call InputPopBlock(input,option)
+  call InputSkipToEND(input,option,card)
 
 end subroutine PMWellReadPass2
 
@@ -811,6 +959,8 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%reservoir%p(nsegments))
   allocate(this%reservoir%s_l(nsegments))
   allocate(this%reservoir%s_g(nsegments))
+  allocate(this%reservoir%mobility_l(nsegments))
+  allocate(this%reservoir%mobility_g(nsegments))
   
 end subroutine PMWellInitializeRun
 
@@ -848,9 +998,53 @@ subroutine PMWellInitializeTimestep(this)
   
   class(pm_well_type) :: this
 
+  ! update the reservoir object's pressure and saturations
+  call PMWellUpdateReservoir(this)
+
   call PMWellResidual(this)
 
 end subroutine PMWellInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMWellUpdateReservoir(this)
+  !
+  ! Updates the reservoir properties for the well process model.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/01/2021
+
+  use WIPP_Flow_Aux_module
+  
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  type(wippflo_auxvar_type), pointer :: wippflo_auxvar
+  type(option_type), pointer :: option
+  PetscInt :: k
+  PetscInt :: ghosted_id
+
+  option => this%option 
+
+  do k=1,size(this%grid%h_ghosted_id)
+    ghosted_id = this%grid%h_ghosted_id(k)
+
+    wippflo_auxvar => &
+      this%realization%patch%aux%wippflo%auxvars(0,ghosted_id)
+
+    this%reservoir%p(k) = wippflo_auxvar%pres(option%liquid_phase)
+    this%reservoir%s_l(k) = wippflo_auxvar%sat(option%liquid_phase)
+    this%reservoir%s_g(k) = wippflo_auxvar%sat(option%gas_phase)
+    this%reservoir%mobility_l(k) = &
+      wippflo_auxvar%mobility(option%liquid_phase)
+    this%reservoir%mobility_g(k) = wippflo_auxvar%mobility(option%gas_phase)
+    ! note: the following other things available in wippflo_auxvar object:
+    ! den, den_kg, xmol, kr, mu, effective_porosity, alpha, elevation,
+    ! fracture_perm_scaling_factor, klinkenberg 
+  enddo
+
+end subroutine PMWellUpdateReservoir
 
 ! ************************************************************************** !
 
@@ -967,6 +1161,7 @@ subroutine PMWellResidualP(this)
 
   type(well_grid_type), pointer :: grid
   type(well_type), pointer :: well 
+  type(well_soln_type), pointer :: soln
   PetscReal :: dpress(this%grid%nsegments)
   PetscReal :: dpress_a(this%grid%nsegments)
   PetscReal :: dpress_f(this%grid%nsegments)
@@ -975,13 +1170,15 @@ subroutine PMWellResidualP(this)
 
   grid => this%grid
   well => this%well
+  soln => this%soln
+
+  ! note: booleans soln%bh_p and soln%th_p indicate which pressure boundary 
+  !       condition was given (only one could be specified)
 
   do k = 1,grid%nsegments
     dpress_h(k) = well%mixrho(k)*grid%g*grid%dh(k)
     dpress_f(k) = (well%f(k)*well%mixrho(k)*well%vm(k)* &
                   abs(well%vm(k))*grid%dh(k))/(2.d0*well%diameter(k))
-    ! note: how should we handle the dpress(k) term for the top and bottom 
-    !       segment given pressure boundary conditions?
     if (k == 1) then ! top segment
       dpress(k) = 0.0d0 ! hold
       dpress_a(k) = 0.0d0 ! hold
@@ -993,7 +1190,7 @@ subroutine PMWellResidualP(this)
       dpress_a(k) = 0.0d0
     endif
   enddo
-  this%soln%res_p = dpress - dpress_h - dpress_f - dpress_a
+  soln%res_p = dpress - dpress_h - dpress_f - dpress_a
 
 end subroutine PMWellResidualP
 
@@ -1010,10 +1207,17 @@ subroutine PMWellResidualVm(this)
   
   class(pm_well_type) :: this
 
+  type(well_grid_type), pointer :: grid
+  type(well_type), pointer :: well 
+  type(well_soln_type), pointer :: soln
   PetscReal :: accum(this%grid%nsegments)
   PetscReal :: flux(this%grid%nsegments)
   PetscReal :: srcsink(this%grid%nsegments)
   PetscInt :: k
+
+  grid => this%grid
+  well => this%well
+  soln => this%soln
 
   do k = 1,this%grid%nsegments
     if (k == 1) then ! top segment
@@ -1030,7 +1234,7 @@ subroutine PMWellResidualVm(this)
       srcsink(k) = 1.0d0      
     endif
   enddo
-  this%soln%res_vm = accum + flux - srcsink
+  soln%res_vm = accum + flux - srcsink
 
 end subroutine PMWellResidualVm
 
@@ -1138,9 +1342,17 @@ subroutine PMWellDestroy(this)
     
   call PMBaseDestroy(this)
 
-  !call DeallocateArray(this%grid%h)
+  call DeallocateArray(this%grid%h_local_id)
+  call DeallocateArray(this%grid%h_ghosted_id)
   call DeallocateArray(this%grid%dh)
   nullify(this%grid)
+
+  call DeallocateArray(this%reservoir%p)
+  call DeallocateArray(this%reservoir%s_l)
+  call DeallocateArray(this%reservoir%s_g)
+  call DeallocateArray(this%reservoir%mobility_l)
+  call DeallocateArray(this%reservoir%mobility_g)
+  nullify(this%reservoir)
 
   call DeallocateArray(this%well%area)
   call DeallocateArray(this%well%diameter)
@@ -1151,6 +1363,13 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%p)
   call DeallocateArray(this%well%vm)
   nullify(this%well)
+
+  call DeallocateArray(this%liq%rho)
+  call DeallocateArray(this%liq%s)
+  call DeallocateArray(this%gas%rho)
+  call DeallocateArray(this%gas%s)
+  nullify(this%liq)
+  nullify(this%gas)
 
   call DeallocateArray(this%soln%residual)
   call DeallocateArray(this%soln%res_p)
