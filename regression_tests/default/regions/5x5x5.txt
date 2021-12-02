@@ -1,25 +1,9 @@
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE RICHARDS
-    /
-  /
-END
-
-SUBSURFACE
-
-#=========================== regression =======================================
-REGRESSION
-  CELLS_PER_PROCESS 4
-END
-
 #=========================== flow mode ========================================
 #=========================== solver options ===================================
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
-  NXYZ 9 9 9
+  NXYZ 5 5 5
   BOUNDS
     0.d0 0.d0 0.d0
     5.d0 5.d0 5.d0
@@ -31,7 +15,7 @@ END
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
-  POROSITY 0.20d0
+  POROSITY 0.25d0
   TORTUOSITY 1.d0
   CHARACTERISTIC_CURVES sf1
   PERMEABILITY
@@ -43,7 +27,7 @@ END
 
 MATERIAL_PROPERTY soil2
   ID 2
-  POROSITY 0.21d0
+  POROSITY 0.25d0
   TORTUOSITY 1.d0
   CHARACTERISTIC_CURVES sf1
   PERMEABILITY
@@ -55,7 +39,7 @@ END
 
 MATERIAL_PROPERTY soil3
   ID 3
-  POROSITY 0.22d0
+  POROSITY 0.2d0
   TORTUOSITY 1.d0
   CHARACTERISTIC_CURVES sf1
   PERMEABILITY
@@ -67,7 +51,7 @@ END
 
 MATERIAL_PROPERTY soil4
   ID 4
-  POROSITY 0.23d0
+  POROSITY 0.25d0
   TORTUOSITY 1.d0
   CHARACTERISTIC_CURVES sf1
   PERMEABILITY
@@ -77,33 +61,11 @@ MATERIAL_PROPERTY soil4
   /
 END
 
-MATERIAL_PROPERTY soil5
-  ID 5
-  POROSITY 0.24d0
-  TORTUOSITY 1.d0
-  CHARACTERISTIC_CURVES sf1
-  PERMEABILITY
-    PERM_X 1.d-12
-    PERM_Y 1.d-12
-    PERM_Z 1.d-13
-  /
-END
-
+! this material property is never used, but introduces a gap in material
+! ids (notice no material id of 5 in file) for testing purposes.
 MATERIAL_PROPERTY soil6
   ID 6
   POROSITY 0.25d0
-  TORTUOSITY 1.d0
-  CHARACTERISTIC_CURVES sf1
-  PERMEABILITY
-    PERM_X 1.d-11
-    PERM_Y 1.d-11
-    PERM_Z 1.d-12
-  /
-END
-
-MATERIAL_PROPERTY soil7
-  ID 7
-  POROSITY 0.26d0
   TORTUOSITY 1.d0
   CHARACTERISTIC_CURVES sf1
   PERMEABILITY
@@ -122,14 +84,13 @@ END
 OUTPUT
 #  TIMES d 0.001 0.01 0.1 1. 10.
 #  PERIODIC TIME 1 d
-  TIME_UNITS y
-  VARIABLES
-    POROSITY
-    PERMEABILITY
-    LIQUID_PRESSURE
-    MATERIAL_ID
-  /
+#  TIME_UNITS y
+#  VARIABLES
+#    MATERIAL_ID
+#    PERMEABILITY
+#  /
 #  FORMAT TECPLOT BLOCK
+#  FORMAT HDF5
   VELOCITY_AT_CENTER
 END
 
@@ -149,27 +110,125 @@ REGION all
 END
 
 REGION west
-  CARTESIAN_BOUNDARY WEST
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 5.d0 5.d0
+  /
 END
 
 REGION east
-  CARTESIAN_BOUNDARY EAST
+  FACE EAST
+  COORDINATES
+    5.d0 0.d0 0.d0
+    5.d0 5.d0 5.d0
+  /
 END
 
-REGION south
-  CARTESIAN_BOUNDARY SOUTH
+REGION zone0
+  COORDINATES
+    3.d0 2.d0 3.5d0
+    4.d0 3.d0 4.5d0
+  /
 END
 
-REGION north
-  CARTESIAN_BOUNDARY NORTH
+REGION zone1
+  COORDINATES
+    2.9999999d0 1.9999999d0 3.5d0
+    4.0000001d0 3.0000001d0 4.5d0
+  /
 END
 
-REGION bottom
-  CARTESIAN_BOUNDARY BOTTOM
+REGION zone2
+  COORDINATES
+    3.0000001d0 2.0000001d0 4.5d0
+    3.9999999d0 2.9999999d0 3.5d0
+  /
 END
 
-REGION top
-  CARTESIAN_BOUNDARY TOP
+REGION line0
+  COORDINATES
+    3.d0 2.d0 2.d0
+    3.d0 2.d0 4.d0
+  /
+END
+
+REGION line1
+  COORDINATES
+    3.0000001d0 2.0000001d0 2.d0
+    3.0000001d0 2.0000001d0 4.d0
+  /
+END
+
+REGION line2
+  COORDINATES
+    2.9999999d0 1.9999999d0 2.d0
+    2.9999999d0 1.9999999d0 4.d0
+  /
+END
+
+REGION line3
+  COORDINATES
+    3.d0 2.d0 1.9999999d0
+    3.d0 2.d0 4.0000001d0
+  /
+END
+
+REGION polyvol_xy
+  POLYGON
+    XY
+      1. 1. 0.
+      1. 2. 0.
+      2. 2. 0.
+      2. 4. 0.
+      3. 4. 0.
+      3. 2. 0.
+      4. 2. 0.
+      4. 1. 0.
+    /
+    XZ
+      0. 0. 3.
+      5. 5. 4.
+    /
+  /
+END
+
+REGION polyvol_xz
+  POLYGON
+    XZ
+      1. 0. 1.
+      1. 0. 2.
+      2. 0. 2.
+      2. 0. 4.
+      3. 0. 4.
+      3. 0. 2.
+      4. 0. 2.
+      4. 0. 1.
+    /
+    YZ
+      0. 2. 0.
+      0. 3. 5.
+    /
+  /
+END
+
+REGION polyvol_yz
+  POLYGON
+    YZ
+      0. 4. 1.
+      0. 4. 2.
+      0. 3. 2.
+      0. 3. 4.
+      0. 2. 4.
+      0. 2. 2.
+      0. 1. 2.
+      0. 1. 1.
+    /
+    XY
+      1. 0. 0.
+      4. 5. 0.
+    /
+  /
 END
 
 #=========================== flow conditions ==================================
@@ -181,51 +240,11 @@ FLOW_CONDITION initial
   PRESSURE 101325 ! Pa
 END
 
-FLOW_CONDITION west
-  TYPE
-    PRESSURE HYDROSTATIC
-  /
-  DATUM 0.d0 0.d0 6.1d0
-  PRESSURE 101325 ! Pa
-END
-
 FLOW_CONDITION east
   TYPE
     PRESSURE HYDROSTATIC
   /
-  DATUM 0.d0 0.d0 6.2d0
-  PRESSURE 101325 ! Pa
-END
-
-FLOW_CONDITION south
-  TYPE
-    PRESSURE HYDROSTATIC
-  /
-  DATUM 0.d0 0.d0 6.3d0
-  PRESSURE 101325 ! Pa
-END
-
-FLOW_CONDITION north
-  TYPE
-    PRESSURE HYDROSTATIC
-  /
-  DATUM 0.d0 0.d0 6.4d0
-  PRESSURE 101325 ! Pa
-END
-
-FLOW_CONDITION bottom
-  TYPE
-    PRESSURE HYDROSTATIC
-  /
-  DATUM 0.d0 0.d0 6.5d0
-  PRESSURE 101325 ! Pa
-END
-
-FLOW_CONDITION top
-  TYPE
-    PRESSURE HYDROSTATIC
-  /
-  DATUM 0.d0 0.d0 6.6d0
+  DATUM 0.d0 0.d0 7.d0
   PRESSURE 101325 ! Pa
 END
 
@@ -236,34 +255,16 @@ INITIAL_CONDITION
   REGION all
 END
 
+# west boundary condition
 BOUNDARY_CONDITION west
-  FLOW_CONDITION west
+  FLOW_CONDITION initial
   REGION west
 END
 
+# east boundary condition
 BOUNDARY_CONDITION east
   FLOW_CONDITION east
   REGION east
-END
-
-BOUNDARY_CONDITION south
-  FLOW_CONDITION south
-  REGION south
-END
-
-BOUNDARY_CONDITION north
-  FLOW_CONDITION north
-  REGION north
-END
-
-BOUNDARY_CONDITION bottom
-  FLOW_CONDITION bottom
-  REGION bottom
-END
-
-BOUNDARY_CONDITION top
-  FLOW_CONDITION top
-  REGION top
 END
 
 #=========================== stratigraphy couplers ============================
@@ -272,34 +273,3 @@ STRATA
   REGION all
 END
 
-STRATA
-  MATERIAL soil2
-  REGION west
-END
-
-STRATA
-  MATERIAL soil3
-  REGION east
-END
-
-STRATA
-  MATERIAL soil4
-  REGION south
-END
-
-STRATA
-  MATERIAL soil5
-  REGION north
-END
-
-STRATA
-  MATERIAL soil6
-  REGION bottom
-END
-
-STRATA
-  MATERIAL soil7
-  REGION top
-END
-
-END_SUBSURFACE

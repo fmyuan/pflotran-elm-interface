@@ -9,12 +9,12 @@ END
 
 SUBSURFACE
 
-EXTERNAL_FILE regression.txt
+EXTERNAL_FILE regression-np8.txt
 EXTERNAL_FILE 5x5x5.txt
 
 STRATA
   MATERIAL soil2
-  REGION zone1
+  REGION polyvol_xz
 END
 
 END_SUBSURFACE
