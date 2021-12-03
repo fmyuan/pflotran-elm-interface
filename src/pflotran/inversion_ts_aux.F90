@@ -84,6 +84,8 @@ function InversionTSAuxCreate(prev_ts_aux)
   else
     aux%timestep = 1
     allocate(aux%mat_vec_solution_ptr)
+    aux%mat_vec_solution_ptr%M = PETSC_NULL_MAT
+    aux%mat_vec_solution_ptr%solution = PETSC_NULL_VEC
   endif
 
   InversionTSAuxCreate => aux
