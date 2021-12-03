@@ -1510,7 +1510,7 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation, &
      ! air-filled porosity at Gorleben (VSG)
      ! kT = (1 - por/ref_por)^por_exp * kT_intact + ...
      !      (por/ref_por) * (b(1) + b(2)*T)
-     scaled_por = porosity / this%ref_por
+     scaled_por = min(porosity / this%ref_por, 1.d0)
 
      solid_term = (1.d0 - scaled_por) ** this%por_exp
      thermal_conductivity = thermal_conductivity * solid_term
