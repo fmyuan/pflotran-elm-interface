@@ -150,7 +150,6 @@ subroutine InversionPerturbationInitialize(this)
   call InversionSubsurfInitialize(this)
   call InversionTSAuxListDestroy(this%inversion_aux%inversion_ts_aux_list, &
                                  PETSC_FALSE)
-  call MatDestroy(this%inversion_aux%JsensitivityTb,ierr);CHKERRQ(ierr)
 
   if (this%idof_pert == 0) then
     this%ndof = this%realization%patch%grid%nmax

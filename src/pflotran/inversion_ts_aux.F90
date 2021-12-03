@@ -11,16 +11,14 @@ module Inversion_TS_Aux_module
   type, public :: inversion_ts_aux_type
     PetscInt :: timestep
     PetscReal :: time
-    Mat :: M
-    Vec :: solution
-    Vec, pointer :: lambda(:)
+    Mat :: dResdu             ! copy of Jacobian: df(u)/du
+    Mat :: dResdK             ! matrix sotring df(u)/dparameter
+    Vec, pointer :: lambda(:) ! arrays storing dg(u)/df(u)
     ! derivative of residual wrt unknown at old time level (k)
-    PetscReal, pointer :: dRes_du_k(:)
+    PetscReal, pointer :: dRes_du_k(:)  ! array storing df(u)^k+1/du^k
     PetscReal, pointer :: dFluxdIntConn(:,:)
     PetscReal, pointer :: dFluxdBCConn(:,:)
-    Mat :: dResdK
-    Mat, pointer :: dMdK(:)
-    Vec, pointer :: dbdK(:)
+    Vec :: solution
     type(inversion_mat_vec_pointer_type), pointer :: mat_vec_solution_ptr
     type(inversion_ts_aux_type), pointer :: prev
     type(inversion_ts_aux_type), pointer :: next
@@ -32,8 +30,8 @@ module Inversion_TS_Aux_module
   end type inversion_mat_vec_pointer_type
 
   public :: InversionTSAuxCreate, &
+            InvTSAuxAllocate, &
             InvTSAuxAllocateFluxCoefArrays, &
-            InvTSAuxAllocateMatsAndVecs, &
             InvTSAuxStoreCopyGlobalMatVecs, &
             InversionTSAuxListDestroy, &
             InversionTSAuxDestroy
@@ -60,17 +58,15 @@ function InversionTSAuxCreate(prev_ts_aux)
   allocate(aux)
 
   aux%time = UNINITIALIZED_DOUBLE
-  aux%M = PETSC_NULL_MAT
-  aux%solution = PETSC_NULL_VEC
+  aux%dResdu = PETSC_NULL_MAT
   aux%dResdK = PETSC_NULL_MAT
+  aux%solution = PETSC_NULL_VEC
   nullify(aux%lambda)
 
   nullify(aux%mat_vec_solution_ptr)
   nullify(aux%dRes_du_k)
   nullify(aux%dFluxdIntConn)
   nullify(aux%dFluxdBCConn)
-  nullify(aux%dMdK)
-  nullify(aux%dbdK)
   nullify(aux%prev)
   nullify(aux%next)
 
@@ -79,14 +75,11 @@ function InversionTSAuxCreate(prev_ts_aux)
     aux%mat_vec_solution_ptr => prev_ts_aux%mat_vec_solution_ptr
     prev_ts_aux%next => aux
     aux%prev => prev_ts_aux
-    call InvTSAuxAllocateFluxCoefArrays(aux, &
-                                        size(prev_ts_aux%dRes_du_k), &
-                                        size(prev_ts_aux%dFluxdIntConn,2), &
-                                        size(prev_ts_aux%dFluxdBCConn,2))
-    if (associated(prev_ts_aux%dMdK)) then
-      call InvTSAuxAllocateMatsAndVecs(aux,size(aux%dMdK), &
-                                       prev_ts_aux%dMdK(1), &
-                                       prev_ts_aux%dbdK(1))
+    call InvTSAuxAllocate(aux,size(prev_ts_aux%dRes_du_k))
+    if (associated(prev_ts_aux%dFluxdIntConn)) then
+      call InvTSAuxAllocateFluxCoefArrays(aux, &
+                                          size(prev_ts_aux%dFluxdIntConn,2), &
+                                          size(prev_ts_aux%dFluxdBCConn,2))
     endif
   else
     aux%timestep = 1
@@ -96,6 +89,47 @@ function InversionTSAuxCreate(prev_ts_aux)
   InversionTSAuxCreate => aux
 
 end function InversionTSAuxCreate
+
+! ************************************************************************** !
+
+subroutine InvTSAuxAllocate(aux,num_unknown)
+  !
+  ! Allocated array holding Jacobian and dResdk matrix coefficients
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/19/21
+
+  type(inversion_ts_aux_type), pointer :: aux
+  PetscInt :: num_unknown
+  PetscErrorCode :: ierr
+
+  call MatDuplicate(aux%mat_vec_solution_ptr%M,MAT_SHARE_NONZERO_PATTERN, &
+                    aux%dResdK,ierr);CHKERRQ(ierr)
+  allocate(aux%dRes_du_k(num_unknown))
+  aux%dRes_du_k = 0.d0
+
+end subroutine InvTSAuxAllocate
+
+! ************************************************************************** !
+
+subroutine InvTSAuxAllocateFluxCoefArrays(aux,num_internal,num_boundary)
+  !
+  ! Allocated array holding flux coefficients
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/19/21
+
+  type(inversion_ts_aux_type), pointer :: aux
+  PetscInt :: num_internal
+  PetscInt :: num_boundary
+  PetscErrorCode :: ierr
+
+  allocate(aux%dFluxdIntConn(6,num_internal))
+  aux%dFluxdIntConn = 0.d0
+  allocate(aux%dFluxdBCConn(2,num_boundary))
+  aux%dFluxdBCConn = 0.d0
+
+end subroutine InvTSAuxAllocateFluxCoefArrays
 
 ! ************************************************************************** !
 
@@ -111,71 +145,15 @@ subroutine InvTSAuxStoreCopyGlobalMatVecs(aux)
   PetscErrorCode :: ierr
 
   call MatDuplicate(aux%mat_vec_solution_ptr%M,MAT_COPY_VALUES, &
-                    aux%M,ierr);CHKERRQ(ierr)
-  call VecDuplicate(aux%mat_vec_solution_ptr%solution, &
-                    aux%solution,ierr);CHKERRQ(ierr)
-  call VecCopy(aux%mat_vec_solution_ptr%solution,aux%solution, &
-               ierr);CHKERRQ(ierr)
+                    aux%dResdu,ierr);CHKERRQ(ierr)
+  if (aux%mat_vec_solution_ptr%solution /= PETSC_NULL_VEC) then
+    call VecDuplicate(aux%mat_vec_solution_ptr%solution, &
+                      aux%solution,ierr);CHKERRQ(ierr)
+    call VecCopy(aux%mat_vec_solution_ptr%solution,aux%solution, &
+                ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine InvTSAuxStoreCopyGlobalMatVecs
-
-! ************************************************************************** !
-
-subroutine InvTSAuxAllocateFluxCoefArrays(aux,num_unknown,num_internal, &
-                                          num_boundary)
-  !
-  ! Allocated array holding internal flux coefficients
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/19/21
-
-  type(inversion_ts_aux_type), pointer :: aux
-  PetscInt :: num_unknown
-  PetscInt :: num_internal
-  PetscInt :: num_boundary
-  PetscErrorCode :: ierr
-
-  call MatDuplicate(aux%mat_vec_solution_ptr%M,MAT_SHARE_NONZERO_PATTERN, &
-                    aux%dResdK,ierr);CHKERRQ(ierr)
-  allocate(aux%dRes_du_k(num_unknown))
-  aux%dRes_du_k = 0.d0
-  allocate(aux%dFluxdIntConn(6,num_internal))
-  aux%dFluxdIntConn = 0.d0
-  allocate(aux%dFluxdBCConn(2,num_boundary))
-  aux%dFluxdBCConn = 0.d0
-
-end subroutine InvTSAuxAllocateFluxCoefArrays
-
-! ************************************************************************** !
-
-subroutine InvTSAuxAllocateMatsAndVecs(aux,num_mats_and_vecs,mat,vec)
-  !
-  ! Allocated array holding internal flux coefficients
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/19/21
-
-  type(inversion_ts_aux_type), pointer :: aux
-  PetscInt :: num_mats_and_vecs
-  Mat :: mat
-  Vec :: vec
-
-  PetscInt :: i
-  PetscErrorCode :: ierr
-
-  allocate(aux%dMdK(num_mats_and_vecs))
-  aux%dMdK = PETSC_NULL_MAT
-  allocate(aux%dbdK(num_mats_and_vecs))
-  aux%dbdK = PETSC_NULL_VEC
-  do i = 1, num_mats_and_vecs
-    call MatDuplicate(mat,MAT_SHARE_NONZERO_PATTERN, &
-                      aux%dMdK(i),ierr);CHKERRQ(ierr)
-  enddo
-  do i = 1, num_mats_and_vecs
-    call VecDuplicate(vec,aux%dbdK(i),ierr);CHKERRQ(ierr)
-  enddo
-
-end subroutine InvTSAuxAllocateMatsAndVecs
 
 ! ************************************************************************** !
 
@@ -238,8 +216,8 @@ subroutine InversionTSAuxDestroy(aux)
     deallocate(aux%mat_vec_solution_ptr)
   endif
   nullify(aux%mat_vec_solution_ptr)
-  if (aux%M /= PETSC_NULL_MAT) then
-    call MatDestroy(aux%M,ierr);CHKERRQ(ierr)
+  if (aux%dResdu /= PETSC_NULL_MAT) then
+    call MatDestroy(aux%dResdu,ierr);CHKERRQ(ierr)
   endif
   if (aux%dResdK /= PETSC_NULL_MAT) then
     call MatDestroy(aux%dResdK,ierr);CHKERRQ(ierr)
@@ -254,16 +232,6 @@ subroutine InversionTSAuxDestroy(aux)
   call DeallocateArray(aux%dRes_du_k)
   call DeallocateArray(aux%dFluxdIntConn)
   call DeallocateArray(aux%dFluxdBCConn)
-  if (associated(aux%dMdK)) then
-    do iaux = 1, size(aux%dMdK)
-      call MatDestroy(aux%dMdK(iaux),ierr);CHKERRQ(ierr)
-      call VecDestroy(aux%dbdK(iaux),ierr);CHKERRQ(ierr)
-    enddo
-    deallocate(aux%dMdK)
-    nullify(aux%dMdK)
-    deallocate(aux%dbdK)
-    nullify(aux%dbdK)
-  endif
 
   deallocate(aux)
   nullify(aux)

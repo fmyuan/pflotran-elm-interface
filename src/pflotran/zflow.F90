@@ -655,11 +655,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscReal :: dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1)
   PetscReal :: drhsdKup(1),drhsdKdn(1)
   PetscReal :: dResdKup(1),dResdKdn(1)
-  Mat, pointer :: dMdK(:)
-  Vec, pointer :: dbdK(:)
   Mat :: dResdK
+  PetscBool :: store_dflux
+  PetscBool :: store_adjoint
   PetscReal :: v_darcy(1)
-  PetscReal :: dM(2)
 
   dJupdKup = 0.d0
   dJupdKdn = 0.d0
@@ -684,26 +683,20 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
-  if (associated(patch%aux%inversion_ts_aux)) then
-    dMdK => patch%aux%inversion_ts_aux%dMdK
-    dbdK => patch%aux%inversion_ts_aux%dbdK
-    dResdK = patch%aux%inversion_ts_aux%dResdK
-    call MatZeroEntries(dResdK,ierr);CHKERRQ(ierr)
-  else
-    nullify(dMdK)
-    nullify(dbdK)
-    dResdK = PETSC_NULL_MAT
-  endif
-
+  store_dflux = PETSC_FALSE
+  store_adjoint = PETSC_FALSE
+  dResdK = PETSC_NULL_MAT
   if (zflow_simult_function_evals) then
     call MatZeroEntries(A,ierr);CHKERRQ(ierr)
-    if (associated(dMdK)) then
-      do i = 1, size(dMdK)
-        call MatZeroEntries(dMdK(i),ierr);CHKERRQ(ierr)
-      enddo
-      do i = 1, size(dbdK)
-        call VecZeroEntries(dbdK(i),ierr);CHKERRQ(ierr)
-      enddo
+    if (associated(patch%aux%inversion_ts_aux)) then
+      if (associated(patch%aux%inversion_ts_aux%dFluxdIntConn)) then
+        store_dflux = PETSC_TRUE
+      endif
+      dResdK = patch%aux%inversion_ts_aux%dResdK
+      if (dResdK /= PETSC_NULL_MAT) then
+        store_adjoint = PETSC_TRUE
+        call MatZeroEntries(dResdK,ierr);CHKERRQ(ierr)
+      endif
     endif
   endif
 
@@ -827,8 +820,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           patch%internal_flow_fluxes(:,sum_connection) = Res(:)
         endif
 
-        if (zflow_simult_function_evals .and. &
-            associated(patch%aux%inversion_ts_aux)) then
+        if (store_dflux) then
           patch%aux%inversion_ts_aux%dFluxdIntConn(:,sum_connection) = &
             [dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1), &
              drhsdKup(1),drhsdKdn(1)]
@@ -843,34 +835,13 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
                                           1,ghosted_id_dn-1, &
                                           Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-            if (associated(patch%aux%inversion_ts_aux)) then
+            if (store_adjoint) then
               call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_up-1, &
                                             1,ghosted_id_up-1, &
                                             dResdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
               call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_up-1, &
                                             1,ghosted_id_dn-1, &
                                             dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-            endif
-            if (associated(dMdK)) then
-              ! flip sign for rhs of equation
-              drhsdKup = -drhsdKup
-              drhsdKdn = -drhsdKdn
-              call MatSetValuesBlockedLocal(dMdK(local_id_up),1,ghosted_id_up-1, &
-                                            1,ghosted_id_up-1, &
-                                            dJupdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call MatSetValuesBlockedLocal(dMdK(local_id_up),1,ghosted_id_up-1, &
-                                            1,ghosted_id_dn-1, &
-                                            dJdndKup,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_up-1, &
-                                            1,ghosted_id_up-1, &
-                                            dJupdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_up-1, &
-                                            1,ghosted_id_dn-1, &
-                                            dJdndKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call VecSetValueLocal(dbdK(local_id_up),ghosted_id_up-1, &
-                                    drhsdKup(1),ADD_VALUES,ierr);CHKERRQ(ierr)
-              call VecSetValueLocal(dbdK(local_id_dn),ghosted_id_up-1, &
-                                    drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
           endif
         endif
@@ -886,7 +857,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
                                           1,ghosted_id_up-1, &
                                           Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-            if (associated(patch%aux%inversion_ts_aux)) then
+            if (store_adjoint) then
               dResdKup = -dResdKup
               dResdKdn = -dResdKdn
               call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_dn-1, &
@@ -896,30 +867,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                             1,ghosted_id_up-1, &
                                             dResdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
             endif
-            if (associated(dMdK)) then
-              dJupdKup = -dJupdKup
-              dJdndKup = -dJdndKup
-              dJupdKdn = -dJupdKdn
-              dJdndKdn = -dJdndKdn
-              drhsdKup = -drhsdKup
-              drhsdKdn = -drhsdKdn
-              call MatSetValuesBlockedLocal(dMdK(local_id_up),1,ghosted_id_dn-1, &
-                                            1,ghosted_id_dn-1, &
-                                            dJdndKup,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call MatSetValuesBlockedLocal(dMdK(local_id_up),1,ghosted_id_dn-1, &
-                                            1,ghosted_id_up-1, &
-                                            dJupdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_dn-1, &
-                                            1,ghosted_id_dn-1, &
-                                            dJdndKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call MatSetValuesBlockedLocal(dMdK(local_id_dn),1,ghosted_id_dn-1, &
-                                            1,ghosted_id_up-1, &
-                                            dJupdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call VecSetValueLocal(dbdK(local_id_up),ghosted_id_dn-1, &
-                                    drhsdKup(1),ADD_VALUES,ierr);CHKERRQ(ierr)
-              call VecSetValueLocal(dbdK(local_id_dn),ghosted_id_dn-1, &
-                                    drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
-           endif
           endif
         endif
       enddo
@@ -992,21 +939,16 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           Jdn = -Jdn
           call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                         ADD_VALUES,ierr);CHKERRQ(ierr)
-          if (associated(patch%aux%inversion_ts_aux)) then
+          if (store_adjoint) then
             dResdKdn = -dResdKdn
             call MatSetValuesBlockedLocal(dResdK,1,ghosted_id-1,1,ghosted_id-1, &
                                           dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+          endif
+          if (store_dflux) then
             dJdndKdn = -dJdndKdn
             ! no need to flip sign on rhs since downwind
             patch%aux%inversion_ts_aux%dFluxdBCConn(:,sum_connection) = &
               [dJdndKdn(1),drhsdKdn(1)]
-          endif
-          if (associated(dMdK)) then
-            call MatSetValuesBlockedLocal(dMdK(local_id),1,ghosted_id-1, &
-                                          1,ghosted_id-1, &
-                                          dJdndKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-            call VecSetValueLocal(dbdK(local_id),ghosted_id-1, &
-                                  drhsdKdn(1),ADD_VALUES,ierr);CHKERRQ(ierr)
           endif
         endif
       enddo
@@ -1088,19 +1030,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
       ! zero out inactive cells
 
-    if (associated(patch%aux%inversion_ts_aux)) then
+    if (store_adjoint) then
       call MatAssemblyBegin(dResdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
       call MatAssemblyEnd(dResdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    endif
-    if (associated(dMdK)) then
-      do i = 1, size(dMdK)
-        call MatAssemblyBegin(dMdK(i),MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-        call MatAssemblyEnd(dMdK(i),MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      enddo
-      do i = 1, size(dbdK)
-        call VecAssemblyBegin(dbdK(i),ierr);CHKERRQ(ierr)
-        call VecAssemblyEnd(dbdK(i),ierr);CHKERRQ(ierr)
-      enddo
     endif
 
     if (patch%aux%ZFlow%inactive_cells_exist) then
