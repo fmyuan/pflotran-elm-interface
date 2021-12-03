@@ -1447,16 +1447,16 @@ subroutine TCFLinearResistivityVerify(this,name,option)
      call PrintErrMsg(option)
   endif
   ! default: porosity_effect is false, all variables uninitialized
-  if ((.not. Uninitialized(this%ref_por)) .and. &
-      (.not. Uninitialized(this%por_exp)) .and. &
-      (.not. Uninitialized(this%b(1))) .and. &
-      (.not. Uninitialized(this%b(2)))) then
+  if ((Initialized(this%ref_por)) .and. &
+      (Initialized(this%por_exp)) .and. &
+      (Initialized(this%b(1))) .and. &
+      (Initialized(this%b(2)))) then
      ! all required variables are set: turn on porosity effect
      this%porosity_effect = PETSC_TRUE
-  else if ((.not. Uninitialized(this%ref_por)) .or. &
-           (.not. Uninitialized(this%por_exp)) .or. &
-           (.not. Uninitialized(this%b(1))) .or. &
-           (.not. Uninitialized(this%b(2)))) then
+  else if ((Initialized(this%ref_por)) .or. &
+           (Initialized(this%por_exp)) .or. &
+           (Initialized(this%b(1))) .or. &
+           (Initialized(this%b(2)))) then
      ! some are initialized, but not all: error message
      if (Uninitialized(this%ref_por)) then
         option%io_buffer = UninitializedMessage('REFERENCE_POROSITY',string)
