@@ -323,8 +323,11 @@ subroutine InversionSubsurfInitialize(this)
                         PETSC_NULL_SCALAR, &
                         this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
     call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
-!geh    call MatDuplicate(this%inversion_aux%JsensitivityT,MAT_COPY_VALUES,&
-!geh                      this%inversion_aux%JsensitivityTb,ierr);CHKERRQ(ierr)
+    call MatCreateDense(this%driver%comm%mycomm, &
+                        num_parameters_local,PETSC_DECIDE, &
+                        num_parameters_global,num_measurements, &
+                        PETSC_NULL_SCALAR, &
+                        this%inversion_aux%JsensitivityTb,ierr);CHKERRQ(ierr)
     ! cannot pass in this%measurement_vec as it is initialized to
     ! PETSC_NULL_VEC and MatCreateVecs keys off that input
     call MatCreateVecs(this%inversion_aux%JsensitivityT,v,PETSC_NULL_VEC, &
@@ -599,7 +602,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call OptionPrint(' Working forward through inversion_ts_aux list &
                    &calculating sensitivity coefficients.',option)
   call MatZeroEntries(inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
-!geh  call MatZeroEntries(inversion_aux%JsensitivityTb,ierr);CHKERRQ(ierr)
+  call MatZeroEntries(inversion_aux%JsensitivityTb,ierr);CHKERRQ(ierr)
   cur_inversion_ts_aux => inversion_aux%inversion_ts_aux_list
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
@@ -611,10 +614,10 @@ subroutine InvSubsurfCalculateSensitivity(this)
                         MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(inversion_aux%JsensitivityT, &
                       MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-!geh  call MatAssemblyBegin(inversion_aux%JsensitivityTb, &
-!geh                        MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-!geh  call MatAssemblyEnd(inversion_aux%JsensitivityTb, &
-!geh                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyBegin(inversion_aux%JsensitivityTb, &
+                        MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(inversion_aux%JsensitivityTb, &
+                      MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
   call timer%Stop()
   option%io_buffer = '    ' // &
@@ -823,7 +826,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
 
   work = this%realization%field%work ! DO NOT DESTROY!
   solution = this%realization%field%flow_xx ! DO NOT DESTROY!
-!geh  call VecDuplicate(work,dResdKLambda,ierr);CHKERRQ(ierr)
+  call VecDuplicate(work,dResdKLambda,ierr);CHKERRQ(ierr)
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
 
@@ -844,7 +847,6 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   endif
   call VecDuplicate(work,dbdK,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(this%imeasurement)
-#if 0
     call MatMultTranspose(inversion_ts_aux%dResdK, &
                           inversion_ts_aux%lambda(imeasurement), &
                           dResdKLambda,ierr);CHKERRQ(ierr)
@@ -855,7 +857,6 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
                        -vec_ptr(iparameter),ADD_VALUES,ierr);CHKERRQ(ierr)
     enddo
     call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
-#endif
     if (this%local_adjoint) then
       call DiscretizationGlobalToLocal(discretization, &
                                        inversion_ts_aux%lambda(imeasurement), &
@@ -959,7 +960,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   if (solution_loc /= PETSC_NULL_VEC) then
     call VecDestroy(solution_loc,ierr);CHKERRQ(ierr)
   endif
-!geh  call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
+  call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
   call VecDestroy(dbdK,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
@@ -1278,15 +1279,16 @@ subroutine InvSubsurfOutputSensitivity(this,suffix)
                                         filename_prefix)
   call InvSubsurfOutputSensitivityHDF5(this,this%inversion_aux%JsensitivityT, &
                                        filename_prefix)
-#if 0
-  filename_prefix = trim(this%driver%global_prefix) // '_JsenseB'
-  if (len_trim(suffix) > 0) filename_prefix = trim(filename_prefix) // '_' // &
-                            suffix
-  call InvSubsurfOutputSensitivityASCII(this,this%inversion_aux%JsensitivityTb, &
+
+  if (this%inversion_aux%JsensitivityTb /= PETSC_NULL_MAT) then
+    filename_prefix = trim(this%driver%global_prefix) // '_JsenseB'
+    if (len_trim(suffix) > 0) filename_prefix = trim(filename_prefix) // '_' // &
+                              suffix
+    call InvSubsurfOutputSensitivityASCII(this,this%inversion_aux%JsensitivityTb, &
+                                          filename_prefix)
+    call InvSubsurfOutputSensitivityHDF5(this,this%inversion_aux%JsensitivityTb, &
                                         filename_prefix)
-  call InvSubsurfOutputSensitivityHDF5(this,this%inversion_aux%JsensitivityTb, &
-                                       filename_prefix)
-#endif
+  endif
 
 end subroutine InvSubsurfOutputSensitivity
 

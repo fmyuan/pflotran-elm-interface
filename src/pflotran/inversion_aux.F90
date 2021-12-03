@@ -42,6 +42,9 @@ function InversionAuxCreate()
   nullify(aux%cell_to_bc_connection)
   nullify(aux%inversion_ts_aux_list)
 
+  aux%M = PETSC_NULL_MAT
+  aux%solution = PETSC_NULL_VEC
+
   aux%JsensitivityT = PETSC_NULL_MAT
   aux%JsensitivityTb = PETSC_NULL_MAT
 
@@ -62,27 +65,12 @@ subroutine InversionAuxDestroy(aux)
 
   type(inversion_aux_type), pointer :: aux
 
-  type(inversion_ts_aux_type), pointer :: cur_inversion_ts_aux
-  type(inversion_ts_aux_type), pointer :: next_inversion_ts_aux
-
   if (.not.associated(aux)) return
 
   call DeallocateArray(aux%cell_to_internal_connection)
   call DeallocateArray(aux%cell_to_bc_connection)
 
-  cur_inversion_ts_aux => aux%inversion_ts_aux_list
-  do
-    if (.not.associated(cur_inversion_ts_aux)) exit
-    next_inversion_ts_aux => cur_inversion_ts_aux%next
-    if (.not.associated(next_inversion_ts_aux)) then
-      print *
-      print *, '  Last Inversion TS Aux timestep and time: ', &
-        cur_inversion_ts_aux%timestep, cur_inversion_ts_aux%time
-      print *
-    endif
-    call InversionTSAuxDestroy(cur_inversion_ts_aux)
-    cur_inversion_ts_aux => next_inversion_ts_aux
-  enddo
+  call InversionTSAuxListDestroy(aux%inversion_ts_aux_list,PETSC_TRUE)
 
   ! these objects are destroyed elsewhere, do not destroy
   aux%JsensitivityT = PETSC_NULL_MAT

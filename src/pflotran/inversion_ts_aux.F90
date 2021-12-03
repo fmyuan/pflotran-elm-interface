@@ -35,6 +35,7 @@ module Inversion_TS_Aux_module
             InvTSAuxAllocateFluxCoefArrays, &
             InvTSAuxAllocateMatsAndVecs, &
             InvTSAuxStoreCopyGlobalMatVecs, &
+            InversionTSAuxListDestroy, &
             InversionTSAuxDestroy
 
 contains
@@ -175,6 +176,41 @@ subroutine InvTSAuxAllocateMatsAndVecs(aux,num_mats_and_vecs,mat,vec)
   enddo
 
 end subroutine InvTSAuxAllocateMatsAndVecs
+
+! ************************************************************************** !
+
+subroutine InversionTSAuxListDestroy(inversion_ts_aux_list,print_msg)
+  !
+  ! Deallocates a inversion auxiliary timestep list object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/03/21
+  !
+  type(inversion_ts_aux_type), pointer :: inversion_ts_aux_list
+  PetscBool :: print_msg
+
+  type(inversion_ts_aux_type), pointer :: cur_inversion_ts_aux
+  type(inversion_ts_aux_type), pointer :: next_inversion_ts_aux
+
+  cur_inversion_ts_aux => inversion_ts_aux_list
+  do
+    if (.not.associated(cur_inversion_ts_aux)) exit
+    next_inversion_ts_aux => cur_inversion_ts_aux%next
+    if (.not.associated(next_inversion_ts_aux)) then
+      if (print_msg) then
+        print *
+        print *, '  Last Inversion TS Aux timestep and time: ', &
+          cur_inversion_ts_aux%timestep, cur_inversion_ts_aux%time
+        print *
+      endif
+    endif
+    call InversionTSAuxDestroy(cur_inversion_ts_aux)
+    cur_inversion_ts_aux => next_inversion_ts_aux
+  enddo
+
+  nullify(inversion_ts_aux_list)
+
+end subroutine InversionTSAuxListDestroy
 
 ! ************************************************************************** !
 

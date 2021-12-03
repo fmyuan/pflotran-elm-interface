@@ -380,13 +380,15 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
   PetscErrorCode :: ierr
 
   ierr = 0
-  this%realization%patch%aux%inversion_ts_aux%time = time
-  ! store solution
-  call InvTSAuxStoreCopyGlobalMatVecs(this%realization%patch%aux% &
-                                        inversion_ts_aux)
-  ! append next time step
-  this%realization%patch%aux%inversion_ts_aux => &
-    InversionTSAuxCreate(this%realization%patch%aux%inversion_ts_aux)
+  if (associated(this%realization%patch%aux%inversion_ts_aux)) then
+    this%realization%patch%aux%inversion_ts_aux%time = time
+    ! store solution
+    call InvTSAuxStoreCopyGlobalMatVecs(this%realization%patch%aux% &
+                                          inversion_ts_aux)
+    ! append next time step
+    this%realization%patch%aux%inversion_ts_aux => &
+      InversionTSAuxCreate(this%realization%patch%aux%inversion_ts_aux)
+  endif
 
 end subroutine PMAuxiliaryInversion
 

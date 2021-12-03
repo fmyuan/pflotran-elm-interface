@@ -141,11 +141,16 @@ subroutine InversionPerturbationInitialize(this)
   ! Author: Glenn Hammond
   ! Date: 09/24/21
   !
+  use Inversion_TS_Aux_module
+
   class(inversion_perturbation_type) :: this
 
   PetscErrorCode :: ierr
 
   call InversionSubsurfInitialize(this)
+  call InversionTSAuxListDestroy(this%inversion_aux%inversion_ts_aux_list, &
+                                 PETSC_FALSE)
+  call MatDestroy(this%inversion_aux%JsensitivityTb,ierr);CHKERRQ(ierr)
 
   if (this%idof_pert == 0) then
     this%ndof = this%realization%patch%grid%nmax
@@ -155,7 +160,7 @@ subroutine InversionPerturbationInitialize(this)
 
   if (Uninitialized(this%iqoi)) then
     call this%driver%PrintErrMsg('Quantity of interest not specified in &
-      InversionPerturbationInitialize.')
+      &InversionPerturbationInitialize.')
   endif
 
 end subroutine InversionPerturbationInitialize
