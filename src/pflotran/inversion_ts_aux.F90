@@ -18,6 +18,7 @@ module Inversion_TS_Aux_module
     PetscReal, pointer :: dRes_du_k(:)
     PetscReal, pointer :: dFluxdIntConn(:,:)
     PetscReal, pointer :: dFluxdBCConn(:,:)
+    Mat :: dResdK
     Mat, pointer :: dMdK(:)
     Vec, pointer :: dbdK(:)
     type(inversion_mat_vec_pointer_type), pointer :: mat_vec_solution_ptr
@@ -60,6 +61,7 @@ function InversionTSAuxCreate(prev_ts_aux)
   aux%time = UNINITIALIZED_DOUBLE
   aux%M = PETSC_NULL_MAT
   aux%solution = PETSC_NULL_VEC
+  aux%dResdK = PETSC_NULL_MAT
   nullify(aux%lambda)
 
   nullify(aux%mat_vec_solution_ptr)
@@ -130,7 +132,10 @@ subroutine InvTSAuxAllocateFluxCoefArrays(aux,num_unknown,num_internal, &
   PetscInt :: num_unknown
   PetscInt :: num_internal
   PetscInt :: num_boundary
+  PetscErrorCode :: ierr
 
+  call MatDuplicate(aux%mat_vec_solution_ptr%M,MAT_SHARE_NONZERO_PATTERN, &
+                    aux%dResdK,ierr);CHKERRQ(ierr)
   allocate(aux%dRes_du_k(num_unknown))
   aux%dRes_du_k = 0.d0
   allocate(aux%dFluxdIntConn(6,num_internal))
@@ -199,6 +204,9 @@ subroutine InversionTSAuxDestroy(aux)
   nullify(aux%mat_vec_solution_ptr)
   if (aux%M /= PETSC_NULL_MAT) then
     call MatDestroy(aux%M,ierr);CHKERRQ(ierr)
+  endif
+  if (aux%dResdK /= PETSC_NULL_MAT) then
+    call MatDestroy(aux%dResdK,ierr);CHKERRQ(ierr)
   endif
   if (aux%solution /= PETSC_NULL_VEC) then
     call VecDestroy(aux%solution,ierr);CHKERRQ(ierr)

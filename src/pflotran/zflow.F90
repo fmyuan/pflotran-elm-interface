@@ -654,8 +654,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscReal :: Jup(1,1),Jdn(1,1)
   PetscReal :: dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1)
   PetscReal :: drhsdKup(1),drhsdKdn(1)
+  PetscReal :: dResdKup(1),dResdKdn(1)
   Mat, pointer :: dMdK(:)
   Vec, pointer :: dbdK(:)
+  Mat :: dResdK
   PetscReal :: v_darcy(1)
   PetscReal :: dM(2)
 
@@ -665,6 +667,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   dJdndKup = 0.d0
   drhsdKup = 0.d0
   drhsdKdn = 0.d0
+  dResdKup = 0.d0
+  dResdKdn = 0.d0
 
   discretization => realization%discretization
   option => realization%option
@@ -683,9 +687,12 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   if (associated(patch%aux%inversion_ts_aux)) then
     dMdK => patch%aux%inversion_ts_aux%dMdK
     dbdK => patch%aux%inversion_ts_aux%dbdK
+    dResdK = patch%aux%inversion_ts_aux%dResdK
+    call MatZeroEntries(dResdK,ierr);CHKERRQ(ierr)
   else
     nullify(dMdK)
     nullify(dbdK)
+    dResdK = PETSC_NULL_MAT
   endif
 
   if (zflow_simult_function_evals) then
@@ -801,6 +808,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                     Res,Jup,Jdn, &
                     dJupdKup,dJupdKdn,dJdndKup,dJdndKdn, &
                     drhsdKup,drhsdKdn, &
+                    dResdKup,dResdKdn, &
                     zflow_simult_function_evals)
         if (zflow_numerical_derivatives) then
           call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
@@ -835,6 +843,14 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
                                           1,ghosted_id_dn-1, &
                                           Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+            if (associated(patch%aux%inversion_ts_aux)) then
+              call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_up-1, &
+                                            1,ghosted_id_up-1, &
+                                            dResdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_up-1, &
+                                            1,ghosted_id_dn-1, &
+                                            dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+            endif
             if (associated(dMdK)) then
               ! flip sign for rhs of equation
               drhsdKup = -drhsdKup
@@ -870,6 +886,16 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
                                           1,ghosted_id_up-1, &
                                           Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+            if (associated(patch%aux%inversion_ts_aux)) then
+              dResdKup = -dResdKup
+              dResdKdn = -dResdKdn
+              call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_dn-1, &
+                                            1,ghosted_id_dn-1, &
+                                            dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+              call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_dn-1, &
+                                            1,ghosted_id_up-1, &
+                                            dResdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
+            endif
             if (associated(dMdK)) then
               dJupdKup = -dJupdKup
               dJdndKup = -dJdndKup
@@ -934,7 +960,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                       cur_connection_set%dist(:,iconn), &
                       zflow_parameter,option, &
                       v_darcy,Res,Jdn, &
-                      dJdndKdn,drhsdKdn, &
+                      dJdndKdn,drhsdKdn,dResdKdn, &
                       zflow_simult_function_evals)
         if (zflow_numerical_derivatives) then
           call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
@@ -967,6 +993,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                         ADD_VALUES,ierr);CHKERRQ(ierr)
           if (associated(patch%aux%inversion_ts_aux)) then
+            dResdKdn = -dResdKdn
+            call MatSetValuesBlockedLocal(dResdK,1,ghosted_id-1,1,ghosted_id-1, &
+                                          dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
             dJdndKdn = -dJdndKdn
             ! no need to flip sign on rhs since downwind
             patch%aux%inversion_ts_aux%dFluxdBCConn(:,sum_connection) = &
@@ -1059,6 +1088,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
       ! zero out inactive cells
 
+    if (associated(patch%aux%inversion_ts_aux)) then
+      call MatAssemblyBegin(dResdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+      call MatAssemblyEnd(dResdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    endif
     if (associated(dMdK)) then
       do i = 1, size(dMdK)
         call MatAssemblyBegin(dMdK(i),MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
