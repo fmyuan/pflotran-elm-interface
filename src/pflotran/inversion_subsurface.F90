@@ -854,7 +854,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
     do iparameter = 1, grid%nlmax
       natural_id = grid%nG2A(grid%nL2G(iparameter))
       call MatSetValue(inversion_aux%JsensitivityTb,natural_id-1,imeasurement-1, &
-                       -vec_ptr(iparameter),ADD_VALUES,ierr);CHKERRQ(ierr)
+                       vec_ptr(iparameter),ADD_VALUES,ierr);CHKERRQ(ierr)
     enddo
     call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
     if (this%local_adjoint) then
