@@ -3464,6 +3464,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'porosity effect: '
         write(word1,*) tcf%porosity_effect
+        write(id,'(a)') adjustl(trim(word1))
         if (tcf%porosity_effect) then
            write(id,'(a29)',advance='no') 'reference por.: '
            write(word1,*) tcf%ref_por
