@@ -1,5 +1,3 @@
-# Problem contributed by Aitor Iraola (aitor.iraola@amphos21.com)
-
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
@@ -13,9 +11,21 @@ SUBSURFACE
 
 EXTERNAL_FILE ugrid.txt
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 6
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 4
+  CELL_IDS
+    43
+  /
+  CELLS_PER_PROCESS 1
 END
 
 #=========================== flow conditions ==================================
@@ -23,21 +33,15 @@ FLOW_CONDITION initial
   TYPE
     PRESSURE HYDROSTATIC
   /
-  PRESSURE 101293
-  DATUM 0.d0 0.d0 0.0d0
+  PRESSURE 101325
+  DATUM 0.d0 0.d0 -80.d0
 END
 
-FLOW_CONDITION ConditionA
+FLOW_CONDITION infiltration_from_pond
   TYPE
-    PRESSURE Dirichlet
+    FLUX NEUMANN
   /
-  PRESSURE 101293
-/
-FLOW_CONDITION ConditionB
-  TYPE
-    PRESSURE Dirichlet
-  /
-  PRESSURE 101293
+  FLUX 3. mm/s
 /
 
 #=========================== condition couplers ===============================
@@ -47,24 +51,14 @@ INITIAL_CONDITION
   REGION all
 END
 
-INITIAL_CONDITION ConditionB
-  FLOW_CONDITION ConditionB
-  REGION ConditionB
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION initial
+  REGION bottom
 END
 
-INITIAL_CONDITION ConditionA
-  FLOW_CONDITION ConditionA
-  REGION ConditionA
-END
-
-BOUNDARY_CONDITION ConditionA
-  FLOW_CONDITION ConditionA
-  REGION ConditionA
-END
-
-BOUNDARY_CONDITION ConditionB
-  FLOW_CONDITION ConditionB
-  REGION ConditionB
+BOUNDARY_CONDITION pond
+  FLOW_CONDITION infiltration_from_pond
+  REGION pond
 END
 
 END_SUBSURFACE

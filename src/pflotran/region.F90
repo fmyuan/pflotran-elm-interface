@@ -496,6 +496,7 @@ subroutine RegionRead(region,input,option)
       case('POLYGON')
         if (.not.associated(region%polygonal_volume)) then
           region%polygonal_volume => GeometryCreatePolygonalVolume()
+          region%def_type = DEFINED_BY_POLY_CELL_CENTER
         endif
         call InputPushBlock(input,option)
         do

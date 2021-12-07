@@ -1,0 +1,107 @@
+#=========================== discretization ===================================
+GRID
+  TYPE UNSTRUCTURED ./ugrid_sideset_mesh.h5
+  MAX_CELLS_SHARING_A_VERTEX 100
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY oxide-ore
+  ID 1
+  POROSITY 0.05d0
+  TORTUOSITY 1.d0
+  PERMEABILITY
+    PERM_ISO 1.5d-13
+  /
+  CHARACTERISTIC_CURVES default
+END
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 10 s
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 1.d0 s
+END
+
+#=========================== output ===========================================
+#OUTPUT
+#  FORMAT HDF5
+#END
+
+#=========================== regions ==========================================
+REGION all
+  FILE ./ugrid_sideset_mesh.h5
+END
+
+REGION ConditionA
+  FILE reg_A.ss
+END
+
+REGION ConditionB
+  FILE reg_B.ss
+END
+
+REGION bottom
+  POLYGON
+    TYPE BOUNDARY_FACES_IN_VOLUME
+    XY
+      0. 0. 0.
+      1126. 876. 0.
+    /
+    XZ
+      0. 0. -102.
+      1126. 0. -95.
+    / 
+  /
+END
+
+REGION pond
+  POLYGON
+    TYPE BOUNDARY_FACES_IN_VOLUME
+    XY
+      1081.09 512.609 0.
+      1008.38 536.404 0.
+      957.98 554.706 0.
+      904.05 562.406 0.
+      817.357 580.904 0.
+      734.512 585.373 0.
+      683.75 579.356 0.
+      605.18 536.218 0.
+      585.15 490. 0.
+      638.527 440.49 0.
+      704.511 387.615 0.
+      775.457 384.037 0.
+      860.4 401.267 0.
+      950.316 432.744 0.
+      1015.65 472.986 0.
+    /
+    XZ
+      0. 0. 1.
+      1126. 0. -22.
+    /
+  /
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL oxide-ore
+END
+

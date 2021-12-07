@@ -14,7 +14,7 @@ EXTERNAL_FILE 5x5x5.txt
 
 STRATA
   MATERIAL soil2
-  REGION zone1
+  REGION polyvol_xy
 END
 
 END_SUBSURFACE
