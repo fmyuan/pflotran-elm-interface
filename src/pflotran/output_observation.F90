@@ -3288,8 +3288,8 @@ subroutine OutputMassBalance(realization_base)
             endif
           enddo
         endif
+        deallocate(total_mass,global_total_mass)
       endif
-      deallocate(total_mass,global_total_mass)
       cur_mbr => cur_mbr%next
     enddo
   endif

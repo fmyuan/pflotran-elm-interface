@@ -531,8 +531,8 @@ subroutine RegionRead(region,input,option)
               call GeometryReadCoordinates(input,option,region%name, &
                                          region%polygonal_volume%yz_coordinates)
             case default
-              option%io_buffer = 'Keyword not recognized for REGION POLYGON.'
-              call PrintErrMsg(option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'REGION POLYGON',option)
           end select
         enddo
         call InputPopBlock(input,option)
