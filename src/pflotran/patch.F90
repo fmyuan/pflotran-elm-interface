@@ -4692,6 +4692,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Option_module
   use Field_module
 
+  use ERT_Aux_module
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
@@ -6135,11 +6136,23 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         endif
       enddo
     case(ELECTRICAL_POTENTIAL)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      potential),isubvar,isubvar2,option)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
       enddo
+    case(ELECTRICAL_POTENTIAL_DIPOLE)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      potential),isubvar,isubvar2,option)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) - &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar2)
+      enddo
     case(ELECTRICAL_JACOBIAN)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      jacobian),isubvar,isubvar2,option)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
@@ -6213,6 +6226,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use Reaction_Mineral_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use Output_Aux_module
+  use ERT_Aux_module
   use Variables_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
@@ -7064,9 +7078,18 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = 1.d0
         endif
       endif
+    case(ELECTRICAL_POTENTIAL_DIPOLE)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      potential),isubvar,isubvar2,option)
+      value = patch%aux%ERT%auxvars(ghosted_id)%potential(isubvar) - &
+              patch%aux%ERT%auxvars(ghosted_id)%potential(isubvar2)
     case(ELECTRICAL_POTENTIAL)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      potential),isubvar,isubvar2,option)
       value = patch%aux%ERT%auxvars(ghosted_id)%potential(isubvar)
     case(ELECTRICAL_JACOBIAN)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      jacobian),isubvar,isubvar2,option)
       value = patch%aux%ERT%auxvars(ghosted_id)%jacobian(isubvar)
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)

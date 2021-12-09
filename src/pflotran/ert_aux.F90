@@ -26,6 +26,7 @@ module ERT_Aux_module
 
   public :: ERTAuxCreate, ERTAuxDestroy, &
             ERTAuxVarCompute, ERTAuxVarInit, &
+            ERTAuxCheckElectrodeBounds, &
             ERTAuxVarCopy
 
 contains
@@ -121,7 +122,6 @@ subroutine ERTAuxVarCompute(x,ert_auxvar,global_auxvar,rt_auxvar, &
   ! Author: Piyoosh Jaysaval
   ! Date: 01/11/21
   !
-
   use Option_module
   use Global_Aux_module
   use Reactive_Transport_Aux_module
@@ -140,6 +140,35 @@ subroutine ERTAuxVarCompute(x,ert_auxvar,global_auxvar,rt_auxvar, &
   ! calculate bulk_conductivity = f(global,rt,material-auxars)
 
 end subroutine ERTAuxVarCompute
+
+! ************************************************************************** !
+
+subroutine ERTAuxCheckElectrodeBounds(num_electrodes,id,id2,option)
+  !
+  ! Checks to ensure that electrode requests (ivar, ivar2) are valid
+  ! electrode IDs.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/09/21
+  !
+  use Option_module
+  use String_module
+
+  type(option_type) :: option
+  PetscInt :: num_electrodes
+  PetscInt :: id, id2
+
+  PetscInt :: imax
+
+  imax = max(id,id2)
+  if (imax > num_electrodes) then
+    option%io_buffer = 'Electrode ID (' // trim(StringWrite(imax)) // &
+      ') specified for output is greater than the maximum electrode ID (' // &
+      trim(StringWrite(num_electrodes)) // ').'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine ERTAuxCheckElectrodeBounds
 
 ! ************************************************************************** !
 

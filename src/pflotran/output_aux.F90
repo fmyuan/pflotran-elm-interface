@@ -775,7 +775,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
            'MATERIAL_ID_KLUDGE_FOR_VISIT','X_COORDINATE','Y_COORDINATE', &
            'Z_COORDINATE', &
            'ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
-           'ELECTRICAL_JACOBIAN')
+           'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE')
       case default
         call PrintErrMsg(option,'Output variable "' // trim(word) // &
           '" not supported when not running a flow mode.')
@@ -784,7 +784,7 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
   if (option%igeopmode == NULL_MODE) then
     select case(word)
       case('ELECTRICAL_CONDUCTIVITY','ELECTRICAL_POTENTIAL', &
-           'ELECTRICAL_JACOBIAN')
+           'ELECTRICAL_JACOBIAN','ELECTRICAL_POTENTIAL_DIPOLE')
         call PrintErrMsg(option,'Output variable "' // trim(word) // &
           '" not supported when not running a geophysics mode.')
     end select
@@ -1156,6 +1156,15 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Electrical Jacobian'
       category = OUTPUT_GENERIC
       id = ELECTRICAL_JACOBIAN      
+    case ('ELECTRICAL_POTENTIAL_DIPOLE')
+      if (option%ngeopdof <= 0) then
+        call PrintErrMsg(option,trim(word)//' output only &
+          &supported when the GEOPHYSICS process model is used.')
+      endif
+      units = 'V'
+      name = 'Electrical Potential Dipole'
+      category = OUTPUT_GENERIC
+      id = ELECTRICAL_POTENTIAL_DIPOLE
   end select
 
 end subroutine OutputVariableToID
