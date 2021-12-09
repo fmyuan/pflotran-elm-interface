@@ -3241,7 +3241,9 @@ subroutine OutputMassBalance(realization_base)
       call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
                                      cur_mbr%num_cells,patch,option, &
                                      global_water_mass)
-      write(fid,110,advance="no") global_water_mass
+      if (OptionIsIORank(option)) then
+        write(fid,110,advance="no") global_water_mass
+      endif
       if (option%ntrandof > 0) then
         max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
                           reaction%immobile%nimmobile,reaction%gas%nactive_gas)
