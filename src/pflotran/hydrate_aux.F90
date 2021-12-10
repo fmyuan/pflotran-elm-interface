@@ -29,6 +29,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_allow_state_change = PETSC_TRUE
   PetscBool, public :: hydrate_force_iteration = PETSC_FALSE
   PetscBool, public :: hydrate_state_changed = PETSC_FALSE
+  PetscReal, public :: hydrate_bc_reference_pressure = 101325
 
   !Salinity
   PetscReal, public :: hydrate_xmol_nacl = 0.d0
