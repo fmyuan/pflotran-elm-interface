@@ -159,7 +159,7 @@ contains
 
     class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
 
-    PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
+    PetscReal :: liquid_saturation, temperature, porosity, thermal_conductivity, &
                  dkT_dsatl, dkT_dtemp
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-8
@@ -169,13 +169,14 @@ contains
       class is(kT_default_type)
         liquid_saturation = 0.5d0
         temperature = 25.d0
+        porosity = 2.5d-1
       class default
         print *, 'not default type in test_tcf_Default'
     end select
 
     call this%cct_default%thermal_conductivity_function% &
                           CalculateTCond(liquid_saturation,temperature, &
-                          thermal_conductivity,dkT_dsatl, &
+                          porosity,thermal_conductivity,dkT_dsatl, &
                           dkT_dtemp,this%option)
     string = 'Default thermal characteristic curve thermal conductivity'
     value =  1.51923881554d0
@@ -201,20 +202,23 @@ contains
     class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
 
     PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
-                 dkT_dsatl, dkT_dtemp
+                 porosity, dkT_dsatl, dkT_dtemp
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
 
     select type (tcf => this%cct_constant%thermal_conductivity_function)
       class is(kT_constant_type)
+        temperature = 0.d0
+        liquid_saturation = 0.d0
+        porosity = 0.d0
       class default
         print *, 'not constant type in test_tcf_Constant'
     end select
 
     call this%cct_constant%thermal_conductivity_function% &
                            CalculateTCond(liquid_saturation,temperature, &
-                           thermal_conductivity,dkT_dsatl, &
+                           porosity,thermal_conductivity,dkT_dsatl, &
                            dkT_dtemp,this%option)
     string = 'Constant thermal characteristic curve thermal conductivity'
     value = 1.9d0
@@ -240,7 +244,7 @@ contains
     class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
 
     PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
-                 dkT_dsatl, dkT_dtemp
+                 porosity, dkT_dsatl, dkT_dtemp
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
@@ -249,13 +253,14 @@ contains
       class is(kT_power_type)
         liquid_saturation = 0.5d0
         temperature = 25.d0
+        porosity = 2.5d-1
       class default
         print *, 'not power type in test_tcf_Power'
     end select
 
     call this%cct_power%thermal_conductivity_function% &
                         CalculateTCond(liquid_saturation,temperature, &
-                        thermal_conductivity,dkT_dsatl, &
+                        porosity,thermal_conductivity,dkT_dsatl, &
                         dkT_dtemp,this%option)
     string = 'Power law thermal characteristic curve thermal conductivity'
     value =  1.53036860685d0
@@ -281,7 +286,7 @@ contains
     class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
 
     PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
-                 dkT_dsatl, dkT_dtemp
+                 porosity, dkT_dsatl, dkT_dtemp
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-7
     character(len=128) :: string
@@ -290,13 +295,14 @@ contains
       class is(kT_cubic_polynomial_type)
         liquid_saturation = 0.5d0
         temperature = 25.d0
+        porosity = 2.5d-1
       class default
         print *, 'not cubic polynomial type in test_tcf_CubicPolynomial'
     end select
 
     call this%cct_cubic_poly%thermal_conductivity_function% &
                              CalculateTCond(liquid_saturation,temperature, &
-                             thermal_conductivity,dkT_dsatl, &
+                             porosity,thermal_conductivity,dkT_dsatl, &
                              dkT_dtemp,this%option)
     string = 'Cubic Poly thermal characteristic curve thermal conductivity'
     value =  1.36001470662d0
@@ -322,7 +328,7 @@ contains
     class(Test_Characteristic_Curves_Thermal), intent(inout) :: this
 
     PetscReal :: liquid_saturation, temperature, thermal_conductivity, &
-                 dkT_dsatl, dkT_dtemp
+                 porosity, dkT_dsatl, dkT_dtemp
     PetscReal :: value
     PetscReal, parameter :: tolerance = 1.d-8
     character(len=128) :: string
@@ -331,13 +337,14 @@ contains
       class is(kT_linear_resistivity_type)
         liquid_saturation = 0.5d0
         temperature = 25.d0
+        porosity = 2.5d-1
       class default
         print *, 'not Linear Resistivity type in test_tcf_LinearResistivity'
     end select
 
     call this%cct_linear_res%thermal_conductivity_function% &
                              CalculateTCond(liquid_saturation,temperature, &
-                             thermal_conductivity,dkT_dsatl, &
+                             porosity,thermal_conductivity,dkT_dsatl, &
                              dkT_dtemp,this%option)
     string = 'Linear Resistivity thermal characteristic curve thermal &
              &conductivity'
