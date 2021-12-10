@@ -709,15 +709,30 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           enddo
         endif
       case (DEFINED_BY_POLY_BOUNDARY_FACE)
-        if (grid%itype /= IMPLICIT_UNSTRUCTURED_GRID) then
-          option%io_buffer = 'Regions defined through poly boundary faces are &
-                             &only supported for IMPLICIT_UNSTRUCTURED_GRID.'
-          call PrintErrMsg(option)
-        endif
-        call UGridMapBoundFacesInPolVol(grid%unstructured_grid, &
-                                        region%polygonal_volume, &
-                                        region%name,option, &
-                                        region%cell_ids,region%faces)
+        select case(grid%itype)
+          case(STRUCTURED_GRID)
+            call GridMapCellsInPolVol(grid, &
+                                      region%polygonal_volume, &
+                                      region%name,option, &
+                                      region%cell_ids)
+            if (region%iface == 0) then
+              option%io_buffer = 'REGIONs defined with POLYGON and &
+                BOUNDARY_FACES_IN_VOLUME on STRUCTURED grids must &
+                define a FACE.'
+              call PrintErrMsg(option)
+            endif
+            allocate(region%faces(size(region%cell_ids)))
+            region%faces = region%iface 
+          case(IMPLICIT_UNSTRUCTURED_GRID)
+            call UGridMapBoundFacesInPolVol(grid%unstructured_grid, &
+                                            region%polygonal_volume, &
+                                            region%name,option, &
+                                            region%cell_ids,region%faces)
+          case default
+            option%io_buffer = 'Regions defined through poly boundary faces &
+                          &are not supported for the current grid type.'
+            call PrintErrMsg(option)
+        end select
         if (associated(region%cell_ids)) then
           region%num_cells = size(region%cell_ids)
         endif
