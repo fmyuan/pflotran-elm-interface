@@ -531,6 +531,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
   PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
   PetscReal :: Jdum(1,1)
+  PetscReal :: dResdpor(1,1)
   PetscReal, pointer :: vec_ptr(:)
 
   PetscErrorCode :: ierr
@@ -572,7 +573,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
                            global_auxvars(ghosted_id), &
                            material_auxvars(ghosted_id), &
                            option,accum_p(local_id:local_id), &
-                           Jdum,zflow_calc_adjoint)
+                           Jdum,dResdpor,zflow_calc_adjoint)
     if (zflow_calc_adjoint) then
       ! negative because the value is subtracted in residual
       patch%aux%inversion_ts_aux%dRes_du_k(local_id) = -Jdum(1,1)
@@ -656,6 +657,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscReal :: dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1)
   PetscReal :: drhsdKup(1),drhsdKdn(1)
   PetscReal :: dResdKup(1),dResdKdn(1)
+  PetscReal :: dResdpor(1)
   Mat :: dResdK
   PetscBool :: store_dflux
   PetscBool :: store_adjoint
@@ -669,6 +671,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   drhsdKdn = 0.d0
   dResdKup = 0.d0
   dResdKdn = 0.d0
+  dResdpor = 0.d0
 
   discretization => realization%discretization
   option => realization%option
@@ -747,7 +750,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       call ZFlowAccumulation(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
-                             option,Res,Jup, &
+                             option,Res,Jup,dResdpor, &
                              zflow_simult_function_evals)
       if (zflow_numerical_derivatives) then
         call ZFlowAccumDerivative(zflow_auxvars(:,ghosted_id), &
@@ -760,6 +763,12 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       if (zflow_simult_function_evals) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
+        if (store_adjoint) then
+          call MatSetValuesBlockedLocal(dResdK, &
+                                        1,ghosted_id-1,1,ghosted_id-1, &
+                                        dResdpor, &
+                                        ADD_VALUES,ierr);CHKERRQ(ierr)
+        endif
       endif
     enddo
     call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)

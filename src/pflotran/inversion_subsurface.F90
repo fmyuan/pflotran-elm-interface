@@ -22,7 +22,7 @@ module Inversion_Subsurface_class
     PetscReal, pointer :: measurement(:)
     PetscInt, pointer :: imeasurement(:)
     PetscInt :: measurement_offset
-    PetscInt :: iqoi
+    PetscInt :: iqoi(2)
     PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest
     Vec :: ref_quantity_of_interest
@@ -172,6 +172,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY
+  use Material_Aux_class, only : POROSITY_BASE
   use Utility_module
 
   class(inversion_subsurface_type) :: this
@@ -204,11 +205,12 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       call StringToUpper(word)
       select case(word)
         case('ELECTRICAL_CONDUCTIVITY')
-          this%iqoi = ELECTRICAL_CONDUCTIVITY
+          this%iqoi(1) = ELECTRICAL_CONDUCTIVITY
         case('PERMEABILITY')
-          this%iqoi = PERMEABILITY
+          this%iqoi(1) = PERMEABILITY
         case('POROSITY')
-          this%iqoi = POROSITY
+          this%iqoi(1) = POROSITY
+          this%iqoi(2) = POROSITY_BASE
         case default
           call InputKeywordUnrecognized(input,word,trim(error_string)// &
                                         & ',QUANTITY_OF_INTEREST',option)
@@ -492,7 +494,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
                       this%quantity_of_interest,ierr);CHKERRQ(ierr)
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 this%iqoi,ZERO_INTEGER)
+                                 this%iqoi(1),this%iqoi(2))
     call DiscretizationLocalToGlobal(this%realization%discretization, &
                                      this%realization%field%work_loc, &
                                      this%quantity_of_interest,ONEDOF)
@@ -502,7 +504,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                    this%realization%field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                this%realization%field%work_loc, &
-                               this%iqoi,ZERO_INTEGER)
+                               this%iqoi(1),this%iqoi(2))
 
 end subroutine InvSubsurfConnectToForwardRun
 
@@ -682,7 +684,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
     if (inversion_aux%max_ts == inversion_ts_aux%timestep) then
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (option%myrank == 0) then
-        tempreal = 1.d0
+        tempreal = -1.d0
         icell_measurement = this%imeasurement(imeasurement)
         call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
                         INSERT_VALUES,ierr);CHKERRQ(ierr)

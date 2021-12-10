@@ -157,7 +157,7 @@ subroutine InversionPerturbationInitialize(this)
                       ierr);CHKERRQ(ierr)
   endif
 
-  if (Uninitialized(this%iqoi)) then
+  if (Uninitialized(this%iqoi(1))) then
     call this%driver%PrintErrMsg('Quantity of interest not specified in &
       &InversionPerturbationInitialize.')
   endif
@@ -237,7 +237,6 @@ subroutine InvPerturbationConnectForwardRun(this)
   Vec :: work
   Vec :: natural_vec
   PetscReal, pointer :: vec_ptr(:)
-  PetscInt, parameter :: isubdof = ZERO_INTEGER
   PetscReal :: rmin, rmax
   PetscErrorCode :: ierr
 
@@ -285,7 +284,7 @@ subroutine InvPerturbationConnectForwardRun(this)
                                      this%realization%field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 this%iqoi,isubdof)
+                                 this%iqoi(1),this%iqoi(2))
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
 

@@ -102,7 +102,7 @@ contains
 ! ************************************************************************** !
 
 subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
-                             option,Res,Jac,calculate_derivatives)
+                             option,Res,Jac,dResdpor,calculate_derivatives)
   !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -122,6 +122,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
   PetscReal :: Res(1)
   PetscReal :: Jac(1,1)
+  PetscReal :: dResdpor(1)
   PetscBool :: calculate_derivatives
 
   PetscReal :: porosity
@@ -129,6 +130,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
 
   Res = 0.d0
   Jac = 0.d0
+  dResdpor = 0.d0
 
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
@@ -144,6 +146,11 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   if (calculate_derivatives) then
     Jac(1,1) = Res(1) / zflow_auxvar%sat * zflow_auxvar%dsat_dp + &
                Res(1) / porosity * zflow_auxvar%dpor_dp
+    if (zflow_calc_adjoint) then
+      if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
+        dResdpor(1) = Res(1)/porosity
+      endif
+    endif
   endif
 
 end subroutine ZFlowAccumulation
@@ -249,21 +256,23 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
         Jup(1,1) = tempreal * (delta_pressure * dkr_dpup + kr)
         Jdn(1,1) = tempreal * (delta_pressure * dkr_dpdn - kr)
         if (zflow_calc_adjoint) then
-          tempreal = denominator * denominator * zflow_viscosity
-          dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
-          dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
-          tempreal = area * zflow_density_kmol * kr
-          dJupdKup(1) = dperm_ave_dKup * tempreal
-          dJupdKdn(1) = dperm_ave_dKdn * tempreal
-          tempreal = -1.d0 * area * zflow_density_kmol * kr
-          dJdndKup(1) = dperm_ave_dKup * tempreal
-          dJdndKdn(1) = dperm_ave_dKdn * tempreal
-          tempreal = area * zflow_density_kmol * kr * gravity_term
-          drhsdKup(1) = dperm_ave_dKup * tempreal
-          drhsdKdn(1) = dperm_ave_dKdn * tempreal
-          tempreal = Res(1) / perm_ave_over_dist_visc
-          dResdKup(1) = tempreal * dperm_ave_dKup
-          dResdKdn(1) = tempreal * dperm_ave_dKdn
+          if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
+            tempreal = denominator * denominator * zflow_viscosity
+            dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
+            dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
+            tempreal = area * zflow_density_kmol * kr
+            dJupdKup(1) = dperm_ave_dKup * tempreal
+            dJupdKdn(1) = dperm_ave_dKdn * tempreal
+            tempreal = -1.d0 * area * zflow_density_kmol * kr
+            dJdndKup(1) = dperm_ave_dKup * tempreal
+            dJdndKdn(1) = dperm_ave_dKdn * tempreal
+            tempreal = area * zflow_density_kmol * kr * gravity_term
+            drhsdKup(1) = dperm_ave_dKup * tempreal
+            drhsdKdn(1) = dperm_ave_dKdn * tempreal
+            tempreal = Res(1) / perm_ave_over_dist_visc
+            dResdKup(1) = tempreal * dperm_ave_dKup
+            dResdKdn(1) = tempreal * dperm_ave_dKdn
+          endif
         endif
       endif
     endif
@@ -406,10 +415,12 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                  (dkr_dp * delta_pressure + ddelta_pressure_dpdn * kr)
       Jdn(1,1) = perm_ave_over_dist_visc * tempreal
       if (zflow_calc_adjoint) then
-        dJdndKdn(1) = dperm_dK * tempreal
-        tempreal = area * zflow_density_kmol * kr
-        drhsdKdn(1) = tempreal * (boundary_pressure + gravity_term) * dperm_dK
-        dResdKdn(1) = Res(1) / perm_ave_over_dist_visc * dperm_dK
+        if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
+          dJdndKdn(1) = dperm_dK * tempreal
+          tempreal = area * zflow_density_kmol * kr
+          drhsdKdn(1) = tempreal * (boundary_pressure + gravity_term) * dperm_dK
+          dResdKdn(1) = Res(1) / perm_ave_over_dist_visc * dperm_dK
+        endif
       endif
     endif
   endif
@@ -500,17 +511,18 @@ subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
 
   PetscReal :: res(1), res_pert(1)
   PetscReal :: Jdum(1,1)
+  PetscReal :: dJdum(1,1)
 
   call ZFlowAccumulation(zflow_auxvar(ZERO_INTEGER), &
                          global_auxvar, &
                          material_auxvar, &
-                         option,res,Jdum, &
+                         option,res,Jdum,dJdum, &
                          PETSC_FALSE)
 
   call ZFlowAccumulation(zflow_auxvar(ONE_INTEGER), &
                          global_auxvar, &
                          material_auxvar, &
-                         option,res_pert,Jdum, &
+                         option,res_pert,Jdum,dJdum, &
                          PETSC_FALSE)
   ! J[m^3 liquid/Pa-sec]
   J(1,1) = (res_pert(1)-res(1))/zflow_auxvar(ONE_INTEGER)%pert
