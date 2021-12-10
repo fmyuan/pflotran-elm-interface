@@ -574,7 +574,8 @@ subroutine ZFlowUpdateFixedAccum(realization)
                            option,accum_p(local_id:local_id), &
                            Jdum,zflow_calc_adjoint)
     if (zflow_calc_adjoint) then
-      patch%aux%inversion_ts_aux%dRes_du_k(local_id) = Jdum(1,1)
+      ! negative because the value is subtracted in residual
+      patch%aux%inversion_ts_aux%dRes_du_k(local_id) = -Jdum(1,1)
     endif
   enddo
 

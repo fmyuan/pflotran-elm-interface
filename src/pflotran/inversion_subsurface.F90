@@ -566,6 +566,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
     call InversionTSAuxDestroy(cur_inversion_ts_aux)
     ! point cur_inversion_ts_aux to the end of the list
     cur_inversion_ts_aux => prev_inversion_ts_aux
+    this%inversion_aux%max_ts = cur_inversion_ts_aux%timestep
   endif
 
   ! work backward through list
@@ -640,6 +641,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   PetscInt :: icell_measurement
   Vec :: work
   Vec :: p
+  Vec :: rhs
   ! derivative of residual at k+1 time level wrt unknown at k time level
   ! times lambda at k time level
   Vec :: dReskp1_duk_lambdak
@@ -663,6 +665,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
 
   work = this%realization%field%work ! DO NOT DESTROY!
   call VecDuplicate(work,p,ierr);CHKERRQ(ierr)
+  call VecDuplicate(work,rhs,ierr);CHKERRQ(ierr)
   call VecDuplicate(work,dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
@@ -676,32 +679,33 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   call KSPSetOperators(solver%ksp,inversion_ts_aux%dResdu, &
                        inversion_ts_aux%dResdu,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(this%imeasurement)
-    call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
-    if (option%myrank == 0) then
-      tempreal = 1.d0
-      icell_measurement = this%imeasurement(imeasurement)
-      call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
-                       INSERT_VALUES,ierr);CHKERRQ(ierr)
-    endif
-    call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
-    call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
-    call DiscretizationNaturalToGlobal(discretization,natural_vec,p,ONEDOF)
-    if (this%debug_verbosity > 2) then
-      if (OptionPrintToScreen(option)) print *, 'p'
-      call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
-    endif
-    if (associated(inversion_ts_aux%next)) then
+    if (inversion_aux%max_ts == inversion_ts_aux%timestep) then
+      call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+      if (option%myrank == 0) then
+        tempreal = 1.d0
+        icell_measurement = this%imeasurement(imeasurement)
+        call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
+                        INSERT_VALUES,ierr);CHKERRQ(ierr)
+      endif
+      call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+      call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+      call DiscretizationNaturalToGlobal(discretization,natural_vec,p,ONEDOF)
+      if (this%debug_verbosity > 2) then
+        if (OptionPrintToScreen(option)) print *, 'p'
+        call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+      endif
+      call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
+    else
+      call VecZeroEntries(p,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
       vec_ptr(:) = inversion_ts_aux%next%dRes_du_k(:)
       call VecRestoreArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
       call VecPointwiseMult(dReskp1_duk_lambdak,dReskp1_duk_lambdak, &
                             inversion_ts_aux%next%lambda(imeasurement), &
                             ierr);CHKERRQ(ierr)
-    else
-      call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
     endif
-    call VecAXPY(p,1.d0,dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
-    call KSPSolveTranspose(solver%ksp,p, &
+    call VecWAXPY(rhs,-1.d0,dReskp1_duk_lambdak,p,ierr);CHKERRQ(ierr)
+    call KSPSolveTranspose(solver%ksp,rhs, &
                            inversion_ts_aux%lambda(imeasurement), &
                            ierr);CHKERRQ(ierr)
     if (this%debug_verbosity > 2) then
@@ -718,6 +722,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
     endif
   enddo
   call VecDestroy(p,ierr);CHKERRQ(ierr)
+  call VecDestroy(rhs,ierr);CHKERRQ(ierr)
   call VecDestroy(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
@@ -835,6 +840,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
                         vec_ptr(iparameter),ADD_VALUES,ierr);CHKERRQ(ierr)
       enddo
       call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
     endif
   enddo
   call timer2%Stop()

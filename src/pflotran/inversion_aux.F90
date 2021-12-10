@@ -10,6 +10,7 @@ module Inversion_Aux_module
   private
 
   type, public :: inversion_aux_type
+    PetscInt :: max_ts
     Mat :: JsensitivityT
     Mat :: M ! solely a pointer
     Vec :: solution ! solely a pointer
@@ -41,6 +42,7 @@ function InversionAuxCreate()
   nullify(aux%cell_to_bc_connection)
   nullify(aux%inversion_ts_aux_list)
 
+  aux%max_ts = UNINITIALIZED_INTEGER
   aux%M = PETSC_NULL_MAT
   aux%solution = PETSC_NULL_VEC
 
