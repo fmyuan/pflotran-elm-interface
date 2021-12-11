@@ -127,6 +127,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
 
   PetscReal :: porosity
   PetscReal :: volume_over_dt
+  PetscReal :: tempreal
 
   Res = 0.d0
   Jac = 0.d0
@@ -141,14 +142,15 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   ! accumulation term units = m^3 liquid/s
   ! Res[m^3 liquid/sec] = sat[m^3 liquid/m^3 void] * por[m^3 void/m^3 bulk] *
   !                       vol[m^3 bulk] / dt[sec]
-  Res(1) = zflow_auxvar%sat * porosity * volume_over_dt * zflow_density_kmol
+  tempreal = volume_over_dt * zflow_density_kmol
+  Res(1) = zflow_auxvar%sat * porosity * tempreal
 
   if (calculate_derivatives) then
-    Jac(1,1) = Res(1) / zflow_auxvar%sat * zflow_auxvar%dsat_dp + &
-               Res(1) / porosity * zflow_auxvar%dpor_dp
+    Jac(1,1) = tempreal * (zflow_auxvar%dsat_dp * porosity + &
+                           zflow_auxvar%sat * zflow_auxvar%dpor_dp)
     if (zflow_calc_adjoint) then
       if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
-        dResdpor(1) = Res(1)/porosity
+        dResdpor(1) = tempreal * zflow_auxvar%sat
       endif
     endif
   endif
@@ -269,7 +271,8 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
             tempreal = area * zflow_density_kmol * kr * gravity_term
             drhsdKup(1) = dperm_ave_dKup * tempreal
             drhsdKdn(1) = dperm_ave_dKdn * tempreal
-            tempreal = Res(1) / perm_ave_over_dist_visc
+!            tempreal = Res(1) / perm_ave_over_dist_visc
+            tempreal = kr * delta_pressure * area * zflow_density_kmol
             dResdKup(1) = tempreal * dperm_ave_dKup
             dResdKdn(1) = tempreal * dperm_ave_dKdn
           endif
@@ -419,7 +422,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
           dJdndKdn(1) = dperm_dK * tempreal
           tempreal = area * zflow_density_kmol * kr
           drhsdKdn(1) = tempreal * (boundary_pressure + gravity_term) * dperm_dK
-          dResdKdn(1) = Res(1) / perm_ave_over_dist_visc * dperm_dK
+!          dResdKdn(1) = Res(1) / perm_ave_over_dist_visc * dperm_dK
+          dResdKdn(1) = tempreal * delta_pressure * dperm_dK
         endif
       endif
     endif

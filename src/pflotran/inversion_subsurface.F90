@@ -777,8 +777,10 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   Vec :: work
   Vec :: work_loc, lambda_loc
   Vec :: dResdKLambda
+  PetscViewer :: viewer
   class(timer_type), pointer :: timer
   class(timer_type), pointer :: timer2
+  character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 
   nullify(vec_ptr)
@@ -808,6 +810,14 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
     call DiscretizationGlobalToLocal(discretization, &
                                      inversion_ts_aux%solution, &
                                      work_loc,ONEDOF)
+  else
+    if (this%debug_adjoint) then
+      string = 'dResdK_ts'//trim(StringWrite(inversion_ts_aux%timestep))//'.txt'
+      call PetscViewerASCIIOpen(option%mycomm,string, &
+                                viewer,ierr);CHKERRQ(ierr)
+      call MatView(inversion_ts_aux%dResdK,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
   endif
 
   call timer2%Start()
@@ -831,6 +841,16 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
                  ' : ' // trim(StringWrite(this%imeasurement(imeasurement)))
       endif
     else
+      if (this%debug_adjoint) then
+        string = 'lambda_ts'//trim(StringWrite(inversion_ts_aux%timestep)) // &
+                 '_' // trim(StringWrite(this%imeasurement(imeasurement))) // &
+                 '.txt'
+        call PetscViewerASCIIOpen(option%mycomm,string, &
+                                  viewer,ierr);CHKERRQ(ierr)
+        call VecView(inversion_ts_aux%lambda(imeasurement),viewer, &
+                     ierr);CHKERRQ(ierr)
+        call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+      endif
       call VecDuplicate(work,dResdKLambda,ierr);CHKERRQ(ierr)
       call MatMultTranspose(inversion_ts_aux%dResdK, &
                             inversion_ts_aux%lambda(imeasurement), &
