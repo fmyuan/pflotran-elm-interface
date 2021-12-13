@@ -6,12 +6,11 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE ZFLOW
       OPTIONS
-        STEADY_STATE
       /
     /
   /
 END
 
 SUBSURFACE
-  EXTERNAL_FILE 3x3x3.txt
+  EXTERNAL_FILE 3x1x3_transient.txt
 END_SUBSURFACE

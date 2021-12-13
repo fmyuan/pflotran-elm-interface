@@ -23,6 +23,7 @@ module Inversion_Subsurface_class
     PetscInt, pointer :: imeasurement(:)
     PetscInt :: measurement_offset
     PetscInt :: iqoi(2)
+    PetscInt :: iobsfunc
     PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest
     Vec :: ref_quantity_of_interest
@@ -94,6 +95,7 @@ subroutine InversionSubsurfaceInit(this,driver)
 
   this%quantity_of_interest = PETSC_NULL_VEC
   this%iqoi = UNINITIALIZED_INTEGER
+  this%iobsfunc = UNINITIALIZED_INTEGER
   this%n_qoi_per_cell = UNINITIALIZED_INTEGER
   this%measurement_vec = PETSC_NULL_VEC
   this%ref_quantity_of_interest = PETSC_NULL_VEC
@@ -171,7 +173,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   use Option_module
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
-                               PERMEABILITY, POROSITY
+                               PERMEABILITY, POROSITY, &
+                               LIQUID_PRESSURE, LIQUID_SATURATION
   use Material_Aux_class, only : POROSITY_BASE
   use Utility_module
 
@@ -213,13 +216,26 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
           this%iqoi(2) = POROSITY_BASE
         case default
           call InputKeywordUnrecognized(input,word,trim(error_string)// &
-                                        & ',QUANTITY_OF_INTEREST',option)
+                                        & ','//trim(keyword),option)
       end select
     case('REFERENCE_QUANTITY_OF_INTEREST')
       call InputReadNChars(input,option,this%ref_qoi_dataset_name, &
                            MAXWORDLENGTH,PETSC_TRUE)
       call InputErrorMsg(input,option,'DATASET NAME', &
                          keyword)
+    case('OBSERVATION_FUNCTION')
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call StringToUpper(word)
+      select case(word)
+        case('LIQUID_PRESSURE')
+          this%iobsfunc = LIQUID_PRESSURE
+        case('LIQUID_SATURATION')
+          this%iobsfunc = LIQUID_SATURATION
+        case default
+          call InputKeywordUnrecognized(input,word,trim(error_string)// &
+                                        & ','//trim(keyword),option)
+      end select
     case('MEASUREMENTS')
       string = trim(error_string)//keyword
       i = 10
@@ -281,14 +297,10 @@ subroutine InversionSubsurfInitialize(this)
 
   class(inversion_subsurface_type) :: this
 
-  type(coupler_type), pointer :: boundary_condition
-  type(connection_set_type), pointer :: cur_connection_set
   type(patch_type), pointer :: patch
   type(inversion_ts_aux_type), pointer :: inversion_ts_aux
-  PetscInt :: local_id
-  PetscInt :: iconn
   PetscInt :: i
-  PetscInt :: sum_connection, sum_connection2
+  PetscInt :: sum_connection
   PetscInt :: num_measurements, num_measurements_local
   PetscInt :: num_parameters_local, num_parameters_global
   PetscInt, allocatable :: int_array(:)
@@ -627,6 +639,8 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   use Solver_module
   use String_module
   use Timer_class
+  use ZFlow_Aux_module
+  use Variables_module
 
   use PM_Base_class
   use PM_ZFlow_class
@@ -640,6 +654,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(solver_type), pointer :: solver
+  type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal :: tempreal
   PetscInt :: imeasurement
@@ -663,6 +678,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   patch => this%realization%patch
   grid => patch%grid
   inversion_aux => this%inversion_aux
+  zflow_auxvars => patch%aux%ZFlow%auxvars
 
   timer => TimerCreate()
 
@@ -687,8 +703,13 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
     if (inversion_aux%max_ts == inversion_ts_aux%timestep) then
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (option%myrank == 0) then
-        tempreal = -1.d0
         icell_measurement = this%imeasurement(imeasurement)
+        select case(this%iobsfunc)
+          case(LIQUID_PRESSURE)
+            tempreal = -1.d0
+          case(LIQUID_SATURATION)
+            tempreal = -zflow_auxvars(0,icell_measurement)%dsat_dp
+        end select
         call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
                         INSERT_VALUES,ierr);CHKERRQ(ierr)
       endif

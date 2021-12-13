@@ -314,7 +314,7 @@ subroutine InversionPerturbationFillRow(this,iteration)
 
   call RealizationGetVariable(this%realization, &
                               this%realization%field%work, &
-                            LIQUID_PRESSURE,ZERO_INTEGER)
+                              this%iobsfunc,ZERO_INTEGER)
   call VecScatterBegin(this%scatter_global_to_measurement, &
                        this%realization%field%work, &
                        this%measurement_vec, &
