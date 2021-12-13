@@ -43,6 +43,8 @@ module ZFlow_Aux_module
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_ACCUM = 1
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_BOUNDARY = 2
 
+  PetscInt, parameter, public :: ZFLOW_LIQ_SAT_WRT_LIQ_PRES = 1
+
   PetscInt, parameter, public :: ZFLOW_ADJOINT_PERMEABILITY = 1
   PetscInt, parameter, public :: ZFLOW_ADJOINT_POROSITY = 2
   PetscBool, public :: zflow_calc_adjoint = PETSC_FALSE

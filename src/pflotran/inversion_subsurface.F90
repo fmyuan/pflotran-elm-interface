@@ -636,6 +636,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   use Grid_module
   use Option_module
   use Patch_module
+  use Realization_Base_class
   use Solver_module
   use String_module
   use Timer_class
@@ -704,18 +705,20 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (option%myrank == 0) then
         icell_measurement = this%imeasurement(imeasurement)
-        select case(this%iobsfunc)
-          case(LIQUID_PRESSURE)
-            tempreal = -1.d0
-          case(LIQUID_SATURATION)
-            tempreal = -zflow_auxvars(0,icell_measurement)%dsat_dp
-        end select
+        tempreal = -1.d0
         call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
                         INSERT_VALUES,ierr);CHKERRQ(ierr)
       endif
       call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
       call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
       call DiscretizationNaturalToGlobal(discretization,natural_vec,p,ONEDOF)
+      select case(this%iobsfunc)
+        case(LIQUID_PRESSURE)
+        case(LIQUID_SATURATION)
+          call RealizationGetVariable(this%realization,work,DERIVATIVE, &
+                                      ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
+          call VecPointwiseMult(p,p,work,ierr);CHKERRQ(ierr)
+      end select
       if (this%debug_verbosity > 2) then
         if (OptionPrintToScreen(option)) print *, 'p'
         call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)

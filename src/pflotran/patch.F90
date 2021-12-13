@@ -4765,7 +4765,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
-         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
+         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,DERIVATIVE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
 
       if (associated(patch%aux%TH)) then
@@ -4959,6 +4959,18 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               vec_ptr(local_id) = &
                 patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%sat
             enddo
+          case(DERIVATIVE)
+            select case(isubvar)
+              case(ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
+                do local_id=1,grid%nlmax
+                  vec_ptr(local_id) = &
+                    patch%aux%ZFlow%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%dsat_dp
+                enddo
+              case default
+                call PatchUnsupportedVariable('ZFLOW','DERIVATIVE', &
+                                              isubvar,option)
+            end select
           case default
             call PatchUnsupportedVariable('ZFLOW',ivar,option)
         end select
@@ -6170,7 +6182,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
-      enddo      
+      enddo
     case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
@@ -7925,7 +7937,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       do local_id=1,grid%nlmax
         patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar) = &
           vec_ptr(local_id)
-      enddo      
+      enddo
     case(PROCESS_ID)
       call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
