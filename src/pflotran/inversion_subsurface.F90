@@ -330,8 +330,8 @@ subroutine InversionSubsurfInitialize(this)
                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                     this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
     !TODO(geh): compress the mappings
-    call GridMapCellsToConnections(patch%grid, &
-                               this%inversion_aux%cell_to_internal_connection)
+    !call GridMapCellsToConnections(patch%grid, &
+    !                           this%inversion_aux%cell_to_internal_connection)
 
     ! create inversion_ts_aux for first time step
     nullify(inversion_ts_aux) ! must pass in null object
@@ -341,18 +341,20 @@ subroutine InversionSubsurfInitialize(this)
       this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
 
     this%inversion_aux%inversion_ts_aux_list => inversion_ts_aux
-    sum_connection = &
-      ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
-    sum_connection2 = &
-      CouplerGetNumConnectionsInList(patch%boundary_condition_list)
     call InvTSAuxAllocate(inversion_ts_aux,patch%grid%nlmax)
+
+#if 0
     if (this%local_adjoint) then
+      sum_connection = &
+        ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
+      sum_connection2 = &
+        CouplerGetNumConnectionsInList(patch%boundary_condition_list)
       ! set up pointer to solution vec
       inversion_ts_aux%mat_vec_solution_ptr%solution = &
         this%realization%field%flow_xx
+! the old flux approach
       call InvTSAuxAllocateFluxCoefArrays(inversion_ts_aux,sum_connection, &
                                           sum_connection2)
-
       allocate(int_array(patch%grid%nlmax))
       int_array = 0
       boundary_condition => patch%boundary_condition_list%first
@@ -389,6 +391,7 @@ subroutine InversionSubsurfInitialize(this)
         boundary_condition => boundary_condition%next
       enddo
     endif
+#endif
 
     ! map measurement vec to the solution vector
     if (this%driver%comm%myrank == 0) then
@@ -779,7 +782,6 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   Vec :: dResdKLambda
   PetscViewer :: viewer
   class(timer_type), pointer :: timer
-  class(timer_type), pointer :: timer2
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 
@@ -798,74 +800,43 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   inversion_aux => this%inversion_aux
 
   timer => TimerCreate()
-  timer2 => TimerCreate()
 
   call timer%Start()
 
   work = this%realization%field%work ! DO NOT DESTROY!
 
-  if (this%local_adjoint) then
-    work_loc = this%realization%field%work_loc ! DO NOT DESTROY!
-    call VecDuplicate(work_loc,lambda_loc,ierr);CHKERRQ(ierr)
-    call DiscretizationGlobalToLocal(discretization, &
-                                     inversion_ts_aux%solution, &
-                                     work_loc,ONEDOF)
-  else
-    if (this%debug_adjoint) then
-      string = 'dResdK_ts'//trim(StringWrite(inversion_ts_aux%timestep))//'.txt'
-      call PetscViewerASCIIOpen(option%mycomm,string, &
-                                viewer,ierr);CHKERRQ(ierr)
-      call MatView(inversion_ts_aux%dResdK,viewer,ierr);CHKERRQ(ierr)
-      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    endif
+  if (this%debug_adjoint) then
+    string = 'dResdK_ts'//trim(StringWrite(inversion_ts_aux%timestep))//'.txt'
+    call PetscViewerASCIIOpen(option%mycomm,string, &
+                              viewer,ierr);CHKERRQ(ierr)
+    call MatView(inversion_ts_aux%dResdK,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  call timer2%Start()
   do imeasurement = 1, size(this%imeasurement)
-    if (this%local_adjoint) then
-      call DiscretizationGlobalToLocal(discretization, &
-                                       inversion_ts_aux%lambda(imeasurement), &
-                                       lambda_loc,ONEDOF)
-      call VecGetArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(work_loc,vec_ptr2,ierr);CHKERRQ(ierr) ! solution_loc
-      do iparameter = 1, grid%nlmax
-        call InvSubsrfBMinusSM(this,iparameter,vec_ptr,vec_ptr2,tempreal)
-        natural_id = grid%nG2A(grid%nL2G(iparameter))
-        call MatSetValue(inversion_aux%JsensitivityT,natural_id-1,imeasurement-1, &
-                         -tempreal,ADD_VALUES,ierr);CHKERRQ(ierr)
-      enddo
-      call VecRestoreArrayF90(lambda_loc,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(work_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      if (this%debug_adjoint) then
-        print *, 'adjoint for measurement: ' // trim(StringWrite(imeasurement)) // &
-                 ' : ' // trim(StringWrite(this%imeasurement(imeasurement)))
-      endif
-    else
-      if (this%debug_adjoint) then
-        string = 'lambda_ts'//trim(StringWrite(inversion_ts_aux%timestep)) // &
-                 '_' // trim(StringWrite(this%imeasurement(imeasurement))) // &
-                 '.txt'
-        call PetscViewerASCIIOpen(option%mycomm,string, &
-                                  viewer,ierr);CHKERRQ(ierr)
-        call VecView(inversion_ts_aux%lambda(imeasurement),viewer, &
-                     ierr);CHKERRQ(ierr)
-        call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-      endif
-      call VecDuplicate(work,dResdKLambda,ierr);CHKERRQ(ierr)
-      call MatMultTranspose(inversion_ts_aux%dResdK, &
-                            inversion_ts_aux%lambda(imeasurement), &
-                            dResdKLambda,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
-      do iparameter = 1, grid%nlmax
-        natural_id = grid%nG2A(grid%nL2G(iparameter))
-        call MatSetValue(inversion_aux%JsensitivityT,natural_id-1,imeasurement-1, &
-                        vec_ptr(iparameter),ADD_VALUES,ierr);CHKERRQ(ierr)
-      enddo
-      call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
+    if (this%debug_adjoint) then
+      string = 'lambda_ts'//trim(StringWrite(inversion_ts_aux%timestep)) // &
+                '_' // trim(StringWrite(this%imeasurement(imeasurement))) // &
+                '.txt'
+      call PetscViewerASCIIOpen(option%mycomm,string, &
+                                viewer,ierr);CHKERRQ(ierr)
+      call VecView(inversion_ts_aux%lambda(imeasurement),viewer, &
+                    ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
     endif
+    call VecDuplicate(work,dResdKLambda,ierr);CHKERRQ(ierr)
+    call MatMultTranspose(inversion_ts_aux%dResdK, &
+                          inversion_ts_aux%lambda(imeasurement), &
+                          dResdKLambda,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
+    do iparameter = 1, grid%nlmax
+      natural_id = grid%nG2A(grid%nL2G(iparameter))
+      call MatSetValue(inversion_aux%JsensitivityT,natural_id-1,imeasurement-1, &
+                      vec_ptr(iparameter),ADD_VALUES,ierr);CHKERRQ(ierr)
+    enddo
+    call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
   enddo
-  call timer2%Stop()
 
   if (lambda_loc /= PETSC_NULL_VEC) then
     call VecDestroy(lambda_loc,ierr);CHKERRQ(ierr)
@@ -877,17 +848,10 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   call timer%Stop()
   option%io_buffer = '    ' // &
     trim(StringWrite('(f20.1)',timer%GetCumulativeTime()))
-  tempreal = timer2%GetCumulativeTime()
-  if (tempreal > 1.d-40) then
-    option%io_buffer = trim(option%io_buffer) // &
-      '    (' // &
-      trim(StringWrite('(f20.1)',tempreal)) // ')'
-  endif
   option%io_buffer = trim(option%io_buffer) // &
     ' seconds to build Jsensitivity.'
   call PrintMsg(option)
   call TimerDestroy(timer)
-  call TimerDestroy(timer2)
 
 end subroutine InvSubsurfAddSensitivity
 

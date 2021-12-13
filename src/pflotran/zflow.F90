@@ -654,24 +654,16 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscInt :: icc_up, icc_dn
   PetscReal :: Res(1)
   PetscReal :: Jup(1,1),Jdn(1,1)
-  PetscReal :: dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1)
-  PetscReal :: drhsdKup(1),drhsdKdn(1)
   PetscReal :: dResdKup(1),dResdKdn(1)
   PetscReal :: dResdpor(1)
   Mat :: dResdK
-  PetscBool :: store_dflux
   PetscBool :: store_adjoint
   PetscReal :: v_darcy(1)
 
-  dJupdKup = 0.d0
-  dJupdKdn = 0.d0
-  dJdndKdn = 0.d0
-  dJdndKup = 0.d0
-  drhsdKup = 0.d0
-  drhsdKdn = 0.d0
-  dResdKup = 0.d0
-  dResdKdn = 0.d0
-  dResdpor = 0.d0
+  dResdK = PETSC_NULL_MAT
+  dResdKup = UNINITIALIZED_DOUBLE  ! to catch bugs
+  dResdKdn = UNINITIALIZED_DOUBLE
+  dResdpor = UNINITIALIZED_DOUBLE
 
   discretization => realization%discretization
   option => realization%option
@@ -687,15 +679,11 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
-  store_dflux = PETSC_FALSE
   store_adjoint = PETSC_FALSE
   dResdK = PETSC_NULL_MAT
   if (zflow_simult_function_evals) then
     call MatZeroEntries(A,ierr);CHKERRQ(ierr)
     if (associated(patch%aux%inversion_ts_aux)) then
-      if (associated(patch%aux%inversion_ts_aux%dFluxdIntConn)) then
-        store_dflux = PETSC_TRUE
-      endif
       dResdK = patch%aux%inversion_ts_aux%dResdK
       if (dResdK /= PETSC_NULL_MAT) then
         store_adjoint = PETSC_TRUE
@@ -809,8 +797,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                     cur_connection_set%dist(:,iconn), &
                     zflow_parameter,option,v_darcy, &
                     Res,Jup,Jdn, &
-                    dJupdKup,dJupdKdn,dJdndKup,dJdndKdn, &
-                    drhsdKup,drhsdKdn, &
                     dResdKup,dResdKdn, &
                     zflow_simult_function_evals)
         if (zflow_numerical_derivatives) then
@@ -828,12 +814,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         patch%internal_velocities(:,sum_connection) = v_darcy
         if (associated(patch%internal_flow_fluxes)) then
           patch%internal_flow_fluxes(:,sum_connection) = Res(:)
-        endif
-
-        if (store_dflux) then
-          patch%aux%inversion_ts_aux%dFluxdIntConn(:,sum_connection) = &
-            [dJupdKup(1),dJupdKdn(1),dJdndKup(1),dJdndKdn(1), &
-             drhsdKup(1),drhsdKdn(1)]
         endif
 
         if (local_id_up > 0) then
@@ -917,7 +897,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                       cur_connection_set%dist(:,iconn), &
                       zflow_parameter,option, &
                       v_darcy,Res,Jdn, &
-                      dJdndKdn,drhsdKdn,dResdKdn, &
+                      dResdKdn, &
                       zflow_simult_function_evals)
         if (zflow_numerical_derivatives) then
           call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
@@ -953,12 +933,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             dResdKdn = -dResdKdn
             call MatSetValuesBlockedLocal(dResdK,1,ghosted_id-1,1,ghosted_id-1, &
                                           dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-          endif
-          if (store_dflux) then
-            dJdndKdn = -dJdndKdn
-            ! no need to flip sign on rhs since downwind
-            patch%aux%inversion_ts_aux%dFluxdBCConn(:,sum_connection) = &
-              [dJdndKdn(1),drhsdKdn(1)]
           endif
         endif
       enddo
