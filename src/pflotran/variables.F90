@@ -164,4 +164,11 @@ module Variables_module
 
   PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
 
+<<<<<<< HEAD
+=======
+  PetscInt, parameter, public :: DARCY_VELOCITY          = 130
+
+  PetscInt, parameter, public :: DERIVATIVE              = 131
+
+>>>>>>> refactored saturation observation to work in parallel
 end module Variables_module
