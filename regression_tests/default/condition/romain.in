@@ -123,22 +123,22 @@ END
 
 #======================= flow conditions ===============================
 FLOW_CONDITION initial
-UNITS Pa, C, yr
-TYPE
-PRESSURE DIRICHLET
-TEMPERATURE DIRICHLET
-/
-PRESSURE 1.D5
-TEMPERATURE DATASET Temperature
+  UNITS Pa, C, yr
+  TYPE
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  PRESSURE 1.D5
+  TEMPERATURE DATASET Temperature
 END
 
 FLOW_CONDITION top_c
-TYPE
-PRESSURE DIRICHLET
-TEMPERATURE DIRICHLET
-/
-PRESSURE 1.D5
-TEMPERATURE -5.D0
+  TYPE
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  PRESSURE 1.D5
+  TEMPERATURE -5.D0
 END
 
 #========================== initial and boundary conditions =================
