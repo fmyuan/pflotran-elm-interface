@@ -99,25 +99,25 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 8.d0
   GRADIENT 
-#    PRESSURE -0.3d0 0.d0 0.d0
-#    PRESSURE -1.d-3 0.d0 0.d0
+#    LIQUID_PRESSURE -0.3d0 0.d0 0.d0
+#    LIQUID_PRESSURE -1.d-3 0.d0 0.d0
   /
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 8.d0
   GRADIENT 
-    PRESSURE -0.3d0 0.d0 0.d0
+    LIQUID_PRESSURE -0.3d0 0.d0 0.d0
   /
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 #=========================== condition couplers ===============================

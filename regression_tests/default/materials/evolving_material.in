@@ -132,18 +132,18 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 201325.d0
+  LIQUID_PRESSURE 201325.d0
 END
 
 FLOW_CONDITION inlet
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 202736.76144d0
-#  PRESSURE 202736.79
-#  PRESSURE 301325.d0  ! 3.5416e1 m/y darcy
+  LIQUID_PRESSURE 202736.76144d0
+#  LIQUID_PRESSURE 202736.79
+#  LIQUID_PRESSURE 301325.d0  ! 3.5416e1 m/y darcy
 END
 
 #=========================== transport conditions =============================

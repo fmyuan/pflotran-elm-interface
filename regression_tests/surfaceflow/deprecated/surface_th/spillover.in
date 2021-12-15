@@ -56,34 +56,34 @@ END
 !=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
   TEMPERATURE 10.d0
 END
 FLOW_CONDITION from_surface
   TYPE
-    PRESSURE heterogeneous_surface_seepage
+    LIQUID_PRESSURE heterogeneous_surface_seepage
     TEMPERATURE HETEROGENEOUS_DIRICHLET
   /
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
   TEMPERATURE 10.d0 
 END
 FLOW_CONDITION from_atm_subsurface
   TYPE
-    PRESSURE neumann
+    LIQUID_PRESSURE neumann
     TEMPERATURE HETEROGENEOUS_DIRICHLET
   /
-  FLUX 0.d0
+  LIQUID_FLUX 0.d0
   TEMPERATURE 10.d0 
 END
 FLOW_CONDITION leaky
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  PRESSURE 160074.d0
+  LIQUID_PRESSURE 160074.d0
   TEMPERATURE 10.d0 
 END
 !=========================== condition couplers ===============================
@@ -206,19 +206,19 @@ SURF_FLOW_CONDITION atm_energy_forcing
 END
 SURF_FLOW_CONDITION surf_initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
   TEMPERATURE 10.d0
 END
 SURF_FLOW_CONDITION surf_outlet
   TYPE
-    PRESSURE spillover
+    LIQUID_PRESSURE spillover
     TEMPERATURE DIRICHLET
   /
   ! when the surface water depth is above this number [m], outflow will occur
-  PRESSURE 0.1d0
+  LIQUID_PRESSURE 0.1d0
   TEMPERATURE 10.d0
 END
 !=========================== condition couplers ===============================

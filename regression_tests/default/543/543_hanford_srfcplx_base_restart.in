@@ -468,18 +468,18 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
   GRADIENT
-    PRESSURE -1.6666667d-2 0.d0 0.d0
+    LIQUID_PRESSURE -1.6666667d-2 0.d0 0.d0
   /
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 END
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   INTERPOLATION LINEAR
   DATUM LIST
@@ -489,14 +489,14 @@ FLOW_CONDITION east
     50.d0 0.d0 0.d0 33.d0
     100.d0 0.d0 0.d0 34.d0
   /
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 END
 
 FLOW_CONDITION recharge
   TYPE
-    FLUX neumann
+    LIQUID_FLUX neumann
   /
-  FLUX 5.d0 cm/yr
+  LIQUID_FLUX 5.d0 cm/yr
 END
 
 FLOW_CONDITION injection_well

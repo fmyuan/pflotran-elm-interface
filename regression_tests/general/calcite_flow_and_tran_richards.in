@@ -148,16 +148,16 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_pressure
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 201325.d0
+  LIQUID_PRESSURE 201325.d0
 END
 
 FLOW_CONDITION recharge
   TYPE
-    FLUX neumann
+    LIQUID_FLUX neumann
   /
-  FLUX 1.d0 m/y
+  LIQUID_FLUX 1.d0 m/y
 END
 
 #=========================== transport conditions =============================
