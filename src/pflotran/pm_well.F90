@@ -65,6 +65,8 @@ module PM_Well_class
     PetscReal, pointer :: p(:) 
     ! well mixture velocity [m/s]   
     PetscReal, pointer :: vm(:)
+    ! well bottom of hole pressure BC flag
+    PetscBool :: bh_p_set_by_reservoir
     ! well bottom of hole pressure BC [Pa]
     PetscReal :: bh_p 
     ! well top of hole pressure BC [Pa]
@@ -132,6 +134,7 @@ module PM_Well_class
     !procedure, public :: Residual => PMWellResidual
     !procedure, public :: Jacobian => PMWellJacobian
     procedure, public :: PreSolve => PMWellPreSolve
+    procedure, public :: Solve => PMWellSolve
     procedure, public :: PostSolve => PMWellPostSolve
     procedure, public :: Destroy => PMWellDestroy
   end type pm_well_type
@@ -182,6 +185,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well%mixrho)
   nullify(PMWellCreate%well%p)
   nullify(PMWellCreate%well%vm)
+  PMWellCreate%well%bh_p_set_by_reservoir = PETSC_FALSE
   PMWellCreate%well%bh_p = UNINITIALIZED_DOUBLE
   PMWellCreate%well%th_p = UNINITIALIZED_DOUBLE
 
@@ -775,6 +779,9 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                       call InputReadDouble(input,option,this%well%bh_p)
                       if (InputError(input)) exit
                   !-----------------------------
+                    case('PRESSURE_SET_BY_RESERVOIR')
+                      this%well%bh_p_set_by_reservoir = PETSC_TRUE
+                  !-----------------------------
                     case('FLUX')
                   !-----------------------------
                     case default
@@ -818,17 +825,33 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
       call InputPopBlock(input,option)
 
       ! ----------------- error messaging -------------------------------------
-      if (Uninitialized(this%well%bh_p) .and. &
-          Uninitialized(this%well%th_p)) then
-        option%io_buffer = 'Keyword BOTTOM_OF_HOLE,PRESSURE or keyword &
-          &TOP_OF_HOLE,PRESSURE must be provided in the ' &
-          // trim(error_string) // ' block.'
+      if (Initialized(this%well%bh_p) .and. &
+          this%well%bh_p_set_by_reservoir) then
+        option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE or keyword &
+          &BOTTOM_OF_HOLE,PRESSURE_SET_BY_RESERVOIR must be provided in the ' &
+          // trim(error_string) // ' block, but NOT BOTH.'
         call PrintErrMsg(option)
+      endif
+      if (Uninitialized(this%well%th_p)) then
+        if (Uninitialized(this%well%bh_p) .and. &
+            .not.this%well%bh_p_set_by_reservoir)  then
+          option%io_buffer = 'Keyword BOTTOM_OF_HOLE,PRESSURE/PRESSURE_SET_&
+          &BY_RESERVOIR or keyword TOP_OF_HOLE,PRESSURE must be provided in &
+          &the ' // trim(error_string) // ' block.'
+          call PrintErrMsg(option) 
+        endif
       endif
       if (Initialized(this%well%bh_p) .and. Initialized(this%well%th_p)) then
         option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE or keyword &
           &TOP_OF_HOLE,PRESSURE must be provided in the ' &
           // trim(error_string) // ' block, but NOT BOTH.'
+        call PrintErrMsg(option)
+      endif
+      if (this%well%bh_p_set_by_reservoir .and. &
+          Initialized(this%well%th_p)) then
+        option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE_SET_BY_&
+          &RESERVOIR or keyword TOP_OF_HOLE,PRESSURE must be provided in &
+          &the ' // trim(error_string) // ' block, but NOT BOTH.'
         call PrintErrMsg(option)
       endif
 
@@ -838,8 +861,9 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
   !-------------------------------------
   end select
 
-  if (Uninitialized(this%well%bh_p)) this%soln%bh_p = PETSC_TRUE
-  if (Uninitialized(this%well%th_p)) this%soln%th_p = PETSC_TRUE
+  if (Initialized(this%well%bh_p)) this%soln%bh_p = PETSC_TRUE
+  if (this%well%bh_p_set_by_reservoir) this%soln%bh_p = PETSC_TRUE
+  if (Initialized(this%well%th_p)) this%soln%th_p = PETSC_TRUE
 
   end subroutine PMWellReadWellBCs
 
@@ -1007,21 +1031,6 @@ subroutine PMWellInitializeTimestep(this)
   ! update the reservoir object's pressure and saturations
   call PMWellUpdateReservoir(this)
 
-  call PMWellResidual(this)
-  ! the residual equations will include the src/sink term which will be
-  ! defined by the difference between p_res and p_well.
-
-  call PMWellJacobian(this)
-
-  ! use Newton's method to solve for the well pressure
-  call PMWellSolve(this)
-
-  ! update the well src/sink Q vector
-  call PMWellUpdateWellQ(this)
-
-  ! calculate the phase Darcy velocity
-  call PMWellCalcVelocity(this)
-
 end subroutine PMWellInitializeTimestep
 
 ! ************************************************************************** !
@@ -1061,6 +1070,9 @@ subroutine PMWellUpdateReservoir(this)
     ! note: the following other things available in wippflo_auxvar object:
     ! den, den_kg, xmol, kr, mu, effective_porosity, alpha, elevation,
     ! fracture_perm_scaling_factor, klinkenberg 
+    if ((k == 1) .and. this%well%bh_p_set_by_reservoir) then
+      this%well%bh_p = this%reservoir%p(k)
+    endif
   enddo
 
 end subroutine PMWellUpdateReservoir
@@ -1326,7 +1338,7 @@ end subroutine PMWellPreSolve
 
 ! ************************************************************************** !
 
-subroutine PMWellSolve(this)
+subroutine PMWellSolve(this,time,ierr)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 12/01/2021
@@ -1334,8 +1346,30 @@ subroutine PMWellSolve(this)
   implicit none
   
   class(pm_well_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: ierr
   
-  ! placeholder
+  PetscLogDouble :: log_start_time, log_end_time
+
+  ierr = 0
+  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+  
+  call PMWellResidual(this)
+  ! the residual equations will include the src/sink term which will be
+  ! defined by the difference between p_res and p_well.
+
+  call PMWellJacobian(this)
+
+  ! use Newton's method to solve for the well pressure
+  !call PMWellNewton(this)
+
+  ! update the well src/sink Q vector
+  call PMWellUpdateWellQ(this)
+
+  ! calculate the phase Darcy velocity
+  call PMWellCalcVelocity(this)
+
+  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
   
 end subroutine PMWellSolve
 

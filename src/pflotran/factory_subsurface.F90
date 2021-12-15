@@ -862,6 +862,12 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
                         &used with WIPP_FLOW mode at the moment.'
      call PrintErrMsg(option)
   endif
+  if ( (option%itranmode /= NULL_MODE) .and. &
+       (option%itranmode /= NWT_MODE) ) then
+       option%io_buffer = 'The WELLBORE_MODEL process model can only be &
+                        &used with NWT mode at the moment.'
+     call PrintErrMsg(option)
+  endif
 
   pmc_well => PMCThirdPartyCreate()
   call pmc_well%SetName(pmc_name)
@@ -875,9 +881,17 @@ subroutine AddPMCWell(simulation,pm_well,pmc_name,realization,input, &
   ! set up logging stage
   string = 'WELLBORE_MODEL'
   call LoggingCreateStage(string,pmc_well%stage)
-  call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_well),PM_CHILD, &
+
+  if ( (option%itranmode /= NULL_MODE) .and. &
+       (option%itranmode == NWT_MODE) ) then
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_well),PM_CHILD, &
+         PMCCastToBase(simulation%tran_process_model_coupler), &
+         pmc_dummy,PM_APPEND)
+  else
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_well),PM_CHILD, &
          PMCCastToBase(simulation%flow_process_model_coupler), &
          pmc_dummy,PM_APPEND)
+  endif 
 
 end subroutine AddPMCWell
 
