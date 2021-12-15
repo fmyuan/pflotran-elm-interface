@@ -88,12 +88,12 @@ END
 !======================= flow conditions ===============================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    LIQUID_PRESSURE hydrostatic
     TEMPERATURE dirichlet
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 3000.d0
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
   TEMPERATURE 100.D0
 END
 
@@ -108,10 +108,10 @@ END
 
 FLOW_CONDITION gflux
   TYPE
-   PRESSURE neumann
+   LIQUID_FLUX neumann
    ENERGY_FLUX neumann
   /
-  FLUX  0.D0
+  LIQUID_FLUX  0.D0
   ENERGY_FLUX 0.d0 MW/m^2
 END
 

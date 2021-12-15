@@ -90,18 +90,18 @@ END
 !=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    LIQUID_PRESSURE hydrostatic
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 3000.d0
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 FLOW_CONDITION transpiration
-TYPE
-RATE volumetric_rate
-/
-RATE 0.0d0
+  TYPE
+    RATE volumetric_rate
+  /
+  RATE 0.0d0
 END
 
 !=========================== condition couplers ===============================
