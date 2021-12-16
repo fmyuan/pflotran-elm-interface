@@ -355,6 +355,7 @@ subroutine PMWellSetup(this)
 
   this%soln%ndof = this%nphase + 1
 
+
 end subroutine PMWellSetup
 
 ! ************************************************************************** !
@@ -991,6 +992,8 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%reservoir%s_g(nsegments))
   allocate(this%reservoir%mobility_l(nsegments))
   allocate(this%reservoir%mobility_g(nsegments))
+
+  call PMWellOutputHeader(this)
   
 end subroutine PMWellInitializeRun
 
@@ -1113,7 +1116,7 @@ subroutine PMWellFinalizeTimestep(this)
   
   class(pm_well_type) :: this
 
-  ! placeholder
+  call PMWellOutput(this)
   
 end subroutine PMWellFinalizeTimestep
 
@@ -1348,7 +1351,7 @@ subroutine PMWellSolve(this,time,ierr)
   class(pm_well_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
-  
+
   PetscLogDouble :: log_start_time, log_end_time
 
   ierr = 0
@@ -1428,6 +1431,137 @@ subroutine PMWellCalcVelocity(this)
   ! placeholder
   
 end subroutine PMWellCalcVelocity
+
+! ************************************************************************** !
+
+function PMWellOutputFilename(option)
+  ! 
+  ! Generates a filename for wellbore model output
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/16/2021
+
+  use Option_module
+
+  implicit none
+  
+  type(option_type), pointer :: option
+
+  character(len=MAXSTRINGLENGTH) :: PMWellOutputFilename
+
+  PMWellOutputFilename = trim(option%global_prefix) // &
+                         trim(option%group_prefix) // '.well'
+  
+end function PMWellOutputFilename
+
+! ************************************************************************** !
+
+subroutine PMWellOutputHeader(this)
+  ! 
+  ! Writes the header for wellbore model output file.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/16/2021
+
+  use Output_Aux_module
+  use Grid_module
+  use Utility_module
+  
+  implicit none
+  
+  class(pm_well_type) :: this
+  
+  type(output_option_type), pointer :: output_option
+  type(grid_type), pointer :: grid
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXWORDLENGTH) :: units_string, variable_string
+  character(len=MAXSTRINGLENGTH) :: cell_string
+  PetscBool :: exist
+  PetscInt :: fid
+  PetscInt :: icolumn
+  PetscInt :: k
+  
+  output_option => this%realization%output_option
+  grid => this%realization%patch%grid
+
+  if (output_option%print_column_ids) then
+    icolumn = 1
+  else
+    icolumn = -1
+  endif 
+  
+  fid = 555
+  filename = PMWellOutputFilename(this%option)
+  exist = FileExists(trim(filename))
+  if (this%option%restart_flag .and. exist) return
+  open(unit=fid,file=filename,action="write",status="replace")  
+  
+  write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
+  cell_string = ''
+
+  do k = 1,this%grid%nsegments
+    variable_string = 'Seg.#'
+    units_string = ''
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'P'
+    units_string = 'Pa' 
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+  enddo
+  
+  close(fid)
+  
+end subroutine PMWellOutputHeader
+
+! ************************************************************************** !
+
+subroutine PMWellOutput(this)
+  ! 
+  ! Sets up output for the wellbore process model
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/16/2021
+
+  use Option_module
+  use Output_Aux_module
+  use Global_Aux_module
+  use Grid_module
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  
+  type(option_type), pointer :: option
+  type(output_option_type), pointer :: output_option
+  type(grid_type), pointer :: grid
+  character(len=MAXSTRINGLENGTH) :: filename
+  PetscInt :: fid
+  PetscInt :: k
+  
+100 format(100es18.8)
+101 format(1I6.1)
+
+  option => this%realization%option
+  output_option => this%realization%output_option
+  grid => this%realization%patch%grid
+  
+  fid = 555
+  filename = PMWellOutputFilename(option)
+  open(unit=fid,file=filename,action="write",status="old", &
+       position="append")
+
+  ! this time is set at the end of the wellbore step????
+  write(fid,100,advance="no") option%time / output_option%tconv
+
+  do k = 1,this%grid%nsegments
+    write(fid,101,advance="no") k
+    write(fid,100,advance="no") this%well%p(k) 
+  enddo
+  
+  close(fid)
+  
+end subroutine PMWellOutput
 
 ! ************************************************************************** !
 
