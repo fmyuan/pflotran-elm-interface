@@ -93,9 +93,9 @@ module WIPP_Flow_Aux_module
     !geh: leave xmol in object until analytical derivatives have been fixed.
     PetscReal :: xmol(2,2)
     PetscReal :: temp
-    PetscReal :: mobility(2) ! relative perm / kinematic viscosity
+    PetscReal :: mobility(2) ! relative perm / dynamic viscosity
     PetscReal :: kr(2) ! relative perm
-    PetscReal :: mu(2) ! kinematic viscosity
+    PetscReal :: mu(2) ! dynamic viscosity
     PetscReal :: effective_porosity ! factors in compressibility
     PetscReal :: pert
     PetscReal :: alpha

@@ -38,14 +38,28 @@ module PM_Well_class
   type :: well_reservoir_type
     ! reservoir pressure [Pa]    
     PetscReal, pointer :: p(:) 
-    ! reservoir liquid saturation
+    ! reservoir liquid saturation [-]
     PetscReal, pointer :: s_l(:)
-    ! reservoir gas saturation
+    ! reservoir gas saturation [-]
     PetscReal, pointer :: s_g(:)
     ! reservoir liquid mobility
     PetscReal, pointer :: mobility_l(:)
     ! reservoir gas mobility
     PetscReal, pointer :: mobility_g(:)
+    ! reservoir liquid relative permeability [-]
+    PetscReal, pointer :: kr_l(:)
+    ! reservoir gas relative permeability [-]
+    PetscReal, pointer :: kr_g(:)
+    ! reservoir liquid density [kg/m3]
+    PetscReal, pointer :: rho_l(:)
+    ! reservoir gas density [kg/m3]
+    PetscReal, pointer :: rho_g(:)
+    ! reservoir liquid dynamic viscosity [Pa-s]
+    PetscReal, pointer :: visc_l(:)
+    ! reservoir gas dynamic viscosity [Pa-s]
+    PetscReal, pointer :: visc_g(:)
+    ! reservoir effective porosity (factors in compressibility) [m3/m3]
+    PetscReal, pointer :: e_por(:)
   end type
 
   type :: well_type
@@ -196,6 +210,13 @@ function PMWellCreate()
   nullify(PMWellCreate%reservoir%s_g)
   nullify(PMWellCreate%reservoir%mobility_l)
   nullify(PMWellCreate%reservoir%mobility_g)
+  nullify(PMWellCreate%reservoir%kr_l)
+  nullify(PMWellCreate%reservoir%kr_g)
+  nullify(PMWellCreate%reservoir%rho_l)
+  nullify(PMWellCreate%reservoir%rho_g)
+  nullify(PMWellCreate%reservoir%visc_l)
+  nullify(PMWellCreate%reservoir%visc_g)
+  nullify(PMWellCreate%reservoir%e_por)
 
   ! create the fluid/liq objects:
   allocate(PMWellCreate%liq)
@@ -354,7 +375,6 @@ subroutine PMWellSetup(this)
   this%well%volume = this%well%area*this%grid%dh
 
   this%soln%ndof = this%nphase + 1
-
 
 end subroutine PMWellSetup
 
@@ -992,6 +1012,13 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%reservoir%s_g(nsegments))
   allocate(this%reservoir%mobility_l(nsegments))
   allocate(this%reservoir%mobility_g(nsegments))
+  allocate(this%reservoir%kr_l(nsegments))
+  allocate(this%reservoir%kr_g(nsegments))
+  allocate(this%reservoir%rho_l(nsegments))
+  allocate(this%reservoir%rho_g(nsegments))
+  allocate(this%reservoir%visc_l(nsegments))
+  allocate(this%reservoir%visc_g(nsegments))
+  allocate(this%reservoir%e_por(nsegments))
 
   call PMWellOutputHeader(this)
   
@@ -1070,9 +1097,16 @@ subroutine PMWellUpdateReservoir(this)
     this%reservoir%mobility_l(k) = &
       wippflo_auxvar%mobility(option%liquid_phase)
     this%reservoir%mobility_g(k) = wippflo_auxvar%mobility(option%gas_phase)
+    this%reservoir%kr_l(k) = wippflo_auxvar%kr(option%liquid_phase)
+    this%reservoir%kr_g(k) = wippflo_auxvar%kr(option%gas_phase)
+    this%reservoir%rho_l(k) = wippflo_auxvar%den_kg(option%liquid_phase)
+    this%reservoir%rho_g(k) = wippflo_auxvar%den_kg(option%gas_phase)
+    this%reservoir%visc_l(k) = wippflo_auxvar%mu(option%liquid_phase)
+    this%reservoir%visc_g(k) = wippflo_auxvar%mu(option%gas_phase)
+    this%reservoir%e_por(k) = wippflo_auxvar%effective_porosity
     ! note: the following other things available in wippflo_auxvar object:
-    ! den, den_kg, xmol, kr, mu, effective_porosity, alpha, elevation,
-    ! fracture_perm_scaling_factor, klinkenberg 
+    ! xmol, alpha, elevation, fracture_perm_scaling_factor, klinkenberg 
+
     if ((k == 1) .and. this%well%bh_p_set_by_reservoir) then
       this%well%bh_p = this%reservoir%p(k)
     endif
@@ -1508,6 +1542,14 @@ subroutine PMWellOutputHeader(this)
     units_string = 'Pa' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    variable_string = 'S-liq'
+    units_string = '-' 
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'S-gas'
+    units_string = '-' 
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
   enddo
   
   close(fid)
@@ -1556,7 +1598,9 @@ subroutine PMWellOutput(this)
 
   do k = 1,this%grid%nsegments
     write(fid,101,advance="no") k
-    write(fid,100,advance="no") this%well%p(k) 
+    write(fid,100,advance="no") this%well%p(k), &
+                                this%liq%s(k), &
+                                this%gas%s(k) 
   enddo
   
   close(fid)
@@ -1591,6 +1635,13 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%reservoir%s_g)
   call DeallocateArray(this%reservoir%mobility_l)
   call DeallocateArray(this%reservoir%mobility_g)
+  call DeallocateArray(this%reservoir%kr_l)
+  call DeallocateArray(this%reservoir%kr_g)
+  call DeallocateArray(this%reservoir%rho_l)
+  call DeallocateArray(this%reservoir%rho_g)
+  call DeallocateArray(this%reservoir%visc_l)
+  call DeallocateArray(this%reservoir%visc_g)
+  call DeallocateArray(this%reservoir%e_por)
   nullify(this%reservoir)
 
   call DeallocateArray(this%well%area)
