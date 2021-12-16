@@ -886,7 +886,7 @@ subroutine FlowConditionRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(trim(word))
-            case('LIQUID_PRESSURE')
+            case('LIQUID_PRESSURE','PRESSURE')
               sub_condition_ptr => pressure
             case('RATE')
               sub_condition_ptr => rate
@@ -894,11 +894,11 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => energy_rate
             case('WELL')
               sub_condition_ptr => well
-            case('LIQUID_FLUX')
+            case('LIQUID_FLUX','FLUX')
               sub_condition_ptr => flux
             case('ENERGY_FLUX')
               sub_condition_ptr => energy_flux
-            case('LIQUID_SATURATION')
+            case('LIQUID_SATURATION','SATURATION')
               sub_condition_ptr => saturation
             case('TEMPERATURE')
               sub_condition_ptr => temperature
@@ -906,8 +906,9 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => concentration
             case('ENTHALPY')
               sub_condition_ptr => enthalpy
-            case('PRESSURE','SATURATION','FLUX')
-              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
+! uncomment after release of v4.0
+!            case('PRESSURE','SATURATION','FLUX')
+!              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
             case default
               call InputKeywordUnrecognized(input,word,'condition,type',option)
           end select
@@ -1050,7 +1051,7 @@ subroutine FlowConditionRead(condition,input,option)
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           select case(trim(word))
-            case('LIQUID_PRESSURE')
+            case('LIQUID_PRESSURE','PRESSURE')
               sub_condition_ptr => pressure
               internal_units = 'Pa/meter'
             case('RATE')
@@ -1062,10 +1063,10 @@ subroutine FlowConditionRead(condition,input,option)
             case('WELL')
               sub_condition_ptr => well
               internal_units = 'Pa/meter'
-            case('LIQUID_FLUX')
+            case('LIQUID_FLUX','FLUX')
               sub_condition_ptr => flux
               internal_units = 'm/sec-m|unitless/sec'
-            case('LIQUID_SATURATION')
+            case('LIQUID_SATURATION','SATURATION')
               sub_condition_ptr => saturation
               internal_units = 'unitless/meter'
             case('TEMPERATURE')
@@ -1077,8 +1078,9 @@ subroutine FlowConditionRead(condition,input,option)
             case('ENTHALPY')
               sub_condition_ptr => enthalpy
               internal_units = 'kJ/mol-meter'
-            case('PRESSURE','SATURATION','FLUX')
-              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
+! uncomment after release of v4.0
+!            case('PRESSURE','SATURATION','FLUX')
+!              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
             case default
               call InputKeywordUnrecognized(input,word, &
                      'FLOW CONDITION,GRADIENT,TYPE',option)
@@ -1105,7 +1107,7 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  enthalpy%dataset, &
                                  enthalpy%units,internal_units)
-      case('LIQUID_PRESSURE')
+      case('LIQUID_PRESSURE','PRESSURE')
         internal_units = 'Pa'
         call ConditionReadValues(input,option,word, &
                                  pressure%dataset, &
@@ -1135,7 +1137,7 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  well%dataset, &
                                  well%units,internal_units)
-      case('LIQUID_FLUX')
+      case('LIQUID_FLUX','FLUX')
         internal_units = 'meter/sec'
         call ConditionReadValues(input,option,word, &
                                  pressure%dataset, &
@@ -1145,7 +1147,7 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  concentration%dataset, &
                                  concentration%units,internal_units)
-      case('LIQUID_SATURATION')
+      case('LIQUID_SATURATION','SATURATION')
         internal_units = 'unitless'
         call ConditionReadValues(input,option,word, &
                                  saturation%dataset, &
@@ -1153,8 +1155,9 @@ subroutine FlowConditionRead(condition,input,option)
       case('CONDUCTANCE')
         call InputReadDouble(input,option,pressure%aux_real(1))
         call InputErrorMsg(input,option,'CONDUCTANCE','CONDITION')
-      case('PRESSURE','SATURATION','FLUX')
-        call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
+! uncomment after release of v4.0
+!      case('PRESSURE','SATURATION','FLUX')
+!        call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
       case default
         call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
