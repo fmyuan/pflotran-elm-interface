@@ -269,5 +269,102 @@ contains
 
   end subroutine testUtility_Erf
 
+! ************************************************************************** !
+
+  @Test
+  subroutine testUtility_ReallocateArray(this)
+    !
+    ! Verify that reallocate array properly doubles arrays
+    !
+
+    use Utility_module, only : ReallocateArray
+
+    implicit none
+
+    class (Test_Utility), intent(inout) :: this
+
+    PetscInt :: i
+    PetscInt, pointer :: intarray(:), intarray2d(:,:)
+    PetscReal, pointer :: realarray(:), realarray2d(:,:)
+    PetscBool, pointer :: boolarray(:)
+    character(len=128) :: string
+
+
+    ! 1D integer
+    i = 100
+    allocate(intarray(i))
+    intarray = 1
+    call ReallocateArray(intarray)
+    string = 'ReallocateIntArray1 in Test_Utility_module, size'
+    @assertTrue(200 == size(intarray), string)
+    i = size(intarray)
+    call ReallocateArray(intarray,i)
+    string = 'ReallocateIntArray2 in Test_Utility_module, size'
+    @assertTrue(400 == size(intarray), string)
+    string = 'ReallocateIntArray2 in Test_Utility_module, i'
+    @assertTrue(400 == i, string)
+    deallocate(intarray)
+     
+    ! 2D integer
+    i = 100
+    allocate(intarray2d(100,i))
+    intarray2d = 1
+    call ReallocateArray(intarray2d)
+    string = 'ReallocateIntArray3 in Test_Utility_module, size2'
+    @assertTrue(200 == size(intarray2d,2), string)
+    i = size(intarray2d,2)
+    call ReallocateArray(intarray2d,i)
+    string = 'ReallocateIntArray4 in Test_Utility_module, size2'
+    @assertTrue(400 == size(intarray2d,2), string)
+    string = 'ReallocateIntArray4 in Test_Utility_module, i'
+    @assertTrue(400 == i, string)
+    string = 'ReallocateIntArray4 in Test_Utility_module, size1'
+    @assertTrue(100 == size(intarray2d,1), string)
+    deallocate(intarray2d)
+     
+    ! 1D double
+    i = 100
+    allocate(realarray(i))
+    realarray = 1
+    call ReallocateArray(realarray)
+    string = 'ReallocateRealArray1 in Test_Utility_module, size'
+    @assertTrue(200 == size(realarray), string)
+    i = size(realarray)
+    call ReallocateArray(realarray,i)
+    string = 'ReallocateRealArray2 in Test_Utility_module, size'
+    @assertTrue(400 == size(realarray), string)
+    string = 'ReallocateRealArray2 in Test_Utility_module, i'
+    @assertTrue(400 == i, string)
+    deallocate(realarray)
+     
+    ! 2D double
+    i = 100
+    allocate(realarray2d(100,i))
+    realarray2d = 1
+    call ReallocateArray(realarray2d)
+    string = 'ReallocateRealArray3 in Test_Utility_module, size2'
+    @assertTrue(200 == size(realarray2d,2), string)
+    i = size(realarray2d,2)
+    call ReallocateArray(realarray2d,i)
+    string = 'ReallocateRealArray4 in Test_Utility_module, size2'
+    @assertTrue(400 == size(realarray2d,2), string)
+    string = 'ReallocateRealArray4 in Test_Utility_module, i'
+    @assertTrue(400 == i, string)
+    string = 'ReallocateRealArray4 in Test_Utility_module, size1'
+    @assertTrue(100 == size(realarray2d,1), string)
+    deallocate(realarray2d)
+     
+    ! 1D boolean
+    i = 100
+    allocate(boolarray(i))
+    boolarray = PETSC_TRUE
+    call ReallocateArray(boolarray,i)
+    string = 'ReallocateBoolArray1 in Test_Utility_module, size'
+    @assertTrue(200 == size(boolarray), string)
+    string = 'ReallocateBoolArray1 in Test_Utility_module, i'
+    @assertTrue(200 == i, string)
+
+  end subroutine testUtility_ReallocateArray
+
 end module Test_Utility_module
 
