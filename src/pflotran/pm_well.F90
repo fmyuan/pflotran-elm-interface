@@ -263,6 +263,9 @@ subroutine PMWellSetup(this)
 
   use Option_module
   use Grid_module
+  use Coupler_module
+  use Connection_module
+  use Condition_module
 
   implicit none
   
@@ -270,6 +273,8 @@ subroutine PMWellSetup(this)
   
   type(option_type), pointer :: option
   type(grid_type), pointer :: res_grid
+  type(coupler_type), pointer :: source_sink
+  character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
@@ -375,6 +380,32 @@ subroutine PMWellSetup(this)
   this%well%volume = this%well%area*this%grid%dh
 
   this%soln%ndof = this%nphase + 1
+
+  ! add a src/sink coupler for each well segment
+  do k = 1,this%grid%nsegments
+    write(string,'(I0.4)') k
+    source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
+    source_sink%name = 'well_segment_' // trim(string)
+    source_sink%flow_condition_name = 'well_segment_' // trim(string) // &
+                                      '_flow_srcsink'
+    source_sink%flow_condition => FlowConditionCreate(this%option)
+    source_sink%flow_condition%name = source_sink%flow_condition_name
+    ! source_sink%region and %iregion and %region_name ???
+    if (this%option%itranmode /= NULL_MODE) then
+      source_sink%tran_condition_name = 'well_segment_' // trim(string) // &
+                                        '_tran_srcsink'
+      source_sink%tran_condition => TranConditionCreate(this%option) 
+      source_sink%tran_condition%name = source_sink%tran_condition_name
+    endif
+    source_sink%connection_set => ConnectionCreate(1,SRC_SINK_CONNECTION_TYPE)
+    source_sink%connection_set%id_dn = this%grid%h_local_id(k)
+    ! need:
+    ! source_sink%flow_condition%general%rate%dataset%rarray(:) ???
+    ! source_sink%flow_condition%general%rate%itype ???
+    ! what is ss_flow_vol_flux ???
+    call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)
+    nullify(source_sink)
+  enddo
 
 end subroutine PMWellSetup
 
@@ -1149,6 +1180,9 @@ subroutine PMWellFinalizeTimestep(this)
   implicit none
   
   class(pm_well_type) :: this
+
+  ! update the source_sink coupler in patch with the new source/sink
+  ! that has been calculated by the wellbore model
 
   call PMWellOutput(this)
   
