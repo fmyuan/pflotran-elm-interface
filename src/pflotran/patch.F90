@@ -4041,6 +4041,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   PetscInt :: icount, x_count, y_count, z_count
   PetscInt, parameter :: x_width = 1, y_width = 1, z_width = 0
   PetscInt :: ghosted_neighbors(27)
+  PetscBool :: inactive_found
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   field => patch%field
@@ -4052,6 +4053,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
+  inactive_found = PETSC_FALSE
   cur_connection_set => source_sink%connection_set
 
   select case(iscale_type)
@@ -4059,6 +4061,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) inactive_found = PETSC_TRUE
         vec_ptr(local_id) = vec_ptr(local_id) + &
           material_auxvars(ghosted_id)%volume
       enddo
@@ -4066,6 +4069,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) inactive_found = PETSC_TRUE
         vec_ptr(local_id) = vec_ptr(local_id) + &
           ! this function protects from error in gfortran compiler when indexing
           ! the permeability array
@@ -4077,6 +4081,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) inactive_found = PETSC_TRUE
         !geh: kludge for 64-bit integers.
         call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                     x_width,y_width,z_width, &
@@ -4097,6 +4102,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         do while (icount < x_count)
           icount = icount + 1
           neighbor_ghosted_id = ghosted_neighbors(icount)
+          if (patch%imat(neighbor_ghosted_id) <= 0) inactive_found = PETSC_TRUE
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
                                        PERMEABILITY_X) * &
@@ -4107,6 +4113,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         do while (icount < x_count + y_count)
           icount = icount + 1
           neighbor_ghosted_id = ghosted_neighbors(icount)
+          if (patch%imat(neighbor_ghosted_id) <= 0) inactive_found = PETSC_TRUE
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
                                        PERMEABILITY_Y) * &
@@ -4117,6 +4124,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         do while (icount < x_count + y_count + z_count)
           icount = icount + 1
           neighbor_ghosted_id = ghosted_neighbors(icount)
+          if (patch%imat(neighbor_ghosted_id) <= 0) inactive_found = PETSC_TRUE
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
                                        PERMEABILITY_Z) * &
@@ -4157,6 +4165,12 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
     end select
   enddo
   call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+
+  if (inactive_found) then
+    option%io_buffer = 'Inactive cells found in source/sink "' // &
+      trim(source_sink%name) // '" coupler region cells or neighboring cells.'
+    call PrintErrMsgByRank(option)
+  endif
 
 end subroutine PatchScaleSourceSink
 
