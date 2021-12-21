@@ -46,6 +46,11 @@ module EOS_Water_module
   PetscReal :: linear_reference_pressure
   PetscReal :: linear_water_compressibility
 
+  ! halite saturated brine
+  PetscBool :: halite_saturated_brine
+  PetscBool :: hsb_compute_salinity
+  PetscReal :: hsb_salinity(1)
+
   ! PVT tables - eos_tables
   class(eos_table_type), pointer :: pvt_table => null()
   
@@ -68,6 +73,8 @@ module EOS_Water_module
   procedure(EOSWaterDensityIceDummy), pointer :: &
     EOSWaterDensityIcePtr => null()
   ! extended versions
+  procedure(EOSWaterSatPressExtDummy), pointer :: &
+    EOSWaterSaturationPressureExtPtr => null()
   procedure(EOSWaterViscosityExtDummy), pointer :: &
     EOSWaterViscosityExtPtr => null()
   procedure(EOSWaterDensityExtDummy), pointer :: &
@@ -136,12 +143,22 @@ module EOS_Water_module
       PetscErrorCode, intent(out) :: ierr
     end subroutine EOSWaterDensityIceDummy
     ! Extended versions
+    subroutine EOSWaterSatPressExtDummy(T, aux, calculate_derivatives,&
+                                        PS, dPS_dT, ierr)
+      implicit none
+      PetscReal, intent(in) :: T
+      PetscBool, intent(in) :: calculate_derivatives
+      PetscReal, intent(inout) :: aux(*)
+      PetscReal, intent(out) :: PS, dPS_dT
+      PetscErrorCode, intent(out) :: ierr
+    end subroutine EOSWaterSatPressExtDummy
     subroutine EOSWaterViscosityExtDummy(T, P, PS, dPS_dT, aux, &
                                          calculate_derivatives, VW, &
                                          dVW_dT, dVW_dP, ierr)
       implicit none
-      PetscReal, intent(in) :: T, P, PS, dPS_dT, aux(*)
+      PetscReal, intent(in) :: T, P, PS, dPS_dT
       PetscBool, intent(in) :: calculate_derivatives
+      PetscReal, intent(inout) :: aux(*)
       PetscReal, intent(out) :: VW
       PetscReal, intent(out) :: dVW_dT, dVW_dP
       PetscErrorCode, intent(out) :: ierr
@@ -151,7 +168,7 @@ module EOS_Water_module
       implicit none
       PetscReal, intent(in) :: t
       PetscReal, intent(in) :: p
-      PetscReal, intent(in) :: aux(*)
+      PetscReal, intent(inout) :: aux(*)
       PetscBool, intent(in) :: calculate_derivatives
       PetscReal, intent(out) :: dw,dwmol,dwp,dwt
       PetscErrorCode, intent(out) :: ierr
@@ -161,7 +178,7 @@ module EOS_Water_module
       implicit none
       PetscReal, intent(in) :: t
       PetscReal, intent(in) :: p
-      PetscReal, intent(in) :: aux(*)
+      PetscReal, intent(inout) :: aux(*)
       PetscBool, intent(in) :: calculate_derivatives
       PetscReal, intent(out) :: hw,hwp,hwt
       PetscErrorCode, intent(out) :: ierr
@@ -196,6 +213,10 @@ module EOS_Water_module
     procedure EOSWaterDensityIceDerive
   end interface
   ! Extended versions
+  interface EOSWaterSaturationPressureExt
+    procedure EOSWaterSatPresExtNoDerive
+    procedure EOSWaterSatPresExtDerive
+  end interface
   interface EOSWaterViscosityExt
     procedure EOSWaterViscosityExtNoDerive
     procedure EOSWaterViscosityExtDerive
@@ -226,10 +247,12 @@ module EOS_Water_module
             EOSWaterSaturationTemperature, &
             EOSWaterDensityIce, &
             EOSWaterDensityTGDPB01, &
+            EOSWaterSaturationPressureExt, &
             EOSWaterViscosityExt, &
             EOSWaterDensityExt, &
             EOSWaterEnthalpyExt, &
-            EOSWaterInputRecord
+            EOSWaterInputRecord, &
+            EOSWaterSolubility
 
   public :: EOSWaterSetDensity, &
             EOSWaterSetEnthalpy, &
@@ -270,6 +293,9 @@ subroutine EOSWaterInit()
   quadratic_reference_density = UNINITIALIZED_DOUBLE
   quadratic_reference_pressure = UNINITIALIZED_DOUBLE
   quadratic_wat_compressibility = UNINITIALIZED_DOUBLE
+  halite_saturated_brine = PETSC_FALSE
+  hsb_compute_salinity = PETSC_FALSE
+  hsb_salinity = UNINITIALIZED_DOUBLE
   
   ! standard versions  
   EOSWaterDensityPtr => EOSWaterDensityIFC67
@@ -280,6 +306,7 @@ subroutine EOSWaterInit()
   EOSWaterDensityIcePtr => EOSWaterDensityIcePainter
   
   ! extended versions
+  EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaas
   EOSWaterViscosityExtPtr => EOSWaterViscosityKestinExt
   EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
   
@@ -447,6 +474,11 @@ subroutine EOSWaterSetDensity(keyword,aux)
     case('PAINTER')
       EOSWaterDensityPtr => EOSWaterDensityPainter
     case('BATZLE_AND_WANG')
+       if (halite_saturated_brine) then
+         if (.not. hsb_compute_salinity) then
+            aux(1) = hsb_salinity(1)
+         endif
+       endif
       EOSWaterDensityPtr => EOSWaterDensityBatzleAndWang
       EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
     case default
@@ -533,6 +565,8 @@ subroutine EOSWaterSetSaturationPressure(keyword,aux)
       EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIF97
     case('WAGNER_AND_PRUSS')
       EOSWaterSaturationPressurePtr => EOSWaterSatPresWagnerPruss
+    case('HAAS')
+      EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaas
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSaturationPressure().'
@@ -835,6 +869,40 @@ end subroutine EOSWaterSatPresDerive
 
 ! ************************************************************************** !
 
+subroutine EOSWaterSatPresExtNoDerive(T, aux, PS, ierr)
+
+  implicit none
+
+  PetscReal, intent(in) :: T ! temperature
+  PetscReal, intent(inout) :: aux(*)
+  PetscReal, intent(out) :: PS ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: dummy
+
+  ierr = 0
+  call EOSWaterSaturationPressureExtPtr(T, aux, PETSC_FALSE, PS, dummy, ierr)
+
+end subroutine EOSWaterSatPresExtNoDerive
+
+! ************************************************************************** !
+
+subroutine EOSWaterSatPresExtDerive(T, aux, PS, dPS_dT, ierr)
+
+  implicit none
+
+  PetscReal, intent(in) :: T ! temperature
+  PetscReal, intent(inout) :: aux(*)
+  PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  ierr = 0
+  call EOSWaterSaturationPressureExtPtr(T, aux, PETSC_TRUE, PS, dPS_dT, ierr)
+
+end subroutine EOSWaterSatPresExtDerive
+
+! ************************************************************************** !
+
 subroutine EOSWaterDensityNoDerive(t,p,dw,dwmol,ierr,table_idxs)
 
   implicit none
@@ -909,7 +977,7 @@ subroutine EOSWaterViscosityExtNoDerive(T, P, PS, aux, VW, ierr)
   implicit none
 
   PetscReal, intent(in) :: T, P, PS ! temperature, pressure, saturation_press
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscReal, intent(out) :: VW ! water viscosity
   PetscErrorCode, intent(out) :: ierr
   
@@ -932,7 +1000,7 @@ subroutine EOSWaterViscosityExtDerive(T, P, PS, dPS_dT, aux, VW, dVW_dT, &
 
   PetscReal, intent(in) :: T, P, PS ! temperature, pressure, saturation_press
   PetscReal, intent(in) :: dPS_dT ! derivative of PS with respect to temp
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscReal, intent(out) :: VW ! water viscosity
   PetscReal, intent(out) :: dVW_dT, dVW_dP ! derivatives
   PetscErrorCode, intent(out) :: ierr
@@ -951,7 +1019,7 @@ subroutine EOSWaterDensityExtNoDerive(t,p,aux,dw,dwmol,ierr)
 
   PetscReal, intent(in) :: t
   PetscReal, intent(in) :: p
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscReal, intent(out) :: dw,dwmol
   PetscErrorCode, intent(out) :: ierr
   
@@ -969,7 +1037,7 @@ subroutine EOSWaterDensityExtDerive(t,p,aux,dw,dwmol,dwp,dwt,ierr)
 
   PetscReal, intent(in) :: t
   PetscReal, intent(in) :: p
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscReal, intent(out) :: dw,dwmol,dwp,dwt
   PetscErrorCode, intent(out) :: ierr
   
@@ -986,7 +1054,7 @@ subroutine EOSWaterEnthalpyExtNoDerive(t,p,aux,hw,ierr)
 
   PetscReal, intent(in) :: t
   PetscReal, intent(in) :: p
-  PetscReal, intent(in) :: aux(*)  
+  PetscReal, intent(inout) :: aux(*)  
   PetscReal, intent(out) :: hw
   PetscErrorCode, intent(out) :: ierr
   
@@ -1004,7 +1072,7 @@ subroutine EOSWaterEnthalpyExtDerive(t,p,aux,hw,hwp,hwt,ierr)
 
   PetscReal, intent(in) :: t
   PetscReal, intent(in) :: p
-  PetscReal, intent(in) :: aux(*)  
+  PetscReal, intent(inout) :: aux(*)  
   PetscReal, intent(out) :: hw,hwp,hwt
   PetscErrorCode, intent(out) :: ierr
   
@@ -1095,7 +1163,7 @@ subroutine EOSWaterViscosityConstantExt(T, P, PS, dPS_dT, aux,&
     
   PetscReal, intent(in) :: T, P, PS ! temperature, pressure, saturation_press
   PetscReal, intent(in) :: dPS_dT ! derivative of PS with respect to temp
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscBool, intent(in) :: calculate_derivatives
   PetscReal, intent(out) :: VW ! water viscosity
   PetscReal, intent(out) :: dVW_dT, dVW_dP ! derivatives
@@ -1222,6 +1290,73 @@ subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
 end subroutine EOSWaterSaturationPressureIF97
 
 
+! ************************************************************************** !
+subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS_dT, ierr)
+
+  ! Water saturation pressure with dissolved halite
+  ! Haas, 1976
+  !
+  ! Author: David Fukuyama
+  ! Date: 12/20/21
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(inout) :: aux(*)
+  PetscReal, intent(out) :: PS, dPS_dT
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: ln_p !bars
+  PetscReal :: T0, Tx, x
+  PetscReal :: ln_T0, p
+  PetscReal :: a, b, m
+  PetscReal :: w, y, z
+  PetscReal, parameter :: a1 = 5.93582e-6
+  PetscReal, parameter :: a2 = -5.19386d-5
+  PetscReal, parameter :: a3 = 1.23156d-5
+  PetscReal, parameter :: b1 = 1.15420d-6
+  PetscReal, parameter :: b2 = 1.141254d-7
+  PetscReal, parameter :: b3 = -1.92476d-8
+  PetscReal, parameter :: b4 = -1.70717d-9
+  PetscReal, parameter :: b5 = 1.05390d-10
+  PetscReal, parameter :: e0 = 12.50849
+  PetscReal, parameter :: e1 = -4.616913d3
+  PetscReal, parameter :: e2 = 3.193455d-4
+  PetscReal, parameter :: e3 = 1.1965d-11
+  PetscReal, parameter :: e4 = -1.013137d-2
+  PetscReal, parameter :: e5 = -5.7148e-3
+  PetscReal, parameter :: e6 = 2.9370d5
+
+  Tx = T
+  if (halite_saturated_brine) then
+     if (.not. hsb_compute_salinity) then
+        x = aux(1)
+     else !compute solubility
+        call EOSWaterSolubility(T,x)
+     endif
+  else
+     x = aux(1)
+  endif
+
+  ! ln(T0) = m*ln(Tx)
+  ! Tx: brine temperature
+  ! T0: temperature of H2O at 0 molal, at the same pressure as Tx
+
+  a = 1.d0 + a1*x + a2*x**2 + a3*x**3
+  b = b1*x + b2*x**2 + b3*x**3 + b4*x**4 + b5*x**5
+  m = (a+b*Tx)**(-1)
+  ln_T0 = m*log(Tx)
+  T0 = exp(ln_T0)
+
+  z = T0 + 0.01
+  y = 647.27 - T0
+  w = z**2 - e6
+
+  ln_p = e0+e1/z+e2*w/z+(10**(e3*w**2)-1.0)+e4*10**(e5*y**1.25)
+  p = exp(ln_p)
+
+end subroutine EOSWaterSaturationPressureHaas
 ! ************************************************************************** !
 
 subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
@@ -2928,7 +3063,7 @@ subroutine EOSWaterViscosityKestinExt(T, P, PS, dPS_dT, aux, &
   PetscReal, intent(in) :: P   ! Pa
   PetscReal, intent(in) :: PS  ! Pa
   PetscReal, intent(in) :: dPS_dT
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscBool, intent(in) :: calculate_derivatives
   PetscReal, intent(out) :: VW ! Pa-s
   PetscReal, intent(out) :: dVW_dT, dVW_dP
@@ -3423,7 +3558,7 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
 
   PetscReal, intent(in) :: tin   ! Temperature in centigrade
   PetscReal, intent(in) :: pin   ! Pressure in Pascal
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscBool, intent(in) :: calculate_derivatives
   PetscReal, intent(out) :: dw ! kg/m^3
   PetscReal, intent(out) :: dwmol ! kmol/m^3
@@ -3439,7 +3574,16 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
   
   t_C = tin
   p_MPa = pin*Pa_to_MPa
-  s = aux(1)
+
+  if (halite_saturated_brine) then
+    if (.not. hsb_compute_salinity) then
+      s = aux(1)
+    else !compute solubility
+      call EOSWaterSolubility(tin,s)
+    endif
+  else
+    s = aux(1)
+  endif
   
   call EOSWaterDensityPtr(tin, pin, calculate_derivatives, &
                           dw, dwmol, dwp, dwt, ierr)
@@ -3539,7 +3683,7 @@ subroutine EOSWaterViscosityBatzleAndWangExt(T, P, PS, dPS_dT, aux, &
   implicit none
 
   PetscReal, intent(in) :: T, P, PS, dPS_dT
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscBool, intent(in) :: calculate_derivatives
   PetscReal, intent(out) :: VW
   PetscReal, intent(out) :: dVW_dT, dVW_dP
@@ -3552,7 +3696,15 @@ subroutine EOSWaterViscosityBatzleAndWangExt(T, P, PS, dPS_dT, aux, &
   PetscReal :: exponential_term
   PetscReal :: temperature_term
   
-  s = aux(1)
+  if (halite_saturated_brine) then
+     if (.not. hsb_compute_salinity) then
+        s = aux(1)
+     else !compute solubility
+        call EOSWaterSolubility(T,s)
+     endif
+  else
+     s = aux(1)
+  endif
   t_C = T
   
   exponential_term = -1.d0*(0.42d0*(s**0.8d0-0.17d0)**2.d0 + 0.045d0)* &
@@ -3570,6 +3722,27 @@ subroutine EOSWaterViscosityBatzleAndWangExt(T, P, PS, dPS_dT, aux, &
   endif
   
 end subroutine EOSWaterViscosityBatzleAndWangExt
+
+! ************************************************************************** !
+
+subroutine EOSWaterSolubility(T, solubility)
+  !
+  ! Determines solubility of NaCl in water based on Sparrow, 2003
+  ! https://doi.org/10.1016/S0011-9164(03)90068-3
+  ! returns solubility (mole fraction)
+  !
+  ! Author: David Fukuyama
+  ! Date: 12/17/21
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(out) :: solubility
+
+  solubility = 0.2628 + 62.75d-6 * T + 1.084d-6 * T**2
+
+end subroutine EOSWaterSolubility
 
 ! ************************************************************************** !
 
@@ -3670,7 +3843,7 @@ subroutine EOSWaterDensityExtNumericalDerive(t,p,aux,dw,dwmol,dwp,dwt,ierr)
 
   PetscReal, intent(in) :: t     ! Temperature in centigrade
   PetscReal, intent(in) :: p     ! Pressure in Pascal
-  PetscReal, intent(in) :: aux(*)
+  PetscReal, intent(inout) :: aux(*)
   PetscReal, intent(out) :: dw ! kg/m^3
   PetscReal, intent(out) :: dwmol ! kmol/m^3
   PetscReal, intent(out) :: dwp ! kmol/m^3-Pa
