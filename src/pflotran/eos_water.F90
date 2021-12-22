@@ -491,6 +491,21 @@ end subroutine EOSWaterSetDensity
 
 ! ************************************************************************** !
 
+subroutine EOSWaterSetDensityHSB(compute_salinity,salinity)
+
+  implicit none
+
+  PetscBool :: compute_salinity
+  PetscReal :: salinity
+
+  hsb_compute_salinity = compute_salinity
+  if (hsb_compute_salinity) then
+    hsb_salinity = salinity
+  endif
+end subroutine EOSWaterSetDensityHSB
+
+! ************************************************************************** !
+
 subroutine EOSWaterSetEnthalpy(keyword,aux)
 
   implicit none

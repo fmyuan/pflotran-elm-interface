@@ -15,6 +15,7 @@ module General_Aux_module
   PetscBool, public :: general_immiscible = PETSC_FALSE
   PetscBool, public :: general_non_darcy_flow = PETSC_FALSE
   PetscReal, public :: general_phase_chng_epsilon = 1.d-6
+  PetscBool, public :: general_halite_saturated_brine = PETSC_FALSE
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
@@ -966,7 +967,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   ! Liquid phase thermodynamic properties
   ! must use cell_pressure as the pressure, not %pres(lid)
-  if (.not.option%flow%density_depends_on_salinity) then
+  if (general_halite_saturated_brine) then
+    call EOSWaterDensityExt(gen_auxvar%temp,cell_pressure,aux, &
+                            gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
+  elseif (.not.option%flow%density_depends_on_salinity) then
     if (associated(gen_auxvar%d)) then
       call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
                            gen_auxvar%den_kg(lid),gen_auxvar%den(lid), &
