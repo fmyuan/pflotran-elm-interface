@@ -98,7 +98,7 @@ module PM_Well_class
     PetscReal, pointer :: rho(:)
     ! fluid saturation
     PetscReal, pointer :: s(:)
-    ! fluid source/sink in/out of well [kg/s]??   
+    ! fluid source/sink in/out of well [kg/s]   
     PetscReal, pointer :: Q(:)
     ! equation of state for density
     !procedure(rho_interface), pointer, nopass :: update_rho_ptr => null()
@@ -387,7 +387,7 @@ subroutine PMWellSetup(this)
 
   this%soln%ndof = this%nphase + 1
 
-  ! add a src/sink coupler for each well segment
+  ! add a reservoir src/sink coupler for each well segment
   do k = 1,this%grid%nsegments
     write(string,'(I0.4)') k
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
@@ -415,8 +415,6 @@ subroutine PMWellSetup(this)
 
     source_sink%connection_set => ConnectionCreate(1,SRC_SINK_CONNECTION_TYPE)
     source_sink%connection_set%id_dn = this%grid%h_local_id(k)
-    ! need:
-    ! source_sink%flow_condition%general%rate%dataset%rarray(:) ???
 
     call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)
     nullify(source_sink)
@@ -1196,12 +1194,52 @@ subroutine PMWellFinalizeTimestep(this)
   
   class(pm_well_type) :: this
 
-  ! update the source_sink coupler in patch with the new source/sink
-  ! that has been calculated by the wellbore model
+  call PMWellUpdateReservoirSrcSink(this)
 
   call PMWellOutput(this)
   
 end subroutine PMWellFinalizeTimestep
+
+! ************************************************************************** !
+
+subroutine PMWellUpdateReservoirSrcSink(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/21/2021
+
+  use Coupler_module
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: srcsink_name
+  type(coupler_type), pointer :: source_sink
+  PetscInt :: k
+
+  do k = 1,this%grid%nsegments
+    write(string,'(I0.4)') k
+    srcsink_name = 'well_segment_' // trim(string)
+
+    source_sink => this%realization%patch%source_sink_list%first 
+    do 
+      if (.not.associated(source_sink)) exit
+
+      if (trim(srcsink_name) == trim(source_sink%name)) then
+        source_sink%flow_condition%general%rate%dataset%rarray(1) = &
+          this%liq%Q(k) ! [kg/s]
+        source_sink%flow_condition%general%rate%dataset%rarray(2) = &
+          this%gas%Q(k) ! [kg/s]
+        exit
+      endif
+
+      source_sink => source_sink%next
+    enddo
+
+  enddo
+
+end subroutine PMWellUpdateReservoirSrcSink
 
 ! ************************************************************************** !
 
@@ -1495,6 +1533,11 @@ subroutine PMWellUpdateWellQ(this)
   
   liq%Q = liq%rho*liq%mobility*this%well%WI*(this%reservoir%p-this%well%p)
   gas%Q = gas%rho*gas%mobility*this%well%WI*(this%reservoir%p-this%well%p)
+
+  ! WARNING!!!!!
+  ! Remove the following two lines once Q is calculated properly:
+  liq%Q = 0.d0 ! remove me
+  gas%Q = 0.d0 ! remove me
   
 end subroutine PMWellUpdateWellQ
 
