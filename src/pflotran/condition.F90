@@ -144,8 +144,10 @@ module Condition_module
   end type geop_condition_list_type
 
   public :: FlowConditionCreate, FlowConditionDestroy, FlowConditionRead, &
+            FlowGeneralConditionCreate, &
             FlowConditionGeneralRead, &
             FlowConditionHydrateRead, &
+            FlowGeneralSubConditionPtr, &
             FlowConditionAddToList, FlowConditionInitList, &
             FlowConditionDestroyList, &
             FlowConditionGetPtrFromList, FlowConditionUpdate, &

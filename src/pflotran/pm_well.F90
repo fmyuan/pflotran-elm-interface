@@ -266,6 +266,10 @@ subroutine PMWellSetup(this)
   use Coupler_module
   use Connection_module
   use Condition_module
+  use Input_Aux_module
+  use Dataset_module
+  use Dataset_Base_class
+  use Dataset_Ascii_class
 
   implicit none
   
@@ -274,6 +278,8 @@ subroutine PMWellSetup(this)
   type(option_type), pointer :: option
   type(grid_type), pointer :: res_grid
   type(coupler_type), pointer :: source_sink
+  type(input_type) :: input_dummy
+  class(dataset_ascii_type), pointer :: dataset_ascii
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
@@ -386,23 +392,32 @@ subroutine PMWellSetup(this)
     write(string,'(I0.4)') k
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
     source_sink%name = 'well_segment_' // trim(string)
+
     source_sink%flow_condition_name = 'well_segment_' // trim(string) // &
                                       '_flow_srcsink'
-    source_sink%flow_condition => FlowConditionCreate(this%option)
+    source_sink%flow_condition => FlowConditionCreate(option)
     source_sink%flow_condition%name = source_sink%flow_condition_name
-    ! source_sink%region and %iregion and %region_name ???
+    source_sink%flow_condition%general => FlowGeneralConditionCreate(option)
+    string = 'RATE'
+    source_sink%flow_condition%general%rate => FlowGeneralSubConditionPtr( &
+      input_dummy,string,source_sink%flow_condition%general,option)
+    source_sink%flow_condition%general%rate%itype = MASS_RATE_SS ! [kg/s]
+    allocate(source_sink%flow_condition%general%rate%dataset%rarray(2))
+    source_sink%flow_condition%general%rate%dataset%rarray(:) = 0.d0 
+
     if (this%option%itranmode /= NULL_MODE) then
       source_sink%tran_condition_name = 'well_segment_' // trim(string) // &
                                         '_tran_srcsink'
       source_sink%tran_condition => TranConditionCreate(this%option) 
       source_sink%tran_condition%name = source_sink%tran_condition_name
+      !todo: create the dataset for transport
     endif
+
     source_sink%connection_set => ConnectionCreate(1,SRC_SINK_CONNECTION_TYPE)
     source_sink%connection_set%id_dn = this%grid%h_local_id(k)
     ! need:
     ! source_sink%flow_condition%general%rate%dataset%rarray(:) ???
-    ! source_sink%flow_condition%general%rate%itype ???
-    ! what is ss_flow_vol_flux ???
+
     call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)
     nullify(source_sink)
   enddo
