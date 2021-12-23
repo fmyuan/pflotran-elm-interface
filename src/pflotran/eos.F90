@@ -264,11 +264,12 @@ subroutine EOSRead(input,option)
                   call StringToUpper(word)
                     select case(trim(word))
                       case('CONSTANT')
+                        hsb_compute_salinity = PETSC_FALSE
                         call InputReadDouble(input,option,hsb_salinity(1))
                         call InputErrorMsg(input,option,&
                                             'Salinity for halite saturated brine', &
                                             'EOS WATER, HALITE_SATURATED_BRINE')
-                        call InputReadAndConvertUnits(input,hsb_salinity(1),'g/L',&
+                        call InputReadAndConvertUnits(input,hsb_salinity(1),'g/g',&
                                             'EOS,WATER,HALITE_SATURATED_BRINE,SALINITY,CONSTANT',&
                                             option)
                       case('TEMPERATURE_DEPENDENT')
@@ -277,8 +278,9 @@ subroutine EOSRead(input,option)
 
               end select
             enddo
-            call InputPopBlock(input,option)
+            call EOSWaterSetSalinityProperties(hsb_compute_salinity, hsb_salinity(1))
             call EOSWaterSetSaturationPressure('HAAS',hsb_salinity(1))
+            call InputPopBlock(input,option)
           case('TEST')
             if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)

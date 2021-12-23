@@ -252,6 +252,7 @@ module EOS_Water_module
             EOSWaterDensityExt, &
             EOSWaterEnthalpyExt, &
             EOSWaterInputRecord, &
+            EOSWaterSetSalinityProperties, &
             EOSWaterSolubility
 
   public :: EOSWaterSetDensity, &
@@ -491,18 +492,19 @@ end subroutine EOSWaterSetDensity
 
 ! ************************************************************************** !
 
-subroutine EOSWaterSetDensityHSB(compute_salinity,salinity)
+subroutine EOSWaterSetSalinityProperties(compute_salinity,salinity)
 
   implicit none
 
   PetscBool :: compute_salinity
   PetscReal :: salinity
 
+  halite_saturated_brine = PETSC_TRUE
   hsb_compute_salinity = compute_salinity
-  if (hsb_compute_salinity) then
-    hsb_salinity = salinity
+  if (.not. hsb_compute_salinity) then
+    hsb_salinity(1) = salinity
   endif
-end subroutine EOSWaterSetDensityHSB
+end subroutine EOSWaterSetSalinityProperties
 
 ! ************************************************************************** !
 
@@ -1310,6 +1312,8 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
 
   ! Water saturation pressure with dissolved halite
   ! Haas, 1976
+  ! Physical properties of the coexisting phases and thermochemical properties of
+  ! the H2O component in boiling NaCl solutions
   !
   ! Author: David Fukuyama
   ! Date: 12/20/21
@@ -1343,12 +1347,15 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
   PetscReal, parameter :: e5 = -5.7148e-3
   PetscReal, parameter :: e6 = 2.9370d5
 
-  Tx = T
+  Tx = T+273.15
   if (halite_saturated_brine) then
      if (.not. hsb_compute_salinity) then
-        x = aux(1)
+        ! convert mass % to mol/kg (molality)
+        x = 1000*hsb_salinity(1)/(58.442*(100-hsb_salinity(1)))
      else !compute solubility
         call EOSWaterSolubility(T,x)
+        ! convert mass % to mol/kg (molality)
+        x = 1000*(x*100)/(58.442*(100-(x*100)))
      endif
   else
      x = aux(1)
@@ -1368,8 +1375,10 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
   y = 647.27 - T0
   w = z**2 - e6
 
-  ln_p = e0+e1/z+e2*w/z+(10**(e3*w**2)-1.0)+e4*10**(e5*y**1.25)
-  p = exp(ln_p)
+  ! Note- there is a typo in Eq. 6 of Haas (1976) that adds the third and
+  ! fourth term instead of multiplying.
+  ln_p = e0+e1/z+e2*w/z*(10**(e3*w**2)-1.0)+e4*10**(e5*y**1.25)
+  PS = exp(ln_p)*1.d5
 
 end subroutine EOSWaterSaturationPressureHaas
 ! ************************************************************************** !
@@ -3592,7 +3601,8 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
 
   if (halite_saturated_brine) then
     if (.not. hsb_compute_salinity) then
-      s = aux(1)
+      ! salinity [mass %]
+      s = hsb_salinity(1)
     else !compute solubility
       call EOSWaterSolubility(tin,s)
     endif
@@ -3713,7 +3723,8 @@ subroutine EOSWaterViscosityBatzleAndWangExt(T, P, PS, dPS_dT, aux, &
   
   if (halite_saturated_brine) then
      if (.not. hsb_compute_salinity) then
-        s = aux(1)
+        ! mass fraction salinity [g/g]
+        s = hsb_salinity(1)
      else !compute solubility
         call EOSWaterSolubility(T,s)
      endif
@@ -3744,7 +3755,7 @@ subroutine EOSWaterSolubility(T, solubility)
   !
   ! Determines solubility of NaCl in water based on Sparrow, 2003
   ! https://doi.org/10.1016/S0011-9164(03)90068-3
-  ! returns solubility (mole fraction)
+  ! returns solubility (mass fraction [g NaCl/g H2O])
   !
   ! Author: David Fukuyama
   ! Date: 12/17/21
