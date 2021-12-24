@@ -170,7 +170,7 @@ subroutine EOSRead(input,option)
                 enddo
                 call InputPopBlock(input,option)
               case('IFC67','DEFAULT','BATZLE_AND_WANG','TGDPB01','PLANAR', &
-                              'TRANGENSTEIN','IF97')
+                              'TRANGENSTEIN','IF97','SPARROW','DRIESNER')
               case default
                 call InputKeywordUnrecognized(input,word,'EOS,WATER,DENSITY',option)
             end select
@@ -186,7 +186,7 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,ENTHALPY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                                'J/kmol','EOS,WATER,ENTHALPY,CONSTANT',option)
-              case('IFC67','PAINTER','DEFAULT','PLANAR','IF97')
+              case('IFC67','PAINTER','DEFAULT','PLANAR','IF97','SPARROW','DRIESNER')
               case default
                 call InputKeywordUnrecognized(input,word, &
                                               'EOS,WATER,ENTHALPY',option)

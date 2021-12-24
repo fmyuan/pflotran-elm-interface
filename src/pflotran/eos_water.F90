@@ -310,6 +310,7 @@ subroutine EOSWaterInit()
   EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaas
   EOSWaterViscosityExtPtr => EOSWaterViscosityKestinExt
   EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
+  EOSWaterEnthalpyExtPtr => EOSWaterEnthalpyDriesnerExt
   
 end subroutine EOSWaterInit
 
@@ -475,16 +476,30 @@ subroutine EOSWaterSetDensity(keyword,aux)
     case('PAINTER')
       EOSWaterDensityPtr => EOSWaterDensityPainter
     case('BATZLE_AND_WANG')
-       if (halite_saturated_brine) then
+      if (halite_saturated_brine) then
+        if (.not. hsb_compute_salinity) then
+           aux(1) = hsb_salinity(1)
+        endif
+      endif
+      EOSWaterDensityPtr => EOSWaterDensityBatzleAndWang
+      EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
+    case('SPARROW')
+      if (halite_saturated_brine) then
          if (.not. hsb_compute_salinity) then
             aux(1) = hsb_salinity(1)
          endif
-       endif
-      EOSWaterDensityPtr => EOSWaterDensityBatzleAndWang
-      EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
+      endif
+      EOSWaterDensityExtPtr => EOSWaterDensitySparrowExt
+   case('DRIESNER')
+      if (halite_saturated_brine) then
+         if (.not. hsb_compute_salinity) then
+            aux(1) = hsb_salinity(1)
+         endif
+      endif
+      EOSWaterDensityExtPtr => EOSWaterDensityDriesnerExt
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
-        '" in EOSWaterSetDensity().'      
+        '" in EOSWaterSetDensity().'
       stop
   end select
   
@@ -527,7 +542,11 @@ subroutine EOSWaterSetEnthalpy(keyword,aux)
       EOSWaterEnthalpyPtr => EOSWaterEnthalpyTPPlanar  
       call EOSWaterEnthalpyTPPlanarSetup()
     case('PAINTER')
-      EOSWaterEnthalpyPtr => EOSWaterEnthalpyPainter      
+      EOSWaterEnthalpyPtr => EOSWaterEnthalpyPainter
+    case('SPARROW')
+      EOSWaterEnthalpyExtPtr => EOSWaterEnthalpySparrowExt
+    case('DRIESNER')
+      EOSWaterEnthalpyExtPtr => EOSWaterEnthalpyDriesnerExt
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetEnthalpy().'
@@ -1981,6 +2000,199 @@ subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
   endif
 
 end subroutine EOSWaterEnthalpyIF97
+
+! ************************************************************************** !
+subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
+     hwt,ierr)
+  !
+  ! Calculates brine enthalpy based on the formuatlion in Driesner, 2007.
+  !
+  ! Author: David Fukuyama
+  ! Date: 05/31/21
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(in) :: P
+  PetscReal, intent(inout) :: aux(*)
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: hw,hwp,hwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal, parameter :: Pa_to_bar = 1.d-5
+
+  PetscReal :: T_h, p_bar, t_c
+  PetscReal :: q1,q2, q1x1, q2x1
+  PetscReal :: q10,q11,q12,q20,q21,q22,q23
+  PetscReal :: molal,s,x
+
+  t_c = T
+  p_bar = P*Pa_to_bar
+
+  if (halite_saturated_brine) then
+     if (.not. hsb_compute_salinity) then
+        ! mass fraction salinity [g/g]
+        ! must be converted to mole fraction for Driesner eq.
+        s = hsb_salinity(1)
+        molal = (1000*s/(58.442*(100-s)))*100 !mol/kg
+        x = molal/(molal + 55.508435) !moles of solute / (mol solute+mol water)
+     else !compute solubility
+        call EOSWaterSolubility(T,s)
+        molal = (1000*s/(58.442*(100-s)))*100 !mol/kg
+        x = molal/(molal + 55.508435) !moles of solute / (mol solute+mol water)
+     endif
+  else
+     s = aux(1)
+  endif
+
+  q11 = -32.1724 + 0.0621255 * p_bar
+  q21 = -1.69513 - 4.52781d-4 * p_bar - 6.04279d-8 * p_bar**2
+  q22 = 0.0612567 + 1.88082d-5 * p_bar
+
+  q1x1 = 47.9048 - 9.36994d-3 * p_bar + 6.51059d-6 * p_bar**2;
+  q2x1 = 0.241022 + 3.45087d-5 * p_bar - 4.28356d-9 * p_bar**2;
+
+  q12 = -q11 - q1x1
+  q10 = q1x1
+
+  q20 = 1.d0 - q21 * sqrt(q22)
+  q23 = q2x1 - q20 - q21 * sqrt(1.d0 + q22)
+
+  q1 = q10 + q11 * (1 - x) + q12 * (1.d0 - x)**2
+  q2 = q20 + q21 * sqrt(x + q22) + (q23 * x)
+  T_h = q1 + q2 * t_c
+
+  call EOSWaterEnthalpyIF97(T_h,P,calculate_derivatives,hw,hwp,hwt,ierr)
+
+end subroutine EOSWaterEnthalpyDriesnerExt
+
+! ************************************************************************** !
+
+subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
+                                   calculate_derivatives, &
+                                   dw, dwmol, dwp, dwt, ierr)
+  !
+  ! Water density calculation from Driesner (2007)
+  ! doi:10.1016/j.gca.2007.05.026
+  !
+  ! Author: David Fukuyama
+  ! Date: 05/26/21
+  ! 
+  implicit none
+
+  PetscReal, intent(in) :: T   ! Temperature in centigrade
+  PetscReal, intent(in) :: P   ! Pressure in Pascal
+  PetscReal, intent(inout) :: aux(*)    ! solute mole fraction
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw ! kg/m^3
+  PetscReal, intent(out) :: dwmol ! kmol/m^3
+  PetscReal, intent(out) :: dwp ! kmol/m^3-Pa
+  PetscReal, intent(out) :: dwt ! kmol/m^3-C
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal, parameter :: g_cm3_to_kg_m3 = 1.d3
+  PetscReal, parameter :: Pa_to_bar = 1.d-5
+
+  PetscReal :: T_v ! Scaled temperature for volumetric correlation
+  PetscReal :: x,molal,s
+  PetscReal :: n1,n2,n11,n12,n20,n21,n22,n23,n1x1,n2x1
+
+  PetscReal :: t_C ! temperature in Celcius
+  PetscReal :: p_bar
+
+  t_C = T
+  p_bar = P*Pa_to_bar
+
+  if (halite_saturated_brine) then
+     if (.not. hsb_compute_salinity) then
+        ! mass fraction salinity [g/g]
+        ! must be converted to mole fraction for Driesner eq.
+        s = hsb_salinity(1)
+        molal = (1000*s/(58.442*(100-s)))*100 !mol/kg
+        x = molal/(molal + 55.508435) !moles of solute / (mol solute+mol water)
+     else !compute solubility
+        call EOSWaterSolubility(T,s)
+        molal = (1000*s/(58.442*(100-s)))*100 !mol/kg
+        x = molal/(molal + 55.508435) !moles of solute / (mol solute+mol water)
+     endif
+  else
+     x = aux(1)
+  endif
+
+  n11 = -54.2958 - 45.7623 * exp(-9.44785e-4 * p_bar)
+  n21 = -2.6142 - 0.000239092 * p_bar
+  n22 = 0.0356828 + 4.37235d-6 * p_bar + 2.0566d-9 * p_bar**2
+  n1x1 = 330.47 + 0.942876 * sqrt(p_bar) + 0.0817193 * &
+         p_bar -2.47556d-8 * p_bar**2 + 3.45052d-10 * p_bar**3
+  n2x1 = -0.0370751 + 0.00237723 * sqrt(p_bar) + 5.42049d-5 * &
+       p_bar + 5.84709d-9 * p_bar**2 - 5.99373d-13 * p_bar**3
+  n12 = -n1x1 - n11
+  n20 = 1.d0 - n21 * sqrt(n22)
+  n23 = n2x1 - n20 - n21 * sqrt(1.d0 + n22)
+  n1  = n1x1 + n11 * (1 - x) + n12 * (1 - x)**2
+  n2  = n20 + n21 * sqrt(x + n22) + n23 * x
+  T_v = n1 + n2 * t_c
+  call EOSWaterDensityIF97(T_v,P,calculate_derivatives,dw,dwmol,dwp,dwt,ierr)
+  if (calculate_derivatives) then
+    ! calculate derivatives
+
+  else
+     dwp = UNINITIALIZED_DOUBLE
+     dwt = UNINITIALIZED_DOUBLE
+  endif
+  dw = dw * (molal+55.508435)/55.508435
+
+end subroutine EOSWaterDensityDriesnerExt
+
+! ************************************************************************** !
+
+subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
+     hwt,ierr)
+  !
+  ! Calculates brine enthalpy based on Sparrow, 2003.
+  ! Valid from 0<T<300C
+  !
+  ! Author: David Fukuyama
+  ! Date: 06/01/21
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(in) :: P
+  PetscReal, intent(inout) :: aux(*)
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: hw,hwp,hwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: A, B, C, D, E
+  PetscReal :: s, molal
+  PetscReal, parameter :: g_to_kg = 1.d-3
+  PetscReal, parameter :: mol_to_kmol = 1.d-3
+  PetscReal, parameter :: kJ_to_J = 1.d3
+
+  if (halite_saturated_brine) then
+     if (.not. hsb_compute_salinity) then
+        ! mass fraction salinity [g/g]
+        s = hsb_salinity(1)
+     else !compute solubility
+        call EOSWaterSolubility(T,s)
+     endif
+  else
+     s = aux(1)
+  endif
+
+  A = (0.0005+s*(0.0378+s*(-0.3682+s*(-0.6529+s*2.89))))*1.d3
+  B = 4.145+s*(-4.973+s*(4.482+s*(18.31+s*(-46.41))))
+  C = 0.0007+s*(-0.0059+s*(0.0854+s*(-0.4951+s*0.8255)))
+  D = (-0.0048+s*(0.0639+s*(-0.714+s*(3.273+s*(-4.85)))))*1.d-3
+  E = (0.0202+s*(-0.2432+s*(2.054+s*(-8.211+s*11.43))))*1.d-6
+  hw = A+T*(B+T*(C+T*(D+T*E))) !kJ/kg
+
+  hw = hw*kJ_to_J/((molal+55.508435)*mol_to_kmol) !J/kmol
+
+end subroutine EOSWaterEnthalpySparrowExt
 
 ! ************************************************************************** !
 
@@ -3748,6 +3960,105 @@ subroutine EOSWaterViscosityBatzleAndWangExt(T, P, PS, dPS_dT, aux, &
   endif
   
 end subroutine EOSWaterViscosityBatzleAndWangExt
+
+! ************************************************************************** !
+
+subroutine EOSWaterSatPressSparrow(T,aux,calculate_derivatives, &
+                                   PS, dPS_dT, ierr)
+  !
+  ! Calculates water saturation pressure based on Sparrow, 2003.
+  ! Valid from 0<T<300 C
+  !
+  ! Author: David Fukuyama
+  ! 06/01/21
+  !
+  implicit none
+
+  PetscReal, intent(in) :: T  ! Temperature
+  PetscReal, intent(inout) :: aux(*) ! NaCl mole fraction
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal, parameter :: MPa_to_Pa = 1.d6
+  PetscReal :: A,B,C,D,E,s
+
+  if (halite_saturated_brine) then
+     if (.not. hsb_compute_salinity) then
+        ! mass fraction salinity [g/g]
+        s = hsb_salinity(1)
+     else !compute solubility
+        call EOSWaterSolubility(T,s)
+     endif
+  else
+     s = aux(1)
+  endif
+
+
+  if (T >= 0.d0 .and. T <= 150.d0) then
+    A = (0.9083+s*(-0.569+s*(0.1945+s*(-3.736+s*2.82))))*1.d-3
+    B = (-0.0669+s*(0.0582+s*(0.1668+s*(-0.6761+s*2.091))))*1.d-3
+    C = (7.541+s*(-5.143+s*(6.482+s*(-52.62+s*115.7))))*1.d-6
+    D = (-0.0922+s*(0.0649+s*(-0.1313+s*(0.8024-s*1.986))))*1.d-6
+    E = (1.237+s*(-0.753+s*(0.1448+s*(-6.964+s*14.61))))*1.d-9
+  elseif (T > 150.d0 .and. T <= 300.d0) then
+    A = -3.248+s*(7.081+s*(-49.93+s*(219.6+s*(-308.5))))
+    B = 0.0610+s*(-0.1185+s*(0.7916+s*(-3.474+s*4.882)))
+    C = (-0.4109+s*(0.6789+s*(-4.155+s*(18.34+s*(-25.89)))))*1.d-3
+    D = (1.13+s*(-1.432+s*(7.169+s*(-33.17+s*47.45))))*1.d-6
+    E = 0
+  endif
+
+  PS = A+T*(B+T*(C+T*(D+T*E)))
+  PS = PS*MPa_to_Pa
+
+end subroutine EOSWaterSatPressSparrow
+
+! ************************************************************************** !
+
+subroutine EOSWaterDensitySparrowExt(T,P, aux, &
+                                  calculate_derivatives, &
+                                  dw, dwmol, dwp, dwt, ierr)
+  !
+  ! Brine density calculation from Sparrow (2003)
+  ! Values valid from 0<T<300 C
+  !
+  ! Author: David Fukuyama
+  ! Date: 05/31/21
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T ! Celsius
+  PetscReal, intent(in) :: P ! Pa
+  PetscReal, intent(inout) :: aux(*)
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw,dwmol,dwp,dwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal :: A, B, C, D, E, s
+
+  if (halite_saturated_brine) then
+     if (.not. hsb_compute_salinity) then
+        ! mass fraction salinity [g/g]
+        s = hsb_salinity(1)
+     else !compute solubility
+        call EOSWaterSolubility(T,s)
+     endif
+  else
+     s = aux(1)
+  endif
+
+  A = (1.001+s*(0.7666+s*(-0.0149+s*(0.2663+s*0.8845))))*1.d3
+  B = -0.0214+s*(-3.496+s*(10.02+s*(-6.56+s*(-31.37))))
+  C = (-5.263+s*(39.87+s*(-176.2+s*(363.5-s*7.784))))*1.d-3
+  D = (15.42+s*(-167+s*(980.7+s*(-2573+s*876.6))))*1.d-6
+  E = (-0.0276+s*(0.2978+s*(-2.017+s*(6.345+s*(-3.914)))))*1.d-6
+
+  dw = A+T*(B+T*(C+T*(D+E*T))) !kg/m^3
+  dwmol = dw/FMWH2O ! kmol/m^3 
+
+end subroutine EOSWaterDensitySparrowExt
 
 ! ************************************************************************** !
 

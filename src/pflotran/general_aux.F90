@@ -1014,7 +1014,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                               gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
     endif
   endif
-  if (associated(gen_auxvar%d)) then
+  if (general_halite_saturated_brine) then
+    call EOSWaterEnthalpyExt(gen_auxvar%temp,cell_pressure,aux,hw,ierr)
+  elseif (associated(gen_auxvar%d)) then
     call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,hw,hw_dp,hw_dT,ierr)
     one_over_dw = 1.d0/gen_auxvar%den(lid)
     !TODO(geh): merge the common terms in dUl_pl and dUl_T equations
