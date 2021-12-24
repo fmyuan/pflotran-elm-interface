@@ -1,0 +1,157 @@
+# Test problem for general mode EOS with salinity
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+        OPTIONS
+          HALITE_SATURATED_BRINE	
+	/
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-10
+END
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 1
+END
+#=========================== equation of state ================================
+EOS WATER
+  HALITE_SATURATED_BRINE
+    SALINITY CONSTANT 5.d-2 kg/kg
+  /
+  DENSITY SPARROW#BATZLE_AND_WANG
+  VISCOSITY BATZLE_AND_WANG
+  ENTHALPY DRIESNER
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED 
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    2.d0 1.d0 1.d0 
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    2.d0 1.d0 1.d0
+  /
+END
+
+REGION center
+  COORDINATES
+    1.D0 5.D-1 5.D-1
+  /
+/
+
+REGION left_boundary
+  FACE WEST
+  COORDINATES
+    0.D0 0.D0 0.D0
+    0.D0 1.D0 1.D0
+  /
+/
+
+REGION right_boundary
+  FACE EAST
+  COORDINATES
+    2.D0 0.D0 0.D0
+    2.D0 1.D0 1.D0
+  /
+/
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY sand
+  ID 1
+  CHARACTERISTIC_CURVES sf1
+  POROSITY  0.25d0
+  TORTUOSITY 0.1d0
+  ROCK_DENSITY 2650.d-3 kg/L
+  THERMAL_CONDUCTIVITY_DRY 0.5d-6 MW/m-C
+  THERMAL_CONDUCTIVITY_WET 2.d-6 MW/m-C
+  HEAT_CAPACITY 830.d-6 MJ/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.2D0
+    ALPHA 1.D-4
+    M 0.5D0
+    MAX_CAPILLARY_PRESSURE 1.D6
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.2D0
+    M 0.5D0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.2D0
+    GAS_RESIDUAL_SATURATION 0.1D0
+    M 0.5D0
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  VARIABLES
+    LIQUID_PRESSURE
+    LIQUID_SATURATION
+    GAS_SATURATION
+    VAPOR_PRESSURE
+    SATURATION_PRESSURE
+    LIQUID_DENSITY
+    LIQUID_VISCOSITY
+    LIQUID_MOLE_FRACTIONS
+    TEMPERATURE
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d-4 d
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y 
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 150000.d0
+  MOLE_FRACTION 3.D-8
+  TEMPERATURE 85.D0
+/
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION aquifer_ic
+  FLOW_CONDITION initial
+  REGION all
+/
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL sand
+  REGION all
+END
+
+END_SUBSURFACE
+
