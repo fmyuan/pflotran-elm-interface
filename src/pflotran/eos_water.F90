@@ -1350,7 +1350,7 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
   PetscReal :: ln_T0, p
   PetscReal :: a, b, m
   PetscReal :: w, y, z
-  PetscReal, parameter :: a1 = 5.93582e-6
+  PetscReal, parameter :: a1 = 5.93582d-6
   PetscReal, parameter :: a2 = -5.19386d-5
   PetscReal, parameter :: a3 = 1.23156d-5
   PetscReal, parameter :: b1 = 1.15420d-6
@@ -1358,23 +1358,23 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
   PetscReal, parameter :: b3 = -1.92476d-8
   PetscReal, parameter :: b4 = -1.70717d-9
   PetscReal, parameter :: b5 = 1.05390d-10
-  PetscReal, parameter :: e0 = 12.50849
+  PetscReal, parameter :: e0 = 12.50849d0
   PetscReal, parameter :: e1 = -4.616913d3
   PetscReal, parameter :: e2 = 3.193455d-4
   PetscReal, parameter :: e3 = 1.1965d-11
   PetscReal, parameter :: e4 = -1.013137d-2
-  PetscReal, parameter :: e5 = -5.7148e-3
+  PetscReal, parameter :: e5 = -5.7148d-3
   PetscReal, parameter :: e6 = 2.9370d5
 
-  Tx = T+273.15
+  Tx = T+273.15d0
   if (halite_saturated_brine) then
      if (.not. hsb_compute_salinity) then
         ! convert mass % to mol/kg (molality)
-        x = 1000*hsb_salinity(1)/(58.442*(100-hsb_salinity(1)))
+        x = 1.d3*hsb_salinity(1)/(58.442d0*(1.d2-hsb_salinity(1)))
      else !compute solubility
         call EOSWaterSolubility(T,x)
         ! convert mass % to mol/kg (molality)
-        x = 1000*(x*100)/(58.442*(100-(x*100)))
+        x = 1.d3*(x*1.d2)/(58.442d0*(1.d2-(x*1.d2)))
      endif
   else
      x = aux(1)
@@ -1384,19 +1384,19 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
   ! Tx: brine temperature
   ! T0: temperature of H2O at 0 molal, at the same pressure as Tx
 
-  a = 1.d0 + a1*x + a2*x**2 + a3*x**3
-  b = b1*x + b2*x**2 + b3*x**3 + b4*x**4 + b5*x**5
-  m = (a+b*Tx)**(-1)
+  a = 1.d0 + x*(a1 + x*(a2 + a3*x))
+  b = x*(b1 + x*(b2 + x*(b3 + x*(b4 + b5*x))))
+  m = 1.d0/(a+b*Tx)
   ln_T0 = m*log(Tx)
   T0 = exp(ln_T0)
 
-  z = T0 + 0.01
-  y = 647.27 - T0
+  z = T0 + 1.d-2
+  y = 647.27d0 - T0
   w = z**2 - e6
 
   ! Note- there is a typo in Eq. 6 of Haas (1976) that adds the third and
   ! fourth term instead of multiplying.
-  ln_p = e0+e1/z+e2*w/z*(10**(e3*w**2)-1.0)+e4*10**(e5*y**1.25)
+  ln_p = e0+e1/z+e2*w/z*(1.d1**(e3*w**2)-1.d0)+e4*1.d1**(e5*y**1.25d0)
   PS = exp(ln_p)*1.d5
 
 end subroutine EOSWaterSaturationPressureHaas
@@ -2035,23 +2035,21 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
         ! mass fraction salinity [g/g]
         ! must be converted to mole fraction for Driesner eq.
         s = hsb_salinity(1)
-        molal = (1000*s/(58.442*(100-s)))*100 !mol/kg
-        x = molal/(molal + 55.508435) !moles of solute / (mol solute+mol water)
      else !compute solubility
         call EOSWaterSolubility(T,s)
-        molal = (1000*s/(58.442*(100-s)))*100 !mol/kg
-        x = molal/(molal + 55.508435) !moles of solute / (mol solute+mol water)
      endif
   else
      s = aux(1)
   endif
+  molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
+  x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
 
-  q11 = -32.1724 + 0.0621255 * p_bar
-  q21 = -1.69513 - 4.52781d-4 * p_bar - 6.04279d-8 * p_bar**2
-  q22 = 0.0612567 + 1.88082d-5 * p_bar
+  q11 = -32.1724d0 + 0.0621255d0 * p_bar  ! table 5
+  q21 = -1.69513d0 - 4.52781d-4 * p_bar - 6.04279d-8  * p_bar**2
+  q22 = 0.0612567d0 + 1.88082d-5 * p_bar
 
-  q1x1 = 47.9048 - 9.36994d-3 * p_bar + 6.51059d-6 * p_bar**2;
-  q2x1 = 0.241022 + 3.45087d-5 * p_bar - 4.28356d-9 * p_bar**2;
+  q1x1 = 47.9048d0 - 9.36994d-3 * p_bar + 6.51059d-6 * p_bar**2 ! eq 25
+  q2x1 = 0.241022d0 + 3.45087d-5 * p_bar - 4.28356d-9 * p_bar**2 ! eq 26
 
   q12 = -q11 - q1x1
   q10 = q1x1
@@ -2059,9 +2057,9 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
   q20 = 1.d0 - q21 * sqrt(q22)
   q23 = q2x1 - q20 - q21 * sqrt(1.d0 + q22)
 
-  q1 = q10 + q11 * (1 - x) + q12 * (1.d0 - x)**2
-  q2 = q20 + q21 * sqrt(x + q22) + (q23 * x)
-  T_h = q1 + q2 * t_c
+  q1 = q10 + q11 * (1.d0 - x) + q12 * (1.d0 - x)**2  ! eq 23
+  q2 = q20 + q21 * sqrt(x + q22) + (q23 * x)       ! eq 24
+  T_h = q1 + q2 * t_c                              ! eq 22
 
   call EOSWaterEnthalpyIF97(T_h,P,calculate_derivatives,hw,hwp,hwt,ierr)
 
@@ -2109,30 +2107,28 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
         ! mass fraction salinity [g/g]
         ! must be converted to mole fraction for Driesner eq.
         s = hsb_salinity(1)
-        molal = (1000*s/(58.442*(100-s)))*100 !mol/kg
-        x = molal/(molal + 55.508435) !moles of solute / (mol solute+mol water)
      else !compute solubility
         call EOSWaterSolubility(T,s)
-        molal = (1000*s/(58.442*(100-s)))*100 !mol/kg
-        x = molal/(molal + 55.508435) !moles of solute / (mol solute+mol water)
      endif
+     molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
+     x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
   else
      x = aux(1)
   endif
 
-  n11 = -54.2958 - 45.7623 * exp(-9.44785e-4 * p_bar)
-  n21 = -2.6142 - 0.000239092 * p_bar
-  n22 = 0.0356828 + 4.37235d-6 * p_bar + 2.0566d-9 * p_bar**2
-  n1x1 = 330.47 + 0.942876 * sqrt(p_bar) + 0.0817193 * &
-         p_bar -2.47556d-8 * p_bar**2 + 3.45052d-10 * p_bar**3
-  n2x1 = -0.0370751 + 0.00237723 * sqrt(p_bar) + 5.42049d-5 * &
-       p_bar + 5.84709d-9 * p_bar**2 - 5.99373d-13 * p_bar**3
+  n11 = -54.2958d0 - 45.7623d0 * exp(-9.44785d-4 * p_bar) ! Table 4
+  n21 = -2.6142d0 - 0.000239092d0 * p_bar
+  n22 = 0.0356828d0 + (4.37235d-6 + 2.0566d-9 * p_bar) * p_bar
+  n1x1 = 330.47d0 + 0.942876d0 * sqrt(p_bar) + p_bar * (0.0817193d0 &
+         + p_bar * (-2.47556d-8 + p_bar * 3.45052d-10)) ! eq 11
+  n2x1 = -0.0370751 + 0.00237723 * sqrt(p_bar) + p_bar * (5.42049d-5 &
+        + p_bar * (5.84709d-9 - p_bar * 5.99373d-13))  ! eq 12
   n12 = -n1x1 - n11
   n20 = 1.d0 - n21 * sqrt(n22)
   n23 = n2x1 - n20 - n21 * sqrt(1.d0 + n22)
-  n1  = n1x1 + n11 * (1 - x) + n12 * (1 - x)**2
-  n2  = n20 + n21 * sqrt(x + n22) + n23 * x
-  T_v = n1 + n2 * t_c
+  n1  = n1x1 + (1.d0 - x) * n11  + n12 * (1.d0 - x)**2 ! eq 9
+  n2  = n20 + n21 * sqrt(x + n22) + n23 * x            ! eq 10
+  T_v = n1 + n2 * t_c ! doesn't include D(T) correction
   call EOSWaterDensityIF97(T_v,P,calculate_derivatives,dw,dwmol,dwp,dwt,ierr)
   if (calculate_derivatives) then
     ! calculate derivatives
@@ -2141,7 +2137,7 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
      dwp = UNINITIALIZED_DOUBLE
      dwt = UNINITIALIZED_DOUBLE
   endif
-  dw = dw * (molal+55.508435)/55.508435
+  dw = dw * (molal+55.508435d0)/55.508435d0
 
 end subroutine EOSWaterDensityDriesnerExt
 
@@ -2183,14 +2179,15 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
      s = aux(1)
   endif
 
-  A = (0.0005+s*(0.0378+s*(-0.3682+s*(-0.6529+s*2.89))))*1.d3
-  B = 4.145+s*(-4.973+s*(4.482+s*(18.31+s*(-46.41))))
-  C = 0.0007+s*(-0.0059+s*(0.0854+s*(-0.4951+s*0.8255)))
-  D = (-0.0048+s*(0.0639+s*(-0.714+s*(3.273+s*(-4.85)))))*1.d-3
-  E = (0.0202+s*(-0.2432+s*(2.054+s*(-8.211+s*11.43))))*1.d-6
+  ! eq 8
+  A = (0.0005d0  +s*(0.0378d0  +s*(-0.3682d0 +s*(-0.6529d0 +s*2.89d0))))*1.d3
+  B = 4.145d0    +s*(-4.973d0  +s*(4.482d0   +s*(18.31d0   +s*(-46.41d0))))
+  C = 0.0007d0   +s*(-0.0059d0 +s*(0.0854d0  +s*(-0.4951d0 +s*0.8255d0)))
+  D = (-0.0048d0 +s*(0.0639d0  +s*(-0.714d0  +s*(3.273d0   +s*(-4.85d0)))))*1.d-3
+  E = (0.0202d0  +s*(-0.2432d0 +s*(2.054d0   +s*(-8.211d0  +s*11.43d0))))*1.d-6
   hw = A+T*(B+T*(C+T*(D+T*E))) !kJ/kg
 
-  hw = hw*kJ_to_J/((molal+55.508435)*mol_to_kmol) !J/kmol
+  hw = hw*kJ_to_J/((molal+55.508435d0)*mol_to_kmol) !J/kmol
 
 end subroutine EOSWaterEnthalpySparrowExt
 
@@ -3994,19 +3991,18 @@ subroutine EOSWaterSatPressSparrow(T,aux,calculate_derivatives, &
      s = aux(1)
   endif
 
-
-  if (T >= 0.d0 .and. T <= 150.d0) then
-    A = (0.9083+s*(-0.569+s*(0.1945+s*(-3.736+s*2.82))))*1.d-3
-    B = (-0.0669+s*(0.0582+s*(0.1668+s*(-0.6761+s*2.091))))*1.d-3
-    C = (7.541+s*(-5.143+s*(6.482+s*(-52.62+s*115.7))))*1.d-6
-    D = (-0.0922+s*(0.0649+s*(-0.1313+s*(0.8024-s*1.986))))*1.d-6
-    E = (1.237+s*(-0.753+s*(0.1448+s*(-6.964+s*14.61))))*1.d-9
-  elseif (T > 150.d0 .and. T <= 300.d0) then
-    A = -3.248+s*(7.081+s*(-49.93+s*(219.6+s*(-308.5))))
-    B = 0.0610+s*(-0.1185+s*(0.7916+s*(-3.474+s*4.882)))
-    C = (-0.4109+s*(0.6789+s*(-4.155+s*(18.34+s*(-25.89)))))*1.d-3
-    D = (1.13+s*(-1.432+s*(7.169+s*(-33.17+s*47.45))))*1.d-6
-    E = 0
+  if (T <= 150.d0) then ! eq 6
+    A = (0.9083d0  +s*(-0.569d0 +s*(0.1945d0  +s*(-3.736d0 +s*2.82d0))))*1.d-3
+    B = (-0.0669d0 +s*(0.0582d0 +s*(-0.1668d0 +s*(0.6761d0 +s*(-2.091d0)))))*1.d-3
+    C = (7.541d0   +s*(-5.143d0 +s*(6.482d0   +s*(-52.62d0 +s*115.7d0))))*1.d-6
+    D = (-0.0922d0 +s*(0.0649d0 +s*(-0.1313d0 +s*(0.8024d0 +s*(-1.986d0)))))*1.d-6
+    E = (1.237d0   +s*(-0.753d0 +s*(0.1448d0  +s*(-6.964d0 +s*14.61d0))))*1.d-9
+  elseif (T > 150.d0) then
+    A = -3.248d0   +s*(7.081d0   +s*(-49.93d0 +s*(219.6d0  +s*(-308.5d0))))
+    B = 0.0610d0   +s*(-0.1185d0 +s*(0.7916d0 +s*(-3.474d0 +s*4.882d0)))
+    C = (-0.4109d0 +s*(0.6789d0  +s*(-4.155d0 +s*(18.34d0  +s*(-25.89d0)))))*1.d-3
+    D = (1.13d0    +s*(-1.432d0  +s*(7.169d0  +s*(-33.17d0 +s*47.45d0))))*1.d-6
+    E = 0.d0
   endif
 
   PS = A+T*(B+T*(C+T*(D+T*E)))
@@ -4049,11 +4045,12 @@ subroutine EOSWaterDensitySparrowExt(T,P, aux, &
      s = aux(1)
   endif
 
-  A = (1.001+s*(0.7666+s*(-0.0149+s*(0.2663+s*0.8845))))*1.d3
-  B = -0.0214+s*(-3.496+s*(10.02+s*(-6.56+s*(-31.37))))
-  C = (-5.263+s*(39.87+s*(-176.2+s*(363.5-s*7.784))))*1.d-3
-  D = (15.42+s*(-167+s*(980.7+s*(-2573+s*876.6))))*1.d-6
-  E = (-0.0276+s*(0.2978+s*(-2.017+s*(6.345+s*(-3.914)))))*1.d-6
+  ! eq 7 (0 C <= T <= 300 C)
+  A = (1.001d0   +s*(0.7666d0 +s*(-0.0149d0 +s*(0.2663d0 +s*0.8845d0))))*1.d3
+  B = -0.0214d0  +s*(-3.496d0 +s*(10.02d0   +s*(-6.56d0  +s*(-31.37d0))))
+  C = (-5.263d0  +s*(39.87d0  +s*(-176.2d0  +s*(363.5d0  +s*(-7.784d0)))))*1.d-3
+  D = (15.42d0   +s*(-167.d0  +s*(980.7d0   +s*(-2573.d0 +s*876.6d0))))*1.d-6
+  E = (-0.0276d0 +s*(0.2978d0 +s*(-2.017d0  +s*(6.345d0  +s*(-3.914d0)))))*1.d-6
 
   dw = A+T*(B+T*(C+T*(D+E*T))) !kg/m^3
   dwmol = dw/FMWH2O ! kmol/m^3 
@@ -4077,7 +4074,8 @@ subroutine EOSWaterSolubility(T, solubility)
   PetscReal, intent(in) :: T
   PetscReal, intent(out) :: solubility
 
-  solubility = 0.2628 + 62.75d-6 * T + 1.084d-6 * T**2
+  ! 0 C <= T <= 450 C
+  solubility = 0.2628d0 + 62.75d-6 * T  + 1.084d-6 * T**2 ! eq 5
 
 end subroutine EOSWaterSolubility
 
