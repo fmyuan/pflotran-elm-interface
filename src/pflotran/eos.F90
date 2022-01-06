@@ -245,6 +245,18 @@ subroutine EOSRead(input,option)
                        'EOS,WATER,STEAM_ENTHALPY',option)
             end select
             call EOSWaterSetSteamEnthalpy(word,temparray)
+          case('SATURATION_PRESSURE')
+            call InputReadCard(input,option,word)
+            call InputErrorMsg(input,option,'SATURATION_PRESSURE','EOS,WATER')
+            call StringToUpper(word)
+            select case(trim(word))
+              case('HAAS','SPARROW')
+              case default
+                call InputKeywordUnrecognized(input,word, &
+                       'EOS,WATER,STEAM_DENSITY', &
+                       option)
+            end select
+            call EOSWaterSetSaturationPressure(word,temparray)
           case('HALITE_SATURATED_BRINE')
             halite_saturated_brine = PETSC_TRUE
             call InputPushBlock(input,option)
@@ -275,11 +287,60 @@ subroutine EOSRead(input,option)
                       case('TEMPERATURE_DEPENDENT')
                         hsb_compute_salinity = PETSC_TRUE
                     end select
-
+                    ! Set default properties for halite saturated brine
+                    call EOSWaterSetSalinityProperties(hsb_compute_salinity, hsb_salinity(1))
+                    call EOSWaterSetSaturationPressure('HAAS',hsb_salinity(1))
+                    call EOSWaterSetDensity('BATZLE_AND_WANG',hsb_salinity(1))
+                case('SATURATION_PRESSURE')
+                  call InputReadCard(input,option,word)
+                  call InputErrorMsg(input,option,'SATURATION_PRESSURE','EOS,WATER,HALITE_SATURATED_BRINE')
+                  call StringToUpper(word)
+                  select case(trim(word))
+                    case('HAAS','SPARROW')
+                      call EOSWaterSetSaturationPressure(word,hsb_salinity(1))
+                    case default
+                      call InputKeywordUnrecognized(input,word, &
+                                                    'EOS,WATER,HSB,SATURATION_PRESSURE', &
+                                                    option)
+                  end select
+                case('DENSITY')
+                  call InputReadCard(input,option,word)
+                  call InputErrorMsg(input,option,'DENSITY','EOS,WATER,HALITE_SATURATED_BRINE')
+                  call StringToUpper(word)
+                  select case(trim(word))
+                    case('BATZLE_AND_WANG','SPARROW','DRIESNER')
+                      call EOSWaterSetDensity(word,hsb_salinity(1))
+                    case default
+                      call InputKeywordUnrecognized(input,word, &
+                                                    'EOS,WATER,HSB,DENSITY', &
+                                                    option)
+                  end select
+                case('VISCOSITY')
+                  call InputReadCard(input,option,word)
+                  call InputErrorMsg(input,option,'VISCOSITY','EOS,WATER,HALITE_SATURATED_BRINE')
+                  call StringToUpper(word)
+                  select case(trim(word))
+                    case('BATZLE_AND_WANG','KESTIN')
+                      call EOSWaterSetViscosity(word,hsb_salinity(1))
+                    case default
+                      call InputKeywordUnrecognized(input,word, &
+                                                    'EOS,WATER,HSB,VISCOSITY', &
+                                                    option)
+                  end select
+                case('ENTHALPY')
+                  call InputReadCard(input,option,word)
+                  call InputErrorMsg(input,option,'ENTHALPY','EOS,WATER,HALITE_SATURATED_BRINE')
+                  call StringToUpper(word)
+                  select case(trim(word))
+                  case('SPARROW','DRIESNER')
+                     call EOSWaterSetEnthalpy(word,hsb_salinity(1))
+                  case default
+                     call InputKeywordUnrecognized(input,word, &
+                                                   'EOS,WATER,HSB,ENTHALPY', &
+                                                   option)
+                  end select
               end select
             enddo
-            call EOSWaterSetSalinityProperties(hsb_compute_salinity, hsb_salinity(1))
-            call EOSWaterSetSaturationPressure('HAAS',hsb_salinity(1))
             call InputPopBlock(input,option)
           case('TEST')
             if (option%comm%global_rank == 0) then

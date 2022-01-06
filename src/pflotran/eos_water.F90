@@ -575,6 +575,8 @@ subroutine EOSWaterSetViscosity(keyword,aux)
     case('BATZLE_AND_WANG')
       EOSWaterViscosityPtr => EOSWaterViscosityBatzleAndWang
       EOSWaterViscosityExtPtr => EOSWaterViscosityBatzleAndWangExt
+    case('KESTIN')
+      EOSWaterViscosityExtPtr => EOSWaterViscosityKestinExt
     case('GRABOWSKI')
       EOSWaterViscosityPtr => EOSWaterViscosityGrabowski
     case default
@@ -603,6 +605,8 @@ subroutine EOSWaterSetSaturationPressure(keyword,aux)
       EOSWaterSaturationPressurePtr => EOSWaterSatPresWagnerPruss
     case('HAAS')
       EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaas
+    case('SPARROW')
+      EOSWaterSaturationPressureExtPtr => EOSWaterSatPressSparrow
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSaturationPressure().'
@@ -3322,9 +3326,18 @@ subroutine EOSWaterViscosityKestinExt(T, P, PS, dPS_dT, aux, &
 
   !convert pressure to GPa
   p_GPa = P*1.d-9
+  
   xnacl = aux(1)
-
-  mnacl = xnacl/(1.d0-xnacl)/wnacl
+  if (halite_saturated_brine) then
+     if (.not. hsb_compute_salinity) then
+        ! mass fraction salinity [g/g]
+        mnacl = hsb_salinity(1)
+     else !compute solubility
+        call EOSWaterSolubility(T,mnacl)
+     endif
+  else
+    mnacl = xnacl/(1.d0-xnacl)/wnacl
+  endif
 
   tt = 20.d0-t
   ck = (c1 + (c2 + (c3+c4*tt)*tt)*tt)*tt/(96.d0+t)
