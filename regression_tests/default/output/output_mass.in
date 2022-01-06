@@ -156,17 +156,17 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION top
   TYPE
-    PRESSURE dirichlet
+    LIQUID_PRESSURE dirichlet
   /
-  PRESSURE 100000.d0
+  LIQUID_PRESSURE 100000.d0
 /
 
 
 FLOW_CONDITION bottom
   TYPE
-    PRESSURE dirichlet
+    LIQUID_PRESSURE dirichlet
   /
-  PRESSURE 200000.d0
+  LIQUID_PRESSURE 200000.d0
 /
 
 #=========================== transport conditions =============================

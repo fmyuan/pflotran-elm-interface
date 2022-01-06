@@ -251,7 +251,7 @@ subroutine FlexBioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   do icomp = 1, reaction%ncomp
     Residual(icomp) = Residual(icomp) - this%stoich(icomp) * I
   enddo
-  ! add due to negative stoichiometry for decay
+  ! Add due to negative stoichiometry for decay
   Residual(Xim_offset) = Residual(Xim_offset) + this%k_decay * Xim * volume
 
   if (compute_derivative) then

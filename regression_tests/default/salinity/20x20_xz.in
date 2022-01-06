@@ -12,6 +12,7 @@ SIMULATION
     /
     AUXILIARY SALINITY
       SPECIES Tracer 58.442469d0
+      OVERRIDE_SALINITY_ERROR_MSG
     /
   /
 skip
@@ -171,10 +172,10 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 END
 
 #=========================== transport conditions =============================

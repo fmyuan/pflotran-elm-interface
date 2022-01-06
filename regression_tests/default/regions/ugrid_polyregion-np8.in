@@ -31,17 +31,17 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
-  PRESSURE 101325
+  LIQUID_PRESSURE 101325
   DATUM 0.d0 0.d0 -80.d0
 END
 
 FLOW_CONDITION infiltration_from_pond
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX 3. mm/s
+  LIQUID_FLUX 3. mm/s
 /
 
 #=========================== condition couplers ===============================
