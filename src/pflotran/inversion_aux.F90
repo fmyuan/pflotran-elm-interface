@@ -28,7 +28,7 @@ contains
 
 function InversionAuxCreate()
   !
-  ! Allocate and initialize auxiliary invesion object
+  ! Allocate and initialize auxiliary inversion object
   !
   ! Author: Glenn Hammond
   ! Date: 09/22/21

@@ -111,7 +111,8 @@ ert.o : connection.o coupler.o debug.o ert_aux.o field.o grid.o material_aux.o \
         option.o patch.o pflotran_constants.o realization_subsurface.o \
         survey.o
 ert_aux.o : global_aux.o material_aux.o matrix_zeroing.o option.o \
-            pflotran_constants.o reactive_transport_aux.o survey.o utility.o
+            pflotran_constants.o reactive_transport_aux.o string.o survey.o \
+            utility.o
 factory_forward.o : checkpoint.o driver.o factory_geomechanics.o \
                     factory_subsurface.o input_aux.o logging.o option.o \
                     output_aux.o pflotran_constants.o pm_auxiliary.o pm_base.o \
@@ -348,14 +349,14 @@ inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
                   variables.o
 inversion_perturbation.o : debug.o discretization.o driver.o factory_forward.o \
                            input_aux.o inversion_base.o inversion_subsurface.o \
-                           material.o option.o pflotran_constants.o \
-                           realization_base.o string.o utility.o variables.o \
-                           zflow_aux.o
+                           inversion_ts_aux.o material.o option.o \
+                           pflotran_constants.o realization_base.o string.o \
+                           utility.o variables.o zflow_aux.o
 inversion_subsurface.o : connection.o coupler.o debug.o discretization.o \
                          driver.o factory_forward.o grid.o hdf5.o input_aux.o \
                          inversion_aux.o inversion_base.o inversion_ts_aux.o \
-                         material.o option.o output_hdf5.o patch.o \
-                         pflotran_constants.o pm_base.o pm_zflow.o \
+                         material.o material_aux.o option.o output_hdf5.o \
+                         patch.o pflotran_constants.o pm_base.o pm_zflow.o \
                          realization_base.o realization_subsurface.o \
                          simulation_subsurface.o solver.o string.o timer.o \
                          utility.o variables.o zflow_aux.o
@@ -459,13 +460,14 @@ output_vtk.o : discretization.o field.o grid.o grid_structured.o logging.o \
 patch.o : auxiliary.o characteristic_curves.o characteristic_curves_thermal.o \
           condition.o connection.o coupler.o dataset.o dataset_ascii.o \
           dataset_base.o dataset_common_hdf5.o dataset_gridded_hdf5.o \
-          dataset_map_hdf5.o eos_water.o field.o general_aux.o geometry.o \
-          global_aux.o grid.o grid_unstructured_cell.o hydrate_aux.o \
-          hydrostatic.o integral_flux.o material.o material_aux.o mphase_aux.o \
-          nw_transport_aux.o nw_transport_equilibrium.o observation.o option.o \
-          output_aux.o pflotran_constants.o pnf_aux.o reaction.o \
-          reaction_aux.o reaction_base.o reaction_mineral.o \
-          reaction_mineral_aux.o reaction_redox.o reaction_surf_complex_aux.o \
+          dataset_map_hdf5.o eos_water.o ert_aux.o field.o general_aux.o \
+          geometry.o global_aux.o grid.o grid_unstructured_cell.o \
+          hydrate_aux.o hydrostatic.o integral_flux.o material.o \
+          material_aux.o mphase_aux.o nw_transport_aux.o \
+          nw_transport_equilibrium.o observation.o option.o output_aux.o \
+          pflotran_constants.o pnf_aux.o reaction.o reaction_aux.o \
+          reaction_base.o reaction_mineral.o reaction_mineral_aux.o \
+          reaction_redox.o reaction_surf_complex_aux.o \
           reactive_transport_aux.o region.o richards_aux.o \
           saturation_function.o strata.o string.o th_aux.o \
           transport_constraint.o transport_constraint_base.o \
@@ -482,11 +484,11 @@ pflotran_rxn.o : communicator_aux.o driver.o global_aux.o input_aux.o \
                  string.o transport_constraint.o transport_constraint_base.o \
                  transport_constraint_rt.o
 pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
-                 input_aux.o option.o pflotran_constants.o pm_base.o \
-                 reaction_aux.o reactive_transport_aux.o \
+                 input_aux.o inversion_ts_aux.o option.o pflotran_constants.o \
+                 pm_base.o reaction_aux.o reactive_transport_aux.o \
                  realization_subsurface.o string.o
 pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
-            realization_base.o solver.o string.o
+            realization_base.o solver.o string.o utility.o
 pm_base_pointer.o : pflotran_constants.o pm_base.o
 pm_ert.o : communicator_base.o connection.o coupler.o debug.o discretization.o \
            ert.o ert_aux.o field.o global_aux.o grid.o input_aux.o \
