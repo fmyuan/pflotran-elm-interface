@@ -32,11 +32,13 @@ END
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    Tracer
+    Tracer1
+    Tracer2
   /
   OUTPUT
     TOTAL
-    Tracer
+    Tracer1
+    Tracer2
   /
 END
 
@@ -186,13 +188,15 @@ END
 
 CONSTRAINT top
   CONCENTRATIONS
-    Tracer 5.d0  T
+    Tracer1 5.d0  T
+    Tracer2 2.d0  T
   /
 /
 
 CONSTRAINT bottom
   CONCENTRATIONS
-    Tracer 1.d-10  T
+    Tracer1 1.d-10  T
+    Tracer2 1.d-10  T
   /
 /
 #=========================== constraints ======================================

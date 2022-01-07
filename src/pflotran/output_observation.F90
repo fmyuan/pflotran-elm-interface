@@ -2354,7 +2354,7 @@ subroutine OutputMassBalance(realization_base)
                realization_base%option%nphase)
   PetscReal, allocatable :: sum_mol(:,:), sum_mol_global(:,:)
   PetscReal, allocatable :: global_total_mass(:,:), total_mass(:,:)
-  PetscReal :: global_water_mass
+  PetscReal :: global_water_mass, global_total_mass_sum
 
   PetscReal :: sum_trapped(realization_base%option%nphase)
   PetscReal :: sum_trapped_global(realization_base%option%nphase)
@@ -2626,10 +2626,16 @@ subroutine OutputMassBalance(realization_base)
           if (option%ntrandof > 0) then
             select case(option%itranmode)
               case(RT_MODE)
+                string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass' 
+                if (reaction%print_total_mass_kg) then                
+                  call OutputWriteToHeader(fid,string,'kg','',icol)
+                else
+                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                endif
                 do i=1, reaction%naqcomp
                   if (reaction%primary_species_print(i)) then  
                     string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
-                           trim(reaction%primary_species_names(i)) // ' Total Mass'
+                           trim(reaction%primary_species_names(i)) // ' Mass'
                     if (reaction%print_total_mass_kg) then                
                       call OutputWriteToHeader(fid,string,'kg','',icol)
                     else
@@ -2640,7 +2646,7 @@ subroutine OutputMassBalance(realization_base)
                 do i=1,reaction%immobile%nimmobile
                   if (reaction%immobile%print_me(i)) then
                     string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
-                         trim(reaction%immobile%names(i)) // ' Total Mass'
+                         trim(reaction%immobile%names(i)) // ' Mass'
                     if (reaction%print_total_mass_kg) then                
                       call OutputWriteToHeader(fid,string,'kg','',icol)
                     else
@@ -2652,7 +2658,7 @@ subroutine OutputMassBalance(realization_base)
                 do i=1,reaction%gas%nactive_gas
                   if (reaction%gas%active_print_me(i)) then
                     string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
-                         trim(reaction%gas%active_names(i)) // ' Total Mass'
+                         trim(reaction%gas%active_names(i)) // ' Mass'
                     if (reaction%print_total_mass_kg) then                
                       call OutputWriteToHeader(fid,string,'kg','',icol)
                     else
@@ -3263,8 +3269,12 @@ subroutine OutputMassBalance(realization_base)
         call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
                       MPI_DOUBLE_PRECISION,MPI_SUM, &
                       option%driver%io_rank,option%mycomm,ierr)
-
+        global_total_mass_sum = 0.d0
+        do i =1, size(global_total_mass(:,1))
+            global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+        enddo                    
         if (OptionIsIORank(option)) then
+          write(fid,110,advance="no") global_total_mass_sum
           do icomp = 1, reaction%naqcomp
             if (reaction%primary_species_print(icomp)) then
               write(fid,110,advance="no") global_total_mass(icomp,1)
