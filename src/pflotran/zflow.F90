@@ -803,17 +803,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       !geh - Ignore inactive cells with inactive materials
       imat = patch%imat(ghosted_id)
       if (imat <= 0) cycle
-      if (zflow_numerical_derivatives) then
-        call ZFlowAccumDerivative(zflow_auxvars(:,ghosted_id), &
-                                  global_auxvars(ghosted_id), &
-                                  material_auxvars(ghosted_id), &
-                                  option,Res,Jup)
-      else
-        call ZFlowAccumulation(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                               global_auxvars(ghosted_id), &
-                               material_auxvars(ghosted_id), &
-                               option,Res,Jup,dResdparam,PETSC_TRUE)
-      endif
+      call ZFlowAccumDerivative(zflow_auxvars(:,ghosted_id), &
+                                global_auxvars(ghosted_id), &
+                                material_auxvars(ghosted_id), &
+                                option,Res,Jup,dResdparam)
       r_p(local_id) =  r_p(local_id) + Res(1)
       accum_p2(local_id) = Res(1)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
@@ -853,30 +846,16 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         icc_up = patch%cc_id(ghosted_id_up)
         icc_dn = patch%cc_id(ghosted_id_dn)
 
-        if (zflow_numerical_derivatives) then
-          call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
-                                global_auxvars(ghosted_id_up), &
-                                material_auxvars(ghosted_id_up), &
-                                zflow_auxvars(:,ghosted_id_dn), &
-                                global_auxvars(ghosted_id_dn), &
-                                material_auxvars(ghosted_id_dn), &
-                                cur_connection_set%area(iconn), &
-                                cur_connection_set%dist(:,iconn), &
-                                zflow_parameter,option,v_darcy, &
-                                Res,Jup,Jdn)
-        else
-          call XXFlux(zflow_auxvars(ZERO_INTEGER,ghosted_id_up), &
-                      global_auxvars(ghosted_id_up), &
-                      material_auxvars(ghosted_id_up), &
-                      zflow_auxvars(ZERO_INTEGER,ghosted_id_dn), &
-                      global_auxvars(ghosted_id_dn), &
-                      material_auxvars(ghosted_id_dn), &
-                      cur_connection_set%area(iconn), &
-                      cur_connection_set%dist(:,iconn), &
-                      zflow_parameter,option,v_darcy, &
-                      Res,Jup,Jdn,dResdparamup,dResdparamdn, &
-                      PETSC_TRUE)
-        endif
+        call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
+                              global_auxvars(ghosted_id_up), &
+                              material_auxvars(ghosted_id_up), &
+                              zflow_auxvars(:,ghosted_id_dn), &
+                              global_auxvars(ghosted_id_dn), &
+                              material_auxvars(ghosted_id_dn), &
+                              cur_connection_set%area(iconn), &
+                              cur_connection_set%dist(:,iconn), &
+                              zflow_parameter,option,v_darcy, &
+                              Res,Jup,Jdn,dResdparamup,dResdparamdn)
         patch%internal_velocities(:,sum_connection) = v_darcy
         if (associated(patch%internal_flow_fluxes)) then
           patch%internal_flow_fluxes(:,sum_connection) = Res(:)
@@ -957,34 +936,19 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
 
         icc_dn = patch%cc_id(ghosted_id)
 
-        if (zflow_numerical_derivatives) then
-          call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
-                                  boundary_condition%flow_aux_mapping, &
-                                  boundary_condition% &
-                                    flow_aux_real_var(:,iconn), &
-                                  zflow_auxvars_bc(sum_connection), &
-                                  global_auxvars_bc(sum_connection), &
-                                  zflow_auxvars(:,ghosted_id), &
-                                  global_auxvars(ghosted_id), &
-                                  material_auxvars(ghosted_id), &
-                                  cur_connection_set%area(iconn), &
-                                  cur_connection_set%dist(:,iconn), &
-                                  zflow_parameter,option, &
-                                  v_darcy,Res,Jdn)
-        else
-          call XXBCFlux(boundary_condition%flow_bc_type, &
-                        boundary_condition%flow_aux_mapping, &
-                        boundary_condition%flow_aux_real_var(:,iconn), &
-                        zflow_auxvars_bc(sum_connection), &
-                        global_auxvars_bc(sum_connection), &
-                        zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                        global_auxvars(ghosted_id), &
-                        material_auxvars(ghosted_id), &
-                        cur_connection_set%area(iconn), &
-                        cur_connection_set%dist(:,iconn), &
-                        zflow_parameter,option, &
-                        v_darcy,Res,Jdn,dResdparamdn,PETSC_TRUE)
-        endif
+        call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
+                                boundary_condition%flow_aux_mapping, &
+                                boundary_condition% &
+                                  flow_aux_real_var(:,iconn), &
+                                zflow_auxvars_bc(sum_connection), &
+                                global_auxvars_bc(sum_connection), &
+                                zflow_auxvars(:,ghosted_id), &
+                                global_auxvars(ghosted_id), &
+                                material_auxvars(ghosted_id), &
+                                cur_connection_set%area(iconn), &
+                                cur_connection_set%dist(:,iconn), &
+                                zflow_parameter,option, &
+                                v_darcy,Res,Jdn,dResdparamdn)
         patch%boundary_velocities(:,sum_connection) = v_darcy
         if (associated(patch%boundary_flow_fluxes)) then
           patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
@@ -1031,25 +995,14 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         scale = 1.d0
       endif
 
-      if (zflow_numerical_derivatives) then
-        call ZFlowSrcSinkDerivative(option, &
-                                    source_sink%flow_condition%rate% &
-                                      dataset%rarray(:), &
-                                    source_sink%flow_condition%rate%itype, &
-                                    zflow_auxvars(:,ghosted_id), &
-                                    global_auxvars(ghosted_id), &
-                                    material_auxvars(ghosted_id), &
-                                    ss_flow_vol_flux,scale,Res,Jdn)
-      else
-        call ZFlowSrcSink(option,source_sink%flow_condition%rate% &
-                                  dataset%rarray(:), &
-                          source_sink%flow_condition%rate%itype, &
-                          zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                          global_auxvars(ghosted_id), &
-                          material_auxvars(ghosted_id), &
-                          ss_flow_vol_flux, &
-                          scale,Res,Jdn,PETSC_TRUE)
-      endif
+      call ZFlowSrcSinkDerivative(option, &
+                                  source_sink%flow_condition%rate% &
+                                    dataset%rarray(:), &
+                                  source_sink%flow_condition%rate%itype, &
+                                  zflow_auxvars(:,ghosted_id), &
+                                  global_auxvars(ghosted_id), &
+                                  material_auxvars(ghosted_id), &
+                                  ss_flow_vol_flux,scale,Res,Jdn)
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
       endif

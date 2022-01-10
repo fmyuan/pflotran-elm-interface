@@ -42,9 +42,10 @@ module ZFlow_Common_module
       PetscReal :: area
       PetscReal :: dist(-1:3)
       type(zflow_parameter_type) :: zflow_parameter
-      PetscReal :: Res(1)
-      PetscReal :: Jup(1,1), Jdn(1,1)
-      PetscReal :: dResdparamup(1), dResdparamdn(1)
+      PetscReal :: Res(option%nflowdof)
+      PetscReal :: Jup(option%nflowdof,option%nflowdof)
+      PetscReal :: Jdn(option%nflowdof,option%nflowdof)
+      PetscReal :: dResdparamup(option%nflowdof), dResdparamdn(option%nflowdof)
       PetscBool :: calculate_derivatives
     end subroutine FluxDummy
     subroutine BCFluxDummy(ibndtype,auxvar_mapping,auxvars, &
@@ -72,9 +73,9 @@ module ZFlow_Common_module
       PetscReal :: dist(-1:3)
       type(zflow_parameter_type) :: zflow_parameter
       PetscReal :: v_darcy(1)
-      PetscReal :: Res(1)
-      PetscReal :: Jdn(1,1)
-      PetscReal :: dResdparamdn(1)
+      PetscReal :: Res(option%nflowdof)
+      PetscReal :: Jdn(option%nflowdof,option%nflowdof)
+      PetscReal :: dResdparamdn(option%nflowdof)
       PetscBool :: calculate_derivatives
     end subroutine BCFluxDummy
   end interface
@@ -82,7 +83,6 @@ module ZFlow_Common_module
   public :: ZFlowAccumulation, &
             ZFlowFluxHarmonicPermOnly, &
             ZFlowBCFluxHarmonicPermOnly, &
-            ZFlowSrcSink, &
             ZFlowAccumDerivative, &
             XXFluxDerivative, &
             XXBCFluxDerivative, &
@@ -102,7 +102,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   ! term for the residual
   !
   ! Author: Glenn Hammond
-  ! Date: 07/11/17
+  ! Date: 01/10/22
   !
 
   use Option_module
@@ -114,9 +114,9 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  PetscReal :: Res(1)
-  PetscReal :: Jac(1,1)
-  PetscReal :: dResdparam(1)
+  PetscReal :: Res(option%nflowdof)
+  PetscReal :: Jac(option%nflowdof,option%nflowdof)
+  PetscReal :: dResdparam(option%nflowdof)
   PetscBool :: calculate_derivatives
 
   PetscReal :: porosity
@@ -168,7 +168,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   ! intrinsic permeability
   !
   ! Author: Glenn Hammond
-  ! Date: 07/11/17
+  ! Date: 01/10/22
   !
   use Option_module
   use Material_Aux_module
@@ -184,9 +184,10 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   type(zflow_parameter_type) :: zflow_parameter
-  PetscReal :: Res(1)
-  PetscReal :: Jup(1,1), Jdn(1,1)
-  PetscReal :: dResdparamup(1), dResdparamdn(1)
+  PetscReal :: Res(option%nflowdof)
+  PetscReal :: Jup(option%nflowdof,option%nflowdof)
+  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
+  PetscReal :: dResdparamup(option%nflowdof), dResdparamdn(option%nflowdof)
   PetscBool :: calculate_derivatives
 
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -293,7 +294,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   ! Computes the boundary flux terms for the residual
   !
   ! Author: Glenn Hammond
-  ! Date: 07/11/17
+  ! Date: 01/10/22
   !
   use Option_module
   use Material_Aux_module
@@ -312,9 +313,9 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dist(-1:3)
   type(zflow_parameter_type) :: zflow_parameter
   PetscReal :: v_darcy(1)
-  PetscReal :: Res(1)
-  PetscReal :: Jdn(1,1)
-  PetscReal :: dResdparamdn(1)
+  PetscReal :: Res(option%nflowdof)
+  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
+  PetscReal :: dResdparamdn(option%nflowdof)
   PetscBool :: calculate_derivatives
 
   PetscInt :: bc_type
@@ -448,7 +449,7 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   ! Computes the source/sink terms for the residual
   !
   ! Author: Glenn Hammond
-  ! Date: 07/11/17
+  ! Date: 01/10/22
   !
   use Option_module
   use Material_Aux_module
@@ -465,8 +466,8 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   type(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux(1)
   PetscReal :: scale
-  PetscReal :: Res(1)
-  PetscReal :: Jdn(1,1)
+  PetscReal :: Res(option%nflowdof)
+  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   PetscBool :: calculate_derivatives
 
   PetscReal :: qsrc_m3
@@ -500,13 +501,13 @@ end subroutine ZFlowSrcSink
 
 subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
                                 material_auxvar, &
-                                option,Res,Jac)
+                                option,Res,Jac,dResdparam)
   !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
   !
   ! Author: Glenn Hammond
-  ! Date: 07/11/17
+  ! Date: 01/10/22
   !
 
   use Option_module
@@ -518,26 +519,29 @@ subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  PetscReal :: Res(1)
-  PetscReal :: Jac(1,1)
+  PetscReal :: Res(option%nflowdof)
+  PetscReal :: Jac(option%nflowdof,option%nflowdof)
+  PetscReal :: dResdparam(option%nflowdof)
 
-  PetscReal :: res_pert(1)
-  PetscReal :: Jdum(1,1)
-  PetscReal :: dJdum(1,1)
+  PetscReal :: res_pert(option%nflowdof)
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)
+  PetscReal :: dJdum(option%nflowdof)
 
   call ZFlowAccumulation(zflow_auxvar(ZERO_INTEGER), &
                          global_auxvar, &
                          material_auxvar, &
-                         option,Res,Jdum,dJdum, &
-                         PETSC_FALSE)
+                         option,Res,Jac,dResdparam, &
+                         .not.zflow_numerical_derivatives)
 
-  call ZFlowAccumulation(zflow_auxvar(ONE_INTEGER), &
-                         global_auxvar, &
-                         material_auxvar, &
-                         option,res_pert,Jdum,dJdum, &
-                         PETSC_FALSE)
-  ! J[m^3 liquid/Pa-sec]
-  Jac(1,1) = (res_pert(1)-Res(1))/zflow_auxvar(ONE_INTEGER)%pert
+  if (zflow_numerical_derivatives) then
+    call ZFlowAccumulation(zflow_auxvar(ONE_INTEGER), &
+                           global_auxvar, &
+                           material_auxvar, &
+                           option,res_pert,Jdum,dJdum, &
+                           PETSC_FALSE)
+    ! J[m^3 liquid/Pa-sec]
+    Jac(1,1) = (res_pert(1)-Res(1))/zflow_auxvar(ONE_INTEGER)%pert
+  endif
 
 end subroutine ZFlowAccumDerivative
 
@@ -547,15 +551,14 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
                             material_auxvar_up, &
                             zflow_auxvar_dn,global_auxvar_dn, &
                             material_auxvar_dn, &
-                            area, dist, &
-                            zflow_parameter, &
-                            option,v_darcy,Res,Jup,Jdn)
+                            area, dist,zflow_parameter,option,v_darcy, &
+                            Res,Jup,Jdn,dResdparamup,dResdparamdn)
   !
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
   !
   ! Author: Glenn Hammond
-  ! Date: 07/11/17
+  ! Date: 01/10/22
   !
   use Option_module
   use Material_Aux_module
@@ -570,13 +573,14 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: dist(-1:3)
   type(zflow_parameter_type) :: zflow_parameter
   PetscReal :: v_darcy(1)
-  PetscReal :: Res(1)
-  PetscReal :: Jup(1,1)
-  PetscReal :: Jdn(1,1)
+  PetscReal :: Res(option%nflowdof)
+  PetscReal :: Jup(option%nflowdof,option%nflowdof)
+  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
+  PetscReal :: dResdparamup(option%nflowdof), dResdparamdn(option%nflowdof)
 
-  PetscReal :: res_pert(1)
+  PetscReal :: res_pert(option%nflowdof)
   PetscReal :: v_darcy_dum(1)
-  PetscReal :: Jdum(1,1), dJdum(1)
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof), dJdum(option%nflowdof)
 
   Jup = 0.d0
   Jdn = 0.d0
@@ -585,38 +589,32 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
               material_auxvar_up, &
               zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
               material_auxvar_dn, &
-              area,dist, &
-              zflow_parameter, &
-              option,v_darcy,Res,Jdum,Jdum, &
-              dJdum,dJdum, &
-              PETSC_FALSE)
+              area,dist,zflow_parameter,option,v_darcy, &
+              Res,Jup,Jdn,dResdparamup,dResdparamdn, &
+              .not.zflow_numerical_derivatives)
 
-  ! upgradient derivatives
-  call XXFlux(zflow_auxvar_up(ONE_INTEGER),global_auxvar_up, &
-              material_auxvar_up, &
-              zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-              material_auxvar_dn, &
-              area,dist, &
-              zflow_parameter, &
-              option,v_darcy_dum,res_pert,Jdum,Jdum, &
-              dJdum,dJdum, &
-              PETSC_FALSE)
-  ! J[m^3 liquid/Pa-sec]
-  Jup(1,1) = (res_pert(1)-Res(1)) / &
-             zflow_auxvar_up(ONE_INTEGER)%pert
-  ! downgradient derivatives
-  call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-              material_auxvar_up, &
-              zflow_auxvar_dn(ONE_INTEGER),global_auxvar_dn, &
-              material_auxvar_dn, &
-              area,dist, &
-              zflow_parameter, &
-              option,v_darcy_dum,res_pert,Jdum,Jdum, &
-              dJdum,dJdum, &
-              PETSC_FALSE)
-  ! J[m^3 liquid/Pa-sec]
-  Jdn(1,1) = (res_pert(1)-Res(1)) / &
-             zflow_auxvar_dn(ONE_INTEGER)%pert
+  if (zflow_numerical_derivatives) then
+    ! upgradient derivatives
+    call XXFlux(zflow_auxvar_up(ONE_INTEGER),global_auxvar_up, &
+                material_auxvar_up, &
+                zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                material_auxvar_dn, &
+                area,dist,zflow_parameter,option,v_darcy_dum, &
+                res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE)
+    ! J[m^3 liquid/Pa-sec]
+    Jup(1,1) = (res_pert(1)-Res(1)) / &
+              zflow_auxvar_up(ONE_INTEGER)%pert
+    ! downgradient derivatives
+    call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                material_auxvar_up, &
+                zflow_auxvar_dn(ONE_INTEGER),global_auxvar_dn, &
+                material_auxvar_dn, &
+                area,dist,zflow_parameter,option,v_darcy_dum, &
+                res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE)
+    ! J[m^3 liquid/Pa-sec]
+    Jdn(1,1) = (res_pert(1)-Res(1)) / &
+              zflow_auxvar_dn(ONE_INTEGER)%pert
+  endif
 
 end subroutine XXFluxDerivative
 
@@ -627,15 +625,14 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                               global_auxvar_up, &
                               zflow_auxvar_dn,global_auxvar_dn, &
                               material_auxvar_dn, &
-                              area,dist, &
-                              zflow_parameter, &
-                              option,v_darcy,Res,Jdn)
+                              area,dist,zflow_parameter,option,v_darcy, &
+                              Res,Jdn,dResdparamdn)
   !
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
   !
   ! Author: Glenn Hammond
-  ! Date: 07/11/17
+  ! Date: 01/10/22
   !
 
   use Option_module
@@ -654,12 +651,13 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dist(-1:3)
   type(zflow_parameter_type) :: zflow_parameter
   PetscReal :: v_darcy(1)
-  PetscReal :: Res(1)
-  PetscReal :: Jdn(1,1)
+  PetscReal :: Res(option%nflowdof)
+  PetscReal :: Jdn(option%nflowdof,option%nflowdof)
+  PetscReal :: dResdparamdn(option%nflowdof)
 
-  PetscReal :: res_pert(1)
+  PetscReal :: res_pert(option%nflowdof)
   PetscReal :: v_darcy_dum(1)
-  PetscReal :: Jdum(1,1), dJdum(1)
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof), dJdum(option%nflowdof)
 
   Jdn = 0.d0
 
@@ -667,22 +665,20 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                 zflow_auxvar_up,global_auxvar_up, &
                 zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                 material_auxvar_dn, &
-                area,dist, &
-                zflow_parameter, &
-                option,v_darcy,Res,Jdum,dJdum, &
-                PETSC_FALSE)
+                area,dist,zflow_parameter,option,v_darcy, &
+                Res,Jdn,dResdparamdn,.not.zflow_numerical_derivatives)
 
-  ! downgradient derivatives
-  call XXBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                zflow_auxvar_up,global_auxvar_up, &
-                zflow_auxvar_dn(ONE_INTEGER),global_auxvar_dn, &
-                material_auxvar_dn, &
-                area,dist, &
-                zflow_parameter, &
-                option,v_darcy_dum,res_pert,Jdum,dJdum, &
-                PETSC_FALSE)
-  ! J[m^3 liquid/Pa-sec]
-  Jdn(1,1) = (res_pert(1)-Res(1))/zflow_auxvar_dn(ONE_INTEGER)%pert
+  if (zflow_numerical_derivatives) then
+    ! downgradient derivatives
+    call XXBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                  zflow_auxvar_up,global_auxvar_up, &
+                  zflow_auxvar_dn(ONE_INTEGER),global_auxvar_dn, &
+                  material_auxvar_dn, &
+                  area,dist,zflow_parameter,option,v_darcy_dum, &
+                  res_pert,Jdum,dJdum,PETSC_FALSE)
+    ! J[m^3 liquid/Pa-sec]
+    Jdn(1,1) = (res_pert(1)-Res(1))/zflow_auxvar_dn(ONE_INTEGER)%pert
+  endif
 
 end subroutine XXBCFluxDerivative
 
@@ -697,7 +693,7 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   ! Computes the source/sink terms for the residual
   !
   ! Author: Glenn Hammond
-  ! Date: 07/11/17
+  ! Date: 01/10/22
   !
   use Option_module
   use Material_Aux_module
@@ -712,28 +708,31 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   type(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux(1)
   PetscReal :: scale
-  PetscReal :: Res(1)
-  PetscReal :: Jac(1,1)
+  PetscReal :: Res(option%nflowdof)
+  PetscReal :: Jac(option%nflowdof,option%nflowdof)
 
-  PetscReal :: res_pert(1)
+  PetscReal :: res_pert(option%nflowdof)
   PetscReal :: dummy_real(1)
-  PetscReal :: Jdum(1,1)
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)
 
   Jac = 0.d0
   ! unperturbed zflow_auxvars value
   call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
                     zflow_auxvars(ZERO_INTEGER),global_auxvar, &
-                    material_auxvar,ss_flow_vol_flux,scale,Res,Jdum, &
-                    PETSC_FALSE)
+                    material_auxvar, &
+                    ss_flow_vol_flux,scale, &
+                    Res,Jac,.not.zflow_numerical_derivatives)
 
-  ! perturbed zflow_auxvars values
-  call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
-                    zflow_auxvars(ONE_INTEGER),global_auxvar, &
-                    material_auxvar,dummy_real, &
-                    scale,res_pert,Jdum, &
-                    PETSC_FALSE)
-  ! J[m^3 liquid/Pa-sec]
-  Jac(1,1) = (res_pert(1)-Res(1))/zflow_auxvars(ONE_INTEGER)%pert
+  if (zflow_numerical_derivatives) then
+    ! perturbed zflow_auxvars values
+    call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
+                      zflow_auxvars(ONE_INTEGER),global_auxvar, &
+                      material_auxvar, &
+                      dummy_real,scale, &
+                      res_pert,Jdum,PETSC_FALSE)
+    ! J[m^3 liquid/Pa-sec]
+    Jac(1,1) = (res_pert(1)-Res(1))/zflow_auxvars(ONE_INTEGER)%pert
+  endif
 
 end subroutine ZFlowSrcSinkDerivative
 
