@@ -836,7 +836,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
     string = 'dResdK_ts'//trim(StringWrite(inversion_ts_aux%timestep))//'.txt'
     call PetscViewerASCIIOpen(option%mycomm,string, &
                               viewer,ierr);CHKERRQ(ierr)
-    call MatView(inversion_ts_aux%dResdK,viewer,ierr);CHKERRQ(ierr)
+    call MatView(inversion_ts_aux%dResdparam,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
@@ -852,7 +852,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
       call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
     endif
     call VecDuplicate(work,dResdKLambda,ierr);CHKERRQ(ierr)
-    call MatMultTranspose(inversion_ts_aux%dResdK, &
+    call MatMultTranspose(inversion_ts_aux%dResdparam, &
                           inversion_ts_aux%lambda(imeasurement), &
                           dResdKLambda,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)

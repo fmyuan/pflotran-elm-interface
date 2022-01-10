@@ -590,7 +590,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
   PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
   PetscReal :: Jdum(1,1)
-  PetscReal :: dResdpor(1,1)
+  PetscReal :: dResdparam(1,1)
   PetscReal, pointer :: vec_ptr(:)
 
   PetscErrorCode :: ierr
@@ -632,7 +632,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
                            global_auxvars(ghosted_id), &
                            material_auxvars(ghosted_id), &
                            option,accum_p(local_id:local_id), &
-                           Jdum,dResdpor,zflow_calc_adjoint)
+                           Jdum,dResdparam,zflow_calc_adjoint)
     if (zflow_calc_adjoint) then
       ! negative because the value is subtracted in residual
       patch%aux%inversion_ts_aux%dRes_du_k(local_id) = -Jdum(1,1)
@@ -714,9 +714,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   PetscInt :: icc_up, icc_dn
   PetscReal :: Res(realization%option%nflowdof)
   PetscReal :: Jup(size(Res),size(Res)),Jdn(size(Res),size(Res))
-  PetscReal :: dResdKup(size(Res)),dResdKdn(size(Res))
-  PetscReal :: dResdpor(size(Res))
-  Mat :: dResdK
+  PetscReal :: dResdparamup(size(Res)),dResdparamdn(size(Res))
+  PetscReal :: dResdparam(size(Res))
+  Mat :: MatdResdparam
   PetscBool :: store_adjoint
   PetscReal :: v_darcy(1)
 
@@ -725,10 +725,10 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
 
   ndof = realization%option%nflowdof
 
-  dResdK = PETSC_NULL_MAT
-  dResdKup = UNINITIALIZED_DOUBLE  ! to catch bugs
-  dResdKdn = UNINITIALIZED_DOUBLE
-  dResdpor = UNINITIALIZED_DOUBLE
+  MatdResdparam = PETSC_NULL_MAT
+  dResdparamup = UNINITIALIZED_DOUBLE  ! to catch bugs
+  dResdparamdn = UNINITIALIZED_DOUBLE
+  dResdparam = UNINITIALIZED_DOUBLE
 
   discretization => realization%discretization
   option => realization%option
@@ -745,15 +745,13 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
 
   store_adjoint = PETSC_FALSE
-  dResdK = PETSC_NULL_MAT
-  if (zflow_simult_function_evals) then
-    call MatZeroEntries(A,ierr);CHKERRQ(ierr)
-    if (associated(patch%aux%inversion_ts_aux)) then
-      dResdK = patch%aux%inversion_ts_aux%dResdK
-      if (dResdK /= PETSC_NULL_MAT) then
-        store_adjoint = PETSC_TRUE
-        call MatZeroEntries(dResdK,ierr);CHKERRQ(ierr)
-      endif
+  MatdResdparam = PETSC_NULL_MAT
+  call MatZeroEntries(A,ierr);CHKERRQ(ierr)
+  if (associated(patch%aux%inversion_ts_aux)) then
+    MatdResdparam = patch%aux%inversion_ts_aux%dResdparam
+    if (MatdResdparam /= PETSC_NULL_MAT) then
+      store_adjoint = PETSC_TRUE
+      call MatZeroEntries(MatdResdparam,ierr);CHKERRQ(ierr)
     endif
   endif
 
@@ -805,28 +803,26 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       !geh - Ignore inactive cells with inactive materials
       imat = patch%imat(ghosted_id)
       if (imat <= 0) cycle
-      call ZFlowAccumulation(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                             global_auxvars(ghosted_id), &
-                             material_auxvars(ghosted_id), &
-                             option,Res,Jup,dResdpor, &
-                             zflow_simult_function_evals)
       if (zflow_numerical_derivatives) then
         call ZFlowAccumDerivative(zflow_auxvars(:,ghosted_id), &
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id), &
-                                  option,Jup)
+                                  option,Res,Jup)
+      else
+        call ZFlowAccumulation(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
+                               global_auxvars(ghosted_id), &
+                               material_auxvars(ghosted_id), &
+                               option,Res,Jup,dResdparam,PETSC_TRUE)
       endif
       r_p(local_id) =  r_p(local_id) + Res(1)
       accum_p2(local_id) = Res(1)
-      if (zflow_simult_function_evals) then
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+      if (store_adjoint) then
+        call MatSetValuesBlockedLocal(MatdResdparam, &
+                                      1,ghosted_id-1,1,ghosted_id-1, &
+                                      dResdparam, &
                                       ADD_VALUES,ierr);CHKERRQ(ierr)
-        if (store_adjoint) then
-          call MatSetValuesBlockedLocal(dResdK, &
-                                        1,ghosted_id-1,1,ghosted_id-1, &
-                                        dResdpor, &
-                                        ADD_VALUES,ierr);CHKERRQ(ierr)
-        endif
       endif
     enddo
     call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
@@ -857,18 +853,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         icc_up = patch%cc_id(ghosted_id_up)
         icc_dn = patch%cc_id(ghosted_id_dn)
 
-        call XXFlux(zflow_auxvars(ZERO_INTEGER,ghosted_id_up), &
-                    global_auxvars(ghosted_id_up), &
-                    material_auxvars(ghosted_id_up), &
-                    zflow_auxvars(ZERO_INTEGER,ghosted_id_dn), &
-                    global_auxvars(ghosted_id_dn), &
-                    material_auxvars(ghosted_id_dn), &
-                    cur_connection_set%area(iconn), &
-                    cur_connection_set%dist(:,iconn), &
-                    zflow_parameter,option,v_darcy, &
-                    Res,Jup,Jdn, &
-                    dResdKup,dResdKdn, &
-                    zflow_simult_function_evals)
         if (zflow_numerical_derivatives) then
           call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
                                 global_auxvars(ghosted_id_up), &
@@ -878,8 +862,20 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                 material_auxvars(ghosted_id_dn), &
                                 cur_connection_set%area(iconn), &
                                 cur_connection_set%dist(:,iconn), &
-                                zflow_parameter,option, &
-                                Jup,Jdn)
+                                zflow_parameter,option,v_darcy, &
+                                Res,Jup,Jdn)
+        else
+          call XXFlux(zflow_auxvars(ZERO_INTEGER,ghosted_id_up), &
+                      global_auxvars(ghosted_id_up), &
+                      material_auxvars(ghosted_id_up), &
+                      zflow_auxvars(ZERO_INTEGER,ghosted_id_dn), &
+                      global_auxvars(ghosted_id_dn), &
+                      material_auxvars(ghosted_id_dn), &
+                      cur_connection_set%area(iconn), &
+                      cur_connection_set%dist(:,iconn), &
+                      zflow_parameter,option,v_darcy, &
+                      Res,Jup,Jdn,dResdparamup,dResdparamdn, &
+                      PETSC_TRUE)
         endif
         patch%internal_velocities(:,sum_connection) = v_darcy
         if (associated(patch%internal_flow_fluxes)) then
@@ -888,45 +884,51 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
 
         if (local_id_up > 0) then
           r_p(local_id_up) = r_p(local_id_up) + Res(1)
-          if (zflow_simult_function_evals) then
-            call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
+          call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
+                                        1,ghosted_id_up-1, &
+                                        Jup,ADD_VALUES, &
+                                        ierr);CHKERRQ(ierr)
+          call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
+                                        1,ghosted_id_dn-1, &
+                                        Jdn,ADD_VALUES, &
+                                        ierr);CHKERRQ(ierr)
+          if (store_adjoint) then
+            call MatSetValuesBlockedLocal(MatdResdparam, &
                                           1,ghosted_id_up-1, &
-                                          Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-            call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
+                                          1,ghosted_id_up-1, &
+                                          dResdparamup,ADD_VALUES, &
+                                          ierr);CHKERRQ(ierr)
+            call MatSetValuesBlockedLocal(MatdResdparam, &
+                                          1,ghosted_id_up-1, &
                                           1,ghosted_id_dn-1, &
-                                          Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-            if (store_adjoint) then
-              call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_up-1, &
-                                            1,ghosted_id_up-1, &
-                                            dResdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_up-1, &
-                                            1,ghosted_id_dn-1, &
-                                            dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-            endif
+                                          dResdparamdn,ADD_VALUES, &
+                                          ierr);CHKERRQ(ierr)
           endif
         endif
 
         if (local_id_dn > 0) then
           r_p(local_id_dn) = r_p(local_id_dn) - Res(1)
-          if (zflow_simult_function_evals) then
-            Jup = -Jup
-            Jdn = -Jdn
-            call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
+          Jup = -Jup
+          Jdn = -Jdn
+          call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
+                                        1,ghosted_id_dn-1, &
+                                        Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+          call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
+                                        1,ghosted_id_up-1, &
+                                        Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+          if (store_adjoint) then
+            dResdparamup = -dResdparamup
+            dResdparamdn = -dResdparamdn
+            call MatSetValuesBlockedLocal(MatdResdparam, &
                                           1,ghosted_id_dn-1, &
-                                          Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-            call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
+                                          1,ghosted_id_dn-1, &
+                                          dResdparamdn,ADD_VALUES, &
+                                          ierr);CHKERRQ(ierr)
+            call MatSetValuesBlockedLocal(MatdResdparam, &
+                                          1,ghosted_id_dn-1, &
                                           1,ghosted_id_up-1, &
-                                          Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-            if (store_adjoint) then
-              dResdKup = -dResdKup
-              dResdKdn = -dResdKdn
-              call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_dn-1, &
-                                            1,ghosted_id_dn-1, &
-                                            dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-              call MatSetValuesBlockedLocal(dResdK,1,ghosted_id_dn-1, &
-                                            1,ghosted_id_up-1, &
-                                            dResdKup,ADD_VALUES,ierr);CHKERRQ(ierr)
-            endif
+                                          dResdparamup,ADD_VALUES, &
+                                          ierr);CHKERRQ(ierr)
           endif
         endif
       enddo
@@ -955,20 +957,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
 
         icc_dn = patch%cc_id(ghosted_id)
 
-        call XXBCFlux(boundary_condition%flow_bc_type, &
-                      boundary_condition%flow_aux_mapping, &
-                      boundary_condition%flow_aux_real_var(:,iconn), &
-                      zflow_auxvars_bc(sum_connection), &
-                      global_auxvars_bc(sum_connection), &
-                      zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                      global_auxvars(ghosted_id), &
-                      material_auxvars(ghosted_id), &
-                      cur_connection_set%area(iconn), &
-                      cur_connection_set%dist(:,iconn), &
-                      zflow_parameter,option, &
-                      v_darcy,Res,Jdn, &
-                      dResdKdn, &
-                      zflow_simult_function_evals)
         if (zflow_numerical_derivatives) then
           call XXBCFluxDerivative(boundary_condition%flow_bc_type, &
                                   boundary_condition%flow_aux_mapping, &
@@ -982,7 +970,20 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                   cur_connection_set%area(iconn), &
                                   cur_connection_set%dist(:,iconn), &
                                   zflow_parameter,option, &
-                                  Jdn)
+                                  v_darcy,Res,Jdn)
+        else
+          call XXBCFlux(boundary_condition%flow_bc_type, &
+                        boundary_condition%flow_aux_mapping, &
+                        boundary_condition%flow_aux_real_var(:,iconn), &
+                        zflow_auxvars_bc(sum_connection), &
+                        global_auxvars_bc(sum_connection), &
+                        zflow_auxvars(ZERO_INTEGER,ghosted_id), &
+                        global_auxvars(ghosted_id), &
+                        material_auxvars(ghosted_id), &
+                        cur_connection_set%area(iconn), &
+                        cur_connection_set%dist(:,iconn), &
+                        zflow_parameter,option, &
+                        v_darcy,Res,Jdn,dResdparamdn,PETSC_TRUE)
         endif
         patch%boundary_velocities(:,sum_connection) = v_darcy
         if (associated(patch%boundary_flow_fluxes)) then
@@ -995,15 +996,15 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
             Res(:)
         endif
         r_p(local_id)= r_p(local_id) - Res(1)
-        if (zflow_simult_function_evals) then
-          Jdn = -Jdn
-          call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                        ADD_VALUES,ierr);CHKERRQ(ierr)
-          if (store_adjoint) then
-            dResdKdn = -dResdKdn
-            call MatSetValuesBlockedLocal(dResdK,1,ghosted_id-1,1,ghosted_id-1, &
-                                          dResdKdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-          endif
+        Jdn = -Jdn
+        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
+                                      ADD_VALUES,ierr);CHKERRQ(ierr)
+        if (store_adjoint) then
+          dResdparamdn = -dResdparamdn
+          call MatSetValuesBlockedLocal(MatdResdparam, &
+                                        1,ghosted_id-1,1,ghosted_id-1, &
+                                        dResdparamdn,ADD_VALUES, &
+                                        ierr);CHKERRQ(ierr)
         endif
       enddo
       boundary_condition => boundary_condition%next
@@ -1030,15 +1031,6 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         scale = 1.d0
       endif
 
-      call ZFlowSrcSink(option,source_sink%flow_condition%rate% &
-                                  dataset%rarray(:), &
-                        source_sink%flow_condition%rate%itype, &
-                        zflow_auxvars(ZERO_INTEGER,ghosted_id), &
-                        global_auxvars(ghosted_id), &
-                        material_auxvars(ghosted_id), &
-                        ss_flow_vol_flux, &
-                        scale,Res,Jdn, &
-                        zflow_simult_function_evals)
       if (zflow_numerical_derivatives) then
         call ZFlowSrcSinkDerivative(option, &
                                     source_sink%flow_condition%rate% &
@@ -1047,7 +1039,16 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                     zflow_auxvars(:,ghosted_id), &
                                     global_auxvars(ghosted_id), &
                                     material_auxvars(ghosted_id), &
-                                    scale,Jdn)
+                                    ss_flow_vol_flux,scale,Res,Jdn)
+      else
+        call ZFlowSrcSink(option,source_sink%flow_condition%rate% &
+                                  dataset%rarray(:), &
+                          source_sink%flow_condition%rate%itype, &
+                          zflow_auxvars(ZERO_INTEGER,ghosted_id), &
+                          global_auxvars(ghosted_id), &
+                          material_auxvars(ghosted_id), &
+                          ss_flow_vol_flux, &
+                          scale,Res,Jdn,PETSC_TRUE)
       endif
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
@@ -1062,10 +1063,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
           Res(:)
       endif
       r_p(local_id) =  r_p(local_id) - Res(1)
-      if (zflow_simult_function_evals) then
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
-      endif
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
     enddo
     source_sink => source_sink%next
   enddo
@@ -1085,8 +1084,8 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       ! zero out inactive cells
 
     if (store_adjoint) then
-      call MatAssemblyBegin(dResdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-      call MatAssemblyEnd(dResdK,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+      call MatAssemblyBegin(MatdResdparam,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+      call MatAssemblyEnd(MatdResdparam,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     endif
 
     if (patch%aux%ZFlow%inactive_cells_exist) then
