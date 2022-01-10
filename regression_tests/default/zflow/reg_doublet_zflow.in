@@ -5,6 +5,11 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE ZFLOW
+      OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+        /
+      /
     /
     SUBSURFACE_TRANSPORT transport
       MODE GIRT

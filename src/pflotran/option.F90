@@ -409,6 +409,7 @@ subroutine OptionInitRealization(option)
   option%iflowmode = NULL_MODE
   option%iflow_sub_mode = NULL_MODE
   option%nflowdof = 0
+  option%nflowspec = 0
   option%nmechdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0

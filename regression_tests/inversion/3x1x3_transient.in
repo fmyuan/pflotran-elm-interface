@@ -6,6 +6,9 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE ZFLOW
       OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+        /
       /
     /
   /

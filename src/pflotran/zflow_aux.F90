@@ -13,8 +13,12 @@ module ZFlow_Aux_module
   PetscReal, parameter, public :: zflow_density_kmol = zflow_density_kg / FMWH2O
   PetscReal, parameter, public :: zflow_viscosity = 8.9d-4
 
-  PetscReal, public :: zflow_pres_rel_pert = 1.d-8
+  PetscReal, public :: zflow_rel_pert = 1.d-8
   PetscReal, public :: zflow_pres_min_pert = 1.d-2
+  PetscReal, public :: zflow_temp_min_pert = 1.d-6 ! not based on anything
+  PetscReal, public :: zflow_conc_min_pert = 1.d-6 ! not based on anything
+
+  PetscReal, pointer, public :: zflow_min_pert(:)
 
   PetscBool, public :: zflow_calc_accum = PETSC_TRUE
   PetscBool, public :: zflow_calc_flux = PETSC_TRUE
@@ -30,9 +34,10 @@ module ZFlow_Aux_module
   PetscInt, public :: zflow_ts_cut_count
   PetscInt, public :: zflow_ts_count
 
-  PetscInt, parameter, public :: ZFLOW_LIQUID_PRESSURE_DOF = 1
-
-  PetscInt, parameter, public :: ZFLOW_LIQUID_EQUATION_INDEX = 1
+  ! process models
+  PetscInt, public :: zflow_liq_flow_eq = UNINITIALIZED_INTEGER
+  PetscInt, public :: zflow_heat_tran_eq = UNINITIALIZED_INTEGER
+  PetscInt, public :: zflow_sol_tran_eq = UNINITIALIZED_INTEGER
 
   PetscInt, parameter, public :: ZFLOW_LIQUID_PRESSURE_INDEX = 1
   PetscInt, parameter, public :: ZFLOW_LIQUID_FLUX_INDEX = 1
@@ -62,6 +67,8 @@ module ZFlow_Aux_module
     PetscReal :: dkr_dp  ! derivative of rel. perm. wrt pressure
     PetscReal :: effective_saturation
     PetscReal :: deffsat_dp
+    PetscReal :: temp ! temperature
+    PetscReal :: conc ! concentration
     PetscReal :: pert
   end type zflow_auxvar_type
 
@@ -125,6 +132,8 @@ function ZFlowAuxCreate(option)
 
   type(zflow_type), pointer :: aux
 
+  nullify(zflow_min_pert)
+
   allocate(aux)
   aux%auxvars_up_to_date = PETSC_FALSE
   aux%inactive_cells_exist = PETSC_FALSE
@@ -171,6 +180,9 @@ subroutine ZFlowAuxVarInit(auxvar,option)
   auxvar%dkr_dp = 0.d0
   auxvar%effective_saturation = UNINITIALIZED_DOUBLE
   auxvar%deffsat_dp = UNINITIALIZED_DOUBLE
+  auxvar%temp = 0.d0
+  auxvar%conc = 0.d0
+
   auxvar%pert = 0.d0
 
 end subroutine ZFlowAuxVarInit
@@ -202,6 +214,8 @@ subroutine ZFlowAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dkr_dp = auxvar%dkr_dp
   auxvar2%effective_saturation = auxvar%effective_saturation
   auxvar2%deffsat_dp = auxvar%deffsat_dp
+  auxvar2%temp = auxvar%temp
+  auxvar2%conc = auxvar%conc
   auxvar2%pert = auxvar%pert
 
 end subroutine ZFlowAuxVarCopy
@@ -239,8 +253,21 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
   PetscReal :: dkr_dsat
   PetscReal :: deffsat_dsat
 
-  zflow_auxvar%pres = x(ZFLOW_LIQUID_PRESSURE_DOF)
-  global_auxvar%temp = option%flow%reference_temperature
+  if (zflow_liq_flow_eq > 0) then
+    zflow_auxvar%pres = x(zflow_liq_flow_eq)
+  else
+    zflow_auxvar%pres = option%flow%reference_pressure
+  endif
+  if (zflow_heat_tran_eq > 0) then
+    zflow_auxvar%temp = x(zflow_heat_tran_eq)
+  else
+    zflow_auxvar%temp = option%flow%reference_temperature
+  endif
+  if (zflow_sol_tran_eq > 0) then
+    zflow_auxvar%conc = x(zflow_sol_tran_eq)
+  else
+    zflow_auxvar%conc = 0.d0
+  endif
 
   if (update_porosity .and. soil_compressibility_index > 0) then
     call MaterialCompressSoil(material_auxvar,zflow_auxvar%pres, &
@@ -315,7 +342,7 @@ end subroutine ZFlowAuxVarCompute
 
 ! ************************************************************************** !
 
-subroutine ZFlowAuxVarPerturb(zflow_auxvar,global_auxvar, &
+subroutine ZFlowAuxVarPerturb(x,zflow_auxvar,global_auxvar, &
                               material_auxvar, &
                               characteristic_curves,natural_id, &
                               option)
@@ -331,6 +358,7 @@ subroutine ZFlowAuxVarPerturb(zflow_auxvar,global_auxvar, &
 
   implicit none
 
+  PetscReal :: x(:)
   type(option_type) :: option
   PetscInt :: natural_id
   type(zflow_auxvar_type) :: zflow_auxvar(0:)
@@ -338,21 +366,21 @@ subroutine ZFlowAuxVarPerturb(zflow_auxvar,global_auxvar, &
   type(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
 
-  PetscReal :: x, x_pert(1), pert
-
-  PetscReal, parameter :: perturbation_tolerance = 1.d-8
-  PetscReal, parameter :: min_perturbation = 1.d-10
+  PetscInt :: idof
+  PetscReal :: x_pert(option%nflowdof), pert
 
   ! ZFLOW_UPDATE_FOR_DERIVATIVE indicates call from perturbation
   option%iflag = ZFLOW_UPDATE_FOR_DERIVATIVE
-  x = zflow_auxvar(ZERO_INTEGER)%pres
-  pert = x*zflow_pres_rel_pert+zflow_pres_min_pert
-  zflow_auxvar(1)%pert = pert
-  x_pert(1) = x + pert
-  call ZFlowAuxVarCompute(x_pert,zflow_auxvar(ONE_INTEGER),global_auxvar, &
-                          material_auxvar, &
-                          characteristic_curves,natural_id, &
-                          PETSC_TRUE,option)
+  do idof = 1, option%nflowdof
+    pert = x(idof)*zflow_rel_pert+zflow_min_pert(idof)
+    zflow_auxvar(idof)%pert = pert
+    x_pert = x
+    x_pert(idof) = x(idof) + pert
+    call ZFlowAuxVarCompute(x_pert,zflow_auxvar(idof),global_auxvar, &
+                            material_auxvar, &
+                            characteristic_curves,natural_id, &
+                            PETSC_TRUE,option)
+  enddo
 
 end subroutine ZFlowAuxVarPerturb
 
@@ -592,6 +620,8 @@ subroutine ZFlowAuxDestroy(aux)
   implicit none
 
   type(zflow_type), pointer :: aux
+
+  call DeallocateArray(zflow_min_pert)
 
   if (.not.associated(aux)) return
 

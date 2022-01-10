@@ -3723,7 +3723,7 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
             flow_condition%pressure%aux_real(1)
         endif
     end select
-    coupler%flow_bc_type(ZFLOW_LIQUID_EQUATION_INDEX) = &
+    coupler%flow_bc_type(zflow_liq_flow_eq) = &
       flow_condition%pressure%itype
   endif
   if (associated(flow_condition%saturation)) then

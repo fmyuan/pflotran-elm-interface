@@ -110,6 +110,32 @@ subroutine ZFlowSetup(realization)
     enddo
   endif
 
+  temp_int = 0
+  if (Initialized(zflow_liq_flow_eq)) then
+    temp_int = temp_int + 1
+    zflow_liq_flow_eq = temp_int
+  endif
+  if (Initialized(zflow_heat_tran_eq)) then
+    temp_int = temp_int + 1
+    zflow_heat_tran_eq = temp_int
+  endif
+  if (Initialized(zflow_sol_tran_eq)) then
+    temp_int = temp_int + 1
+    zflow_sol_tran_eq = temp_int
+  endif
+
+  zflow_numerical_derivatives = option%flow%numerical_derivatives
+  if (zflow_numerical_derivatives) then
+    allocate(zflow_min_pert(option%nflowdof))
+    zflow_min_pert = 0.d0
+    if (zflow_liq_flow_eq > 0) &
+      zflow_min_pert(zflow_liq_flow_eq) = zflow_pres_min_pert
+    if (zflow_heat_tran_eq > 0) &
+      zflow_min_pert(zflow_heat_tran_eq) = zflow_temp_min_pert
+    if (zflow_sol_tran_eq > 0) &
+      zflow_min_pert(zflow_sol_tran_eq) = zflow_conc_min_pert
+  endif
+
   ! ensure that material properties specific to this module are properly
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
@@ -149,9 +175,8 @@ subroutine ZFlowSetup(realization)
     call PrintErrMsg(option)
   endif
 
-  zflow_numerical_derivatives = option%flow%numerical_derivatives
   temp_int = 0
-  if (zflow_numerical_derivatives) temp_int = 1
+  if (zflow_numerical_derivatives) temp_int = option%nflowdof
   allocate(zflow_auxvars(0:temp_int,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, temp_int
@@ -681,18 +706,24 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: vec_p(:)
 
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt :: icc_up, icc_dn
-  PetscReal :: Res(1)
-  PetscReal :: Jup(1,1),Jdn(1,1)
-  PetscReal :: dResdKup(1),dResdKdn(1)
-  PetscReal :: dResdpor(1)
+  PetscReal :: Res(realization%option%nflowdof)
+  PetscReal :: Jup(size(Res),size(Res)),Jdn(size(Res),size(Res))
+  PetscReal :: dResdKup(size(Res)),dResdKdn(size(Res))
+  PetscReal :: dResdpor(size(Res))
   Mat :: dResdK
   PetscBool :: store_adjoint
   PetscReal :: v_darcy(1)
+
+  PetscInt :: ndof
+  PetscInt :: istart, iend
+
+  ndof = realization%option%nflowdof
 
   dResdK = PETSC_NULL_MAT
   dResdKup = UNINITIALIZED_DOUBLE  ! to catch bugs
@@ -735,16 +766,21 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   patch%aux%ZFlow%auxvars_up_to_date = PETSC_FALSE
 
   if (zflow_numerical_derivatives) then
-        ! Perturb aux vars
+    ! Perturb aux vars
+    call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax  ! For each local node do...
       if (patch%imat(ghosted_id) <= 0) cycle
-      call ZFlowAuxVarPerturb(zflow_auxvars(:,ghosted_id), &
+      iend = ghosted_id*ndof
+      istart = iend-ndof+1
+      call ZFlowAuxVarPerturb(xx_loc_p(istart:iend), &
+                              zflow_auxvars(:,ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               patch%characteristic_curves_array( &
                                 patch%cc_id(ghosted_id))%ptr, &
                               grid%nG2A(ghosted_id),option)
     enddo
+    call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   endif
 
   if (option%compute_mass_balance_new) then
