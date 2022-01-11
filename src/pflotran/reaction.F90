@@ -3614,7 +3614,8 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
     maximum_relative_change = maxval(abs((new_solution-prev_solution)/ &
                                          prev_solution))
     
-    if (maximum_relative_change < reaction%max_relative_change_tolerance) exit
+    if (maximum_relative_change < reaction%max_relative_change_tolerance &
+      .and. maxval(abs(residual)) < reaction%max_residual_tolerance) exit
 
     if (num_iterations > 50) then
       scale = 1.d0

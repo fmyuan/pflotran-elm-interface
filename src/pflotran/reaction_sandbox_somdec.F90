@@ -116,6 +116,7 @@ module Reaction_Sandbox_SomDec_class
     PetscInt :: specitype
     PetscReal :: half_saturation_constant
     PetscReal :: threshold_concentration
+    PetscBool :: pool_normalized
     type(monod_type), pointer :: next
   end type monod_type
 
@@ -309,6 +310,7 @@ function MonodCreate()
   monod%specitype = UNINITIALIZED_INTEGER
   monod%half_saturation_constant = 1.0d-15
   monod%threshold_concentration = 0.d0
+  monod%pool_normalized = PETSC_FALSE
   nullify(monod%next)
 
   MonodCreate => monod
@@ -633,6 +635,10 @@ subroutine SomDecRead(this,input,option)
                     call InputReadDouble(input,option,new_monod%threshold_concentration)
                     call InputErrorMsg(input,option,'threshold concentration', &
                                  'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD')
+
+                  case('POOL_NORMALIZED')
+                    ! If POOL_NORMALIZED keyword is present then half saturation will be relative to upstream pool rather than volume concentration
+                    new_monod%pool_normalized = PETSC_TRUE
 
                   case default
                     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD keyword: ' // &
@@ -1149,7 +1155,7 @@ subroutine SomDecSetup(this,reaction,option)
         GetImmobileSpeciesIDFromName(word,reaction%immobile, &
                                      PETSC_FALSE,option)
       if (species_id_pool_c(icount) <= 0) then
-        species_id_pool_c(icount) = GetPrimarySpeciesIDFromName(cur_pool%name, &
+        species_id_pool_c(icount) = GetPrimarySpeciesIDFromName(word, &
                 reaction, PETSC_FALSE,option)
           if(species_id_pool_c(icount) <= 0) then
              option%io_buffer = 'SomDec pool: ' // word // &
@@ -1352,16 +1358,21 @@ subroutine SomDecSetup(this,reaction,option)
        stoich_n = this%upstream_nc(icount)
 
        do jcount = 1, this%n_downstream_pools(icount)
+
           stoich_c = stoich_c - this%downstream_stoich(icount, jcount)
           stoich_n = stoich_n - this%downstream_stoich(icount, jcount) * &
                               this%downstream_nc(icount, jcount)
        enddo
 
+       ! Deal with some precision issues when no CO2 is produced
+       if(abs(stoich_c) < 1.d-15) stoich_c = 0.0d0
+       if(abs(stoich_n) < 1.d-15) stoich_n = 0.0d0
+
        if(stoich_c < 0.0d0) then
          option%io_buffer = 'SomDec fixedCN C pool decomposition '// &
-          'has a negative respiration fraction!' // &
-            'Please check reactions of upstream pool: ' // &
-             trim(cur_pool%name)
+          'has a negative respiration fraction! ' // &
+            'Please check reactions of upstream pool' !// &
+             !trim(cur_pool%name) ! This line causes a seg fault because cur_pool has been deallocated
          call printErrMsg(option)
        endif
 
@@ -1845,7 +1856,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! N mineralization type decomposition reaction
     if(this%mineral_n_stoich(irxn) >= 0.0d0) then
       call SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,   &
-                        rt_auxvar, material_auxvar, option,                    &
+                        rt_auxvar, global_auxvar, material_auxvar, option,                    &
                         irxn, cur_rxn, crate_uc, dcrate_uc_duc, nmin)
 
       net_nmin_rate = net_nmin_rate + nmin
@@ -1893,7 +1904,7 @@ end subroutine SomDecReact
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
-                        rt_auxvar, material_auxvar, option,                   &
+                        rt_auxvar, global_auxvar, material_auxvar, option,                   &
                         irxn, rxn, crate_uc, dcrate_uc_duc, nmin)
   !
   ! Evaluates reaction storing residual and/or Jacobian for N mineralizartion associated
@@ -1913,6 +1924,7 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
   class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   class(material_auxvar_type) :: material_auxvar
+  type(global_auxvar_type) :: global_auxvar
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
@@ -2051,6 +2063,11 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
                         monod%specid, monod%specitype, &
                         tempreal, option)
     tempreal = max(0.d0, tempreal-monod_threshold)
+    if(monod%pool_normalized) then
+      tempreal = tempreal/rt_auxvar%immobile(ispec_uc)
+      ! If aqueous, convert to mol/m3 (same units as SOM pool)
+      if(monod%specitype == ITYPE_AQUEOUS) tempreal = tempreal*material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
+    endif
     fx = funcMonod(tempreal, monod_k, PETSC_FALSE)
     dfx = funcMonod(tempreal, monod_k, PETSC_TRUE)
     if(ispec_uc /= monod%specid) dfx = 0.d0            ! NOT sure this is needed
@@ -2658,13 +2675,18 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
     monod_threshold = monod%threshold_concentration
     ! A note here: NH4 and NO3 effects are additive, while other(s) are multiplicative
     !          because either NH4 or NO3 or both may be substrate.
+    ! BSulman: Allowing these to be concentration relative to upstream C pool rather than volumetric concentration
+    !          using the "POOL_NORMALIZED" flag in the monod part of the input deck
+    ! This makes the model run much better under N limiting conditions because immobilization demand scales with C pool size
     if(this%species_id_nh4 > 0 .and. this%species_id_nh4 == monod%specid) then
       tempreal = max(0.d0, c_nh4-monod_threshold)
+      if(monod%pool_normalized) tempreal = tempreal/rt_auxvar%immobile(ispec_uc)
       fnh4       = funcMonod(tempreal, monod_k, PETSC_FALSE)
       dfnh4_dnh4 = funcMonod(tempreal, monod_k, PETSC_TRUE)
     !
     elseif(this%species_id_no3 > 0 .and. this%species_id_no3 == monod%specid) then
       tempreal = max(0.d0, c_no3-monod_threshold)
+      if(monod%pool_normalized) tempreal = tempreal/rt_auxvar%immobile(ispec_uc)
       fno3       = funcMonod(tempreal, monod_k, PETSC_FALSE)
       dfno3_dno3 = funcMonod(tempreal, monod_k, PETSC_TRUE)
 
@@ -2674,6 +2696,11 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
                         monod%specid, monod%specitype, &
                         tempreal, option)
       tempreal = max(0.d0, tempreal-monod_threshold)
+      if(monod%pool_normalized) then
+        tempreal = tempreal/rt_auxvar%immobile(ispec_uc)
+        ! If aqueous, convert to mol/m3 (same units as SOM pool)
+        if(monod%specitype == ITYPE_AQUEOUS) tempreal = tempreal*theta*1000.d0
+      endif
       fx = funcMonod(tempreal, monod_k, PETSC_FALSE)
       dfx = funcMonod(tempreal, monod_k, PETSC_TRUE)
       if(ispec_uc /= monod%specid) dfx = 0.d0            ! NOT sure this is needed
@@ -2796,8 +2823,7 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
       ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
   !dtmin = 2.1d0*option%dt_min
   dtmin = max(option%tran_dt, 2.1d0*option%dt_min)         ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
-  nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin/0.45d0   ! positive with unit: moles
-  ! BSulman: Adjusting nratecap to prevent N from being (almost) totally depleted which causes problems
+  nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin   ! positive with unit: moles
 
   if(this%species_id_nh4 > 0) then
     if (nratecap*fnh4_inhibit_no3 > c_nh4*volume) then       ! c_nh4 unit: moles/m3 bulk soil
