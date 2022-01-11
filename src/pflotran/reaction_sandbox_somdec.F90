@@ -117,6 +117,7 @@ module Reaction_Sandbox_SomDec_class
     PetscInt :: specitype
     PetscReal :: half_saturation_constant
     PetscReal :: threshold_concentration
+    PetscBool :: pool_normalized
     type(monod2_type), pointer :: next
   end type monod2_type
 
@@ -311,6 +312,7 @@ function RxnMonodCreate()
   RxnMonod%specitype = UNINITIALIZED_INTEGER
   RxnMonod%half_saturation_constant = 1.0d-15
   RxnMonod%threshold_concentration = 0.d0
+  RxnMonod%pool_normalized = PETSC_FALSE
   nullify(RxnMonod%next)
 
   RxnMonodCreate => RxnMonod
@@ -641,6 +643,10 @@ subroutine SomDecRead(this,input,option)
                     call InputReadDouble(input,option,new_monod%threshold_concentration)
                     call InputErrorMsg(input,option,'threshold concentration', &
                                  'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD')
+
+                  case('POOL_NORMALIZED')
+                    ! If POOL_NORMALIZED keyword is present then half saturation will be relative to upstream pool rather than volume concentration
+                    new_monod%pool_normalized = PETSC_TRUE
 
                   case default
                     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD keyword: ' // &
@@ -2065,6 +2071,11 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
                         monod%specid, monod%specitype, &
                         tempreal, option)
     tempreal = max(0.d0, tempreal-monod_threshold)
+    if(monod%pool_normalized) then
+      tempreal = tempreal/rt_auxvar%immobile(ispec_uc)
+      ! If aqueous, convert to mol/m3 (same units as SOM pool)
+      if(monod%specitype == ITYPE_AQUEOUS) tempreal = tempreal*material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
+    endif
     fx = funcMonod(tempreal, monod_k, PETSC_FALSE)
     dfx = funcMonod(tempreal, monod_k, PETSC_TRUE)
     if(ispec_uc /= monod%specid) dfx = 0.d0            ! NOT sure this is needed
@@ -2672,13 +2683,18 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
     monod_threshold = monod%threshold_concentration
     ! A note here: NH4 and NO3 effects are additive, while other(s) are multiplicative
     !          because either NH4 or NO3 or both may be substrate.
+    ! BSulman: Allowing these to be concentration relative to upstream C pool rather than volumetric concentration
+    !          using the "POOL_NORMALIZED" flag in the monod part of the input deck
+    ! This makes the model run much better under N limiting conditions because immobilization demand scales with C pool size
     if(this%species_id_nh4 > 0 .and. this%species_id_nh4 == monod%specid) then
       tempreal = max(0.d0, c_nh4-monod_threshold)
+      if(monod%pool_normalized) tempreal = tempreal/rt_auxvar%immobile(ispec_uc)
       fnh4       = funcMonod(tempreal, monod_k, PETSC_FALSE)
       dfnh4_dnh4 = funcMonod(tempreal, monod_k, PETSC_TRUE)
     !
     elseif(this%species_id_no3 > 0 .and. this%species_id_no3 == monod%specid) then
       tempreal = max(0.d0, c_no3-monod_threshold)
+      if(monod%pool_normalized) tempreal = tempreal/rt_auxvar%immobile(ispec_uc)
       fno3       = funcMonod(tempreal, monod_k, PETSC_FALSE)
       dfno3_dno3 = funcMonod(tempreal, monod_k, PETSC_TRUE)
 
@@ -2688,6 +2704,11 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
                         monod%specid, monod%specitype, &
                         tempreal, option)
       tempreal = max(0.d0, tempreal-monod_threshold)
+      if(monod%pool_normalized) then
+        tempreal = tempreal/rt_auxvar%immobile(ispec_uc)
+        ! If aqueous, convert to mol/m3 (same units as SOM pool)
+        if(monod%specitype == ITYPE_AQUEOUS) tempreal = tempreal*theta*1000.d0
+      endif
       fx = funcMonod(tempreal, monod_k, PETSC_FALSE)
       dfx = funcMonod(tempreal, monod_k, PETSC_TRUE)
       if(ispec_uc /= monod%specid) dfx = 0.d0            ! NOT sure this is needed
