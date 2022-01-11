@@ -2079,7 +2079,7 @@ subroutine PMWellSolve(this,time,ierr)
     call LUDecomposition(this%soln%Jacobian,this%nphase*this%grid%nsegments, &
                          indx,d)
     call LUBackSubstitution(this%soln%Jacobian,this%nphase*this%grid%nsegments,&
-                            indx,this%soln%residual)
+                            indx,-1.d0*this%soln%residual)
     new_dx = this%soln%residual
   end select
 
