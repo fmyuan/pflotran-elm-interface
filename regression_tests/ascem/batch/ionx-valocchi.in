@@ -58,7 +58,7 @@ CHEMISTRY
       /
     /
   /
-  DATABASE hanford.dat
+  DATABASE ../../../database/hanford.dat
   LOG_FORMULATION
 #  ACTIVITY_COEFFICIENTS OFF
   OUTPUT
