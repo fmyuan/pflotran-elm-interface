@@ -7,8 +7,8 @@ SIMULATION
       MODE GENERAL
         OPTIONS
           HALITE_SATURATED_BRINE	
-	/
-    /
+        /
+      /
   /
 END
 
@@ -29,7 +29,6 @@ EOS WATER
   DENSITY SPARROW
   VISCOSITY KESTIN
   ENTHALPY SPARROW
-  /
 END
 
 #=========================== discretization ===================================
