@@ -2479,11 +2479,13 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
                 RealizGetVariableValueAtCell(realization_base,ghosted_id, &
                                              SECONDARY_CONCENTRATION,sec_id, &
                                              naqcomp)
-                write(OUTPUT_UNIT,1000,advance='no') &
-                RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                             SECONDARY_CONCENTRATION_GAS,sec_id, &
-                                             naqcomp)
-               enddo
+                if (reaction%gas%nactive_gas > 0) then
+                  write(OUTPUT_UNIT,1000,advance='no') &
+                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                               SECONDARY_CONCENTRATION_GAS,sec_id, &
+                                               naqcomp)
+                endif 
+              enddo
             endif
           endif
         endif
@@ -2686,7 +2688,9 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
           do j = 1, reaction%naqcomp
             string = 'Free ion ' // trim(reaction%primary_species_names(j))
             call OutputWriteToHeader(fid,string,'M',cell_string,icolumn)
-            call OutputWriteToHeader(fid,string,'M_gas',cell_string,icolumn)
+            if (reaction%gas%nactive_gas > 0) then
+              call OutputWriteToHeader(fid,string,'Bar',cell_string,icolumn)
+            endif
           enddo
         endif
 

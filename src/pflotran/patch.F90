@@ -7146,10 +7146,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
            sec_rt_auxvar(isubvar)%total(isubvar2,1)
     case(SECONDARY_CONCENTRATION_GAS)
-      ! Note that the units are in mol/kg
       local_id = grid%nG2L(ghosted_id)
       value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
-              sec_rt_auxvar(isubvar)%total(isubvar2,2)
+              sec_rt_auxvar(isubvar)%gas_pp(isubvar2)
     case(SEC_MIN_VOLFRAC)
       local_id = grid%nG2L(ghosted_id)
       value = patch%aux%SC_RT%sec_transport_vars(local_id)% &

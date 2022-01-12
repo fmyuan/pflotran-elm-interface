@@ -905,7 +905,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                        reaction%isotherm%multicontinuum_isotherm_rxn,option)
     endif
     if (reaction%gas%nactive_gas > 0) then
-       call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
+      call RTotalGas(rt_auxvar,global_auxvar,reaction,option)
       total_upd(:,i,2) = rt_auxvar%total(:,2)
       dtotal(:,:,i,2) = rt_auxvar%aqueous%dtotal(:,:,2)
     endif
@@ -978,31 +978,31 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         ! Flux terms
         do i = 2, ngcells-1
           alpha_diag(j,k,i,n) = alpha_diag(j,k,i,n) + &
-                              pordiff(n)*area(i)/(dm_minus(i+1) + dm_plus(i)) + &
-                              pordiff(n)*area(i-1)/(dm_minus(i) + dm_plus(i-1))
+                                pordiff(n)*area(i)/(dm_minus(i+1) + dm_plus(i)) + &
+                                pordiff(n)*area(i-1)/(dm_minus(i) + dm_plus(i-1))
           beta_left(j,k,i,n) = beta_left(j,k,i,n) - &
-                              pordiff(n)*area(i-1)/(dm_minus(i) + dm_plus(i-1))
+                               pordiff(n)*area(i-1)/(dm_minus(i) + dm_plus(i-1))
           gamma_right(j,k,i,n) = gamma_right(j,k,i,n) - &
-                               pordiff(n)*area(i)/(dm_minus(i+1) + dm_plus(i))
+                                 pordiff(n)*area(i)/(dm_minus(i+1) + dm_plus(i))
         enddo
   
   
         ! Apply boundary conditions
         ! Inner boundary
         alpha_diag(j,k,1,n) = alpha_diag(j,k,1,n) + &
-                            pordiff(n)*area(1)/(dm_minus(2) + dm_plus(1))
+                              pordiff(n)*area(1)/(dm_minus(2) + dm_plus(1))
                    
         gamma_right(j,k,1,n) = gamma_right(j,k,1,n) - &
-                             pordiff(n)*area(1)/(dm_minus(2) + dm_plus(1))
+                               pordiff(n)*area(1)/(dm_minus(2) + dm_plus(1))
   
         ! Outer boundary -- closest to primary node
         alpha_diag(j,k,ngcells,n) = alpha_diag(j,k,ngcells,n) + &
-                                  pordiff(n)*area(ngcells-1)/(dm_minus(ngcells) &
-                                  + dm_plus(ngcells-1)) + &
-                                  pordiff(n)*area(ngcells)/dm_plus(ngcells)
+                                    pordiff(n)*area(ngcells-1)/(dm_minus(ngcells) &
+                                    + dm_plus(ngcells-1)) + &
+                                    pordiff(n)*area(ngcells)/dm_plus(ngcells)
         beta_left(j,k,ngcells,n) = beta_left(j,k,ngcells,n) - &
-                                  pordiff(n)*area(ngcells-1)/(dm_minus(ngcells) + &
-                                  dm_plus(ngcells-1)) 
+                                   pordiff(n)*area(ngcells-1)/(dm_minus(ngcells) + &
+                                   dm_plus(ngcells-1)) 
       enddo
     enddo    
   enddo
@@ -1011,30 +1011,29 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   
   ! Include dtotal (units of kg water/ L water)
   do l = 1, nphase
- ! l=1
-  i = 1
-  do j = 1, ncomp
-    do k = 1, ncomp
-      coeff_diag(j,k,i) = coeff_diag(j,k,i) + alpha_diag(j,k,i,l)*dtotal(j,k,i,l) 
-      coeff_right(j,k,i) = coeff_right(j,k,i) + gamma_right(j,k,i,l)*dtotal(j,k,i+1,l) 
+    i = 1
+    do j = 1, ncomp
+      do k = 1, ncomp
+        coeff_diag(j,k,i) = coeff_diag(j,k,i) + alpha_diag(j,k,i,l)*dtotal(j,k,i,l) 
+        coeff_right(j,k,i) = coeff_right(j,k,i) + gamma_right(j,k,i,l)*dtotal(j,k,i+1,l) 
+      enddo
     enddo
-  enddo
-  do i = 2, ngcells-1
+    do i = 2, ngcells-1
+      do j = 1, ncomp
+        do k = 1, ncomp
+          coeff_diag(j,k,i) = coeff_diag(j,k,i) + alpha_diag(j,k,i,l)*dtotal(j,k,i,l)
+          coeff_left(j,k,i) = coeff_left(j,k,i) + beta_left(j,k,i,l)*dtotal(j,k,i-1,l)
+          coeff_right(j,k,i) = coeff_right(j,k,i) + gamma_right(j,k,i,l)*dtotal(j,k,i+1,l)
+        enddo
+      enddo
+    enddo
+    i = ngcells
     do j = 1, ncomp
       do k = 1, ncomp
         coeff_diag(j,k,i) = coeff_diag(j,k,i) + alpha_diag(j,k,i,l)*dtotal(j,k,i,l)
         coeff_left(j,k,i) = coeff_left(j,k,i) + beta_left(j,k,i,l)*dtotal(j,k,i-1,l)
-        coeff_right(j,k,i) = coeff_right(j,k,i) + gamma_right(j,k,i,l)*dtotal(j,k,i+1,l)
       enddo
     enddo
-  enddo
-  i = ngcells
-  do j = 1, ncomp
-    do k = 1, ncomp
-      coeff_diag(j,k,i) = coeff_diag(j,k,i) + alpha_diag(j,k,i,l)*dtotal(j,k,i,l)
-      coeff_left(j,k,i) = coeff_left(j,k,i) + beta_left(j,k,i,l)*dtotal(j,k,i-1,l)
-    enddo
-  enddo
   enddo
   ! Sorption
   do j = 1, ncomp
@@ -1075,7 +1074,6 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 !============================== Forward solve ==================================        
                         
   rhs = -res   
-!  print *, rhs
   if (reaction%use_log_formulation) then
   ! scale the jacobian by concentrations
     i = 1
@@ -1200,7 +1198,6 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                          'chemistry THOMAS can be used.'
       call PrintErrMsg(option)
   end select
-!  print *, rhs    
   ! Update the secondary concentrations
   do i = 1, ncomp
     if (reaction%use_log_formulation) then
@@ -1260,7 +1257,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         enddo
       enddo
       if (reaction%gas%nactive_gas > 0) then
-        RT = IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*1.d3
+        RT = IDEAL_GAS_CONSTANT * (global_auxvar%temp + 273.15d0) * 1.d3
         do igas = 1, reaction%gas%nactive_gas
           do j = 1, ncomp
             jcomp = reaction%gas%acteqspecid(j,igas)  
@@ -1301,7 +1298,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 
     endif
     if (reaction%gas%nactive_gas > 0) then
-      RT = IDEAL_GAS_CONSTANT*(global_auxvar%temp+273.15d0)*1.d3
+      RT = IDEAL_GAS_CONSTANT * (global_auxvar%temp + 273.15d0) * 1.d3
       do igas = 1, reaction%gas%nactive_gas
         do j = 1, ncomp
           jcomp = reaction%gas%acteqspecid(j,igas)  
@@ -1324,14 +1321,9 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   do i=1, nphase
     res_transport = res_transport + pordiff(i)/dm_plus(ngcells)*area_fm* &
                        (total_current_M(:,i) - total_primary_node(:,i))*prim_vol
- !   print *, res_transport
     sec_jac = sec_jac + area_fm*pordiff(i)/dm_plus(ngcells)* &
                  (dPsisec_dCprim(:,:,i) - dtotal_prim(:,:,i))* prim_vol ! in kg water/s
   enddo
-!  print *, total_current_M(:,1)   
-  ! Calculate the jacobian contribution due to coupling term
-
-
       
   ! Store the contribution to the primary jacobian term
   sec_transport_vars%sec_jac = sec_jac 

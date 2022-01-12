@@ -924,8 +924,12 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
               write(string,'(i2)') i
               string = 'C(' // trim(adjustl(string)) // ') ' &
                          // trim(reaction%primary_species_names(j))
-              call OutputWriteToHeader(fid,string,'molal',cell_string, &
-                                       icolumn)
+              call OutputWriteToHeader(fid,string,'M',cell_string, &
+                   icolumn)
+              if (reaction%gas%nactive_gas > 0) then
+                call OutputWriteToHeader(fid,string,'Bar',cell_string, &
+                     icolumn)
+              endif
             enddo
           enddo
         endif
@@ -1823,7 +1827,12 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
               do i = 1, option%nsec_cells 
                 write(fid,110,advance="no") &
                   RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                             SECONDARY_CONCENTRATION,i,naqcomp)
+                  SECONDARY_CONCENTRATION,i,naqcomp)
+                if (reaction%gas%nactive_gas > 0) then
+                  write(fid,110,advance="no") &
+                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                  SECONDARY_CONCENTRATION_GAS,i,naqcomp)
+                endif
               enddo
             enddo 
           endif
