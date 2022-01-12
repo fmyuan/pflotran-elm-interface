@@ -285,8 +285,8 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
   endif
 
   if (option%iflag /= ZFLOW_UPDATE_FOR_DERIVATIVE) then
+    global_auxvar%sat(1) = zflow_auxvar%sat
     if (size(global_auxvar%sat) > 1) then
-      global_auxvar%sat(1) = zflow_auxvar%sat
       global_auxvar%sat(2) = 1.d0 - global_auxvar%sat(1)
     endif
   endif
