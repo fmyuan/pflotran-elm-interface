@@ -1316,7 +1316,8 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   call RTAuxVarStrip(rt_auxvar)
   
   dPsisec_dCprim = dPsisec_dCprim*global_auxvar%den_kg(1)*1.d-3 ! in kg/L
-  
+
+  sec_jac = 0.d0
   ! Calculate the coupling term
   do i=1, nphase
     res_transport = res_transport + pordiff(i)/dm_plus(ngcells)*area_fm* &
