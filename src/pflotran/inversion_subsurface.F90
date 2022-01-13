@@ -312,10 +312,10 @@ subroutine InversionSubsurfInitialize(this)
 
   nullify(vec_ptr)
 
+  patch => this%realization%patch
   if (.not.associated(this%inversion_aux)) then
     this%n_qoi_per_cell = 1 ! 1 perm per cell
 
-    patch => this%realization%patch
     this%inversion_aux => InversionAuxCreate()
     num_measurements = size(this%imeasurement)
     num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
@@ -344,16 +344,6 @@ subroutine InversionSubsurfInitialize(this)
     !TODO(geh): compress the mappings
     !call GridMapCellsToConnections(patch%grid, &
     !                           this%inversion_aux%cell_to_internal_connection)
-
-    ! create inversion_ts_aux for first time step
-    nullify(inversion_ts_aux) ! must pass in null object
-    inversion_ts_aux => InversionTSAuxCreate(inversion_ts_aux)
-    ! set up pointer to M matrix
-    inversion_ts_aux%mat_vec_solution_ptr%M = &
-      this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
-
-    this%inversion_aux%inversion_ts_aux_list => inversion_ts_aux
-    call InvTSAuxAllocate(inversion_ts_aux,patch%grid%nlmax)
 
 #if 0
     if (this%local_adjoint) then
@@ -434,6 +424,17 @@ subroutine InversionSubsurfInitialize(this)
     call ISDestroy(is_petsc,ierr);
     deallocate(int_array)
   endif
+
+  ! create inversion_ts_aux for first time step
+  nullify(inversion_ts_aux) ! must pass in null object
+  inversion_ts_aux => InversionTSAuxCreate(inversion_ts_aux)
+  ! set up pointer to M matrix
+  inversion_ts_aux%mat_vec_solution_ptr%M = &
+    this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
+
+  this%inversion_aux%inversion_ts_aux_list => inversion_ts_aux
+  call InvTSAuxAllocate(inversion_ts_aux,patch%grid%nlmax)
+
 
 end subroutine InversionSubsurfInitialize
 
@@ -612,6 +613,8 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call MatAssemblyEnd(inversion_aux%JsensitivityT, &
                       MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
+  call InversionTSAuxListDestroy(inversion_aux%inversion_ts_aux_list,PETSC_TRUE)
+
   call timer%Stop()
   option%io_buffer = '    ' // &
     trim(StringWrite('(f20.1)',timer%GetCumulativeTime())) // &
@@ -759,7 +762,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   option%io_buffer = '    ' // &
     trim(StringWrite('(f20.1)',timer%GetCumulativeTime()))
   option%io_buffer = trim(option%io_buffer) // &
-    ' seconds to build Jsensitivity.'
+    ' seconds to calculate lambdas.'
   call PrintMsg(option)
   call TimerDestroy(timer)
 
@@ -873,7 +876,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   option%io_buffer = '    ' // &
     trim(StringWrite('(f20.1)',timer%GetCumulativeTime()))
   option%io_buffer = trim(option%io_buffer) // &
-    ' seconds to build Jsensitivity.'
+    ' seconds to add contributions to Jsensitivity.'
   call PrintMsg(option)
   call TimerDestroy(timer)
 

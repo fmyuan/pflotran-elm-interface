@@ -176,6 +176,7 @@ subroutine InversionTSAuxListDestroy(inversion_ts_aux_list,print_msg)
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
     next_inversion_ts_aux => cur_inversion_ts_aux%next
+#if 0
     if (.not.associated(next_inversion_ts_aux)) then
       if (print_msg) then
         print *
@@ -184,6 +185,7 @@ subroutine InversionTSAuxListDestroy(inversion_ts_aux_list,print_msg)
         print *
       endif
     endif
+#endif
     call InversionTSAuxDestroy(cur_inversion_ts_aux)
     cur_inversion_ts_aux => next_inversion_ts_aux
   enddo
