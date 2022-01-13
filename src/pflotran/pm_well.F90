@@ -66,11 +66,11 @@ module PM_Well_class
     PetscReal, pointer :: visc_g(:)
     ! reservoir effective porosity (factors in compressibility) [m3/m3]
     PetscReal, pointer :: e_por(:)
-    ! reservoir permeabilities
+    ! reservoir permeabilities [m2]
     PetscReal, pointer :: kx(:)
     PetscReal, pointer :: ky(:)
     PetscReal, pointer :: kz(:)
-    ! reservoir discretization
+    ! reservoir discretization [m]
     PetscReal, pointer :: dx(:)
     PetscReal, pointer :: dy(:)
     PetscReal, pointer :: dz(:)
@@ -110,13 +110,13 @@ module PM_Well_class
     PetscReal :: bh_p 
     ! well top of hole pressure BC [Pa]
     PetscReal :: th_p
-    ! well bottom of hole rate BC [Pa]
+    ! well bottom of hole rate BC [kg/s]
     PetscReal :: bh_ql
     PetscReal :: bh_qg
-    ! well top of hole rate BC [Pa]
+    ! well top of hole rate BC [kg/s]
     PetscReal :: th_ql
     PetscReal :: th_qg
-    ! permeability along the well
+    ! permeability along the well [m2]
     PetscReal, pointer :: permeability(:)
     ! porosity
     PetscReal, pointer :: phi(:)
@@ -162,6 +162,10 @@ module PM_Well_class
     PetscBool :: bh_p
     ! flag for top of hole pressure BC
     PetscBool :: th_p
+    ! flag for bottom of hole rate BC
+    PetscBool :: bh_q
+    ! flag for top of hole rate BC
+    PetscBool :: th_q
   end type well_soln_type
 
   type, public, extends(pm_base_type) :: pm_well_type
@@ -355,6 +359,8 @@ function PMWellCreate()
   PMWellCreate%soln%ndof = UNINITIALIZED_INTEGER
   PMWellCreate%soln%bh_p = PETSC_FALSE
   PMWellCreate%soln%th_p = PETSC_FALSE
+  PMWellCreate%soln%bh_q = PETSC_FALSE
+  PMWellCreate%soln%th_q = PETSC_FALSE
 
 
 end function PMWellCreate
@@ -1078,8 +1084,6 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                   !-----------------------------
                     case('LIQUID_RATE')
                       call InputReadDouble(input,option,this%well%bh_ql)
-                      !MAN for testing
-                      this%well%th_p = 101325.d0
                   !-----------------------------
                     case('GAS_RATE')
                       call InputReadDouble(input,option,this%well%bh_qg)
@@ -1136,28 +1140,31 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
           // trim(error_string) // ' block, but NOT BOTH.'
         call PrintErrMsg(option)
       endif
-      if (Uninitialized(this%well%th_p)) then
-        if (Uninitialized(this%well%bh_p) .and. &
-            .not.this%well%bh_p_set_by_reservoir)  then
-          option%io_buffer = 'Keyword BOTTOM_OF_HOLE,PRESSURE/PRESSURE_SET_&
-          &BY_RESERVOIR or keyword TOP_OF_HOLE,PRESSURE must be provided in &
-          &the ' // trim(error_string) // ' block.'
-          call PrintErrMsg(option) 
-        endif
-      endif
-      if (Initialized(this%well%bh_p) .and. Initialized(this%well%th_p)) then
-        option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE or keyword &
-          &TOP_OF_HOLE,PRESSURE must be provided in the ' &
-          // trim(error_string) // ' block, but NOT BOTH.'
-        call PrintErrMsg(option)
-      endif
-      if (this%well%bh_p_set_by_reservoir .and. &
-          Initialized(this%well%th_p)) then
-        option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE_SET_BY_&
-          &RESERVOIR or keyword TOP_OF_HOLE,PRESSURE must be provided in &
-          &the ' // trim(error_string) // ' block, but NOT BOTH.'
-        call PrintErrMsg(option)
-      endif
+      !
+      ! The following error checks are too restrictive:
+      !
+      !if (Uninitialized(this%well%th_p)) then
+      !  if (Uninitialized(this%well%bh_p) .and. &
+      !      .not.this%well%bh_p_set_by_reservoir)  then
+      !    option%io_buffer = 'Keyword BOTTOM_OF_HOLE,PRESSURE/PRESSURE_SET_&
+      !    &BY_RESERVOIR or keyword TOP_OF_HOLE,PRESSURE must be provided in &
+      !    &the ' // trim(error_string) // ' block.'
+      !    call PrintErrMsg(option) 
+      !  endif
+      !endif
+      !if (Initialized(this%well%bh_p) .and. Initialized(this%well%th_p)) then
+      !  option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE or keyword &
+      !    &TOP_OF_HOLE,PRESSURE must be provided in the ' &
+      !    // trim(error_string) // ' block, but NOT BOTH.'
+      !  call PrintErrMsg(option)
+      !endif
+      !if (this%well%bh_p_set_by_reservoir .and. &
+      !    Initialized(this%well%th_p)) then
+      !  option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE_SET_BY_&
+      !    &RESERVOIR or keyword TOP_OF_HOLE,PRESSURE must be provided in &
+      !    &the ' // trim(error_string) // ' block, but NOT BOTH.'
+      !  call PrintErrMsg(option)
+      !endif
 
   !-------------------------------------
     case default
@@ -1168,6 +1175,9 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
   if (Initialized(this%well%bh_p)) this%soln%bh_p = PETSC_TRUE
   if (this%well%bh_p_set_by_reservoir) this%soln%bh_p = PETSC_TRUE
   if (Initialized(this%well%th_p)) this%soln%th_p = PETSC_TRUE
+
+  if (Initialized(this%well%bh_ql)) this%soln%bh_q = PETSC_TRUE
+  if (Initialized(this%well%th_ql)) this%soln%th_q = PETSC_TRUE
 
   end subroutine PMWellReadWellBCs
 
@@ -1279,11 +1289,12 @@ subroutine PMWellReadPass2(input,option)
 
     select case(trim(keyword))
     !--------------------
-    case('GRID','WELL')
+    case('GRID','WELL','WELL_MODEL_TYPE')
       call InputSkipToEND(input,option,card)
     !--------------------
     case('WELL_BOUNDARY_CONDITIONS')
       call InputSkipToEND(input,option,card) 
+      call InputSkipToEND(input,option,card)
       call InputSkipToEND(input,option,card)
     !--------------------
     end select
@@ -2555,7 +2566,7 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         tot_mole_flux = q * density_ave
         Res(2) = Res(2) + tot_mole_flux
 
-      else
+      else if (pm_well%soln%bh_q) then
         !Neumann flux at the bottom
         v_darcy = well%bh_ql
         if (v_darcy > 0.d0) then
@@ -2576,6 +2587,8 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(2) = Res(2) + tot_mole_flux
+      else
+        ! this should not happen once error messaging is updated
       endif
 
       if (pm_well%soln%th_p) then
