@@ -2035,6 +2035,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   PetscReal :: min_value
   PetscReal :: critical_porosity
   PetscReal :: porosity_base_
+  PetscReal :: temp_porosity
   PetscInt :: ivalue
   PetscErrorCode :: ierr
 
@@ -2056,18 +2057,23 @@ subroutine RealizationUpdatePropertiesTS(realization)
 
   if (reaction%update_mineral_surface_area) then
 
+    nullify(porosity0_p)
     if (reaction%update_mnrl_surf_with_porosity) then
       ! placing the get/restore array calls within the condition will
       ! avoid improper access.
       call VecGetArrayReadF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     endif
 
+    temp_porosity = UNINITIALIZED_DOUBLE
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       do imnrl = 1, reaction%mineral%nkinmnrl
+        if (associated(porosity0_p)) then
+          temp_porosity = porosity0_p(local_id)
+        endif
         call MineralUpdateSpecSurfaceArea(reaction,rt_auxvars(ghosted_id), &
                                           material_auxvars(ghosted_id), &
-                                          porosity0_p(local_id),option)
+                                          temp_porosity,option)
       enddo
     enddo
 
