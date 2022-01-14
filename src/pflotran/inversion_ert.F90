@@ -141,7 +141,7 @@ subroutine InversionERTInit(this,driver)
 
   call InversionSubsurfaceInit(this,driver)
   ! override default set in InversionSubsurfaceInit
-  this%iqoi = ELECTRICAL_CONDUCTIVITY
+  this%iqoi(1) = ELECTRICAL_CONDUCTIVITY
 
   ! Default inversion parameters
   this%miniter = 10
@@ -707,7 +707,7 @@ subroutine InversionERTInitialize(this)
 
   ! theck to ensure that quantity of interest exists
   exists = PETSC_FALSE
-  select case(this%iqoi)
+  select case(this%iqoi(1))
     case(ELECTRICAL_CONDUCTIVITY)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
       word = 'ELECTRICAL_CONDUCTIVITY'
@@ -730,7 +730,7 @@ subroutine InversionERTInitialize(this)
                                      this%realization%field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 this%iqoi,ZERO_INTEGER)
+                                 this%iqoi(1),this%iqoi(2))
   else
     ! non-ghosted Vec
     call VecDuplicate(this%realization%field%work, &
@@ -738,7 +738,7 @@ subroutine InversionERTInitialize(this)
     ! ghosted Vec
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 this%iqoi,ZERO_INTEGER)
+                                 this%iqoi(1),this%iqoi(2))
     call DiscretizationLocalToGlobal(this%realization%discretization, &
                                      this%realization%field%work_loc, &
                                      this%quantity_of_interest,ONEDOF)
@@ -1036,7 +1036,7 @@ subroutine InversionERTUpdateParameters(this)
                                      this%quantity_of_interest, &
                                      field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 field%work_loc,this%iqoi,ZERO_INTEGER)
+                                 field%work_loc,this%iqoi(1),this%iqoi(2))
   endif
 
   ! Build Wm matrix

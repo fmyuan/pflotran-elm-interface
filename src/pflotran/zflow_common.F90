@@ -27,8 +27,7 @@ module ZFlow_Common_module
                          area, dist, &
                          zflow_parameter, &
                          option,v_darcy,Res,Jup,Jdn, &
-                         dJupdKup,dJupdKdn,dJdndKup,JdndKdn, &
-                         drhsdKup,drhsdKdn, &
+                         dResdKup,dResdKdn, &
                          calculate_derivatives)
       use ZFlow_Aux_module
       use Global_Aux_module
@@ -45,8 +44,7 @@ module ZFlow_Common_module
       type(zflow_parameter_type) :: zflow_parameter
       PetscReal :: Res(1)
       PetscReal :: Jup(1,1), Jdn(1,1)
-      PetscReal :: dJupdKup(1), dJupdKdn(1), dJdndKup(1), JdndKdn(1)
-      PetscReal :: drhsdKup(1), drhsdKdn(1)
+      PetscReal :: dResdKup(1), dResdKdn(1)
       PetscBool :: calculate_derivatives
     end subroutine FluxDummy
     subroutine BCFluxDummy(ibndtype,auxvar_mapping,auxvars, &
@@ -56,7 +54,7 @@ module ZFlow_Common_module
                            area,dist, &
                            zflow_parameter, &
                            option,v_darcy,Res,Jdn, &
-                           dJdndKdn,drhsdKdn, &
+                           dResdKdn, &
                            calculate_derivatives)
       use ZFlow_Aux_module
       use Global_Aux_module
@@ -76,8 +74,7 @@ module ZFlow_Common_module
       PetscReal :: v_darcy(1)
       PetscReal :: Res(1)
       PetscReal :: Jdn(1,1)
-      PetscReal :: dJdndKdn(1)
-      PetscReal :: drhsdKdn(1)
+      PetscReal :: dResdKdn(1)
       PetscBool :: calculate_derivatives
     end subroutine BCFluxDummy
   end interface
@@ -99,7 +96,7 @@ contains
 ! ************************************************************************** !
 
 subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
-                             option,Res,Jac,calculate_derivatives)
+                             option,Res,Jac,dResdpor,calculate_derivatives)
   !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -119,13 +116,16 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
   PetscReal :: Res(1)
   PetscReal :: Jac(1,1)
+  PetscReal :: dResdpor(1)
   PetscBool :: calculate_derivatives
 
   PetscReal :: porosity
   PetscReal :: volume_over_dt
+  PetscReal :: tempreal
 
   Res = 0.d0
   Jac = 0.d0
+  dResdpor = 0.d0
 
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
   volume_over_dt = material_auxvar%volume / option%flow_dt
@@ -136,11 +136,17 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   ! accumulation term units = m^3 liquid/s
   ! Res[m^3 liquid/sec] = sat[m^3 liquid/m^3 void] * por[m^3 void/m^3 bulk] *
   !                       vol[m^3 bulk] / dt[sec]
-  Res(1) = zflow_auxvar%sat * porosity * volume_over_dt * zflow_density_kmol
+  tempreal = volume_over_dt * zflow_density_kmol
+  Res(1) = zflow_auxvar%sat * porosity * tempreal
 
   if (calculate_derivatives) then
-    Jac(1,1) = Res(1) / zflow_auxvar%sat * zflow_auxvar%dsat_dp + &
-               Res(1) / porosity * zflow_auxvar%dpor_dp
+    Jac(1,1) = tempreal * (zflow_auxvar%dsat_dp * porosity + &
+                           zflow_auxvar%sat * zflow_auxvar%dpor_dp)
+    if (zflow_calc_adjoint) then
+      if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
+        dResdpor(1) = tempreal * zflow_auxvar%sat
+      endif
+    endif
   endif
 
 end subroutine ZFlowAccumulation
@@ -155,8 +161,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
                                      zflow_parameter, &
                                      option,v_darcy,Res, &
                                      Jup,Jdn, &
-                                     dJupdKup,dJupdKdn,dJdndKup,dJdndKdn, &
-                                     drhsdKup,drhsdKdn, &
+                                     dResdKup,dResdKdn, &
                                      calculate_derivatives)
   !
   ! Computes the internal flux terms for the residual based on harmonic
@@ -183,6 +188,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: Jup(1,1), Jdn(1,1)
   PetscReal :: dJupdKup(1), dJupdKdn(1), dJdndKup(1), dJdndKdn(1)
   PetscReal :: drhsdKup(1), drhsdKdn(1)
+  PetscReal :: dResdKup(1), dResdKdn(1)
   PetscBool :: calculate_derivatives
 
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -203,12 +209,13 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   Jup = 0.d0
   Jdn = 0.d0
   v_darcy = 0.d0
+  dResdKup(1) = 0.d0
+  dResdKdn(1) = 0.d0
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
   call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
-
 
   numerator = perm_up * perm_dn
   denominator = dist_up*perm_dn + dist_dn*perm_up
@@ -244,20 +251,14 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
         Jup(1,1) = tempreal * (delta_pressure * dkr_dpup + kr)
         Jdn(1,1) = tempreal * (delta_pressure * dkr_dpdn - kr)
         if (zflow_calc_adjoint) then
-          tempreal = denominator * denominator * zflow_viscosity
-          dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
-          dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
-          tempreal = area * zflow_density_kmol * &
-                     (delta_pressure * dkr_dpup + kr)
-          dJupdKup(1) = dperm_ave_dKup * tempreal
-          dJupdKdn(1) = dperm_ave_dKdn * tempreal
-          tempreal = area * zflow_density_kmol * &
-                     (delta_pressure * dkr_dpdn - kr)
-          dJdndKup(1) = dperm_ave_dKup * tempreal
-          dJdndKdn(1) = dperm_ave_dKdn * tempreal
-          tempreal = area * zflow_density_kmol * kr * gravity_term
-          drhsdKup(1) = dperm_ave_dKup * tempreal
-          drhsdKdn(1) = dperm_ave_dKdn * tempreal
+          if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
+            tempreal = denominator * denominator * zflow_viscosity
+            dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
+            dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
+            tempreal = kr * delta_pressure * area * zflow_density_kmol
+            dResdKup(1) = tempreal * dperm_ave_dKup
+            dResdKdn(1) = tempreal * dperm_ave_dKdn
+          endif
         endif
       endif
     endif
@@ -274,7 +275,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                                        area,dist, &
                                        zflow_parameter, &
                                        option,v_darcy,Res,Jdn, &
-                                       dJdndKdn,drhsdKdn, &
+                                       dResdKdn, &
                                        calculate_derivatives)
   !
   ! Computes the boundary flux terms for the residual
@@ -301,8 +302,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: v_darcy(1)
   PetscReal :: Res(1)
   PetscReal :: Jdn(1,1)
-  PetscReal :: dJdndKdn(1)
-  PetscReal :: drhsdKdn(1)
+  PetscReal :: dResdKdn(1)
   PetscBool :: calculate_derivatives
 
   PetscInt :: bc_type
@@ -323,8 +323,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   Res = 0.d0
   Jdn = 0.d0
   v_darcy = 0.d0
-
   dperm_dK = 0.d0
+  dResdKdn = 0.d0
 
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
@@ -399,9 +399,10 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                  (dkr_dp * delta_pressure + ddelta_pressure_dpdn * kr)
       Jdn(1,1) = perm_ave_over_dist_visc * tempreal
       if (zflow_calc_adjoint) then
-        dJdndKdn(1) = dperm_dK * tempreal
-        tempreal = area * zflow_density_kmol * kr
-        drhsdKdn(1) = tempreal * (boundary_pressure + gravity_term) * dperm_dK
+        if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
+          tempreal = area * zflow_density_kmol * kr
+          dResdKdn(1) = tempreal * delta_pressure * dperm_dK
+        endif
       endif
     endif
   endif
@@ -492,17 +493,18 @@ subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
 
   PetscReal :: res(1), res_pert(1)
   PetscReal :: Jdum(1,1)
+  PetscReal :: dJdum(1,1)
 
   call ZFlowAccumulation(zflow_auxvar(ZERO_INTEGER), &
                          global_auxvar, &
                          material_auxvar, &
-                         option,res,Jdum, &
+                         option,res,Jdum,dJdum, &
                          PETSC_FALSE)
 
   call ZFlowAccumulation(zflow_auxvar(ONE_INTEGER), &
                          global_auxvar, &
                          material_auxvar, &
-                         option,res_pert,Jdum, &
+                         option,res_pert,Jdum,dJdum, &
                          PETSC_FALSE)
   ! J[m^3 liquid/Pa-sec]
   J(1,1) = (res_pert(1)-res(1))/zflow_auxvar(ONE_INTEGER)%pert
@@ -555,7 +557,6 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
               area,dist, &
               zflow_parameter, &
               option,v_darcy,res_up,Jdum,Jdum, &
-              dJdum,dJdum,dJdum,dJdum, &
               dJdum,dJdum, &
               PETSC_FALSE)
   res_dn = res_up
@@ -568,7 +569,6 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
               area,dist, &
               zflow_parameter, &
               option,v_darcy,res_pert,Jdum,Jdum, &
-              dJdum,dJdum,dJdum,dJdum, &
               dJdum,dJdum, &
               PETSC_FALSE)
   ! J[m^3 liquid/Pa-sec]
@@ -582,7 +582,6 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
               area,dist, &
               zflow_parameter, &
               option,v_darcy,res_pert,Jdum,Jdum, &
-              dJdum,dJdum,dJdum,dJdum, &
               dJdum,dJdum, &
               PETSC_FALSE)
   ! J[m^3 liquid/Pa-sec]
@@ -638,7 +637,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                 material_auxvar_dn, &
                 area,dist, &
                 zflow_parameter, &
-                option,v_darcy,res,Jdum,dJdum,dJdum, &
+                option,v_darcy,res,Jdum,dJdum, &
                 PETSC_FALSE)
 
   ! downgradient derivatives
@@ -648,7 +647,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                 material_auxvar_dn, &
                 area,dist, &
                 zflow_parameter, &
-                option,v_darcy,res_pert,Jdum,dJdum,dJdum, &
+                option,v_darcy,res_pert,Jdum,dJdum, &
                 PETSC_FALSE)
   ! J[m^3 liquid/Pa-sec]
   Jdn(1,1) = (res_pert(1)-res(1))/zflow_auxvar_dn(ONE_INTEGER)%pert
