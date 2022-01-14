@@ -126,7 +126,7 @@ subroutine ZFlowSetup(realization)
 
   zflow_numerical_derivatives = option%flow%numerical_derivatives
   if (zflow_numerical_derivatives) then
-    allocate(zflow_min_pert(option%nflowdof))
+    allocate(zflow_min_pert(ZFLOW_MAX_DOF))
     zflow_min_pert = 0.d0
     if (zflow_liq_flow_eq > 0) &
       zflow_min_pert(zflow_liq_flow_eq) = zflow_pres_min_pert
@@ -571,6 +571,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
   use Field_module
   use Grid_module
   use Material_Aux_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -589,9 +590,11 @@ subroutine ZFlowUpdateFixedAccum(realization)
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
-  PetscReal :: Jdum(1,1)
-  PetscReal :: dResdparam(1,1)
+  PetscReal :: Res(ZFLOW_MAX_DOF)
+  PetscReal :: Jdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dResdparam(ZFLOW_MAX_DOF)
   PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: ndof
 
   PetscErrorCode :: ierr
 
@@ -601,6 +604,8 @@ subroutine ZFlowUpdateFixedAccum(realization)
   field => realization%field
   patch => realization%patch
   grid => patch%grid
+
+  ndof = option%nflowdof
 
   zflow_auxvars => patch%aux%ZFlow%auxvars
   global_auxvars => patch%aux%Global%auxvars
@@ -615,8 +620,8 @@ subroutine ZFlowUpdateFixedAccum(realization)
     !geh - Ignore inactive cells with inactive materials
     imat = patch%imat(ghosted_id)
     if (imat <= 0) cycle
-    local_end = local_id * option%nflowdof
-    local_start = local_end - option%nflowdof + 1
+    local_end = local_id * ndof
+    local_start = local_end - ndof + 1
     natural_id = grid%nG2A(ghosted_id)
     ! ZFLOW_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
     option%iflag = ZFLOW_UPDATE_FOR_FIXED_ACCUM
@@ -631,11 +636,13 @@ subroutine ZFlowUpdateFixedAccum(realization)
     call ZFlowAccumulation(zflow_auxvars(ZERO_INTEGER,ghosted_id), &
                            global_auxvars(ghosted_id), &
                            material_auxvars(ghosted_id), &
-                           option,accum_p(local_id:local_id), &
+                           option,Res, &
                            Jdum,dResdparam,zflow_calc_adjoint)
+    call PetUtilVecSVBL(accum_p,local_id,Res,ndof,PETSC_TRUE)
     if (zflow_calc_adjoint) then
       ! negative because the value is subtracted in residual
-      patch%aux%inversion_ts_aux%dRes_du_k(local_id) = -Jdum(1,1)
+      patch%aux%inversion_ts_aux%dRes_du_k(local_id) = &
+        -Jdum(zflow_liq_flow_eq,zflow_liq_flow_eq)
     endif
   enddo
 
@@ -666,6 +673,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   use Coupler_module
   use Material_Aux_module
   use Upwind_Direction_module
+  use Petsc_Utility_module
 
   implicit none
 
@@ -698,7 +706,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
 
   PetscInt :: iconn
   PetscReal :: scale
-  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
+  PetscReal :: ss_flow_vol_flux
   PetscInt :: sum_connection
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
@@ -712,13 +720,15 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   character(len=MAXSTRINGLENGTH) :: string
 
   PetscInt :: icc_up, icc_dn
-  PetscReal :: Res(realization%option%nflowdof)
-  PetscReal :: Jup(size(Res),size(Res)),Jdn(size(Res),size(Res))
-  PetscReal :: dResdparamup(size(Res)),dResdparamdn(size(Res))
-  PetscReal :: dResdparam(size(Res))
+  PetscReal :: Res(ZFLOW_MAX_DOF)
+  PetscReal :: Jup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dResdparam(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   Mat :: MatdResdparam
   PetscBool :: store_adjoint
-  PetscReal :: v_darcy(1)
+  PetscReal :: v_darcy
 
   PetscInt :: ndof
   PetscInt :: istart, iend
@@ -807,15 +817,12 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 option,Res,Jup,dResdparam)
-      r_p(local_id) =  r_p(local_id) + Res(1)
-      accum_p2(local_id) = Res(1)
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+      call PetUtilVecSVBL(r_p,local_id,Res,ndof,PETSC_FALSE)
+      call PetUtilVecSVBL(accum_p2,local_id,Res,ndof,PETSC_TRUE)
+      call PetUtilMatSVBL(A,ghosted_id,ghosted_id,Jup,ndof)
       if (store_adjoint) then
-        call MatSetValuesBlockedLocal(MatdResdparam, &
-                                      1,ghosted_id-1,1,ghosted_id-1, &
-                                      dResdparam, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
+        call PetUtilMatSVBL(MatdResdparam,ghosted_id,ghosted_id, &
+                            dResdparam,ndof)
       endif
     enddo
     call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
@@ -858,56 +865,35 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                               Res,Jup,Jdn,dResdparamup,dResdparamdn)
         patch%internal_velocities(:,sum_connection) = v_darcy
         if (associated(patch%internal_flow_fluxes)) then
-          patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+          patch%internal_flow_fluxes(1,sum_connection) = Res(zflow_liq_flow_eq)
         endif
 
         if (local_id_up > 0) then
-          r_p(local_id_up) = r_p(local_id_up) + Res(1)
-          call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
-                                        1,ghosted_id_up-1, &
-                                        Jup,ADD_VALUES, &
-                                        ierr);CHKERRQ(ierr)
-          call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1, &
-                                        1,ghosted_id_dn-1, &
-                                        Jdn,ADD_VALUES, &
-                                        ierr);CHKERRQ(ierr)
+          call PetUtilVecSVBL(r_p,local_id_up,Res,ndof,PETSC_FALSE)
+          call PetUtilMatSVBL(A,ghosted_id_up,ghosted_id_up,Jup,ndof)
+          call PetUtilMatSVBL(A,ghosted_id_up,ghosted_id_dn,Jdn,ndof)
           if (store_adjoint) then
-            call MatSetValuesBlockedLocal(MatdResdparam, &
-                                          1,ghosted_id_up-1, &
-                                          1,ghosted_id_up-1, &
-                                          dResdparamup,ADD_VALUES, &
-                                          ierr);CHKERRQ(ierr)
-            call MatSetValuesBlockedLocal(MatdResdparam, &
-                                          1,ghosted_id_up-1, &
-                                          1,ghosted_id_dn-1, &
-                                          dResdparamdn,ADD_VALUES, &
-                                          ierr);CHKERRQ(ierr)
+            call PetUtilMatSVBL(MatdResdparam,ghosted_id_up,ghosted_id_up, &
+                                dResdparamup,ndof)
+            call PetUtilMatSVBL(MatdResdparam,ghosted_id_up,ghosted_id_dn, &
+                                dResdparamdn,ndof)
           endif
         endif
 
         if (local_id_dn > 0) then
-          r_p(local_id_dn) = r_p(local_id_dn) - Res(1)
+          Res = -Res
+          call PetUtilVecSVBL(r_p,local_id_dn,Res,ndof,PETSC_FALSE)
           Jup = -Jup
           Jdn = -Jdn
-          call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
-                                        1,ghosted_id_dn-1, &
-                                        Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1, &
-                                        1,ghosted_id_up-1, &
-                                        Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+          call PetUtilMatSVBL(A,ghosted_id_dn,ghosted_id_dn,Jdn,ndof)
+          call PetUtilMatSVBL(A,ghosted_id_dn,ghosted_id_up,Jup,ndof)
           if (store_adjoint) then
             dResdparamup = -dResdparamup
             dResdparamdn = -dResdparamdn
-            call MatSetValuesBlockedLocal(MatdResdparam, &
-                                          1,ghosted_id_dn-1, &
-                                          1,ghosted_id_dn-1, &
-                                          dResdparamdn,ADD_VALUES, &
-                                          ierr);CHKERRQ(ierr)
-            call MatSetValuesBlockedLocal(MatdResdparam, &
-                                          1,ghosted_id_dn-1, &
-                                          1,ghosted_id_up-1, &
-                                          dResdparamup,ADD_VALUES, &
-                                          ierr);CHKERRQ(ierr)
+            call PetUtilMatSVBL(MatdResdparam,ghosted_id_dn,ghosted_id_dn, &
+                                dResdparamdn,ndof)
+            call PetUtilMatSVBL(MatdResdparam,ghosted_id_dn,ghosted_id_up, &
+                                dResdparamup,ndof)
           endif
         endif
       enddo
@@ -951,24 +937,22 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                 v_darcy,Res,Jdn,dResdparamdn)
         patch%boundary_velocities(:,sum_connection) = v_darcy
         if (associated(patch%boundary_flow_fluxes)) then
-          patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
+          patch%boundary_flow_fluxes(1,sum_connection) = Res(zflow_liq_flow_eq)
         endif
         if (option%compute_mass_balance_new) then
           ! contribution to boundary
-          global_auxvars_bc(sum_connection)%mass_balance_delta(:,1) = &
-            global_auxvars_bc(sum_connection)%mass_balance_delta(:,1) - &
-            Res(:)
+          global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) = &
+            global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) - &
+            Res(zflow_liq_flow_eq)
         endif
-        r_p(local_id)= r_p(local_id) - Res(1)
+        Res = -Res
+        call PetUtilVecSVBL(r_p,local_id,Res,ndof,PETSC_FALSE)
         Jdn = -Jdn
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
+        call PetUtilMatSVBL(A,ghosted_id,ghosted_id,Jdn,ndof)
         if (store_adjoint) then
           dResdparamdn = -dResdparamdn
-          call MatSetValuesBlockedLocal(MatdResdparam, &
-                                        1,ghosted_id-1,1,ghosted_id-1, &
-                                        dResdparamdn,ADD_VALUES, &
-                                        ierr);CHKERRQ(ierr)
+          call PetUtilMatSVBL(MatdResdparam,ghosted_id,ghosted_id, &
+                              dResdparamdn,ndof)
         endif
       enddo
       boundary_condition => boundary_condition%next
@@ -1007,17 +991,17 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
       endif
       if (associated(patch%ss_flow_fluxes)) then
-        patch%ss_flow_fluxes(:,sum_connection) = Res(:)
+        patch%ss_flow_fluxes(:,sum_connection) = Res(1)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) = &
-          global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) - &
-          Res(:)
+        global_auxvars_ss(sum_connection)%mass_balance_delta(1,1) = &
+          global_auxvars_ss(sum_connection)%mass_balance_delta(1,1) - &
+          Res(zflow_liq_flow_eq)
       endif
-      r_p(local_id) =  r_p(local_id) - Res(1)
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+      Res = -Res
+      call PetUtilVecSVBL(r_p,local_id,Res,ndof,PETSC_FALSE)
+      call PetUtilMatSVBL(A,ghosted_id,ghosted_id,Jdn,ndof)
     enddo
     source_sink => source_sink%next
   enddo

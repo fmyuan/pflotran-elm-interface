@@ -38,6 +38,7 @@ module ZFlow_Aux_module
   PetscInt, public :: zflow_liq_flow_eq = UNINITIALIZED_INTEGER
   PetscInt, public :: zflow_heat_tran_eq = UNINITIALIZED_INTEGER
   PetscInt, public :: zflow_sol_tran_eq = UNINITIALIZED_INTEGER
+  PetscInt, parameter, public :: ZFLOW_MAX_DOF = 1
 
   PetscInt, parameter, public :: ZFLOW_LIQUID_PRESSURE_INDEX = 1
   PetscInt, parameter, public :: ZFLOW_LIQUID_FLUX_INDEX = 1
@@ -367,7 +368,7 @@ subroutine ZFlowAuxVarPerturb(x,zflow_auxvar,global_auxvar, &
   class(characteristic_curves_type) :: characteristic_curves
 
   PetscInt :: idof
-  PetscReal :: x_pert(option%nflowdof), pert
+  PetscReal :: x_pert(ZFLOW_MAX_DOF), pert
 
   ! ZFLOW_UPDATE_FOR_DERIVATIVE indicates call from perturbation
   option%iflag = ZFLOW_UPDATE_FOR_DERIVATIVE
