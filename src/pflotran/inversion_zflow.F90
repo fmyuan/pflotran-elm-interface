@@ -921,10 +921,6 @@ subroutine InvZFlowUpdateRegularizParams(this)
 
   class(inversion_zflow_type) :: this
 
-  ! update iteration number
-!  this%iteration = this%iteration + 1
-
-!  if (this%iteration - 1 == this%start_iteration) return
   if (this%iteration == this%start_iteration) return
 
   if ( (this%phi_total_0 - this%phi_total)/this%phi_total_0 <= &
@@ -1122,8 +1118,6 @@ subroutine InversionZFlowCGLSSolve(this)
     gbeta = gamma / gamma1
     this%p = this%s + gbeta * this%p
 
-!print*,norm2(this%r),gamma,norm2(this%del_perm)
-
     normx = dot_product(this%del_perm,this%del_perm)
     call MPI_Allreduce(MPI_IN_PLACE,normx,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
@@ -1139,9 +1133,6 @@ subroutine InversionZFlowCGLSSolve(this)
         i > this%miniter) exit_info = PETSC_TRUE
 
   enddo
-
-!print*,this%del_perm
-!stop
 
   call timer%Stop()
   option%io_buffer = '    ' // &
