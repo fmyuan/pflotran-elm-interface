@@ -9,9 +9,9 @@ module ZFlow_Aux_module
 
   private
 
-  PetscReal, parameter, public :: zflow_density_kg = 998.32d0
-  PetscReal, parameter, public :: zflow_density_kmol = zflow_density_kg / FMWH2O
-  PetscReal, parameter, public :: zflow_viscosity = 8.9d-4
+  PetscReal, public :: zflow_density_kg = 1000.d0
+  PetscReal, public :: zflow_density_kmol = UNINITIALIZED_DOUBLE
+  PetscReal, public :: zflow_viscosity = 1.d-3
 
   PetscReal, public :: zflow_rel_pert = 1.d-8
   PetscReal, public :: zflow_pres_min_pert = 1.d-2
@@ -38,12 +38,13 @@ module ZFlow_Aux_module
   PetscInt, public :: zflow_liq_flow_eq = UNINITIALIZED_INTEGER
   PetscInt, public :: zflow_heat_tran_eq = UNINITIALIZED_INTEGER
   PetscInt, public :: zflow_sol_tran_eq = UNINITIALIZED_INTEGER
-  PetscInt, parameter, public :: ZFLOW_MAX_DOF = 1
+  PetscInt, parameter, public :: ZFLOW_MAX_DOF = 3
 
-  PetscInt, parameter, public :: ZFLOW_LIQUID_PRESSURE_INDEX = 1
-  PetscInt, parameter, public :: ZFLOW_LIQUID_FLUX_INDEX = 1
-  PetscInt, parameter, public :: ZFLOW_LIQUID_CONDUCTANCE_INDEX = 2
-  PetscInt, parameter, public :: ZFLOW_MAX_INDEX = 2
+  PetscInt, parameter, public :: ZFLOW_COND_WATER_INDEX = 1
+  PetscInt, parameter, public :: ZFLOW_COND_ENERGY_INDEX = 2
+  PetscInt, parameter, public :: ZFLOW_COND_SOLUTE_INDEX = 3
+  PetscInt, parameter, public :: ZFLOW_COND_CONDUCTANCE_INDEX = 4
+  PetscInt, parameter, public :: ZFLOW_MAX_INDEX = 4
 
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_DERIVATIVE = -1
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_FIXED_ACCUM = 0
@@ -107,6 +108,7 @@ module ZFlow_Aux_module
             ZFlowAuxVarDestroy, &
             ZFlowAuxVarStrip, &
             ZFlowAuxVarPerturb, &
+            ZFlowAuxMapConditionIndices, &
             ZFlowPrintAuxVars, &
             ZFlowOutputAuxVars, &
             ZFlowAuxTensorialRelPerm
@@ -375,7 +377,7 @@ subroutine ZFlowAuxVarPerturb(x,zflow_auxvar,global_auxvar, &
   do idof = 1, option%nflowdof
     pert = x(idof)*zflow_rel_pert+zflow_min_pert(idof)
     zflow_auxvar(idof)%pert = pert
-    x_pert = x
+    x_pert(1:option%nflowdof) = x
     x_pert(idof) = x(idof) + pert
     call ZFlowAuxVarCompute(x_pert,zflow_auxvar(idof),global_auxvar, &
                             material_auxvar, &
@@ -513,6 +515,49 @@ subroutine ZFlowOutputAuxVars1(zflow_auxvar,global_auxvar,material_auxvar, &
   close(IUNIT_TEMP)
 
 end subroutine ZFlowOutputAuxVars1
+
+! ************************************************************************** !
+
+function ZFlowAuxMapConditionIndices()
+  !
+  ! Maps indexing of conditions
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/14/22
+  !
+
+  use Option_module
+
+  implicit none
+
+  PetscInt, pointer :: ZFlowAuxMapConditionIndices(:)
+
+  PetscInt, pointer :: mapping(:)
+
+  PetscInt :: temp_int
+
+  allocate(mapping(ZFLOW_MAX_INDEX))
+  mapping = UNINITIALIZED_INTEGER
+
+  temp_int = 0
+  if (zflow_liq_flow_eq > 0) then
+    temp_int = temp_int + 1
+    mapping(ZFLOW_COND_WATER_INDEX) = temp_int
+    temp_int = temp_int + 1
+    mapping(ZFLOW_COND_CONDUCTANCE_INDEX) = temp_int
+  endif
+  if (zflow_heat_tran_eq > 0) then
+    temp_int = temp_int + 1
+    mapping(ZFLOW_COND_ENERGY_INDEX) = temp_int
+  endif
+  if (zflow_sol_tran_eq > 0) then
+    temp_int = temp_int + 1
+    mapping(ZFLOW_COND_SOLUTE_INDEX) = temp_int
+  endif
+
+  ZFlowAuxMapConditionIndices => mapping
+
+end function ZFlowAuxMapConditionIndices
 
 ! ************************************************************************** !
 

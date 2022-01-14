@@ -47,7 +47,6 @@ subroutine ZFlowSetup(realization)
   use Output_Aux_module
   use Characteristic_Curves_module
   use Matrix_Zeroing_module
-  use EOS_Water_module
 
   implicit none
 
@@ -474,6 +473,7 @@ subroutine ZFlowUpdateAuxVars(realization)
   PetscInt :: ghosted_id, local_id, sum_connection, iconn, natural_id
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
+  PetscInt :: water_index, solute_index
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -513,6 +513,8 @@ subroutine ZFlowUpdateAuxVars(realization)
   do
     if (.not.associated(boundary_condition)) exit
     cur_connection_set => boundary_condition%connection_set
+    water_index = boundary_condition%flow_aux_mapping(ZFLOW_COND_WATER_INDEX)
+    solute_index = boundary_condition%flow_aux_mapping(ZFLOW_COND_SOLUTE_INDEX)
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
@@ -521,19 +523,36 @@ subroutine ZFlowUpdateAuxVars(realization)
       natural_id = -grid%nG2A(ghosted_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      select case(boundary_condition%flow_condition% &
-                    itype(ZFLOW_PRESSURE_DOF))
-        case(DIRICHLET_BC, DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
-             HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-          xxbc(1) = boundary_condition% &
-                      flow_aux_real_var(ZFLOW_PRESSURE_DOF,iconn)
-        case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC, &
-             SURFACE_ZERO_GRADHEIGHT)
-          xxbc(1) = xx_loc_p(local_id)
-        case default
-          option%io_buffer = 'boundary itype not set up in ZFlowUpdateAuxVars'
-          call PrintErrMsg(option)
-      end select
+      if (zflow_liq_flow_eq > 0) then
+        select case(boundary_condition%flow_bc_type(water_index))
+          case(DIRICHLET_BC, DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+              HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+            xxbc(1) = boundary_condition%flow_aux_real_var(water_index,iconn)
+          case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC, &
+              SURFACE_ZERO_GRADHEIGHT)
+            xxbc(1) = xx_loc_p(local_id)
+          case default
+            option%io_buffer = 'flow boundary itype not set up in ZFlowUpdateAuxVars'
+            call PrintErrMsg(option)
+        end select
+      endif
+      if (zflow_heat_tran_eq > 0) then
+        option%io_buffer = 'Setup heat equation in ZFlowUpdateAuxVars'
+        call PrintErrMsg(option)
+      endif
+      if (zflow_sol_tran_eq > 0) then
+        select case(boundary_condition%flow_bc_type(solute_index))
+          case(DIRICHLET_BC, DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+               HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+            xxbc(zflow_sol_tran_eq) = &
+              boundary_condition%flow_aux_real_var(solute_index,iconn)
+          case(ZERO_GRADIENT_BC)
+            xxbc(zflow_sol_tran_eq) = xx_loc_p(local_id)
+          case default
+            option%io_buffer = 'solute boundary itype not set up in ZFlowUpdateAuxVars'
+            call PrintErrMsg(option)
+        end select
+      endif
 
       ! ZFLOW_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = ZFLOW_UPDATE_FOR_BOUNDARY

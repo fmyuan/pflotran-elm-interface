@@ -56,7 +56,7 @@ subroutine PetUtilVecSVBL(array,icell,array_block,ndof,replace)
   implicit none
 
   PetscInt :: ndof
-  PetscReal :: array(ndof)
+  PetscReal :: array(:)
   PetscInt :: icell
   PetscReal :: array_block(:)
   PetscBool :: replace

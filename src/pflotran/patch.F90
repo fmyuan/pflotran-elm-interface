@@ -852,6 +852,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   type(coupler_type), pointer :: coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   PetscInt :: idof
+  PetscInt :: ndof
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: temp_int
 
@@ -898,21 +899,23 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_int_var = 0
 
               case(ZFLOW_MODE)
-                temp_int = 1
+                ndof = option%nflowdof
+                temp_int = 0
                 select case(coupler%flow_condition%pressure%itype)
                   case(HYDROSTATIC_CONDUCTANCE_BC, &
                        DIRICHLET_CONDUCTANCE_BC, &
                        HET_HYDROSTATIC_CONDUCTANCE_BC)
                     temp_int = temp_int + 1
                 end select
-                allocate(coupler%flow_bc_type(1))
-                allocate(coupler%flow_aux_mapping(ZFLOW_MAX_INDEX))
-                allocate(coupler%flow_aux_real_var(temp_int,num_connections))
-                allocate(coupler%flow_aux_int_var(1,num_connections))
+                allocate(coupler%flow_bc_type(ndof))
+                allocate(coupler%flow_aux_real_var(ndof+temp_int, &
+                                                   num_connections))
+                !geh: don't need this
+                !allocate(coupler%flow_aux_int_var(1,num_connections))
                 coupler%flow_bc_type = 0
-                coupler%flow_aux_mapping = 0
                 coupler%flow_aux_real_var = 0.d0
-                coupler%flow_aux_int_var = 0
+                !coupler%flow_aux_int_var = 0
+                coupler%flow_aux_mapping => ZFlowAuxMapConditionIndices()
 
               case(PNF_MODE)
                 allocate(coupler%flow_bc_type(1))
@@ -1002,6 +1005,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                     allocate(coupler%flow_aux_real_var(1,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case(ZFLOW_MODE)
+                    ndof = option%nflowdof
                     select case(coupler%flow_condition%rate%itype)
                       case(SCALED_MASS_RATE_SS,MASS_RATE_SS, &
                            HET_VOL_RATE_SS,HET_MASS_RATE_SS)
@@ -1009,8 +1013,9 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                           &supported in ZFLOW mode.'
                         call PrintErrMsg(option)
                     end select
-                    allocate(coupler%flow_aux_real_var(1,num_connections))
+                    allocate(coupler%flow_aux_real_var(ndof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
+                    coupler%flow_aux_mapping => ZFlowAuxMapConditionIndices()
                   case(TH_MODE,TH_TS_MODE)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
@@ -3673,26 +3678,30 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscErrorCode :: ierr
 
-  PetscInt :: idof, num_connections,sum_connection
+  PetscInt :: water_index, conductance_index, energy_index, solute_index
+  PetscInt :: num_connections,sum_connection
   PetscInt :: iconn, local_id, ghosted_id
 
   num_connections = coupler%connection_set%num_connections
 
+  water_index = coupler%flow_aux_mapping(ZFLOW_COND_WATER_INDEX)
+  conductance_index = coupler%flow_aux_mapping(ZFLOW_COND_CONDUCTANCE_INDEX)
+  energy_index = coupler%flow_aux_mapping(ZFLOW_COND_ENERGY_INDEX)
+  solute_index = coupler%flow_aux_mapping(ZFLOW_COND_SOLUTE_INDEX)
+
   flow_condition => coupler%flow_condition
   if (associated(flow_condition%pressure)) then
-    coupler%flow_aux_mapping(ZFLOW_PRESSURE_DOF) = ZFLOW_PRESSURE_DOF
     select case(flow_condition%pressure%itype)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC, &
            DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC)
         select type(dataset => &
                     flow_condition%pressure%dataset)
           class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(ZFLOW_PRESSURE_DOF, &
-                                      1:num_connections) = dataset%rarray(1)
+            coupler%flow_aux_real_var(water_index,1:num_connections) = &
+              dataset%rarray(1)
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerGridDataset(coupler,option, &
-                                            patch%grid,dataset, &
-                                            ZFLOW_PRESSURE_DOF)
+            call PatchUpdateCouplerGridDataset(coupler,option,patch%grid, &
+                                               dataset,water_index)
           class is(dataset_common_hdf5_type)
             ! skip cell indexed datasets used in initial conditions
           class default
@@ -3702,10 +3711,7 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
         end select
         select case(flow_condition%pressure%itype)
           case(DIRICHLET_CONDUCTANCE_BC)
-            coupler%flow_aux_mapping(ZFLOW_CONDUCTANCE_DOF) = &
-              ZFLOW_CONDUCTANCE_DOF
-            coupler%flow_aux_real_var(ZFLOW_CONDUCTANCE_DOF, &
-                                      1:num_connections) = &
+            coupler%flow_aux_real_var(conductance_index,1:num_connections) = &
                                            flow_condition%pressure%aux_real(1)
         end select
       case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
@@ -3715,22 +3721,23 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
            HET_HYDROSTATIC_CONDUCTANCE_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                 flow_condition%pressure%dataset, &
-                ZFLOW_PRESSURE_DOF,option)
+                water_index,option)
         if (flow_condition%pressure%itype == &
             HET_HYDROSTATIC_CONDUCTANCE_BC) then
-          coupler%flow_aux_real_var(ZFLOW_CONDUCTANCE_DOF, &
+          coupler%flow_aux_real_var(conductance_index, &
                                     1:num_connections) = &
             flow_condition%pressure%aux_real(1)
         endif
     end select
-    coupler%flow_bc_type(zflow_liq_flow_eq) = &
-      flow_condition%pressure%itype
+    coupler%flow_bc_type(water_index) = flow_condition%pressure%itype
   endif
+
   if (associated(flow_condition%saturation)) then
     call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
                                  patch%characteristic_curves_array, &
                                  patch%cc_id)
   endif
+
   if (associated(flow_condition%rate)) then
     select case(flow_condition%rate%itype)
       case(SCALED_VOLUMETRIC_RATE_SS)
@@ -3739,7 +3746,21 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
       case (HET_VOL_RATE_SS)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                 flow_condition%rate%dataset, &
-                ZFLOW_PRESSURE_DOF,option)
+                water_index,option)
+    end select
+  endif
+
+  if (associated(flow_condition%concentration)) then
+    select case(flow_condition%concentration%itype)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
+        if (associated(flow_condition%concentration%dataset)) then
+          coupler%flow_aux_real_var(MIS_CONCENTRATION_DOF, &
+                                    1:num_connections) = &
+            flow_condition%concentration%dataset%rarray(1)
+        endif
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+   !  case(SATURATION_BC)
     end select
   endif
 
@@ -3793,12 +3814,12 @@ subroutine PatchUpdateCouplerAuxVarsPNF(patch,coupler,option)
         select type(dataset => &
                     flow_condition%pressure%dataset)
           class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(ZFLOW_PRESSURE_DOF, &
+            coupler%flow_aux_real_var(PNF_LIQUID_PRESSURE_DOF, &
                                       1:num_connections) = dataset%rarray(1)
           class is(dataset_gridded_hdf5_type)
             call PatchUpdateCouplerGridDataset(coupler,option, &
                                             patch%grid,dataset, &
-                                            ZFLOW_PRESSURE_DOF)
+                                            PNF_LIQUID_PRESSURE_DOF)
           class is(dataset_common_hdf5_type)
             ! skip cell indexed datasets used in initial conditions
           class default
@@ -4018,6 +4039,8 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   use Condition_module
   use Grid_module
   use Material_Aux_module
+  use Material_Aux_class
+  use ZFlow_aux_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
@@ -4153,9 +4176,13 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       !geh: This is a scaling factor that is stored that would be applied to
       !     all phases.
       case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,H_MODE,TH_MODE,TH_TS_MODE, &
-           ZFLOW_MODE,WF_MODE)
+           WF_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
+      case(ZFLOW_MODE)
+        source_sink%flow_aux_real_var( &
+            source_sink%flow_aux_mapping(ZFLOW_COND_WATER_INDEX),&
+            iconn) = vec_ptr(local_id)
       case(MPH_MODE,PNF_MODE)
         option%io_buffer = 'PatchScaleSourceSink not set up for flow mode'
         call PrintErrMsg(option)

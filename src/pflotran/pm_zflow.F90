@@ -96,8 +96,6 @@ subroutine PMZFlowInitObject(this)
 
   class(pm_zflow_type) :: this
 
-  PetscReal :: array(1)
-
   allocate(this%max_change_ivar(3))
   call PMSubsurfaceFlowInit(this)
   this%name = 'Z Flow'
@@ -117,9 +115,6 @@ subroutine PMZFlowInitObject(this)
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
 
-  array(1) = zflow_density_kg ! dist is the aux array
-  call EOSWaterSetDensity('CONSTANT',array)
-
 end subroutine PMZFlowInitObject
 
 ! ************************************************************************** !
@@ -137,6 +132,7 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
   use String_module
   use Option_module
   use Utility_module
+  use EOS_Water_module
 
   implicit none
 
@@ -148,6 +144,7 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXSTRINGLENGTH) :: local_error_string
   PetscBool :: found
+  PetscReal :: array(1)
 
   option => this%option
 
@@ -200,11 +197,25 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
         zflow_calc_bcflux = PETSC_FALSE
       case('TENSORIAL_RELATIVE_PERMEABILITY')
         zflow_tensorial_rel_perm = PETSC_TRUE
+      case('LIQUID_DENSITY')
+        call InputReadDouble(input,option,zflow_density_kg)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call InputReadAndConvertUnits(input,zflow_density_kg,'kg/m^3', &
+                                      trim(error_string)//','//keyword,option)
+      case('LIQUID_VISCOSITY')
+        call InputReadDouble(input,option,zflow_viscosity)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call InputReadAndConvertUnits(input,zflow_viscosity,'Pa-s', &
+                                      trim(error_string)//','//keyword,option)
       case default
         call InputKeywordUnrecognized(input,keyword,'ZFlow Mode',option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  zflow_density_kmol = zflow_density_kg / FMWH2O
+  array(1) = zflow_density_kg ! dist is the aux array
+  call EOSWaterSetDensity('CONSTANT',array)
 
 end subroutine PMZFlowReadSimOptionsBlock
 
