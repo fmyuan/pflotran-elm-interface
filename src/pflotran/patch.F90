@@ -4037,7 +4037,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   use Grid_module
   use Material_Aux_module
   use Material_Aux_class
-  use ZFlow_aux_module
+  use ZFlow_Aux_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
