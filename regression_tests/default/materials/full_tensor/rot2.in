@@ -143,9 +143,9 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 10201325.d0
+  LIQUID_PRESSURE 10201325.d0
 END
 
 ! Note# Do not use scaled_volumetric_rate below.  The mass balance blows up.

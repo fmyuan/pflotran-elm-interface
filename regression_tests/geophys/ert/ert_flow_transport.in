@@ -186,17 +186,17 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 1.5d0
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 FLOW_CONDITION infiltrometer
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX 100 cm/yr
+  LIQUID_FLUX 100 cm/yr
 END
 
 #=========================== transport conditions =============================

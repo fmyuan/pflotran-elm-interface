@@ -184,7 +184,7 @@ EOS OIL
   SURFACE_DENSITY 740.757 kg/m^3
   PVCO
     DATA_UNITS ! Metric in the Eclipse sense
-      PRESSURE Bar           !Bar is default
+      LIQUID_PRESSURE Bar           !Bar is default
       RS  m^3/m^3            !m^3/m^3 is default
       FVF m^3/m^3            !m^3/m^3 is default
       VISCOSITY cP           !cP default
@@ -217,7 +217,7 @@ EOS GAS
   SURFACE_DENSITY 0.97052664 kg/m^3
   PVDG
     DATA_UNITS ! Metric in the Eclipse sense
-      PRESSURE  Bar
+      LIQUID_PRESSURE  Bar
       FVF       m^3/m^3
       VISCOSITY cP
     END
@@ -254,9 +254,9 @@ COORDINATES
 #=========================== flow conditions ==================================
 FLOW_CONDITION equilibration
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
-  PRESSURE 330.0 Bar
+  LIQUID_PRESSURE 330.0 Bar
   DATUM_D 2480.0 m
   OGC_D 2440.0 m
   PCOG_OGC 5.0D4 Pa !0.5 Bar 

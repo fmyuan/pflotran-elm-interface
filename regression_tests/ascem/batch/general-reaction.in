@@ -57,7 +57,7 @@ CHEMISTRY
     FORWARD_RATE 1.15741d-6 ! 0.1 1/d
     BACKWARD_RATE 0.d0
   /
-  DATABASE ./hanford.dat
+  DATABASE ../../../database/hanford.dat
 #  OPERATOR_SPLIT
 #  LOG_FORMULATION
   OUTPUT

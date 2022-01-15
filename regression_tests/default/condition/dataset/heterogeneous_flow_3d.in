@@ -72,11 +72,11 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION water_table
   TYPE 
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 128.d0 128.d0 16.d0
   GRADIENT
-    PRESSURE LIST
+    LIQUID_PRESSURE LIST
       CYCLIC
       INTERPOLATION STEP
       TIME_UNITS y
@@ -88,7 +88,7 @@ FLOW_CONDITION water_table
       1.d0    0.d0  -2.d-4 0.d0
     /
   /
-  PRESSURE 1.d6
+  LIQUID_PRESSURE 1.d6
 END
 
 #=========================== transport conditions =============================

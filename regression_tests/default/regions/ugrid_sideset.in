@@ -21,23 +21,23 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
-  PRESSURE 101293
+  LIQUID_PRESSURE 101293
   DATUM 0.d0 0.d0 0.0d0
 END
 
 FLOW_CONDITION ConditionA
   TYPE
-    PRESSURE Dirichlet
+    LIQUID_PRESSURE Dirichlet
   /
-  PRESSURE 101293
+  LIQUID_PRESSURE 101293
 /
 FLOW_CONDITION ConditionB
   TYPE
-    PRESSURE Dirichlet
+    LIQUID_PRESSURE Dirichlet
   /
-  PRESSURE 101293
+  LIQUID_PRESSURE 101293
 /
 
 #=========================== condition couplers ===============================
