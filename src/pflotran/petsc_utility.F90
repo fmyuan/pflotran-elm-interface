@@ -39,7 +39,7 @@ subroutine PetUtilMatSVBL(A,irow,icol,matrix_block,ndof)
 
   ndof_mat = matrix_block(1:ndof,1:ndof)
 
-  call MatSetValuesBlockedLocal(A,1,irow-1,1,icol-1,matrix_block,ADD_VALUES, &
+  call MatSetValuesBlockedLocal(A,1,irow-1,1,icol-1,ndof_mat,ADD_VALUES, &
                                 ierr);CHKERRQ(ierr)
 
 end subroutine PetUtilMatSVBL
@@ -62,10 +62,9 @@ subroutine PetUtilVecSVBL(array,icell,array_block,ndof,replace)
   PetscBool :: replace
 
   PetscInt :: istart, iend
-  PetscErrorCode :: ierr
 
   iend = icell*ndof
-  istart = icell-ndof+1
+  istart = iend-ndof+1
   if (replace) then
     array(istart:iend) = array_block(1:ndof)
   else

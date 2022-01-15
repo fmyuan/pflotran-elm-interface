@@ -3691,6 +3691,7 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
 
   flow_condition => coupler%flow_condition
   if (associated(flow_condition%pressure)) then
+    coupler%flow_bc_type(water_index) = flow_condition%pressure%itype
     select case(flow_condition%pressure%itype)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC, &
            DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC)
@@ -3729,16 +3730,11 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
             flow_condition%pressure%aux_real(1)
         endif
     end select
-    coupler%flow_bc_type(water_index) = flow_condition%pressure%itype
-  endif
-
-  if (associated(flow_condition%saturation)) then
-    call PatchUpdateCouplerSaturation(coupler,option,patch%grid, &
-                                 patch%characteristic_curves_array, &
-                                 patch%cc_id)
   endif
 
   if (associated(flow_condition%rate)) then
+    !geh: not allocated
+    !coupler%flow_bc_type(water_index) = flow_condition%rate%itype
     select case(flow_condition%rate%itype)
       case(SCALED_VOLUMETRIC_RATE_SS)
         call PatchScaleSourceSink(patch,coupler, &
@@ -3751,10 +3747,11 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
   endif
 
   if (associated(flow_condition%concentration)) then
+    coupler%flow_bc_type(solute_index) = flow_condition%concentration%itype
     select case(flow_condition%concentration%itype)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
         if (associated(flow_condition%concentration%dataset)) then
-          coupler%flow_aux_real_var(MIS_CONCENTRATION_DOF, &
+          coupler%flow_aux_real_var(solute_index, &
                                     1:num_connections) = &
             flow_condition%concentration%dataset%rarray(1)
         endif

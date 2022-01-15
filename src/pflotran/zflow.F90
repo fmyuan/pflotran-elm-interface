@@ -471,6 +471,7 @@ subroutine ZFlowUpdateAuxVars(realization)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn, natural_id
+  PetscInt :: ghosted_start, ghosted_end, ghosted_offset
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscInt :: water_index, solute_index
@@ -491,14 +492,15 @@ subroutine ZFlowUpdateAuxVars(realization)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
-
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
     ! ZFLOW_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = ZFLOW_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
+    ghosted_end = ghosted_id * option%nflowdof
+    ghosted_start = ghosted_end - option%nflowdof + 1
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
-    call ZFlowAuxVarCompute(xx_loc_p(ghosted_id:ghosted_id), &
+    call ZFlowAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                             zflow_auxvars(ZERO_INTEGER,ghosted_id), &
                             global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id), &
@@ -519,18 +521,19 @@ subroutine ZFlowUpdateAuxVars(realization)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
       !geh: negate to indicate boundary connection, not actual cell
       natural_id = -grid%nG2A(ghosted_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-
+      ghosted_offset = (ghosted_id-1)*option%nflowdof
       if (zflow_liq_flow_eq > 0) then
         select case(boundary_condition%flow_bc_type(water_index))
           case(DIRICHLET_BC, DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
               HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-            xxbc(1) = boundary_condition%flow_aux_real_var(water_index,iconn)
+            xxbc(zflow_liq_flow_eq) = &
+              boundary_condition%flow_aux_real_var(water_index,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC, &
               SURFACE_ZERO_GRADHEIGHT)
-            xxbc(1) = xx_loc_p(local_id)
+            xxbc(zflow_liq_flow_eq) = xx_loc_p(ghosted_offset+zflow_liq_flow_eq)
           case default
             option%io_buffer = 'flow boundary itype not set up in ZFlowUpdateAuxVars'
             call PrintErrMsg(option)
@@ -547,7 +550,7 @@ subroutine ZFlowUpdateAuxVars(realization)
             xxbc(zflow_sol_tran_eq) = &
               boundary_condition%flow_aux_real_var(solute_index,iconn)
           case(ZERO_GRADIENT_BC)
-            xxbc(zflow_sol_tran_eq) = xx_loc_p(local_id)
+            xxbc(zflow_sol_tran_eq) = xx_loc_p(ghosted_offset+zflow_sol_tran_eq)
           case default
             option%io_buffer = 'solute boundary itype not set up in ZFlowUpdateAuxVars'
             call PrintErrMsg(option)

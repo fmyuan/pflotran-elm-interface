@@ -350,6 +350,12 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
                material_auxvar_dn%tortuosity * D_molecular
     numerator = D_hyd_up * D_hyd_dn
     denominator = dist_up*D_hyd_dn + D_hyd_up*D_hyd_up
+    if (D_hyd_dn > 0.d0) then
+      option%io_buffer = 'Update denominator'
+      call PrintErrMsg(option)
+    else
+      denominator = 1.d0
+    endif
     Deff_over_dist = numerator / denominator
     ! Res[mol/sec]
     Res(zflow_sol_tran_eq) = Res(zflow_sol_tran_eq) + &
