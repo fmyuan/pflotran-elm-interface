@@ -250,11 +250,11 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   Jup = 0.d0
   Jdn = 0.d0
   v_darcy = 0.d0
-  dResdparamup = 0.d0
-  dResdparamdn = 0.d0
   q = 0.d0
   dq_dpup = 0.d0
   dq_dpdn = 0.d0
+  dResdparamup = 0.d0
+  dResdparamdn = 0.d0
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
@@ -471,6 +471,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   Res = 0.d0
   Jdn = 0.d0
   v_darcy = 0.d0
+  q = 0.d0
+  dq_dpdn = 0.d0
   dperm_dK = 0.d0
   dResdparamdn = 0.d0
 
@@ -598,6 +600,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         (q * 1000.d0 * dconc_upwind_ddn - &
          area * Deff_over_dist * (-1.d0))
       if (zflow_liq_flow_eq > 0) then
+        dD_mech_dn_dpdn = 0.d0
         dD_hyd_dn_dpdn = dD_mech_dn_dpdn + &
                          (zflow_auxvar_dn%dsat_dp * &
                           zflow_auxvar_dn%effective_porosity + &

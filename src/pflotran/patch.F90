@@ -4787,7 +4787,8 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,DERIVATIVE, &
-         MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
+         MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
+         SOLUTE_CONCENTRATION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -4979,6 +4980,11 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
                 patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%sat
+            enddo
+          case(SOLUTE_CONCENTRATION)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%conc
             enddo
           case(DERIVATIVE)
             select case(isubvar)
@@ -6342,7 +6348,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
-         LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
+         LIQUID_MASS_FRACTION,GAS_MASS_FRACTION,SOLUTE_CONCENTRATION)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -6444,6 +6450,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                     EARTH_GRAVITY/zflow_density_kg
           case(LIQUID_SATURATION)
             value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%sat
+          case(SOLUTE_CONCENTRATION)
+            value = patch%aux%ZFlow%auxvars(ZERO_INTEGER,ghosted_id)%conc
           case default
             call PatchUnsupportedVariable('ZFLOW',ivar,option)
         end select
