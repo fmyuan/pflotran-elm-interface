@@ -165,7 +165,6 @@ subroutine PMAuxiliaryRead(input, option, this)
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscInt :: i
   PetscReal :: tempreal
-  PetscBool :: flag
 
   error_string = 'SIMULATION,PROCESS_MODELS,AUXILIARY'
   call InputReadCard(input,option,word,PETSC_FALSE)
@@ -176,7 +175,6 @@ subroutine PMAuxiliaryRead(input, option, this)
   this%ctype = word
   select case(word)
     case('SALINITY')
-      flag = PETSC_TRUE
       option%flow%density_depends_on_salinity = PETSC_TRUE
       allocate(this%salinity)
       this%salinity%nspecies = 0
@@ -193,8 +191,6 @@ subroutine PMAuxiliaryRead(input, option, this)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(word)
-          case('OVERRIDE_SALINITY_ERROR_MSG')
-            flag = PETSC_FALSE
           case('SPECIES')
             i = i + 1
             if (i > 6) then
@@ -221,11 +217,6 @@ subroutine PMAuxiliaryRead(input, option, this)
       enddo
       call InputPopBlock(input,option)
       this%salinity%nspecies = i
-      if (flag) then
-        option%io_buffer = 'The SALINITY process model as a design flaw &
-          &and should not be used until it is fixed.'
-        call PrintErrMsg(option)
-      endif
     case default
       call InputKeywordUnrecognized(input,word,error_string,option)
   end select
@@ -402,6 +393,7 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   ! Date: 02/10/16
   !
   use Reactive_Transport_Aux_module
+  use EOS_Water_module
   use Global_Aux_module
 
   implicit none
@@ -412,6 +404,7 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
 
   PetscInt :: ghosted_id, i, j, ispecies, num_auxvars
   PetscReal :: sum_mass_species, xnacl, mass_h2o
+  PetscReal :: dw_mol, dw_dp, dw_dt
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt, parameter :: iphase = 1
@@ -436,7 +429,9 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
           this%salinity%molecular_weights(i) ! mol/L * g/mol = g/L and
                                              !   g/L => kg/m^3
       enddo
-      mass_h2o = global_auxvars(ghosted_id)%den_kg(iphase)  ! kg/m^3
+      call EOSWaterDensity(global_auxvars(ghosted_id)%temp, &
+                           global_auxvars(ghosted_id)%pres(1), &
+                           mass_h2o,dw_mol,dw_dp,dw_dt,ierr)
       xnacl = sum_mass_species / (sum_mass_species + mass_h2o)
       global_auxvars(ghosted_id)%m_nacl(iphase) = xnacl
     enddo
