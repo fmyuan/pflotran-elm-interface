@@ -45,7 +45,8 @@ module ZFlow_Common_module
       PetscReal :: Res(ZFLOW_MAX_DOF)
       PetscReal :: Jup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-      PetscReal :: dResdparamup(ZFLOW_MAX_DOF), dResdparamdn(ZFLOW_MAX_DOF)
+      PetscReal :: dResdparamup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+      PetscReal ::  dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscBool :: calculate_derivatives
     end subroutine FluxDummy
     subroutine BCFluxDummy(ibndtype,auxvar_mapping,auxvars, &
@@ -75,7 +76,7 @@ module ZFlow_Common_module
       PetscReal :: v_darcy
       PetscReal :: Res(ZFLOW_MAX_DOF)
       PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-      PetscReal :: dResdparamdn(ZFLOW_MAX_DOF)
+      PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscBool :: calculate_derivatives
     end subroutine BCFluxDummy
   end interface
@@ -116,7 +117,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jac(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal :: dResdparam(ZFLOW_MAX_DOF)
+  PetscReal :: dResdparam(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscBool :: calculate_derivatives
 
   PetscReal :: porosity
@@ -150,7 +151,8 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
                     saturation * zflow_auxvar%dpor_dp)
       if (zflow_calc_adjoint) then
         if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
-          dResdparam(zflow_liq_flow_eq) = tempreal * zflow_auxvar%sat
+          dResdparam(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
+            tempreal * zflow_auxvar%sat
         endif
       endif
     endif
@@ -174,7 +176,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
       endif
       if (zflow_calc_adjoint) then
         if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
-          dResdparam(zflow_sol_tran_eq) = &
+          dResdparam(zflow_sol_tran_eq,zflow_sol_tran_eq) = &
             zflow_auxvar%conc * tempreal * zflow_auxvar%sat
         endif
       endif
@@ -219,7 +221,8 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal :: dResdparamup(ZFLOW_MAX_DOF), dResdparamdn(ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscBool :: calculate_derivatives
 
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -322,8 +325,10 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
               dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
               dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
               tempreal = kr * delta_pressure * area * zflow_density_kmol
-              dResdparamup(zflow_liq_flow_eq) = tempreal * dperm_ave_dKup
-              dResdparamdn(zflow_liq_flow_eq) = tempreal * dperm_ave_dKdn
+              dResdparamup(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
+                tempreal * dperm_ave_dKup
+              dResdparamdn(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
+                tempreal * dperm_ave_dKdn
             endif
           endif
         endif
@@ -439,7 +444,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: v_darcy
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal :: dResdparamdn(ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscBool :: calculate_derivatives
 
   PetscInt :: bc_type
@@ -570,8 +575,8 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         if (zflow_calc_adjoint) then
           if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
             tempreal = area * zflow_density_kmol * kr
-            dResdparamdn(zflow_liq_flow_eq) = tempreal * &
-                                              delta_pressure * dperm_dK
+            dResdparamdn(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
+              tempreal * delta_pressure * dperm_dK
           endif
         endif
       endif
@@ -710,11 +715,11 @@ subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
   type(option_type) :: option
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jac(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal :: dResdparam(ZFLOW_MAX_DOF)
+  PetscReal :: dResdparam(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
 
   PetscReal :: res_pert(ZFLOW_MAX_DOF)
   PetscReal :: Jdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal :: dJdum(ZFLOW_MAX_DOF)
+  PetscReal :: dJdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscInt :: idof, ieq
 
   call ZFlowAccumulation(zflow_auxvar(ZERO_INTEGER), &
@@ -769,11 +774,13 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal :: dResdparamup(ZFLOW_MAX_DOF), dResdparamdn(ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
 
   PetscReal :: res_pert(ZFLOW_MAX_DOF)
   PetscReal :: v_darcy_dum
-  PetscReal :: Jdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF), dJdum(ZFLOW_MAX_DOF)
+  PetscReal :: Jdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dJdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscInt :: idof, ieq
 
   Jup = 0.d0
@@ -853,11 +860,12 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: v_darcy
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-  PetscReal :: dResdparamdn(ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
 
   PetscReal :: res_pert(ZFLOW_MAX_DOF)
   PetscReal :: v_darcy_dum
-  PetscReal :: Jdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF), dJdum(ZFLOW_MAX_DOF)
+  PetscReal :: Jdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dJdum(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscInt :: idof, ieq
 
   Jdn = 0.d0

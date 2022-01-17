@@ -433,8 +433,8 @@ subroutine InversionSubsurfInitialize(this)
     this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
 
   this%inversion_aux%inversion_ts_aux_list => inversion_ts_aux
-  call InvTSAuxAllocate(inversion_ts_aux,patch%grid%nlmax)
-
+  call InvTSAuxAllocate(inversion_ts_aux,this%realization%option%nflowdof, &
+                        patch%grid%nlmax)
 
 end subroutine InversionSubsurfInitialize
 
@@ -730,7 +730,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
     else
       call VecZeroEntries(p,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      vec_ptr(:) = inversion_ts_aux%next%dRes_du_k(:)
+      vec_ptr(:) = inversion_ts_aux%next%dRes_du_k(1,1,:)
       call VecRestoreArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
       call VecPointwiseMult(dReskp1_duk_lambdak,dReskp1_duk_lambdak, &
                             inversion_ts_aux%next%lambda(imeasurement), &

@@ -12,10 +12,10 @@ module Inversion_TS_Aux_module
     PetscInt :: timestep
     PetscReal :: time
     Mat :: dResdu             ! copy of Jacobian: df(u)/du
-    Mat :: dResdparam         ! matrix sotring df(u)/dparameter
+    Mat :: dResdparam         ! matrix storing df(u)/dparameter
     Vec, pointer :: lambda(:) ! arrays storing dg(u)/df(u)
     ! derivative of residual wrt unknown at old time level (k)
-    PetscReal, pointer :: dRes_du_k(:)  ! array storing df(u)^k+1/du^k
+    PetscReal, pointer :: dRes_du_k(:,:,:)  ! array storing df(u)^k+1/du^k
     PetscReal, pointer :: dFluxdIntConn(:,:)
     PetscReal, pointer :: dFluxdBCConn(:,:)
     Vec :: solution
@@ -75,7 +75,8 @@ function InversionTSAuxCreate(prev_ts_aux)
     aux%mat_vec_solution_ptr => prev_ts_aux%mat_vec_solution_ptr
     prev_ts_aux%next => aux
     aux%prev => prev_ts_aux
-    call InvTSAuxAllocate(aux,size(prev_ts_aux%dRes_du_k))
+    call InvTSAuxAllocate(aux,size(prev_ts_aux%dRes_du_k,1), &
+                          size(prev_ts_aux%dRes_du_k,3))
     if (associated(prev_ts_aux%dFluxdIntConn)) then
       call InvTSAuxAllocateFluxCoefArrays(aux, &
                                           size(prev_ts_aux%dFluxdIntConn,2), &
@@ -94,7 +95,7 @@ end function InversionTSAuxCreate
 
 ! ************************************************************************** !
 
-subroutine InvTSAuxAllocate(aux,num_unknown)
+subroutine InvTSAuxAllocate(aux,ndof,ncell)
   !
   ! Allocated array holding Jacobian and dResdk matrix coefficients
   !
@@ -102,12 +103,13 @@ subroutine InvTSAuxAllocate(aux,num_unknown)
   ! Date: 11/19/21
 
   type(inversion_ts_aux_type), pointer :: aux
-  PetscInt :: num_unknown
+  PetscInt :: ndof
+  PetscInt :: ncell
   PetscErrorCode :: ierr
 
   call MatDuplicate(aux%mat_vec_solution_ptr%M,MAT_SHARE_NONZERO_PATTERN, &
                     aux%dResdparam,ierr);CHKERRQ(ierr)
-  allocate(aux%dRes_du_k(num_unknown))
+  allocate(aux%dRes_du_k(ndof,ndof,ncell))
   aux%dRes_du_k = 0.d0
 
 end subroutine InvTSAuxAllocate
