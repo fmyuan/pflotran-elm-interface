@@ -195,7 +195,7 @@ function SFWIPPctor(KRP, KPC, Swr, Sgr, expon, Pct_ignore, Pct_alpha, &
   if (.not. associated(new)) return ! Memory allocation failed, abort
 
   ! Derivatives have been defined to enable smooth unsaturated extensions
-  new%analytical_derivative_available = .TRUE.
+  new%analytical_derivative_available = PETSC_TRUE
 
   ! Data validation
                                         error = 0
