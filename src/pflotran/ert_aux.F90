@@ -29,6 +29,10 @@ module ERT_Aux_module
             ERTAuxCheckElectrodeBounds, &
             ERTAuxVarCopy
 
+  ! conductivity mapping types
+  PetscInt, parameter, public :: ARCHIE = 1
+  PetscInt, parameter, public :: WAXMAN_SMITS = 2
+
 contains
 
 ! ************************************************************************** !
