@@ -993,7 +993,6 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
         global_auxvar_ss%istate = GA_STATE
       endif
     
-      allocate(global_auxvar_ss%m_nacl(1))
       global_auxvar_ss%m_nacl(1) = 0.d0
       option%iflag = HYDRATE_UPDATE_FOR_SS
     
@@ -1245,7 +1244,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
     call HydrateZeroMassBalanceDelta(realization)
   endif
 
-  option%iflag = 1
+  option%iflag = HYDRATE_UPDATE_FOR_ACCUM
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 

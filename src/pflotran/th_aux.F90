@@ -16,6 +16,8 @@ module TH_Aux_module
 
   PetscInt, public :: th_ice_model
 
+  PetscInt, parameter, public :: TH_UPDATE_FOR_FIXED_ACCUM = 0
+
   type, public :: TH_auxvar_type
     PetscReal :: avgmw
     PetscReal :: h
@@ -499,7 +501,15 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,dpsat_dT,visl, &
                            dvis_dT,dvis_dp,ierr)
   else
-    aux(1) = global_auxvar%m_nacl(1)
+    if (option%iflag == TH_UPDATE_FOR_FIXED_ACCUM) then
+      ! For the computation of fixed accumulation term use NaCl
+      ! value, m_nacl(2), from the previous time step.
+      aux(1) = global_auxvar%m_nacl(2)
+    else
+      ! Use NaCl value for the current time step, m_nacl(1), for computing
+      ! the accumulation term
+      aux(1) = global_auxvar%m_nacl(1)
+    endif
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dT,ierr)
     if (ierr /= 0) then
