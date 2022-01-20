@@ -5650,6 +5650,16 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           case default
             call PatchUnsupportedVariable('WIPP_FLOW',ivar,option)
         end select
+      else ! null flow mode
+        select case(ivar)
+          case(LIQUID_SATURATION)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Global%auxvars( &
+                  grid%nL2G(local_id))%sat(option%liquid_phase)
+            enddo
+          case default
+            call PatchUnsupportedVariable('NULL_FLOW',ivar,option)
+        end select
       endif
 
     ! NUCLEAR_WASTE_TRANSPORT:
@@ -6820,6 +6830,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                       mu(option%gas_phase)
           case default
             call PatchUnsupportedVariable('WIPP_FLOW',ivar,option)
+        end select
+      else ! null flow mode
+        select case(ivar)
+          case(LIQUID_SATURATION)
+            value = patch%aux%Global%auxvars(ghosted_id)% &
+                      sat(option%liquid_phase)
+          case default
+            call PatchUnsupportedVariable('NULL_FLOW',ivar,option)
         end select
       endif
 
