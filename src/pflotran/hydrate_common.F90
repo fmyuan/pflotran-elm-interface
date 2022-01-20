@@ -1372,6 +1372,13 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
     dtot_mole_flux_ddenave = tot_mole_flux / density_ave
+    if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+        tot_mole_flux > 0.d0) then
+      tot_mole_flux = 0.d0
+    elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+        tot_mole_flux < 0.d0) then
+      tot_mole_flux = 0.d0
+    endif
     Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
   endif
@@ -1457,6 +1464,13 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
     dtot_mole_flux_ddiffusion_coef = tot_mole_flux / diffusion_scale
     dtot_mole_flux_ddenave = tot_mole_flux / density_ave    
+    if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+        tot_mole_flux > 0.d0) then
+      tot_mole_flux = 0.d0
+    elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+        tot_mole_flux < 0.d0) then
+      tot_mole_flux = 0.d0
+    endif 
     Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
   endif
