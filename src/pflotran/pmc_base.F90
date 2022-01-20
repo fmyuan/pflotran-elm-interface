@@ -1789,11 +1789,6 @@ subroutine PMCBaseStrip(this)
 
 end subroutine PMCBaseStrip
 
-!    procedure, public :: SetName
-!    procedure, public ::
-!    procedure, public ::
-!    procedure, public ::
-
 ! ************************************************************************** !
 
 subroutine SetName(this, name)

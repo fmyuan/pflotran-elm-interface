@@ -275,40 +275,40 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 25.d0
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION west_condition
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   GRADIENT
-    PRESSURE file 543_gradient_timeseries.txt
+    LIQUID_PRESSURE file 543_gradient_timeseries.txt
   /
   DATUM file 543_datum_timeseries.txt
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION south_condition
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   GRADIENT
-    PRESSURE file 543_gradient_timeseries.txt
+    LIQUID_PRESSURE file 543_gradient_timeseries.txt
   /
   DATUM file 543_datum_timeseries.txt
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION injection_well

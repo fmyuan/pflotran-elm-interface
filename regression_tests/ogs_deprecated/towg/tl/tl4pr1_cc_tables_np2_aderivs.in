@@ -155,7 +155,7 @@ EOS OIL
   SURFACE_DENSITY 750.0 kg/m^3
   PVCO
     DATA_UNITS ! Metric in the Eclipse sense
-      PRESSURE Bar           !Bar is default
+      LIQUID_PRESSURE Bar           !Bar is default
       RS  m^3/m^3            !m^3/m^3 is default
       FVF m^3/m^3            !m^3/m^3 is default
       VISCOSITY cP           !cP default
@@ -180,7 +180,7 @@ EOS GAS
   SURFACE_DENSITY 0.678366 kg/m^3
   PVDG
     DATA_UNITS ! Metric in the Eclipse sense
-      PRESSURE  Bar
+      LIQUID_PRESSURE  Bar
       FVF       m^3/m^3
       VISCOSITY cP
     END
@@ -208,7 +208,7 @@ EOS SOLVENT
   SURFACE_DENSITY 0.678366 kg/m^3
   PVDS
     DATA_UNITS ! Metric in the Eclipse sense
-      PRESSURE  Bar
+      LIQUID_PRESSURE  Bar
       FVF       m^3/m^3
       VISCOSITY cP
     END

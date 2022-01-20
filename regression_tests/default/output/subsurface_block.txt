@@ -131,23 +131,23 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION top
   TYPE
-    PRESSURE dirichlet
+    LIQUID_PRESSURE dirichlet
   /
-  PRESSURE 200001.d0
+  LIQUID_PRESSURE 200001.d0
 /
 
 FLOW_CONDITION middle
   TYPE
-    PRESSURE dirichlet
+    LIQUID_PRESSURE dirichlet
   /
-  PRESSURE 200002.d0
+  LIQUID_PRESSURE 200002.d0
 /
 
 FLOW_CONDITION bottom
   TYPE
-    PRESSURE dirichlet
+    LIQUID_PRESSURE dirichlet
   /
-  PRESSURE 200003.d0
+  LIQUID_PRESSURE 200003.d0
 /
 
 #=========================== transport conditions =============================

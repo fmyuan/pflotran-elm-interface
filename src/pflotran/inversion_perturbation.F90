@@ -141,11 +141,15 @@ subroutine InversionPerturbationInitialize(this)
   ! Author: Glenn Hammond
   ! Date: 09/24/21
   !
+  use Inversion_TS_Aux_module
+
   class(inversion_perturbation_type) :: this
 
   PetscErrorCode :: ierr
 
   call InversionSubsurfInitialize(this)
+  call InversionTSAuxListDestroy(this%inversion_aux%inversion_ts_aux_list, &
+                                 PETSC_FALSE)
 
   if (this%idof_pert == 0) then
     this%ndof = this%realization%patch%grid%nmax
@@ -153,9 +157,9 @@ subroutine InversionPerturbationInitialize(this)
                       ierr);CHKERRQ(ierr)
   endif
 
-  if (Uninitialized(this%iqoi)) then
+  if (Uninitialized(this%iqoi(1))) then
     call this%driver%PrintErrMsg('Quantity of interest not specified in &
-      InversionPerturbationInitialize.')
+      &InversionPerturbationInitialize.')
   endif
 
 end subroutine InversionPerturbationInitialize
@@ -233,7 +237,6 @@ subroutine InvPerturbationConnectForwardRun(this)
   Vec :: work
   Vec :: natural_vec
   PetscReal, pointer :: vec_ptr(:)
-  PetscInt, parameter :: isubdof = ZERO_INTEGER
   PetscReal :: rmin, rmax
   PetscErrorCode :: ierr
 
@@ -281,7 +284,7 @@ subroutine InvPerturbationConnectForwardRun(this)
                                      this%realization%field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 this%iqoi,isubdof)
+                                 this%iqoi(1),this%iqoi(2))
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
 
@@ -311,7 +314,7 @@ subroutine InversionPerturbationFillRow(this,iteration)
 
   call RealizationGetVariable(this%realization, &
                               this%realization%field%work, &
-                            LIQUID_PRESSURE,ZERO_INTEGER)
+                              this%iobsfunc,ZERO_INTEGER)
   call VecScatterBegin(this%scatter_global_to_measurement, &
                        this%realization%field%work, &
                        this%measurement_vec, &

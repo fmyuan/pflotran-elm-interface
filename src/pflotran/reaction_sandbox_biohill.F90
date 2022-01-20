@@ -86,8 +86,8 @@ end subroutine BioHillSetup
 ! ************************************************************************** !
 
 subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
-                           rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                           option)
+                           rt_auxvar,global_auxvar,material_auxvar, &
+                           reaction,option)
   ! 
   ! Evaluates biodegradation reaction storing residual but no Jacobian
   ! 

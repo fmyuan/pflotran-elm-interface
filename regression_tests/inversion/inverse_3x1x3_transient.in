@@ -1,0 +1,7 @@
+SIMULATION
+  SIMULATION_TYPE INVERSE
+  INVERSION TEST
+    EXTERNAL_FILE inverse_3x1x3_transient.txt
+  /
+END
+

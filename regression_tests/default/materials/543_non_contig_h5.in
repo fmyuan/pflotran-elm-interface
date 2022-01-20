@@ -257,15 +257,15 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   INTERPOLATION LINEAR
   DATUM LIST
@@ -275,7 +275,7 @@ FLOW_CONDITION east
     50.d0 0.d0 0.d0 24.d0
     90.d0 0.d0 0.d0 26.d0
   /
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION injection_well

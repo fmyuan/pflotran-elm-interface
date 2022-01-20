@@ -531,8 +531,8 @@ subroutine RegionRead(region,input,option)
               call GeometryReadCoordinates(input,option,region%name, &
                                          region%polygonal_volume%yz_coordinates)
             case default
-              option%io_buffer = 'Keyword not recognized for REGION POLYGON.'
-              call PrintErrMsg(option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'REGION POLYGON',option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -762,6 +762,9 @@ subroutine RegionReadFromFileId(region,input,option)
       face_ids_p(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
         call ReallocateArray(cell_ids_p, max_size)
+        ! since ReallocateArray doubles max_size, we need to divide by 2 
+        ! before calling again
+        max_size = max_size / 2
         call ReallocateArray(face_ids_p, max_size)
       endif
     enddo
@@ -829,9 +832,15 @@ subroutine RegionReadFromFileId(region,input,option)
 
         if (count+1 > max_size) then ! resize temporary array
           call ReallocateArray(vert_id_0_p,max_size)
+          ! since ReallocateArray doubles max_size, we need to divide by 2 
+          ! before calling again
+          max_size = max_size / 2
           call ReallocateArray(vert_id_1_p,max_size)
+          max_size = max_size / 2
           call ReallocateArray(vert_id_2_p,max_size)
+          max_size = max_size / 2
           call ReallocateArray(vert_id_3_p,max_size)
+          max_size = max_size / 2
           call ReallocateArray(vert_id_4_p,max_size)
         endif
       enddo

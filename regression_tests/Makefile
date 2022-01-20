@@ -66,6 +66,7 @@ STANDARD_CFG = \
 	default/condition/condition.cfg \
 	default/condition/dataset/dataset.cfg \
 	default/debug/debug.cfg \
+	default/discretization/discretization.cfg \
 	default/dispersion/dispersion.cfg \
 	default/eos/eos.cfg \
 	default/infiltrometer/infiltrometer.cfg \
@@ -94,6 +95,14 @@ STANDARD_CFG = \
 	default/zflow/zflow.cfg \
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
+	geomech/uniaxial_strain/uniaxial_strain.cfg \
+	geomech/uniaxial_strain/uniaxial_strain.cfg \
+	geomech/uniaxial_loading/uniaxial_loading.cfg \
+	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
+	geomech/terzaghi/terzaghi.cfg \
+	geomech/uniaxial_loading/uniaxial_loading.cfg \
+	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
+	geomech/terzaghi/terzaghi.cfg \
 	geophys/ert/ert.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	inversion/inversion.cfg \
@@ -103,6 +112,7 @@ STANDARD_CFG = \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
+	surfaceflow/inlinesurface/inlinesurface.cfg \
 	ufd/ufd.cfg \
 	wipp/nuts/nuts.cfg \
 	wipp/transport/batch/wipp_batch.cfg \
@@ -110,25 +120,10 @@ STANDARD_CFG = \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/wipp_flow/input_format/input_format.cfg 
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
 	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
-endif
-
-ifneq ($(strip $(PARMETIS_LIB)),)
-STANDARD_CFG += \
-	default/discretization/discretization.cfg \
-	default/materials/materials_ug.cfg \
-	default/output/output_ug.cfg \
-	default/regions/cell_mapping/cell_mapping_ug.cfg \
-	default/regions/regions_ug.cfg \
-	geomech/uniaxial_strain/uniaxial_strain.cfg \
-	geomech/uniaxial_loading/uniaxial_loading.cfg \
-	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
-	geomech/terzaghi/terzaghi.cfg \
-	surfaceflow/inlinesurface/inlinesurface.cfg
 endif
 
 #
@@ -169,7 +164,6 @@ FLOW_CFG = \
 	pnf/unit_cube/unit_cube.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg
 
 TRANSPORT_CFG = \
 	default/543/543.cfg \
@@ -187,9 +181,6 @@ GEOPHYSICS_CFG = \
 MESH_CFG = \
 	default/discretization/discretization.cfg
 
-MFD_CFG = \
-	mfd/mfd.cfg
-
 CHECK_CFG = \
 	ascem/1d/1d-calcite/1d-calcite.cfg
 
@@ -200,8 +191,6 @@ WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/transport/batch/wipp_batch.cfg 
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
-
 
 test : standard
 
@@ -211,11 +200,14 @@ ifeq ($(strip $(PARMETIS_LIB)),)
 	@echo "  PFLOTRAN does not appear to be compiled with Parmetis."
 	@echo "  Skipping unstructured mesh tests."
 	@echo "********************************************************"
-endif
-	$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--suite standard standard_parallel \
 		--config-files $(STANDARD_CFG)
-
+else
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--suite standard standard_parallel unstructured unstructured_parallel \
+		--config-files $(STANDARD_CFG)
+endif
 
 standard_parallel :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
@@ -226,6 +218,14 @@ check :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--suite standard standard_parallel \
 		--config-files $(CHECK_CFG)
+
+unstructured :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(STANDARD_CFG) --suite unstructured 
+
+unstructured_parallel :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(STANDARD_CFG) --suite unstructured_parallel
 
 geochemistry :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \

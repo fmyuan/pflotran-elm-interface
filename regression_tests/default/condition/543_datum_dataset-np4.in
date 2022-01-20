@@ -282,45 +282,45 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
 #  DATUM 0.d0 0.d0 25.d0
   DATUM DATASET surface
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION west_condition
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
 #  GRADIENT
-#    PRESSURE file gradient.txt
-#    PRESSURE file gradient_x.txt
+#    LIQUID_PRESSURE file gradient.txt
+#    LIQUID_PRESSURE file gradient_x.txt
 #  /
 #  DATUM file datum.txt
   DATUM DATASET surface
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION south_condition
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
 #  GRADIENT
-#    PRESSURE file gradient.txt
-#    PRESSURE file gradient_y.txt
+#    LIQUID_PRESSURE file gradient.txt
+#    LIQUID_PRESSURE file gradient_y.txt
 #  /
 #  DATUM file datum.txt
   DATUM DATASET surface
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 /
 
 FLOW_CONDITION injection_well

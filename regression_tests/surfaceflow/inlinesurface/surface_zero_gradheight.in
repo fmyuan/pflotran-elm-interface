@@ -75,9 +75,9 @@ SUBSURFACE
   FLOW_CONDITION initial
     UNITS Pa
     TYPE
-      PRESSURE DIRICHLET
+      LIQUID_PRESSURE DIRICHLET
     END
-    PRESSURE DATASET initial_pressure
+    LIQUID_PRESSURE DATASET initial_pressure
   END
 
   INITIAL_CONDITION initial_coupler
@@ -89,9 +89,9 @@ SUBSURFACE
   
    FLOW_CONDITION infiltrate 
     TYPE 
-     FLUX neumann
+     LIQUID_FLUX neumann
     END 
-    FLUX LIST
+    LIQUID_FLUX LIST
       0.      5.5d-6 
       12000.  5.5d-6 
       12000.1 0.0d0
@@ -105,9 +105,9 @@ SUBSURFACE
 
    FLOW_CONDITION seepage 
     TYPE 
-     PRESSURE surface_zero_gradheight
+     LIQUID_PRESSURE surface_zero_gradheight
     END 
-    PRESSURE 0.0
+    LIQUID_PRESSURE 0.0
    END 
 
    BOUNDARY_CONDITION downstream 

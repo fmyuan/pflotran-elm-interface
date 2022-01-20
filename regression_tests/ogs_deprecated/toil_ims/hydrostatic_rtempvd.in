@@ -159,9 +159,9 @@ COORDINATES
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_water
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
-  PRESSURE 100.0 Bar
+  LIQUID_PRESSURE 100.0 Bar
   DATUM_D 1000.0 m
   OWC_D 1056.0 m
   PCOW_OWC 0.15 Bar

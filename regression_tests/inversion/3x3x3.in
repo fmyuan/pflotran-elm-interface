@@ -7,7 +7,6 @@ SIMULATION
       MODE ZFLOW
       OPTIONS
         STEADY_STATE
-#        ADJOINT
       /
     /
   /

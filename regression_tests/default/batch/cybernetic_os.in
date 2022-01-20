@@ -87,7 +87,7 @@ CHEMISTRY
       CARBON_CONSUMPTION_SPECIES C_consumption
     /
   /
-  DATABASE ./cybernetic.dat
+  DATABASE ../../../database/cybernetic.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   TRUNCATE_CONCENTRATION 1.d-40

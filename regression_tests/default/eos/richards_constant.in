@@ -102,10 +102,10 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
-  PRESSURE 101325.d0 ! Pa
+  LIQUID_PRESSURE 101325.d0 ! Pa
 END
 
 #=========================== condition couplers ===============================

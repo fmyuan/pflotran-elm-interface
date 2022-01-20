@@ -218,13 +218,14 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   type(global_auxvar_type) :: global_auxvar
   PetscBool :: dry_out
-  PetscReal :: ele_kd           ! [m^3-water/m^3-bulk]
-  PetscReal :: total_bulk_conc  ! [mol/m^3-bulk]
-  PetscReal :: aqueous_eq_conc  ! [mol/m^3-liq]
-  PetscReal :: ppt_mass_conc    ! [mol/m^3-bulk]
-  PetscReal :: sorb_mass_conc   ! [mol/m^3-bulk]
+  PetscReal :: ele_kd            ! [m^3-water/m^3-bulk]
+  PetscReal :: total_bulk_conc   ! [mol/m^3-bulk]
+  PetscReal :: aqueous_eq_conc   ! [mol/m^3-liq]
+  PetscReal :: ppt_mass_conc     ! [mol/m^3-bulk]
+  PetscReal :: sorb_mass_conc    ! [mol/m^3-bulk]
   
   PetscReal :: extra_mass_conc  ! [mol/m^3-liq]
+  PetscReal :: aqueous_mass_conc ! [mol/m^3-bulk]
   PetscReal :: por, sat
   PetscBool :: super_saturated
 
@@ -245,7 +246,10 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
       super_saturated = PETSC_FALSE
     endif
     sorb_mass_conc = aqueous_eq_conc*ele_kd                 ! [mol/m^3-bulk]
-    total_bulk_conc = (aqueous_eq_conc*sat*por) + &         ! [mol/m^3-bulk]
+    aqueous_mass_conc = (aqueous_eq_conc*sat*por) - &       ! [mol/m^3-bulk]
+                        sorb_mass_conc                      ! [mol/m^3-bulk]
+    aqueous_eq_conc = aqueous_mass_conc/(por*sat)           ! [mol/m^3-liq]
+    total_bulk_conc = aqueous_mass_conc + &                 ! [mol/m^3-bulk]
                       sorb_mass_conc + ppt_mass_conc        ! [mol/m^3-bulk]
   !else
   !!---- Cell is dry ---!

@@ -32,11 +32,13 @@ END
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    Tracer
+    Tracer1
+    Tracer2
   /
   OUTPUT
     TOTAL
-    Tracer
+    Tracer1
+    Tracer2
   /
 END
 
@@ -156,17 +158,17 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION top
   TYPE
-    PRESSURE dirichlet
+    LIQUID_PRESSURE dirichlet
   /
-  PRESSURE 100000.d0
+  LIQUID_PRESSURE 100000.d0
 /
 
 
 FLOW_CONDITION bottom
   TYPE
-    PRESSURE dirichlet
+    LIQUID_PRESSURE dirichlet
   /
-  PRESSURE 200000.d0
+  LIQUID_PRESSURE 200000.d0
 /
 
 #=========================== transport conditions =============================
@@ -186,13 +188,15 @@ END
 
 CONSTRAINT top
   CONCENTRATIONS
-    Tracer 5.d0  T
+    Tracer1 5.d0  T
+    Tracer2 2.d0  T
   /
 /
 
 CONSTRAINT bottom
   CONCENTRATIONS
-    Tracer 1.d-10  T
+    Tracer1 1.d-10  T
+    Tracer2 1.d-10  T
   /
 /
 #=========================== constraints ======================================

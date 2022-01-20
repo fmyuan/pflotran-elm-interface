@@ -2058,13 +2058,13 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
          TCondTensorToScalar(dist,option)
     call tcc_up%thermal_conductivity_function%CalculateFTCond( &
          global_auxvar_up%sat(1),auxvar_up%ice%sat_ice,global_auxvar_up%temp, &
-         Dk_eff_up,dk_ds_up,dK_di_up,dk_dT_up,option)
+         material_auxvar_up%porosity,Dk_eff_up,dk_ds_up,dK_di_up,dk_dT_up,option)
          
     call tcc_dn%thermal_conductivity_function% &
          TCondTensorToScalar(dist,option)
     call tcc_dn%thermal_conductivity_function%CalculateFTCond( &
          global_auxvar_dn%sat(1),auxvar_dn%ice%sat_ice,global_auxvar_dn%temp, &
-         Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn,option)
+         material_auxvar_dn%porosity,Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn,option)
 
     Ke_fr_up = auxvar_up%ice%Ke_fr
     Ke_fr_dn = auxvar_dn%ice%Ke_fr
@@ -2080,14 +2080,14 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     call tcc_up%thermal_conductivity_function% &
          TCondTensorToScalar(dist,option)
     call tcc_up%thermal_conductivity_function%CalculateTCond( &
-         global_auxvar_up%sat(1),global_auxvar_up%temp,Dk_eff_up,dk_ds_up, & 
-         dk_dT_up,option)
+         global_auxvar_up%sat(1),global_auxvar_up%temp, &
+         material_auxvar_up%porosity,Dk_eff_up,dk_ds_up,dk_dT_up,option)
          
     call tcc_dn%thermal_conductivity_function% &
          TCondTensorToScalar(dist,option)
     call tcc_dn%thermal_conductivity_function%CalculateTCond( &
-         global_auxvar_dn%sat(1),global_auxvar_dn%temp,Dk_eff_dn,dk_ds_dn, &
-         dk_dT_dn,option)
+         global_auxvar_dn%sat(1),global_auxvar_dn%temp, &
+         material_auxvar_dn%porosity,Dk_eff_dn,dk_ds_dn,dk_dT_dn,option)
 
   endif
  
@@ -2503,27 +2503,27 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
          TCondTensorToScalar(dist,option)
     call tcc_up%thermal_conductivity_function%CalculateFTCond( &
          global_auxvar_up%sat(1),auxvar_up%ice%sat_ice,global_auxvar_up%temp, &
-         Dk_eff_up,dk_ds_up,dK_di_up,dk_dT_up,option)
+         material_auxvar_up%porosity,Dk_eff_up,dk_ds_up,dK_di_up,dk_dT_up,option)
          
     call tcc_dn%thermal_conductivity_function% &
          TCondTensorToScalar(dist,option)
     call tcc_dn%thermal_conductivity_function%CalculateFTCond( &
          global_auxvar_dn%sat(1),auxvar_dn%ice%sat_ice,global_auxvar_dn%temp, &
-         Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn,option)
+         material_auxvar_dn%porosity,Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn,option)
          
   else
 
     call tcc_up%thermal_conductivity_function% &
          TCondTensorToScalar(dist,option)
     call tcc_up%thermal_conductivity_function%CalculateTCond( &
-         global_auxvar_up%sat(1),global_auxvar_up%temp,Dk_eff_up,dk_ds_up, & 
-         dk_dT_up,option)
+         global_auxvar_up%sat(1),global_auxvar_up%temp,material_auxvar_up%porosity, &
+         Dk_eff_up,dk_ds_up,dk_dT_up,option)
          
     call tcc_dn%thermal_conductivity_function% &
          TCondTensorToScalar(dist,option)
     call tcc_dn%thermal_conductivity_function%CalculateTCond( &
-         global_auxvar_dn%sat(1),global_auxvar_dn%temp,Dk_eff_dn,dk_ds_dn, &
-         dk_dT_dn,option)
+         global_auxvar_dn%sat(1),global_auxvar_dn%temp,material_auxvar_dn%porosity, &
+         Dk_eff_dn,dk_ds_dn,dk_dT_dn,option)
 
   endif
  
@@ -2956,8 +2956,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                TCondTensorToScalar(dist,option)
           call tcc_dn%thermal_conductivity_function%CalculateFTCond( &
                global_auxvar_dn%sat(1),auxvar_dn%ice%sat_ice, &
-               global_auxvar_dn%temp,Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn, &
-               option)
+               global_auxvar_dn%temp,material_auxvar_dn%porosity, &
+               Dk_eff_dn,dk_ds_dn,dK_di_dn,dk_dT_dn,option)
           
           dKe_dp_dn    = auxvar_dn%dKe_dp
           dKe_dT_dn    = auxvar_dn%dKe_dT
@@ -2979,8 +2979,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           call tcc_dn%thermal_conductivity_function% &
                TCondTensorToScalar(dist,option)
           call tcc_dn%thermal_conductivity_function%CalculateTCond( &
-               global_auxvar_dn%sat(1),global_auxvar_dn%temp,Dk_eff_dn, &
-               dk_ds_dn,dk_dT_dn,option)
+               global_auxvar_dn%sat(1),global_auxvar_dn%temp, &
+               material_auxvar_dn%porosity,Dk_eff_dn,dk_ds_dn,dk_dT_dn,option)
           
           dKe_dp_dn = auxvar_dn%dKe_dp
           dKe_dT_dn = auxvar_dn%dKe_dT
@@ -3476,12 +3476,12 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       if (option%flow%th_freezing) then
         call tcc_dn%thermal_conductivity_function%CalculateFTCond( &
         global_auxvar_dn%sat(1),auxvar_dn%ice%sat_ice, &
-        global_auxvar_dn%temp,auxvar_dn%Dk_eff,dk_ds_dn,dK_di_dn,dk_dT_dn, &
-        option)
+        global_auxvar_dn%temp,material_auxvar_dn%porosity,auxvar_dn%Dk_eff, &
+        dk_ds_dn,dK_di_dn,dk_dT_dn,option)
       else
         call tcc_dn%thermal_conductivity_function%CalculateTCond( &
-        global_auxvar_dn%sat(1),global_auxvar_dn%temp,auxvar_dn%Dk_eff, &
-        dk_ds_dn,dk_dT_dn,option)
+         global_auxvar_dn%sat(1),global_auxvar_dn%temp,material_auxvar_dn%porosity, &
+         auxvar_dn%Dk_eff,dk_ds_dn,dk_dT_dn,option)
       endif
       
       Dk =  auxvar_dn%Dk_eff / dd_dn

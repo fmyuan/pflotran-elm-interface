@@ -356,7 +356,7 @@ subroutine GeomechConditionRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')   
           call StringToUpper(word)
           select case(trim(word))
-            case('PRESSURE')
+            case('LIQUID_PRESSURE')
             case('DISPLACEMENT_X')
               sub_condition_ptr => displacement_x
             case('DISPLACEMENT_Y')

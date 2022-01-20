@@ -4041,6 +4041,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   PetscInt :: icount, x_count, y_count, z_count
   PetscInt, parameter :: x_width = 1, y_width = 1, z_width = 0
   PetscInt :: ghosted_neighbors(27)
+  PetscBool :: inactive_found
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   field => patch%field
@@ -4052,6 +4053,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
+  inactive_found = PETSC_FALSE
   cur_connection_set => source_sink%connection_set
 
   select case(iscale_type)
@@ -4059,6 +4061,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) inactive_found = PETSC_TRUE
         vec_ptr(local_id) = vec_ptr(local_id) + &
           material_auxvars(ghosted_id)%volume
       enddo
@@ -4066,6 +4069,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) inactive_found = PETSC_TRUE
         vec_ptr(local_id) = vec_ptr(local_id) + &
           ! this function protects from error in gfortran compiler when indexing
           ! the permeability array
@@ -4077,6 +4081,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) inactive_found = PETSC_TRUE
         !geh: kludge for 64-bit integers.
         call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                     x_width,y_width,z_width, &
@@ -4097,6 +4102,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         do while (icount < x_count)
           icount = icount + 1
           neighbor_ghosted_id = ghosted_neighbors(icount)
+          if (patch%imat(neighbor_ghosted_id) <= 0) inactive_found = PETSC_TRUE
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
                                        PERMEABILITY_X) * &
@@ -4107,6 +4113,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         do while (icount < x_count + y_count)
           icount = icount + 1
           neighbor_ghosted_id = ghosted_neighbors(icount)
+          if (patch%imat(neighbor_ghosted_id) <= 0) inactive_found = PETSC_TRUE
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
                                        PERMEABILITY_Y) * &
@@ -4117,6 +4124,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         do while (icount < x_count + y_count + z_count)
           icount = icount + 1
           neighbor_ghosted_id = ghosted_neighbors(icount)
+          if (patch%imat(neighbor_ghosted_id) <= 0) inactive_found = PETSC_TRUE
           sum = sum + &
                 MaterialAuxVarGetValue(material_auxvars(neighbor_ghosted_id), &
                                        PERMEABILITY_Z) * &
@@ -4157,6 +4165,12 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
     end select
   enddo
   call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+
+  if (inactive_found) then
+    option%io_buffer = 'Inactive cells found in source/sink "' // &
+      trim(source_sink%name) // '" coupler region cells or neighboring cells.'
+    call PrintErrMsgByRank(option)
+  endif
 
 end subroutine PatchScaleSourceSink
 
@@ -4692,6 +4706,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Option_module
   use Field_module
 
+  use ERT_Aux_module
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
@@ -4750,7 +4765,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
-         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
+         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,DERIVATIVE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION)
 
       if (associated(patch%aux%TH)) then
@@ -4944,6 +4959,18 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
               vec_ptr(local_id) = &
                 patch%aux%ZFlow%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%sat
             enddo
+          case(DERIVATIVE)
+            select case(isubvar)
+              case(ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
+                do local_id=1,grid%nlmax
+                  vec_ptr(local_id) = &
+                    patch%aux%ZFlow%auxvars(ZERO_INTEGER, &
+                                            grid%nL2G(local_id))%dsat_dp
+                enddo
+              case default
+                call PatchUnsupportedVariable('ZFLOW','DERIVATIVE', &
+                                              isubvar,option)
+            end select
           case default
             call PatchUnsupportedVariable('ZFLOW',ivar,option)
         end select
@@ -6135,15 +6162,27 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
         endif
       enddo
     case(ELECTRICAL_POTENTIAL)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      potential),isubvar,isubvar2,option)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar)
       enddo
+    case(ELECTRICAL_POTENTIAL_DIPOLE)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      potential),isubvar,isubvar2,option)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar) - &
+          patch%aux%ERT%auxvars(grid%nL2G(local_id))%potential(isubvar2)
+      enddo
     case(ELECTRICAL_JACOBIAN)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      jacobian),isubvar,isubvar2,option)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar)
-      enddo      
+      enddo
     case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
@@ -6213,6 +6252,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use Reaction_Mineral_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use Output_Aux_module
+  use ERT_Aux_module
   use Variables_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
@@ -7064,9 +7104,18 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = 1.d0
         endif
       endif
+    case(ELECTRICAL_POTENTIAL_DIPOLE)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      potential),isubvar,isubvar2,option)
+      value = patch%aux%ERT%auxvars(ghosted_id)%potential(isubvar) - &
+              patch%aux%ERT%auxvars(ghosted_id)%potential(isubvar2)
     case(ELECTRICAL_POTENTIAL)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      potential),isubvar,isubvar2,option)
       value = patch%aux%ERT%auxvars(ghosted_id)%potential(isubvar)
     case(ELECTRICAL_JACOBIAN)
+      call ERTAuxCheckElectrodeBounds(size(patch%aux%ERT%auxvars(1)% &
+                                      jacobian),isubvar,isubvar2,option)
       value = patch%aux%ERT%auxvars(ghosted_id)%jacobian(isubvar)
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)
@@ -7888,7 +7937,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       do local_id=1,grid%nlmax
         patch%aux%ERT%auxvars(grid%nL2G(local_id))%jacobian(isubvar) = &
           vec_ptr(local_id)
-      enddo      
+      enddo
     case(PROCESS_ID)
       call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
