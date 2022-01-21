@@ -518,7 +518,7 @@ end subroutine ZFlowOutputAuxVars1
 
 ! ************************************************************************** !
 
-function ZFlowAuxMapConditionIndices()
+function ZFlowAuxMapConditionIndices(include_conductance)
   !
   ! Maps indexing of conditions
   !
@@ -529,6 +529,8 @@ function ZFlowAuxMapConditionIndices()
   use Option_module
 
   implicit none
+
+  PetscBool :: include_conductance
 
   PetscInt, pointer :: ZFlowAuxMapConditionIndices(:)
 
@@ -543,8 +545,10 @@ function ZFlowAuxMapConditionIndices()
   if (zflow_liq_flow_eq > 0) then
     temp_int = temp_int + 1
     mapping(ZFLOW_COND_WATER_INDEX) = temp_int
-    temp_int = temp_int + 1
-    mapping(ZFLOW_COND_CONDUCTANCE_INDEX) = temp_int
+    if (include_conductance) then
+      temp_int = temp_int + 1
+      mapping(ZFLOW_COND_CONDUCTANCE_INDEX) = temp_int
+    endif
   endif
   if (zflow_heat_tran_eq > 0) then
     temp_int = temp_int + 1

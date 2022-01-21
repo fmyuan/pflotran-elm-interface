@@ -848,6 +848,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
   PetscInt :: num_connections
   PetscBool :: force_update_flag
+  PetscBool :: iflag
 
   type(coupler_type), pointer :: coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
@@ -901,11 +902,13 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               case(ZFLOW_MODE)
                 ndof = option%nflowdof
                 temp_int = 0
+                iflag = PETSC_FALSE
                 select case(coupler%flow_condition%pressure%itype)
                   case(HYDROSTATIC_CONDUCTANCE_BC, &
                        DIRICHLET_CONDUCTANCE_BC, &
                        HET_HYDROSTATIC_CONDUCTANCE_BC)
                     temp_int = temp_int + 1
+                    iflag = PETSC_FALSE
                 end select
                 allocate(coupler%flow_bc_type(ndof))
                 allocate(coupler%flow_aux_real_var(ndof+temp_int, &
@@ -915,7 +918,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_bc_type = 0
                 coupler%flow_aux_real_var = 0.d0
                 !coupler%flow_aux_int_var = 0
-                coupler%flow_aux_mapping => ZFlowAuxMapConditionIndices()
+                coupler%flow_aux_mapping => ZFlowAuxMapConditionIndices(iflag)
 
               case(PNF_MODE)
                 allocate(coupler%flow_bc_type(1))
@@ -1015,7 +1018,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                     end select
                     allocate(coupler%flow_aux_real_var(ndof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
-                    coupler%flow_aux_mapping => ZFlowAuxMapConditionIndices()
+                    coupler%flow_aux_mapping => ZFlowAuxMapConditionIndices(PETSC_FALSE)
                   case(TH_MODE,TH_TS_MODE)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
@@ -3671,17 +3674,12 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
 
   type(flow_condition_type), pointer :: flow_condition
   class(dataset_common_hdf5_type), pointer :: dataset
-  PetscBool :: update
-  PetscBool :: dof1, dof2, dof3
-  PetscReal :: temperature, p_sat
-  PetscReal :: x(option%nflowdof)
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscErrorCode :: ierr
-
   PetscInt :: water_index, conductance_index, energy_index, solute_index
   PetscInt :: num_connections,sum_connection
   PetscInt :: iconn, local_id, ghosted_id
+  PetscBool :: hydrostatic_update_called
 
+  hydrostatic_update_called = PETSC_FALSE
   num_connections = coupler%connection_set%num_connections
 
   water_index = coupler%flow_aux_mapping(ZFLOW_COND_WATER_INDEX)
@@ -3716,8 +3714,8 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
                                            flow_condition%pressure%aux_real(1)
         end select
       case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+        hydrostatic_update_called = PETSC_TRUE
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
-   !  case(SATURATION_BC)
       case(HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
            HET_HYDROSTATIC_CONDUCTANCE_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
@@ -3749,15 +3747,15 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
   if (associated(flow_condition%concentration)) then
     coupler%flow_bc_type(solute_index) = flow_condition%concentration%itype
     select case(flow_condition%concentration%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        if (associated(flow_condition%concentration%dataset)) then
+      case(DIRICHLET_BC,ZERO_GRADIENT_BC)
+        if (.not.hydrostatic_update_called) then
           coupler%flow_aux_real_var(solute_index, &
                                     1:num_connections) = &
-            flow_condition%concentration%dataset%rarray(1)
+                flow_condition%concentration%dataset%rarray(1)
         endif
-      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
-   !  case(SATURATION_BC)
+      case(NEUMANN_BC)
+        option%io_buffer = 'NEUMANN_BC not supported for ZFLOW concentration'
+        call PrintErrMsg(option)
     end select
   endif
 

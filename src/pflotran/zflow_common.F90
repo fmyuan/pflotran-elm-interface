@@ -12,6 +12,8 @@ module ZFlow_Common_module
 
 #include "petsc/finclude/petscsys.h"
 
+#define SOLUTE_TRANSPORT
+
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
@@ -158,6 +160,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
     endif
   endif
 
+#if defined(SOLUTE_TRANSPORT)
   if (zflow_sol_tran_eq > 0) then
     ! accumulation term units = mol/s
     ! Res[mole/sec] = c [mol/L] * 1000 [L/m^3 liquid]
@@ -176,12 +179,16 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
       endif
       if (zflow_calc_adjoint) then
         if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
-          dResdparam(zflow_sol_tran_eq,zflow_sol_tran_eq) = &
+          dResdparam(zflow_sol_tran_eq,1) = &
             zflow_auxvar%conc * tempreal * zflow_auxvar%sat
         endif
       endif
     endif
   endif
+#else
+  Res(zflow_sol_tran_eq) = 0.d0
+  Jac(zflow_sol_tran_eq,zflow_sol_tran_eq) = 1.d0
+#endif
 
 end subroutine ZFlowAccumulation
 
@@ -240,6 +247,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: dperm_ave_dKup, dperm_ave_dKdn
   PetscReal :: delta_conc
   PetscReal :: dq_dpup, dq_dpdn
+  PetscReal :: dq_dKup, dq_dKdn
   PetscReal :: conc_upwind, dconc_upwind_dup, dconc_upwind_ddn
   PetscReal :: D_hyd_up, D_hyd_dn
   PetscReal, parameter :: D_molecular = 0.d0
@@ -248,6 +256,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: dD_mech_up_dpup, dD_mech_dn_dpdn
   PetscReal :: dDeff_over_dist_dpup, dDeff_over_dist_dpdn
   PetscReal :: dD_hyd_up_dpup, dD_hyd_dn_dpdn
+  PetscReal :: dDeff_over_dist_dKup, dDeff_over_dist_dKdn
 
   Res = 0.d0
   Jup = 0.d0
@@ -256,6 +265,8 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   q = 0.d0
   dq_dpup = 0.d0
   dq_dpdn = 0.d0
+  dq_dKup = 0.d0
+  dq_dKdn = 0.d0
   dResdparamup = 0.d0
   dResdparamdn = 0.d0
 
@@ -324,11 +335,11 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
               tempreal = denominator * denominator * zflow_viscosity
               dperm_ave_dKup = perm_dn * perm_dn * dist_up / tempreal
               dperm_ave_dKdn = perm_up * perm_up * dist_dn / tempreal
-              tempreal = kr * delta_pressure * area * zflow_density_kmol
-              dResdparamup(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
-                tempreal * dperm_ave_dKup
-              dResdparamdn(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
-                tempreal * dperm_ave_dKdn
+              tempreal = kr * delta_pressure * area
+              dq_dKup = tempreal * dperm_ave_dKup
+              dq_dKdn = tempreal * dperm_ave_dKdn
+              dResdparamup(zflow_liq_flow_eq,1) = dq_dKup *zflow_density_kmol
+              dResdparamdn(zflow_liq_flow_eq,1) = dq_dKdn *zflow_density_kmol
             endif
           endif
         endif
@@ -336,6 +347,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
     endif
   endif
 
+#if defined(SOLUTE_TRANSPORT)
   if (zflow_sol_tran_eq > 0) then
     if (q >= 0) then
       conc_upwind = zflow_auxvar_up%conc
@@ -403,8 +415,21 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
           (dq_dpdn * 1000.d0 * conc_upwind - &
            area * dDeff_over_dist_dpdn * (-1.d0))
       endif
+      if (zflow_calc_adjoint) then
+        if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
+          dDeff_over_dist_dKup = 0.d0
+          dDeff_over_dist_dKdn = 0.d0
+          dResdparamup(zflow_sol_tran_eq,1) = &
+            dq_dKup * 1000.d0 * conc_upwind + &
+            area * dDeff_over_dist_dKup * delta_conc
+          dResdparamdn(zflow_sol_tran_eq,1) = &
+            dq_dKdn * 1000.d0 * conc_upwind + &
+            area * dDeff_over_dist_dKdn * delta_conc
+        endif
+      endif
     endif
   endif
+#endif
 
 end subroutine ZFlowFluxHarmonicPermOnly
 
@@ -463,6 +488,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: tempreal
   PetscReal :: delta_conc
   PetscReal :: dq_dpdn
+  PetscReal :: dq_dKdn
   PetscReal :: conc_upwind, dconc_upwind_ddn
   PetscReal :: D_hyd_dn
   PetscReal, parameter :: D_molecular = 0.d0
@@ -470,6 +496,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Deff_over_dist
   PetscReal :: dD_mech_dn_dpdn
   PetscReal :: dDeff_over_dist_dpdn
+  PetscReal :: dDeff_over_dist_dKdn
   PetscReal :: dD_hyd_dn_dpdn
 
 
@@ -478,6 +505,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   v_darcy = 0.d0
   q = 0.d0
   dq_dpdn = 0.d0
+  dq_dKdn = 0.d0
   dperm_dK = 0.d0
   dResdparamdn = 0.d0
 
@@ -574,15 +602,15 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         Jdn(zflow_liq_flow_eq,zflow_liq_flow_eq) = dq_dpdn * zflow_density_kmol
         if (zflow_calc_adjoint) then
           if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
-            tempreal = area * zflow_density_kmol * kr
-            dResdparamdn(zflow_liq_flow_eq,zflow_liq_flow_eq) = &
-              tempreal * delta_pressure * dperm_dK
+            dq_dKdn = area * kr * delta_pressure * dperm_dK
+            dResdparamdn(zflow_liq_flow_eq,1) = dq_dKdn * zflow_density_kmol
           endif
         endif
       endif
     endif
   endif
 
+#if defined(SOLUTE_TRANSPORT)
   if (zflow_sol_tran_eq > 0) then
     if (q >= 0) then
       conc_upwind = zflow_auxvar_up%conc
@@ -616,8 +644,18 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
           (dq_dpdn * 1000.d0 * conc_upwind - &
            area * dDeff_over_dist_dpdn * (-1.d0))
       endif
+      if (zflow_calc_adjoint) then
+        if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
+          dDeff_over_dist_dKdn = 0.d0
+          dResdparamdn(zflow_sol_tran_eq,1) = &
+            dq_dKdn * 1000.d0 * conc_upwind + &
+            area * dDeff_over_dist_dKdn * delta_conc
+        endif
+      endif
+
     endif
   endif
+#endif
 
 end subroutine ZFlowBCFluxHarmonicPermOnly
 

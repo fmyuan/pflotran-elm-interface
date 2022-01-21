@@ -560,7 +560,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           coupler%flow_aux_real_var(1,iconn) = &
             max(pressure,option%flow%reference_pressure)
           select case(option%iflowmode)
-            case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+            case(RICHARDS_MODE,RICHARDS_TS_MODE)
               coupler%flow_aux_real_var(RICHARDS_CONDUCTANCE_DOF,iconn) = &
                 condition%pressure%aux_real(1)
             case(TH_MODE,TH_TS_MODE)
