@@ -42,8 +42,10 @@ module PM_Well_class
   end type well_grid_type
 
   type :: well_reservoir_type
-    ! reservoir pressure [Pa]    
-    PetscReal, pointer :: p(:) 
+    ! reservoir liquid pressure [Pa]    
+    PetscReal, pointer :: p_l(:) 
+    ! reservoir gas pressure [Pa]    
+    PetscReal, pointer :: p_g(:) 
     ! reservoir liquid saturation [-]
     PetscReal, pointer :: s_l(:)
     ! reservoir gas saturation [-]
@@ -166,6 +168,13 @@ module PM_Well_class
     PetscBool :: bh_q
     ! flag for top of hole rate BC
     PetscBool :: th_q
+    ! convergence flags
+    PetscBool :: not_converged
+    PetscBool :: converged
+    PetscBool :: cut_timestep
+    ! solver statistics
+    PetscInt :: n_steps
+    PetscInt :: n_newton
   end type well_soln_type
 
   type, public, extends(pm_base_type) :: pm_well_type
@@ -187,9 +196,6 @@ module PM_Well_class
     procedure, public :: InitializeTimestep => PMWellInitializeTimestep
     procedure, public :: UpdateTimestep => PMWellUpdateTimestep
     procedure, public :: FinalizeTimestep => PMWellFinalizeTimestep
-    ! To extend these we need to have them run through the snes
-    !procedure, public :: Residual => PMWellResidual
-    !procedure, public :: Jacobian => PMWellJacobian
     procedure, public :: PreSolve => PMWellPreSolve
     procedure, public :: Solve => PMWellSolve
     procedure, public :: PostSolve => PMWellPostSolve
@@ -293,7 +299,8 @@ function PMWellCreate()
 
   ! create the reservoir object:
   allocate(PMWellCreate%reservoir)
-  nullify(PMWellCreate%reservoir%p)
+  nullify(PMWellCreate%reservoir%p_l)
+  nullify(PMWellCreate%reservoir%p_g)
   nullify(PMWellCreate%reservoir%s_l)
   nullify(PMWellCreate%reservoir%s_g)
   nullify(PMWellCreate%reservoir%mobility_l)
@@ -361,6 +368,11 @@ function PMWellCreate()
   PMWellCreate%soln%th_p = PETSC_FALSE
   PMWellCreate%soln%bh_q = PETSC_FALSE
   PMWellCreate%soln%th_q = PETSC_FALSE
+  PMWellCreate%soln%not_converged = PETSC_TRUE
+  PMWellCreate%soln%converged = PETSC_FALSE
+  PMWellCreate%soln%cut_timestep = PETSC_FALSE
+  PMWellCreate%soln%n_steps = 0
+  PMWellCreate%soln%n_newton = 0
 
 
 end function PMWellCreate
@@ -1414,7 +1426,8 @@ recursive subroutine PMWellInitializeRun(this)
     this%well_pert(TWO_INTEGER)%gas%mobility = this%well%gas%mobility
   endif
 
-  allocate(this%reservoir%p(nsegments))
+  allocate(this%reservoir%p_l(nsegments))
+  allocate(this%reservoir%p_g(nsegments))
   allocate(this%reservoir%s_l(nsegments))
   allocate(this%reservoir%s_g(nsegments))
   allocate(this%reservoir%mobility_l(nsegments))
@@ -1475,10 +1488,13 @@ subroutine PMWellInitializeTimestep(this)
   call PMWellUpdateReservoir(this)
 
   if (initialize_well) then
-    this%well%pl = this%reservoir%p
+    this%well%pl = this%reservoir%p_l
+    this%well%pg = this%reservoir%p_g
     this%well%gas%s = this%reservoir%s_g
-    this%well_pert(ONE_INTEGER)%pl = this%reservoir%p
-    this%well_pert(TWO_INTEGER)%pl = this%reservoir%p
+    this%well_pert(ONE_INTEGER)%pl = this%reservoir%p_l
+    this%well_pert(TWO_INTEGER)%pl = this%reservoir%p_l
+    this%well_pert(ONE_INTEGER)%pg = this%reservoir%p_g
+    this%well_pert(TWO_INTEGER)%pg = this%reservoir%p_g
     this%well_pert(ONE_INTEGER)%gas%s = this%reservoir%s_g
     this%well_pert(TWO_INTEGER)%gas%s = this%reservoir%s_g
     initialize_well = PETSC_FALSE
@@ -1526,7 +1542,8 @@ subroutine PMWellUpdateReservoir(this)
     material_auxvar => &
       this%realization%patch%aux%material%auxvars(ghosted_id)
 
-    this%reservoir%p(k) = wippflo_auxvar%pres(option%liquid_phase)
+    this%reservoir%p_l(k) = wippflo_auxvar%pres(option%liquid_phase)
+    this%reservoir%p_g(k) = wippflo_auxvar%pres(option%gas_phase)
     this%reservoir%s_l(k) = wippflo_auxvar%sat(option%liquid_phase)
     this%reservoir%s_g(k) = wippflo_auxvar%sat(option%gas_phase)
     this%reservoir%mobility_l(k) = &
@@ -1557,7 +1574,7 @@ subroutine PMWellUpdateReservoir(this)
     endif
 
     if ((k == 1) .and. this%well%bh_p_set_by_reservoir) then
-      this%well%bh_p = this%reservoir%p(k)
+      this%well%bh_p = this%reservoir%p_l(k)
     endif
   enddo
 
@@ -2026,7 +2043,8 @@ subroutine PMWellPreSolve(this)
   
   class(pm_well_type) :: this
   
-  ! placeholder
+  this%soln%not_converged = PETSC_TRUE
+  this%soln%converged = PETSC_FALSE
   
 end subroutine PMWellPreSolve
 
@@ -2037,46 +2055,82 @@ subroutine PMWellSolve(this,time,ierr)
   ! Author: Jennifer M. Frederick
   ! Date: 12/01/2021
 
-  use Utility_module
-
   implicit none
   
   class(pm_well_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
 
+  character(len=MAXSTRINGLENGTH) :: out_string
   PetscLogDouble :: log_start_time, log_end_time
-  PetscInt ::  i,j
+  PetscInt :: n_iter
+  PetscInt :: max_iter = 8 ! note: this should become an input parameter
+
+  ierr = 0
+  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+
+  call PMWellPreSolve(this)
+
+  n_iter = 0
+  do while (this%soln%not_converged)
+    ! use Newton's method to solve for the well pressure
+    call PMWellNewton(this)
+    call PMWellCheckConvergence(this,n_iter)
+    if (n_iter > (max_iter-1)) then
+      out_string = ' Maximum number of iterations reached.'
+      call OptionPrint(out_string,this%option)
+      this%soln%cut_timestep = PETSC_TRUE
+      ! call a timeset cut routine which re-starts the solution process
+      exit
+    endif
+  enddo
+
+  this%soln%n_steps = this%soln%n_steps + 1
+  this%soln%n_newton = this%soln%n_newton + n_iter
+  
+  call PMWellPostSolve(this)
+
+  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+  
+end subroutine PMWellSolve
+
+! ************************************************************************** !
+
+subroutine PMWellNewton(this)
+  ! 
+  ! Author: Michael A. Nole
+  ! Date: 01/20/2022
+
+  use Utility_module
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
   PetscReal :: identity(this%nphase*this%grid%nsegments,&
                         this%nphase*this%grid%nsegments)
   PetscReal :: inv_Jac(this%nphase*this%grid%nsegments, &
                        this%nphase*this%grid%nsegments)
   PetscReal :: new_dx(this%nphase*this%grid%nsegments)
-  PetscInt ::  indx(this%nphase*this%grid%nsegments)
+  PetscInt :: indx(this%nphase*this%grid%nsegments)
+  PetscInt :: i,j
   PetscInt :: d
-   
+
   this%soln%residual = 0.d0
-
-  ierr = 0
-  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
-
+  
   call PMWellPerturb(this) 
  
   call PMWellResidual(this)
-  ! the residual equations will include the src/sink term which will be
-  ! defined by the difference between p_res and p_well.
 
   call PMWellJacobian(this)
 
-  ! use Newton's method to solve for the well pressure
-  !call PMWellNewton(this)
-
   select case (this%well%well_model_type)
-
+  !--------------------------------------
   case('CONSTANT_PRESSURE')
     ! No capillarity yet
     this%well%pl(:) = this%well%bh_p
     this%well%pg(:) = this%well%bh_p
+  !--------------------------------------
   case('DARCY')
     do i = 1,this%nphase*this%grid%nsegments
       do j = 1,this%nphase*this%grid%nsegments
@@ -2089,25 +2143,21 @@ subroutine PMWellSolve(this,time,ierr)
     enddo
     call LUDecomposition(this%soln%Jacobian,this%nphase*this%grid%nsegments, &
                          indx,d)
-    call LUBackSubstitution(this%soln%Jacobian,this%nphase*this%grid%nsegments,&
+    call LUBackSubstitution(this%soln%Jacobian, &
+                            this%nphase*this%grid%nsegments,&
                             indx,-1.d0*this%soln%residual)
     new_dx = this%soln%residual
+  !--------------------------------------
   end select
-
 
   ! update well index (should not need to be updated every time if
   ! grid permeability and discretization are static
   call PMWellComputeWellIndex(this)
 
   ! update the well src/sink Q vector
-  call PMWellUpdateWellQ(this%well, this%reservoir)
-
-  ! calculate the phase Darcy velocity
-  call PMWellCalcVelocity(this)
-
-  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+  call PMWellUpdateWellQ(this%well,this%reservoir)
   
-end subroutine PMWellSolve
+end subroutine PMWellNewton
 
 ! ************************************************************************** !
 
@@ -2119,10 +2169,87 @@ subroutine PMWellPostSolve(this)
   implicit none
   
   class(pm_well_type) :: this
-  
-  ! placeholder
+
+  character(len=MAXSTRINGLENGTH) :: out_string
+
+  WRITE(*,*) ""
+  WRITE(out_string,'(" Step ",i6," Time=",1pe12.5,"sec Dt=", &
+                    & 1pe12.5,"sec Newton=",i8)') this%soln%n_steps, &
+                    this%option%time,this%dt,this%soln%n_newton 
+  call OptionPrint(out_string,this%option)
+  WRITE(*,*) ""
   
 end subroutine PMWellPostSolve
+
+! ************************************************************************** !
+
+subroutine PMWellCheckConvergence(this,n_iter)
+  ! 
+  ! Checks solution convergence against prescribed tolerances.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 01/20/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  PetscInt :: n_iter
+  
+  character(len=MAXSTRINGLENGTH) :: out_string
+  PetscReal :: itol_abs_res
+  PetscBool :: cnvgd_due_to_residual(this%grid%nsegments*this%soln%ndof)
+  PetscBool :: cnvgd_due_to_abs_res(this%grid%nsegments*this%soln%ndof)
+  PetscBool :: cnvgd_due_to_scaled_res(this%grid%nsegments*this%soln%ndof)
+  PetscReal :: temp_real
+  PetscReal :: max_scaled_residual
+  PetscReal :: max_absolute_residual
+  PetscInt :: loc_max_scaled_residual
+  PetscInt :: loc_max_abs_residual
+  PetscInt :: k
+
+  n_iter = n_iter + 1
+  cnvgd_due_to_residual = PETSC_FALSE
+  cnvgd_due_to_abs_res = PETSC_FALSE
+  cnvgd_due_to_scaled_res = PETSC_FALSE
+
+  itol_abs_res = 1.0d-5  ! note: this should become an input parameter
+
+  max_absolute_residual = maxval(dabs(this%soln%residual))
+  loc_max_abs_residual = maxloc(dabs(this%soln%residual),1)
+
+  do k = 1,(this%grid%nsegments*this%soln%ndof)
+    temp_real = dabs(this%soln%residual(k))
+    if (temp_real < itol_abs_res) then
+      cnvgd_due_to_abs_res(k) = PETSC_TRUE
+    endif
+  enddo
+
+  do k = 1,(this%grid%nsegments*this%soln%ndof)
+    if (cnvgd_due_to_scaled_res(k) .or. cnvgd_due_to_abs_res(k)) then
+      cnvgd_due_to_residual(k) = PETSC_TRUE
+    endif
+  enddo
+  if (all(cnvgd_due_to_scaled_res) .or. all(cnvgd_due_to_abs_res)) then
+    cnvgd_due_to_residual = PETSC_TRUE
+  endif
+
+  write(out_string,'(i2,"  max_res:",es10.2)') n_iter, &
+                                               max_absolute_residual  
+  call OptionPrint(out_string,this%option)
+
+  if (all(cnvgd_due_to_residual)) then
+    this%soln%converged = PETSC_TRUE
+    this%soln%not_converged = PETSC_FALSE
+    out_string = 'Solution converged.  Rsn: '
+    call OptionPrint(out_string,this%option)
+  else
+    this%soln%converged = PETSC_FALSE
+    this%soln%not_converged = PETSC_TRUE
+  endif
+
+
+  
+end subroutine PMWellCheckConvergence
 
 ! ************************************************************************** !
 
@@ -2157,15 +2284,14 @@ subroutine PMWellUpdateWellQ(well,reservoir)
       endif
     case default 
       ! Flowrate in kg/s
-      liq%Q = liq%rho*liq%mobility*well%WI*(reservoir%p-well%pl)
-      ! Needs to be gas pressure in reservoir
-      gas%Q = gas%rho*gas%mobility*well%WI*(reservoir%p-well%pg)
+      liq%Q = liq%rho*liq%mobility*well%WI*(reservoir%p_l-well%pl)
+      gas%Q = gas%rho*gas%mobility*well%WI*(reservoir%p_g-well%pg)
   end select
 
   ! WARNING!!!!!
   ! Remove the following two lines once Q is calculated properly:
   !liq%Q = 0.d0 ! remove me
-  gas%Q = 0.d0 ! remove me
+  !gas%Q = 0.d0 ! remove me
   
 end subroutine PMWellUpdateWellQ
 
@@ -2922,7 +3048,8 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%grid%dh)
   nullify(this%grid)
 
-  call DeallocateArray(this%reservoir%p)
+  call DeallocateArray(this%reservoir%p_l)
+  call DeallocateArray(this%reservoir%p_g)
   call DeallocateArray(this%reservoir%s_l)
   call DeallocateArray(this%reservoir%s_g)
   call DeallocateArray(this%reservoir%mobility_l)
