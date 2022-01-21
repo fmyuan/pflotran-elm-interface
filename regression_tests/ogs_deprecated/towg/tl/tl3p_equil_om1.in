@@ -179,9 +179,9 @@ COORDINATES
 #=========================== flow conditions ==================================
 FLOW_CONDITION equilibration
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
-  PRESSURE 330 Bar
+  LIQUID_PRESSURE 330 Bar
   DATUM_Z -2480.0 m
   OWC_Z -2450.0 m
   PCOW_OWC 0.5 Bar

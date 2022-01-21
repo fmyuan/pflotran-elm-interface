@@ -642,13 +642,14 @@ class RegressionTest(object):
                     with open(gold_name, 'r') as gold_file:
                         gold_output = gold_file.readlines()
 
-                print("    diff {0} {1}".format(gold_name, 
-                      current_name), file=testlog)
-                
                 if diff:
+                    print("    diff {0} {1}".format(gold_name, 
+                          current_name), file=testlog)
                     self._diff_ascii_output(current_output, gold_output, 
                                             status, testlog)
                 else:
+                    print("    compare {0} {1}".format(gold_name, 
+                          current_name), file=testlog)
                     self._compare_ascii_output(current_output, gold_output, 
                                                status, testlog, tec)
             if diff:
@@ -929,27 +930,47 @@ class RegressionTest(object):
             self._compare_ascii_tec_output(ascii_current, ascii_gold, status, testlog)
         else:
             
-            if ascii_gold[0] != ascii_current[0]:
-                print("    FAIL: Headers do not match in ascii output", file=testlog)
-                status.fail = _MINOR_FAILURE
-            else:
-                tol = self._tolerance[self._GENERIC]
-                tolerance_type = tol[self._TOL_TYPE]
-                tolerance = tol[self._TOL_VALUE]
-        
-                headers = ascii_gold[0].split(',')
-                ascii_gold.pop(0)
-                ascii_current.pop(0)
-    
-                for i in range(len(ascii_gold)):
-                    gold_values = ascii_gold[i].split()
-                    current_values = ascii_current[i].split() 
-                               
-                    for k in range(len(gold_values)):
-                        name = headers[k]
-                        
-                        self._check_ascii_numbers(current_values[k],gold_values[k],name,tolerance,tolerance_type,status,testlog)
+            iline = 0
+            # header should match identically
+            header = []
+            while True:
+                words = ascii_gold[iline].strip().split()
+                try:
+                    # if floating point, exit
+                    float(words[0])
+                    break
+                except:
+                    if ascii_gold[iline] != ascii_current[iline]:
+                        print("    FAIL: Headers do not match in ascii output",
+                              file=testlog)
+                        status.fail = _MAJOR_FAILURE
+                    # store first line as header
+                    if iline == 0:
+                        header = ascii_gold[0].split(',')
+                    else:
+                        header = []
+                    iline += 1
 
+            # compare numbers to within tolerance
+            tol = self._tolerance[self._GENERIC]
+            tolerance_type = tol[self._TOL_TYPE]
+            tolerance = tol[self._TOL_VALUE]
+
+            # loop over remaining lines
+            offset = iline
+            while iline < len(ascii_gold):
+                gold_values = ascii_gold[iline].split()
+                current_values = ascii_current[iline].split() 
+                               
+                for k in range(len(gold_values)):
+                    if len(header) > 0: 
+                        name = header[min(k,len(header)-1)]
+                    else:
+                        name = 'row {} col {}'.format(iline-offset+1,k+1)
+                    self._check_ascii_numbers(current_values[k],gold_values[k],
+                                              name,tolerance,tolerance_type,
+                                              status,testlog)
+                iline += 1
                             
     def _compare_ascii_tec_output(self, ascii_current, ascii_gold, status, testlog):
         tol = self._tolerance[self._GENERIC]

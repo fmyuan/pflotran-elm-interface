@@ -2369,10 +2369,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   
   ! thermal conductivity a function of temperature and liquid saturation
   call thermal_cc_up%thermal_conductivity_function%CalculateTCond(sat_up, &
-       gen_auxvar_up%temp,k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
+       gen_auxvar_up%temp,gen_auxvar_up%effective_porosity, &
+       k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
   
   call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
-       gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
+       gen_auxvar_dn%temp,gen_auxvar_dn%effective_porosity, &
+       k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
     tempreal = k_eff_up*dist_dn + k_eff_dn*dist_up
@@ -3841,7 +3843,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       call thermal_cc_dn%thermal_conductivity_function% &
            TCondTensorToScalar(dist,option)
       call thermal_cc_dn%thermal_conductivity_function%CalculateTCond(sat_dn, &
-           gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
+           gen_auxvar_dn%temp,gen_auxvar_dn%effective_porosity, &
+           k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
       dkeff_ave_dkeffdn = 1.d0 / dist(0)
       k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn

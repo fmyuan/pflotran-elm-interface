@@ -1,0 +1,143 @@
+#=========================== flow mode ========================================
+#=========================== solver options ===================================
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 5 5
+  BOUNDS
+    0.d0 0.d0 0.d0
+    5.d0 5.d0 5.d0
+  /
+END
+
+#=========================== fluid properties =================================
+#=========================== datasets =========================================
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-13
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+#  TIMES d 0.001 0.01 0.1 1. 10.
+#  PERIODIC TIME 1 d
+#  TIME_UNITS y
+#  VARIABLES
+#    MATERIAL_ID
+#    PERMEABILITY
+#  /
+#  FORMAT TECPLOT BLOCK
+  FORMAT HDF5
+#  VELOCITY_AT_CENTER
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-6 d
+  MAXIMUM_TIMESTEP_SIZE 10.d0 d
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0 0.d0
+    5.d0 5.d0 0.d0
+  /
+END
+
+REGION cross_surface
+  FACE TOP
+  POLYGON
+    TYPE BOUNDARY_FACES_IN_VOLUME
+    XY
+      2. 0. 0.
+      2. 2. 0.
+      0. 2. 0.
+      0. 3. 0.
+      2. 3. 0.
+      2. 5. 0.
+      3. 5. 0.
+      3. 3. 0.
+      5. 3. 0.
+      5. 2. 0.
+      3. 2. 0.
+      3. 0. 0.
+    /
+    XZ
+      0. 0. 4.
+      5. 5. 5.
+    /
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+  /
+  DATUM 0.d0 0.d0 1.d0
+  LIQUID_PRESSURE 101325 ! Pa
+END
+
+FLOW_CONDITION infiltration
+  TYPE
+    LIQUID_FLUX NEUMANN
+  /
+  LIQUID_FLUX 0.1 m/d
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+# top boundary condition
+BOUNDARY_CONDITION top
+  FLOW_CONDITION infiltration
+  REGION cross_surface
+END
+
+# bottom boundary condition
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION initial
+  REGION bottom
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil1
+  REGION all
+END
+

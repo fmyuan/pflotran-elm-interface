@@ -172,9 +172,9 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 201325 Pa
+  LIQUID_PRESSURE 201325 Pa
 END
 
 #=========================== transport conditions =============================

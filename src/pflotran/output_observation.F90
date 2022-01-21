@@ -2353,8 +2353,8 @@ subroutine OutputMassBalance(realization_base)
   PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
                realization_base%option%nphase)
   PetscReal, allocatable :: sum_mol(:,:), sum_mol_global(:,:)
-  
-  PetscReal :: global_total_mass, global_water_mass
+  PetscReal, allocatable :: global_total_mass(:,:), total_mass(:,:)
+  PetscReal :: global_water_mass, global_total_mass_sum
 
   PetscReal :: sum_trapped(realization_base%option%nphase)
   PetscReal :: sum_trapped_global(realization_base%option%nphase)
@@ -2364,6 +2364,7 @@ subroutine OutputMassBalance(realization_base)
   PetscBool :: bcs_done
   PetscErrorCode :: ierr
   PetscBool,parameter :: wecl=PETSC_FALSE
+  PetscInt, pointer :: cell_ids(:)
   
   patch => realization_base%patch
   grid => patch%grid
@@ -2455,21 +2456,33 @@ subroutine OutputMassBalance(realization_base)
             do i=1,reaction%naqcomp
               if (reaction%primary_species_print(i)) then
                 string = 'Global ' // trim(reaction%primary_species_names(i))
-                call OutputWriteToHeader(fid,string,'mol','',icol)
+                if (reaction%print_total_mass_kg) then                
+                  call OutputWriteToHeader(fid,string,'kg','',icol)
+                else
+                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                endif
               endif
             enddo
 
             do i=1,reaction%immobile%nimmobile
               if (reaction%immobile%print_me(i)) then
                 string = 'Global ' // trim(reaction%immobile%names(i))
-                call OutputWriteToHeader(fid,string,'mol','',icol)
+                if (reaction%print_total_mass_kg) then                
+                  call OutputWriteToHeader(fid,string,'kg','',icol)
+                else
+                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                endif
               endif
             enddo
 
             do i=1,reaction%gas%nactive_gas
               if (reaction%gas%active_print_me(i)) then
                 string = 'Global ' // trim(reaction%gas%active_names(i))
-                call OutputWriteToHeader(fid,string,'mol','',icol)
+                if (reaction%print_total_mass_kg) then                
+                  call OutputWriteToHeader(fid,string,'kg','',icol)
+                else
+                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                endif
               endif
             enddo
 
@@ -2477,7 +2490,11 @@ subroutine OutputMassBalance(realization_base)
               do i=1,reaction%mineral%nkinmnrl
                 if (reaction%mineral%kinmnrl_print(i)) then
                   string = 'Global ' // trim(reaction%mineral%kinmnrl_names(i))
-                  call OutputWriteToHeader(fid,string,'mol','',icol)
+                  if (reaction%print_total_mass_kg) then                
+                    call OutputWriteToHeader(fid,string,'kg','',icol)
+                  else
+                    call OutputWriteToHeader(fid,string,'mol','',icol)
+                  endif
                 endif
               enddo
             endif
@@ -2607,17 +2624,65 @@ subroutine OutputMassBalance(realization_base)
           string = 'Region ' // trim(cur_mbr%region_name) // ' Water Mass'
           call OutputWriteToHeader(fid,string,'kg','',icol)
           if (option%ntrandof > 0) then
-            string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass'
             select case(option%itranmode)
               case(RT_MODE)
+                string = 'Region ' // trim(cur_mbr%region_name) // ' Total Mass' 
                 if (reaction%print_total_mass_kg) then                
                   call OutputWriteToHeader(fid,string,'kg','',icol)
                 else
                   call OutputWriteToHeader(fid,string,'mol','',icol)
                 endif
+                do i=1, reaction%naqcomp
+                  if (reaction%primary_species_print(i)) then  
+                    string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                           trim(reaction%primary_species_names(i)) // ' Mass'
+                    if (reaction%print_total_mass_kg) then                
+                      call OutputWriteToHeader(fid,string,'kg','',icol)
+                    else
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                  endif
+                enddo
+                do i=1,reaction%immobile%nimmobile
+                  if (reaction%immobile%print_me(i)) then
+                    string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                         trim(reaction%immobile%names(i)) // ' Mass'
+                    if (reaction%print_total_mass_kg) then                
+                      call OutputWriteToHeader(fid,string,'kg','',icol)
+                    else
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                  endif
+                enddo
+               
+                do i=1,reaction%gas%nactive_gas
+                  if (reaction%gas%active_print_me(i)) then
+                    string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                         trim(reaction%gas%active_names(i)) // ' Mass'
+                    if (reaction%print_total_mass_kg) then                
+                      call OutputWriteToHeader(fid,string,'kg','',icol)
+                    else
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                  endif
+                enddo
+               
+                do i=1,reaction%mineral%nkinmnrl
+                  if (reaction%mineral%kinmnrl_print(i)) then
+                    string = 'Region ' // trim(cur_mbr%region_name) // ' ' // &
+                         trim(reaction%mineral%kinmnrl_names(i)) // ' Total Mass'
+                    if (reaction%print_total_mass_kg) then                
+                      call OutputWriteToHeader(fid,string,'kg','',icol)
+                    else
+                      call OutputWriteToHeader(fid,string,'mol','',icol)
+                    endif
+                  endif
+                enddo
+
               case(NWT_MODE)
-                call OutputWriteToHeader(fid,string,'mol','',icol)
-            end select
+                call OutputWriteToHeader(fid,string,'mol','',icol)  
+            end select    
+
           endif
           cur_mbr => cur_mbr%next
         enddo
@@ -2713,26 +2778,28 @@ subroutine OutputMassBalance(realization_base)
   endif
   
   if (option%ntrandof > 0) then
-    select case(option%itranmode)
-      case(RT_MODE)
-        if (option%transport%nphase > 1) then
-        !TODO(geh): Within RTComputeMassBalance() all the mass is lumped into the
-        !           liquid phase.  This need to be split out.  Also, the below
-        !           where mass is summed across minerals needs to be moved
-        !           to reactive_transport.F90.
-          option%io_buffer = 'OutputMassBalance() needs to be refactored to &
-            &consider species in the gas phase.'
-!          call PrintErrMsg(option)
+     select case(option%itranmode)
+       case(RT_MODE)
+         if (option%transport%nphase > 1) then
+         !TODO(geh): Within RTComputeMassBalance() all the mass is lumped into the
+         !           liquid phase.  This need to be split out.  Also, the below
+         !           where mass is summed across minerals needs to be moved
+         !           to reactive_transport.F90.
+           option%io_buffer = 'OutputMassBalance() needs to be refactored to &
+             &consider species in the gas phase.'
+     !      call PrintErrMsg(option)
         endif
         max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
-                            reaction%immobile%nimmobile,reaction%gas%nactive_gas)
+                          reaction%immobile%nimmobile,reaction%gas%nactive_gas)
         ! see RTComputeMassBalance for indexing used below
         allocate(sum_mol(max_tran_size,8))
         allocate(sum_mol_global(max_tran_size,8))
         sum_mol = 0.d0
         select type(realization_base)
           class is(realization_subsurface_type)
-            call RTComputeMassBalance(realization_base,max_tran_size,sum_mol)
+            call RTComputeMassBalance(realization_base, &
+                                      realization_base%patch%grid%nlmax, &
+                                      max_tran_size,sum_mol)
           class default
             option%io_buffer = 'Unrecognized realization class in MassBalance().'
             call PrintErrMsg(option)
@@ -2741,7 +2808,8 @@ subroutine OutputMassBalance(realization_base)
         call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
                         MPI_DOUBLE_PRECISION,MPI_SUM, &
                         option%driver%io_rank,option%mycomm,ierr)
-        if (option%myrank == option%driver%io_rank) then
+
+        if (OptionIsIORank(option)) then
           do icomp = 1, reaction%naqcomp
             if (reaction%primary_species_print(icomp)) then
               write(fid,110,advance="no") sum_mol_global(icomp,1)
@@ -3179,11 +3247,60 @@ subroutine OutputMassBalance(realization_base)
       call PatchGetWaterMassInRegion(cur_mbr%region_cell_ids, &
                                      cur_mbr%num_cells,patch,option, &
                                      global_water_mass)
-      write(fid,110,advance="no") global_water_mass
+      if (OptionIsIORank(option)) then
+        write(fid,110,advance="no") global_water_mass
+      endif
       if (option%ntrandof > 0) then
-        call PatchGetCompMassInRegion(cur_mbr%region_cell_ids, &
-             cur_mbr%num_cells,patch,option,global_total_mass)
-        write(fid,110,advance="no") global_total_mass
+        max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
+                          reaction%immobile%nimmobile,reaction%gas%nactive_gas)
+        ! see RTComputeMassBalance for indexing used below
+        allocate(total_mass(max_tran_size,8))
+        allocate(global_total_mass(max_tran_size,8))
+        total_mass = 0.d0
+        select type(realization_base)
+          class is(realization_subsurface_type)
+            call RTComputeMassBalance(realization_base,cur_mbr%num_cells, &
+                 max_tran_size,total_mass,cur_mbr%region_cell_ids)
+          class default
+            option%io_buffer = 'Unrecognized realization class in MassBalance().'
+            call PrintErrMsg(option)
+        end select
+        int_mpi = max_tran_size*8
+        call MPI_Reduce(total_mass,global_total_mass,int_mpi, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM, &
+                      option%driver%io_rank,option%mycomm,ierr)
+        global_total_mass_sum = 0.d0
+        do i =1, size(global_total_mass(:,1))
+            global_total_mass_sum = global_total_mass_sum + global_total_mass(i,1)
+        enddo                    
+        if (OptionIsIORank(option)) then
+          write(fid,110,advance="no") global_total_mass_sum
+          do icomp = 1, reaction%naqcomp
+            if (reaction%primary_species_print(icomp)) then
+              write(fid,110,advance="no") global_total_mass(icomp,1)
+            endif
+          enddo
+          ! immobile species
+          do i = 1, reaction%immobile%nimmobile
+            if (reaction%immobile%print_me(i)) then
+              write(fid,110,advance="no") &
+                global_total_mass(i,7)
+            endif
+          enddo
+          ! gas species
+          do i = 1, reaction%gas%nactive_gas
+            if (reaction%gas%active_print_me(i)) then
+              write(fid,110,advance="no") &
+                global_total_mass(i,8)
+            endif
+          enddo
+          do i = 1, reaction%mineral%nkinmnrl
+            if (reaction%mineral%kinmnrl_print(i)) then
+              write(fid,110,advance="no") global_total_mass(i,6)
+            endif
+          enddo
+        endif
+        deallocate(total_mass,global_total_mass)
       endif
       cur_mbr => cur_mbr%next
     enddo

@@ -119,7 +119,6 @@ THERMAL_CHARACTERISTIC_CURVES cct_power
     #REFERENCE_TEMPERATURE -273.15 ! default value
     EXPONENT -1.18D+0
   /
-  TEST
 END
 
 THERMAL_CHARACTERISTIC_CURVES cct_linear_resistivity
@@ -132,7 +131,6 @@ THERMAL_CHARACTERISTIC_CURVES cct_linear_resistivity
     #REFERENCE_TEMPERATURE 0.d0 ! default value
     LINEAR_RESISTIVITY_COEFFICIENTS 1.0d0 5.038D-3
   /
-  TEST
 END
 
 THERMAL_CHARACTERISTIC_CURVES cct_cubic_polynomial
@@ -145,7 +143,6 @@ THERMAL_CHARACTERISTIC_CURVES cct_cubic_polynomial
     #REFERENCE_TEMPERATURE 0.d0 ! default value
     CUBIC_POLYNOMIAL_COEFFICIENTS -4.53398D-3 1.41580D-5 -1.94840D-8
   /
-  TEST
 END
 
 THERMAL_CHARACTERISTIC_CURVES cct_default
@@ -156,7 +153,6 @@ THERMAL_CHARACTERISTIC_CURVES cct_default
     ANISOTROPY_RATIO_Y   0.9000D+0
     ANISOTROPY_RATIO_Z   0.8000D+0
   /
-  TEST
 END
 
 #=========================== saturation functions =============================
@@ -197,7 +193,7 @@ OUTPUT
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 1.0d+0 d
+  FINAL_TIME 1.0d-2 d
   INITIAL_TIMESTEP_SIZE 1.0d-1 s
   MAXIMUM_TIMESTEP_SIZE 1.0d+0 d
 /

@@ -1,0 +1,240 @@
+#Description: 3-cell flow and tracer problem for verifying formatted output.
+
+SIMULATION
+  EXTERNAL_FILE simulation_block.txt
+END
+
+SUBSURFACE
+
+#=========================== output options ===================================
+OUTPUT
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+    TOTAL_MASS_REGIONS
+      all
+      bottom
+      middle
+    /
+  /
+END
+
+EXTERNAL_FILE grid_structured_block.txt
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+    2
+    3
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Tracer1
+    Tracer2
+  /
+  OUTPUT
+    TOTAL
+    Tracer1
+    Tracer2
+  /
+END
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d4
+  END
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-1
+END
+
+EOS WATER
+  DENSITY CONSTANT 1.d3
+  ENTHALPY CONSTANT 1.8890d0
+  VISCOSITY CONSTANT 8.904156d-4
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY top
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.1d0
+  TORTUOSITY 0.1d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+/
+
+MATERIAL_PROPERTY middle
+  ID 2
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.2d0
+  TORTUOSITY 0.2d0
+  PERMEABILITY
+    PERM_ISO 2.d-12
+  /
+/
+
+MATERIAL_PROPERTY bottom
+  ID 3
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.3d0
+  TORTUOSITY 0.3d0
+  PERMEABILITY
+    PERM_ISO 3.d-12
+  /
+/
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 2.d-3 y
+  INITIAL_TIMESTEP_SIZE 1.d-3 y
+  MAXIMUM_TIMESTEP_SIZE 1.d-3 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION top
+  COORDINATES
+    -1.d20 -1.d20 3.65d0
+    1.d20 1.d20 4.02d0
+  /
+END
+
+REGION middle
+  FACE EAST
+  COORDINATES
+    -1.d20 -1.d20 3.3d0
+    1.d20 1.d20 3.65d0
+  /
+END
+
+REGION bottom
+  COORDINATES
+    -1.d20 -1.d20 3.d0
+    1.d20 1.d20 3.3d0
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION top
+  TYPE
+    LIQUID_PRESSURE dirichlet
+  /
+  LIQUID_PRESSURE 100000.d0
+/
+
+
+FLOW_CONDITION bottom
+  TYPE
+    LIQUID_PRESSURE dirichlet
+  /
+  LIQUID_PRESSURE 200000.d0
+/
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION top
+  TYPE DIRICHLET
+  CONSTRAINT_LIST
+    0.d0 top
+  /
+END
+
+TRANSPORT_CONDITION bottom
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 bottom
+  /
+END
+
+CONSTRAINT top
+  CONCENTRATIONS
+    Tracer1 5.d0  T
+    Tracer2 2.d0  T
+  /
+/
+
+CONSTRAINT bottom
+  CONCENTRATIONS
+    Tracer1 1.d-10  T
+    Tracer2 1.d-10  T
+  /
+/
+#=========================== constraints ======================================
+
+#=========================== condition couplers ===============================
+
+INITIAL_CONDITION
+  FLOW_CONDITION bottom
+  TRANSPORT_CONDITION bottom
+  REGION middle
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION bottom
+  TRANSPORT_CONDITION bottom
+  REGION bottom
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION top
+  TRANSPORT_CONDITION top
+  REGION top
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION top
+  MATERIAL top
+END
+
+STRATA
+  REGION middle
+  MATERIAL middle
+END
+
+STRATA
+  REGION bottom
+  MATERIAL bottom
+END
+
+END_SUBSURFACE

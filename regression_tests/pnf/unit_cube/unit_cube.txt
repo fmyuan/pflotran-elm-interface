@@ -69,30 +69,30 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 0.d0
+  LIQUID_PRESSURE 0.d0
 END
 
 FLOW_CONDITION inlet_dirichlet_darcy
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 1.d9            ! for Darcy      (1.d-12 / 1.d-3)^-1
+  LIQUID_PRESSURE 1.d9            ! for Darcy      (1.d-12 / 1.d-3)^-1
 END
 
 FLOW_CONDITION inlet_dirichlet_pnf
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 2.84562485d-2   ! for pore flow  (0.4217 / (12 * 1.d-3))^-1
+  LIQUID_PRESSURE 2.84562485d-2   ! for pore flow  (0.4217 / (12 * 1.d-3))^-1
 END
 
 FLOW_CONDITION inlet_neumann
   TYPE
-    FLUX NEUMANN
+    LIQUID_FLUX NEUMANN
   /
-  FLUX 1.d0 m/s
+  LIQUID_FLUX 1.d0 m/s
 END
 
 FLOW_CONDITION inlet_ss

@@ -160,18 +160,18 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 END
 
 FLOW_CONDITION shift
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 30.d0
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 END
 
 #=========================== transport conditions =============================

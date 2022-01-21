@@ -1,0 +1,10 @@
+PROC 2 2 2
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 2
+  VARIABLES
+    LIQUID_PRESSURE
+    MATERIAL_ID
+  /
+END

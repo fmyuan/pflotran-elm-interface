@@ -16,7 +16,6 @@ module ZFlow_Aux_module
   PetscReal, public :: zflow_pres_rel_pert = 1.d-8
   PetscReal, public :: zflow_pres_min_pert = 1.d-2
 
-  PetscBool, public :: zflow_calc_adjoint = PETSC_FALSE
   PetscBool, public :: zflow_calc_accum = PETSC_TRUE
   PetscBool, public :: zflow_calc_flux = PETSC_TRUE
   PetscBool, public :: zflow_calc_bcflux = PETSC_TRUE
@@ -44,6 +43,12 @@ module ZFlow_Aux_module
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_ACCUM = 1
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_BOUNDARY = 2
 
+  PetscInt, parameter, public :: ZFLOW_LIQ_SAT_WRT_LIQ_PRES = 1
+
+  PetscInt, parameter, public :: ZFLOW_ADJOINT_PERMEABILITY = 1
+  PetscInt, parameter, public :: ZFLOW_ADJOINT_POROSITY = 2
+  PetscBool, public :: zflow_calc_adjoint = PETSC_FALSE
+  PetscInt, public :: zflow_adjoint_parameter = ZFLOW_ADJOINT_PERMEABILITY
 
   type, public :: zflow_auxvar_type
     PetscReal :: pres ! liquid pressure
@@ -280,8 +285,8 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
   endif
 
   if (option%iflag /= ZFLOW_UPDATE_FOR_DERIVATIVE) then
+    global_auxvar%sat(1) = zflow_auxvar%sat
     if (size(global_auxvar%sat) > 1) then
-      global_auxvar%sat(1) = zflow_auxvar%sat
       global_auxvar%sat(2) = 1.d0 - global_auxvar%sat(1)
     endif
   endif

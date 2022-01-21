@@ -263,57 +263,57 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
   GRADIENT
-    PRESSURE -1.6666667d-2 0.d0 0.d0
+    LIQUID_PRESSURE -1.6666667d-2 0.d0 0.d0
   /
-  PRESSURE 101325 ! Pa
+  LIQUID_PRESSURE 101325 ! Pa
 END
 
 FLOW_CONDITION east_2
   TYPE
-    PRESSURE heterogeneous_conductance  
+    LIQUID_PRESSURE heterogeneous_conductance  
   /
   CONDUCTANCE 1.d-13
   INTERPOLATION LINEAR
-  PRESSURE DATASET Pressure_2
+  LIQUID_PRESSURE DATASET Pressure_2
 END
 
 FLOW_CONDITION east_3
   TYPE
-    PRESSURE heterogeneous_conductance  
+    LIQUID_PRESSURE heterogeneous_conductance  
   /
   CONDUCTANCE 1.d-13
   INTERPOLATION LINEAR
-  PRESSURE DATASET Pressure_3
+  LIQUID_PRESSURE DATASET Pressure_3
 END
 
 FLOW_CONDITION east_4
   TYPE
-    PRESSURE heterogeneous_conductance  
+    LIQUID_PRESSURE heterogeneous_conductance  
   /
   CONDUCTANCE 1.d-13
   INTERPOLATION LINEAR
-  PRESSURE DATASET Pressure_4
+  LIQUID_PRESSURE DATASET Pressure_4
 END
 
 FLOW_CONDITION east_6
   TYPE
-    PRESSURE heterogeneous_conductance  
+    LIQUID_PRESSURE heterogeneous_conductance  
   /
   # Yes, I want to have a different conductance in the vertical.
   CONDUCTANCE 0.9d-13
   INTERPOLATION LINEAR
-  PRESSURE DATASET Pressure_6
+  LIQUID_PRESSURE DATASET Pressure_6
 END
 
 FLOW_CONDITION recharge
   TYPE
-    FLUX neumann
+    LIQUID_FLUX neumann
   /
-  FLUX 5.d0 cm/yr
+  LIQUID_FLUX 5.d0 cm/yr
 END
 
 #=========================== condition couplers ===============================

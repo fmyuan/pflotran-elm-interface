@@ -1,0 +1,64 @@
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE ugrid.txt
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 6
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    43
+  /
+  CELLS_PER_PROCESS 1
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+  /
+  LIQUID_PRESSURE 101325
+  DATUM 0.d0 0.d0 -80.d0
+END
+
+FLOW_CONDITION infiltration_from_pond
+  TYPE
+    LIQUID_FLUX NEUMANN
+  /
+  LIQUID_FLUX 3. mm/s
+/
+
+#=========================== condition couplers ===============================
+# default initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION initial
+  REGION bottom
+END
+
+BOUNDARY_CONDITION pond
+  FLOW_CONDITION infiltration_from_pond
+  REGION pond
+END
+
+END_SUBSURFACE

@@ -122,16 +122,16 @@ END
 !=========================== flow conditions ==================================
 FLOW_CONDITION left
   TYPE
-    SATURATION dirichlet
+    LIQUID_SATURATION dirichlet
   /
-  SATURATION 1.d0
+  LIQUID_SATURATION 1.d0
 END
 
 FLOW_CONDITION initial_sat
   TYPE
-    SATURATION DIRICHLET
+    LIQUID_SATURATION DIRICHLET
   /
-  SATURATION 0.4444d0
+  LIQUID_SATURATION 0.4444d0
 END
 
 !=========================== condition couplers ===============================

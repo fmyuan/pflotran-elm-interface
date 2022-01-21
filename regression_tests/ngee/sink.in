@@ -97,11 +97,11 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE HYDROSTATIC
+    LIQUID_PRESSURE HYDROSTATIC
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 -16.0d0
-  PRESSURE 101325.d0
+  LIQUID_PRESSURE 101325.d0
 END
 
 FLOW_CONDITION sink
