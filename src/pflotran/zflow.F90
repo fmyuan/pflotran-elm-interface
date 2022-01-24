@@ -42,6 +42,7 @@ subroutine ZFlowSetup(realization)
   use Option_module
   use Coupler_module
   use Connection_module
+  use Fluid_module
   use Grid_module
   use Material_Aux_module
   use Output_Aux_module
@@ -58,6 +59,7 @@ subroutine ZFlowSetup(realization)
   type(output_variable_list_type), pointer :: list
   type(material_parameter_type), pointer :: material_parameter
   type(zflow_parameter_type), pointer :: zflow_parameter
+  type(fluid_property_type), pointer :: cur_fluid_property
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
   PetscBool :: error_found
@@ -173,6 +175,18 @@ subroutine ZFlowSetup(realization)
     option%io_buffer = 'Material property errors found in ZFlowSetup.'
     call PrintErrMsg(option)
   endif
+
+  ! initialize parameters
+  cur_fluid_property => realization%fluid_properties
+  do
+    if (.not.associated(cur_fluid_property)) exit
+    if (cur_fluid_property%phase_id == LIQUID_PHASE) then
+      patch%aux%ZFlow%zflow_parameter%diffusion_coef = &
+        cur_fluid_property%diffusion_coefficient
+      exit
+    endif
+    cur_fluid_property => cur_fluid_property%next
+  enddo
 
   temp_int = 0
   if (zflow_numerical_derivatives) temp_int = option%nflowdof

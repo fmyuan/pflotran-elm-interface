@@ -743,6 +743,10 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
           option%io_buffer = 'Unknown observation type in InvSubsurfCalcLambda'
           call PrintErrMsg(option)
       end select
+      if (Uninitialized(tempint)) then
+        option%io_buffer = 'The observed state variable is not being modeled.'
+        call PrintErrMsg(option)
+      endif
       call VecStrideScatter(onedof_vec,tempint-1,p,INSERT_VALUES,ierr);CHKERRQ(ierr)
       if (this%debug_verbosity > 2) then
         if (OptionPrintToScreen(option)) print *, 'p'
@@ -875,6 +879,11 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
                               viewer,ierr);CHKERRQ(ierr)
     call MatView(inversion_ts_aux%dResdparam,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    if (this%debug_verbosity > 2) then
+      if (OptionPrintToScreen(option)) print *, 'dResdK'
+      call MatView(inversion_ts_aux%dResdparam, &
+                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+    endif
   endif
 
   do imeasurement = 1, size(this%imeasurement)
@@ -887,10 +896,20 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
       call VecView(inversion_ts_aux%lambda(imeasurement),viewer, &
                     ierr);CHKERRQ(ierr)
       call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+      if (this%debug_verbosity > 2) then
+        if (OptionPrintToScreen(option)) print *, 'lambda ', imeasurement
+        call VecView(inversion_ts_aux%lambda(imeasurement), &
+                     PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+      endif
     endif
     call MatMultTranspose(inversion_ts_aux%dResdparam, &
                           inversion_ts_aux%lambda(imeasurement), &
                           dResdKLambda,ierr);CHKERRQ(ierr)
+    if (this%debug_verbosity > 2) then
+      if (OptionPrintToScreen(option)) print *, 'dGamdp ', imeasurement
+      call VecView(dResdKLambda, &
+                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+    endif
     call VecGetArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
     do iparameter = 1, grid%nlmax
       natural_id = grid%nG2A(grid%nL2G(iparameter))

@@ -77,6 +77,7 @@ module ZFlow_Aux_module
   type, public :: zflow_parameter_type
     PetscBool :: check_post_converged
     PetscReal, pointer :: tensorial_rel_perm_exponent(:,:)
+    PetscReal :: diffusion_coef
   end type zflow_parameter_type
 
   type, public :: zflow_type
@@ -151,6 +152,7 @@ function ZFlowAuxCreate(option)
   allocate(aux%zflow_parameter)
   aux%zflow_parameter%check_post_converged = PETSC_FALSE
   nullify(aux%zflow_parameter%tensorial_rel_perm_exponent)
+  aux%zflow_parameter%diffusion_coef = 0.d0
 
   ZFlowAuxCreate => aux
 

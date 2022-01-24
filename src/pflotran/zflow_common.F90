@@ -127,6 +127,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: por_sat
   PetscReal :: volume_over_dt
   PetscReal :: tempreal
+  PetscReal, parameter :: L_per_m3 = 1.d3
 
   Res = 0.d0
   Jac = 0.d0
@@ -166,7 +167,7 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
     ! Res[mole/sec] = c [mol/L] * 1000 [L/m^3 liquid]
     !                 sat[m^3 liquid/m^3 void] * por[m^3 void/m^3 bulk] *
     !                 vol[m^3 bulk] / dt[sec]
-    tempreal = 1000.d0 * volume_over_dt
+    tempreal = L_per_m3 * volume_over_dt
     Res(zflow_sol_tran_eq) = zflow_auxvar%conc * tempreal * por_sat
 
     if (calculate_derivatives) then
@@ -248,9 +249,10 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   PetscReal :: delta_conc
   PetscReal :: dq_dpup, dq_dpdn
   PetscReal :: dq_dKup, dq_dKdn
+  PetscReal, parameter :: L_per_m3 = 1.d3
   PetscReal :: conc_upwind, dconc_upwind_dup, dconc_upwind_ddn
   PetscReal :: D_hyd_up, D_hyd_dn
-  PetscReal, parameter :: D_molecular = 0.d0
+  PetscReal :: D_molecular
   PetscReal, parameter :: D_mech_up = 0.d0, D_mech_dn = 0.d0
   PetscReal :: Deff_over_dist
   PetscReal :: dD_mech_up_dpup, dD_mech_dn_dpdn
@@ -359,6 +361,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
       dconc_upwind_ddn = 1.d0
     endif
     delta_conc = zflow_auxvar_up%conc - zflow_auxvar_dn%conc
+    D_molecular = zflow_parameter%diffusion_coef
     D_hyd_up = D_mech_up + &
                zflow_auxvar_up%effective_porosity * zflow_auxvar_up%sat * &
                material_auxvar_up%tortuosity * D_molecular
@@ -366,26 +369,28 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
                zflow_auxvar_dn%effective_porosity * zflow_auxvar_dn%sat * &
                material_auxvar_dn%tortuosity * D_molecular
     numerator = D_hyd_up * D_hyd_dn
-    denominator = dist_up*D_hyd_dn + D_hyd_up*D_hyd_up
-    if (D_hyd_dn > 0.d0) then
-      option%io_buffer = 'Update denominator'
-      call PrintErrMsg(option)
-    else
+    denominator = dist_up*D_hyd_dn + dist_dn*D_hyd_up
+    if (denominator == 0.d0) then
+      ! turn off diffusion
+      numerator = 0.d0
       denominator = 1.d0
     endif
     Deff_over_dist = numerator / denominator
     ! Res[mol/sec]
     Res(zflow_sol_tran_eq) = Res(zflow_sol_tran_eq) + &
-      (q * 1000.d0 * conc_upwind - & ! advection
-       area * Deff_over_dist * delta_conc) ! hydrodynamic dispersion
+      (q * conc_upwind + & ! advection
+       area * Deff_over_dist * delta_conc) * & ! hydrodynamic dispersion
+      L_per_m3
     if (calculate_derivatives) then
       Jup(zflow_sol_tran_eq,zflow_sol_tran_eq) = &
-        (q * 1000.d0 * dconc_upwind_dup - &
-         area * Deff_over_dist * 1.d0)
+        (q * dconc_upwind_dup + &
+         area * Deff_over_dist * 1.d0) * &
+        L_per_m3
       Jdn(zflow_sol_tran_eq,zflow_sol_tran_eq) = &
-        (q * 1000.d0 * dconc_upwind_ddn - &
-         area * Deff_over_dist * (-1.d0))
-      if (zflow_liq_flow_eq > 0) then
+        (q * dconc_upwind_ddn + &
+         area * Deff_over_dist * (-1.d0)) * &
+        L_per_m3
+         if (zflow_liq_flow_eq > 0) then
         if (D_mech_up > 0.d0) then
           ! implement derivatives here and in boundary flux
           option%io_buffer = 'Implement derivatives for D_mech_up'
@@ -409,22 +414,26 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
         dDeff_over_dist_dpdn = dD_hyd_dn_dpdn * D_hyd_up * D_hyd_up * &
                                dist_dn / tempreal
         Jup(zflow_sol_tran_eq,zflow_liq_flow_eq) = &
-          (dq_dpup * 1000.d0 * conc_upwind - &
-           area * dDeff_over_dist_dpup * 1.d0)
+          (dq_dpup * conc_upwind + &
+           area * dDeff_over_dist_dpup * 1.d0) * &
+          L_per_m3
         Jdn(zflow_sol_tran_eq,zflow_liq_flow_eq) = &
-          (dq_dpdn * 1000.d0 * conc_upwind - &
-           area * dDeff_over_dist_dpdn * (-1.d0))
+          (dq_dpdn * conc_upwind + &
+           area * dDeff_over_dist_dpdn * (-1.d0)) * &
+          L_per_m3
       endif
       if (zflow_calc_adjoint) then
         if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
           dDeff_over_dist_dKup = 0.d0
           dDeff_over_dist_dKdn = 0.d0
           dResdparamup(zflow_sol_tran_eq,1) = &
-            dq_dKup * 1000.d0 * conc_upwind + &
-            area * dDeff_over_dist_dKup * delta_conc
+            (dq_dKup * conc_upwind + &
+             area * dDeff_over_dist_dKup * delta_conc) * &
+            L_per_m3
           dResdparamdn(zflow_sol_tran_eq,1) = &
-            dq_dKdn * 1000.d0 * conc_upwind + &
-            area * dDeff_over_dist_dKdn * delta_conc
+            (dq_dKdn * conc_upwind + &
+             area * dDeff_over_dist_dKdn * delta_conc) * &
+            L_per_m3
         endif
       endif
     endif
@@ -489,11 +498,13 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: delta_conc
   PetscReal :: dq_dpdn
   PetscReal :: dq_dKdn
+  PetscReal, parameter :: L_per_m3 = 1.d3
   PetscReal :: conc_upwind, dconc_upwind_ddn
   PetscReal :: D_hyd_dn
-  PetscReal, parameter :: D_molecular = 0.d0
+  PetscReal :: D_molecular = 0.d0
   PetscReal, parameter :: D_mech_dn = 0.d0
   PetscReal :: Deff_over_dist
+  PetscReal :: dispersion_scale
   PetscReal :: dD_mech_dn_dpdn
   PetscReal :: dDeff_over_dist_dpdn
   PetscReal :: dDeff_over_dist_dKdn
@@ -615,23 +626,28 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     if (q >= 0) then
       conc_upwind = zflow_auxvar_up%conc
       dconc_upwind_ddn = 0.d0
+      dispersion_scale = 1.d0
     else
       conc_upwind = zflow_auxvar_dn%conc
       dconc_upwind_ddn = 1.d0
+      dispersion_scale = 0.d0  ! creates zero-gradient outlet bc
     endif
     delta_conc = zflow_auxvar_up%conc - zflow_auxvar_dn%conc
+    D_molecular = zflow_parameter%diffusion_coef
     D_hyd_dn = D_mech_dn + &
                zflow_auxvar_dn%effective_porosity * zflow_auxvar_dn%sat * &
                material_auxvar_dn%tortuosity * D_molecular
-    Deff_over_dist = D_hyd_dn / dist(0)
+    Deff_over_dist = dispersion_scale * D_hyd_dn / dist(0)
     ! Res[mol/sec]
     Res(zflow_sol_tran_eq) = Res(zflow_sol_tran_eq) + &
-      (q * 1000.d0 * conc_upwind - & ! advection
-       area * Deff_over_dist * delta_conc) ! hydrodynamic dispersion
+      (q * conc_upwind + & ! advection
+       area * Deff_over_dist * delta_conc) * & ! hydrodynamic dispersion
+      L_per_m3
     if (calculate_derivatives) then
       Jdn(zflow_sol_tran_eq,zflow_sol_tran_eq) = &
-        (q * 1000.d0 * dconc_upwind_ddn - &
-         area * Deff_over_dist * (-1.d0))
+        (q * dconc_upwind_ddn + &
+         area * Deff_over_dist * (-1.d0)) * &
+        L_per_m3
       if (zflow_liq_flow_eq > 0) then
         dD_mech_dn_dpdn = 0.d0
         dD_hyd_dn_dpdn = dD_mech_dn_dpdn + &
@@ -641,15 +657,17 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                          material_auxvar_dn%tortuosity * D_molecular
         dDeff_over_dist_dpdn = dD_hyd_dn_dpdn / dist(0)
         Jdn(zflow_sol_tran_eq,zflow_liq_flow_eq) = &
-          (dq_dpdn * 1000.d0 * conc_upwind - &
-           area * dDeff_over_dist_dpdn * (-1.d0))
+          (dq_dpdn * conc_upwind + &
+           area * dDeff_over_dist_dpdn * (-1.d0)) * &
+          L_per_m3
       endif
       if (zflow_calc_adjoint) then
         if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
           dDeff_over_dist_dKdn = 0.d0
           dResdparamdn(zflow_sol_tran_eq,1) = &
-            dq_dKdn * 1000.d0 * conc_upwind + &
-            area * dDeff_over_dist_dKdn * delta_conc
+            (dq_dKdn * conc_upwind + &
+             area * dDeff_over_dist_dKdn * delta_conc) * &
+            L_per_m3
         endif
       endif
 
@@ -691,6 +709,7 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   PetscBool :: calculate_derivatives
 
   PetscReal :: qsrc_m3, qsrc_L
+  PetscReal, parameter :: L_per_m3 = 1.d3
 
   Res = 0.d0
   Jdn = 0.d0
@@ -718,7 +737,7 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   endif
 
   if (zflow_sol_tran_eq > 0) then
-    qsrc_L = qsrc_m3 * 1000.d0
+    qsrc_L = qsrc_m3 * L_per_m3
     Res(zflow_sol_tran_eq) = qsrc_L * qsrc(zflow_sol_tran_eq)
     if (calculate_derivatives) then
       Jdn(zflow_sol_tran_eq,zflow_sol_tran_eq) = qsrc_L
