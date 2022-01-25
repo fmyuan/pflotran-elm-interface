@@ -966,9 +966,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
 
 
   do n = 1, nphase
-     do j = 1, ncomp
-
-        
+    do j = 1, ncomp       
       do k = 1, ncomp    
         ! Accumulation
         do i = 1, ngcells 
@@ -1530,7 +1528,7 @@ subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
   PetscErrorCode :: ierr
   PetscReal :: inf_norm_sec
   PetscReal :: max_inf_norm_sec
-  PetscReal :: sec_diffusion_coefficient(realization%option%transport%nphase)
+  PetscReal :: sec_diffusion_coefficient(2)
   
   option => realization%option
   grid => realization%patch%grid

@@ -2747,7 +2747,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscInt :: icomp, iactgas
 
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  PetscReal :: sec_diffusion_coefficient(realization%option%transport%nphase)
+  PetscReal :: sec_diffusion_coefficient(2)
   PetscReal :: sec_porosity
   PetscReal :: res_sec_transport(realization%reaction%ncomp)
 

@@ -106,7 +106,7 @@ module Material_module
     PetscReal :: init_temp
     PetscReal :: init_conc
     PetscReal :: porosity
-    PetscReal, pointer :: diff_coeff(:)
+    PetscReal :: diff_coeff(2)
     PetscReal :: mnrl_volfrac
     PetscReal :: mnrl_area
     PetscBool :: log_spacing
@@ -241,9 +241,9 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%aperture = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%init_temp = 100.d0
     material_property%multicontinuum%init_conc = 0.d0
+    material_property%multicontinuum%diff_coeff(1) = 1.d-9
+    material_property%multicontinuum%diff_coeff(2) = 1.d-9
     material_property%multicontinuum%porosity = UNINITIALIZED_DOUBLE
-    allocate(material_property%multicontinuum% &
-               diff_coeff(option%transport%nphase))
     material_property%multicontinuum%mnrl_volfrac = 0.d0
     material_property%multicontinuum%mnrl_area = 0.d0
     material_property%multicontinuum%ncells = UNINITIALIZED_DOUBLE
@@ -857,7 +857,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%multicontinuum%porosity)
               call InputErrorMsg(input,option,'secondary continuum porosity', &
                            'MATERIAL_PROPERTY')
-            case('DIFFUSION_COEFFICIENT')
+            case('LIQUID_DIFFUSION_COEFFICIENT')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%diff_coeff(1))
               call InputErrorMsg(input,option, &
@@ -869,6 +869,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option, &
                                  'secondary continuum gas diff coeff', &
                                  'MATERIAL_PROPERTY')
+            case('DIFFUSION_COEFFICIENT')
+              call PrintErrMsg(option,'DIFFUSION_COEFFICIENT has been renamed in &
+                  &multiple continuum model. Please use LIQUID_DIFFUSION_COEFFICIENT')
             case('MINERAL_VOLFRAC')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%mnrl_volfrac)
