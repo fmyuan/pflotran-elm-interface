@@ -147,7 +147,15 @@ module PM_Well_class
   !  end subroutine rho_interface
   !end interface
 
+  ! primary variables necessary to reset solution
+  type :: well_save_type
+    PetscReal, pointer :: pl(:)
+    PetscReal, pointer :: sg(:)
+  end type well_save_type
+
   type :: well_soln_type
+    ! Previously converged solution
+    type(well_save_type) :: prev_soln
     ! number of primary variables
     PetscInt :: ndof
     ! residual vector
@@ -160,6 +168,8 @@ module PM_Well_class
     PetscReal, pointer :: res_sg(:)
     ! Jacobian matrix
     PetscReal, pointer :: Jacobian(:,:)
+    ! Solution update
+    PetscReal, pointer :: update(:)
     ! flag for bottom of hole pressure BC
     PetscBool :: bh_p
     ! flag for top of hole pressure BC
@@ -187,6 +197,7 @@ module PM_Well_class
     PetscReal, pointer :: pert(:,:)
     PetscInt :: nphase 
     PetscReal :: dt
+    PetscReal :: cumulative_dt
   contains
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
@@ -358,11 +369,14 @@ function PMWellCreate()
 
   ! create the well solution object:
   allocate(PMWellCreate%soln)
+  nullify(PMWellCreate%soln%prev_soln%pl)
+  nullify(PMWellCreate%soln%prev_soln%sg)
   nullify(PMWellCreate%soln%residual)
   nullify(PMWellCreate%soln%res_p)
   nullify(PMWellCreate%soln%res_vm)
   nullify(PMWellCreate%soln%res_sg)
   nullify(PMWellCreate%soln%Jacobian)
+  nullify(PMWellCreate%soln%update)
   PMWellCreate%soln%ndof = UNINITIALIZED_INTEGER
   PMWellCreate%soln%bh_p = PETSC_FALSE
   PMWellCreate%soln%th_p = PETSC_FALSE
@@ -587,9 +601,12 @@ subroutine PMWellSetup(this)
     this%well_pert(k)%bh_qg = this%well%bh_qg
     this%well_pert(k)%th_ql = this%well%th_ql
     this%well_pert(k)%th_qg = this%well%th_qg
+    
   enddo
 
-  this%soln%ndof = this%nphase + 1
+  this%soln%ndof = this%nphase !+ 1
+  allocate(this%soln%prev_soln%pl(this%grid%nsegments))
+  allocate(this%soln%prev_soln%sg(this%grid%nsegments))
 
   ! add a reservoir src/sink coupler for each well segment
   do k = 1,this%grid%nsegments
@@ -1354,7 +1371,9 @@ recursive subroutine PMWellInitializeRun(this)
   nsegments = this%grid%nsegments 
 
   allocate(this%soln%residual(nsegments*this%soln%ndof))
+  allocate(this%soln%update(nsegments*this%soln%ndof))
   this%soln%residual(:) = UNINITIALIZED_DOUBLE
+  this%soln%update(:) = UNINITIALIZED_DOUBLE
   
   allocate(this%soln%res_p(nsegments))
   allocate(this%soln%res_vm(nsegments))
@@ -1490,14 +1509,20 @@ subroutine PMWellInitializeTimestep(this)
   if (initialize_well) then
     this%well%pl = this%reservoir%p_l
     this%well%pg = this%reservoir%p_g
+    this%well%liq%s = this%reservoir%s_l
     this%well%gas%s = this%reservoir%s_g
     this%well_pert(ONE_INTEGER)%pl = this%reservoir%p_l
     this%well_pert(TWO_INTEGER)%pl = this%reservoir%p_l
     this%well_pert(ONE_INTEGER)%pg = this%reservoir%p_g
     this%well_pert(TWO_INTEGER)%pg = this%reservoir%p_g
+    this%well_pert(ONE_INTEGER)%liq%s = this%reservoir%s_l
+    this%well_pert(TWO_INTEGER)%liq%s = this%reservoir%s_l
     this%well_pert(ONE_INTEGER)%gas%s = this%reservoir%s_g
     this%well_pert(TWO_INTEGER)%gas%s = this%reservoir%s_g
     initialize_well = PETSC_FALSE
+    this%soln%prev_soln%pl = this%well%pl
+    this%soln%prev_soln%sg = this%well%gas%s
+  else
   endif
 
   !MAN: need to add adaptive timestepping
@@ -1714,39 +1739,64 @@ subroutine PMWellResidual(this)
         call PMWellFlux(this,this%well,this%well,iup,idn,res_flux)
         call PMWellAccumulation(this,this%well,i,res_accum)
 
-        this%soln%residual(this%nphase*(i-1)+1) = &
-             this%soln%residual(this%nphase*(i-1)+1) + &
+        this%soln%residual(this%soln%ndof*(i-1)+1) = &
+             this%soln%residual(this%soln%ndof*(i-1)+1) + &
              res_accum(ONE_INTEGER)
         if (i == 1) then
-          this%soln%residual(this%nphase*(i-1)+1) = &
-               this%soln%residual(this%nphase*(i-1)+1) &
+          ! Water mass residual in cell i: Add flux in from BC, 
+          ! subtract flux to i+1 cell
+          this%soln%residual(this%soln%ndof*(i-1)+1) = &
+               this%soln%residual(this%soln%ndof*(i-1)+1) &
                + res_flux_bc(1) - res_flux(1)
+          ! Water mass residual in cell i+1: Add flux to i+1 cell
+          this%soln%residual(this%soln%ndof*i+1) = &
+               this%soln%residual(this%soln%ndof*i+1) &
+               + res_flux(1)
+
         elseif (i < this%grid%nsegments) then
-          this%soln%residual(this%nphase*(i-1)+1) = &
-               this%soln%residual(this%nphase*(i-1)+1) &
-               + res_flux(this%nphase*(i-2)+1) - res_flux(this%nphase*(i-1)+1)
+          ! Water mass residual in cell i: Subtract flux to i+1 cell
+          this%soln%residual(this%soln%ndof*(i-1)+1) = &
+               this%soln%residual(this%soln%ndof*(i-1)+1) &
+               - res_flux(1) 
+          ! Water mass residual in cell i+1: Add flux to i+1 cell
+          this%soln%residual(this%soln%ndof*i+1) = &
+               this%soln%residual(this%soln%ndof*i+1) &
+               + res_flux(1)
         else
-          this%soln%residual(this%nphase*(i-1)+1) = &
-               this%soln%residual(this%nphase*(i-1)+1) &
-               + res_flux(this%nphase*(i-2)+1) - res_flux_bc(this%nphase+1)
+          ! Water mass residual in cell i: Subtract flux to BC
+          this%soln%residual(this%soln%ndof*(i-1)+1) = &
+               this%soln%residual(this%soln%ndof*(i-1)+1) &
+               - res_flux_bc(1)
         endif
 
         if (this%nphase == 2) then
-          this%soln%residual(this%nphase*(i-1)+2) = &
-               this%soln%residual(this%nphase*(i-1)+2) + &
+          this%soln%residual(this%soln%ndof*(i-1)+2) = &
+               this%soln%residual(this%soln%ndof*(i-1)+2) + &
                res_accum(TWO_INTEGER)
           if (i == 1) then
-            this%soln%residual(this%nphase*(i-1)+2) = &
-                 this%soln%residual(this%nphase*(i-1)+2) &
+            ! Air mass residual in cell i: Add flux in from BC, 
+            ! subtract flux to i+1 cell
+            this%soln%residual(this%soln%ndof*(i-1)+2) = &
+                 this%soln%residual(this%soln%ndof*(i-1)+2) &
                  + res_flux_bc(2) - res_flux(2)
+            ! Air mass residual in cell i+1: Add flux to i+1 cell
+            this%soln%residual(this%soln%ndof*i+2) = &
+                 this%soln%residual(this%soln%ndof*i+2) &
+                 + res_flux(2)
           elseif (i < this%grid%nsegments) then
-            this%soln%residual(this%nphase*(i-1)+2) = &
-                 this%soln%residual(this%nphase*(i-1)+2) & 
-                 + res_flux(this%nphase*(i-2)+2) - res_flux(this%nphase*(i-1)+2)
+            ! Air mass residual in cell i: Subtract flux to i+1 cell
+            this%soln%residual(this%soln%ndof*(i-1)+2) = &
+                 this%soln%residual(this%soln%ndof*(i-1)+2) & 
+                 - res_flux(2) 
+            ! Air mass residual in cell i+1: Add flux to i+1 cell
+            this%soln%residual(this%soln%ndof*i+2) = &
+                 this%soln%residual(this%soln%ndof*i+2) &
+                 + res_flux(2)
           else
-            this%soln%residual(this%nphase*(i-1)+2) = &
-                 this%soln%residual(this%nphase*(i-1)+2) &
-                 + res_flux(this%nphase*(i-2)+2) - res_flux_bc(this%nphase+2)
+            ! Air mass residual in cell i: Subtract flux to BC
+            this%soln%residual(this%soln%ndof*(i-1)+2) = &
+                 this%soln%residual(this%soln%ndof*(i-1)+2) &
+                 - res_flux_bc(2)
           endif
         endif
       enddo
@@ -1943,6 +1993,8 @@ subroutine PMWellJacobian(this)
 
   PetscReal :: Jup(this%nphase,this%nphase), &
                Jdn(this%nphase,this%nphase), &
+               Jtop(this%nphase,this%nphase), &
+               Jbtm(this%nphase,this%nphase), &
                Jtmp(this%nphase,this%nphase), &
                Jac(this%nphase*this%grid%nsegments, &
                    this%nphase*this%grid%nsegments)
@@ -1989,12 +2041,13 @@ subroutine PMWellJacobian(this)
 
       ! Boundary Flux Terms -----------------------------------
       local_id = 1
-      call PMWellBCFluxDerivative(this,local_id,Jdn)
-      call PMWellFillJac(this,Jac,Jdn,local_id,local_id)
+      call PMWellBCFluxDerivative(this,Jtop,Jbtm)
+      Jbtm = -Jbtm
+      call PMWellFillJac(this,Jac,Jbtm,local_id,local_id)
 
       local_id = this%grid%nsegments
-      call PMWellBCFluxDerivative(this,local_id,Jdn)
-      call PMWellFillJac(this,Jac,Jdn,local_id,local_id)
+      Jtop = -Jtop
+      call PMWellFillJac(this,Jac,Jtop,local_id,local_id)
 
       !pm_well_ni_count = pm_well_ni_count + 1
 
@@ -2063,8 +2116,11 @@ subroutine PMWellSolve(this,time,ierr)
 
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscLogDouble :: log_start_time, log_end_time
-  PetscInt :: n_iter
+  PetscInt :: n_iter,ts_cut,i
+  PetscReal :: res(this%soln%ndof)
+  PetscReal :: res_fixed(this%soln%ndof*this%grid%nsegments)
   PetscInt :: max_iter = 8 ! note: this should become an input parameter
+  PetscInt :: ts_cut_max = 10 ! note: this should become an input parameter
 
   ierr = 0
   call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
@@ -2072,23 +2128,58 @@ subroutine PMWellSolve(this,time,ierr)
   call PMWellPreSolve(this)
 
   n_iter = 0
-  do while (this%soln%not_converged)
-    ! use Newton's method to solve for the well pressure
-    call PMWellNewton(this)
-    call PMWellCheckConvergence(this,n_iter)
-    if (n_iter > (max_iter-1)) then
-      out_string = ' Maximum number of iterations reached.'
-      call OptionPrint(out_string,this%option)
-      this%soln%cut_timestep = PETSC_TRUE
-      ! call a timeset cut routine which re-starts the solution process
-      exit
-    endif
+  ts_cut = 0
+
+  this%soln%residual = 0.d0
+
+  ! Fixed accumulation term
+  do i = 1,this%grid%nsegments
+    call PMWellAccumulation(this,this%well,i,res)
+    res_fixed(this%soln%ndof*(i-1)+1:this%soln%ndof*i) = -1.d0 * res * &
+                                                         this%dt 
+  enddo
+
+  this%cumulative_dt = 0.d0
+
+  do while (this%cumulative_dt < this%realization%option%flow_dt) 
+    do while (this%soln%not_converged)
+
+      if (n_iter > (max_iter-1)) then
+        out_string = ' Maximum number of Newton iterations reached.'
+        call OptionPrint(out_string,this%option)
+        this%soln%cut_timestep = PETSC_TRUE
+        call PMWellCutTimestep(this)
+        n_iter = 0
+        ts_cut = ts_cut + 1
+      endif
+      if (ts_cut > ts_cut_max) then
+        this%realization%option%io_buffer = &
+          'Max timestep cuts reached in PM Well. Solution has not converged.'
+        call PrintErrMsg(this%realization%option)
+      endif
+
+      this%soln%residual = res_fixed/this%dt
+
+      ! use Newton's method to solve for the well pressure and saturation
+      call PMWellNewton(this)
+      ! Declare convergence
+      call PMWellCheckConvergence(this,n_iter,res_fixed)
+    enddo
+
+    this%cumulative_dt = this%cumulative_dt + this%dt
   enddo
 
   this%soln%n_steps = this%soln%n_steps + 1
   this%soln%n_newton = this%soln%n_newton + n_iter
-  
+
   call PMWellPostSolve(this)
+
+    ! update well index (should not need to be updated every time if
+  ! grid permeability and discretization are static
+  call PMWellComputeWellIndex(this)
+
+  ! update the well src/sink Q vector
+  call PMWellUpdateWellQ(this%well,this%reservoir)
 
   call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
   
@@ -2096,9 +2187,64 @@ end subroutine PMWellSolve
 
 ! ************************************************************************** !
 
+subroutine PMWellUpdateSolution(pm_well)
+  ! 
+  ! Author: Michael Nole
+  ! Date: 01/21/22
+
+  implicit none
+
+  class(pm_well_type) :: pm_well
+
+  PetscInt :: i
+  PetscInt :: idof
+
+  select case(pm_well%well%well_model_type)
+    case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
+      ! No nonlinear solve needed.
+    case('DARCY')
+      do i = 1,pm_well%grid%nsegments
+        idof = pm_well%soln%ndof*(i-1)
+        pm_well%well%pl(i) = pm_well%well%pl(i) +  &
+                             pm_well%soln%update(idof + 1)
+        idof = pm_well%soln%ndof*i
+        pm_well%well%gas%s(i) = pm_well%well%gas%s(i) + &
+                                pm_well%soln%update(idof)
+      enddo
+      call PMWellUpdateProperties(pm_well%well)
+  end select
+end subroutine PMWellUpdateSolution
+
+! ************************************************************************** !
+
+subroutine PMWellCutTimestep(pm_well)
+  ! 
+  ! Author: Michael Nole
+  ! Date: 01/24/22
+
+  implicit none
+
+  class(pm_well_type) :: pm_well
+
+  PetscInt :: i
+
+  select case(pm_well%well%well_model_type)
+    case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
+      ! No nonlinear solve needed.
+    case('DARCY')
+      ! could make this smarter or call smarter timestepping routines
+      pm_well%dt = pm_well%dt / 2.d0
+      pm_well%well%pl = pm_well%soln%prev_soln%pl
+      pm_well%well%gas%s = pm_well%soln%prev_soln%sg
+      call PMWellUpdateProperties(pm_well%well)
+  end select
+end subroutine PMWellCutTimestep
+
+! ************************************************************************** !
+
 subroutine PMWellNewton(this)
   ! 
-  ! Author: Michael A. Nole
+  ! Author: Michael Nole
   ! Date: 01/20/2022
 
   use Utility_module
@@ -2110,14 +2256,18 @@ subroutine PMWellNewton(this)
   PetscReal :: identity(this%nphase*this%grid%nsegments,&
                         this%nphase*this%grid%nsegments)
   PetscReal :: inv_Jac(this%nphase*this%grid%nsegments, &
+                       this%nphase*this%grid%nsegments), &
+               Jac_save(this%nphase*this%grid%nsegments, &
                        this%nphase*this%grid%nsegments)
-  PetscReal :: new_dx(this%nphase*this%grid%nsegments)
+  PetscReal :: new_dx(this%nphase*this%grid%nsegments), &
+               res_save(this%nphase*this%grid%nsegments)
   PetscInt :: indx(this%nphase*this%grid%nsegments)
   PetscInt :: i,j
   PetscInt :: d
 
-  this%soln%residual = 0.d0
-  
+  res_save = 0.d0
+  Jac_save = 0.d0 
+
   call PMWellPerturb(this) 
  
   call PMWellResidual(this)
@@ -2141,22 +2291,24 @@ subroutine PMWellNewton(this)
         endif
       enddo
     enddo
+    Jac_save = this%soln%Jacobian
     call LUDecomposition(this%soln%Jacobian,this%nphase*this%grid%nsegments, &
                          indx,d)
+    res_save = this%soln%residual
     call LUBackSubstitution(this%soln%Jacobian, &
                             this%nphase*this%grid%nsegments,&
                             indx,-1.d0*this%soln%residual)
     new_dx = this%soln%residual
+    this%soln%update(:) = new_dx(:)
+
+    this%soln%residual = res_save
+    this%soln%Jacobian = Jac_save
+
+    call PMWellUpdateSolution(this)
+
   !--------------------------------------
   end select
 
-  ! update well index (should not need to be updated every time if
-  ! grid permeability and discretization are static
-  call PMWellComputeWellIndex(this)
-
-  ! update the well src/sink Q vector
-  call PMWellUpdateWellQ(this%well,this%reservoir)
-  
 end subroutine PMWellNewton
 
 ! ************************************************************************** !
@@ -2183,7 +2335,7 @@ end subroutine PMWellPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMWellCheckConvergence(this,n_iter)
+subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   ! 
   ! Checks solution convergence against prescribed tolerances.
   !
@@ -2194,9 +2346,11 @@ subroutine PMWellCheckConvergence(this,n_iter)
   
   class(pm_well_type) :: this
   PetscInt :: n_iter
+  PetscReal :: fixed_accum(this%soln%ndof*this%grid%nsegments)
   
   character(len=MAXSTRINGLENGTH) :: out_string
-  PetscReal :: itol_abs_res
+  PetscReal :: itol_abs_res, itol_scaled_res 
+  PetscReal :: itol_abs_update_p, itol_abs_update_s
   PetscBool :: cnvgd_due_to_residual(this%grid%nsegments*this%soln%ndof)
   PetscBool :: cnvgd_due_to_abs_res(this%grid%nsegments*this%soln%ndof)
   PetscBool :: cnvgd_due_to_scaled_res(this%grid%nsegments*this%soln%ndof)
@@ -2212,15 +2366,26 @@ subroutine PMWellCheckConvergence(this,n_iter)
   cnvgd_due_to_abs_res = PETSC_FALSE
   cnvgd_due_to_scaled_res = PETSC_FALSE
 
+
   itol_abs_res = 1.0d-5  ! note: this should become an input parameter
+  itol_scaled_res = 1.0d-5
+  itol_abs_update_p = 1.d0
+  itol_abs_update_s = 1.d-5
 
   max_absolute_residual = maxval(dabs(this%soln%residual))
   loc_max_abs_residual = maxloc(dabs(this%soln%residual),1)
 
   do k = 1,(this%grid%nsegments*this%soln%ndof)
+    !Abs Residual
     temp_real = dabs(this%soln%residual(k))
     if (temp_real < itol_abs_res) then
       cnvgd_due_to_abs_res(k) = PETSC_TRUE
+    endif
+ 
+    !Scaled Residual
+    temp_real = dabs(this%soln%residual(k)/(fixed_accum(k)/this%dt))
+    if (temp_real < itol_scaled_res) then
+      cnvgd_due_to_scaled_res(k) = PETSC_TRUE
     endif
   enddo
 
@@ -2374,11 +2539,12 @@ subroutine PMWellAccumulation(pm_well,well,id,Res)
       ! No nonlinear solve needed.
     case('DARCY')
       ! liquid accumulation term
-      Res(1) = (Res(1) + well%liq%s(id) * well%liq%rho(id)) * well%phi(id) * &
-                well%volume(id) / pm_well%dt
+      Res(1) = (Res(1) + well%liq%s(id) * well%liq%rho(id)) / FMWH2O * &
+                well%phi(id) * well%volume(id) / pm_well%dt 
       ! gas accumulation term
-      Res(2) = (Res(2) + well%gas%s(id)* well%gas%rho(id)) * well%phi(id) * &
-                well%volume(id) / pm_well%dt
+      Res(2) = (Res(2) + well%gas%s(id) * well%gas%rho(id)) / &
+                fmw_comp(TWO_INTEGER) * well%phi(id) * well%volume(id) / &
+                pm_well%dt
     case default
   end select
 
@@ -2558,7 +2724,6 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
             Res(2) = Res(2) + tot_mole_flux
           endif
         endif
-
     case default
 
   end select
@@ -2660,6 +2825,7 @@ subroutine PMWellBCFlux(pm_well,well,Res)
     case('DARCY')
       ! This is good for either: single-phase liquid, or two-phase liquid/gas.
       ! Vertical well, no Klinkenberg, no capillary pressure, constant mobility.
+      itop = pm_well%grid%nsegments
       if (pm_well%soln%bh_p) then
         !Dirichlet pressure and saturation at the bottom
         perm_ave_over_dist = well%permeability(1) / (grid%dh(1)/2.d0)
@@ -2681,13 +2847,13 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         v_darcy = perm_ave_over_dist * well%liq%mobility * delta_pressure
-        density_ave = well%liq%rho(1) * fmw_comp(ONE_INTEGER)
+        density_ave = well%liq%rho(1) / fmw_comp(ONE_INTEGER)
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(1) = Res(1) + tot_mole_flux
 
         v_darcy = perm_ave_over_dist * well%gas%mobility * delta_pressure
-        density_ave = well%gas%rho(1) * fmw_comp(TWO_INTEGER)
+        density_ave = well%gas%rho(1) / fmw_comp(TWO_INTEGER)
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(2) = Res(2) + tot_mole_flux
@@ -2696,9 +2862,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         !Neumann flux at the bottom
         v_darcy = well%bh_ql
         if (v_darcy > 0.d0) then
-          density_ave = reservoir%rho_l(1) * fmw_comp(ONE_INTEGER)
+          density_ave = reservoir%rho_l(1) / fmw_comp(ONE_INTEGER)
         else
-          density_ave = well%liq%rho(1) * fmw_comp(ONE_INTEGER)
+          density_ave = well%liq%rho(1) / fmw_comp(ONE_INTEGER)
         endif
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
@@ -2706,9 +2872,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
  
         v_darcy = well%bh_qg
         if (v_darcy > 0.d0) then
-          density_ave = reservoir%rho_g(1) * fmw_comp(TWO_INTEGER)
+          density_ave = reservoir%rho_g(1) / fmw_comp(TWO_INTEGER)
         else
-          density_ave = well%gas%rho(1) * fmw_comp(TWO_INTEGER)
+          density_ave = well%gas%rho(1) / fmw_comp(TWO_INTEGER)
         endif
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
@@ -2719,7 +2885,6 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
       if (pm_well%soln%th_p) then
         !Dirichlet pressure and saturation at the top
-        itop = pm_well%grid%nsegments
         perm_ave_over_dist = well%permeability(itop) / &
                              (grid%dh(itop)/2.d0)
         boundary_pressure = well%th_p
@@ -2740,13 +2905,13 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         v_darcy = perm_ave_over_dist * well%liq%mobility * delta_pressure
-        density_ave = well%liq%rho(itop) * fmw_comp(ONE_INTEGER)
+        density_ave = well%liq%rho(itop) / fmw_comp(ONE_INTEGER)
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         Res(3) = Res(3) + tot_mole_flux
 
         v_darcy = perm_ave_over_dist * well%gas%mobility * delta_pressure
-        density_ave = well%gas%rho(itop) * fmw_comp(TWO_INTEGER)
+        density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         Res(4) = Res(4) + tot_mole_flux
@@ -2754,9 +2919,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
         !Neumann flux at the top
         v_darcy = well%th_ql
         if (v_darcy > 0.d0) then
-          density_ave = reservoir%rho_l(itop) * fmw_comp(ONE_INTEGER)
+          density_ave = reservoir%rho_l(itop) / fmw_comp(ONE_INTEGER)
         else
-          density_ave = well%liq%rho(itop) * fmw_comp(ONE_INTEGER)
+          density_ave = well%liq%rho(itop) / fmw_comp(ONE_INTEGER)
         endif
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
@@ -2764,15 +2929,14 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
         v_darcy = well%th_qg
         if (v_darcy > 0.d0) then
-          density_ave = reservoir%rho_g(itop) * fmw_comp(TWO_INTEGER)
+          density_ave = reservoir%rho_g(itop) / fmw_comp(TWO_INTEGER)
         else
-          density_ave = well%gas%rho(itop) * fmw_comp(TWO_INTEGER)
+          density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
         endif
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         Res(4) = Res(4) + tot_mole_flux
       endif
-
     case default
 
   end select
@@ -2780,7 +2944,7 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 end subroutine PMWellBCFlux
 
 ! ************************************************************************** !
-subroutine PMWellBCFluxDerivative(pm_well,idn,Jdn)
+subroutine PMWellBCFluxDerivative(pm_well,Jtop,Jbtm)
   !
   ! Computes the derivative of the boundary flux terms for the Jacobian, 
   ! based on the chosen well model.
@@ -2793,21 +2957,29 @@ subroutine PMWellBCFluxDerivative(pm_well,idn,Jdn)
 
   type(pm_well_type) :: pm_well
   PetscInt :: idn
-  PetscReal :: Jdn(pm_well%nphase,pm_well%nphase)
+  PetscReal :: Jtop(pm_well%soln%ndof,pm_well%soln%ndof), &
+               Jbtm(pm_well%soln%ndof,pm_well%soln%ndof)
 
   PetscInt :: idof, irow
-  PetscReal :: res_dn(2*pm_well%nphase),res_pert(2*pm_well%nphase)
+  PetscReal :: res(2*pm_well%soln%ndof),res_pert(2*pm_well%soln%ndof)
 
-  call PMWellBCFlux(pm_well,pm_well%well,res_dn)
+  call PMWellBCFlux(pm_well,pm_well%well,res)
+  
+  Jtop = 0.d0
+  Jbtm = 0.d0
 
   ! downgradient derivatives
   do idof = 1,pm_well%nphase
     call PMWellBCFlux(pm_well,pm_well%well_pert(idof),res_pert)
     do irow = 1, pm_well%nphase
-      Jdn(irow,idof) = (res_pert((idof-1)*pm_well%nphase + irow)- &
-                        res_dn((idof-1)*pm_well%nphase + irow)) / &
-                        pm_well%pert(idn,idof)
-    enddo !irow
+      Jbtm(irow,idof) = (res_pert(irow)-res(irow)) / &
+                        pm_well%pert(1,idof)
+    enddo
+    do irow = 1, pm_well%nphase
+      Jtop(irow,idof) = (res_pert(irow + pm_well%soln%ndof)- &
+                         res(irow + pm_well%soln%ndof)) / &
+                         pm_well%pert(pm_well%grid%nsegments,idof)
+    enddo
   enddo
 
 
@@ -2846,8 +3018,7 @@ subroutine PMWellPerturb(pm_well)
   pert(:,ONE_INTEGER) = perturbation_tolerance*x(:,ONE_INTEGER) + &
                         min_perturbation
   do i = 1,pm_well%grid%nsegments
-    pert_indices(i) = pert(i,TWO_INTEGER) > 0.5d0
-    if (pert(i,TWO_INTEGER) > 0.5d0) then
+    if (x(i,TWO_INTEGER) > 0.5d0) then
       pert(i,TWO_INTEGER) = -1.d0 * perturbation_tolerance
     else    
       pert(i,TWO_INTEGER) = perturbation_tolerance
@@ -2870,8 +3041,6 @@ subroutine PMWellUpdateProperties(well)
   !
   ! Updates well object properties.
   !
-  ! Placeholder for now.
-  ! 
   ! Author: Michael Nole
   ! Date: 01/06/2022
   !
@@ -2881,6 +3050,17 @@ subroutine PMWellUpdateProperties(well)
   implicit none
 
   type(well_type) :: well
+
+  PetscInt :: i
+
+  do i = 1,size(well%gas%s)
+    well%gas%s(i) = max(well%gas%s(i),0.d0)
+    well%gas%s(i) = min(well%gas%s(i),1.d0)
+  enddo
+  well%liq%s = 1.d0 - well%gas%s
+
+  !no capillarity right now
+  well%pg = well%pl
 
 end subroutine PMWellUpdateProperties
 
