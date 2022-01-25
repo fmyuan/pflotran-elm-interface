@@ -2132,16 +2132,17 @@ subroutine PMWellSolve(this,time,ierr)
 
   this%soln%residual = 0.d0
 
-  ! Fixed accumulation term
-  do i = 1,this%grid%nsegments
-    call PMWellAccumulation(this,this%well,i,res)
-    res_fixed(this%soln%ndof*(i-1)+1:this%soln%ndof*i) = -1.d0 * res * &
-                                                         this%dt 
-  enddo
-
   this%cumulative_dt = 0.d0
 
   do while (this%cumulative_dt < this%realization%option%flow_dt) 
+
+    ! Fixed accumulation term
+    res_fixed = 0.d0
+    do i = 1,this%grid%nsegments
+      call PMWellAccumulation(this,this%well,i,res)
+      res_fixed(this%soln%ndof*(i-1)+1:this%soln%ndof*i) = -1.d0 * res 
+    enddo
+
     do while (this%soln%not_converged)
 
       if (n_iter > (max_iter-1)) then
@@ -2151,6 +2152,7 @@ subroutine PMWellSolve(this,time,ierr)
         call PMWellCutTimestep(this)
         n_iter = 0
         ts_cut = ts_cut + 1
+        exit
       endif
       if (ts_cut > ts_cut_max) then
         this%realization%option%io_buffer = &
@@ -2158,7 +2160,7 @@ subroutine PMWellSolve(this,time,ierr)
         call PrintErrMsg(this%realization%option)
       endif
 
-      this%soln%residual = res_fixed/this%dt
+      this%soln%residual = res_fixed
 
       ! use Newton's method to solve for the well pressure and saturation
       call PMWellNewton(this)
@@ -2297,7 +2299,7 @@ subroutine PMWellNewton(this)
     res_save = this%soln%residual
     call LUBackSubstitution(this%soln%Jacobian, &
                             this%nphase*this%grid%nsegments,&
-                            indx,-1.d0*this%soln%residual)
+                            indx,this%soln%residual)
     new_dx = this%soln%residual
     this%soln%update(:) = new_dx(:)
 
