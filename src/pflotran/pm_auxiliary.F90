@@ -432,7 +432,7 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
 
       ! Save NaCl from pervious timestep
       global_auxvars(ghosted_id)%m_nacl(TWO_INTEGER) = &
-        global_auxvars(ghosted_id)%m_nacl(iphase)
+        global_auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
 
       ! Compute NaCl for new timestep
       call EOSWaterDensity(global_auxvars(ghosted_id)%temp, &
