@@ -280,6 +280,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Characteristic_Curves_WIPP_module
+  use Characteristic_Curves_WIPP_invariant_module
   use Material_Aux_class
   use Creep_Closure_module
   use Fracture_module
@@ -414,6 +415,8 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
       class is(sat_func_WIPP_type)
         sf%pct = sf%pct_a * perm_for_cc ** sf%pct_exp
         option%flow%pct_updated = PETSC_TRUE
+      class is (sf_WIPP_type)
+        call sf%setK(perm_for_cc)
       class default
         option%flow%pct_updated = PETSC_FALSE
     end select

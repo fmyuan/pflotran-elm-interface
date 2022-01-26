@@ -8,7 +8,9 @@ block_tridiag.o : pflotran_constants.o utility.o
 characteristic_curves.o : characteristic_curves_base.o \
                           characteristic_curves_common.o \
                           characteristic_curves_loop_invariant.o \
-                          characteristic_curves_wipp.o dataset_ascii.o \
+                          characteristic_curves_wipp.o \
+                          characteristic_curves_wipp_invariant.o \
+                          dataset_ascii.o \
                           input_aux.o option.o pflotran_constants.o string.o
 characteristic_curves_base.o : material_aux.o option.o pflotran_constants.o
 characteristic_curves_common.o : characteristic_curves_base.o dataset_ascii.o \
@@ -22,6 +24,9 @@ characteristic_curves_thermal.o : input_aux.o option.o pflotran_constants.o \
 characteristic_curves_wipp.o : characteristic_curves_base.o \
                                characteristic_curves_common.o option.o \
                                pflotran_constants.o
+characteristic_curves_wipp_invariant.o : characteristic_curves_base.o \
+                                         option.o
+
 checkpoint.o : discretization.o field.o global.o grid.o hdf5.o hdf5_aux.o \
                input_aux.o material.o material_aux.o option.o output_aux.o \
                pflotran_constants.o realization_subsurface.o string.o units.o \
@@ -989,6 +994,7 @@ wipp_flow.o : characteristic_curves.o connection.o coupler.o debug.o \
               srcsink_sandbox_wipp_well.o upwind_direction.o variables.o \
               wipp.o wipp_flow_aux.o wipp_flow_common.o
 wipp_flow_aux.o : characteristic_curves.o characteristic_curves_wipp.o \
+                  characteristic_curves_wipp_invariant.o \
                   eos_gas.o eos_water.o global_aux.o material_aux.o \
                   matrix_zeroing.o option.o pflotran_constants.o utility.o \
                   variables.o wipp.o
