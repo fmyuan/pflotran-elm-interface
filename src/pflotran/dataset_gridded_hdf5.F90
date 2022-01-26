@@ -228,7 +228,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 !  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 !  endif
 #endif
-  call HDF5OpenFileReadOnly(this%filename,file_id,prop_id,option)
+  call HDF5OpenFileReadOnly(this%filename,file_id,prop_id,'',option)
   call h5pclose_f(prop_id,hdf5_err)
 
   ! the dataset is actually stored in a group.  the group contains
