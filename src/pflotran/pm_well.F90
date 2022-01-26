@@ -2136,6 +2136,9 @@ subroutine PMWellSolve(this,time,ierr)
 
   do while (this%cumulative_dt < this%realization%option%flow_dt) 
 
+    this%soln%converged = PETSC_FALSE
+    this%soln%not_converged = PETSC_TRUE
+
     ! Fixed accumulation term
     res_fixed = 0.d0
     do i = 1,this%grid%nsegments
@@ -2167,8 +2170,7 @@ subroutine PMWellSolve(this,time,ierr)
       ! Declare convergence
       call PMWellCheckConvergence(this,n_iter,res_fixed)
     enddo
-
-    this%cumulative_dt = this%cumulative_dt + this%dt
+ 
   enddo
 
   this%soln%n_steps = this%soln%n_steps + 1
@@ -2409,6 +2411,7 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
     this%soln%not_converged = PETSC_FALSE
     out_string = 'Solution converged.  Rsn: '
     call OptionPrint(out_string,this%option)
+    this%cumulative_dt = this%cumulative_dt + this%dt
   else
     this%soln%converged = PETSC_FALSE
     this%soln%not_converged = PETSC_TRUE
