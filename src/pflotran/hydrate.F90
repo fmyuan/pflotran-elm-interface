@@ -993,7 +993,6 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
         global_auxvar_ss%istate = GA_STATE
       endif
     
-      global_auxvar_ss%m_nacl(1) = 0.d0
       option%iflag = HYDRATE_UPDATE_FOR_SS
     
       ! Compute state variables 
