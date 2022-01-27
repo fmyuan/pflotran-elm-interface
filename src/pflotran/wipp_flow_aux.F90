@@ -459,7 +459,15 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
                          wippflo_auxvar%den_kg(lid), &
                          wippflo_auxvar%den(lid),ierr)
   else
-    aux(1) = global_auxvar%m_nacl(1)
+    if (option%iflag == WIPPFLO_UPDATE_FOR_FIXED_ACCUM) then
+      ! For the computation of fixed accumulation term use NaCl
+      ! value, m_nacl(2), from the previous time step.
+      aux(1) = global_auxvar%m_nacl(2)
+    else
+      ! Use NaCl value for the current time step, m_nacl(1), for computing
+      ! the accumulation term
+      aux(1) = global_auxvar%m_nacl(1)
+    endif
     call EOSWaterDensityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid),aux, &
                             wippflo_auxvar%den_kg(lid), &
                             wippflo_auxvar%den(lid),ierr)
@@ -482,7 +490,15 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
     call EOSWaterViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
                            wippflo_auxvar%pres(spid),visl,ierr)
   else
-    aux(1) = global_auxvar%m_nacl(1)
+    if (option%iflag == WIPPFLO_UPDATE_FOR_FIXED_ACCUM) then
+      ! For the computation of fixed accumulation term use NaCl
+      ! value, m_nacl(2), from the previous time step.
+      aux(1) = global_auxvar%m_nacl(2)
+    else
+      ! Use NaCl value for the current time step, m_nacl(1), for computing
+      ! the accumulation term
+      aux(1) = global_auxvar%m_nacl(1)
+    endif
     call EOSWaterViscosityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
                               wippflo_auxvar%pres(spid),aux,visl,ierr)
   endif

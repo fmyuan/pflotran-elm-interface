@@ -764,6 +764,10 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
     
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
+  ! Compute auxvars for the accumulation term that corresponding
+  ! to values for the current time step
+  option%iflag = RICHARDS_UPDATE_FOR_ACCUM
+
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
      
@@ -1095,6 +1099,8 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
 
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
+
+    option%iflag = RICHARDS_UPDATE_FOR_FIXED_ACCUM
     call RichardsAuxVarCompute(xx_p(local_id:local_id), &
                    rich_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                    material_auxvars(ghosted_id), &

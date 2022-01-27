@@ -1270,7 +1270,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     call GeneralZeroMassBalanceDelta(realization)
   endif
 
-  option%iflag = 1
+  option%iflag = GENERAL_UPDATE_FOR_ACCUM
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 

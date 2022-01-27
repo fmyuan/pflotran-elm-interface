@@ -1425,7 +1425,15 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                            hyd_auxvar%den_kg(lid),hyd_auxvar%den(lid),ierr)
     endif
   else
-    aux(1) = global_auxvar%m_nacl(1)
+    if (option%iflag == HYDRATE_UPDATE_FOR_FIXED_ACCUM) then
+      ! For the computation of fixed accumulation term use NaCl
+      ! value, m_nacl(2), from the previous time step.
+      aux(1) = global_auxvar%m_nacl(2)
+    else
+      ! Use NaCl value for the current time step, m_nacl(1), for computing
+      ! the accumulation term
+      aux(1) = global_auxvar%m_nacl(1)
+    endif
     call EOSWaterDensityExt(hyd_auxvar%temp,cell_pressure,aux, &
                               hyd_auxvar%den_kg(lid),hyd_auxvar%den(lid),ierr)
   endif
