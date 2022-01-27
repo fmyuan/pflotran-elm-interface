@@ -31,6 +31,7 @@ module PM_ERT_class
     PetscReal :: cementation_exponent  ! m
     PetscReal :: saturation_exponent   ! n
     PetscReal :: water_conductivity
+    PetscReal :: surface_conductivity
     PetscReal :: tracer_conductivity
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor
@@ -112,6 +113,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%cementation_exponent = 1.9d0
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
+  pm_ert%surface_conductivity = 0.d0 ! to modifie Archie's equation
   pm_ert%tracer_conductivity = 0.d0
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
@@ -205,6 +207,9 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('WATER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%water_conductivity)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('SURFACE_CONDUCTIVITY')
+        call InputReadDouble(input,option,this%surface_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('TRACER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%tracer_conductivity)
@@ -573,7 +578,7 @@ subroutine PMERTPreSolve(this)
   PetscInt :: ghosted_id
   PetscInt :: species_id
   PetscInt :: empirical_law
-  PetscReal :: a,m,n,cond_w,cond_c,Vc,cond  ! variables for Archie's law
+  PetscReal :: a,m,n,cond_w,cond_s,cond_c,Vc,cond  ! variables for Archie's law
   PetscReal :: por,sat
   PetscReal :: cond_sp,cond_w0
   PetscReal :: tracer_scale
@@ -592,6 +597,7 @@ subroutine PMERTPreSolve(this)
   n = this%saturation_exponent
   Vc = this%clay_volume_factor
   cond_w = this%water_conductivity
+  cond_s = this%surface_conductivity
   cond_c = this%clay_conductivity
   cond_w0 = cond_w
 
@@ -628,8 +634,8 @@ subroutine PMERTPreSolve(this)
       endif
     endif
     ! compute conductivity
-    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
-                                         empirical_law,cond)
+    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
+                                         cond_c,empirical_law,cond)
     material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
   enddo
 
