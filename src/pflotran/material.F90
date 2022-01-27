@@ -870,8 +870,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                  'secondary continuum gas diff coeff', &
                                  'MATERIAL_PROPERTY')
             case('DIFFUSION_COEFFICIENT')
-              call PrintErrMsg(option,'DIFFUSION_COEFFICIENT has been renamed in &
-                  &multiple continuum model. Please use LIQUID_DIFFUSION_COEFFICIENT')
+              call PrintErrMsg(option,'DIFFUSION_COEFFICIENT has been renamed &
+                               &in multiple continuum model. Please use &
+                               &LIQUID_DIFFUSION_COEFFICIENT')
             case('MINERAL_VOLFRAC')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%mnrl_volfrac)

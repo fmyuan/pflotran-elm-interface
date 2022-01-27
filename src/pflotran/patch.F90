@@ -7144,11 +7144,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
       ! Note that the units are in mol/kg
       local_id = grid%nG2L(ghosted_id)
       value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
-           sec_rt_auxvar(isubvar)%total(isubvar2,1)
+                                   sec_rt_auxvar(isubvar)%total(isubvar2,1)
     case(SECONDARY_CONCENTRATION_GAS)
       local_id = grid%nG2L(ghosted_id)
       value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
-              sec_rt_auxvar(isubvar)%gas_pp(isubvar2)
+                                   sec_rt_auxvar(isubvar)%gas_pp(isubvar2)
     case(SEC_MIN_VOLFRAC)
       local_id = grid%nG2L(ghosted_id)
       value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
@@ -7894,7 +7894,8 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             enddo
           endif
       end select
-    case(PRIMARY_MOLARITY,SECONDARY_MOLALITY,SECONDARY_MOLARITY,TOTAL_MOLALITY, &
+    case(PRIMARY_MOLARITY,TOTAL_MOLALITY, &
+         SECONDARY_MOLALITY,SECONDARY_MOLARITY, &
          COLLOID_MOBILE,COLLOID_IMMOBILE)
       select case(ivar)
         case(PRIMARY_MOLARITY)
