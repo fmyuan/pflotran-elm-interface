@@ -2747,7 +2747,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscInt :: icomp, iactgas
 
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  PetscReal :: sec_diffusion_coefficient
+  PetscReal :: sec_diffusion_coefficient(2)
   PetscReal :: sec_porosity
   PetscReal :: res_sec_transport(realization%reaction%ncomp)
 
@@ -2838,7 +2838,8 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
                                   multicontinuum%diff_coeff
       sec_porosity = patch%material_property_array(1)%ptr% &
                      multicontinuum%porosity
-
+      res_sec_transport = 0.d0
+      
       call SecondaryRTResJacMulti(rt_sec_transport_vars(ghosted_id), &
                                   rt_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id), &
@@ -3548,8 +3549,6 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   
   ! secondary continuum variables
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  PetscReal :: sec_diffusion_coefficient
-  PetscReal :: sec_porosity
   PetscReal :: jac_transport(realization%reaction%naqcomp,realization%reaction%naqcomp)
   PetscInt :: ncomp
   PetscInt :: nphase
@@ -3595,11 +3594,6 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       
         Jup = Jup*rt_sec_transport_vars(ghosted_id)%epsilon
 
-        sec_diffusion_coefficient = patch%material_property_array(1)% &
-                                    ptr%multicontinuum%diff_coeff
-        sec_porosity = patch%material_property_array(1)%ptr% &
-                       multicontinuum%porosity
-                        
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
           option%io_buffer = 'Current multicontinuum implementation is for '// &
                              'aqueous reactions only'
