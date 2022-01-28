@@ -109,8 +109,6 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   simulation%realization => realization
   realization%output_option => simulation%output_option
 
-  simulation%waypoint_list_subsurface => WaypointListCreate()
-
   ! Setup linkages between PMCs
   call SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
                         pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
