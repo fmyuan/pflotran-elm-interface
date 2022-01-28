@@ -404,8 +404,8 @@ end subroutine ERTCalculateMatrix
 
 ! ************************************************************************** !
 
-subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
-                                           empirical_law,cond)
+subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
+                                           cond_c,empirical_law,cond)
   !
   ! Calculates conductivity using petrophysical empirical relations
   ! using Archie's law or Waxman-Smits equation
@@ -425,6 +425,7 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
   PetscReal :: m        ! Cementation exponent
   PetscReal :: n        ! Saturation exponent
   PetscReal :: cond_w   ! Water conductivity
+  PetscReal :: cond_s   ! surface conductivity
 
   ! Waxman-Smits additional paramters
   PetscReal :: cond_c   ! Clay conductivity
@@ -435,6 +436,8 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
 
   ! Archie's law
   cond = cond_w * (por**m) * (sat**n) / a
+  ! Modify by adding surface conductivity
+  cond = cond + cond_s
 
   select case(empirical_law)
     case(ARCHIE)
