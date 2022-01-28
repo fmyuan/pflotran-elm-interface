@@ -3844,7 +3844,9 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
                  t_C*(80.d0 + 3.d0*t_C - 3300.d0*s - 13.d0*p_MPa + &
                       47.d0*p_Mpa*s))) * &
        g_cm3_to_kg_m3
-  dwmol = dw/FMWH2O ! kmol/m^3 
+
+  ! molar density H2O = solution density (kg/m3) * (1-mass frac salt) / (kg/kmol water)
+  dwmol = dw * (1-s) / (FMWH2O)
   
   if (calculate_derivatives) then
         ! v - this dwp is in the correct units of kmol/m^3-Pa
@@ -4066,7 +4068,7 @@ subroutine EOSWaterDensitySparrowExt(T,P, aux, &
   E = (-0.0276d0 +s*(0.2978d0 +s*(-2.017d0  +s*(6.345d0  +s*(-3.914d0)))))*1.d-6
 
   dw = A+T*(B+T*(C+T*(D+E*T))) !kg/m^3
-  dwmol = dw/FMWH2O ! kmol/m^3 
+  dwmol = dw*(1-s)/FMWH2O ! kmol/m^3 
 
 end subroutine EOSWaterDensitySparrowExt
 
