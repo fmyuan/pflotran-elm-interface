@@ -247,6 +247,9 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
   type(material_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
+  ! due to a gfortran bug, must use the pointers below
+  PetscReal, pointer :: array_ptr(:), array2_ptr(:)
+
   auxvar2%volume = auxvar%volume
   auxvar2%porosity_0 = auxvar%porosity_0
   auxvar2%porosity_base = auxvar%porosity_base
@@ -255,17 +258,41 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%epsilon = auxvar%epsilon
   auxvar2%soil_particle_density = auxvar%soil_particle_density
   if (associated(auxvar%permeability)) then
+#if defined(GFORTRAN_KLUDGE)
+    array_ptr => auxvar%permeability
+    array2_ptr => auxvar2%permeability
+    array2_ptr = array_ptr
+#else
     auxvar2%permeability = auxvar%permeability
+#endif
   endif
   if (associated(auxvar%sat_func_prop)) then
+#if defined(GFORTRAN_KLUDGE)
+    array_ptr => auxvar%sat_func_prop
+    array2_ptr => auxvar2%sat_func_prop
+    array2_ptr = array_ptr
+#else
     auxvar2%sat_func_prop = auxvar%sat_func_prop
+#endif
   endif
   if (associated(auxvar%soil_properties)) then
+#if defined(GFORTRAN_KLUDGE)
+    array_ptr => auxvar%soil_properties
+    array2_ptr => auxvar2%soil_properties
+    array2_ptr = array_ptr
+#else
     auxvar2%soil_properties = auxvar%soil_properties
+#endif
   endif
   auxvar2%creep_closure_id = auxvar%creep_closure_id
   if (associated(auxvar%electrical_conductivity)) then
+#if defined(GFORTRAN_KLUDGE)
+    array_ptr => auxvar%electrical_conductivity
+    array2_ptr => auxvar2%electrical_conductivity
+    array2_ptr = array_ptr
+#else
     auxvar2%electrical_conductivity = auxvar%electrical_conductivity
+#endif
   endif
 
 end subroutine MaterialAuxVarCopy

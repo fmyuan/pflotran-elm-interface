@@ -48,7 +48,7 @@ module ZFlow_Common_module
       PetscReal :: Jup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscReal :: dResdparamup(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
-      PetscReal ::  dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+      PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
       PetscBool :: calculate_derivatives
     end subroutine FluxDummy
     subroutine BCFluxDummy(ibndtype,auxvar_mapping,auxvars, &
@@ -681,7 +681,7 @@ end subroutine ZFlowBCFluxHarmonicPermOnly
 
 subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
                         zflow_auxvar,global_auxvar,material_auxvar, &
-                        ss_flow_vol_flux,scale,Res,Jdn, &
+                        ss_flow_vol_flux,scale,Res,Jdn,dResdparamdn, &
                         calculate_derivatives)
   !
   ! Computes the source/sink terms for the residual
@@ -701,11 +701,12 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   PetscInt :: flow_src_sink_type
   type(zflow_auxvar_type) :: zflow_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(material_auxvar_type) :: material_auxvar
+  class(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux
   PetscReal :: scale
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscBool :: calculate_derivatives
 
   PetscReal :: qsrc_m3, qsrc_L
@@ -752,6 +753,7 @@ end subroutine ZFlowSrcSink
 
 subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
                                 material_auxvar, &
+                                material_auxvar_pert, &
                                 option,Res,Jac,dResdparam)
   !
   ! Computes derivatives of the accumulation
@@ -769,6 +771,7 @@ subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
   type(zflow_auxvar_type) :: zflow_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar_pert(:)
   type(option_type) :: option
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jac(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
@@ -788,14 +791,26 @@ subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
   if (zflow_numerical_derivatives) then
     do idof = 1, option%nflowdof
       call ZFlowAccumulation(zflow_auxvar(idof), &
-                            global_auxvar, &
-                            material_auxvar, &
-                            option,res_pert,Jdum,dJdum, &
-                            PETSC_FALSE)
+                             global_auxvar, &
+                             material_auxvar, &
+                             option,res_pert,Jdum,dJdum, &
+                             PETSC_FALSE)
       do ieq = 1, option%nflowdof
         Jac(ieq,idof) = (res_pert(ieq)-Res(ieq))/zflow_auxvar(idof)%pert
       enddo
     enddo
+    if (zflow_calc_adjoint) then
+      call ZFlowAccumulation(zflow_auxvar(option%nflowdof+1), &
+                             global_auxvar, &
+                             material_auxvar_pert(ONE_INTEGER), &
+                             option,res_pert,Jdum,dJdum, &
+                             PETSC_FALSE)
+      idof = 1
+      do ieq = 1, option%nflowdof
+        dResdparam(ieq,idof) = (res_pert(ieq)-Res(ieq))/ &
+                               zflow_auxvar(ZERO_INTEGER)%mat_pert(idof)
+      enddo
+    endif
   endif
 
 end subroutine ZFlowAccumDerivative
@@ -804,8 +819,10 @@ end subroutine ZFlowAccumDerivative
 
 subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
                             material_auxvar_up, &
+                            material_auxvar_pert_up, &
                             zflow_auxvar_dn,global_auxvar_dn, &
                             material_auxvar_dn, &
+                            material_auxvar_pert_dn, &
                             area, dist,zflow_parameter,option,v_darcy, &
                             Res,Jup,Jdn,dResdparamup,dResdparamdn)
   !
@@ -823,6 +840,8 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
   type(zflow_auxvar_type) :: zflow_auxvar_up(0:), zflow_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_pert_up(:)
+  type(material_auxvar_type) :: material_auxvar_pert_dn(:)
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -878,6 +897,31 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
                         zflow_auxvar_dn(idof)%pert
       enddo
     enddo
+    if (zflow_calc_adjoint) then
+      idof = 1
+      call XXFlux(zflow_auxvar_up(option%nflowdof+1),global_auxvar_up, &
+                  material_auxvar_pert_up(ONE_INTEGER), &
+                  zflow_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                  material_auxvar_dn, &
+                  area,dist,zflow_parameter,option,v_darcy_dum, &
+                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE)
+      do ieq = 1, option%nflowdof
+        dResdparamup(ieq,idof) = &
+          (res_pert(ieq)-Res(ieq))/ &
+          zflow_auxvar_up(ZERO_INTEGER)%mat_pert(idof)
+      enddo
+      call XXFlux(zflow_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                  material_auxvar_up, &
+                  zflow_auxvar_dn(option%nflowdof+1),global_auxvar_dn, &
+                  material_auxvar_pert_dn(ONE_INTEGER), &
+                  area,dist,zflow_parameter,option,v_darcy_dum, &
+                  res_pert,Jdum,Jdum,dJdum,dJdum,PETSC_FALSE)
+      do ieq = 1, option%nflowdof
+        dResdparamdn(ieq,idof) = &
+          (res_pert(ieq)-Res(ieq))/ &
+          zflow_auxvar_dn(ZERO_INTEGER)%mat_pert(idof)
+      enddo
+    endif
   endif
 
 end subroutine XXFluxDerivative
@@ -889,6 +933,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                               global_auxvar_up, &
                               zflow_auxvar_dn,global_auxvar_dn, &
                               material_auxvar_dn, &
+                              material_auxvar_pert_dn, &
                               area,dist,zflow_parameter,option,v_darcy, &
                               Res,Jdn,dResdparamdn)
   !
@@ -911,6 +956,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   type(zflow_auxvar_type) :: zflow_auxvar_up, zflow_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   type(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_pert_dn(:)
   PetscReal :: area
   PetscReal :: dist(-1:3)
   type(zflow_parameter_type) :: zflow_parameter
@@ -948,6 +994,20 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                         zflow_auxvar_dn(idof)%pert
       enddo
     enddo
+    if (zflow_calc_adjoint) then
+      idof = 1
+      call XXBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                    zflow_auxvar_up,global_auxvar_up, &
+                    zflow_auxvar_dn(option%nflowdof+1),global_auxvar_dn, &
+                    material_auxvar_pert_dn(ONE_INTEGER), &
+                    area,dist,zflow_parameter,option,v_darcy_dum, &
+                    res_pert,Jdum,dJdum,PETSC_FALSE)
+      do ieq = 1, option%nflowdof
+        dResdparamdn(ieq,idof) = &
+          (res_pert(ieq)-Res(ieq))/ &
+          zflow_auxvar_dn(ZERO_INTEGER)%mat_pert(idof)
+      enddo
+    endif
   endif
 
 end subroutine XXBCFluxDerivative
@@ -955,10 +1015,11 @@ end subroutine XXBCFluxDerivative
 ! ************************************************************************** !
 
 subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
-                                  zflow_auxvars,global_auxvar, &
+                                  zflow_auxvar,global_auxvar, &
                                   material_auxvar, &
+                                  material_auxvar_pert, &
                                   ss_flow_vol_flux,scale, &
-                                  Res,Jac)
+                                  Res,Jac,dResdparam)
   !
   ! Computes the source/sink terms for the residual
   !
@@ -973,13 +1034,15 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   type(option_type) :: option
   PetscReal :: qsrc(:)
   PetscInt :: flow_src_sink_type
-  type(zflow_auxvar_type) :: zflow_auxvars(0:)
+  type(zflow_auxvar_type) :: zflow_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  type(material_auxvar_type) :: material_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  class(material_auxvar_type) :: material_auxvar_pert(:)
   PetscReal :: ss_flow_vol_flux
   PetscReal :: scale
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jac(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
+  PetscReal :: dResdparam(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
 
   PetscReal :: res_pert(ZFLOW_MAX_DOF)
   PetscReal :: dummy_real
@@ -989,24 +1052,37 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   Jac = 0.d0
   ! unperturbed zflow_auxvars value
   call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
-                    zflow_auxvars(ZERO_INTEGER),global_auxvar, &
+                    zflow_auxvar(ZERO_INTEGER),global_auxvar, &
                     material_auxvar, &
                     ss_flow_vol_flux,scale, &
-                    Res,Jac,.not.zflow_numerical_derivatives)
+                    Res,Jac,dResdparam,.not.zflow_numerical_derivatives)
 
   if (zflow_numerical_derivatives) then
     ! perturbed zflow_auxvars values
     do idof = 1, option%nflowdof
       call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
-                        zflow_auxvars(idof),global_auxvar, &
+                        zflow_auxvar(idof),global_auxvar, &
                         material_auxvar, &
                         dummy_real,scale, &
-                        res_pert,Jdum,PETSC_FALSE)
+                        res_pert,Jdum,Jdum,PETSC_FALSE)
       do ieq = 1, option%nflowdof
       Jac(ieq,idof) = (res_pert(ieq)-Res(ieq)) / &
-                      zflow_auxvars(idof)%pert
+                      zflow_auxvar(idof)%pert
       enddo
     enddo
+    if (zflow_calc_adjoint) then
+      idof = 1
+      call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
+                        zflow_auxvar(option%nflowdof+1),global_auxvar, &
+                        material_auxvar_pert(ONE_INTEGER), &
+                        dummy_real,scale, &
+                        res_pert,Jdum,Jdum,PETSC_FALSE)
+      do ieq = 1, option%nflowdof
+        dResdparam(ieq,idof) = &
+          (res_pert(ieq)-Res(ieq))/ &
+          zflow_auxvar(ZERO_INTEGER)%mat_pert(idof)
+      enddo
+    endif
   endif
 
 end subroutine ZFlowSrcSinkDerivative

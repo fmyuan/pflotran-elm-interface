@@ -4,6 +4,7 @@ module ZFlow_Aux_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Matrix_Zeroing_module
+  use Material_Aux_class
 
   implicit none
 
@@ -72,6 +73,7 @@ module ZFlow_Aux_module
     PetscReal :: temp ! temperature
     PetscReal :: conc ! concentration
     PetscReal :: pert
+    PetscReal :: mat_pert(1)
   end type zflow_auxvar_type
 
   type, public :: zflow_parameter_type
@@ -88,6 +90,7 @@ module ZFlow_Aux_module
     type(zflow_auxvar_type), pointer :: auxvars(:,:)
     type(zflow_auxvar_type), pointer :: auxvars_bc(:)
     type(zflow_auxvar_type), pointer :: auxvars_ss(:)
+    class(material_auxvar_type), pointer :: material_auxvars_pert(:,:)
     type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type zflow_type
 
@@ -147,6 +150,7 @@ function ZFlowAuxCreate(option)
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
+  nullify(aux%material_auxvars_pert)
   nullify(aux%matrix_zeroing)
 
   allocate(aux%zflow_parameter)
@@ -189,6 +193,7 @@ subroutine ZFlowAuxVarInit(auxvar,option)
   auxvar%conc = 0.d0
 
   auxvar%pert = 0.d0
+  auxvar%mat_pert = 0.d0
 
 end subroutine ZFlowAuxVarInit
 
@@ -247,7 +252,7 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
 
   type(option_type) :: option
   class(characteristic_curves_type) :: characteristic_curves
-  PetscReal :: x(1)
+  PetscReal :: x(:)
   type(zflow_auxvar_type) :: zflow_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
@@ -349,7 +354,9 @@ end subroutine ZFlowAuxVarCompute
 
 subroutine ZFlowAuxVarPerturb(x,zflow_auxvar,global_auxvar, &
                               material_auxvar, &
-                              characteristic_curves,natural_id, &
+                              material_auxvar_pert, &
+                              characteristic_curves, &
+                              natural_id, &
                               option)
   ! Calculates auxiliary variables for perturbed system
   !
@@ -369,9 +376,10 @@ subroutine ZFlowAuxVarPerturb(x,zflow_auxvar,global_auxvar, &
   type(zflow_auxvar_type) :: zflow_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar_pert(:)
   class(characteristic_curves_type) :: characteristic_curves
 
-  PetscInt :: idof
+  PetscInt :: idof, i
   PetscReal :: x_pert(ZFLOW_MAX_DOF), pert
 
   ! ZFLOW_UPDATE_FOR_DERIVATIVE indicates call from perturbation
@@ -386,6 +394,28 @@ subroutine ZFlowAuxVarPerturb(x,zflow_auxvar,global_auxvar, &
                             characteristic_curves,natural_id, &
                             PETSC_TRUE,option)
   enddo
+
+  if (zflow_calc_adjoint) then
+    idof = 1
+    call MaterialAuxVarCopy(material_auxvar,material_auxvar_pert(idof),option)
+    if (zflow_adjoint_parameter == ZFLOW_ADJOINT_POROSITY) then
+      pert = material_auxvar%porosity_base*zflow_rel_pert
+      material_auxvar_pert(idof)%porosity_base = &
+        material_auxvar_pert(idof)%porosity_base + pert
+    else if (zflow_adjoint_parameter == ZFLOW_ADJOINT_PERMEABILITY) then
+      pert = material_auxvar%permeability(1)*zflow_rel_pert
+      do i = 1, size(material_auxvar%permeability)
+        material_auxvar_pert(idof)%permeability(i) = &
+          material_auxvar_pert(idof)%permeability(i) + pert
+      enddo
+    endif
+    call ZFlowAuxVarCompute(x,zflow_auxvar(option%nflowdof+1), &
+                            global_auxvar, &
+                            material_auxvar_pert(idof), &
+                            characteristic_curves,natural_id, &
+                            PETSC_TRUE,option)
+    zflow_auxvar(ZERO_INTEGER)%mat_pert(idof) = pert
+  endif
 
 end subroutine ZFlowAuxVarPerturb
 
@@ -643,6 +673,34 @@ end subroutine ZFlowAuxVarArray2Destroy
 
 ! ************************************************************************** !
 
+subroutine ZFlowMaterialAuxVarDestroy(auxvars)
+  !
+  ! Deallocates material auxiliary object for zflow perturbation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/24/22
+  !
+
+  implicit none
+
+  class(material_auxvar_type), pointer :: auxvars(:,:)
+
+  PetscInt :: iaux, idof
+
+  if (associated(auxvars)) then
+    do iaux = 1, size(auxvars,2)
+      do idof = 1, size(auxvars,1)
+        call MaterialAuxVarStrip(auxvars(idof,iaux))
+      enddo
+    enddo
+    deallocate(auxvars)
+  endif
+  nullify(auxvars)
+
+end subroutine ZFlowMaterialAuxVarDestroy
+
+! ************************************************************************** !
+
 subroutine ZFlowAuxVarStrip(auxvar)
   !
   ! ZFlowAuxVarDestroy: Deallocates a general auxiliary object
@@ -680,6 +738,7 @@ subroutine ZFlowAuxDestroy(aux)
   call ZFlowAuxVarDestroy(aux%auxvars)
   call ZFlowAuxVarDestroy(aux%auxvars_bc)
   call ZFlowAuxVarDestroy(aux%auxvars_ss)
+  call ZFlowMaterialAuxVarDestroy(aux%material_auxvars_pert)
 
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 

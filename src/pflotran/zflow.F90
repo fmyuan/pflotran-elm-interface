@@ -135,6 +135,13 @@ subroutine ZFlowSetup(realization)
       zflow_min_pert(zflow_heat_tran_eq) = zflow_temp_min_pert
     if (zflow_sol_tran_eq > 0) &
       zflow_min_pert(zflow_sol_tran_eq) = zflow_conc_min_pert
+    allocate(patch%aux%ZFlow%material_auxvars_pert(ONE_INTEGER,grid%ngmax))
+    do ghosted_id = 1, grid%ngmax
+      call MaterialAuxVarInit(patch%aux%ZFlow% &
+            material_auxvars_pert(ONE_INTEGER,ghosted_id),option)
+    enddo
+  else
+    allocate(patch%aux%ZFlow%material_auxvars_pert(ZERO_INTEGER,grid%ngmax))
   endif
 
   ! ensure that material properties specific to this module are properly
@@ -189,7 +196,12 @@ subroutine ZFlowSetup(realization)
   enddo
 
   temp_int = 0
-  if (zflow_numerical_derivatives) temp_int = option%nflowdof
+  if (zflow_numerical_derivatives) then
+    temp_int = option%nflowdof
+    if (zflow_calc_adjoint) then
+      temp_int = temp_int + 1
+    endif
+  endif
   allocate(zflow_auxvars(0:temp_int,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, temp_int
@@ -737,6 +749,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars_pert(:,:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -789,6 +802,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
+  material_auxvars_pert => patch%aux%ZFlow%material_auxvars_pert
 
   store_adjoint = PETSC_FALSE
   MatdResdparam = PETSC_NULL_MAT
@@ -820,6 +834,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                               zflow_auxvars(:,ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
+                              material_auxvars_pert(:,ghosted_id), &
                               patch%characteristic_curves_array( &
                                 patch%cc_id(ghosted_id))%ptr, &
                               grid%nG2A(ghosted_id),option)
@@ -852,6 +867,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       call ZFlowAccumDerivative(zflow_auxvars(:,ghosted_id), &
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
+                                material_auxvars_pert(:,ghosted_id), &
                                 option,Res,Jup,dResdparam)
       call PetUtilVecSVBL(r_p,local_id,Res,ndof,PETSC_FALSE)
       call PetUtilVecSVBL(accum_p2,local_id,Res,ndof,PETSC_TRUE)
@@ -892,9 +908,11 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
         call XXFluxDerivative(zflow_auxvars(:,ghosted_id_up), &
                               global_auxvars(ghosted_id_up), &
                               material_auxvars(ghosted_id_up), &
+                              material_auxvars_pert(:,ghosted_id_up), &
                               zflow_auxvars(:,ghosted_id_dn), &
                               global_auxvars(ghosted_id_dn), &
                               material_auxvars(ghosted_id_dn), &
+                              material_auxvars_pert(:,ghosted_id_dn), &
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(:,iconn), &
                               zflow_parameter,option,v_darcy, &
@@ -967,6 +985,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                 zflow_auxvars(:,ghosted_id), &
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
+                                material_auxvars_pert(:,ghosted_id), &
                                 cur_connection_set%area(iconn), &
                                 cur_connection_set%dist(:,iconn), &
                                 zflow_parameter,option, &
@@ -1022,7 +1041,9 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
                                   zflow_auxvars(:,ghosted_id), &
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id), &
-                                  ss_flow_vol_flux,scale,Res,Jdn)
+                                  material_auxvars_pert(:,ghosted_id), &
+                                  ss_flow_vol_flux,scale,Res,Jdn, &
+                                  dResdparamdn)
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
       endif
