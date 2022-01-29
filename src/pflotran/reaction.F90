@@ -4373,7 +4373,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
-  type(isotherm_rxn_type) :: isotherm_rxn
+  type(isotherm_rxn_type), pointer :: isotherm_rxn
   type(option_type) :: option
   
   call RZeroSorb(rt_auxvar)
@@ -4393,8 +4393,8 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   endif
   
   if (reaction%isotherm%neqkdrxn > 0) then
-      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction%isotherm, &
-                        isotherm_rxn,option)
+      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
+                        reaction%isotherm,isotherm_rxn,option)
   endif
   
 end subroutine RTotalSorb
