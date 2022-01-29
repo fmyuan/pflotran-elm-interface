@@ -656,7 +656,6 @@ subroutine WIPPFloUpdateFixedAccum(realization)
     call WIPPFloAccumulation(wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
-                             material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              PETSC_FALSE)
     call WIPPFloConvertUnitsToBRAGFlo(accum_p(local_start:local_end), &
@@ -972,7 +971,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     call WIPPFloAccumulation(wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
-                             material_parameter%soil_heat_capacity(imat), &
                              option,Res,PETSC_FALSE)
     call WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvars(ghosted_id),option)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
@@ -1418,7 +1416,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
     call WIPPFloAccumDerivative(wippflo_auxvars(:,ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
-                              material_parameter%soil_heat_capacity(imat), &
                               option, &
                               Jup) 
     call WIPPFloConvertUnitsToBRAGFlo(Jup,material_auxvars(ghosted_id), &
