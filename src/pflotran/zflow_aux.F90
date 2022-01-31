@@ -4,7 +4,7 @@ module ZFlow_Aux_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Matrix_Zeroing_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -90,7 +90,7 @@ module ZFlow_Aux_module
     type(zflow_auxvar_type), pointer :: auxvars(:,:)
     type(zflow_auxvar_type), pointer :: auxvars_bc(:)
     type(zflow_auxvar_type), pointer :: auxvars_ss(:)
-    class(material_auxvar_type), pointer :: material_auxvars_pert(:,:)
+    type(material_auxvar_type), pointer :: material_auxvars_pert(:,:)
     type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type zflow_type
 
@@ -683,7 +683,7 @@ subroutine ZFlowMaterialAuxVarDestroy(auxvars)
 
   implicit none
 
-  class(material_auxvar_type), pointer :: auxvars(:,:)
+  type(material_auxvar_type), pointer :: auxvars(:,:)
 
   PetscInt :: iaux, idof
 

@@ -701,7 +701,7 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   PetscInt :: flow_src_sink_type
   type(zflow_auxvar_type) :: zflow_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux
   PetscReal :: scale
   PetscReal :: Res(ZFLOW_MAX_DOF)
@@ -1036,8 +1036,8 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   PetscInt :: flow_src_sink_type
   type(zflow_auxvar_type) :: zflow_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  class(material_auxvar_type) :: material_auxvar_pert(:)
+  type(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar_pert(:)
   PetscReal :: ss_flow_vol_flux
   PetscReal :: scale
   PetscReal :: Res(ZFLOW_MAX_DOF)
