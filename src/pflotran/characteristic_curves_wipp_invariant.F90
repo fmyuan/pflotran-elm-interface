@@ -1,9 +1,9 @@
-module characteristic_curves_WIPP_invariant_module
+module Characteristic_Curves_WIPP_Invariant_module
 #include "petsc/finclude/petscsys.h"
 
 use petscsys ! Necessary for PETSC_TRUE / PETSC_FALSE
-use option_module ! Necessary for characterisic curve base class arguments
-use characteristic_curves_base_module ! Needed to define base type
+use Option_module ! Necessary for characterisic curve base class arguments
+use Characteristic_Curves_Base_module ! Needed to define base type
 implicit none
 
 ! **************************************************************************** !
@@ -1027,4 +1027,4 @@ end subroutine
 
 ! **************************************************************************** !
 
-end module
+end module Characteristic_Curves_WIPP_Invariant_module

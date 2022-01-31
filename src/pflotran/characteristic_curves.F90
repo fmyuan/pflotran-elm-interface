@@ -7,7 +7,7 @@ module Characteristic_Curves_module
   use Characteristic_Curves_Common_module
   use Characteristic_Curves_WIPP_module
   use Characteristic_Curves_loop_invariant_module
-  use Characteristic_Curves_WIPP_invariant_module
+  use Characteristic_Curves_WIPP_Invariant_module
 
   implicit none
 
