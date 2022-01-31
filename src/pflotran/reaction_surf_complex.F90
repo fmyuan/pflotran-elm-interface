@@ -7,7 +7,7 @@ module Reaction_Surface_Complexation_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   use PFLOTRAN_Constants_module
 
@@ -473,7 +473,7 @@ subroutine RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
@@ -537,7 +537,7 @@ subroutine RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
@@ -598,7 +598,7 @@ subroutine RMultiRateSorption(Res,Jac,compute_derivative,rt_auxvar, &
   PetscBool :: compute_derivative
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -695,7 +695,7 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscInt :: irxn
@@ -962,14 +962,14 @@ subroutine RKineticSurfCplx(Res,Jac,compute_derivative,rt_auxvar, &
   ! 
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
   PetscBool :: compute_derivative
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)

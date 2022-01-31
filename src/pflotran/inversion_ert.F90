@@ -839,14 +839,14 @@ subroutine InvERTEvaluateCostFunction(this)
 
   use Option_module
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Survey_module
 
   implicit none
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(survey_type), pointer :: survey
@@ -1231,7 +1231,7 @@ subroutine InversionERTCGLSRhs(this)
   !
 
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   use Survey_module
 
@@ -1239,7 +1239,7 @@ subroutine InversionERTCGLSRhs(this)
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(survey_type), pointer :: survey
@@ -1334,14 +1334,14 @@ subroutine InversionERTBuildWm(this)
 
   use Patch_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid

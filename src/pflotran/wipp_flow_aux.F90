@@ -281,7 +281,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   use Characteristic_Curves_module
   use Characteristic_Curves_WIPP_module
   use Characteristic_Curves_WIPP_invariant_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Creep_Closure_module
   use Fracture_module
   use Klinkenberg_module
@@ -296,7 +296,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   PetscReal :: x(option%nflowdof)
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(creep_closure_type), pointer :: creep_closure
   PetscInt :: natural_id
 
@@ -538,7 +538,7 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
   use Option_module
   use Characteristic_Curves_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -546,7 +546,7 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
   PetscInt :: natural_id
   type(wippflo_auxvar_type) :: wippflo_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
      
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
@@ -623,14 +623,14 @@ subroutine WIPPFloScalePerm(wippflo_auxvar,material_auxvar,perm,ivar)
   ! Author: Glenn Hammond
   ! Date: 08/29/17
   ! 
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module, only : GAS_PERMEABILITY, GAS_PERMEABILITY_X, &
                                GAS_PERMEABILITY_Y, GAS_PERMEABILITY_Z
 
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: perm
   PetscInt :: ivar
 
@@ -662,14 +662,14 @@ subroutine WIPPFloPrintAuxVars(wippflo_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: string
   type(option_type) :: option
@@ -737,14 +737,14 @@ subroutine WIPPFloOutputAuxVars1(wippflo_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: string
   PetscBool :: append
@@ -1006,13 +1006,13 @@ subroutine WIPPFloConvertUnitsToBRAGFloRes(Res,material_auxvar,option)
   ! Date: 11/16/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof)
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   if (wippflo_use_bragflo_units) then
     Res = Res * fmw_comp * option%flow_dt / material_auxvar%volume
@@ -1031,13 +1031,13 @@ subroutine WIPPFloConvertUnitsToBRAGFloJac(Jac,material_auxvar,option)
   ! Date: 11/16/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(option_type) :: option
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscInt :: irow
 

@@ -542,7 +542,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
 
   use Option_module
   use Reaction_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -555,7 +555,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: L_water
@@ -895,7 +895,7 @@ subroutine CyberUpdateKineticState(this,rt_auxvar,global_auxvar, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -904,7 +904,7 @@ subroutine CyberUpdateKineticState(this,rt_auxvar,global_auxvar, &
   class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscInt :: i, irate, icum 
 

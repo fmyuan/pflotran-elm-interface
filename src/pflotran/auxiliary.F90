@@ -11,7 +11,7 @@ module Auxiliary_module
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use ERT_Aux_module
   use ZFlow_Aux_module
   use PNF_Aux_module

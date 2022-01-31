@@ -151,7 +151,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   use Reactive_Transport_Aux_module
   use Reactive_Transport_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_Aux_module
   use Reaction_module
   use PM_RT_class
@@ -176,7 +176,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   class(timestepper_KSP_type), pointer :: timestepper
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   PetscInt, parameter :: iphase = 1

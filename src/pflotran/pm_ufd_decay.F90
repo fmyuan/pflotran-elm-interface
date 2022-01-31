@@ -1037,7 +1037,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   use Field_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Utility_module
   
   implicit none
@@ -1129,7 +1129,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   type(field_type), pointer :: field
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat

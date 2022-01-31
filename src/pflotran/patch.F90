@@ -4017,7 +4017,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   use Connection_module
   use Condition_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
@@ -4042,7 +4042,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   PetscInt, parameter :: x_width = 1, y_width = 1, z_width = 0
   PetscInt :: ghosted_neighbors(27)
   PetscBool :: inactive_found
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   field => patch%field
   grid => patch%grid
@@ -4071,10 +4071,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         ghosted_id = grid%nL2G(local_id)
         if (patch%imat(ghosted_id) <= 0) inactive_found = PETSC_TRUE
         vec_ptr(local_id) = vec_ptr(local_id) + &
-          ! this function protects from error in gfortran compiler when indexing
-          ! the permeability array
-          MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
-                                 PERMEABILITY_X) * &
+          material_auxvars(ghosted_id)%permeability(perm_xx_index) * &
           material_auxvars(ghosted_id)%volume
       enddo
     case(SCALE_BY_NEIGHBOR_PERM)
@@ -4465,7 +4462,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
   use NWT_Equilibrium_module
   use Reaction_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
   use Transport_Constraint_RT_module
@@ -4483,7 +4480,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
-  class(material_auxvar_type), allocatable :: material_auxvar
+  type(material_auxvar_type), allocatable :: material_auxvar
   type(coupler_type), pointer :: cur_coupler
   class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   class(reaction_rt_type), pointer :: reaction
@@ -4721,7 +4718,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use ZFlow_Aux_module
   use Output_Aux_module
   use Variables_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_Base_module
 
   implicit none
@@ -4739,7 +4736,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
 
   PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
   PetscReal :: xmass, lnQKgas, ehfac, eh0, pe0, ph0, tk
@@ -6268,7 +6265,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                  GAS_STATE, LIQUID_STATE
   use WIPP_Flow_Aux_module, only : WIPPFloScalePerm
   use ZFlow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -6278,7 +6275,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: ivar
   PetscInt :: isubvar
@@ -7202,7 +7199,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   use Variables_module
   use General_Aux_module
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -7217,7 +7214,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
 
   PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
   PetscErrorCode :: ierr
 
@@ -8027,7 +8024,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1, &
   use Coupler_module
   use Field_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -8040,7 +8037,7 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1, &
   type(field_type), pointer :: field
   type(coupler_type), pointer :: boundary_condition
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
@@ -8397,7 +8394,7 @@ subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
   use Option_module
   use Connection_module
   use Geometry_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_XZ, PERMEABILITY_YZ
@@ -8407,7 +8404,7 @@ subroutine PatchGetKOrthogonalityError(grid, material_auxvars, error)
   implicit none
 
   type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal, pointer :: error(:)
   class (connection_set_type), pointer :: cur_connection_set
 
@@ -9103,7 +9100,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   ! Date: 09/20/2016
   !
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
   use Option_module
 
@@ -9116,7 +9113,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   PetscReal :: global_water_mass
 
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: m3_water, kg_water
   PetscInt :: k, j, m
   PetscInt :: local_id, ghosted_id

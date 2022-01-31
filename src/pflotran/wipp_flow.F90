@@ -46,7 +46,7 @@ subroutine WIPPFloSetup(realization)
   use Coupler_module
   use Connection_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Output_Aux_module
   use Characteristic_Curves_module
   use WIPP_Characteristic_Curve_module
@@ -72,7 +72,7 @@ subroutine WIPPFloSetup(realization)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(characteristic_curves_type), pointer :: cc
   
   option => realization%option
@@ -274,7 +274,7 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
  
   implicit none
   
@@ -286,7 +286,7 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id
@@ -434,7 +434,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
   use Coupler_module
   use Connection_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
   
   implicit none
@@ -450,7 +450,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)  
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)  
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
@@ -600,7 +600,7 @@ subroutine WIPPFloUpdateFixedAccum(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
   
@@ -612,7 +612,7 @@ subroutine WIPPFloUpdateFixedAccum(realization)
   type(field_type), pointer :: field
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
@@ -842,7 +842,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   use Connection_module
   use Grid_module
   use Coupler_module
-  use Material_Aux_class
+  use Material_Aux_module
   use PM_WIPP_SrcSink_class
   use Upwind_Direction_module
 
@@ -871,7 +871,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt, pointer :: upwind_direction(:,:)
@@ -1316,7 +1316,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   use Connection_module
   use Coupler_module
   use Field_module
-  use Material_Aux_class
+  use Material_Aux_module
   use PM_WIPP_SrcSink_class
   use Upwind_Direction_module
   use Debug_module
@@ -1362,7 +1362,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt, pointer :: upwind_direction(:,:)
   PetscInt, pointer :: upwind_direction_bc(:,:)
   
@@ -1780,7 +1780,7 @@ subroutine WIPPFloCreepShutDown(realization)
   use Option_module
   use WIPP_module
   use Creep_Closure_module
-  use Material_Aux_class, only: material_auxvar_type, MaterialAuxVarSetValue
+  use Material_Aux_module, only: material_auxvar_type, MaterialAuxVarSetValue
   use Variables_module, only : SOIL_REFERENCE_PRESSURE
   
   implicit none
@@ -1790,7 +1790,7 @@ subroutine WIPPFloCreepShutDown(realization)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(creep_closure_type), pointer :: creep_closure
   PetscInt :: ghosted_id
   PetscInt :: creep_closure_id
@@ -1839,7 +1839,7 @@ subroutine WIPPFloSSSandbox(residual,Jacobian,compute_derivative, &
   use petscmat
   use Option_module
   use Grid_module
-  use Material_Aux_class, only: material_auxvar_type
+  use Material_Aux_module, only: material_auxvar_type
   use SrcSink_Sandbox_module
   use SrcSink_Sandbox_Base_class
   
@@ -1848,7 +1848,7 @@ subroutine WIPPFloSSSandbox(residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   
   type(grid_type) :: grid

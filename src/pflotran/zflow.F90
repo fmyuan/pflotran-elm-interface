@@ -43,7 +43,7 @@ subroutine ZFlowSetup(realization)
   use Coupler_module
   use Connection_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Output_Aux_module
   use Characteristic_Curves_module
   use Matrix_Zeroing_module
@@ -68,7 +68,7 @@ subroutine ZFlowSetup(realization)
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_bc(:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   option => realization%option
   patch => realization%patch
@@ -249,7 +249,7 @@ subroutine ZFlowComputeMassBalance(realization,mass_balance)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -261,7 +261,7 @@ subroutine ZFlowComputeMassBalance(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id
@@ -394,7 +394,7 @@ subroutine ZFlowUpdateAuxVars(realization)
   use Coupler_module
   use Connection_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
 
   implicit none
@@ -410,7 +410,7 @@ subroutine ZFlowUpdateAuxVars(realization)
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn, natural_id
   PetscReal, pointer :: xx_loc_p(:)
@@ -511,7 +511,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -523,7 +523,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
   type(field_type), pointer :: field
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
@@ -605,7 +605,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   use Connection_module
   use Grid_module
   use Coupler_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
 
   implicit none
@@ -633,7 +633,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
 

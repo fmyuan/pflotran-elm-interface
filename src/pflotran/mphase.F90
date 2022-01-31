@@ -367,7 +367,7 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 ! use Saturation_Function_module
 ! use Mphase_pckr_module
  
@@ -384,7 +384,7 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(mphase_auxvar_type), pointer :: mphase_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id
@@ -1277,7 +1277,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   use Field_module
   use Grid_module
   use Secondary_Continuum_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
   
@@ -1291,7 +1291,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   type(mphase_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)  
+  type(material_auxvar_type), pointer :: material_auxvars(:)  
   
   PetscInt :: ghosted_id, local_id, istart, iend !, iphase
   PetscReal, pointer :: xx_p(:)
@@ -2481,7 +2481,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -2527,7 +2527,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)  
+  type(material_auxvar_type), pointer :: material_auxvars(:)  
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(connection_set_list_type), pointer :: connection_set_list
@@ -2858,7 +2858,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       D_dn = mphase_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
-      call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id), &
                             cur_connection_set%dist(:,iconn),perm_dn)
       ! dist(0,iconn) = scalar - magnitude of distance
       ! gravity = vector(3)
@@ -2991,10 +2991,10 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       upweight = dd_dn/(dd_up+dd_dn)
         
       ! for now, just assume diagonal tensor
-      call material_auxvars(ghosted_id_up)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_up)
-      call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_dn)
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id_up), &
+                                      cur_connection_set%dist(:,iconn),perm_up)
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id_dn), &
+                                      cur_connection_set%dist(:,iconn),perm_dn)
 
       icct_up = patch%cct_id(ghosted_id_up)
       icct_dn = patch%cct_id(ghosted_id_dn)
@@ -3198,7 +3198,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -3255,7 +3255,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   type(mphase_parameter_type), pointer :: mphase_parameter
   type(mphase_auxvar_type), pointer :: auxvars(:), auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   
   type(sec_heat_type), pointer :: sec_heat_vars(:)
   
@@ -3443,8 +3443,8 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       
  
       ! for now, just assume diagonal tensor
-      call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_dn)
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id), &
+                                      cur_connection_set%dist(:,iconn),perm_dn)
       ! dist(0,iconn) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3,iconn) = vector(3) - unit vector
@@ -3613,9 +3613,9 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       upweight = dd_dn/(dd_up+dd_dn)
     
       ! for now, just assume diagonal tensor
-      call material_auxvars(ghosted_id_up)%PermeabilityTensorToScalar( &
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id_up), &
                             cur_connection_set%dist(:,iconn),perm_up)
-      call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id_dn), &
                             cur_connection_set%dist(:,iconn),perm_dn)
     
       iphas_up = global_auxvars(ghosted_id_up)%istate

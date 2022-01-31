@@ -287,13 +287,13 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
   use Option_module
    
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(isotherm_type) :: isotherm
   type(isotherm_rxn_type) :: isotherm_rxn
   type(option_type) :: option

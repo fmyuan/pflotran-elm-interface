@@ -200,7 +200,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -209,7 +209,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: x(option%nflowdof)
   type(richards_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   PetscBool :: update_porosity
   
@@ -384,7 +384,7 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -392,7 +392,7 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   class(characteristic_curves_type) :: characteristic_curves
   type(richards_auxvar_type) :: rich_auxvar, rich_auxvar_pert
   type(global_auxvar_type) :: global_auxvar, global_auxvar_pert
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(material_auxvar_type) :: material_auxvar_pert
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), pert
   PetscInt :: ideriv

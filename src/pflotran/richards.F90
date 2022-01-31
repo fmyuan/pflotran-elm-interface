@@ -5,7 +5,7 @@ module Richards_module
   use Richards_Aux_module
   use Richards_Common_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use InlineSurface_Aux_module
   use InlineSurface_module
 #ifdef BUFFER_MATRIX
@@ -139,7 +139,7 @@ subroutine RichardsSetupPatch(realization)
   PetscReal :: tempreal
   PetscErrorCode :: ierr
   type(material_parameter_type), pointer :: material_parameter
-  class(material_auxvar_type), pointer :: material_auxvars(:)  
+  type(material_auxvar_type), pointer :: material_auxvars(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars_bc(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars_ss(:)  
@@ -404,7 +404,7 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: inlinesurface_auxvars(:)
   type(region_type), pointer :: region
   
@@ -580,7 +580,7 @@ subroutine RichardsUpdatePermPatch(realization)
   use Patch_module
   use Field_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module
   
   implicit none
@@ -593,7 +593,7 @@ subroutine RichardsUpdatePermPatch(realization)
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(discretization_type), pointer :: discretization
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
   PetscReal :: scale
@@ -639,19 +639,12 @@ subroutine RichardsUpdatePermPatch(realization)
         scale = permfactor_max
       endif
     endif
-    !geh: this is a kludge for gfortran.  the code reports errors when 
-    !     material_auxvars(ghosted_id)%permeability is used.
-    ! Not an issue with Intel
-    perm_ptr => material_auxvars(ghosted_id)%permeability
-    perm_ptr(perm_xx_index) = perm0_xx_p(local_id)*scale
-    perm_ptr(perm_yy_index) = perm0_yy_p(local_id)*scale
-    perm_ptr(perm_zz_index) = perm0_zz_p(local_id)*scale
-!    material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
-!      perm0_xx_p(local_id)*scale
-!    material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
-!      perm0_yy_p(local_id)*scale
-!    material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
-!      perm0_zz_p(local_id)*scale
+    material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
+      perm0_xx_p(local_id)*scale
+    material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
+      perm0_yy_p(local_id)*scale
+    material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
+      perm0_zz_p(local_id)*scale
   enddo
   
   call VecRestoreArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
@@ -739,7 +732,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)  
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)  
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, region_id
   PetscInt :: iphasebc, iphase, i, istart, iend
   PetscReal, pointer :: xx_loc_p(:)
@@ -1067,7 +1060,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   type(region_type), pointer :: region
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id
   PetscInt :: numfaces, jface, ghost_face_id, j, region_id
@@ -1248,7 +1241,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   use Option_module
   use Logging_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module
   use Debug_module
 
@@ -1366,7 +1359,7 @@ subroutine RichardsUpdateLocalVecs(xx,realization,ierr)
   use Option_module
   use Logging_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module
   use Debug_module
 
@@ -1443,7 +1436,7 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: insurf_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
@@ -1613,7 +1606,7 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -1776,7 +1769,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   type(field_type), pointer :: field
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -1980,7 +1973,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   type(region_type), pointer :: region
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: inlinesurface_auxvars(:)
   
   PetscInt :: local_id, ghosted_id, region_id
@@ -2170,7 +2163,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Region_module
   
   implicit none
@@ -2202,7 +2195,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: insurf_auxvars(:)
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -2406,7 +2399,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Region_module
   
   implicit none
@@ -2438,7 +2431,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_bc(:) 
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -2609,7 +2602,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
   type(region_type), pointer :: region
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: inlinesurface_auxvars(:)
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
@@ -2728,7 +2721,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   type(field_type), pointer :: field 
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: flow_pc
   PetscViewer :: viewer
   PetscReal, pointer :: mmsrc(:)
@@ -3004,7 +2997,7 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   use petscmat
   use Option_module
   use Grid_module
-  use Material_Aux_class, only: material_auxvar_type
+  use Material_Aux_module, only: material_auxvar_type
   use SrcSink_Sandbox_module
   use SrcSink_Sandbox_Base_class
   
@@ -3013,7 +3006,7 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(grid_type) :: grid

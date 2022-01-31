@@ -5,7 +5,7 @@ module Material_module
   use Dataset_Base_class
 
   use PFLOTRAN_Constants_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Fracture_module
   use Geomechanics_Subsurface_Properties_module
   use Utility_module, only : Equal
@@ -1489,7 +1489,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   !
-  use Material_Aux_class
+  use Material_Aux_module
   use String_module
   use Option_module
 
@@ -1632,13 +1632,13 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   !
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   use Fracture_module
 
   implicit none
 
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(material_property_type) :: material_property
   type(option_type) :: option
 
@@ -1698,71 +1698,69 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
   PetscInt :: isubvar
 
   PetscInt :: i
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
-!  material_auxvars => Material%auxvars
-!geh: can't use this pointer as gfortran does not like it.  Must use
-!     Material%auxvars%....
+  material_auxvars => Material%auxvars
 
   select case(ivar)
     case(VOLUME)
       do i=1, Material%num_aux
-        Material%auxvars(i)%volume = value
+        material_auxvars(i)%volume = value
       enddo
     case(POROSITY)
       select case(isubvar)
         case(POROSITY_CURRENT)
           do i=1, Material%num_aux
-            Material%auxvars(i)%porosity = value
+            material_auxvars(i)%porosity = value
           enddo
         case(POROSITY_BASE)
           do i=1, Material%num_aux
-            Material%auxvars(i)%porosity_base = value
+            material_auxvars(i)%porosity_base = value
           enddo
         case(POROSITY_INITIAL)
           do i=1, Material%num_aux
-            Material%auxvars(i)%porosity_0 = value
+            material_auxvars(i)%porosity_0 = value
           enddo
       end select
     case(TORTUOSITY)
       do i=1, Material%num_aux
-        Material%auxvars(i)%tortuosity = value
+        material_auxvars(i)%tortuosity = value
       enddo
     case(EPSILON)
       do i=1, Material%num_aux
-        Material%auxvars(i)%epsilon = value
+        material_auxvars(i)%epsilon = value
       enddo
     case(PERMEABILITY)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(:) = value
+        material_auxvars(i)%permeability(:) = value
       enddo
     case(PERMEABILITY_X)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_xx_index) = value
+        material_auxvars(i)%permeability(perm_xx_index) = value
       enddo
     case(PERMEABILITY_Y)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_yy_index) = value
+        material_auxvars(i)%permeability(perm_yy_index) = value
       enddo
     case(PERMEABILITY_Z)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_zz_index) = value
+        material_auxvars(i)%permeability(perm_zz_index) = value
       enddo
     case(PERMEABILITY_XY)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_xy_index) = value
+        material_auxvars(i)%permeability(perm_xy_index) = value
       enddo
     case(PERMEABILITY_YZ)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_yz_index) = value
+        material_auxvars(i)%permeability(perm_yz_index) = value
       enddo
     case(PERMEABILITY_XZ)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_xz_index) = value
+        material_auxvars(i)%permeability(perm_xz_index) = value
       enddo
     case(ELECTRICAL_CONDUCTIVITY)
       do i=1, Material%num_aux
-        Material%auxvars(i)%electrical_conductivity(1) = value
+        material_auxvars(i)%electrical_conductivity(1) = value
       enddo
   end select
 
@@ -1789,42 +1787,40 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
 
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscErrorCode :: ierr
 
-!  material_auxvars => Material%auxvars
-!geh: can't use this pointer as gfortran does not like it.  Must use
-!     Material%auxvars%....
+  material_auxvars => Material%auxvars
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(SOIL_COMPRESSIBILITY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)% &
+        material_auxvars(ghosted_id)% &
           soil_properties(soil_compressibility_index) = vec_loc_p(ghosted_id)
       enddo
     case(SOIL_REFERENCE_PRESSURE)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)% &
+        material_auxvars(ghosted_id)% &
           soil_properties(soil_reference_pressure_index) = vec_loc_p(ghosted_id)
       enddo
     case(VOLUME)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%volume = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%volume = vec_loc_p(ghosted_id)
       enddo
     case(POROSITY)
       select case(isubvar)
         case(POROSITY_CURRENT)
           do ghosted_id=1, Material%num_aux
-            Material%auxvars(ghosted_id)%porosity = vec_loc_p(ghosted_id)
+            material_auxvars(ghosted_id)%porosity = vec_loc_p(ghosted_id)
           enddo
         case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
-            Material%auxvars(ghosted_id)%porosity_base = vec_loc_p(ghosted_id)
+            material_auxvars(ghosted_id)%porosity_base = vec_loc_p(ghosted_id)
           enddo
         case(POROSITY_INITIAL)
           do ghosted_id=1, Material%num_aux
-            Material%auxvars(ghosted_id)%porosity_0 = vec_loc_p(ghosted_id)
+            material_auxvars(ghosted_id)%porosity_0 = vec_loc_p(ghosted_id)
           enddo
         case default
           print *, 'Error indexing porosity in MaterialSetAuxVarVecLoc()'
@@ -1832,49 +1828,49 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       end select      
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%tortuosity = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%tortuosity = vec_loc_p(ghosted_id)
       enddo
     case(EPSILON)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%epsilon = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%epsilon = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_X)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_xx_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_Y)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_yy_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_Z)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_zz_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_XY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_xy_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_xy_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_YZ)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_yz_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_yz_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_XZ)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_xz_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_xz_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(ELECTRICAL_CONDUCTIVITY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%electrical_conductivity(1) = &
+        material_auxvars(ghosted_id)%electrical_conductivity(1) = &
           vec_loc_p(ghosted_id)
       enddo
   end select
@@ -1903,19 +1899,17 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
 
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscErrorCode :: ierr
 
-!  material_auxvars => Material%auxvars
-!geh: can't use this pointer as gfortran does not like it.  Must use
-!     Material%auxvars%....
+  material_auxvars => Material%auxvars
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(SOIL_COMPRESSIBILITY)
       if (soil_compressibility_index > 0) then
         do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)% &
+          vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)% &
                                      soil_properties(soil_compressibility_index)
         enddo
       else
@@ -1924,7 +1918,7 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
     case(SOIL_REFERENCE_PRESSURE)
       if (soil_reference_pressure_index > 0) then
         do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)% &
+          vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)% &
                                   soil_properties(soil_reference_pressure_index)
         enddo
       else
@@ -1932,22 +1926,22 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       endif
     case(VOLUME)
       do ghosted_id=1, Material%num_aux
-        vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%volume
+        vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%volume
       enddo
     case(POROSITY)
       select case(isubvar)
         case(POROSITY_CURRENT)
           do ghosted_id=1, Material%num_aux
             vec_loc_p(ghosted_id) = &
-              Material%auxvars(ghosted_id)%porosity
+              material_auxvars(ghosted_id)%porosity
           enddo
         case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
-            vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_base
+            vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%porosity_base
           enddo
         case(POROSITY_INITIAL)
           do ghosted_id=1, Material%num_aux
-            vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_0
+            vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%porosity_0
           enddo
         case default
           print *, 'Error indexing porosity in MaterialGetAuxVarVecLoc()'
@@ -1955,42 +1949,42 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
-        vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%tortuosity
+        vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%tortuosity
       enddo
     case(PERMEABILITY_X,PERMEABILITY)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_xx_index)
+          material_auxvars(ghosted_id)%permeability(perm_xx_index)
       enddo
     case(PERMEABILITY_Y)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_yy_index)
+          material_auxvars(ghosted_id)%permeability(perm_yy_index)
       enddo
     case(PERMEABILITY_Z)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_zz_index)
+          material_auxvars(ghosted_id)%permeability(perm_zz_index)
       enddo
     case(PERMEABILITY_XY)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_xy_index)
+          material_auxvars(ghosted_id)%permeability(perm_xy_index)
       enddo
     case(PERMEABILITY_YZ)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_yz_index)
+          material_auxvars(ghosted_id)%permeability(perm_yz_index)
       enddo
     case(PERMEABILITY_XZ)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_xz_index)
+          material_auxvars(ghosted_id)%permeability(perm_xz_index)
       enddo
     case(ELECTRICAL_CONDUCTIVITY)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%electrical_conductivity(1)
+          material_auxvars(ghosted_id)%electrical_conductivity(1)
       enddo
   end select
 
@@ -2022,9 +2016,6 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
 
   PetscErrorCode :: ierr
 
-!  material_auxvars => Material%auxvars
-!geh: can't use this pointer as gfortran does not like it.  Must use
-!     Material%auxvars%....
   call VecCopy(field%porosity_t,field%work,ierr)
   call VecAXPBY(field%work,weight,1.d0-weight, &
                 field%porosity_tpdt,ierr);CHKERRQ(ierr)
@@ -2148,7 +2139,7 @@ subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
   Vec :: porosity_loc
 
   PetscReal, pointer :: porosity_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id
   PetscReal :: compressed_porosity
   PetscReal :: dcompressed_porosity_dp

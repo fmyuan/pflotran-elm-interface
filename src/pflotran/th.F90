@@ -4,7 +4,7 @@ module TH_module
   use petscsnes
   use TH_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
   
@@ -513,7 +513,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class, only : material_auxvar_type, &
+  use Material_Aux_module, only : material_auxvar_type, &
                                  soil_compressibility_index, &
                                  MaterialCompressSoil
  
@@ -527,7 +527,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(TH_auxvar_type),pointer :: TH_auxvars(:)
 
   PetscErrorCode :: ierr
@@ -745,7 +745,7 @@ subroutine THUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(th_parameter_type), pointer :: th_parameter
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
@@ -1141,7 +1141,7 @@ subroutine THUpdateFixedAccumPatch(realization)
   type(TH_auxvar_type), pointer :: TH_auxvars(:)
   type(th_parameter_type), pointer :: th_parameter
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, iphase
   PetscReal, pointer :: xx_p(:)
@@ -1336,7 +1336,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
   use Saturation_Function_module
-  use Material_Aux_class, only : material_auxvar_type, &
+  use Material_Aux_module, only : material_auxvar_type, &
                                  soil_compressibility_index, &
                                  MaterialCompressSoil
   use EOS_Water_module
@@ -1345,7 +1345,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
   type(TH_auxvar_type) :: TH_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: vol,por,rock_dencpr
   type(th_parameter_type) :: th_parameter
@@ -1567,7 +1567,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
   ! 
 
   use Option_module
-  use Material_Aux_class, only : material_auxvar_type, &
+  use Material_Aux_module, only : material_auxvar_type, &
                                  soil_compressibility_index, &
                                  MaterialCompressSoil
   use EOS_Water_module
@@ -1576,7 +1576,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
 
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: Res(1:option%nflowdof) 
   PetscReal ::rock_dencpr,por1
@@ -1667,7 +1667,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   
   type(TH_auxvar_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: sir_up, sir_dn
   PetscReal :: dd_up, dd_dn
@@ -1722,7 +1722,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: res_pert_dn(option%nflowdof)
   PetscReal :: J_pert_up(option%nflowdof,option%nflowdof)
   PetscReal :: J_pert_dn(option%nflowdof,option%nflowdof)
-  class(material_auxvar_type), allocatable :: material_auxvar_pert_dn, &
+  type(material_auxvar_type), allocatable :: material_auxvar_pert_dn, &
                                               material_auxvar_pert_up
 
   ! ice variables
@@ -1753,8 +1753,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_up,dist,perm_up)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
 
   por_up = material_auxvar_up%porosity_base
   por_dn = material_auxvar_dn%porosity_base
@@ -2325,7 +2325,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   
   type(TH_auxvar_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   class(cc_thermal_type), pointer :: tcc_up, tcc_dn
   type(option_type) :: option
   PetscReal :: sir_up, sir_dn
@@ -2368,8 +2368,8 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
      
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_up,dist,perm_up)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
 
   por_up = material_auxvar_up%porosity_base
   por_dn = material_auxvar_dn%porosity_base
@@ -2581,7 +2581,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscInt :: ibndtype(:)
   type(TH_auxvar_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
 
   PetscReal :: sir_dn
@@ -2625,7 +2625,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscInt :: iphase, ideriv
   type(TH_auxvar_type) :: auxvar_pert_dn, auxvar_pert_up
   type(global_auxvar_type) :: global_auxvar_pert_dn, global_auxvar_pert_up
-  class(material_auxvar_type), allocatable :: material_auxvar_pert_dn, &
+  type(material_auxvar_type), allocatable :: material_auxvar_pert_dn, &
                                               material_auxvar_pert_up
 
   PetscReal :: perturbation
@@ -2689,7 +2689,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
   dd_dn = dist(0)
 
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
   por_dn = material_auxvar_dn%porosity_base
   tor_dn = material_auxvar_dn%tortuosity
 
@@ -3230,7 +3230,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscInt :: ibndtype(:)
   type(TH_auxvar_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   class(cc_thermal_type), pointer :: tcc_dn
   type(option_type) :: option
   PetscReal :: sir_dn
@@ -3286,7 +3286,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
   dd_dn = dist(0)
 
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
   por_dn = material_auxvar_dn%porosity_base
   tor_dn = material_auxvar_dn%tortuosity
 
@@ -3695,7 +3695,7 @@ subroutine THUpdateLocalVecs(xx,realization,ierr)
   use Option_module
   use Logging_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module
   use Debug_module
 
@@ -3799,7 +3799,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
   type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set  
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
@@ -4004,7 +4004,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set  
@@ -4165,7 +4165,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
   type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -4314,7 +4314,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set  
@@ -4669,7 +4669,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(saturation_function_type), pointer :: sf_up
   type(saturation_function_type), pointer :: sf_dn
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
@@ -4902,7 +4902,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars_bc(:), auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(saturation_function_type), pointer :: sf_dn
   class(characteristic_curves_type), pointer :: cc_dn
   class(cc_thermal_type), pointer :: tcc_dn
@@ -5066,7 +5066,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   type(saturation_function_type), pointer :: sat_func, sf_up, sf_dn
   class(characteristic_curves_type), pointer :: characteristic_curves, cc_up, cc_dn
@@ -5233,7 +5233,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   type(th_parameter_type), pointer :: th_parameter
   type(TH_auxvar_type), pointer :: auxvars(:), auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: icct
@@ -5620,7 +5620,7 @@ subroutine THSetPlotVariables(realization,list)
   use Realization_Subsurface_class
   use Output_Aux_module
   use Variables_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none

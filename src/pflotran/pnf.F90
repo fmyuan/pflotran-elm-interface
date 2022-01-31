@@ -39,7 +39,7 @@ subroutine PNFSetup(realization)
   use Coupler_module
   use Connection_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Output_Aux_module
   use Characteristic_Curves_module
   use Matrix_Zeroing_module
@@ -61,7 +61,7 @@ subroutine PNFSetup(realization)
   type(pnf_auxvar_type), pointer :: pnf_auxvars(:)
   type(pnf_auxvar_type), pointer :: pnf_auxvars_bc(:)
   type(pnf_auxvar_type), pointer :: pnf_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   option => realization%option
   patch => realization%patch
@@ -192,7 +192,7 @@ subroutine PNFComputeMassBalance(realization,mass_balance)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -306,7 +306,7 @@ subroutine PNFUpdateAuxVars(realization)
   use Coupler_module
   use Connection_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
 
   implicit none
@@ -322,7 +322,7 @@ subroutine PNFUpdateAuxVars(realization)
   type(pnf_auxvar_type), pointer :: pnf_auxvars(:)
   type(pnf_auxvar_type), pointer :: pnf_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn, natural_id
   PetscReal, pointer :: xx_loc_p(:)

@@ -8,7 +8,7 @@ module Reactive_Transport_module
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   use PFLOTRAN_Constants_module
 
@@ -102,7 +102,7 @@ subroutine RTSetup(realization)
   use Transport_Constraint_RT_module
   use Fluid_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
   !      resolves a bug in the Intel Visual Fortran compiler.
@@ -128,7 +128,7 @@ subroutine RTSetup(realization)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   type(coupler_type), pointer :: initial_condition
   class(tran_constraint_rt_type), pointer :: sec_tran_constraint
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(reactive_transport_param_type), pointer :: rt_parameter
   type(generic_parameter_type), pointer :: cur_generic_parameter
@@ -442,7 +442,7 @@ subroutine RTComputeMassBalance(realization,num_cells,max_size,sum_mol,cell_ids)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
 
   PetscReal :: sum_mol_tot(max_size)
@@ -852,7 +852,7 @@ subroutine RTUpdateKineticState(realization)
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscInt :: ghosted_id, local_id
   PetscReal :: conc, max_conc, min_conc
@@ -929,7 +929,7 @@ subroutine RTUpdateFixedAccumulation(realization)
   
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)  
+  type(material_auxvar_type), pointer :: material_auxvars(:)  
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1053,7 +1053,7 @@ subroutine RTUpdateTransportCoefs(realization)
   
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1244,7 +1244,7 @@ subroutine RTUpdateRHSCoefs(realization)
   type(realization_subsurface_type) :: realization
   
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1620,7 +1620,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
   
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1862,7 +1862,7 @@ subroutine RTReact(realization)
   
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -2728,7 +2728,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:) 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: Res(realization%reaction%ncomp)
   
   type(coupler_type), pointer :: source_sink
@@ -3534,7 +3534,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
     
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: Jup(realization%reaction%ncomp,realization%reaction%ncomp)
   PetscReal :: Res(realization%reaction%ncomp)    
   
@@ -3939,7 +3939,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   use Field_module
   use Logging_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Transport_Constraint_RT_module
   
 #ifdef XINGYUAN_BC
@@ -3982,7 +3982,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
 
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
@@ -4667,7 +4667,7 @@ subroutine RTExplicitAdvection(realization)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
   type(reactive_transport_param_type), pointer :: rt_parameter
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list

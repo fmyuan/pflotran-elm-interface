@@ -8,7 +8,7 @@ module PM_Richards_TS_class
   use Richards_Aux_module
   use Richards_Common_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_Richards_class
@@ -98,7 +98,7 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   type(patch_type), pointer :: patch
   type(richards_auxvar_type), pointer :: rich_auxvars(:) 
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
   PetscErrorCode :: ierr
@@ -200,7 +200,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   use Grid_module
   use Patch_module
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -213,7 +213,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: ibeg
   PetscReal, pointer :: f_p(:)
@@ -329,7 +329,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   use Grid_module
   use Patch_module
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -343,7 +343,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: ibeg
   PetscInt :: row, col
