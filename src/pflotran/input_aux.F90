@@ -604,6 +604,8 @@ subroutine InputReadDouble1(input, option, double)
 
     if (.not.InputError(input)) then
       read(word,*,iostat=input%ierr) double
+      ! catch NaNs
+      if (double /= double) input%ierr = 1
     endif
   endif
 
@@ -641,6 +643,8 @@ subroutine InputReadDouble2(string, option, double, ierr)
 
     if (.not.InputError(ierr)) then
       read(word,*,iostat=ierr) double
+      ! catch NaNs
+      if (double /= double) ierr = 1
     endif
   endif
 
