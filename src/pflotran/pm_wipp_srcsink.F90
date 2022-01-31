@@ -4997,14 +4997,22 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
           endif
         endif
       endif
-      if (id4 /= 0 .and. dt/rad_inventory%half_life(id4) > &
-          radiolysis_parameters%halfmax) id4 = 0
-      if (id3 /= 0 .and. dt/rad_inventory%half_life(id3) > &
-          radiolysis_parameters%halfmax) id3 = 0
-      if (id2 /= 0 .and. dt/rad_inventory%half_life(id2) > &
-          radiolysis_parameters%halfmax) id2 = 0
-      if (dt/rad_inventory%half_life(id1) > &
-          radiolysis_parameters%halfmax) id1 = 0
+      if (id4 /= 0) then
+        if (dt/rad_inventory%half_life(id4) > &
+            radiolysis_parameters%halfmax) id4 = 0
+      endif
+      if (id3 /= 0) then
+        if (dt/rad_inventory%half_life(id3) > &
+            radiolysis_parameters%halfmax) id3 = 0
+      endif
+      if (id2 /= 0) then
+        if (dt/rad_inventory%half_life(id2) > &
+            radiolysis_parameters%halfmax) id2 = 0
+      endif
+      if (id1 /= 0) then
+        if (dt/rad_inventory%half_life(id1) > &
+            radiolysis_parameters%halfmax) id1 = 0
+      endif
 
       if (id3 == 0) then
         id3 = id4

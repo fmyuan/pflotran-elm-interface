@@ -107,7 +107,7 @@ contains
 ! ************************************************************************** !
 
 subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
-                               soil_heat_capacity,option,Res,debug_cell)
+                               option,Res,debug_cell)
   ! 
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -124,7 +124,6 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  PetscReal :: soil_heat_capacity
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof) 
   PetscBool :: debug_cell
@@ -1324,7 +1323,7 @@ end subroutine WIPPFloSrcSink
 ! ************************************************************************** !
 
 subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
-                                  material_auxvar, soil_heat_capacity, &
+                                  material_auxvar, &
                                   option,J)
   ! 
   ! Computes derivatives of the accumulation
@@ -1343,7 +1342,6 @@ subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
@@ -1351,13 +1349,13 @@ subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
 
   call WIPPFloAccumulation(wippflo_auxvar(ZERO_INTEGER), &
                            global_auxvar, &
-                           material_auxvar,soil_heat_capacity,option, &
+                           material_auxvar,option, &
                            res,PETSC_FALSE)
                            
   do idof = 1, option%nflowdof
     call WIPPFloAccumulation(wippflo_auxvar(idof), &
                              global_auxvar, &
-                             material_auxvar,soil_heat_capacity, &
+                             material_auxvar, &
                              option,res_pert,PETSC_FALSE)
     do irow = 1, option%nflowdof
       J(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar(idof)%pert

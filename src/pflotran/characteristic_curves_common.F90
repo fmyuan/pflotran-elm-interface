@@ -1129,9 +1129,11 @@ subroutine SFTableCapillaryPressure(this,liquid_saturation, &
   j = 0
   do i = 1,size(times)
     if (times(i) <= dataset%time_storage%cur_time) then
-      if (i > 1 .and. times(i) > times(i-1)) then
-        j = 0
-        num_entries = 0
+      if (i > 1) then
+        if (times(i) > times(i-1)) then
+          j = 0
+          num_entries = 0
+        endif
       endif
       if (j==0) j = i
       num_entries = num_entries + 1
@@ -1198,9 +1200,11 @@ subroutine SFTableSaturation(this,capillary_pressure, &
   j = 0
   do i = 1,size(times)
     if (times(i) <= dataset%time_storage%cur_time) then
-      if (i > 1 .and. times(i) > times(i-1)) then
-        j = 0
-        num_entries = 0
+      if (i > 1) then
+        if (times(i) > times(i-1)) then
+          j = 0
+          num_entries = 0
+        endif
       endif
       if (j==0) j = i
       num_entries = num_entries + 1
@@ -2553,9 +2557,11 @@ subroutine RPFTableLiqRelPerm(this,liquid_saturation, &
   j = 0
   do i = 1,size(times)
     if (times(i) <= dataset%time_storage%cur_time) then
-      if (i > 1 .and. times(i) > times(i-1)) then
-        j = 0
-        num_entries = 0
+      if (i > 1) then
+        if (times(i) > times(i-1)) then
+          j = 0
+          num_entries = 0
+        endif
       endif
       if (j==0) j = i
       num_entries = num_entries + 1
@@ -2908,9 +2914,11 @@ subroutine RPFTableGasRelPerm(this,liquid_saturation, &
   j = 0
   do i = 1,size(times)
     if (times(i) <= dataset%time_storage%cur_time) then
-      if (i > 1 .and. times(i) > times(i-1)) then
-        j = 0
-        num_entries = 0
+      if (i > 1) then
+        if (times(i) > times(i-1)) then
+          j = 0
+          num_entries = 0
+        endif
       endif
       if (j==0) j = i
       num_entries = num_entries + 1
