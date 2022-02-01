@@ -10,8 +10,8 @@ characteristic_curves.o : characteristic_curves_base.o \
                           characteristic_curves_loop_invariant.o \
                           characteristic_curves_wipp.o \
                           characteristic_curves_wipp_invariant.o \
-                          dataset_ascii.o \
-                          input_aux.o option.o pflotran_constants.o string.o
+                          dataset_ascii.o input_aux.o option.o \
+                          pflotran_constants.o string.o
 characteristic_curves_base.o : material_aux.o option.o pflotran_constants.o
 characteristic_curves_common.o : characteristic_curves_base.o dataset_ascii.o \
                                  material_aux.o option.o pflotran_constants.o \
@@ -24,9 +24,7 @@ characteristic_curves_thermal.o : input_aux.o option.o pflotran_constants.o \
 characteristic_curves_wipp.o : characteristic_curves_base.o \
                                characteristic_curves_common.o option.o \
                                pflotran_constants.o
-characteristic_curves_wipp_invariant.o : characteristic_curves_base.o \
-                                         option.o
-
+characteristic_curves_wipp_invariant.o : characteristic_curves_base.o option.o
 checkpoint.o : discretization.o field.o global.o grid.o hdf5.o hdf5_aux.o \
                input_aux.o material.o material_aux.o option.o output_aux.o \
                pflotran_constants.o realization_subsurface.o string.o units.o \
@@ -488,10 +486,10 @@ pflotran_rxn.o : communicator_aux.o driver.o global_aux.o input_aux.o \
                  reaction_aux.o reaction_database.o reactive_transport_aux.o \
                  string.o transport_constraint.o transport_constraint_base.o \
                  transport_constraint_rt.o
-pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
-                 input_aux.o inversion_ts_aux.o option.o pflotran_constants.o \
-                 pm_base.o reaction_aux.o reactive_transport_aux.o \
-                 realization_subsurface.o string.o
+pm_auxiliary.o : communicator_base.o eos_water.o global_aux.o \
+                 init_subsurface.o input_aux.o inversion_ts_aux.o option.o \
+                 pflotran_constants.o pm_base.o reaction_aux.o \
+                 reactive_transport_aux.o realization_subsurface.o string.o
 pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
             realization_base.o solver.o string.o utility.o
 pm_base_pointer.o : pflotran_constants.o pm_base.o
@@ -863,10 +861,10 @@ secondary_continuum.o : block_solve.o block_tridiag.o condition.o coupler.o \
                         eos_water.o global_aux.o grid.o material.o \
                         material_aux.o mphase_aux.o option.o patch.o \
                         pflotran_constants.o reaction.o reaction_aux.o \
-                        reactive_transport_aux.o realization_subsurface.o \
-                        secondary_continuum_aux.o string.o \
-                        transport_constraint.o transport_constraint_rt.o \
-                        utility.o variables.o
+                        reaction_gas.o reactive_transport_aux.o \
+                        realization_subsurface.o secondary_continuum_aux.o \
+                        string.o transport_constraint.o \
+                        transport_constraint_rt.o utility.o variables.o
 secondary_continuum_aux.o : option.o pflotran_constants.o \
                             reactive_transport_aux.o utility.o
 shape_function.o : gauss.o grid_unstructured_cell.o pflotran_constants.o
@@ -994,10 +992,9 @@ wipp_flow.o : characteristic_curves.o connection.o coupler.o debug.o \
               srcsink_sandbox_wipp_well.o upwind_direction.o variables.o \
               wipp.o wipp_flow_aux.o wipp_flow_common.o
 wipp_flow_aux.o : characteristic_curves.o characteristic_curves_wipp.o \
-                  characteristic_curves_wipp_invariant.o \
-                  eos_gas.o eos_water.o global_aux.o material_aux.o \
-                  matrix_zeroing.o option.o pflotran_constants.o utility.o \
-                  variables.o wipp.o
+                  characteristic_curves_wipp_invariant.o eos_gas.o eos_water.o \
+                  global_aux.o material_aux.o matrix_zeroing.o option.o \
+                  pflotran_constants.o utility.o variables.o wipp.o
 wipp_flow_common.o : connection.o eos_gas.o eos_water.o global_aux.o \
                      material_aux.o option.o pflotran_constants.o \
                      upwind_direction.o wipp_flow_aux.o
