@@ -54,7 +54,7 @@ subroutine WIPPFloSetup(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -200,7 +200,7 @@ subroutine WIPPFloInitializeTimestep(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   wippflo_newton_iteration_number = 0
   update_upwind_direction = PETSC_TRUE
@@ -224,7 +224,7 @@ subroutine WIPPFloUpdateSolution(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   if (realization%option%compute_mass_balance_new) then
     call WIPPFloUpdateMassBalance(realization)
@@ -251,7 +251,7 @@ subroutine WIPPFloTimeCut(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   wippflo_ts_cut_count = wippflo_ts_cut_count + 1
 
@@ -278,7 +278,7 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
 
   type(option_type), pointer :: option
@@ -340,7 +340,7 @@ subroutine WIPPFloZeroMassBalanceDelta(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -381,7 +381,7 @@ subroutine WIPPFloUpdateMassBalance(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -439,7 +439,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -604,7 +604,7 @@ subroutine WIPPFloUpdateFixedAccum(realization)
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -687,7 +687,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   Mat :: B
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
 
@@ -851,7 +851,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscErrorCode :: ierr
   PetscViewer :: viewer
@@ -1326,7 +1326,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscErrorCode :: ierr
   PetscViewer :: viewer
@@ -1722,7 +1722,7 @@ subroutine WIPPFloSetPlotVariables(realization,list)
     
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
@@ -1966,7 +1966,7 @@ subroutine WIPPFloMapBCAuxVarsToGlobal(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -2017,7 +2017,7 @@ subroutine WIPPFloDestroy(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.

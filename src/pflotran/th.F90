@@ -61,7 +61,7 @@ subroutine THTimeCut(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   TH_ts_cut_count = TH_ts_cut_count + 1
   call THInitializeTimestep(realization)
@@ -80,7 +80,7 @@ subroutine THSetup(realization)
   use Patch_module
   use Output_Aux_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   type(output_variable_list_type), pointer :: list
@@ -128,7 +128,7 @@ subroutine THSetupPatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -480,7 +480,7 @@ subroutine THComputeMassBalance(realization, mass_balance)
   use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
    
   type(patch_type), pointer :: cur_patch
@@ -519,7 +519,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
 
   type(option_type), pointer :: option
@@ -585,7 +585,7 @@ subroutine THZeroMassBalDeltaPatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -638,7 +638,7 @@ subroutine THUpdateMassBalancePatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -694,7 +694,7 @@ subroutine THUpdateAuxVars(realization)
   use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -730,7 +730,7 @@ subroutine THUpdateAuxVarsPatch(realization)
    
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -958,7 +958,7 @@ subroutine THInitializeTimestep(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   call THUpdateFixedAccumulation(realization)
 
@@ -980,7 +980,7 @@ subroutine THUpdateSolution(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
@@ -1021,7 +1021,7 @@ subroutine THUpdateSolutionPatch(realization)
     
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -1096,7 +1096,7 @@ subroutine THUpdateFixedAccumulation(realization)
   use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -1131,7 +1131,7 @@ subroutine THUpdateFixedAccumPatch(realization)
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1239,7 +1239,7 @@ subroutine THNumericalJacobianTest(xx,realization)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   Vec :: xx_pert
   Vec :: res
@@ -3590,7 +3590,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   type(discretization_type), pointer :: discretization
@@ -3656,7 +3656,7 @@ subroutine THResidualPreliminaries(xx,r,realization,ierr)
 
   Vec, intent(inout) :: xx
   Vec, intent(inout) :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -3702,7 +3702,7 @@ subroutine THUpdateLocalVecs(xx,realization,ierr)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
   type(discretization_type), pointer :: discretization
@@ -3766,7 +3766,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: ip1, ip2
@@ -3968,7 +3968,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, jn
@@ -4144,7 +4144,7 @@ subroutine THResidualAccumulation(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, jn
@@ -4275,7 +4275,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, jn
@@ -4541,7 +4541,7 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   Mat :: J
@@ -4625,7 +4625,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   use Characteristic_Curves_Thermal_module
 
   Mat :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -4857,7 +4857,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   use Characteristic_Curves_Thermal_module
 
   Mat :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -5036,7 +5036,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   use Characteristic_Curves_Thermal_module
 
   Mat :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -5188,7 +5188,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
   use Secondary_Continuum_Aux_module
 
   Mat :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -5392,7 +5392,7 @@ subroutine THMaxChange(realization,dpmax,dtmpmax)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(field_type), pointer :: field  
@@ -5435,7 +5435,7 @@ subroutine THResidualToMass(realization)
   implicit none
 
   Vec :: ts_mass_balance
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
@@ -5498,7 +5498,7 @@ function THGetTecplotHeader(realization,icolumn)
   implicit none
   
   character(len=MAXSTRINGLENGTH) :: THGetTecplotHeader
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -5625,7 +5625,7 @@ subroutine THSetPlotVariables(realization,list)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
 
   type(output_variable_type) :: output_variable

@@ -66,7 +66,7 @@ subroutine RichardsTimeCut(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   richards_ts_cut_count = richards_ts_cut_count + 1
   call RichardsInitializeTimestep(realization)  
@@ -85,7 +85,7 @@ subroutine RichardsSetup(realization)
   use Patch_module
   use Output_Aux_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(output_variable_list_type), pointer :: list
   
@@ -122,7 +122,7 @@ subroutine RichardsSetupPatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -368,7 +368,7 @@ subroutine RichardsComputeMassBalance(realization,mass_balance)
 
   use Realization_Subsurface_class
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
   
   mass_balance = 0.d0
@@ -396,7 +396,7 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
 
   type(option_type), pointer :: option
@@ -466,7 +466,7 @@ subroutine RichardsZeroMassBalDeltaPatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -519,7 +519,7 @@ subroutine RichardsUpdateMassBalancePatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -585,7 +585,7 @@ subroutine RichardsUpdatePermPatch(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -686,7 +686,7 @@ subroutine RichardsUpdateAuxVars(realization)
   ! 
 
   use Realization_Subsurface_class
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   call RichardsUpdateAuxVarsPatch(realization)
 
@@ -716,7 +716,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -928,7 +928,7 @@ subroutine RichardsInitializeTimestep(realization)
   
 
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscViewer :: viewer
   PetscErrorCode :: ierr
@@ -973,7 +973,7 @@ subroutine RichardsUpdateSolution(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   call RichardsUpdateSolutionPatch(realization)
 
@@ -994,7 +994,7 @@ subroutine RichardsUpdateSolutionPatch(realization)
     
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   if (realization%option%compute_mass_balance_new) then
     call RichardsUpdateMassBalancePatch(realization)
@@ -1024,7 +1024,7 @@ subroutine RichardsUpdateFixedAccum(realization)
 
   use Realization_Subsurface_class
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   call RichardsUpdateFixedAccumPatch(realization)
 
@@ -1051,7 +1051,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1149,7 +1149,7 @@ subroutine RichardsNumericalJacTest(xx,realization)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   Vec :: xx_pert
   Vec :: res
@@ -1250,7 +1250,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscViewer :: viewer
   PetscInt :: skip_conn_type
   PetscErrorCode :: ierr
@@ -1318,7 +1318,7 @@ subroutine RichardsResidualPreliminaries(xx,r,realization,ierr)
 
   Vec, intent(inout) :: xx
   Vec, intent(inout) :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -1366,7 +1366,7 @@ subroutine RichardsUpdateLocalVecs(xx,realization,ierr)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
   type(discretization_type), pointer :: discretization
@@ -1425,7 +1425,7 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: skip_conn_type
   PetscErrorCode :: ierr
 
@@ -1596,7 +1596,7 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1761,7 +1761,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1964,7 +1964,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -2064,7 +2064,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   Mat :: J
@@ -2169,7 +2169,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   implicit none
 
   Mat, intent(inout) :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
 
@@ -2405,7 +2405,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
   implicit none
 
   Mat, intent(inout) :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
 
@@ -2587,7 +2587,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
   implicit none
 
   Mat, intent(inout) :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
 
@@ -2702,7 +2702,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   implicit none
 
   Mat, intent(inout) :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
 
@@ -3106,7 +3106,7 @@ subroutine RichardsComputeLateralMassFlux(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(field_type), pointer :: field
   PetscErrorCode :: ierr
 
@@ -3170,7 +3170,7 @@ subroutine RichardsDestroy(realization)
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   call RichardsDestroyPatch(realization)
 
@@ -3190,7 +3190,7 @@ subroutine RichardsDestroyPatch(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   ! taken care of in auxiliary.F90
 

@@ -46,7 +46,7 @@ subroutine NWTMaxChange(realization,dcmax)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: dcmax(:)
   
   type(field_type), pointer :: field 
@@ -85,7 +85,7 @@ subroutine NWTSetup(realization)
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   class(reaction_nw_type), pointer :: reaction_nw
   type(option_type), pointer :: option
@@ -322,7 +322,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscBool :: update_bcs
   PetscBool :: update_cells
   
@@ -538,7 +538,7 @@ subroutine NWTInitializeTimestep(realization)
 
   use Realization_Subsurface_class
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   ! copying of solution to tran_yy for temporary storage in case of 
@@ -576,7 +576,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal, pointer :: xx_p(:), log_xx_p(:)
   PetscErrorCode :: ierr
   
@@ -934,7 +934,7 @@ subroutine NWTUpdateFixedAccumulation(realization)
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -1380,7 +1380,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
   Mat :: J, J_num, J_ana, J_flux
@@ -2512,7 +2512,7 @@ subroutine NWTZeroMassBalanceDelta(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -2559,7 +2559,7 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   use Grid_module
 
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: max_size
   PetscReal :: sum_mol(max_size,4)
   type(option_type), pointer :: option
@@ -2649,7 +2649,7 @@ subroutine NWTUpdateMassBalance(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
@@ -2698,7 +2698,7 @@ subroutine NWTDestroy(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   ! placeholder, does nothing at the moment
   ! note: the aux objects are destroyed from auxiliary.F90 

@@ -51,7 +51,7 @@ subroutine ZFlowSetup(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -179,7 +179,7 @@ subroutine ZFlowInitializeTimestep(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   call ZFlowUpdateFixedAccum(realization)
   zflow_ni_count = 0
@@ -201,7 +201,7 @@ subroutine ZFlowUpdateSolution(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   if (realization%option%compute_mass_balance_new) then
     call ZFlowUpdateMassBalance(realization)
@@ -226,7 +226,7 @@ subroutine ZFlowTimeCut(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   zflow_ts_cut_count = zflow_ts_cut_count + 1
 
@@ -253,7 +253,7 @@ subroutine ZFlowComputeMassBalance(realization,mass_balance)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(1)
 
   type(option_type), pointer :: option
@@ -307,7 +307,7 @@ subroutine ZFlowZeroMassBalanceDelta(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -348,7 +348,7 @@ subroutine ZFlowUpdateMassBalance(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -399,7 +399,7 @@ subroutine ZFlowUpdateAuxVars(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -515,7 +515,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -614,7 +614,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   Vec :: xx
   Vec :: r
   Mat :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   PetscViewer :: viewer
 
@@ -1093,7 +1093,7 @@ subroutine ZFlowSetPlotVariables(realization,list)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
@@ -1135,7 +1135,7 @@ subroutine ZFlowMapBCAuxVarsToGlobal(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1184,7 +1184,7 @@ subroutine ZFlowDestroy(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.

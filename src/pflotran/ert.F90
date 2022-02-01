@@ -38,7 +38,7 @@ subroutine ERTSetup(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -120,7 +120,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   Mat :: M
   PetscBool :: compute_delM
 
@@ -467,7 +467,7 @@ subroutine ERTCalculateAnalyticPotential(realization,ielec,average_conductivity)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: ielec
   PetscReal, optional :: average_conductivity
 
@@ -539,7 +539,7 @@ subroutine ERTCalculateAverageConductivity(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch

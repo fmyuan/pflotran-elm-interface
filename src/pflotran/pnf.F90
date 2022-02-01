@@ -47,7 +47,7 @@ subroutine PNFSetup(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -124,7 +124,7 @@ subroutine PNFInitializeTimestep(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
 
 end subroutine PNFInitializeTimestep
@@ -144,7 +144,7 @@ subroutine PNFUpdateSolution(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   call PNFUpdateAuxVars(realization)
   if (realization%option%compute_mass_balance_new) then
@@ -169,7 +169,7 @@ subroutine PNFTimeCut(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PNF_ts_cut_count = PNF_ts_cut_count + 1
 
@@ -196,7 +196,7 @@ subroutine PNFComputeMassBalance(realization,mass_balance)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(1)
 
 end subroutine PNFComputeMassBalance
@@ -218,7 +218,7 @@ subroutine PNFZeroMassBalanceDelta(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -259,7 +259,7 @@ subroutine PNFUpdateMassBalance(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -311,7 +311,7 @@ subroutine PNFUpdateAuxVars(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -415,7 +415,7 @@ subroutine PNFSetPlotVariables(realization,list)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
@@ -450,7 +450,7 @@ subroutine PNFDestroy(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.

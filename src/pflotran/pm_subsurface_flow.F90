@@ -513,7 +513,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: material_auxvars(:)
