@@ -828,9 +828,10 @@ subroutine InvZFlowEvaluateCostFunction(this)
     icell = this%imeasurement(idata)
     tempreal = wd * (this%measurement(idata) - vec_ptr(icell))
     this%phi_data = this%phi_data + tempreal * tempreal
+!print*,icell,vec_ptr(icell),this%measurement(idata)
   enddo
   this%current_chi2 = this%phi_data / num_measurement
-
+!stop
   call VecRestoreArrayF90(this%realization%field%work,vec_ptr, &
                           ierr);CHKERRQ(ierr)
 
@@ -848,6 +849,8 @@ subroutine InvZFlowEvaluateCostFunction(this)
     ! get perm & block of the ith constrained eq.
     ghosted_id = rblock(iconst,1)
     ghosted_id_nb = rblock(iconst,2)
+    if ((patch%imat(ghosted_id) <= 0) .or. &
+        (patch%imat(ghosted_id_nb) <= 0)) cycle
     irb = rblock(iconst,3)
     perm_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
     x = 0.d0
@@ -990,7 +993,7 @@ subroutine InversionZFlowCalculateUpdate(this)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
 
-  PetscInt :: local_id
+  PetscInt :: local_id,ghosted_id
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
@@ -1007,9 +1010,11 @@ subroutine InversionZFlowCalculateUpdate(this)
     ! Get updated permeability as m_new = m_old + del_m (where m = log(perm))
     call VecGetArrayF90(this%quantity_of_interest,vec_ptr,ierr);CHKERRQ(ierr)
     do local_id=1,grid%nlmax
-     vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + this%del_perm(local_id))
-     if (vec_ptr(local_id) > this%maxperm) vec_ptr(local_id) = this%maxperm
-     if (vec_ptr(local_id) < this%minperm) vec_ptr(local_id) = this%minperm
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + this%del_perm(local_id))
+      if (vec_ptr(local_id) > this%maxperm) vec_ptr(local_id) = this%maxperm
+      if (vec_ptr(local_id) < this%minperm) vec_ptr(local_id) = this%minperm
     enddo
     call VecRestoreArrayF90(this%quantity_of_interest,vec_ptr, &
                                                           ierr);CHKERRQ(ierr)
@@ -1328,6 +1333,8 @@ contains
     ! get perm & block of the ith constrained eq.
     ghosted_id = rblock(iconst,1)
     ghosted_id_nb = rblock(iconst,2)
+    if (patch%imat(ghosted_id) <= 0 .or.   &
+        patch%imat(ghosted_id_nb) <=0 ) return
     irb = rblock(iconst,3)
     perm_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
     x = 0.d0
@@ -1471,6 +1478,7 @@ subroutine InversionZFlowAllocateWm(this)
   num_constraints = 0
   do local_id=1,grid%nlmax
     ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
     do iconblock=1,constrained_block%num_constrained_block
       if (constrained_block%structure_metric(iconblock) > 0) then
         if (constrained_block%material_id(iconblock) == &
@@ -1483,6 +1491,7 @@ subroutine InversionZFlowAllocateWm(this)
             do inbr=1,num_neighbor
               ghosted_id_nbr = abs( &
                             grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) <= 0) cycle
               if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
                 do ilink=1,constrained_block%block_link(iconblock,1)
                   if (constrained_block%block_link(iconblock,ilink+1) == &
@@ -1515,6 +1524,7 @@ subroutine InversionZFlowAllocateWm(this)
   num_constraints = 0
   do local_id=1,grid%nlmax
     ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
     do iconblock=1,constrained_block%num_constrained_block
       if (constrained_block%structure_metric(iconblock) > 0) then
         if (constrained_block%material_id(iconblock) == &
@@ -1529,6 +1539,7 @@ subroutine InversionZFlowAllocateWm(this)
             do inbr=1,num_neighbor
               ghosted_id_nbr = abs( &
                             grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) <= 0) cycle
               if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
                 do ilink=1,constrained_block%block_link(iconblock,1)
                   if (constrained_block%block_link(iconblock,ilink+1) == &
@@ -1641,6 +1652,7 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
     wm = this%Wm(iconst)
     irb = rblock(iconst,3)
     ghosted_id = rblock(iconst,1)
+    if (patch%imat(ghosted_id) <= 0) cycle
 
     if (constrained_block%structure_metric(irb) == 3 .or. &
         constrained_block%structure_metric(irb) == 4) then
@@ -1648,6 +1660,7 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
         sqrt(beta) * wm * pvec_ptr(ghosted_id)
     else
       ghosted_id_nb = rblock(iconst,2)
+      if (patch%imat(ghosted_id_nb) <= 0) cycle
       this%q(num_measurement + iconst) = &
           sqrt(beta) * wm * (pvec_ptr(ghosted_id) - pvec_ptr(ghosted_id_nb))
     endif
@@ -1724,6 +1737,7 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
     wm = this%Wm(iconst)
     irb = rblock(iconst,3)
     ghosted_id = rblock(iconst,1)
+    if (patch%imat(ghosted_id) <= 0) cycle
 
     if (constrained_block%structure_metric(irb) == 3 .or. &
         constrained_block%structure_metric(irb) == 4) then
@@ -1731,6 +1745,7 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
         sqrt(beta) * wm * this%r(num_measurement + iconst)
     else
       ghosted_id_nb = rblock(iconst,2)
+      if (patch%imat(ghosted_id_nb) <= 0) cycle
       s2vec_ptr(ghosted_id) = s2vec_ptr(ghosted_id) + &
               sqrt(beta) * wm * this%r(num_measurement + iconst)
       s2vec_ptr(ghosted_id_nb) = s2vec_ptr(ghosted_id_nb) - &
