@@ -696,17 +696,19 @@ subroutine PMNWTInitializeRun(this)
     enddo
   endif
 
+  !===========================================================================!
   ! Jenn's hack for upper borehole
   if (associated(this%params%bh_material_names)) then
     hack_region_name = 'rBH_OPEN_UPPER'
     region => RegionGetPtrFromList(hack_region_name, &
                                    this%realization%patch%region_list)
-    if (.not.associated(region)) then
-      this%option%io_buffer = 'Borehole region "rBH_OPEN_UPPER" not found &
-                              &among regions. This is a hack!'
-      call PrintErrMsg(this%option)
-    endif
+    !if (.not.associated(region)) then
+    !  this%option%io_buffer = 'Borehole region "rBH_OPEN_UPPER" not found &
+    !                          &among regions. This is a hack!'
+    !  call PrintErrMsg(this%option)
+    !endif
   endif
+  !===========================================================================!
   
   call PMNWTUpdateSolution(this)
   
@@ -819,6 +821,7 @@ subroutine PMNWTInitializeTimestep(this)
     enddo
   endif
 
+  !===========================================================================!
   ! Jenn's hack for upper borehole:
   ! You must include a material property called BH_OPEN_UPPER, and if you
   ! do, then the concentration there is kept at background levels.
@@ -836,6 +839,13 @@ subroutine PMNWTInitializeTimestep(this)
       Uninitialized(this%params%wm_end_time)) then
     this%option%io_buffer = 'END_TIME was not provided in the &
       &WASHING_MACHINE block for SUBSURFACE_TRANSPORT MODE NWT.' 
+    call PrintErrMsg(this%option)
+  endif
+  if (.not.associated(material_property) .and. &
+      ( Initialized(this%params%wm_end_time) .or. &
+        Initialized(this%params%wm_start_time) ) ) then
+    this%option%io_buffer = 'WASHING_MACHINE block for SUBSURFACE_TRANSPORT &
+      &MODE NWT was provided, but region and material BH_OPEN_UPPER not found.' 
     call PrintErrMsg(this%option)
   endif
   if (associated(material_property)) then
@@ -862,6 +872,7 @@ subroutine PMNWTInitializeTimestep(this)
       endif
     enddo
   endif
+  !===========================================================================!
 
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
