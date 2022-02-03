@@ -38,6 +38,8 @@ module PM_ERT_class
     PetscReal :: max_tracer_conc
     PetscReal, pointer :: species_conductivity_coef(:)
     character(len=MAXSTRINGLENGTH) :: mobility_database
+    ! Starting sulution/potential
+    PetscBool :: no_analytical_potential
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -119,6 +121,8 @@ subroutine PMERTInit(pm_ert)
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
   pm_ert%max_tracer_conc = UNINITIALIZED_DOUBLE
 
+  pm_ert%no_analytical_potential = PETSC_FALSE
+
   nullify(pm_ert%species_conductivity_coef)
   pm_ert%mobility_database = ''
 
@@ -182,6 +186,8 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       ! Add various options for ERT if needed here
       case('COMPUTE_JACOBIAN')
         option%geophysics%compute_jacobian = PETSC_TRUE
+      case('NO_ANALYTICAL_POTENTIAL')
+        this%no_analytical_potential = PETSC_TRUE
       case('CONDUCTIVITY_MAPPING_LAW')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -727,16 +733,19 @@ subroutine PMERTSolve(this,time,ierr)
       write(*,'(x,a)',advance='no') trim(StringWrite(ielec))
     endif
 
-    ! Initial Solution -> analytic sol for a half-space
-    ! Get Analytical potential for a half-space
-    call ERTCalculateAnalyticPotential(realization,ielec,average_cond)
-    ! assign analytic potential as initial solution
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      vec_ptr(local_id) = ert_auxvars(ghosted_id)%potential(ielec)
-    enddo
+    if (.not.this%no_analytical_potential) then
+      ! Initial Solution -> analytic sol for a half-space
+      ! Get Analytical potential for a half-space
+      call ERTCalculateAnalyticPotential(realization,ielec,average_cond)
+      ! assign analytic potential as initial solution
+      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      do local_id=1,grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) cycle
+        vec_ptr(local_id) = ert_auxvars(ghosted_id)%potential(ielec)
+      enddo
+    endif
+
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
     call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
