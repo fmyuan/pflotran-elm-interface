@@ -8,7 +8,7 @@ module WIPP_Flow_Derivative_module
   use WIPP_Flow_Aux_module
   use WIPP_Flow_Common_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -43,7 +43,7 @@ subroutine WIPPFloDerivativeDriver(option)
   PetscReal :: pert(3)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar(:)
   type(global_auxvar_type), pointer :: global_auxvar(:)
-  class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(material_auxvar_type), pointer :: material_auxvar(:)
 
   PetscInt :: istate2
   PetscReal :: xx2(3)
@@ -51,7 +51,7 @@ subroutine WIPPFloDerivativeDriver(option)
   PetscReal :: scale2
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar2(:)
   type(global_auxvar_type), pointer :: global_auxvar2(:)
-  class(material_auxvar_type), pointer :: material_auxvar2(:)
+  type(material_auxvar_type), pointer :: material_auxvar2(:)
   
   PetscInt :: ibndtype(3)
   PetscInt :: auxvar_mapping(WIPPFLO_MAX_INDEX)
@@ -213,7 +213,7 @@ subroutine WIPPFloDerivativeSetup(wippflo_parameter, &
                                   characteristic_curves, &
                                   material_parameter,option)
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   
   implicit none
@@ -278,7 +278,7 @@ subroutine WIPPFloDerivativeSetupAuxVar(istate,xx,pert,wippflo_auxvar, &
   PetscReal :: pert(3)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar(:)
   type(global_auxvar_type), pointer :: global_auxvar(:)
-  class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(material_auxvar_type), pointer :: material_auxvar(:)
   class(characteristic_curves_type) :: characteristic_curves
   type(option_type), pointer :: option
 
@@ -406,7 +406,7 @@ subroutine WIPPFloDerivativeAuxVar(pert,wippflo_auxvar,global_auxvar, &
   PetscReal :: pert(3)
   type(wippflo_auxvar_type) :: wippflo_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:)
-  class(material_auxvar_type) :: material_auxvar(0:)
+  type(material_auxvar_type) :: material_auxvar(0:)
   type(option_type), pointer :: option
 
   PetscInt :: natural_id = 1
@@ -444,7 +444,7 @@ end subroutine WIPPFloDerivativeAuxVar
 subroutine WIPPFloDerivativeAccum(pert,wippflo_auxvar,global_auxvar, &
                                   material_auxvar,material_parameter, &
                                   option)
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   
   implicit none
@@ -452,7 +452,7 @@ subroutine WIPPFloDerivativeAccum(pert,wippflo_auxvar,global_auxvar, &
   PetscReal :: pert(3)
   type(wippflo_auxvar_type) :: wippflo_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:)
-  class(material_auxvar_type) :: material_auxvar(0:)
+  type(material_auxvar_type) :: material_auxvar(0:)
   type(material_parameter_type) :: material_parameter
   type(option_type), pointer :: option
 
@@ -506,20 +506,20 @@ subroutine WIPPFloDerivativeFlux(pert,wippflo_auxvar,global_auxvar, &
 
   use Option_module
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   PetscReal :: pert(3)
   type(wippflo_auxvar_type) :: wippflo_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:)
-  class(material_auxvar_type) :: material_auxvar(0:)
+  type(material_auxvar_type) :: material_auxvar(0:)
   class(characteristic_curves_type) :: characteristic_curves
   type(material_parameter_type) :: material_parameter
   PetscReal :: pert2(3)
   type(wippflo_auxvar_type) :: wippflo_auxvar2(0:)
   type(global_auxvar_type) :: global_auxvar2(0:)
-  class(material_auxvar_type) :: material_auxvar2(0:)
+  type(material_auxvar_type) :: material_auxvar2(0:)
   class(characteristic_curves_type) :: characteristic_curves2
   type(material_parameter_type) :: material_parameter2
   type(wippflo_parameter_type) :: wippflo_parameter
@@ -622,7 +622,7 @@ subroutine WIPPFloDerivativeFluxBC(pert, &
 
   use Option_module
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -635,7 +635,7 @@ subroutine WIPPFloDerivativeFluxBC(pert, &
   type(global_auxvar_type) :: global_auxvar_bc
   type(wippflo_auxvar_type) :: wippflo_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_dn(0:)
-  class(material_auxvar_type) :: material_auxvar_dn(0:)
+  type(material_auxvar_type) :: material_auxvar_dn(0:)
   class(characteristic_curves_type) :: characteristic_curves_dn
   type(material_parameter_type) :: material_parameter_dn
   type(wippflo_parameter_type) :: wippflo_parameter
@@ -704,7 +704,7 @@ subroutine WIPPFloDerivativeSrcSink(pert,qsrc,flow_src_sink_type, &
 
   use Option_module
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -794,7 +794,7 @@ subroutine WIPPFloDerivativeDestroyAuxVar(wippflo_auxvar,global_auxvar, &
 
   type(wippflo_auxvar_type), pointer :: wippflo_auxvar(:)
   type(global_auxvar_type), pointer :: global_auxvar(:)
-  class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(material_auxvar_type), pointer :: material_auxvar(:)
   type(option_type), pointer :: option
   
   PetscInt :: i
@@ -817,7 +817,7 @@ subroutine WIPPFloDerivativeDestroy(wippflo_parameter, &
                                   material_parameter,option)
   use WIPP_Flow_Aux_module
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   
   implicit none

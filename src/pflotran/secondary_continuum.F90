@@ -556,7 +556,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
   use Reaction_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Transport_Constraint_RT_module
   
   use EOS_Water_module
@@ -570,7 +570,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
   type(option_type), pointer :: option
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
-  class(material_auxvar_type), allocatable :: material_auxvar
+  type(material_auxvar_type), allocatable :: material_auxvar
   class(tran_constraint_rt_type), pointer :: constraint
   type(flow_condition_type), pointer :: initial_flow_condition
   
@@ -746,7 +746,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   use Reaction_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_Gas_module
   
   implicit none
@@ -843,7 +843,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   PetscReal :: total_sorb_prev(reaction%naqcomp,sec_transport_vars%ncells)
   PetscReal :: dtotal_sorb_upd(reaction%naqcomp,reaction%naqcomp,sec_transport_vars%ncells)
 
-  class(material_auxvar_type), allocatable :: material_auxvar
+  type(material_auxvar_type), allocatable :: material_auxvar
   
   ngcells = sec_transport_vars%ncells
   area = sec_transport_vars%area
@@ -1595,12 +1595,12 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   use Reactive_Transport_Aux_module
   use Reaction_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_Gas_module
   
   implicit none
   
-  class(material_auxvar_type), allocatable :: material_auxvar
+  type(material_auxvar_type), allocatable :: material_auxvar
   type(option_type), pointer :: option
   type(sec_transport_type) :: sec_transport_vars
   type(global_auxvar_type) :: global_auxvars
@@ -1657,7 +1657,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
   use Reactive_Transport_Aux_module
   use Reaction_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
  
   implicit none
   
@@ -1672,7 +1672,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
   PetscReal :: res_react(reaction%naqcomp)
   PetscReal :: jac_react(reaction%naqcomp,reaction%naqcomp)
   PetscInt :: i,j
-  class(material_auxvar_type), allocatable :: material_auxvar
+  type(material_auxvar_type), allocatable :: material_auxvar
   
   ngcells = sec_transport_vars%ncells
   vol = sec_transport_vars%vol     
@@ -1730,7 +1730,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   use Reaction_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_Gas_module
 
   implicit none
@@ -1761,7 +1761,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   PetscReal :: arrhenius_factor
   PetscReal :: pordt, pordiff(option%transport%nphase)
   PetscReal :: inf_norm_sec
-  class(material_auxvar_type), allocatable :: material_auxvar
+  type(material_auxvar_type), allocatable :: material_auxvar
 
   PetscReal :: total_sorb_upd(reaction%naqcomp,sec_transport_vars%ncells) 
   PetscReal :: total_sorb_prev(reaction%naqcomp,sec_transport_vars%ncells)

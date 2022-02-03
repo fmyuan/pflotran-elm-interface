@@ -910,7 +910,7 @@ subroutine PMNWTFinalizeTimestep(this)
 
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
-  use Material_Aux_class, only : POROSITY_BASE 
+  use Material_Aux_module, only : POROSITY_BASE 
   use Global_module
 
   implicit none

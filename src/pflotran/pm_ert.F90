@@ -555,7 +555,7 @@ subroutine PMERTPreSolve(this)
   use Field_module
   use Global_Aux_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   use Patch_module
   use Reaction_Aux_module
@@ -573,7 +573,7 @@ subroutine PMERTPreSolve(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: ghosted_id
   PetscInt :: species_id
@@ -908,7 +908,7 @@ subroutine PMERTBuildJacobian(this)
 
   use Patch_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Timer_class
   use String_module
 
@@ -921,7 +921,7 @@ subroutine PMERTBuildJacobian(this)
   type(option_type), pointer :: option
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(timer_type), pointer ::timer
 
   PetscInt, pointer :: cell_neighbors(:,:)

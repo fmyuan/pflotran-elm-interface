@@ -43,7 +43,7 @@ subroutine ZFlowSetup(realization)
   use Coupler_module
   use Connection_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Output_Aux_module
   use Characteristic_Curves_module
   use Matrix_Zeroing_module
@@ -51,7 +51,7 @@ subroutine ZFlowSetup(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -68,7 +68,7 @@ subroutine ZFlowSetup(realization)
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_bc(:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   option => realization%option
   patch => realization%patch
@@ -179,7 +179,7 @@ subroutine ZFlowInitializeTimestep(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   call ZFlowUpdateFixedAccum(realization)
   zflow_ni_count = 0
@@ -201,7 +201,7 @@ subroutine ZFlowUpdateSolution(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   if (realization%option%compute_mass_balance_new) then
     call ZFlowUpdateMassBalance(realization)
@@ -226,7 +226,7 @@ subroutine ZFlowTimeCut(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   zflow_ts_cut_count = zflow_ts_cut_count + 1
 
@@ -249,11 +249,11 @@ subroutine ZFlowComputeMassBalance(realization,mass_balance)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(1)
 
   type(option_type), pointer :: option
@@ -261,7 +261,7 @@ subroutine ZFlowComputeMassBalance(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id
@@ -307,7 +307,7 @@ subroutine ZFlowZeroMassBalanceDelta(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -348,7 +348,7 @@ subroutine ZFlowUpdateMassBalance(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -394,12 +394,12 @@ subroutine ZFlowUpdateAuxVars(realization)
   use Coupler_module
   use Connection_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -410,7 +410,7 @@ subroutine ZFlowUpdateAuxVars(realization)
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(zflow_auxvar_type), pointer :: zflow_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn, natural_id
   PetscReal, pointer :: xx_loc_p(:)
@@ -511,11 +511,11 @@ subroutine ZFlowUpdateFixedAccum(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -523,7 +523,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
   type(field_type), pointer :: field
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
@@ -605,7 +605,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   use Connection_module
   use Grid_module
   use Coupler_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
 
   implicit none
@@ -614,7 +614,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   Vec :: xx
   Vec :: r
   Mat :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   PetscViewer :: viewer
 
@@ -633,7 +633,7 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -1093,7 +1093,7 @@ subroutine ZFlowSetPlotVariables(realization,list)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
@@ -1135,7 +1135,7 @@ subroutine ZFlowMapBCAuxVarsToGlobal(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1184,7 +1184,7 @@ subroutine ZFlowDestroy(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.

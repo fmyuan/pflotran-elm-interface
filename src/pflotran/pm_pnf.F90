@@ -295,7 +295,7 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
 
   use Grid_module
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Coupler_module
   use Connection_module
   use Option_module
@@ -313,7 +313,7 @@ subroutine PMPNFSetupLinearSystem(this,A,solution,right_hand_side,ierr)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
@@ -505,7 +505,7 @@ subroutine PMPNFCalculateVelocities(this)
   use Patch_module
   use Coupler_module
   use Connection_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -514,7 +514,7 @@ subroutine PMPNFCalculateVelocities(this)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set

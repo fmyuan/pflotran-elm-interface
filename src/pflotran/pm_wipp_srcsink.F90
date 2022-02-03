@@ -1134,7 +1134,7 @@ subroutine PMWSSSetRegionScaling(this,waste_panel)
   ! Date: 2/02/2017
   !
 
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
 
   implicit none
@@ -1160,7 +1160,7 @@ subroutine PMWSSSetRegionScaling(this,waste_panel)
 ! total_volume_global: [m3] total global volume of grid cells in a waste panel
 ! ierr: PETSc error integer
 ! -----------------------------------------------------------
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   PetscInt :: k
   PetscInt :: local_id
@@ -3147,7 +3147,7 @@ end subroutine PMWSSUpdateChemSpecies
   use Option_module
   use Grid_module
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Global_Aux_module
   use EOS_Gas_module
   use EOS_Water_module
@@ -3198,7 +3198,7 @@ end subroutine PMWSSUpdateChemSpecies
   type(grid_type), pointer :: grid
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(srcsink_panel_type), pointer :: cwp
   PetscInt :: i, p, k
   PetscInt :: local_id, ghosted_id
@@ -4350,7 +4350,7 @@ subroutine PMWSSCalcResidualValues(this,r_p,ss_flow_vol_flux)
   ! Date: 10/20/2017
   ! 
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -4383,7 +4383,7 @@ subroutine PMWSSCalcResidualValues(this,r_p,ss_flow_vol_flux)
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: k
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: pflotran_to_bragflo(2)
   PetscInt :: local_start, local_end
 ! ----------------------------------------------------------
@@ -4447,7 +4447,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -4480,7 +4480,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
   PetscInt :: ghosted_id
   PetscInt :: wat_comp_id, air_comp_id
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: J_block(this%option%nflowdof,this%option%nflowdof)
 ! ---------------------------------------------------------------
 
@@ -4761,13 +4761,13 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
  
   use Option_module
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(rad_inventory_type), pointer :: rad_inventory
   type(wippflo_auxvar_type) :: wippflo_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: dt
   type(radiolysis_parameter_type) :: radiolysis_parameters
   PetscReal :: salt_wtpercent, h2_produced, brine_consumed

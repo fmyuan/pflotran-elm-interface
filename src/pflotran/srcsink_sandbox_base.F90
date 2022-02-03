@@ -175,7 +175,7 @@ subroutine SSSandboxBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
                                  material_auxvar,aux_real,option)
   
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -184,7 +184,7 @@ subroutine SSSandboxBaseEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   PetscReal :: Residual(option%nflowdof)
   PetscReal :: Jacobian(option%nflowdof,option%nflowdof)
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: aux_real(:)
       
 end subroutine SSSandboxBaseEvaluate

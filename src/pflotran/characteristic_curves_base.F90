@@ -273,7 +273,7 @@ end subroutine SFBaseD2SatDP2
 subroutine SFBaseTest(this,cc_name,option)
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
   

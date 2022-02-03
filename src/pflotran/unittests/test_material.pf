@@ -3,7 +3,7 @@ module Test_Material_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use pFUnit_mod
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none

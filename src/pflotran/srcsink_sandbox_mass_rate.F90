@@ -173,7 +173,7 @@ subroutine MassRateSrcSink(this,Residual,Jacobian,compute_derivative, &
 
   use Option_module
   use Reaction_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -182,7 +182,7 @@ subroutine MassRateSrcSink(this,Residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   PetscReal :: Residual(option%nflowdof)
   PetscReal :: Jacobian(option%nflowdof,option%nflowdof)
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: aux_real(:)
   
   PetscInt :: idof

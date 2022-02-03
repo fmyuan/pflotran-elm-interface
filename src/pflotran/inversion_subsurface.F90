@@ -175,7 +175,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
                                LIQUID_PRESSURE, LIQUID_SATURATION
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Utility_module
 
   class(inversion_subsurface_type) :: this

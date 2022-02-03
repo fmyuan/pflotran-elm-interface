@@ -600,7 +600,7 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   use Field_module
   use Patch_module
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use ZFlow_Aux_module
 
   implicit none
@@ -697,7 +697,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   use Field_module
   use Patch_module
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use ZFlow_Aux_module
   use Convergence_module
 
@@ -723,7 +723,7 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
   PetscInt :: converged_flag

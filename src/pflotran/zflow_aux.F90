@@ -211,7 +211,7 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
   use Option_module
   use Global_Aux_module
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module, only : SOIL_REFERENCE_PRESSURE
 
   implicit none
@@ -221,7 +221,7 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
   PetscReal :: x(1)
   type(zflow_auxvar_type) :: zflow_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscBool :: update_porosity
   PetscInt :: natural_id
 
@@ -307,7 +307,7 @@ subroutine ZFlowAuxVarPerturb(zflow_auxvar,global_auxvar, &
   use Option_module
   use Characteristic_Curves_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -315,7 +315,7 @@ subroutine ZFlowAuxVarPerturb(zflow_auxvar,global_auxvar, &
   PetscInt :: natural_id
   type(zflow_auxvar_type) :: zflow_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
 
   PetscReal :: x, x_pert(1), pert
@@ -348,14 +348,14 @@ subroutine ZFlowPrintAuxVars(zflow_auxvar,global_auxvar,material_auxvar, &
   !
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   type(zflow_auxvar_type) :: zflow_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: string
   type(option_type) :: option
@@ -387,14 +387,14 @@ subroutine ZFlowOutputAuxVars1(zflow_auxvar,global_auxvar,material_auxvar, &
   !
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   type(zflow_auxvar_type) :: zflow_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: string
   PetscBool :: append

@@ -32,11 +32,11 @@ module ZFlow_Common_module
       use ZFlow_Aux_module
       use Global_Aux_module
       use Option_module
-      use Material_Aux_class
+      use Material_Aux_module
       implicit none
       type(zflow_auxvar_type) :: zflow_auxvar_up, zflow_auxvar_dn
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-      class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+      type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
       type(option_type) :: option
       PetscReal :: v_darcy(1)
       PetscReal :: area
@@ -59,7 +59,7 @@ module ZFlow_Common_module
       use ZFlow_Aux_module
       use Global_Aux_module
       use Option_module
-      use Material_Aux_class
+      use Material_Aux_module
       implicit none
       type(option_type) :: option
       PetscInt :: ibndtype(1)
@@ -67,7 +67,7 @@ module ZFlow_Common_module
       PetscReal :: auxvars(:) ! from aux_real_var array
       type(zflow_auxvar_type) :: zflow_auxvar_up, zflow_auxvar_dn
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-      class(material_auxvar_type) :: material_auxvar_dn
+      type(material_auxvar_type) :: material_auxvar_dn
       PetscReal :: area
       PetscReal :: dist(-1:3)
       type(zflow_parameter_type) :: zflow_parameter
@@ -106,13 +106,13 @@ subroutine ZFlowAccumulation(zflow_auxvar,global_auxvar,material_auxvar, &
   !
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(zflow_auxvar_type) :: zflow_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: Res(1)
   PetscReal :: Jac(1,1)
@@ -171,14 +171,14 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
   ! Date: 07/11/17
   !
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Connection_module
 
   implicit none
 
   type(zflow_auxvar_type) :: zflow_auxvar_up, zflow_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: v_darcy(1)
   PetscReal :: area
@@ -214,8 +214,8 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_up,dist,perm_up)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
 
   numerator = perm_up * perm_dn
   denominator = dist_up*perm_dn + dist_dn*perm_up
@@ -284,7 +284,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   ! Date: 07/11/17
   !
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use String_module
 
   implicit none
@@ -295,7 +295,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(zflow_auxvar_type) :: zflow_auxvar_up, zflow_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
   type(zflow_parameter_type) :: zflow_parameter
@@ -326,7 +326,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   dperm_dK = 0.d0
   dResdKdn = 0.d0
 
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
 
   kr = 0.d0
   bc_type = ibndtype(1)
@@ -422,7 +422,7 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   ! Date: 07/11/17
   !
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use EOS_Water_module
   use EOS_Gas_module
 
@@ -481,13 +481,13 @@ subroutine ZFlowAccumDerivative(zflow_auxvar,global_auxvar, &
   !
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(zflow_auxvar_type) :: zflow_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: J(1,1)
 
@@ -528,13 +528,13 @@ subroutine XXFluxDerivative(zflow_auxvar_up,global_auxvar_up, &
   ! Date: 07/11/17
   !
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(zflow_auxvar_type) :: zflow_auxvar_up(0:), zflow_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -609,7 +609,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   !
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -619,7 +619,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(zflow_auxvar_type) :: zflow_auxvar_up, zflow_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
   type(zflow_parameter_type) :: zflow_parameter
@@ -666,7 +666,7 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   ! Date: 07/11/17
   !
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 

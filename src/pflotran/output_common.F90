@@ -1681,7 +1681,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   use Global_Aux_module
   use Richards_Aux_module
   use TH_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 

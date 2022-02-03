@@ -45,13 +45,13 @@ subroutine HydrateSetup(realization)
   use Connection_module
   use Grid_module
   use Fluid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Output_Aux_module
   use Matrix_Zeroing_module
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -69,7 +69,7 @@ subroutine HydrateSetup(realization)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
@@ -230,7 +230,7 @@ subroutine HydrateInitializeTimestep(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   if (hydrate_restrict_state_chng) then
     realization%patch%aux%Hydrate%auxvars(:,:)%istatechng = PETSC_FALSE
@@ -263,7 +263,7 @@ subroutine HydrateUpdateSolution(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -314,7 +314,7 @@ subroutine HydrateTimeCut(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -361,7 +361,7 @@ subroutine HydrateNumericalJacobianTest(xx,realization,B)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   Mat :: B
 
   Vec :: xx_pert
@@ -479,11 +479,11 @@ subroutine HydrateComputeMassBalance(realization,mass_balance)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nflowspec, &
                             realization%option%nphase)
 
@@ -492,7 +492,7 @@ subroutine HydrateComputeMassBalance(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(hydrate_auxvar_type), pointer :: hydrate_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id
@@ -549,7 +549,7 @@ subroutine HydrateZeroMassBalanceDelta(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -590,7 +590,7 @@ subroutine HydrateUpdateMassBalance(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -643,14 +643,14 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   use Coupler_module
   use Connection_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use EOS_Water_module
   use Saturation_Function_module
   use Hydrate_Aux_module
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscBool :: update_state
   
   type(option_type), pointer :: option
@@ -666,7 +666,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   type(global_auxvar_type), pointer :: global_auxvars(:), &
                                        global_auxvars_bc(:), global_auxvars_ss(:)
   
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end, i
@@ -1029,13 +1029,13 @@ subroutine HydrateUpdateFixedAccum(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Hydrate_Aux_module
   use Hydrate_Common_module
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1043,7 +1043,7 @@ subroutine HydrateUpdateFixedAccum(realization)
   type(field_type), pointer :: field
   type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
 
   type(hydrate_parameter_type), pointer :: hydrate_parameter
@@ -1126,7 +1126,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Coupler_module  
   use Debug_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
   use Hydrate_Common_module
 
@@ -1135,7 +1135,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -1154,7 +1154,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -1525,7 +1525,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
   use Hydrate_Aux_module
 
@@ -1534,7 +1534,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
   Mat :: J
@@ -1572,7 +1572,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                                         hyd_auxvars_bc(:), &
                                         hyd_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -1883,7 +1883,7 @@ function HydrateGetTecplotHeader(realization,icolumn)
   implicit none
   
   character(len=MAXSTRINGLENGTH) :: HydrateGetTecplotHeader
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -2008,7 +2008,7 @@ subroutine HydrateSetPlotVariables(realization,list)
     
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
@@ -2168,7 +2168,7 @@ subroutine HydrateSSSandbox(residual,Jacobian,compute_derivative, &
   use petscmat
   use Option_module
   use Grid_module
-  use Material_Aux_class, only: material_auxvar_type
+  use Material_Aux_module, only: material_auxvar_type
   use SrcSink_Sandbox_module
   use SrcSink_Sandbox_Base_class
   
@@ -2177,7 +2177,7 @@ subroutine HydrateSSSandbox(residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(hydrate_auxvar_type), pointer :: hydrate_auxvars(:,:)
   
   type(grid_type) :: grid
@@ -2305,7 +2305,7 @@ subroutine HydrateMapBCAuxVarsToGlobal(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -2357,7 +2357,7 @@ subroutine HydrateDestroy(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.

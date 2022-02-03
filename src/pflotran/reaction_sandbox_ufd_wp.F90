@@ -190,7 +190,7 @@ subroutine WastePackageReact(this,Residual,Jacobian,compute_derivative, &
 
   use Option_module
   use Reaction_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -203,7 +203,7 @@ subroutine WastePackageReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   
   PetscReal :: rate
   PetscReal :: drate

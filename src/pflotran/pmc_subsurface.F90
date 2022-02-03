@@ -671,7 +671,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   use Option_module
   use Realization_Subsurface_class
   use PFLOTRAN_Constants_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Material_module
   use Variables_module, only : POROSITY
 
@@ -685,7 +685,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
   PetscScalar, pointer :: sim_por_p(:)
   PetscScalar, pointer :: work_loc_p(:)
-  class(material_auxvar_type), pointer :: subsurf_material_auxvars(:)
+  type(material_auxvar_type), pointer :: subsurf_material_auxvars(:)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id
@@ -754,7 +754,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   use Realization_Subsurface_class
   use Grid_module
   use Field_module
-  use Material_Aux_class
+  use Material_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -777,7 +777,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscInt :: pres_dof
   PetscInt :: temp_dof
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
 
