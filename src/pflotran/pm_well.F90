@@ -2097,12 +2097,16 @@ subroutine PMWellPreSolve(this)
   class(pm_well_type) :: this
 
   character(len=MAXSTRINGLENGTH) :: out_string
+  PetscReal :: cur_time
   
   this%soln%not_converged = PETSC_TRUE
   this%soln%converged = PETSC_FALSE
 
-  write(out_string,'(" Step ",i6,"  Dt =",es16.6," sec.")') &
-        (this%soln%n_steps+1),this%dt  
+  cur_time = this%option%time - this%option%flow_dt + this%cumulative_dt
+
+  write(out_string,'(" Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+                     1pe12.5," sec.")') &
+                   (this%soln%n_steps+1),cur_time,this%dt  
   call OptionPrint(out_string,this%option)
   
 end subroutine PMWellPreSolve
@@ -2125,7 +2129,7 @@ subroutine PMWellSolve(this,time,ierr)
   PetscInt :: n_iter,ts_cut,i
   PetscReal :: res(this%soln%ndof)
   PetscReal :: res_fixed(this%soln%ndof*this%grid%nsegments)
-  PetscInt :: max_iter = 8 ! note: this should become an input parameter
+  PetscInt :: max_iter = 6 ! note: this should become an input parameter
   PetscInt :: ts_cut_max = 10 ! note: this should become an input parameter
 
   ierr = 0
@@ -2156,7 +2160,7 @@ subroutine PMWellSolve(this,time,ierr)
         this%soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of Newton iterations reached. Cutting &
                       &timestep!'
-        call OptionPrint(out_string,this%option)
+        call OptionPrint(out_string,this%option); WRITE(*,*) ""
         call PMWellCutTimestep(this)
         n_iter = 0
         ts_cut = ts_cut + 1
@@ -2176,11 +2180,10 @@ subroutine PMWellSolve(this,time,ierr)
       ! Declare convergence
       call PMWellCheckConvergence(this,n_iter,res_fixed)
     enddo
+
+    this%soln%n_steps = this%soln%n_steps + 1
  
   enddo
-
-  this%soln%n_steps = this%soln%n_steps + 1
-  this%soln%n_newton = this%soln%n_newton + n_iter
 
   call PMWellPostSolve(this)
 
@@ -2335,10 +2338,9 @@ subroutine PMWellPostSolve(this)
 
   character(len=MAXSTRINGLENGTH) :: out_string
 
-  WRITE(*,*) ""
-  WRITE(out_string,'(" Step ",i6,"  Time=",1pe12.5,"sec  Dt=", &
-                    & 1pe12.5,"sec  Newton=",i8)') this%soln%n_steps, &
-                    this%option%time,this%dt,this%soln%n_newton 
+  WRITE(out_string,'(" PM Well Step Complete!    Time=",1pe12.5," sec &
+                     & Total Newton Iterations =",i8)') &
+                    this%option%time,this%soln%n_newton 
   call OptionPrint(out_string,this%option)
   WRITE(*,*) ""
   
@@ -2387,6 +2389,7 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   PetscInt :: k
 
   n_iter = n_iter + 1
+  this%soln%n_newton = this%soln%n_newton + 1
   cnvgd_due_to_residual = PETSC_FALSE
   cnvgd_due_to_abs_res = PETSC_FALSE
   cnvgd_due_to_scaled_res = PETSC_FALSE
@@ -2508,8 +2511,8 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     this%soln%converged = PETSC_TRUE
     this%soln%not_converged = PETSC_FALSE
-    out_string = ' Solution converged.  Rsn: ' // trim(rsn_string)
-    call OptionPrint(out_string,this%option)
+    out_string = ' Solution converged!  ---> ' // trim(rsn_string)
+    call OptionPrint(out_string,this%option); WRITE(*,*) ""
     this%cumulative_dt = this%cumulative_dt + this%dt
   else
     this%soln%converged = PETSC_FALSE
