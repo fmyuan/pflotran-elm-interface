@@ -186,6 +186,8 @@ module PM_Well_class
     PetscInt :: max_iter
     ! maximum number of time step cuts
     PetscInt :: max_ts_cut
+    ! time step cuts factor (divides the time step)
+    PetscInt :: ts_cut_factor
     ! convergence criterial
     PetscReal :: itol_abs_res
     PetscReal :: itol_scaled_res
@@ -398,6 +400,7 @@ function PMWellCreate()
   PMWellCreate%soln%cut_timestep = PETSC_FALSE
   PMWellCreate%soln%max_iter = 8
   PMWellCreate%soln%max_ts_cut = 20
+  PMWellCreate%soln%ts_cut_factor = 2
   PMWellCreate%soln%itol_abs_res = 1.0d-8
   PMWellCreate%soln%itol_scaled_res = 1.0d-4
   PMWellCreate%soln%itol_abs_update_p = 1.0d0
@@ -1283,6 +1286,11 @@ subroutine PMWellReadSolver(pm_well,input,option,keyword,error_string,found)
           case('MAXIMUM_NUMBER_OF_TS_CUTS')
             call InputReadInt(input,option,pm_well%soln%max_ts_cut)
             call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_TS_CUTS', &
+                               error_string)
+        !-----------------------------
+          case('TIMESTEP_CUT_FACTOR')
+            call InputReadInt(input,option,pm_well%soln%ts_cut_factor)
+            call InputErrorMsg(input,option,'TIMESTEP_CUT_FACTOR', &
                                error_string)
         !-----------------------------
           case('ITOL_ABSOLUTE_RESIDUAL')
@@ -2378,7 +2386,7 @@ subroutine PMWellCutTimestep(pm_well)
       ! No nonlinear solve needed.
     case('DARCY')
       ! could make this smarter or call smarter timestepping routines
-      pm_well%dt = pm_well%dt / 2.d0
+      pm_well%dt = pm_well%dt / pm_well%soln%ts_cut_factor
       pm_well%well%pl = pm_well%soln%prev_soln%pl
       pm_well%well%gas%s = pm_well%soln%prev_soln%sg
       call PMWellUpdateProperties(pm_well%well)
