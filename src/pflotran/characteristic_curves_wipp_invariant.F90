@@ -175,7 +175,7 @@ private :: RPFWIPPMVGKrw , RPFWIPPMVGKrg,  & ! Mualem - van Genuchten
            RPFWIPPlinKrw , RPFWIPPlinKrg,  & ! Linear
            RPFWIPPKRP9Krw  , RPFWIPPKRP9Krg
 
-contains 
+contains
 
 ! **************************************************************************** !
 ! WIPP Constructors
@@ -237,7 +237,7 @@ function SFWIPPctor(KRP, KPC, Swr, Sgr, expon, Pct_ignore, Pct_alpha, &
   ! If KPC is in branch table, set function pointers, else flag error
   select case(KPC)
   case (1) ! 0 at or below residual
-    new%KPCPc  => SFWIPPKPC1Pc 
+    new%KPCPc  => SFWIPPKPC1Pc
     new%KPCSw  => SFWIPPKPC1Sw
     new%setSwj => SFWIPPKPC1Swj
   case (2) ! Pcmax at or below residual
@@ -290,7 +290,7 @@ function SFWIPPctor(KRP, KPC, Swr, Sgr, expon, Pct_ignore, Pct_alpha, &
   ! I.e. 1 - (Smin - Seffmin) /= 1 - Smin - Seffmin
   ! Matching the behaivor of the code, not the documentation
   end select
-  new%Sw_span = new%Sgr_comp - new%Swr 
+  new%Sw_span = new%Sgr_comp - new%Swr
   new%dSe_dSw = 1d0 / new%Sw_span
 
   ! Assign exponential BC and VG parameters
@@ -333,7 +333,7 @@ function SFWIPPctor(KRP, KPC, Swr, Sgr, expon, Pct_ignore, Pct_alpha, &
     ! TODO print warning or error if KRP == 12 and KPC /= 1
   end if
 
-  ! Initialize unsaturated extensions 
+  ! Initialize unsaturated extensions
   error = new%setSwj(Swj)
   ! Abort if error in unsaturated extension (e.g. Swj < Swr)
   if (error /= 0) then
@@ -387,8 +387,8 @@ subroutine SFWIPPSetK(this, permeability)
   class(sf_WIPP_type), intent(inout) :: this
   PetscReal, intent(in) :: permeability
   PetscInt :: error
- 
-  ! Permeability changes with material region, but because this occurs in 
+
+  ! Permeability changes with material region, but because this occurs in
   ! blocks, frequently permeability has not changed from call to call.
   ! Because exponentiaton is expensive, avoid this if possible.
   if (permeability /= this%permeability) then
@@ -684,8 +684,8 @@ pure subroutine SFWIPPKRP9Pc(this, Sw, Pc, dPc_dSw)
   ! based on experimental measurements and analyses done by Vauclin et al.
   ! as discussed by Moridis and Pruess, and the BRAGFLO V6.02 Requirements
   ! Document and Verification and Validation Plan, Sandia National Laboratories,
-  ! Carlsbad, NM. ERMS #558659.  
-  ! Moridis, G. J., and K. Pruess.  1992.  TOUGH Simulations of 
+  ! Carlsbad, NM. ERMS #558659.
+  ! Moridis, G. J., and K. Pruess.  1992.  TOUGH Simulations of
   ! Updegraff's Set of Fluid and Heat Flow Problems.  LBL-32611, ERMS# 138458.
   ! Berkeley, CA:  Lawrence Berkeley Laboratory.
   !
@@ -848,12 +848,12 @@ function RPFWIPPctor(liquid, KRP, Swr, Sgr, expon) result (new)
   end if
   new%dSe_dSw = 1d0 / new%Sw_span
 
-  ! Assign exponential BC and VG parameters 
+  ! Assign exponential BC and VG parameters
   select case(KRP)
   case (KRP_BC_range) ! Brooks-Corey types
     new%m     = 0d0
     new%m_rec = 0d0
-    if (liquid) then 
+    if (liquid) then
       new%expon = 3d0 + 2d0/expon
     else
       new%expon = 1d0 + 2d0/expon
@@ -998,7 +998,7 @@ pure subroutine RPFWIPPKRP9Krw(this, Sw, Kr, dKr_dSw)
   PetscReal :: Se9, dKr_dSe, dSe_dsat
 
   Se9 = 1d0/Sw - 1d0
-  
+
   Kr = 1d0/(1d0 + a*Se9**b)
 
   dKr_dSe = -Se9**(b-1d0)*a*b/(Se9**b*a + 1d0)**2
