@@ -182,6 +182,17 @@ module PM_Well_class
     PetscBool :: not_converged
     PetscBool :: converged
     PetscBool :: cut_timestep
+    ! maximum number of iterations
+    PetscInt :: max_iter
+    ! maximum number of time step cuts
+    PetscInt :: max_ts_cut
+    ! convergence criterial
+    PetscReal :: itol_abs_res
+    PetscReal :: itol_scaled_res
+    PetscReal :: itol_abs_update_p
+    PetscReal :: itol_abs_update_s
+    PetscReal :: itol_rel_update_p
+    PetscReal :: itol_rel_update_s
     ! solver statistics
     PetscInt :: n_steps
     PetscInt :: n_newton
@@ -385,6 +396,14 @@ function PMWellCreate()
   PMWellCreate%soln%not_converged = PETSC_TRUE
   PMWellCreate%soln%converged = PETSC_FALSE
   PMWellCreate%soln%cut_timestep = PETSC_FALSE
+  PMWellCreate%soln%max_iter = 8
+  PMWellCreate%soln%max_ts_cut = 20
+  PMWellCreate%soln%itol_abs_res = 1.0d-8
+  PMWellCreate%soln%itol_scaled_res = 1.0d-4
+  PMWellCreate%soln%itol_abs_update_p = 1.0d0
+  PMWellCreate%soln%itol_abs_update_s = 1.0d-3
+  PMWellCreate%soln%itol_rel_update_p = 1.0d-1
+  PMWellCreate%soln%itol_rel_update_s = 1.0d-1
   PMWellCreate%soln%n_steps = 0
   PMWellCreate%soln%n_newton = 0
 
@@ -721,6 +740,10 @@ subroutine PMWellReadPMBlock(this,input)
 
     error_string = 'WELLBORE_MODEL'
     call PMWellReadWellBCs(this,input,option,word,error_string,found)
+    if (found) cycle
+
+    error_string = 'WELLBORE_MODEL'
+    call PMWellReadSolver(this,input,option,word,error_string,found)
     if (found) cycle
 
     error_string = 'WELLBORE_MODEL'
@@ -1209,6 +1232,114 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
   if (Initialized(this%well%th_ql)) this%soln%th_q = PETSC_TRUE
 
   end subroutine PMWellReadWellBCs
+
+! ************************************************************************** !
+
+subroutine PMWellReadSolver(pm_well,input,option,keyword,error_string,found)
+  ! 
+  ! Reads input file parameters associated with the well model solver.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 02/03/2022
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  class(pm_well_type) :: pm_well
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  PetscInt :: num_errors
+  character(len=MAXWORDLENGTH) :: word
+
+  error_string = trim(error_string) // ',WELL_SOLVER'
+  found = PETSC_TRUE
+  num_errors = 0
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('WELL_SOLVER')
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('MAXIMUM_NUMBER_OF_ITERATIONS')
+            call InputReadInt(input,option,pm_well%soln%max_iter)
+            call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_ITERATIONS', &
+                               error_string)
+        !-----------------------------
+          case('MAXIMUM_NUMBER_OF_TS_CUTS')
+            call InputReadInt(input,option,pm_well%soln%max_ts_cut)
+            call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_TS_CUTS', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_ABSOLUTE_RESIDUAL')
+            call InputReadDouble(input,option,pm_well%soln%itol_abs_res)
+            call InputErrorMsg(input,option,'ITOL_ABSOLUTE_RESIDUAL', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_SCALED_RESIDUAL')
+            call InputReadDouble(input,option,pm_well%soln%itol_scaled_res)
+            call InputErrorMsg(input,option,'ITOL_SCALED_RESIDUAL', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_ABS_UPDATE_PRESSURE')
+            call InputReadDouble(input,option,pm_well%soln%itol_abs_update_p)
+            call InputErrorMsg(input,option,'ITOL_ABS_UPDATE_PRESSURE', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_ABS_UPDATE_SATURATION')
+            call InputReadDouble(input,option,pm_well%soln%itol_abs_update_s)
+            call InputErrorMsg(input,option,'ITOL_ABS_UPDATE_SATURATION', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_REL_UPDATE_PRESSURE')
+            call InputReadDouble(input,option,pm_well%soln%itol_rel_update_p)
+            call InputErrorMsg(input,option,'ITOL_REL_UPDATE_PRESSURE', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_REL_UPDATE_SATURATION')
+            call InputReadDouble(input,option,pm_well%soln%itol_rel_update_s)
+            call InputErrorMsg(input,option,'ITOL_REL_UPDATE_SATURATION', &
+                               error_string)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
+      ! ----------------- error messaging -------------------------------------
+
+
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
+                       &the WELLBORE_MODEL,WELL_SOLVER block. See above &
+                       &error messages.'
+    call PrintErrMsg(option)
+  endif
+
+  end subroutine PMWellReadSolver
 
 ! ************************************************************************** !
 
@@ -2124,13 +2255,14 @@ subroutine PMWellSolve(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 
+  type(well_soln_type), pointer :: soln
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscLogDouble :: log_start_time, log_end_time
   PetscInt :: n_iter,ts_cut,i
   PetscReal :: res(this%soln%ndof)
   PetscReal :: res_fixed(this%soln%ndof*this%grid%nsegments)
-  PetscInt :: max_iter = 6 ! note: this should become an input parameter
-  PetscInt :: ts_cut_max = 10 ! note: this should become an input parameter
+
+  soln => this%soln
 
   ierr = 0
   call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
@@ -2138,10 +2270,10 @@ subroutine PMWellSolve(this,time,ierr)
   n_iter = 0
   ts_cut = 0
 
-  this%soln%residual = 0.d0
+  soln%residual = 0.d0
   this%cumulative_dt = 0.d0
-  this%soln%converged = PETSC_FALSE
-  this%soln%not_converged = PETSC_TRUE
+  soln%converged = PETSC_FALSE
+  soln%not_converged = PETSC_TRUE
 
   do while (this%cumulative_dt < this%realization%option%flow_dt) 
 
@@ -2151,13 +2283,13 @@ subroutine PMWellSolve(this,time,ierr)
     res_fixed = 0.d0
     do i = 1,this%grid%nsegments
       call PMWellAccumulation(this,this%well,i,res)
-      res_fixed(this%soln%ndof*(i-1)+1:this%soln%ndof*i) = -1.d0 * res 
+      res_fixed(soln%ndof*(i-1)+1:soln%ndof*i) = -1.d0 * res 
     enddo
 
-    do while (this%soln%not_converged)
+    do while (soln%not_converged)
 
-      if (n_iter > (max_iter-1)) then
-        this%soln%cut_timestep = PETSC_TRUE
+      if (n_iter > (soln%max_iter-1)) then
+        soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of Newton iterations reached. Cutting &
                       &timestep!'
         call OptionPrint(out_string,this%option); WRITE(*,*) ""
@@ -2166,14 +2298,14 @@ subroutine PMWellSolve(this,time,ierr)
         ts_cut = ts_cut + 1
         exit
       endif
-      if (ts_cut > ts_cut_max) then
+      if (ts_cut > soln%max_ts_cut) then
         this%realization%option%io_buffer = &
           'Maximum timestep cuts reached in PM Well. Solution has not &
            &converged. Exiting.'
         call PrintErrMsg(this%realization%option)
       endif
 
-      this%soln%residual = res_fixed
+      soln%residual = res_fixed
 
       ! use Newton's method to solve for the well pressure and saturation
       call PMWellNewton(this)
@@ -2181,7 +2313,7 @@ subroutine PMWellSolve(this,time,ierr)
       call PMWellCheckConvergence(this,n_iter,res_fixed)
     enddo
 
-    this%soln%n_steps = this%soln%n_steps + 1
+    soln%n_steps = soln%n_steps + 1
  
   enddo
 
@@ -2361,11 +2493,9 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   PetscInt :: n_iter
   PetscReal :: fixed_accum(this%soln%ndof*this%grid%nsegments)
   
+  type(well_soln_type), pointer :: soln
   character(len=MAXSTRINGLENGTH) :: out_string
   character(len=MAXSTRINGLENGTH) :: rsn_string
-  PetscReal :: itol_abs_res, itol_scaled_res 
-  PetscReal :: itol_abs_update_p, itol_abs_update_s
-  PetscReal :: itol_rel_update_p, itol_rel_update_s
   PetscBool :: cnvgd_due_to_residual(this%grid%nsegments*this%soln%ndof)
   PetscBool :: cnvgd_due_to_abs_res(this%grid%nsegments*this%soln%ndof)
   PetscBool :: cnvgd_due_to_scaled_res(this%grid%nsegments*this%soln%ndof)
@@ -2388,8 +2518,10 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   PetscInt :: idof
   PetscInt :: k
 
+  soln => this%soln 
+
   n_iter = n_iter + 1
-  this%soln%n_newton = this%soln%n_newton + 1
+  soln%n_newton = soln%n_newton + 1
   cnvgd_due_to_residual = PETSC_FALSE
   cnvgd_due_to_abs_res = PETSC_FALSE
   cnvgd_due_to_scaled_res = PETSC_FALSE
@@ -2402,59 +2534,52 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   cnvgd_due_to_rel_update = PETSC_FALSE
   rsn_string = ''
 
-  itol_abs_res = 1.0d-8  ! note: these should become input parameters
-  itol_scaled_res = 1.0d-5
-  itol_abs_update_p = 1.d0
-  itol_abs_update_s = 1.d-5
-  itol_rel_update_p = 1.d-1
-  itol_rel_update_s = 1.d-1
-
   do k = 1,this%grid%nsegments
     idof = this%soln%ndof*(k-1)
-    update_s(k) = this%soln%update(idof)
-    update_p(k) = this%soln%update(idof+1)
+    update_s(k) = soln%update(idof)
+    update_p(k) = soln%update(idof+1)
 
     ! Absolute Solution Updates
     temp_real = dabs(update_p(k))
-    if (temp_real < itol_abs_update_p) then
+    if (temp_real < soln%itol_abs_update_p) then
       cnvgd_due_to_abs_update_p(k) = PETSC_TRUE
     endif
     temp_real = dabs(update_s(k))
-    if (temp_real < itol_abs_update_s) then
+    if (temp_real < soln%itol_abs_update_s) then
       cnvgd_due_to_abs_update_s(k) = PETSC_TRUE
     endif
 
     ! Relative Solution Updates
     temp_real = dabs(update_p(k)/this%well%pl(k))
-    if (temp_real < itol_rel_update_p) then
+    if (temp_real < soln%itol_rel_update_p) then
       cnvgd_due_to_rel_update_p(k) = PETSC_TRUE
     endif
     temp_real = dabs(update_s(k)/this%well%gas%s(k))
-    if (temp_real < itol_rel_update_s) then
+    if (temp_real < soln%itol_rel_update_s) then
       cnvgd_due_to_rel_update_s(k) = PETSC_TRUE
     endif
   enddo
 
-  do k = 1,(this%grid%nsegments*this%soln%ndof)
+  do k = 1,(this%grid%nsegments*soln%ndof)
     ! Absolute Residual
-    temp_real = dabs(this%soln%residual(k))
-    if (temp_real < itol_abs_res) then
+    temp_real = dabs(soln%residual(k))
+    if (temp_real < soln%itol_abs_res) then
       cnvgd_due_to_abs_res(k) = PETSC_TRUE
     endif
  
     ! Scaled Residual
-    temp_real = dabs(this%soln%residual(k)/(fixed_accum(k)/this%dt))
-    if (temp_real < itol_scaled_res) then
+    temp_real = dabs(soln%residual(k)/(fixed_accum(k)/this%dt))
+    if (temp_real < soln%itol_scaled_res) then
       cnvgd_due_to_scaled_res(k) = PETSC_TRUE
     endif
   enddo
 
-  max_absolute_residual = maxval(dabs(this%soln%residual))
-  loc_max_abs_residual = maxloc(dabs(this%soln%residual),1)
+  max_absolute_residual = maxval(dabs(soln%residual))
+  loc_max_abs_residual = maxloc(dabs(soln%residual),1)
 
-  max_scaled_residual = maxval(dabs(this%soln%residual/ &
+  max_scaled_residual = maxval(dabs(soln%residual/ &
                                     (fixed_accum/this%dt)))
-  loc_max_scaled_residual = maxloc(dabs(this%soln%residual/ &
+  loc_max_scaled_residual = maxloc(dabs(soln%residual/ &
                                         (fixed_accum/this%dt)),1)
 
   max_absolute_update_p = maxval(dabs(update_p))
@@ -2469,7 +2594,7 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   max_relative_update_s = maxval(dabs(update_s/this%well%gas%s))
   loc_max_rel_update_s = maxloc(dabs(update_s/this%well%gas%s),1)
 
-  do k = 1,(this%grid%nsegments*this%soln%ndof)
+  do k = 1,(this%grid%nsegments*soln%ndof)
     if (cnvgd_due_to_scaled_res(k) .or. cnvgd_due_to_abs_res(k)) then
       cnvgd_due_to_residual(k) = PETSC_TRUE
     endif
@@ -2509,14 +2634,14 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   call OptionPrint(out_string,this%option)
 
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
-    this%soln%converged = PETSC_TRUE
-    this%soln%not_converged = PETSC_FALSE
+    soln%converged = PETSC_TRUE
+    soln%not_converged = PETSC_FALSE
     out_string = ' Solution converged!  ---> ' // trim(rsn_string)
     call OptionPrint(out_string,this%option); WRITE(*,*) ""
     this%cumulative_dt = this%cumulative_dt + this%dt
   else
-    this%soln%converged = PETSC_FALSE
-    this%soln%not_converged = PETSC_TRUE
+    soln%converged = PETSC_FALSE
+    soln%not_converged = PETSC_TRUE
   endif
 
   
