@@ -39,7 +39,7 @@ module PM_ERT_class
     PetscReal, pointer :: species_conductivity_coef(:)
     character(len=MAXSTRINGLENGTH) :: mobility_database
     ! Starting sulution/potential
-    PetscBool :: no_analytical_potential
+    PetscBool :: analytical_potential
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -121,7 +121,7 @@ subroutine PMERTInit(pm_ert)
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
   pm_ert%max_tracer_conc = UNINITIALIZED_DOUBLE
 
-  pm_ert%no_analytical_potential = PETSC_FALSE
+  pm_ert%analytical_potential = PETSC_TRUE
 
   nullify(pm_ert%species_conductivity_coef)
   pm_ert%mobility_database = ''
@@ -187,7 +187,7 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       case('COMPUTE_JACOBIAN')
         option%geophysics%compute_jacobian = PETSC_TRUE
       case('NO_ANALYTICAL_POTENTIAL')
-        this%no_analytical_potential = PETSC_TRUE
+        this%analytical_potential = PETSC_FALSE
       case('CONDUCTIVITY_MAPPING_LAW')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -733,7 +733,7 @@ subroutine PMERTSolve(this,time,ierr)
       write(*,'(x,a)',advance='no') trim(StringWrite(ielec))
     endif
 
-    if (.not.this%no_analytical_potential) then
+    if (this%analytical_potential) then
       ! Initial Solution -> analytic sol for a half-space
       ! Get Analytical potential for a half-space
       call ERTCalculateAnalyticPotential(realization,ielec,average_cond)
