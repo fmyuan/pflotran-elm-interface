@@ -732,6 +732,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       ! GAS_STATE cell and TWO_PHASE/LIQUID_STATE cells as air should still
       ! diffuse through the liquid phase.
       if (associated(gen_auxvar%d)) then
+        !Not supported: interfacial tension, Kelvin equation
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid), &
                                         gen_auxvar%d%psat_T,ierr)
@@ -744,6 +745,25 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       else
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid),ierr)
+        call characteristic_curves%saturation_function% &
+             CapillaryPressure(gen_auxvar%sat(lid), &
+                               gen_auxvar%pres(cpid),dpc_dsatl,option)
+        !man: IFT calculation
+        sigma=1.d0
+        if (characteristic_curves%saturation_function%calc_int_tension) then
+         call characteristic_curves%saturation_function% &
+             CalcInterfacialTension(gen_auxvar%temp,sigma)
+        endif
+        gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+
+        if (characteristic_curves%saturation_function%calc_vapor_pressure) then
+          ! Adjust saturation pressure so it is properly used in Henry and 
+          ! UpdateState
+          call characteristic_curves%saturation_function%&
+               CalcVaporPressure(gen_auxvar%pres(cpid),gen_auxvar%temp, &
+                                 gen_auxvar%pres(spid),gen_auxvar%pres(spid))
+        endif
+
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                          eos_henry_ierr)
       endif
@@ -762,6 +782,15 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       call characteristic_curves%saturation_function% &
              CapillaryPressure(gen_auxvar%sat(lid), &
                                gen_auxvar%pres(cpid),dpc_dsatl,option)                             
+      !man: IFT calculation. Probably will yield slightly lower Pc than
+      !     MAX_CAPILLARY_PRESSURE
+      sigma=1.d0
+      if (characteristic_curves%saturation_function%calc_int_tension) then
+       call characteristic_curves%saturation_function% &
+           CalcInterfacialTension(gen_auxvar%temp,sigma)
+      endif
+      gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+
       gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - &
                              gen_auxvar%pres(cpid)
                              
@@ -801,6 +830,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
         if (associated(gen_auxvar%d)) then
+          !Not supported: interfacial tension, Kelvin equation
           call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid), &
                                           gen_auxvar%d%psat_T,ierr)
@@ -810,9 +840,41 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                            K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
                            eos_henry_ierr)
           gen_auxvar%d%Hc = K_H_tilde
+          gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
+
+          call characteristic_curves%saturation_function% &
+                 CapillaryPressure(gen_auxvar%sat(lid), &
+                                   gen_auxvar%pres(cpid),dpc_dsatl,option)
+
+          !man: IFT calculation
+          sigma=1.d0
+          if (characteristic_curves%saturation_function%calc_int_tension) then
+           call characteristic_curves%saturation_function% &
+               CalcInterfacialTension(gen_auxvar%temp,sigma)
+          endif
+          gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
         else
           call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid),ierr)
+          gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
+          call characteristic_curves%saturation_function% &
+               CapillaryPressure(gen_auxvar%sat(lid), &
+                                 gen_auxvar%pres(cpid),dpc_dsatl,option)
+          !man: IFT calculation
+          sigma=1.d0
+          if (characteristic_curves%saturation_function%calc_int_tension) then
+           call characteristic_curves%saturation_function% &
+               CalcInterfacialTension(gen_auxvar%temp,sigma)
+          endif
+          gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
+
+          if (characteristic_curves%saturation_function%calc_vapor_pressure) then
+            ! Adjust saturation pressure so it is properly used in Henry and 
+            ! UpdateState
+            call characteristic_curves%saturation_function%&
+                 CalcVaporPressure(gen_auxvar%pres(cpid),gen_auxvar%temp, &
+                                   gen_auxvar%pres(spid),gen_auxvar%pres(spid))
+          endif
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                            eos_henry_ierr)
         endif
@@ -834,23 +896,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         call EOSWaterSaturationTemperature(gen_auxvar%temp, &
                                            gen_auxvar%pres(spid),dummy, &
                                            guess,ierr)
+        if (characteristic_curves%saturation_function%calc_vapor_pressure) then
+          option%io_buffer = "Kelvin equation is currently only supported &
+                              &when Temperature is the third primary &
+                              &variable."
+          call PrintErrMsg(option)
+        endif
       endif
 
-      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
-      
-      call characteristic_curves%saturation_function% &
-             CapillaryPressure(gen_auxvar%sat(lid), &
-                               gen_auxvar%pres(cpid),dpc_dsatl,option) 
-      
-      !man: IFT calculation
-      sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(gen_auxvar%temp,sigma)
-      endif
-      gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-      
-      
       if (associated(gen_auxvar%d)) then
         ! for now, calculate derivative through finite differencing
 #if 0

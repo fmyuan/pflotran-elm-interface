@@ -370,7 +370,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   ! Lexicon of compiled parameters
   character(len=MAXWORDLENGTH) :: unsat_ext
-  PetscBool :: loop_invariant, tension
+  PetscBool :: loop_invariant, tension, kelvin
   PetscInt :: vg_rpf_opt
   PetscReal :: alpha, m, Pcmax, Slj, Sr, Srg
 
@@ -383,6 +383,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   ! Default values for unspecified parameters
   loop_invariant = PETSC_FALSE
   tension = PETSC_FALSE
+  kelvin = PETSC_FALSE
   unsat_ext = ''
   vg_rpf_opt = 1 ! Mualem. Burdine option in progress
   alpha = 0d0
@@ -457,6 +458,9 @@ function SaturationFunctionRead(saturation_function,input,option) &
       case('CALCULATE_INTERFACIAL_TENSION')
         tension = PETSC_TRUE
         saturation_function%calc_int_tension = PETSC_TRUE
+      case('ADJUST_VAPOR_PRESSURE')
+        kelvin = PETSC_TRUE
+        saturation_function%calc_vapor_pressure = PETSC_TRUE
       case('SMOOTH')
         smooth = PETSC_TRUE
       case default
@@ -911,6 +915,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
     ! If successful, write tension option to the new object
     if (associated(sf_swap)) then
       sf_swap%calc_int_tension = tension
+      sf_swap%calc_vapor_pressure = kelvin
     else
     ! Throw an error the contructor failed. Most likley an invalid parameter
       option%io_buffer = 'Construction of the saturation function object &
