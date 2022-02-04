@@ -23,6 +23,7 @@ module ZFlow_Aux_module
 
   PetscBool, public :: zflow_numerical_derivatives = PETSC_FALSE
   PetscBool, public :: zflow_simult_function_evals = PETSC_TRUE
+  PetscBool, public :: zflow_tensorial_rel_perm = PETSC_FALSE
 
   ! debugging
   PetscInt, public :: zflow_ni_count
@@ -59,11 +60,14 @@ module ZFlow_Aux_module
     PetscReal :: dpor_dp
     PetscReal :: dsat_dp ! derivative of saturation wrt pressure
     PetscReal :: dkr_dp  ! derivative of rel. perm. wrt pressure
+    PetscReal :: effective_saturation
+    PetscReal :: deffsat_dp
     PetscReal :: pert
   end type zflow_auxvar_type
 
   type, public :: zflow_parameter_type
     PetscBool :: check_post_converged
+    PetscReal, pointer :: tensorial_rel_perm_exponent(:,:)
   end type zflow_parameter_type
 
   type, public :: zflow_type
@@ -96,7 +100,8 @@ module ZFlow_Aux_module
             ZFlowAuxVarStrip, &
             ZFlowAuxVarPerturb, &
             ZFlowPrintAuxVars, &
-            ZFlowOutputAuxVars
+            ZFlowOutputAuxVars, &
+            ZFlowAuxTensorialRelPerm
 
 contains
 
@@ -133,6 +138,7 @@ function ZFlowAuxCreate(option)
 
   allocate(aux%zflow_parameter)
   aux%zflow_parameter%check_post_converged = PETSC_FALSE
+  nullify(aux%zflow_parameter%tensorial_rel_perm_exponent)
 
   ZFlowAuxCreate => aux
 
@@ -163,6 +169,8 @@ subroutine ZFlowAuxVarInit(auxvar,option)
   auxvar%dpor_dp = 0.d0
   auxvar%dsat_dp = 0.d0
   auxvar%dkr_dp = 0.d0
+  auxvar%effective_saturation = UNINITIALIZED_DOUBLE
+  auxvar%deffsat_dp = UNINITIALIZED_DOUBLE
   auxvar%pert = 0.d0
 
 end subroutine ZFlowAuxVarInit
@@ -192,6 +200,8 @@ subroutine ZFlowAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dpor_dp = auxvar%dpor_dp
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dkr_dp = auxvar%dkr_dp
+  auxvar2%effective_saturation = auxvar%effective_saturation
+  auxvar2%deffsat_dp = auxvar%deffsat_dp
   auxvar2%pert = auxvar%pert
 
 end subroutine ZFlowAuxVarCopy
@@ -227,6 +237,7 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
 
   PetscBool :: saturated
   PetscReal :: dkr_dsat
+  PetscReal :: deffsat_dsat
 
   zflow_auxvar%pres = x(ZFLOW_LIQUID_PRESSURE_DOF)
   global_auxvar%temp = option%flow%reference_temperature
@@ -267,6 +278,13 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
                                             zflow_auxvar%kr, &
                                             dkr_dsat,option)
       zflow_auxvar%dkr_dp = zflow_auxvar%dsat_dp * dkr_dsat
+      if (zflow_tensorial_rel_perm) then
+        call characteristic_curves%liq_rel_perm_function% &
+          EffectiveSaturation(zflow_auxvar%sat, &
+                              zflow_auxvar%effective_saturation, &
+                              deffsat_dsat,option)
+        zflow_auxvar%deffsat_dp = deffsat_dsat * zflow_auxvar%dsat_dp
+      endif
     endif
   else
     saturated = PETSC_TRUE
@@ -282,6 +300,8 @@ subroutine ZFlowAuxVarCompute(x,zflow_auxvar,global_auxvar, &
     zflow_auxvar%kr = 1.d0
     zflow_auxvar%dsat_dp = 0.d0
     zflow_auxvar%dkr_dp = 0.d0
+    zflow_auxvar%effective_saturation = 1.d0
+    zflow_auxvar%deffsat_dp = 0.d0
   endif
 
   if (option%iflag /= ZFLOW_UPDATE_FOR_DERIVATIVE) then
@@ -335,6 +355,43 @@ subroutine ZFlowAuxVarPerturb(zflow_auxvar,global_auxvar, &
                           PETSC_TRUE,option)
 
 end subroutine ZFlowAuxVarPerturb
+
+! ************************************************************************** !
+
+subroutine ZFlowAuxTensorialRelPerm(auxvar,tensorial_rel_perm_exponent, &
+                                    dist,rel_perm,drel_perm_dp,option)
+  !
+  ! Copies an auxiliary variable
+  !
+  ! Author: Glenn Hammond
+  ! Date: 08/13/21
+  !
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  type(zflow_auxvar_type) :: auxvar
+  PetscReal :: tensorial_rel_perm_exponent(3)
+  PetscReal :: dist(-1:3)
+  PetscReal :: rel_perm
+  PetscReal :: drel_perm_dp
+  type(option_type) :: option
+
+  PetscReal :: exponent
+  PetscReal :: tensorial_scale
+
+  exponent = UtilityTensorToScalar(dist,tensorial_rel_perm_exponent)
+
+  tensorial_scale = auxvar%effective_saturation**exponent
+  rel_perm = auxvar%kr * tensorial_scale
+  drel_perm_dp = auxvar%dkr_dp * tensorial_scale + &
+                 exponent * rel_perm / &
+                 auxvar%effective_saturation * &
+                 auxvar%deffsat_dp
+
+end subroutine ZFlowAuxTensorialRelPerm
 
 ! ************************************************************************** !
 
@@ -545,6 +602,7 @@ subroutine ZFlowAuxDestroy(aux)
   call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%zflow_parameter)) then
+    call DeallocateArray(aux%zflow_parameter%tensorial_rel_perm_exponent)
   endif
   nullify(aux%zflow_parameter)
 

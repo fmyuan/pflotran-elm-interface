@@ -49,6 +49,7 @@ module Material_module
     PetscReal :: thermal_conductivity_dry
     PetscReal :: thermal_conductivity_wet
     PetscReal :: alpha    ! conductivity saturation relation exponent
+    PetscReal :: tensorial_rel_perm_exponent(3)
 
     ! Geophysics properties
     PetscReal :: electrical_conductivity
@@ -113,7 +114,7 @@ module Material_module
     PetscReal :: outer_spacing
     PetscReal :: area_scaling
   end type multicontinuum_property_type
-  
+
   type, public :: material_property_ptr_type
     type(material_property_type), pointer :: ptr
   end type material_property_ptr_type
@@ -154,7 +155,7 @@ function MaterialPropertyCreate(option)
   ! Date: 11/02/07
   !
   use Option_module
-  
+
   implicit none
 
   type(material_property_type), pointer :: MaterialPropertyCreate
@@ -202,6 +203,7 @@ function MaterialPropertyCreate(option)
   material_property%thermal_conductivity_dry = UNINITIALIZED_DOUBLE
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
+  material_property%tensorial_rel_perm_exponent = UNINITIALIZED_DOUBLE
   material_property%electrical_conductivity = UNINITIALIZED_DOUBLE
   nullify(material_property%electrical_conductivity_dataset)
 
@@ -228,7 +230,7 @@ function MaterialPropertyCreate(option)
   material_property%max_pressure = 1.d6
   material_property%max_permfactor = 1.d0
   nullify(material_property%multicontinuum)
-  
+
   if (option%use_mc) then
     allocate(material_property%multicontinuum)
     material_property%multicontinuum%name = ''
@@ -252,7 +254,7 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%area_scaling = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
   endif
- 
+
   nullify(material_property%next)
   MaterialPropertyCreate => material_property
 
@@ -737,6 +739,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
           'per mineral basis under the MINERAL_KINETICS card.  See ' // &
           'reaction_aux.F90.'
           call PrintErrMsg(option)
+      case('TENSORIAL_REL_PERM_EXPONENT')
+        call InputReadNDoubles(input,option, &
+                               material_property%tensorial_rel_perm_exponent, &
+                               THREE_INTEGER)
+        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
       case('SECONDARY_CONTINUUM')
         call InputPushBlock(input,option)
         call InputReadPflotranString(input,option)
@@ -883,7 +890,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%multicontinuum%mnrl_area)
               call InputErrorMsg(input,option,'secondary cont. mnrl area', &
                            'MATERIAL_PROPERTY')
-            case('LOG_GRID_SPACING') 
+            case('LOG_GRID_SPACING')
               option%io_buffer = 'LOG_GRID_SPACING is &
                                   &temporarily disabled for multiple &
                                   continuum model.'
@@ -1825,7 +1832,7 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         case default
           print *, 'Error indexing porosity in MaterialSetAuxVarVecLoc()'
           stop
-      end select      
+      end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%tortuosity = vec_loc_p(ghosted_id)
