@@ -78,8 +78,8 @@ subroutine ZFlowSetup(realization)
   patch%aux%ZFlow => ZFlowAuxCreate(option)
   zflow_parameter => patch%aux%ZFlow%zflow_parameter
 
+  temp_int = size(patch%material_property_array)
   if (zflow_tensorial_rel_perm) then
-    temp_int = size(patch%material_property_array)
     allocate(zflow_parameter%tensorial_rel_perm_exponent(3,temp_int))
     zflow_parameter%tensorial_rel_perm_exponent = UNINITIALIZED_DOUBLE
     do imat = 1, temp_int
@@ -91,6 +91,20 @@ subroutine ZFlowSetup(realization)
         option%io_buffer = 'A tensorial relative permeability exponent &
           &is not define for material "' // &
           trim(patch%material_property_array(imat)%ptr%name) // '".'
+        call PrintErrMsg(option)
+      endif
+    enddo
+  else
+    ! check to ensure that user has not parameterized tensorial perm without
+    ! adding TENSORIAL_RELATIVE_PERMEABILITY to the simulation OPTIONS block
+    do imat = 1, temp_int
+      if (Initialized(maxval(patch%material_property_array(imat)%ptr% &
+                                      tensorial_rel_perm_exponent))) then
+        option%io_buffer = 'A tensorial relative permeability exponent &
+          &is define for material "' // &
+          trim(patch%material_property_array(imat)%ptr%name) // '" without &
+          &TENSORIAL_RELATIVE_PERMEABILITY being defined in the ZFLOW &
+          &simulation OPTIONS block.'
         call PrintErrMsg(option)
       endif
     enddo
