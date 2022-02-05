@@ -1019,6 +1019,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
     endif
   endif
 
+  if (Initialized(maxval(material_property%tensorial_rel_perm_exponent))) then
+    select case(option%iflowmode)
+      case(ZFLOW_MODE)
+      case default
+        option%io_buffer = 'Tensorial relative permeability not supported &
+          &for the requested flow mode.'
+        call PrintErrMsg(option)
+    end select
+  endif
+
   ! material id must be > 0
   if (material_property%external_id <= 0) then
     write(word,*) material_property%external_id
