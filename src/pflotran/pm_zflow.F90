@@ -176,6 +176,8 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
         zflow_calc_flux = PETSC_FALSE
       case('NO_BCFLUX')
         zflow_calc_bcflux = PETSC_FALSE
+      case('TENSORIAL_RELATIVE_PERMEABILITY')
+        zflow_tensorial_rel_perm = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'ZFlow Mode',option)
     end select

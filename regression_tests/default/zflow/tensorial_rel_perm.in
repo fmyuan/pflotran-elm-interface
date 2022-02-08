@@ -1,0 +1,40 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        TENSORIAL_RELATIVE_PERMEABILITY
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+EXTERNAL_FILE vsat_flow_5x1x5.txt
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY sand
+  ID 1
+  POROSITY 0.25d0
+  TENSORIAL_REL_PERM_EXPONENT -0.5 -0.5 2.
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+MATERIAL_PROPERTY silt
+  ID 2
+  POROSITY 0.25d0
+  TENSORIAL_REL_PERM_EXPONENT 0. 0. 0.
+  PERMEABILITY
+    PERM_ISO 1.d-14
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+END_SUBSURFACE

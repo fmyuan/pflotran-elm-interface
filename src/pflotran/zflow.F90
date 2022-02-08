@@ -58,11 +58,12 @@ subroutine ZFlowSetup(realization)
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
   type(material_parameter_type), pointer :: material_parameter
+  type(zflow_parameter_type), pointer :: zflow_parameter
 
   PetscInt :: ghosted_id, iconn, sum_connection, local_id
   PetscBool :: error_found
   PetscInt :: flag(10)
-  PetscInt :: temp_int, idof
+  PetscInt :: temp_int, idof, imat
   PetscErrorCode :: ierr
                                                 ! extra index for derivatives
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
@@ -75,6 +76,39 @@ subroutine ZFlowSetup(realization)
   grid => patch%grid
 
   patch%aux%ZFlow => ZFlowAuxCreate(option)
+  zflow_parameter => patch%aux%ZFlow%zflow_parameter
+
+  temp_int = size(patch%material_property_array)
+  if (zflow_tensorial_rel_perm) then
+    allocate(zflow_parameter%tensorial_rel_perm_exponent(3,temp_int))
+    zflow_parameter%tensorial_rel_perm_exponent = UNINITIALIZED_DOUBLE
+    do imat = 1, temp_int
+      if (Initialized(minval(patch%material_property_array(imat)%ptr% &
+                                      tensorial_rel_perm_exponent))) then
+        zflow_parameter%tensorial_rel_perm_exponent(:,imat) = &
+          patch%material_property_array(imat)%ptr%tensorial_rel_perm_exponent
+      else
+        option%io_buffer = 'A tensorial relative permeability exponent &
+          &is not define for material "' // &
+          trim(patch%material_property_array(imat)%ptr%name) // '".'
+        call PrintErrMsg(option)
+      endif
+    enddo
+  else
+    ! check to ensure that user has not parameterized tensorial perm without
+    ! adding TENSORIAL_RELATIVE_PERMEABILITY to the simulation OPTIONS block
+    do imat = 1, temp_int
+      if (Initialized(maxval(patch%material_property_array(imat)%ptr% &
+                                      tensorial_rel_perm_exponent))) then
+        option%io_buffer = 'A tensorial relative permeability exponent &
+          &is define for material "' // &
+          trim(patch%material_property_array(imat)%ptr%name) // '" without &
+          &TENSORIAL_RELATIVE_PERMEABILITY being defined in the ZFLOW &
+          &simulation OPTIONS block.'
+        call PrintErrMsg(option)
+      endif
+    enddo
+  endif
 
   ! ensure that material properties specific to this module are properly
   ! initialized

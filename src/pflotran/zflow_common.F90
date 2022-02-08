@@ -227,14 +227,28 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
     delta_pressure = zflow_auxvar_up%pres - &
                      zflow_auxvar_dn%pres + &
                      gravity_term
-    if (delta_pressure >= 0.d0) then
-      kr = zflow_auxvar_up%kr
-      dkr_dpup = zflow_auxvar_up%dkr_dp
-      dkr_dpdn = 0.d0
+    dkr_dpup = 0.d0
+    dkr_dpdn = 0.d0
+    if (zflow_tensorial_rel_perm) then
+      if (delta_pressure >= 0.d0) then
+        call ZFlowAuxTensorialRelPerm(zflow_auxvar_up, &
+                zflow_parameter% &
+                  tensorial_rel_perm_exponent(:,material_auxvar_up%id), &
+                dist,kr,dkr_dpup,option)
+      else
+        call ZFlowAuxTensorialRelPerm(zflow_auxvar_dn, &
+                zflow_parameter% &
+                  tensorial_rel_perm_exponent(:,material_auxvar_dn%id), &
+                dist,kr,dkr_dpdn,option)
+      endif
     else
-      kr = zflow_auxvar_dn%kr
-      dkr_dpup = 0.d0
-      dkr_dpdn = zflow_auxvar_dn%dkr_dp
+      if (delta_pressure >= 0.d0) then
+        kr = zflow_auxvar_up%kr
+        dkr_dpup = zflow_auxvar_up%dkr_dp
+      else
+        kr = zflow_auxvar_dn%kr
+        dkr_dpdn = zflow_auxvar_dn%dkr_dp
+      endif
     endif
 
     if (kr > floweps) then
@@ -364,12 +378,29 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
             ddelta_pressure_dpdn = 0.d0
           endif
         endif
-        if (delta_pressure >= 0.d0) then
-          kr = zflow_auxvar_up%kr
-          dkr_dp = 0.d0
+
+        if (zflow_tensorial_rel_perm) then
+          if (delta_pressure >= 0.d0) then
+            call ZFlowAuxTensorialRelPerm(zflow_auxvar_up, &
+                    zflow_parameter% &
+                      tensorial_rel_perm_exponent(:,material_auxvar_dn%id), &
+                    dist,kr,dkr_dp,option)
+            ! override as the upwind pressure is fixed
+            dkr_dp = 0.d0
+          else
+            call ZFlowAuxTensorialRelPerm(zflow_auxvar_dn, &
+                    zflow_parameter% &
+                      tensorial_rel_perm_exponent(:,material_auxvar_dn%id), &
+                    dist,kr,dkr_dp,option)
+          endif
         else
-          kr = zflow_auxvar_dn%kr
-          dkr_dp = zflow_auxvar_dn%dkr_dp
+          if (delta_pressure >= 0.d0) then
+            kr = zflow_auxvar_up%kr
+            dkr_dp = 0.d0
+          else
+            kr = zflow_auxvar_dn%kr
+            dkr_dp = zflow_auxvar_dn%dkr_dp
+          endif
         endif
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
