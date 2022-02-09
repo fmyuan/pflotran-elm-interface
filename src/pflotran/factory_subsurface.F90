@@ -3133,7 +3133,6 @@ subroutine SubsurfaceReadInput(simulation,input)
               endif
             case('PRINT_COLUMN_IDS')
               output_option%print_column_ids = PETSC_TRUE
-               
 
            case ('PRINT_PRIMAL_GRID')
              output_option%print_explicit_primal_grid = PETSC_TRUE
