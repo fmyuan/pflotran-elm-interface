@@ -780,13 +780,13 @@ subroutine InvZFlowEvaluateCostFunction(this)
   use Realization_Base_class
   use Option_module
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   class(inversion_zflow_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
@@ -1160,14 +1160,14 @@ subroutine InversionZFlowCGLSRhs(this)
 
   use Realization_Base_class
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   class(inversion_zflow_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
@@ -1278,14 +1278,14 @@ subroutine InversionZFLowBuildWm(this)
 
   use Patch_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   class(inversion_zflow_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
