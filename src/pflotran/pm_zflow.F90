@@ -96,8 +96,6 @@ subroutine PMZFlowInitObject(this)
 
   class(pm_zflow_type) :: this
 
-  PetscReal :: array(1)
-
   allocate(this%max_change_ivar(3))
   call PMSubsurfaceFlowInit(this)
   this%name = 'Z Flow'
@@ -117,9 +115,6 @@ subroutine PMZFlowInitObject(this)
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
 
-  array(1) = zflow_density_kg ! dist is the aux array
-  call EOSWaterSetDensity('CONSTANT',array)
-
 end subroutine PMZFlowInitObject
 
 ! ************************************************************************** !
@@ -137,16 +132,19 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
   use String_module
   use Option_module
   use Utility_module
+  use EOS_Water_module
 
   implicit none
 
+  class(pm_zflow_type) :: this
   type(input_type), pointer :: input
 
   character(len=MAXWORDLENGTH) :: keyword
-  class(pm_zflow_type) :: this
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: local_error_string
   PetscBool :: found
+  PetscReal :: array(1)
 
   option => this%option
 
@@ -170,6 +168,27 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
+      case('PROCESSES')
+        local_error_string = trim(error_string) // ',' // keyword
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          call InputReadCard(input,option,keyword)
+          call InputErrorMsg(input,option,'keyword',local_error_string)
+          call StringToUpper(keyword)
+          select case(trim(keyword))
+            case('LIQUID_FLOW')
+              zflow_liq_flow_eq = 1     ! these serve as flags until updated
+            case('HEAT_TRANSFER')
+              zflow_heat_tran_eq = 1
+            case('SOLUTE_TRANSPORT')
+              zflow_sol_tran_eq = 1
+            case default
+              call InputKeywordUnrecognized(input,keyword,'ZFlow Mode',option)
+          end select
+        enddo
+        call InputPopBlock(input,option)
       case('NO_ACCUMULATION')
         zflow_calc_accum = PETSC_FALSE
       case('NO_FLUX')
@@ -178,11 +197,25 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
         zflow_calc_bcflux = PETSC_FALSE
       case('TENSORIAL_RELATIVE_PERMEABILITY')
         zflow_tensorial_rel_perm = PETSC_TRUE
+      case('LIQUID_DENSITY')
+        call InputReadDouble(input,option,zflow_density_kg)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call InputReadAndConvertUnits(input,zflow_density_kg,'kg/m^3', &
+                                      trim(error_string)//','//keyword,option)
+      case('LIQUID_VISCOSITY')
+        call InputReadDouble(input,option,zflow_viscosity)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call InputReadAndConvertUnits(input,zflow_viscosity,'Pa-s', &
+                                      trim(error_string)//','//keyword,option)
       case default
         call InputKeywordUnrecognized(input,keyword,'ZFlow Mode',option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  zflow_density_kmol = zflow_density_kg / FMWH2O
+  array(1) = zflow_density_kg ! dist is the aux array
+  call EOSWaterSetDensity('CONSTANT',array)
 
 end subroutine PMZFlowReadSimOptionsBlock
 
@@ -268,8 +301,8 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-    case('REL_LIQ_PRESSURE_PERTURBATION')
-      call InputReadDouble(input,option,zflow_pres_rel_pert)
+    case('REL_PERTURBATION')
+      call InputReadDouble(input,option,zflow_rel_pert)
       call InputErrorMsg(input,option,keyword,error_string)
       ! no units conversion since it is relative
     case('MIN_LIQ_PRESSURE_PERTURBATION')

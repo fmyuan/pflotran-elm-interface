@@ -42,6 +42,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use General_Aux_module
   use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
+  use ZFlow_Aux_module
   
   implicit none
 
@@ -70,6 +71,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: aux(1), dummy
   PetscReal :: lower_segment, upper_segment
   character(len=MAXWORDLENGTH) :: word
+  PetscInt :: water_index, conductance_index, energy_index, solute_index
   PetscErrorCode :: ierr
   
   class(dataset_gridded_hdf5_type), pointer :: datum_dataset
@@ -462,6 +464,18 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
   num_faces = coupler%connection_set%num_connections
 
+  water_index = UNINITIALIZED_INTEGER
+  conductance_index = UNINITIALIZED_INTEGER
+  energy_index = UNINITIALIZED_INTEGER
+  solute_index = UNINITIALIZED_INTEGER
+  select case(option%iflowmode)
+    case(ZFLOW_MODE)
+      water_index = coupler%flow_aux_mapping(ZFLOW_COND_WATER_INDEX)
+      conductance_index = coupler%flow_aux_mapping(ZFLOW_COND_CONDUCTANCE_INDEX)
+      energy_index = coupler%flow_aux_mapping(ZFLOW_COND_ENERGY_INDEX)
+      solute_index = coupler%flow_aux_mapping(ZFLOW_COND_SOLUTE_INDEX)
+  end select
+
   do iconn=1, num_faces !geh: this should really be num_faces!
     local_id = coupler%connection_set%id_dn(iconn)
     ghosted_id = grid%nL2G(local_id)
@@ -527,7 +541,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     select case(option%iflowmode)
       case(G_MODE,WF_MODE,H_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
-      case (MPH_MODE)
+      case(MPH_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
         if (pressure < 0.d0) then
           option%io_buffer = 'Negative liquid pressure calculated by &
@@ -536,6 +550,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
             &a different type of FLOW_CONDITION.'
           call PrintErrMsgByRank(option)
         endif
+      case(ZFLOW_MODE)
       case default
         if (condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
           coupler%flow_aux_real_var(1,iconn) = &
@@ -545,7 +560,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           coupler%flow_aux_real_var(1,iconn) = &
             max(pressure,option%flow%reference_pressure)
           select case(option%iflowmode)
-            case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+            case(RICHARDS_MODE,RICHARDS_TS_MODE)
               coupler%flow_aux_real_var(RICHARDS_CONDUCTANCE_DOF,iconn) = &
                 condition%pressure%aux_real(1)
             case(TH_MODE,TH_TS_MODE)
@@ -557,8 +572,30 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         endif
     end select
 
+    if (water_index > 0) then
+      if (condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
+        coupler%flow_aux_real_var(water_index,iconn) = &
+          max(pressure,option%flow%reference_pressure)
+      else if (condition%pressure%itype == HYDROSTATIC_CONDUCTANCE_BC) then
+        coupler%flow_aux_real_var(water_index,iconn) = &
+          max(pressure,option%flow%reference_pressure)
+         ! add the conductance
+        coupler%flow_aux_real_var(conductance_index,iconn) = &
+          condition%pressure%aux_real(1)
+      else
+        coupler%flow_aux_real_var(water_index,iconn) = pressure
+      endif
+    endif
+
     ! assign other dofs
     select case(option%iflowmode)
+      case(ZFLOW_MODE)
+        if (energy_index > 0) then
+          coupler%flow_aux_real_var(energy_index,iconn) = temperature
+        endif
+        if (solute_index > 0) then
+          coupler%flow_aux_real_var(solute_index,iconn) = concentration_at_datum
+        endif
       case(MPH_MODE)
         temperature = temperature_at_datum + &
                     ! gradient in K/m

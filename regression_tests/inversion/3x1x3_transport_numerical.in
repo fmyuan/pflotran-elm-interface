@@ -6,12 +6,15 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE ZFLOW
       OPTIONS
-        EXTERNAL_FILE zflow_standard_options.txt
+        PROCESSES
+          LIQUID_FLOW
+          SOLUTE_TRANSPORT
+        /
       /
     /
   /
 END
 
 SUBSURFACE
-  EXTERNAL_FILE 3x1x3_transient.txt
+  EXTERNAL_FILE 3x1x3_transport_numerical.txt
 END_SUBSURFACE

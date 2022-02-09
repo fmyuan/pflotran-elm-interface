@@ -174,7 +174,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   use String_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
-                               LIQUID_PRESSURE, LIQUID_SATURATION
+                               LIQUID_PRESSURE, LIQUID_SATURATION, &
+                               SOLUTE_CONCENTRATION
   use Material_Aux_module, only : POROSITY_BASE
   use Utility_module
 
@@ -232,6 +233,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
           this%iobsfunc = LIQUID_PRESSURE
         case('LIQUID_SATURATION')
           this%iobsfunc = LIQUID_SATURATION
+        case('SOLUTE_CONCENTRATION')
+          this%iobsfunc = SOLUTE_CONCENTRATION
         case default
           call InputKeywordUnrecognized(input,word,trim(error_string)// &
                                         & ','//trim(keyword),option)
@@ -433,8 +436,8 @@ subroutine InversionSubsurfInitialize(this)
     this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
 
   this%inversion_aux%inversion_ts_aux_list => inversion_ts_aux
-  call InvTSAuxAllocate(inversion_ts_aux,patch%grid%nlmax)
-
+  call InvTSAuxAllocate(inversion_ts_aux,this%realization%option%nflowdof, &
+                        patch%grid%nlmax)
 
 end subroutine InversionSubsurfInitialize
 
@@ -660,12 +663,18 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   type(solver_type), pointer :: solver
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
   PetscReal :: tempreal
   PetscInt :: imeasurement
   PetscInt :: icell_measurement
-  Vec :: work
-  Vec :: p
-  Vec :: rhs
+  PetscInt :: tempint
+  PetscInt :: ndof
+  PetscInt :: i, j, offset, local_id
+  Vec :: work  ! a 1 dof vec
+  Vec :: onedof_vec
+  Vec :: ndof_vec ! ndof_vec
+  Vec :: p        ! ndof_vec
+  Vec :: rhs      ! ndof_vec
   ! derivative of residual at k+1 time level wrt unknown at k time level
   ! times lambda at k time level
   Vec :: dReskp1_duk_lambdak
@@ -683,15 +692,18 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   grid => patch%grid
   inversion_aux => this%inversion_aux
   zflow_auxvars => patch%aux%ZFlow%auxvars
+  ndof = option%nflowdof
 
   timer => TimerCreate()
 
   call timer%Start()
 
   work = this%realization%field%work ! DO NOT DESTROY!
-  call VecDuplicate(work,p,ierr);CHKERRQ(ierr)
-  call VecDuplicate(work,rhs,ierr);CHKERRQ(ierr)
-  call VecDuplicate(work,dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
+  call VecDuplicate(work,onedof_vec,ierr);CHKERRQ(ierr)
+  ndof_vec = this%realization%field%flow_xx ! DO NOT DESTROY!
+  call VecDuplicate(ndof_vec,p,ierr);CHKERRQ(ierr)
+  call VecDuplicate(ndof_vec,rhs,ierr);CHKERRQ(ierr)
+  call VecDuplicate(ndof_vec,dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
   call DiscretizationCreateVector(discretization,ONEDOF, &
                                   natural_vec,NATURAL,option)
 
@@ -699,7 +711,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
     if (OptionPrintToScreen(option)) print *, 'M'
     call MatView(inversion_ts_aux%dResdu,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
-  call VecDuplicateVecsF90(work,size(this%imeasurement), &
+  call VecDuplicateVecsF90(ndof_vec,size(this%imeasurement), &
                            inversion_ts_aux%lambda,ierr);CHKERRQ(ierr)
   call KSPSetOperators(solver%ksp,inversion_ts_aux%dResdu, &
                        inversion_ts_aux%dResdu,ierr);CHKERRQ(ierr)
@@ -714,14 +726,27 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
       endif
       call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
       call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
-      call DiscretizationNaturalToGlobal(discretization,natural_vec,p,ONEDOF)
+      call DiscretizationNaturalToGlobal(discretization,natural_vec, &
+                                         onedof_vec,ONEDOF)
       select case(this%iobsfunc)
         case(LIQUID_PRESSURE)
+          tempint = zflow_liq_flow_eq
         case(LIQUID_SATURATION)
+          tempint = zflow_liq_flow_eq
           call RealizationGetVariable(this%realization,work,DERIVATIVE, &
                                       ZFLOW_LIQ_SAT_WRT_LIQ_PRES)
-          call VecPointwiseMult(p,p,work,ierr);CHKERRQ(ierr)
+          call VecPointwiseMult(onedof_vec,onedof_vec,work,ierr);CHKERRQ(ierr)
+        case(SOLUTE_CONCENTRATION)
+          tempint = zflow_sol_tran_eq
+        case default
+          option%io_buffer = 'Unknown observation type in InvSubsurfCalcLambda'
+          call PrintErrMsg(option)
       end select
+      if (Uninitialized(tempint)) then
+        option%io_buffer = 'The observed state variable is not being modeled.'
+        call PrintErrMsg(option)
+      endif
+      call VecStrideScatter(onedof_vec,tempint-1,p,INSERT_VALUES,ierr);CHKERRQ(ierr)
       if (this%debug_verbosity > 2) then
         if (OptionPrintToScreen(option)) print *, 'p'
         call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
@@ -729,12 +754,25 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
       call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
     else
       call VecZeroEntries(p,ierr);CHKERRQ(ierr)
+      call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      vec_ptr(:) = inversion_ts_aux%next%dRes_du_k(:)
+      call VecGetArrayF90(inversion_ts_aux%next%lambda(imeasurement), &
+                          vec_ptr2,ierr);CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax
+        offset = (local_id-1)*ndof
+        do i = 1, ndof
+          tempreal = 0.d0
+          do j = 1, ndof
+            tempreal = tempreal + &
+              ! this is a transpose block matmult: i,j -> j,i
+              inversion_ts_aux%next%dRes_du_k(j,i,local_id)*vec_ptr2(offset+j)
+          enddo
+          vec_ptr(offset+i) = tempreal
+        enddo
+      enddo
       call VecRestoreArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecPointwiseMult(dReskp1_duk_lambdak,dReskp1_duk_lambdak, &
-                            inversion_ts_aux%next%lambda(imeasurement), &
-                            ierr);CHKERRQ(ierr)
+      call VecRestoreArrayF90(inversion_ts_aux%next%lambda(imeasurement), &
+                              vec_ptr2,ierr);CHKERRQ(ierr)
     endif
     call VecWAXPY(rhs,-1.d0,dReskp1_duk_lambdak,p,ierr);CHKERRQ(ierr)
     call KSPSolveTranspose(solver%ksp,rhs, &
@@ -753,6 +791,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
       endif
     endif
   enddo
+  call VecDestroy(onedof_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(p,ierr);CHKERRQ(ierr)
   call VecDestroy(rhs,ierr);CHKERRQ(ierr)
   call VecDestroy(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
@@ -804,8 +843,8 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   PetscReal :: tempreal
   PetscInt :: iparameter, imeasurement
   PetscInt :: natural_id
+  PetscInt :: offset
   Vec :: work
-  Vec :: work_loc, lambda_loc
   Vec :: dResdKLambda
   PetscViewer :: viewer
   class(timer_type), pointer :: timer
@@ -815,7 +854,6 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   nullify(vec_ptr)
   nullify(vec_ptr2)
 
-  lambda_loc = PETSC_NULL_VEC
   dResdKLambda = PETSC_NULL_VEC
 
   solver => this%forward_simulation%flow_process_model_coupler% &
@@ -831,13 +869,20 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   call timer%Start()
 
   work = this%realization%field%work ! DO NOT DESTROY!
+  call VecDuplicate(this%realization%field%flow_xx, &
+                    dResdKLambda,ierr);CHKERRQ(ierr)
 
   if (this%debug_adjoint) then
     string = 'dResdK_ts'//trim(StringWrite(inversion_ts_aux%timestep))//'.txt'
     call PetscViewerASCIIOpen(option%mycomm,string, &
                               viewer,ierr);CHKERRQ(ierr)
-    call MatView(inversion_ts_aux%dResdK,viewer,ierr);CHKERRQ(ierr)
+    call MatView(inversion_ts_aux%dResdparam,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    if (this%debug_verbosity > 2) then
+      if (OptionPrintToScreen(option)) print *, 'dResdK'
+      call MatView(inversion_ts_aux%dResdparam, &
+                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+    endif
   endif
 
   do imeasurement = 1, size(this%imeasurement)
@@ -850,24 +895,30 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
       call VecView(inversion_ts_aux%lambda(imeasurement),viewer, &
                     ierr);CHKERRQ(ierr)
       call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+      if (this%debug_verbosity > 2) then
+        if (OptionPrintToScreen(option)) print *, 'lambda ', imeasurement
+        call VecView(inversion_ts_aux%lambda(imeasurement), &
+                     PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+      endif
     endif
-    call VecDuplicate(work,dResdKLambda,ierr);CHKERRQ(ierr)
-    call MatMultTranspose(inversion_ts_aux%dResdK, &
+    call MatMultTranspose(inversion_ts_aux%dResdparam, &
                           inversion_ts_aux%lambda(imeasurement), &
                           dResdKLambda,ierr);CHKERRQ(ierr)
+    if (this%debug_verbosity > 2) then
+      if (OptionPrintToScreen(option)) print *, 'dGamdp ', imeasurement
+      call VecView(dResdKLambda, &
+                   PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+    endif
     call VecGetArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
     do iparameter = 1, grid%nlmax
       natural_id = grid%nG2A(grid%nL2G(iparameter))
+      offset = (iparameter-1)*option%nflowdof
       call MatSetValue(inversion_aux%JsensitivityT,natural_id-1,imeasurement-1, &
-                      vec_ptr(iparameter),ADD_VALUES,ierr);CHKERRQ(ierr)
+                      vec_ptr(offset+1),ADD_VALUES,ierr);CHKERRQ(ierr)
     enddo
     call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
   enddo
 
-  if (lambda_loc /= PETSC_NULL_VEC) then
-    call VecDestroy(lambda_loc,ierr);CHKERRQ(ierr)
-  endif
   if (dResdKLambda /= PETSC_NULL_VEC) then
     call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
   endif

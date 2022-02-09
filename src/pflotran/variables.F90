@@ -159,7 +159,9 @@ module Variables_module
   PetscInt, parameter, public :: DERIVATIVE              = 130
   PetscInt, parameter, public :: DARCY_VELOCITY          = 131
 
-  PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 131
-  PetscInt, parameter, public :: SECONDARY_CONCENTRATION_GAS = 132
+  PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 132
+  PetscInt, parameter, public :: SECONDARY_CONCENTRATION_GAS = 133
+
+  PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
 
 end module Variables_module
