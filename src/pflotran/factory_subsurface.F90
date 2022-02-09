@@ -3106,6 +3106,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                                       output_option%aveg_output_variable_list)
             case('UNFILTER_NON_STATE_VARIABLES')
               output_option%filter_non_state_variables = PETSC_FALSE
+            case('NO_SYNCHRONIZED_OUTPUT')
+              output_option%force_synchronized_output = PETSC_FALSE
 
 
         !----------------------------------------------------------------------
