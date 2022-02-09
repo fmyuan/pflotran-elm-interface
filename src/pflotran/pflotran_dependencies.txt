@@ -350,6 +350,8 @@ inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
                   material.o material_aux.o option.o patch.o \
                   pflotran_constants.o string.o survey.o timer.o utility.o \
                   variables.o
+inversion_measurement_aux.o : input_aux.o option.o pflotran_constants.o \
+                              string.o utility.o
 inversion_perturbation.o : debug.o discretization.o driver.o factory_forward.o \
                            input_aux.o inversion_base.o inversion_subsurface.o \
                            inversion_ts_aux.o material.o option.o \
@@ -357,7 +359,8 @@ inversion_perturbation.o : debug.o discretization.o driver.o factory_forward.o \
                            utility.o variables.o zflow_aux.o
 inversion_subsurface.o : connection.o coupler.o debug.o discretization.o \
                          driver.o factory_forward.o grid.o hdf5.o input_aux.o \
-                         inversion_aux.o inversion_base.o inversion_ts_aux.o \
+                         inversion_aux.o inversion_base.o \
+                         inversion_measurement_aux.o inversion_ts_aux.o \
                          material.o material_aux.o option.o output_hdf5.o \
                          patch.o pflotran_constants.o pm_base.o pm_zflow.o \
                          realization_base.o realization_subsurface.o \
@@ -1005,7 +1008,7 @@ wipp_flow_common.o : connection.o eos_gas.o eos_water.o global_aux.o \
                      material_aux.o option.o pflotran_constants.o \
                      upwind_direction.o wipp_flow_aux.o
 zflow.o : characteristic_curves.o connection.o coupler.o debug.o \
-          discretization.o field.o general_aux.o global_aux.o grid.o \
+          discretization.o field.o fluid.o general_aux.o global_aux.o grid.o \
           material.o material_aux.o matrix_zeroing.o option.o output_aux.o \
           patch.o petsc_utility.o pflotran_constants.o \
           realization_subsurface.o upwind_direction.o variables.o zflow_aux.o \

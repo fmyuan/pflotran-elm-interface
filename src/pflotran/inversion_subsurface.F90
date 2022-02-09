@@ -6,6 +6,7 @@ module Inversion_Subsurface_class
   use PFLOTRAN_Constants_module
   use Inversion_Aux_module
   use Inversion_TS_Aux_module
+  use Inversion_Measurement_Aux_module
   use Inversion_Base_class
   use Realization_Subsurface_class
   use Simulation_Subsurface_class
@@ -19,8 +20,7 @@ module Inversion_Subsurface_class
     class(simulation_subsurface_type), pointer :: forward_simulation
     class(realization_subsurface_type), pointer :: realization
     type(inversion_aux_type), pointer :: inversion_aux
-    PetscReal, pointer :: measurement(:)
-    PetscInt, pointer :: imeasurement(:)
+    type(inversion_measurement_aux_type), pointer :: measurements(:)
     PetscInt :: measurement_offset
     PetscInt :: iqoi(2)
     PetscInt :: iobsfunc
@@ -109,8 +109,7 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   this%measurement_offset = UNINITIALIZED_INTEGER
 
-  nullify(this%measurement)
-  nullify(this%imeasurement)
+  nullify(this%measurements)
 
   nullify(this%forward_simulation)
   nullify(this%realization)
@@ -190,9 +189,13 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
 
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: string
+  type(inversion_measurement_aux_type), pointer :: new_measurement
+  type(inversion_measurement_aux_type), pointer :: first_measurement
+  type(inversion_measurement_aux_type), pointer :: last_measurement
   PetscInt :: i
-  PetscInt, pointer :: tempint(:)
-  PetscReal, pointer :: tempreal(:)
+
+  nullify(new_measurement)
+  nullify(last_measurement)
 
   found = PETSC_TRUE
   call InversionBaseReadSelectCase(this,input,keyword,found, &
@@ -242,32 +245,52 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       end select
     case('MEASUREMENTS')
       string = trim(error_string)//keyword
-      i = 10
-      allocate(tempint(i))
-      tempint = UNINITIALIZED_INTEGER
-      allocate(tempreal(i))
-      tempreal = UNINITIALIZED_DOUBLE
-      i = 0
+      input%ierr = 0
+      call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
-        call InputReadStringErrorMsg(input,option,error_string)
+        if (InputError(input)) exit
         if (InputCheckExit(input,option)) exit
-        i = i + 1
-        if (i > size(tempint)) then
-          call ReallocateArray(tempint)
-          call ReallocateArray(tempreal)
+        call InputReadCard(input,option,keyword)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(keyword)
+        select case(trim(keyword))
+          case('MEASUREMENT')
+            new_measurement => InversionMeasurementAuxRead(input,string,option)
+          case default
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+        end select
+        if (associated(last_measurement)) then
+          last_measurement%next => new_measurement
+          new_measurement%id = last_measurement%id + 1
+        else
+          first_measurement => new_measurement
+          first_measurement%id = 1
         endif
-        call InputReadInt(input,option,tempint(i))
-        call InputErrorMsg(input,option,'cell id',string)
-        call InputReadDouble(input,option,tempreal(i))
-        call InputErrorMsg(input,option,'measurement',string)
+        last_measurement => new_measurement
+        nullify(new_measurement)
       enddo
-      allocate(this%imeasurement(i))
-      this%imeasurement(:) = tempint(1:i)
-      allocate(this%measurement(i))
-      this%measurement(:) = tempreal(1:i)
-      call DeallocateArray(tempint)
-      call DeallocateArray(tempreal)
+      call InputPopBlock(input,option)
+      if (.not.associated(last_measurement)) then
+        option%io_buffer = 'No measurement found in inversion measurement block.'
+        call PrintErrMsg(option)
+      else if (associated(this%measurements)) then
+        option%io_buffer = 'Measurements may only be defined in a single block.'
+        call PrintErrMsg(option)
+      else
+        allocate(this%measurements(last_measurement%id))
+        do i = 1, last_measurement%id
+          call InversionMeasurementAuxInit(this%measurements(i))
+        enddo
+        last_measurement => first_measurement
+        do
+          if (.not.associated(last_measurement)) exit
+          call InversionMeasurementAuxCopy(last_measurement, &
+                                           this%measurements(last_measurement%id))
+          last_measurement => last_measurement%next
+        enddo
+        call InversionMeasureAuxListDestroy(first_measurement)
+      endif
     case('PRINT_SENSITIVITY_JACOBIAN')
       this%print_sensitivity_jacobian = PETSC_TRUE
     case('DEBUG_ADJOINT')
@@ -321,7 +344,10 @@ subroutine InversionSubsurfInitialize(this)
     this%n_qoi_per_cell = 1 ! 1 perm per cell
 
     this%inversion_aux => InversionAuxCreate()
-    num_measurements = size(this%imeasurement)
+    num_measurements = 0
+    if (associated(this%measurements)) then
+      num_measurements = size(this%measurements)
+    endif
     num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
     num_parameters_global = patch%grid%nmax*this%n_qoi_per_cell
     ! JsensitivityT is the transpose of the sensitivity Jacobian
@@ -402,7 +428,7 @@ subroutine InversionSubsurfInitialize(this)
     ! map measurement vec to the solution vector
     if (this%driver%comm%myrank == 0) then
       do i = 1, num_measurements
-        tempreal = dble(this%imeasurement(i))
+        tempreal = dble(this%measurements(i)%cell_id)
         call VecSetValue(this%measurement_vec,i-1,tempreal, &
                          INSERT_VALUES,ierr);CHKERRQ(ierr)
       enddo
@@ -712,15 +738,15 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
     if (OptionPrintToScreen(option)) print *, 'M'
     call MatView(inversion_ts_aux%dResdu,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
   endif
-  call VecDuplicateVecsF90(ndof_vec,size(this%imeasurement), &
+  call VecDuplicateVecsF90(ndof_vec,size(this%measurements), &
                            inversion_ts_aux%lambda,ierr);CHKERRQ(ierr)
   call KSPSetOperators(solver%ksp,inversion_ts_aux%dResdu, &
                        inversion_ts_aux%dResdu,ierr);CHKERRQ(ierr)
-  do imeasurement = 1, size(this%imeasurement)
+  do imeasurement = 1, size(this%measurements)
     if (inversion_aux%max_ts == inversion_ts_aux%timestep) then
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (option%myrank == 0) then
-        icell_measurement = this%imeasurement(imeasurement)
+        icell_measurement = this%measurements(imeasurement)%cell_id
         tempreal = -1.d0
         call VecSetValue(natural_vec,icell_measurement-1,tempreal, &
                         INSERT_VALUES,ierr);CHKERRQ(ierr)
@@ -886,10 +912,11 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
     endif
   endif
 
-  do imeasurement = 1, size(this%imeasurement)
+  do imeasurement = 1, size(this%measurements)
     if (this%debug_adjoint) then
       string = 'lambda_ts'//trim(StringWrite(inversion_ts_aux%timestep)) // &
-                '_' // trim(StringWrite(this%imeasurement(imeasurement))) // &
+                '_' // &
+                trim(StringWrite(this%measurements(imeasurement)%cell_id)) // &
                 '.txt'
       call PetscViewerASCIIOpen(option%mycomm,string, &
                                 viewer,ierr);CHKERRQ(ierr)
@@ -1165,7 +1192,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   endif
   call h5eset_auto_f(ON,hdf5_err)
 
-  num_measurement = size(this%imeasurement)
+  num_measurement = size(this%measurements)
   call VecCreateMPI(this%realization%option%mycomm,PETSC_DECIDE, &
                     num_measurement, &
                     row_vec,ierr);CHKERRQ(ierr)
@@ -1180,7 +1207,8 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
     call MatMult(JsensitivityT,row_vec, &
                  this%realization%field%work, &
                  ierr);CHKERRQ(ierr)
-    string = 'Measurement ' // StringWrite(this%imeasurement(imeasurement))
+    string = 'Measurement ' // &
+             StringWrite(this%measurements(imeasurement)%cell_id)
     call HDF5WriteStructDataSetFromVec(string,this%realization, &
                                        this%realization%field%work,grp_id, &
                                        H5T_NATIVE_DOUBLE)
@@ -1218,6 +1246,7 @@ subroutine InversionSubsurfaceStrip(this)
 
   class(inversion_subsurface_type) :: this
 
+  PetscInt :: i
   PetscErrorCode :: ierr
 
   call InversionBaseStrip(this)
@@ -1244,8 +1273,13 @@ subroutine InversionSubsurfaceStrip(this)
                            ierr);CHKERRQ(ierr)
   endif
 
-  call DeallocateArray(this%imeasurement)
-  call DeallocateArray(this%measurement)
+  if (associated(this%measurements)) then
+    do i = 1, size(this%measurements)
+      call InversionMeasurementAuxStrip(this%measurements(i))
+    enddo
+    deallocate(this%measurements)
+  endif
+  nullify(this%measurements)
 
 end subroutine InversionSubsurfaceStrip
 
