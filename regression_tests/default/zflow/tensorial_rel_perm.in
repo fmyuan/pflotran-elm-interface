@@ -6,6 +6,11 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE ZFLOW
       OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+        /
+        LIQUID_DENSITY 998.32d0 kg/m^3
+        LIQUID_VISCOSITY 8.9d-4 Pa-s
         TENSORIAL_RELATIVE_PERMEABILITY
       /
     /
