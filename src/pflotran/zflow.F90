@@ -145,7 +145,9 @@ subroutine ZFlowSetup(realization)
   endif
 
   ! ensure mapping of local cell ids to neighboring ghosted ids exits
-  call GridSetupCellNeighbors(grid,option)
+  if (associated(option%inversion)) then
+    call GridSetupCellNeighbors(grid,option)
+  endif
 
   ! ensure that material properties specific to this module are properly
   ! initialized

@@ -1037,45 +1037,10 @@ subroutine InvSubsurfScaleSensitivity(this)
   ! Author: Glenn hammond
   ! Date: 10/11/21
   !
-  use Realization_Base_class
-  use Variables_module, only : PERMEABILITY
-
   class(inversion_subsurface_type) :: this
 
-  Vec :: wd_vec
-  PetscInt :: idata,num_measurement
-  PetscReal :: wd
-  PetscReal, pointer :: wdvec_ptr(:)
-  PetscErrorCode :: ierr
-
-  call RealizationGetVariable(this%realization, &
-                              this%realization%field%work, &
-                              PERMEABILITY,ZERO_INTEGER)
-
-  num_measurement = size(this%imeasurement)
-  call VecCreateMPI(this%driver%comm%mycomm,num_measurement,num_measurement, &
-                    wd_vec,ierr);CHKERRQ(ierr)
-  call VecZeroEntries(wd_vec,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
-  do idata = 1, num_measurement
-    wd = 0.05 * this%measurement(idata)
-    wd = 1/wd
-    wdvec_ptr(idata) = wd
-  enddo
-  call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
-
-  ! Column Scale with wd
-  call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
-                        PETSC_NULL_VEC, & ! scales rows
-                        wd_vec, &  ! scales columns
-                        ierr);CHKERRQ(ierr)
-  ! Row scale with perm
-  call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
-                        this%realization%field%work, & ! scales rows
-                        PETSC_NULL_VEC, &  ! scales columns
-                        ierr);CHKERRQ(ierr)
-
-  call VecDestroy(wd_vec,ierr);CHKERRQ(ierr)
+  call this%driver%PrintErrMsg('InvSubsurfScaleSensitivity &
+    &must be extended from the Subsurface implementation.')
 
 end subroutine InvSubsurfScaleSensitivity
 
