@@ -41,6 +41,7 @@ module Inversion_Subsurface_class
     procedure, public :: Step => InversionSubsurfaceStep
     procedure, public :: ConnectToForwardRun => InvSubsurfConnectToForwardRun
     procedure, public :: CalculateSensitivity => InvSubsurfCalculateSensitivity
+    procedure, public :: ScaleSensitivity => InvSubsurfScaleSensitivity
     procedure, public :: OutputSensitivity => InvSubsurfOutputSensitivity
     procedure, public :: Invert => InversionSubsurfaceInvert
     procedure, public :: Strip => InversionSubsurfaceStrip
@@ -1029,28 +1030,17 @@ end subroutine InvSubsrfBMinusSM
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfScaleSensitivity(this,JsensitivityT)
+subroutine InvSubsurfScaleSensitivity(this)
   !
-  ! Writes sensitivity Jacobian to an ASCII output file
+  ! Scales sensitivity Jacobian for ln(K)
   !
   ! Author: Glenn hammond
   ! Date: 10/11/21
   !
-  use Realization_Base_class
-  use Variables_module, only : PERMEABILITY
-
   class(inversion_subsurface_type) :: this
-  Mat :: JsensitivityT
 
-  PetscErrorCode :: ierr
-
-  call RealizationGetVariable(this%realization, &
-                              this%realization%field%work, &
-                              PERMEABILITY,ZERO_INTEGER)
-  call MatDiagonalScale(JsensitivityT, &
-                        this%realization%field%work, & ! scales rows
-                        PETSC_NULL_VEC, &  ! scales columns
-                        ierr);CHKERRQ(ierr)
+  call this%driver%PrintErrMsg('InvSubsurfScaleSensitivity &
+    &must be extended from the Subsurface implementation.')
 
 end subroutine InvSubsurfScaleSensitivity
 

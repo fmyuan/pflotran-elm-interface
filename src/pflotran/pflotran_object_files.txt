@@ -238,6 +238,7 @@ misc_obj = \
 	${common_src}inversion_subsurface.o \
 	${common_src}inversion_tao.o \
 	${common_src}inversion_ts_aux.o \
+	${common_src}inversion_zflow.o \
 	${common_src}matrix_buffer.o \
 	${common_src}observation.o \
 	${common_src}patch.o \

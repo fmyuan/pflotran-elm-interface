@@ -86,6 +86,7 @@ subroutine SimulationInverseRead(this,option)
   use Inversion_Perturbation_class
   use Inversion_Subsurface_class
   use Inversion_Tao_class
+  use Inversion_ZFlow_class
 
   class(simulation_inverse_type) :: this
   type(option_type), pointer :: option
@@ -128,6 +129,8 @@ subroutine SimulationInverseRead(this,option)
             this%inversion => InversionPerturbationCreate(this%driver)
           case('TEST')
             this%inversion => InversionSubsurfaceCreate(this%driver)
+          case('ZFLOW')
+            this%inversion => InversionZFlowCreate(this%driver)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         end select

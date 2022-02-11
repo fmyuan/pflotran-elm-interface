@@ -367,6 +367,10 @@ inversion_tao.o : driver.o factory_forward.o input_aux.o inversion_base.o \
                   inversion_subsurface.o option.o pflotran_constants.o \
                   string.o
 inversion_ts_aux.o : pflotran_constants.o utility.o
+inversion_zflow.o : driver.o factory_forward.o grid.o input_aux.o \
+                    inversion_base.o inversion_subsurface.o inversion_ts_aux.o \
+                    material.o option.o patch.o pflotran_constants.o string.o \
+                    utility.o variables.o
 kdtree.o :
 logging.o : pflotran_constants.o
 lookup_table.o : input_aux.o option.o pflotran_constants.o units.o utility.o
@@ -882,8 +886,9 @@ simulation_geomechanics.o : driver.o geomechanics_realization.o \
 simulation_inverse.o : communicator_aux.o driver.o input_aux.o \
                        inversion_base.o inversion_ert.o \
                        inversion_perturbation.o inversion_subsurface.o \
-                       inversion_tao.o option.o pflotran_constants.o \
-                       simulation_base.o string.o utility.o
+                       inversion_tao.o inversion_zflow.o option.o \
+                       pflotran_constants.o simulation_base.o string.o \
+                       utility.o
 simulation_multirealization.o : communicator_aux.o driver.o factory_forward.o \
                                 input_aux.o option.o pflotran_constants.o \
                                 simulation_base.o simulation_subsurface.o \

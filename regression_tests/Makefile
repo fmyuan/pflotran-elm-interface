@@ -178,6 +178,9 @@ TRANSPORT_CFG = \
 GEOPHYSICS_CFG = \
 	geophys/ert/ert.cfg
 
+INVERSE_CFG = \
+	inversion/inversion.cfg
+
 MESH_CFG = \
 	default/discretization/discretization.cfg
 
@@ -253,6 +256,9 @@ transport :
 geophysics :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(GEOPHYSICS_CFG) --suite geophysics
+inverse :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(INVERSE_CFG) --suite inverse
 
 mesh :
 ifneq ($(strip $(PARMETIS_LIB)),)
@@ -351,3 +357,6 @@ clean-tests :
 	-rm -f geophys/ert/*.h5
 	-rm -f geophys/ert/*.dat
 	-rm -f geophys/ert/*-ert-*
+	-rm -f inversion/*.h5
+	-rm -f inversion/*-obs-*
+	-rm -f inversion/*Run*
