@@ -11,14 +11,17 @@ module Inversion_Measurement_Aux_module
   type, public :: inversion_measurement_aux_type
     PetscInt :: id
     PetscReal :: time
+    character(len=4) :: time_units
     PetscInt :: cell_id
     PetscReal :: value
+    PetscBool :: first_lambda
     type(inversion_measurement_aux_type), pointer :: next
   end type inversion_measurement_aux_type
 
   public :: InversionMeasurementAuxCreate, &
             InversionMeasurementAuxInit, &
             InversionMeasurementAuxCopy, &
+            InversionMeasurementPrint, &
             InversionMeasurementAuxRead, &
             InversionMeasureAuxListDestroy, &
             InversionMeasurementAuxStrip, &
@@ -62,8 +65,10 @@ subroutine InversionMeasurementAuxInit(measurement)
 
   measurement%id = UNINITIALIZED_INTEGER
   measurement%time = UNINITIALIZED_DOUBLE
+  measurement%time_units = ''
   measurement%cell_id = UNINITIALIZED_INTEGER
   measurement%value = UNINITIALIZED_DOUBLE
+  measurement%first_lambda = PETSC_FALSE
 
   nullify(measurement%next)
 
@@ -84,10 +89,44 @@ subroutine InversionMeasurementAuxCopy(measurement,measurement2)
 
   measurement2%id = measurement%id
   measurement2%time = measurement%time
+  measurement2%time_units = measurement%time_units
   measurement2%cell_id = measurement%cell_id
   measurement2%value = measurement%value
 
 end subroutine InversionMeasurementAuxCopy
+
+! ************************************************************************** !
+
+subroutine InversionMeasurementPrint(measurement,option)
+  !
+  ! Print contents of measurement object for debugging
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+  !
+  use Option_module
+  use String_module
+  use Units_module
+
+  type(inversion_measurement_aux_type) :: measurement
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  if (optionPrintToScreen(option)) then
+    print *, 'Measurment: ' // trim(StringWrite(measurement%id))
+    word = 'sec'
+    print *, '      Time: ' // &
+      trim(StringWrite(measurement%time / &
+                       UnitsConvertToInternal(measurement%time_units,word, &
+                                              option,ierr))) // ' ' // &
+      measurement%time_units
+    print *, '   Cell ID: ' // trim(StringWrite(measurement%cell_id))
+    print *, '     Value: ' // trim(StringWrite(measurement%value))
+  endif
+
+end subroutine InversionMeasurementPrint
 
 ! ************************************************************************** !
 
@@ -101,6 +140,7 @@ function InversionMeasurementAuxRead(input,error_string,option)
   use Input_Aux_module
   use Option_module
   use String_module
+  use Units_module
 
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: error_string
@@ -110,6 +150,8 @@ function InversionMeasurementAuxRead(input,error_string,option)
 
   character(len=MAXWORDLENGTH) :: keyword
   type(inversion_measurement_aux_type), pointer :: new_measurement
+  PetscReal :: units_conversion
+  character(len=MAXWORDLENGTH) :: internal_units, word
 
   new_measurement => InversionMeasurementAuxCreate()
 
@@ -129,6 +171,12 @@ function InversionMeasurementAuxRead(input,error_string,option)
       case('TIME')
         call InputReadDouble(input,option,new_measurement%time)
         call InputErrorMsg(input,option,keyword,error_string)
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr /= 0) word = 'sec'
+        new_measurement%time_units = trim(word)
+        internal_units = 'sec'
+        units_conversion = UnitsConvertToInternal(word,internal_units,option)
+        new_measurement%time = new_measurement%time*units_conversion
       case('CELL_ID')
         call InputReadInt(input,option,new_measurement%cell_id)
         call InputErrorMsg(input,option,keyword,error_string)

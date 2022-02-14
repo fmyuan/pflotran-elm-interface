@@ -575,6 +575,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   type(inversion_ts_aux_type), pointer :: prev_inversion_ts_aux
   type(option_type), pointer :: option
   class(timer_type), pointer :: timer
+  PetscInt :: imeasurement
   PetscErrorCode :: ierr
 
   option => this%realization%option
@@ -585,6 +586,11 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call timer%Start()
 
   call PrintHeader('SENSITIVITY JACOBIAN',option)
+
+  ! initialize first_lambda flag
+  do imeasurement = 1, size(this%measurements)
+    this%measurements(imeasurement)%first_lambda = PETSC_FALSE
+  enddo
 
   ! go to end of list
   cur_inversion_ts_aux => inversion_aux%inversion_ts_aux_list
@@ -674,6 +680,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   use String_module
   use Timer_class
   use ZFlow_Aux_module
+  use Utility_module
   use Variables_module
 
   use PM_Base_class
@@ -707,6 +714,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   Vec :: dReskp1_duk_lambdak
   Vec :: natural_vec
   class(timer_type), pointer :: timer
+  PetscReal, parameter :: tol = 1.d-6
   PetscErrorCode :: ierr
 
   nullify(vec_ptr)
@@ -743,7 +751,16 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   call KSPSetOperators(solver%ksp,inversion_ts_aux%dResdu, &
                        inversion_ts_aux%dResdu,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(this%measurements)
-    if (inversion_aux%max_ts == inversion_ts_aux%timestep) then
+    if (Initialized(this%measurements(imeasurement)%time) .and. &
+        inversion_ts_aux%time > this%measurements(imeasurement)%time + tol) then
+      call VecZeroEntries(inversion_ts_aux%lambda(imeasurement), &
+                          ierr);CHKERRQ(ierr)
+      cycle
+    endif
+    if (.not.this%measurements(imeasurement)%first_lambda) then
+!      call InversionMeasurementPrint(this%measurements(imeasurement),option)
+!      print *, inversion_ts_aux%time/(3600.*24.*365.)
+      this%measurements(imeasurement)%first_lambda = PETSC_TRUE
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (option%myrank == 0) then
         icell_measurement = this%measurements(imeasurement)%cell_id
