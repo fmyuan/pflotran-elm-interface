@@ -48,7 +48,6 @@ REFERENCE_TEMPERATURE 24.d0 C
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    C5H7O2N(aq)
     CH2O(aq)
     CO2(aq)
     NH4+
@@ -58,6 +57,7 @@ CHEMISTRY
     O2(aq)
   /
   IMMOBILE_SPECIES
+    C5H7O2N(im)
     C_consumption
   /
   REACTION_SANDBOX 
@@ -81,7 +81,6 @@ CHEMISTRY
 #      Kdeg  0.d0
 #      F_act 0.126d0
 #      F_act 1.d0
-      MOBILE_BIOMASS
       REFERENCE_TEMPERATURE 25.d0 ! degrees C
       ACTIVATION_ENERGY 89.d0 kJ/mol
       STORE_CONSUMPTION_PRODUCTION
@@ -169,7 +168,6 @@ END
 #=========================== constraints ======================================
 CONSTRAINT initial
   CONCENTRATIONS
-    C5H7O2N(aq) 1.d-5    T
     CH2O(aq)    61.13d-3 T
     CO2(aq)     1.d-3    T
     N2(aq)      1.d-10   T
@@ -180,6 +178,7 @@ CONSTRAINT initial
     O2(aq)      1.d-3    T
   /
   IMMOBILE
+    C5H7O2N(im)   2.5d-3
     C_consumption 1.d-10
   /
 END

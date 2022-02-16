@@ -329,11 +329,12 @@ subroutine CyberSetup(this,reaction,option)
   word = 'CH2O(aq)'
   this%doc_id = &
     GetPrimarySpeciesIDFromName(word,reaction,option)
-  word = 'C5H7O2N(aq)'
   if (this%mobile_biomass) then
+    word = 'C5H7O2N(aq)'
     this%biomass_id = &
       GetPrimarySpeciesIDFromName(word,reaction,option)
   else
+    word = 'C5H7O2N(im)'
     this%biomass_id = &
       GetImmobileSpeciesIDFromName(word,reaction%immobile,option) + &
       reaction%offset_immobile
