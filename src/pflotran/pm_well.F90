@@ -101,9 +101,9 @@ module PM_Well_class
     PetscReal, pointer :: pl(:) 
     ! well gas pressure [Pa]
     PetscReal, pointer :: pg(:)
-    ! well liquid Darcy flux [m3/m2-s]  
+    ! well liquid Darcy flux [m3/m2-s] of interior interfaces  
     PetscReal, pointer :: ql(:)
-    ! well gas Darcy flux [m3/m2-s]  
+    ! well gas Darcy flux [m3/m2-s] of interior interfaces  
     PetscReal, pointer :: qg(:)
     ! well bottom of hole pressure BC flag
     PetscBool :: bh_p_set_by_reservoir
@@ -1509,8 +1509,8 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%well%WI(nsegments))
   allocate(this%well%pl(nsegments))
   allocate(this%well%pg(nsegments))
-  allocate(this%well%ql(nsegments))
-  allocate(this%well%qg(nsegments))
+  allocate(this%well%ql(nsegments-1))
+  allocate(this%well%qg(nsegments-1))
 
   allocate(this%well_pert(ONE_INTEGER)%WI(nsegments))
   allocate(this%well_pert(ONE_INTEGER)%pl(nsegments))
@@ -1518,8 +1518,8 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%well_pert(TWO_INTEGER)%WI(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%pl(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%pg(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%ql(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%qg(nsegments))
+  allocate(this%well_pert(TWO_INTEGER)%ql(nsegments-1))
+  allocate(this%well_pert(TWO_INTEGER)%qg(nsegments-1))
 
   allocate(this%well%liq%s(nsegments))
   this%well%liq%rho0 = this%option%flow%reference_density(1)
@@ -2181,12 +2181,15 @@ subroutine PMWellSolve(this,time,ierr)
 
   call PMWellPostSolve(this)
 
-    ! update well index (should not need to be updated every time if
+  ! update well index (should not need to be updated every time if
   ! grid permeability and discretization are static
   call PMWellComputeWellIndex(this)
 
   ! update the well src/sink Q vector
   call PMWellUpdateWellQ(this%well,this%reservoir)
+
+  ! update the Darcy fluxes within the well
+  call PMWellCalcVelocity(this)
 
   call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
   
@@ -2531,6 +2534,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
   gas => well%gas
 
   select case (well%well_model_type)
+    !------------------------------------------------------------------------
     case('CONSTANT_RATE')
       ! weight the rate by the reservoir permeability via the well index
       ! not fully flexible to accommodate single-phase gas
@@ -2541,10 +2545,12 @@ subroutine PMWellUpdateWellQ(well,reservoir)
         liq%Q = well%th_ql*well%WI/(abs(sum(well%WI)))
         gas%Q = well%th_qg*well%WI/(abs(sum(well%WI)))
       endif
+    !------------------------------------------------------------------------
     case default 
       ! Flowrate in kg/s
       liq%Q = liq%rho*liq%mobility*well%WI*(reservoir%p_l-well%pl)
       gas%Q = gas%rho*gas%mobility*well%WI*(reservoir%p_g-well%pg)
+    !------------------------------------------------------------------------
   end select
   
 end subroutine PMWellUpdateWellQ
@@ -2563,15 +2569,28 @@ subroutine PMWellCalcVelocity(this)
   class(pm_well_type) :: this
 
   type(well_grid_type), pointer :: grid
+  type(well_type), pointer :: well
   PetscReal :: perm_up, perm_dn
   PetscReal :: dist_up, dist_dn
   PetscReal :: perm_ave_over_dist
+  PetscReal :: density_kg_ave
   PetscReal :: gravity_term
   PetscReal :: delta_pressure
+  PetscInt :: iup, idn
+  PetscInt :: k
+
+  PetscReal, parameter :: eps = 1.d-8
 
   grid => this%grid
+  well => this%well 
+
+  ! iup/idn convention:
+  ! up direction goes towards well bottom (towards lower k value)
+  ! dn direction goes towards well top (towards higher k value)
+
+  ! the routines for calculating velocity must match PMWellFlux() exactly
   
-  select case(this%well%well_model_type)
+  select case(well%well_model_type)
     !-------------------------------------------------------------------------
     case('CONSTANT_PRESSURE_HYDROSTATIC')
     !-------------------------------------------------------------------------
@@ -2580,6 +2599,32 @@ subroutine PMWellCalcVelocity(this)
     case('CONSTANT_RATE')
     !-------------------------------------------------------------------------
     case('DARCY')
+      do k = 1,(grid%nsegments-1)
+        iup = k
+        idn = k+1
+
+        perm_up = well%permeability(iup)
+        perm_dn = well%permeability(idn)
+        dist_up = grid%dh(iup)/2.d0
+        dist_dn = grid%dh(idn)/2.d0
+
+        perm_ave_over_dist = (perm_up * perm_dn) / &
+                             (dist_up*perm_dn + dist_dn*perm_up)
+
+        ! ------- liquid Darcy flux -------
+        density_kg_ave = 0.5d0*(well%liq%rho(iup)+well%liq%rho(idn))
+        gravity_term = density_kg_ave*gravity*grid%dh(iup)
+        delta_pressure = well%pl(iup) - well%pl(idn) + gravity_term
+        well%ql(k) = perm_ave_over_dist*well%liq%mobility*delta_pressure
+
+
+        ! ------- gas Darcy flux ----------
+        density_kg_ave = 0.5d0*(well%gas%rho(iup)+well%gas%rho(idn))
+        gravity_term = density_kg_ave*gravity*grid%dh(iup)
+        delta_pressure = well%pg(iup) - well%pg(idn) + gravity_term
+        well%qg(k) = perm_ave_over_dist*well%gas%mobility*delta_pressure
+
+      enddo
     !-------------------------------------------------------------------------
     case('FULL_MOMENTUM')
     !-------------------------------------------------------------------------
@@ -2799,7 +2844,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
           ! (-) direction
           gravity_term = density_kg_ave * gravity * grid%dh(iup)
           ! No capillary pressure yet.
-          delta_pressure = well_up%pl(iup) - well_dn%pl(idn) + &
+          delta_pressure = well_up%pg(iup) - well_dn%pg(idn) + &
                            gravity_term
 
           ! This only applies if mobility isn't constant
