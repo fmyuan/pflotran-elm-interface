@@ -210,6 +210,7 @@ module PM_Well_class
     PetscReal, pointer :: pert(:,:)
     PetscInt :: nphase 
     PetscReal :: dt
+    PetscReal :: min_dt
     PetscReal :: cumulative_dt
   contains
     procedure, public :: Setup => PMWellSetup
@@ -250,6 +251,7 @@ function PMWellCreate()
 
   nullify(PMWellCreate%realization)
   PMWellCreate%nphase = 0
+  PMWellCreate%min_dt = 1.d-15
 
   nullify(PMWellCreate%pert)
 
@@ -1645,11 +1647,13 @@ subroutine PMWellInitializeTimestep(this)
   ! update the reservoir object's pressure and saturations
   call PMWellUpdateReservoir(this)
 
-  if (initialize_well) then
+  !if (initialize_well) then
     this%well%pl = this%reservoir%p_l
     this%well%pg = this%reservoir%p_g
     this%well%liq%s = this%reservoir%s_l
     this%well%gas%s = this%reservoir%s_g
+    this%well%liq%rho = this%reservoir%rho_l
+    this%well%gas%rho = this%reservoir%rho_g
     this%well_pert(ONE_INTEGER)%pl = this%reservoir%p_l
     this%well_pert(TWO_INTEGER)%pl = this%reservoir%p_l
     this%well_pert(ONE_INTEGER)%pg = this%reservoir%p_g
@@ -1658,12 +1662,18 @@ subroutine PMWellInitializeTimestep(this)
     this%well_pert(TWO_INTEGER)%liq%s = this%reservoir%s_l
     this%well_pert(ONE_INTEGER)%gas%s = this%reservoir%s_g
     this%well_pert(TWO_INTEGER)%gas%s = this%reservoir%s_g
+    this%well_pert(ONE_INTEGER)%liq%rho = this%reservoir%rho_l
+    this%well_pert(ONE_INTEGER)%gas%rho = this%reservoir%rho_g
+    this%well_pert(TWO_INTEGER)%liq%rho = this%reservoir%rho_l
+    this%well_pert(TWO_INTEGER)%gas%rho = this%reservoir%rho_g
     initialize_well = PETSC_FALSE
     this%soln%prev_soln%pl = this%well%pl
     this%soln%prev_soln%sg = this%well%gas%s
-  else
-  endif
+    
+  !else
+  !endif
 
+  call PMWellUpdateProperties(this%well)
   !MAN: need to add adaptive timestepping
   this%dt = this%realization%option%flow_dt
 
@@ -2138,6 +2148,7 @@ subroutine PMWellJacobian(this)
                Jac(this%nphase*this%grid%nsegments, &
                    this%nphase*this%grid%nsegments)
                
+  this%soln%Jacobian = 0.d0
   Jac = 0.d0
 
   select case(this%well%well_model_type)
@@ -2266,7 +2277,7 @@ subroutine PMWellSolve(this,time,ierr)
   type(well_soln_type), pointer :: soln
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscLogDouble :: log_start_time, log_end_time
-  PetscInt :: n_iter,ts_cut,i
+  PetscInt :: n_iter,ts_cut,i,easy_converge_count
   PetscReal :: res(this%soln%ndof)
   PetscReal :: res_fixed(this%soln%ndof*this%grid%nsegments)
 
@@ -2277,8 +2288,8 @@ subroutine PMWellSolve(this,time,ierr)
 
   n_iter = 0
   ts_cut = 0
+  easy_converge_count = 0
 
-  soln%residual = 0.d0
   this%cumulative_dt = 0.d0
   soln%converged = PETSC_FALSE
   soln%not_converged = PETSC_TRUE
@@ -2294,6 +2305,8 @@ subroutine PMWellSolve(this,time,ierr)
       res_fixed(soln%ndof*(i-1)+1:soln%ndof*i) = -1.d0 * res 
     enddo
 
+    n_iter = 0
+
     do while (soln%not_converged)
 
       if (n_iter > (soln%max_iter-1)) then
@@ -2304,6 +2317,7 @@ subroutine PMWellSolve(this,time,ierr)
         call PMWellCutTimestep(this)
         n_iter = 0
         ts_cut = ts_cut + 1
+        easy_converge_count = 0
         exit
       endif
       if (ts_cut > soln%max_ts_cut) then
@@ -2313,7 +2327,10 @@ subroutine PMWellSolve(this,time,ierr)
         call PrintErrMsg(this%realization%option)
       endif
 
+      soln%residual = 0.d0
       soln%residual = res_fixed
+
+      easy_converge_count = easy_converge_count + 1
 
       ! use Newton's method to solve for the well pressure and saturation
       call PMWellNewton(this)
@@ -2321,6 +2338,20 @@ subroutine PMWellSolve(this,time,ierr)
       call PMWellCheckConvergence(this,n_iter,res_fixed)
     enddo
 
+    if (.not. soln%not_converged .and. soln%cut_timestep .and. &
+         easy_converge_count > 10 ) then
+      if (this%cumulative_dt + this%dt * this%soln%ts_cut_factor < &
+          this%realization%option%flow_dt) then
+        this%dt = this%dt * this%soln%ts_cut_factor 
+        soln%cut_timestep = PETSC_FALSE
+      endif
+    endif
+
+    if (this%cumulative_dt + this%dt > this%realization%option%flow_dt) then
+      this%dt = this%realization%option%flow_dt - this%cumulative_dt
+    endif
+
+    ts_cut = 0
     soln%n_steps = soln%n_steps + 1
  
   enddo
@@ -2387,6 +2418,7 @@ subroutine PMWellCutTimestep(pm_well)
     case('DARCY')
       ! could make this smarter or call smarter timestepping routines
       pm_well%dt = pm_well%dt / pm_well%soln%ts_cut_factor
+      pm_well%dt = max(pm_well%dt,pm_well%min_dt)
       pm_well%well%pl = pm_well%soln%prev_soln%pl
       pm_well%well%gas%s = pm_well%soln%prev_soln%sg
       call PMWellUpdateProperties(pm_well%well)
@@ -3285,13 +3317,17 @@ subroutine PMWellUpdateProperties(well)
   !
 
   use Option_module
+  use EOS_Water_module
 
   implicit none
 
   type(well_type) :: well
 
   PetscInt :: i
+  PetscReal :: t,dw,dwmol,dwp,dwt
+  PetscErrorCode :: ierr
 
+  ! Saturations
   do i = 1,size(well%gas%s)
     well%gas%s(i) = max(well%gas%s(i),0.d0)
     well%gas%s(i) = min(well%gas%s(i),1.d0)
@@ -3300,6 +3336,13 @@ subroutine PMWellUpdateProperties(well)
 
   !no capillarity right now
   well%pg = well%pl
+
+  !Densities
+  !do i = 1,size(well%pl)
+  !  call EOSWaterDensityBRAGFLO(t,well%pl(i),PETSC_FALSE, &
+  !                              dw,dwmol,dwp,dwt,ierr)
+  !  well%liq%rho(i) = dw
+  !enddo
 
 end subroutine PMWellUpdateProperties
 
@@ -3375,6 +3418,18 @@ subroutine PMWellOutputHeader(this)
     units_string = ''
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    variable_string = 'X'
+    units_string = 'm'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'Y'
+    units_string = 'm'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'Z'
+    units_string = 'm'
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
     variable_string = 'P'
     units_string = 'Pa' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
@@ -3435,7 +3490,10 @@ subroutine PMWellOutput(this)
 
   do k = 1,this%grid%nsegments
     write(fid,101,advance="no") k
-    write(fid,100,advance="no") this%well%pl(k), &
+    write(fid,100,advance="no") this%grid%h(k)%x, &
+                                this%grid%h(k)%y, &
+                                this%grid%h(k)%z, &
+                                this%well%pl(k), &
                                 this%well%liq%s(k), &
                                 this%well%gas%s(k) 
   enddo
