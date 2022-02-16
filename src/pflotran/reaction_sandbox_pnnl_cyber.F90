@@ -69,6 +69,7 @@ module Reaction_Sandbox_Cyber_class
     PetscInt :: nrxn
     PetscInt :: offset_auxiliary
     PetscBool :: store_cumulative_mass
+    PetscBool :: mobile_biomass
     PetscInt, pointer :: nrow(:)
     PetscInt, pointer :: ncol(:)
     PetscInt, pointer :: irow(:,:)
@@ -147,6 +148,7 @@ function CyberCreate()
   CyberCreate%offset_auxiliary = UNINITIALIZED_INTEGER
   CyberCreate%carbon_consumption_species = ''
   CyberCreate%store_cumulative_mass = PETSC_FALSE
+  CyberCreate%mobile_biomass = PETSC_FALSE
   nullify(CyberCreate%nrow)
   nullify(CyberCreate%ncol)
   nullify(CyberCreate%irow)
@@ -272,6 +274,8 @@ subroutine CyberRead(this,input,option)
                            error_string)
       case('STORE_CONSUMPTION_PRODUCTION')
         this%store_cumulative_mass = PETSC_TRUE
+      case('MOBILE_BIOMASS')
+        this%mobile_biomass = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
@@ -326,9 +330,14 @@ subroutine CyberSetup(this,reaction,option)
   this%doc_id = &
     GetPrimarySpeciesIDFromName(word,reaction,option)
   word = 'C5H7O2N(aq)'
-  this%biomass_id = &
-    GetPrimarySpeciesIDFromName(word,reaction,option)
-!    GetImmobileSpeciesIDFromName(word,reaction%immobile,option) + reaction%offset_immobile
+  if (this%mobile_biomass) then
+    this%biomass_id = &
+      GetPrimarySpeciesIDFromName(word,reaction,option)
+  else
+    this%biomass_id = &
+      GetImmobileSpeciesIDFromName(word,reaction%immobile,option) + &
+      reaction%offset_immobile
+  endif
   word = 'CO2(aq)'
   this%co2_id = &
     GetPrimarySpeciesIDFromName(word,reaction,option)
@@ -559,7 +568,6 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: L_water
-  PetscReal :: kg_water
   
   PetscInt :: i, j, irxn
 
@@ -590,14 +598,13 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: temperature_scaling_factor
   PetscReal :: k1_scaled, k2_scaled, k3_scaled, k_deg_scaled
   PetscReal :: volume, rate_scale
+  PetscReal :: dX_dbiomass
 
   PetscReal :: rate(3), derivative_col(6,3)
   
   volume = material_auxvar%volume
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             volume*1.d3 ! m^3 -> L
-  kg_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
-             global_auxvar%den_kg(iphase)*volume
 
   molality_to_molarity = global_auxvar%den_kg(iphase)*1.d-3
     
@@ -627,9 +634,18 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
         rt_auxvar%pri_act_coef(this%n2_id)*molality_to_molarity
   Cdoc = rt_auxvar%pri_molal(this%doc_id)* &
          rt_auxvar%pri_act_coef(this%doc_id)*molality_to_molarity
-!  X = rt_auxvar%immobile(this%biomass_id-reaction%offset_immobile)
-  X = rt_auxvar%pri_molal(this%biomass_id)* &
-      rt_auxvar%pri_act_coef(this%biomass_id)*molality_to_molarity
+  if (this%mobile_biomass) then
+    X = rt_auxvar%pri_molal(this%biomass_id)* &
+        rt_auxvar%pri_act_coef(this%biomass_id)*molality_to_molarity
+    dX_dbiomass = L_water/volume
+    ! aqueous units are mol/L. convert to mol/m^3
+    X = X*dX_dbiomass
+    dX_dbiomass = dX_dbiomass* &
+                  rt_auxvar%pri_act_coef(this%biomass_id)*molality_to_molarity
+  else
+    X = rt_auxvar%immobile(this%biomass_id-reaction%offset_immobile)
+    dX_dbiomass =  1.d0
+  endif
   
   k1_scaled = this%k1 * temperature_scaling_factor
   k2_scaled = this%k2 * temperature_scaling_factor
@@ -676,25 +692,20 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
       ! mol/sec
       ! X is in [M]
       Residual(this%irow(i,irxn)) = Residual(this%irow(i,irxn)) - &
-        this%stoich_row(i,irxn) * rate(irxn) * X * &
-        ! if biomass is aqueous multiply by L_water
-        ! if biomass is immobile multiply by volume
-        L_water
+        this%stoich_row(i,irxn) * rate(irxn) * X * volume
     enddo
   enddo
   
   ! decay of biomass
-  ! if biomass is aqueous multiply by L_water
-  ! if biomass is immobile multiply by volume
   Residual(this%biomass_id) = Residual(this%biomass_id) + &
-                              k_deg_scaled * X * L_water
+                              k_deg_scaled * X * volume
 
   ! production of doc by biomass decay
   ! note the addition
   ! mol/sec
   Residual(this%doc_id) = Residual(this%doc_id) - &
 !                          k_deg_scaled/this%f_act * X * L_water
-                          5.d0*k_deg_scaled * X * L_water
+                          5.d0*k_deg_scaled * X * volume
                  
   ! calculate carbon consumption
   if (this%carbon_consumption_species_id > 0) then
@@ -705,10 +716,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   
   if (this%store_cumulative_mass) then
     ! rate units are mol/mol biomass/sec
-    ! if biomass is aqueous, multiply by L_water and divide by volume
-    rate_scale = X * L_water / volume
-    ! if biomass is immobile, do nothing unit units are per m^3 bulk
-    !rate_scale = X 
+    rate_scale = X 
     ! all "scaled" rates here are moles/m^3-sec
     ! nh4
     i = this%offset_auxiliary + NH4_MASS_STORAGE_INDEX
@@ -755,27 +763,27 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
     dr1kin_ddoc = k1_scaled * &
                   (r1docmonod/Cdoc - r1docmonod/r1docmonod_denom) * &
                   r1no3monod * &
-                  rt_auxvar%pri_act_coef(this%doc_id)
+                  rt_auxvar%pri_act_coef(this%doc_id)*molality_to_molarity
     dr1kin_dno3 = k1_scaled * &
                   r1docmonod * &
                   (r1no3monod/Cno3 - r1no3monod/r1no3monod_denom) * &
-                  rt_auxvar%pri_act_coef(this%no3_id)
+                  rt_auxvar%pri_act_coef(this%no3_id)*molality_to_molarity
     dr2kin_ddoc = k2_scaled * &
                   (r2docmonod/Cdoc - r2docmonod/r2docmonod_denom) * &
                   r2no2monod * &
-                  rt_auxvar%pri_act_coef(this%doc_id)
+                  rt_auxvar%pri_act_coef(this%doc_id)*molality_to_molarity
     dr2kin_dno2 = k2_scaled * &
                   r2docmonod * &
                   (r2no2monod/Cno2 - r2no2monod/r2no2monod_denom) * &
-                  rt_auxvar%pri_act_coef(this%no2_id)
+                  rt_auxvar%pri_act_coef(this%no2_id)*molality_to_molarity
     dr3kin_ddoc = k3_scaled * &
                   (r3docmonod/Cdoc - r3docmonod/r3docmonod_denom) * &
                   r3o2monod * &
-                  rt_auxvar%pri_act_coef(this%doc_id)
+                  rt_auxvar%pri_act_coef(this%doc_id)*molality_to_molarity
     dr3kin_do2 = k3_scaled * &
                   r3docmonod * &
                   (r3o2monod/Co2 - r3o2monod/r3o2monod_denom) * &
-                  rt_auxvar%pri_act_coef(this%o2_id)
+                  rt_auxvar%pri_act_coef(this%o2_id)*molality_to_molarity
                 
     du_denom_dr = -1.d0/sumkinsq
     du1_dr1kin = 1.d0/sumkin + r1kin*du_denom_dr
@@ -834,37 +842,37 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
     derivative_col(4,irxn) = dr3_do2      
     
     ! fill the Jacobian
-    ! units = kg water/sec. Multiply by kg_water
     do irxn = 1, this%nrxn
       do j = 1, this%ncol(irxn)
         do i = 1, this%nrow(irxn)
+          ! units = kg water/sec
           Jacobian(this%irow(i,irxn),this%icol(j,irxn)) = &
             Jacobian(this%irow(i,irxn),this%icol(j,irxn)) - &
-            this%stoich_row(i,irxn) * derivative_col(j,irxn) * X * kg_water
+            ! units of derivative_col = kg water/mol biomass/sec
+            this%stoich_row(i,irxn) * derivative_col(j,irxn) * X * volume
         enddo
       enddo
-      ! if biomass is aqueous, units = kg water/sec. Multiply by kg_water
-      ! if biomass is immobile, units = m^3 bulk/sec. Multiply by volume
       do i = 1, this%nrow(irxn)
+        ! units = mol/mol biomass/m^3 bulk/sec
         Jacobian(this%irow(i,irxn),this%biomass_id) = &
           Jacobian(this%irow(i,irxn),this%biomass_id) - &
-           this%stoich_row(i,irxn) * rate(irxn) * kg_water
+          ! units of rate = mol/mol biomass/sec
+          this%stoich_row(i,irxn) * rate(irxn) * dX_dbiomass * volume
       enddo
     enddo 
 
     ! decay of biomass
-    ! if biomass is aqueous, units = kg water/sec. Multiply by kg_water
-    ! if biomass is immobile, units = m^3 bulk/sec. Multiply by volume
+    ! units = m^3 bulk/sec
     Jacobian(this%biomass_id,this%biomass_id) = &
       Jacobian(this%biomass_id,this%biomass_id) + &
-      k_deg_scaled * kg_water
+      k_deg_scaled * dX_dbiomass * volume
 
     ! production of doc by biomass decay
-    ! units = kg water/sec. Multiply by kg_water
+    ! units = kg water/sec
     Jacobian(this%doc_id,this%biomass_id) = &
       Jacobian(this%doc_id,this%biomass_id) - &
-!      k_deg_scaled/this%f_act * kg_water
-      5.d0*k_deg_scaled * kg_water
+!      k_deg_scaled/this%f_act * volume
+      5.d0*k_deg_scaled * dX_dbiomass * volume
       
     ! calculate carbon consumption
     if (this%carbon_consumption_species_id > 0) then
