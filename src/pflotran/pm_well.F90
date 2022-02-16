@@ -104,8 +104,10 @@ module PM_Well_class
     PetscReal, pointer :: pl(:) 
     ! well gas pressure [Pa]
     PetscReal, pointer :: pg(:)
-    ! well mixture velocity [m/s]   
-    PetscReal, pointer :: vm(:)
+    ! well liquid Darcy flux [m3/m2-s]  
+    PetscReal, pointer :: ql(:)
+    ! well gas Darcy flux [m3/m2-s]  
+    PetscReal, pointer :: qg(:)
     ! well bottom of hole pressure BC flag
     PetscBool :: bh_p_set_by_reservoir
     ! well bottom of hole pressure BC [Pa]
@@ -160,12 +162,6 @@ module PM_Well_class
     PetscInt :: ndof
     ! residual vector
     PetscReal, pointer :: residual(:)
-    ! residual vector component - pressure (P)
-    PetscReal, pointer :: res_p(:)
-    ! residual vector component - mixture velocity (vm)
-    PetscReal, pointer :: res_vm(:)
-    ! residual vector component - gas saturation (sg)
-    PetscReal, pointer :: res_sg(:)
     ! Jacobian matrix
     PetscReal, pointer :: Jacobian(:,:)
     ! Solution update
@@ -278,7 +274,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well%mixrho)
   nullify(PMWellCreate%well%pl)
   nullify(PMWellCreate%well%pg)
-  nullify(PMWellCreate%well%vm)
+  nullify(PMWellCreate%well%ql)
+  nullify(PMWellCreate%well%qg)
   nullify(PMWellCreate%well%permeability)
   nullify(PMWellCreate%well%phi)
   PMWellCreate%well%bh_p_set_by_reservoir = PETSC_FALSE
@@ -300,7 +297,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%mixrho)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%pl)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%pg)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%vm)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%permeability)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%phi)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%area)
@@ -312,7 +310,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%mixrho)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%pl)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%pg)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%vm)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%permeability)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%phi)
   PMWellCreate%well_pert(:)%bh_p_set_by_reservoir = PETSC_FALSE
@@ -387,9 +386,6 @@ function PMWellCreate()
   nullify(PMWellCreate%soln%prev_soln%pl)
   nullify(PMWellCreate%soln%prev_soln%sg)
   nullify(PMWellCreate%soln%residual)
-  nullify(PMWellCreate%soln%res_p)
-  nullify(PMWellCreate%soln%res_vm)
-  nullify(PMWellCreate%soln%res_sg)
   nullify(PMWellCreate%soln%Jacobian)
   nullify(PMWellCreate%soln%update)
   PMWellCreate%soln%ndof = UNINITIALIZED_INTEGER
@@ -1515,16 +1511,6 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%soln%update(nsegments*this%soln%ndof))
   this%soln%residual(:) = UNINITIALIZED_DOUBLE
   this%soln%update(:) = UNINITIALIZED_DOUBLE
-  
-  allocate(this%soln%res_p(nsegments))
-  allocate(this%soln%res_vm(nsegments))
-  this%soln%res_p(:) = UNINITIALIZED_DOUBLE
-  this%soln%res_vm(:) = UNINITIALIZED_DOUBLE
-
-  if (this%nphase == 2) then
-    allocate(this%soln%res_sg(nsegments))
-    this%soln%res_sg(:) = UNINITIALIZED_DOUBLE
-  endif
 
   allocate(this%soln%Jacobian(this%nphase*nsegments,this%nphase*nsegments))
   this%soln%Jacobian = UNINITIALIZED_DOUBLE
@@ -1533,18 +1519,19 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%well%mixrho(nsegments))
   allocate(this%well%pl(nsegments))
   allocate(this%well%pg(nsegments))
-  allocate(this%well%vm(nsegments))
+  allocate(this%well%ql(nsegments))
+  allocate(this%well%qg(nsegments))
 
   allocate(this%well_pert(ONE_INTEGER)%WI(nsegments))
   allocate(this%well_pert(ONE_INTEGER)%mixrho(nsegments))
   allocate(this%well_pert(ONE_INTEGER)%pl(nsegments))
   allocate(this%well_pert(ONE_INTEGER)%pg(nsegments))
-  allocate(this%well_pert(ONE_INTEGER)%vm(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%WI(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%mixrho(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%pl(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%pg(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%vm(nsegments))
+  allocate(this%well_pert(TWO_INTEGER)%ql(nsegments))
+  allocate(this%well_pert(TWO_INTEGER)%qg(nsegments))
 
   allocate(this%well%liq%s(nsegments))
   this%well%liq%rho0 = this%option%flow%reference_density(1)
@@ -1876,8 +1863,10 @@ subroutine PMWellResidual(this)
   res_flux_bc = 0.d0
 
   select case(this%well%well_model_type)
+    !-------------------------------------------------------------------------
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
+    !-------------------------------------------------------------------------
     case('DARCY')
 
       call PMWellBCFlux(this,this%well,res_flux_bc)
@@ -1949,166 +1938,12 @@ subroutine PMWellResidual(this)
           endif
         endif
       enddo
-
+    !-------------------------------------------------------------------------
     case('FULL_MOMENTUM')
-      call PMWellResidualP(this)
-  
-      call PMWellResidualVm(this)
-
-      if (this%nphase == 2) then
-        call PMWellResidualSg(this)
-      endif
-
-      ! form the full residual vector
-      ! -------------------------------------
-      ! |1,2,3, |4,5,6, |7,8,9, |...|
-      ! |p,vm,sg|p,vm,sg|p,vm,sg|...|p,vm,sg|
-      ! | seg 1 | seg 2 | seg 3 |...| seg n |
-      ! -------------------------------------
-      ! |bottom | inter | inter |...| top   |
-      i = 1
-      do k = 1,(this%grid%nsegments*this%soln%ndof)
-        if (mod((k-1),this%soln%ndof) == 0) then
-          this%soln%residual(k) = this%soln%res_p(i)
-          this%soln%residual(k+1) = this%soln%res_vm(i)
-          if (this%nphase == 2) then
-            this%soln%residual(k+2) = this%soln%res_sg(i) 
-          endif 
-          i = i + 1
-        endif 
-      enddo
+    !-------------------------------------------------------------------------
   end select
 
 end subroutine PMWellResidual
-
-! ************************************************************************** !
-
-subroutine PMWellResidualP(this)
-  ! 
-  ! Calculates the residual for the well pressure. 
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 11/09/2021
-
-  implicit none
-  
-  class(pm_well_type) :: this
-
-  type(well_grid_type), pointer :: grid
-  type(well_type), pointer :: well 
-  type(well_soln_type), pointer :: soln
-  PetscReal :: dpress(this%grid%nsegments)
-  PetscReal :: dpress_a(this%grid%nsegments)
-  PetscReal :: dpress_f(this%grid%nsegments)
-  PetscReal :: dpress_h(this%grid%nsegments)
-  PetscInt :: k
-
-  grid => this%grid
-  well => this%well
-  soln => this%soln
-
-  ! note: booleans soln%bh_p and soln%th_p indicate which pressure boundary 
-  !       condition was given (only one could be specified)
-
-  do k = 1,grid%nsegments
-    dpress_h(k) = well%mixrho(k)*grid%g*grid%dh(k)
-    dpress_f(k) = (well%f(k)*well%mixrho(k)*well%vm(k)* &
-                  abs(well%vm(k))*grid%dh(k))/(2.d0*well%diameter(k))
-    if (k == 1) then ! top segment
-      dpress(k) = 0.0d0 ! hold
-      dpress_a(k) = 0.0d0 ! hold
-    else if (k == grid%nsegments) then ! bottom segment
-      dpress(k) = 0.0d0 ! hold
-      dpress_a(k) = 0.0d0 ! hold
-    else ! interior segment(s)
-      dpress(k) = well%pl(k+1)-well%pl(k)
-      dpress_a(k) = 0.0d0
-    endif
-  enddo
-  soln%res_p = dpress - dpress_h - dpress_f - dpress_a
-
-end subroutine PMWellResidualP
-
-! ************************************************************************** !
-
-subroutine PMWellResidualVm(this)
-  ! 
-  ! Calculates the residual for the well mixture velocity. 
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 11/09/2021
-
-  implicit none
-  
-  class(pm_well_type) :: this
-
-  type(well_grid_type), pointer :: grid
-  type(well_type), pointer :: well 
-  type(well_soln_type), pointer :: soln
-  PetscReal :: accum(this%grid%nsegments)
-  PetscReal :: flux(this%grid%nsegments)
-  PetscReal :: srcsink(this%grid%nsegments)
-  PetscInt :: k
-
-  grid => this%grid
-  well => this%well
-  soln => this%soln
-
-  do k = 1,this%grid%nsegments
-    if (k == 1) then ! top segment
-      accum(k) = 1.0d0
-      flux(k) = 1.0d0
-      srcsink(k) = 1.0d0
-    else if (k == this%grid%nsegments) then ! bottom segment
-      accum(k) = 1.0d0
-      flux(k) = 1.0d0
-      srcsink(k) = 1.0d0
-    else ! interior segment(s)
-      accum(k) = 1.0d0
-      flux(k) = 1.0d0
-      srcsink(k) = 1.0d0      
-    endif
-  enddo
-  soln%res_vm = accum + flux - srcsink
-
-end subroutine PMWellResidualVm
-
-! ************************************************************************** !
-
-subroutine PMWellResidualSg(this)
-  ! 
-  ! Calculates the residual for the well mixture velocity. 
-  !
-  ! Author: Jennifer M. Frederick
-  ! Date: 11/09/2021
-
-  implicit none
-  
-  class(pm_well_type) :: this
-
-  PetscReal :: accum(this%grid%nsegments)
-  PetscReal :: flux(this%grid%nsegments)
-  PetscReal :: srcsink(this%grid%nsegments)
-  PetscInt :: k
-
-  do k = 1,this%grid%nsegments
-    if (k == 1) then ! top segment
-      accum(k) = 1.5d0
-      flux(k) = 1.5d0
-      srcsink(k) = 1.5d0
-    else if (k == this%grid%nsegments) then ! bottom segment
-      accum(k) = 1.5d0
-      flux(k) = 1.5d0
-      srcsink(k) = 1.5d0
-    else ! interior segment(s)
-      accum(k) = 1.5d0
-      flux(k) = 1.5d0
-      srcsink(k) = 1.5d0
-    endif
-  enddo
-  this%soln%res_sg = accum + flux - srcsink
-
-end subroutine PMWellResidualSg
 
 ! ************************************************************************** !
 
@@ -2735,10 +2570,10 @@ end subroutine PMWellUpdateWellQ
 
 subroutine PMWellCalcVelocity(this)
   !
-  ! Calculates the Darcy velocity in the well given the well pressure.
+  ! Calculates the Darcy flux in the well given the well pressure.
   ! 
   ! Author: Jennifer M. Frederick
-  ! Date: 12/01/2021
+  ! Date: 02/16/2022
 
   implicit none
   
@@ -3548,7 +3383,8 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%mixrho)
   call DeallocateArray(this%well%pl)
   call DeallocateArray(this%well%pg)
-  call DeallocateArray(this%well%vm)
+  call DeallocateArray(this%well%ql)
+  call DeallocateArray(this%well%qg)
   call DeallocateArray(this%well%liq%rho)
   call DeallocateArray(this%well%liq%s)
   call DeallocateArray(this%well%liq%Q)
@@ -3561,9 +3397,6 @@ subroutine PMWellDestroy(this)
 
 
   call DeallocateArray(this%soln%residual)
-  call DeallocateArray(this%soln%res_p)
-  call DeallocateArray(this%soln%res_vm)
-  call DeallocateArray(this%soln%res_sg)
   nullify(this%soln)
   
 end subroutine PMWellDestroy
