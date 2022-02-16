@@ -18,6 +18,7 @@ module PM_Well_class
   private
 
   PetscBool :: initialize_well = PETSC_TRUE
+  PetscReal, parameter :: gravity = -9.80665d0 ! [m/s2]
 
   type :: well_grid_type
     ! number of well segments
@@ -37,8 +38,6 @@ module PM_Well_class
     ! coordinate of the top/bottom of the well [m]
     PetscReal :: tophole(3)
     PetscReal :: bottomhole(3)     
-    ! gravity vector magnitude [m/s2]
-    PetscReal :: g
   end type well_grid_type
 
   type :: well_reservoir_type
@@ -98,8 +97,6 @@ module PM_Well_class
     PetscReal, pointer :: WI(:)    
     ! well index model (probably has to get moved out of well_type)
     character(len=MAXWORDLENGTH) :: WI_model
-    ! well mixture density [kg/m3]    
-    PetscReal, pointer :: mixrho(:)
     ! well liquid pressure [Pa]     
     PetscReal, pointer :: pl(:) 
     ! well gas pressure [Pa]
@@ -261,7 +258,6 @@ function PMWellCreate()
   nullify(PMWellCreate%grid%h_ghosted_id)
   PMWellCreate%grid%tophole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%bottomhole(:) = UNINITIALIZED_DOUBLE
-  PMWellCreate%grid%g = 9.81
 
   ! create the well object:
   allocate(PMWellCreate%well)
@@ -271,7 +267,6 @@ function PMWellCreate()
   nullify(PMWellCreate%well%f)
   nullify(PMWellCreate%well%WI_base)
   nullify(PMWellCreate%well%WI)
-  nullify(PMWellCreate%well%mixrho)
   nullify(PMWellCreate%well%pl)
   nullify(PMWellCreate%well%pg)
   nullify(PMWellCreate%well%ql)
@@ -294,7 +289,6 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%f)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%WI_base)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%WI)
-  nullify(PMWellCreate%well_pert(ONE_INTEGER)%mixrho)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%pl)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%pg)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql)
@@ -307,7 +301,6 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%f)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%WI_base)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%WI)
-  nullify(PMWellCreate%well_pert(TWO_INTEGER)%mixrho)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%pl)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%pg)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql)
@@ -361,7 +354,6 @@ function PMWellCreate()
   PMWellCreate%well_pert(TWO_INTEGER)%liq%mobility = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(ONE_INTEGER)%liq%rho0 = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(TWO_INTEGER)%liq%rho0 = UNINITIALIZED_DOUBLE
-  !PMWellCreate%liq%update_rho_ptr => PMWellRhoIncompress
 
   ! create the fluid/gas objects:
   allocate(PMWellCreate%well%gas)
@@ -379,7 +371,6 @@ function PMWellCreate()
   PMWellCreate%well_pert(TWO_INTEGER)%gas%mobility = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(ONE_INTEGER)%gas%rho0 = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(TWO_INTEGER)%gas%rho0 = UNINITIALIZED_DOUBLE
-  !PMWellCreate%gas%update_rho_ptr => PMWellRhoIncompress
 
   ! create the well solution object:
   allocate(PMWellCreate%soln)
@@ -1516,18 +1507,15 @@ recursive subroutine PMWellInitializeRun(this)
   this%soln%Jacobian = UNINITIALIZED_DOUBLE
 
   allocate(this%well%WI(nsegments))
-  allocate(this%well%mixrho(nsegments))
   allocate(this%well%pl(nsegments))
   allocate(this%well%pg(nsegments))
   allocate(this%well%ql(nsegments))
   allocate(this%well%qg(nsegments))
 
   allocate(this%well_pert(ONE_INTEGER)%WI(nsegments))
-  allocate(this%well_pert(ONE_INTEGER)%mixrho(nsegments))
   allocate(this%well_pert(ONE_INTEGER)%pl(nsegments))
   allocate(this%well_pert(ONE_INTEGER)%pg(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%WI(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%mixrho(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%pl(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%pg(nsegments))
   allocate(this%well_pert(TWO_INTEGER)%ql(nsegments))
@@ -2558,11 +2546,6 @@ subroutine PMWellUpdateWellQ(well,reservoir)
       liq%Q = liq%rho*liq%mobility*well%WI*(reservoir%p_l-well%pl)
       gas%Q = gas%rho*gas%mobility*well%WI*(reservoir%p_g-well%pg)
   end select
-
-  ! WARNING!!!!!
-  ! Remove the following two lines once Q is calculated properly:
-  !liq%Q = 0.d0 ! remove me
-  !gas%Q = 0.d0 ! remove me
   
 end subroutine PMWellUpdateWellQ
 
@@ -2578,8 +2561,29 @@ subroutine PMWellCalcVelocity(this)
   implicit none
   
   class(pm_well_type) :: this
+
+  type(well_grid_type), pointer :: grid
+  PetscReal :: perm_up, perm_dn
+  PetscReal :: dist_up, dist_dn
+  PetscReal :: perm_ave_over_dist
+  PetscReal :: gravity_term
+  PetscReal :: delta_pressure
+
+  grid => this%grid
   
-  ! placeholder
+  select case(this%well%well_model_type)
+    !-------------------------------------------------------------------------
+    case('CONSTANT_PRESSURE_HYDROSTATIC')
+    !-------------------------------------------------------------------------
+    case('CONSTANT_PRESSURE')
+    !-------------------------------------------------------------------------
+    case('CONSTANT_RATE')
+    !-------------------------------------------------------------------------
+    case('DARCY')
+    !-------------------------------------------------------------------------
+    case('FULL_MOMENTUM')
+    !-------------------------------------------------------------------------
+  end select
   
 end subroutine PMWellCalcVelocity
 
@@ -2719,7 +2723,6 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
 
   PetscReal, parameter :: eps = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
-  PetscReal, parameter :: gravity = -9.80665d0
 
   grid => pm_well%grid
 
@@ -2918,7 +2921,6 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
   PetscReal, parameter :: eps = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
-  PetscReal, parameter :: gravity = -9.80665d0
 
   grid => pm_well%grid
   reservoir => pm_well%reservoir
@@ -3380,7 +3382,6 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%volume)
   call DeallocateArray(this%well%f)
   call DeallocateArray(this%well%WI)
-  call DeallocateArray(this%well%mixrho)
   call DeallocateArray(this%well%pl)
   call DeallocateArray(this%well%pg)
   call DeallocateArray(this%well%ql)
