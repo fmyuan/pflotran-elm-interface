@@ -1225,6 +1225,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   grid => this%realization%patch%grid
   reaction_nw => this%realization%reaction_nw
   
+  call VecGetArrayF90(X,C_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
   
   if (reaction_nw%use_log_formulation) then
@@ -1235,16 +1236,20 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
     ! time checking for changes and performing an allreduce for log 
     ! formulation.
     if (Initialized(reaction_nw%params%truncated_concentration)) then
-      call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
       dC_p = min(C_p-log(reaction_nw%params%truncated_concentration),dC_p)
-      call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
     endif
   else
-    call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
         
     if (Initialized(reaction_nw%params%truncated_concentration)) then
-      dC_p = min(dC_p,C_p-reaction_nw%params%truncated_concentration)
+      do k = 1,size(C_p)
+        if (C_p(k) < reaction_nw%params%truncated_concentration) then
+          C_p(k) = reaction_nw%params%truncated_concentration
+          dC_p(k) = 0.0d0 
+        else
+          dC_p(k) = min(dC_p(k),C_p(k) - &
+                        reaction_nw%params%truncated_concentration)
+        endif 
+      enddo 
     else
       ! C^p+1 = C^p - dC^p
       ! if dC is positive and abs(dC) larger than C
@@ -1296,17 +1301,10 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
         changed = PETSC_TRUE
       endif
     endif
-    call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
   endif
-  call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-  !WRITE(*,*)  '       C_p(723) = ', C_p(723)
-  !WRITE(*,*)  '       C_p(791) = ', C_p(791)
-  call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-  
-  !WRITE(*,*)  '        dC_p(723) = ', dC_p(723)
-  !WRITE(*,*)  '        dC_p(791) = ', dC_p(791)
-  call VecRestoreArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
+  call VecRestoreArrayF90(X,C_p,ierr);CHKERRQ(ierr) 
+  call VecRestoreArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMNWTCheckUpdatePre
 
@@ -1346,9 +1344,6 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: dC_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:)
-  !PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof)
-  !PetscBool :: idof_cnvgd_due_to_scaled_res(this%option%ntrandof)
-  !PetscBool :: idof_cnvgd_due_to_abs_res(this%option%ntrandof)
   PetscBool :: idof_cnvgd_due_to_update(this%option%ntrandof)
   PetscBool :: idof_cnvgd_due_to_residual(this%option%ntrandof)
   PetscBool :: idof_cnvgd_due_to_rel_update(this%option%ntrandof,this%realization%patch%grid%nlmax)
@@ -1358,6 +1353,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal :: max_scaled_residual
   PetscReal :: max_absolute_change
   PetscReal :: max_absolute_residual
+  PetscReal :: min_C0, min_C_prev
   PetscInt :: loc_max_scaled_residual
   PetscInt :: loc_max_abs_residual
   PetscInt :: loc_max_rel_update
@@ -1395,28 +1391,35 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     idof_cnvgd_due_to_abs_res = PETSC_FALSE
     idof_cnvgd_due_to_update = PETSC_FALSE
     idof_cnvgd_due_to_residual = PETSC_FALSE
+
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
-    max_relative_change = maxval(dabs(dC_p(:)/C0_p(:)))
+
+    min_C0 = minval(dabs(C0_p(:)))
+
+    max_relative_change = maxval(dabs(dC_p(:)/C0_p(:)))  
     max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
     max_absolute_change = maxval(dabs(dC_p(:)))
     max_absolute_residual = maxval(dabs(r_p(:)))
+
     loc_max_scaled_residual = maxloc(dabs(r_p(:)/accum_p(:)),1)
     loc_max_abs_residual = maxloc(dabs(r_p(:)),1)
     loc_max_rel_update = maxloc(dabs(dC_p(:)/C0_p(:)),1)
+
     residual_at_max = dabs(r_p(loc_max_scaled_residual))
     accum_at_max = dabs(accum_p(loc_max_scaled_residual))
     update_at_max = dabs(dC_p(loc_max_rel_update))
     soln_at_max = dabs(C0_p(loc_max_rel_update))
+
     do local_id = 1, grid%nlmax
       offset = (local_id-1)*option%ntrandof
       do idof = 1, option%ntrandof
         index = idof + offset
       !-----------------------------------------------------------------
         idof_cnvgd_due_to_rel_update(idof,local_id) = PETSC_FALSE
-        tempreal = dabs(dC_p(index)/C0_p(index))
+        tempreal = dabs((dC_p(index))/C0_p(index))
         if (tempreal < this%controls%itol_rel_update(idof)) then
           idof_cnvgd_due_to_rel_update(idof,local_id) = PETSC_TRUE
         else
@@ -1458,18 +1461,6 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
 
-    ! do idof = 1, option%ntrandof
-    !   idof_cnvgd_due_to_rel_update(idof) = &
-    !     (associated(this%controls%itol_rel_update) .and. &
-    !      (species_max_relative_change(idof) < this%controls%itol_rel_update(idof)))
-    !   idof_cnvgd_due_to_scaled_res(idof) = &
-    !     (associated(this%controls%itol_scaled_res) .and. &
-    !      (species_max_scaled_residual(idof) < this%controls%itol_scaled_res(idof)))
-    !   idof_cnvgd_due_to_abs_res(idof) = &
-    !     (associated(this%controls%itol_abs_res) .and. &
-    !      (species_max_absolute_residual(idof) < this%controls%itol_abs_res(idof)))
-    ! enddo
-
     do idof = 1, option%ntrandof
       if (all(idof_cnvgd_due_to_rel_update(idof,:))) then
         idof_cnvgd_due_to_update(idof) = PETSC_TRUE
@@ -1489,25 +1480,26 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   endif
 
   WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  '          max scaled residual = ', max_scaled_residual
-  !WRITE(*,*)  '                     location = ', loc_max_scaled_residual
-  !WRITE(*,*)  '               residual @ max = ', residual_at_max
-  !WRITE(*,*)  '                  accum @ max = ', accum_at_max
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  '     max absolute residual = ', max_absolute_residual
-  !WRITE(*,*)  '                  location = ', loc_max_abs_residual
-  !WRITE(*,*)  ' --------------------------------------------------------------'
+  WRITE(*,*)  '          max scaled residual = ', max_scaled_residual
+  WRITE(*,*)  '                     location = ', loc_max_scaled_residual
+  WRITE(*,*)  '               residual @ max = ', residual_at_max
+  WRITE(*,*)  '                  accum @ max = ', accum_at_max
+  WRITE(*,*)  ' --------------------------------------------------------------'
+  WRITE(*,*)  '     max absolute residual = ', max_absolute_residual
+  WRITE(*,*)  '                  location = ', loc_max_abs_residual
+  WRITE(*,*)  ' --------------------------------------------------------------'
   WRITE(*,*)  ' idof_cnvgd_due_to_residual = ', idof_cnvgd_due_to_residual
   WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  '      max relative update = ', max_relative_change
-  !WRITE(*,*)  '                 location = ', loc_max_rel_update
-  !WRITE(*,*)  '             update @ max = ', update_at_max
-  !WRITE(*,*)  '               soln @ max = ', soln_at_max
-  !WRITE(*,*)  ' --------------------------------------------------------------'
+  WRITE(*,*)  '      max relative update = ', max_relative_change
+  WRITE(*,*)  '                 location = ', loc_max_rel_update
+  WRITE(*,*)  '             update @ max = ', update_at_max
+  WRITE(*,*)  '               soln @ max = ', soln_at_max
+  WRITE(*,*)  '                   min C0 = ', min_C0
+  WRITE(*,*)  ' --------------------------------------------------------------'
   WRITE(*,*)  ' idof_cnvgd_due_to_update = ', idof_cnvgd_due_to_update
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  ' --------------------------------------------------------------'
-  !WRITE(*,*)  ' ITOL converged_flag = ', converged_flag
+  WRITE(*,*)  ' --------------------------------------------------------------'
+  WRITE(*,*)  ' --------------------------------------------------------------'
+  WRITE(*,*)  ' ITOL converged_flag = ', converged_flag
   WRITE(*,*)  ' --------------------------------------------------------------'
 
   

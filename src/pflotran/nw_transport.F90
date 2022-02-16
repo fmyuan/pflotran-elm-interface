@@ -1421,7 +1421,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iconn, sum_connection
-  PetscInt :: cell_number
   PetscInt :: iphase
   PetscReal :: Jac_accum(realization%reaction_nw%params%nspecies, &
                    realization%reaction_nw%params%nspecies)
@@ -1747,8 +1746,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   allocate(dRes_rxn(grid%nlmax*option%ntrandof))
   allocate(dRes_flux(grid%nlmax*option%ntrandof))
 
-  cell_number = 722
-
   ! get the dM value:
   call VecCopy(field%tran_xx,xx_pert,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(xx_pert,xx_pert_p,ierr);CHKERRQ(ierr)
@@ -1940,9 +1937,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     dRes_flux(istart:iend) = residual_pert(istart:iend) &
                              - residual(istart:iend)
     derivative_flux(istart:iend) = dRes_flux(istart:iend) / &
-                                   perturbation(istart:iend) 
-    if (i == cell_number) WRITE(*,*) 'flux dRes = ', dRes_flux(istart)
-    if (i == cell_number) WRITE(*,*) 'flux dM = ', perturbation(istart)   
+                                   perturbation(istart:iend)   
   enddo
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
