@@ -773,7 +773,11 @@ subroutine PMWellReadPMBlock(this,input)
     if (found) cycle
 
     error_string = 'WELLBORE_MODEL'
-    call PMWellReadSolver(this,input,option,word,error_string,found)
+    call PMWellReadFlowSolver(this,input,option,word,error_string,found)
+    if (found) cycle
+
+    error_string = 'WELLBORE_MODEL'
+    call PMWellReadTranSolver(this,input,option,word,error_string,found)
     if (found) cycle
 
     error_string = 'WELLBORE_MODEL'
@@ -1265,7 +1269,8 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
 
 ! ************************************************************************** !
 
-subroutine PMWellReadSolver(pm_well,input,option,keyword,error_string,found)
+subroutine PMWellReadFlowSolver(pm_well,input,option,keyword,error_string, &
+                                found)
   ! 
   ! Reads input file parameters associated with the well model solver.
   ! 
@@ -1288,13 +1293,13 @@ subroutine PMWellReadSolver(pm_well,input,option,keyword,error_string,found)
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
 
-  error_string = trim(error_string) // ',WELL_SOLVER'
+  error_string = trim(error_string) // ',WELL_FLOW_SOLVER'
   found = PETSC_TRUE
   num_errors = 0
 
   select case(trim(keyword))
   !-------------------------------------
-    case('WELL_SOLVER')
+    case('WELL_FLOW_SOLVER')
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
@@ -1369,12 +1374,119 @@ subroutine PMWellReadSolver(pm_well,input,option,keyword,error_string,found)
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
-                       &the WELLBORE_MODEL,WELL_SOLVER block. See above &
+                       &the WELLBORE_MODEL,WELL_FLOW_SOLVER block. See above &
                        &error messages.'
     call PrintErrMsg(option)
   endif
 
-  end subroutine PMWellReadSolver
+  end subroutine PMWellReadFlowSolver
+
+! ************************************************************************** !
+
+subroutine PMWellReadTranSolver(pm_well,input,option,keyword,error_string, &
+                                found)
+  ! 
+  ! Reads input file parameters associated with the well model solver.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 02/17/2022
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  class(pm_well_type) :: pm_well
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  PetscInt :: num_errors
+  character(len=MAXWORDLENGTH) :: word
+
+  error_string = trim(error_string) // ',WELL_TRANSPORT_SOLVER'
+  found = PETSC_TRUE
+  num_errors = 0
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('WELL_TRANSPORT_SOLVER')
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('MAXIMUM_NUMBER_OF_ITERATIONS')
+            call InputReadInt(input,option,pm_well%tran_soln%max_iter)
+            call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_ITERATIONS', &
+                               error_string)
+        !-----------------------------
+          case('MAXIMUM_NUMBER_OF_TS_CUTS')
+            call InputReadInt(input,option,pm_well%tran_soln%max_ts_cut)
+            call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_TS_CUTS', &
+                               error_string)
+        !-----------------------------
+          case('TIMESTEP_CUT_FACTOR')
+            call InputReadInt(input,option,pm_well%tran_soln%ts_cut_factor)
+            call InputErrorMsg(input,option,'TIMESTEP_CUT_FACTOR', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_ABSOLUTE_RESIDUAL')
+            call InputReadDouble(input,option,pm_well%tran_soln%itol_abs_res)
+            call InputErrorMsg(input,option,'ITOL_ABSOLUTE_RESIDUAL', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_SCALED_RESIDUAL')
+            call InputReadDouble(input,option, &
+                                 pm_well%tran_soln%itol_scaled_res)
+            call InputErrorMsg(input,option,'ITOL_SCALED_RESIDUAL', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_ABSOLUTE_UPDATE')
+            call InputReadDouble(input,option, &
+                                 pm_well%tran_soln%itol_abs_update)
+            call InputErrorMsg(input,option,'ITOL_ABSOLUTE_UPDATE', &
+                               error_string)
+        !-----------------------------
+          case('ITOL_RELATIVE_UPDATE')
+            call InputReadDouble(input,option, &
+                                 pm_well%tran_soln%itol_rel_update)
+            call InputErrorMsg(input,option,'ITOL_RELATIVE_UPDATE', &
+                               error_string)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
+      ! ----------------- error messaging -------------------------------------
+
+
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+  if (num_errors > 0) then
+    write(option%io_buffer,*) num_errors
+    option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
+                       &the WELLBORE_MODEL,WELL_TRANSPORT_SOLVER block. &
+                       &See above error messages.'
+    call PrintErrMsg(option)
+  endif
+
+  end subroutine PMWellReadTranSolver
 
 ! ************************************************************************** !
 
@@ -1484,7 +1596,8 @@ subroutine PMWellReadPass2(input,option)
 
     select case(trim(keyword))
     !--------------------
-    case('GRID','WELL','WELL_MODEL_TYPE')
+    case('GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
+         'WELL_TRANSPORT_SOLVER')
       call InputSkipToEND(input,option,card)
     !--------------------
     case('WELL_BOUNDARY_CONDITIONS')
