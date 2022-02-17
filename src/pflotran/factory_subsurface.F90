@@ -3057,7 +3057,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         internal_units = 'sec'
         units_conversion = UnitsConvertToInternal(word,internal_units,option)
         ! convert from hrs to seconds and add to start_time
-        option%wallclock_stop_time = option%start_time + &
+        option%wallclock_stop_time = option%comm%start_time + &
                                      option%wallclock_stop_time* &
                                      units_conversion
 
