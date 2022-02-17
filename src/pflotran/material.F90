@@ -891,15 +891,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'secondary cont. mnrl area', &
                            'MATERIAL_PROPERTY')
             case('LOG_GRID_SPACING')
-              option%io_buffer = 'LOG_GRID_SPACING is &
-                                  &temporarily disabled for multiple &
-                                  continuum model.'
-              call PrintErrMsg(option)
-           !  call InputReadDouble(input,option, &
-           !                   material_property%multicontinuum%outer_spacing)
-           !   call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
-           !                  'MATERIAL_PROPERTY')
-           !   material_property%multicontinuum%log_spacing = PETSC_TRUE
+              call InputReadDouble(input,option, &
+                              material_property%multicontinuum%outer_spacing)
+              call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
+                             'MATERIAL_PROPERTY')
+              material_property%multicontinuum%log_spacing = PETSC_TRUE
             case('AREA_SCALING_FACTOR')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%area_scaling)
