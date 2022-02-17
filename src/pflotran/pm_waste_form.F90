@@ -473,16 +473,19 @@ module PM_Waste_Form_class
   ! Provide one lookup table per nuclide
   type, public :: crit_inventory_lookup_type
     class(lookup_table_general_type), pointer :: lookup
-    PetscReal :: real_time_datamax
   end type crit_inventory_lookup_type
 
   ! Stores variables for the criticality inventory lookup table
   type, public :: crit_inventory_type
     character(len=MAXSTRINGLENGTH) :: file_name
+    PetscInt :: total_points
     PetscInt :: num_start_times
     PetscInt :: num_powers
     PetscInt :: num_real_times
     PetscInt :: num_species
+    PetscReal :: start_time_datamax
+    PetscReal :: power_datamax
+    PetscReal :: real_time_datamax
     type(crit_inventory_lookup_type), allocatable ::  nuclide(:)
     class(crit_inventory_type), pointer :: next
   contains
@@ -7103,13 +7106,13 @@ subroutine CritInventoryRead(this,filename,option)
   character(len=MAXSTRINGLENGTH) :: filename
   type(option_type) :: option
   ! ----------------------------------
-  character(len=MAXSTRINGLENGTH) :: string, error_string, istr1, istr2
+  character(len=MAXSTRINGLENGTH) :: string, error_string, istr1, istr2, istr3
   character(len=MAXWORDLENGTH) :: keyword, word, internal_units
   type(input_type), pointer :: input
   PetscInt :: i
   PetscInt :: ict
   PetscInt :: num_species
-  PetscInt :: temp_int
+  PetscInt :: arr_size
   PetscReal :: time_units_conversion
   PetscReal :: power_units_conversion
   PetscReal :: data_units_conversion
@@ -7120,6 +7123,7 @@ subroutine CritInventoryRead(this,filename,option)
 
   ict = 0
   num_species = 0
+  arr_size = 0
   time_units_conversion  = 1.d0
   power_units_conversion = 1.d0
   data_units_conversion  = 1.d0
@@ -7157,7 +7161,12 @@ subroutine CritInventoryRead(this,filename,option)
     !-------------------------------------      
       case('NUM_REAL_TIMES')
         call InputReadInt(input,option,this%num_real_times)
-        call InputErrorMsg(input,option,'number of inventory evaluation times',&
+        call InputErrorMsg(input,option,'maximum length of inventory ' &
+                                      //'evaluation times',error_string)
+    !-------------------------------------      
+      case('TOTAL_POINTS')
+        call InputReadInt(input,option,this%total_points)
+        call InputErrorMsg(input,option,'total inventory evaluation points', &
                            error_string)
     !-------------------------------------      
       case('NUM_SPECIES')
@@ -7211,10 +7220,15 @@ subroutine CritInventoryRead(this,filename,option)
           call PrintErrMsg(option)
         endif
         
-        temp_int = this%num_start_times*this%num_powers*this%num_real_times
+        if (Initialized(this%total_points)) then
+          arr_size = this%total_points
+        else
+          arr_size = this%num_start_times*this%num_powers*this%num_real_times
+        endif
+
         allocate(tmpaxis1(this%num_start_times))
         allocate(tmpaxis2(this%num_powers))
-        allocate(tmpaxis3(temp_int))
+        allocate(tmpaxis3(arr_size))
 
         do i = 1, num_species
           this%nuclide(i)%lookup => LookupTableCreateGeneral(THREE_INTEGER) ! 3D interpolation
@@ -7223,8 +7237,8 @@ subroutine CritInventoryRead(this,filename,option)
           this%nuclide(i)%lookup%dims(3) = this%num_real_times
           allocate(this%nuclide(i)%lookup%axis1%values(this%num_start_times))
           allocate(this%nuclide(i)%lookup%axis2%values(this%num_powers))
-          allocate(this%nuclide(i)%lookup%axis3%values(temp_int))
-          allocate(this%nuclide(i)%lookup%data(temp_int))
+          allocate(this%nuclide(i)%lookup%axis3%values(arr_size))
+          allocate(this%nuclide(i)%lookup%data(arr_size))
         enddo
 
         string = 'START_TIME in criticality inventory lookup table'
@@ -7232,14 +7246,19 @@ subroutine CritInventoryRead(this,filename,option)
                               NEG_ONE_INTEGER,string, &
                               input,option)
         tmpaxis1 = tmpaxis1 * time_units_conversion
+
+        if (size(tmpaxis1) /= this%num_start_times) then
+          write(istr3,*) size(tmpaxis1)
+          option%io_buffer = 'Number of start times listed in START_TIME ('&
+                           // trim(adjustl(istr3)) &
+                           //') does not match NUM_START_TIMES.'
+          call PrintErrMsg(option)
+        endif
+
+        this%start_time_datamax = maxval(tmpaxis1)
+
         do i = 1, num_species
           this%nuclide(i)%lookup%axis1%values => tmpaxis1
-          if (size(this%nuclide(i)%lookup%axis1%values) /= &
-              this%num_start_times) then
-            option%io_buffer = &
-              'Number of start times does not match NUM_START_TIMES.'
-            call PrintErrMsg(option)
-          endif
         enddo
     !-------------------------------------      
       case('POWER')
@@ -7258,12 +7277,19 @@ subroutine CritInventoryRead(this,filename,option)
                               NEG_ONE_INTEGER, &
                               string,input,option)
         tmpaxis2 = tmpaxis2 * power_units_conversion
+
+        if (size(tmpaxis2) /= this%num_powers) then
+          write(istr3,*) size(tmpaxis2)
+          option%io_buffer = 'Number of powers listed in POWER ('&
+                           // trim(adjustl(istr3)) &
+                           //') does not match NUM_POWERS.'
+          call PrintErrMsg(option)
+        endif
+
+        this%power_datamax = maxval(tmpaxis2)
+
         do i = 1, num_species
           this%nuclide(i)%lookup%axis2%values => tmpaxis2
-          if (size(this%nuclide(i)%lookup%axis2%values) /= this%num_powers) then
-            option%io_buffer = 'Number of powers does not match NUM_POWERS.'
-            call PrintErrMsg(option)
-          endif
         enddo
     !-------------------------------------      
       case('REAL_TIME')
@@ -7282,16 +7308,30 @@ subroutine CritInventoryRead(this,filename,option)
                               NEG_ONE_INTEGER, &
                               string,input,option)
         tmpaxis3 = tmpaxis3 * time_units_conversion
+
+        if (size(tmpaxis3) /= arr_size) then
+          write(istr3,*) size(tmpaxis3)
+          if (Initialized(this%total_points)) then
+            option%io_buffer = 'Number of points listed for REAL_TIME ('&
+                             // trim(adjustl(istr3)) &
+                             //') does not match TOTAL_POINTS.'
+                             call PrintErrMsg(option)
+          else
+            ! Since NUM_REAL_TIMES is a maximum time vector size, the total
+            !   number of actual points may be less than the product with power
+            !   and start time
+            option%io_buffer = 'Number of points listed for REAL_TIME ('&
+                             // trim(adjustl(istr3)) &
+                             //') does not match ' &
+                             //'NUM_START_TIMES * NUM_POWERS * NUM_REAL_TIMES.'
+                             call PrintWrnMsg(option)
+          endif
+        endif
+
+        this%real_time_datamax = maxval(tmpaxis3)
+
         do i = 1, num_species
           this%nuclide(i)%lookup%axis3%values => tmpaxis3
-          if (size(this%nuclide(i)%lookup%axis3%values) /= &
-              this%num_start_times*this%num_powers*this%num_real_times) then
-            option%io_buffer = 'Number of evaluation times does not match ' &
-                             //'NUM_START_TIMES * NUM_POWERS * NUM_REAL_TIMES.'
-            call PrintErrMsg(option)
-          endif
-          this%nuclide(i)%real_time_datamax = &
-            maxval(this%nuclide(i)%lookup%axis3%values)
         enddo
     !-------------------------------------      
       case('INVENTORY','INVENTORIES')
@@ -7371,6 +7411,10 @@ subroutine CritInventoryRead(this,filename,option)
                      // trim(adjustl(istr2)) //').'
     call PrintErrMsg(option)
   endif
+  
+  if (associated(tmpaxis1)) nullify(tmpaxis1)
+  if (associated(tmpaxis2)) nullify(tmpaxis2)
+  if (associated(tmpaxis3)) nullify(tmpaxis3)
 
 end subroutine CritInventoryRead
 
@@ -7450,10 +7494,14 @@ function CritInventoryCreate()
   endif
   
   ci%file_name = ''
+  ci%total_points    = UNINITIALIZED_INTEGER
   ci%num_start_times = UNINITIALIZED_INTEGER
   ci%num_powers      = UNINITIALIZED_INTEGER
   ci%num_real_times  = UNINITIALIZED_INTEGER
   ci%num_species     = UNINITIALIZED_INTEGER
+  ci%start_time_datamax = UNINITIALIZED_DOUBLE
+  ci%power_datamax      = UNINITIALIZED_DOUBLE
+  ci%real_time_datamax  = UNINITIALIZED_DOUBLE
 
   CritInventoryCreate => ci
 
