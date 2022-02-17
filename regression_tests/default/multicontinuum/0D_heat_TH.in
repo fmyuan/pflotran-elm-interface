@@ -105,7 +105,7 @@ SECONDARY_CONTINUUM
   TYPE NESTED_SPHERES
   RADIUS                1.d0
   NUM_CELLS             10
-#  LOG_GRID_SPACING      5.d-4
+  LOG_GRID_SPACING      5.d-4
   EPSILON               0.5
   TEMPERATURE           50.d0
   POROSITY              1.d0

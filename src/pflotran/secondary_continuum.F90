@@ -471,7 +471,11 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
     if ((abs(F) < tol)) exit
     delta = delta_new
     if (delta < 0.d0) delta = 0.5d0
-!   if (delta > 1.d0) delta = 0.9d0
+    if (delta > 1.d0) then
+      option%io_buffer = 'rho > 1 for log grid spacing in multiple continuum &
+                         &model. Use uniform spacing instead.'
+      call PrintErrMsg(option)
+    endif
   enddo
   
   if (i == maxit) then
