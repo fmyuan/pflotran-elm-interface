@@ -133,7 +133,6 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: restart_filename
     character(len=MAXSTRINGLENGTH) :: input_filename
 
-    PetscLogDouble :: start_time
     PetscBool :: wallclock_stop_flag
     PetscLogDouble :: wallclock_stop_time
 
@@ -482,7 +481,6 @@ subroutine OptionInitRealization(option)
   option%restart_filename = ""
   option%restart_time = UNINITIALIZED_DOUBLE
 
-  option%start_time = 0.d0
   option%wallclock_stop_flag = PETSC_FALSE
   option%wallclock_stop_time = 0.d0
 
