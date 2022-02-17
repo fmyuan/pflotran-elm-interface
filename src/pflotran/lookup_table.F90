@@ -54,6 +54,7 @@ module Lookup_Table_module
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
     class(lookup_table_axis2_general_type), pointer :: axis2
+    class(lookup_table_axis3_general_type), pointer :: axis3
   contains
     procedure, public :: Sample => LookupTableEvaluateGeneral
     procedure, public :: SampleAndGradient => ValAndGradGeneral
@@ -69,6 +70,10 @@ module Lookup_Table_module
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis2_general_type
     PetscInt :: saved_index2
   end type lookup_table_axis2_general_type
+
+  type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
+    PetscInt :: saved_index3
+  end type lookup_table_axis3_general_type
 
   type, public :: lookup_table_var_type
     PetscInt :: id
@@ -227,6 +232,8 @@ function LookupTableCreateGeneralDim(dim)
   ! Date: 10/15/14 - 
   ! Modified by Paolo Orsini: change of function name to add new constructor
   ! Date: 05/02/18
+  ! Modified by Alex Salazar: accommodate 3D interpolation
+  ! Date: 02/16/2022
   ! 
 
   implicit none
@@ -241,12 +248,18 @@ function LookupTableCreateGeneralDim(dim)
   call LookupTableBaseInit(lookup_table)
   lookup_table%dim = dim
   nullify(lookup_table%axis2)
+  nullify(lookup_table%axis3)
   allocate(lookup_table%axis1)
   call LookupTableAxisInit(lookup_table%axis1)
   if (dim > 1) then
     allocate(lookup_table%axis2)
     call LookupTableAxisInit(lookup_table%axis2)
     lookup_table%axis2%saved_index2 = 1
+  endif
+  if (dim > 2) then
+    allocate(lookup_table%axis3)
+    call LookupTableAxisInit(lookup_table%axis3)
+    lookup_table%axis3%saved_index3 = 1
   endif
   
   LookupTableCreateGeneralDim => lookup_table
@@ -271,6 +284,7 @@ function LookupTableCreateGeneralNoDim()
   allocate(lookup_table)
   call LookupTableBaseInit(lookup_table)
   nullify(lookup_table%axis2)
+  nullify(lookup_table%axis3)
   
   LookupTableCreateGeneralNoDim => lookup_table
 
@@ -1866,6 +1880,12 @@ subroutine LookupTableGeneralDestroy(lookup_table)
     call DeallocateArray(lookup_table%axis2%values)
     deallocate(lookup_table%axis2)
     nullify(lookup_table%axis2)
+  endif
+  ! axis3 is different type
+  if (associated(lookup_table%axis3)) then
+    call DeallocateArray(lookup_table%axis3%values)
+    deallocate(lookup_table%axis3)
+    nullify(lookup_table%axis3)
   endif
   deallocate(lookup_table)
   nullify(lookup_table)

@@ -470,6 +470,28 @@ module PM_Waste_Form_class
 
 ! -------------------------------------------------------------------
 
+  ! Provide one lookup table per nuclide
+  type, public :: crit_inventory_lookup_type
+    class(lookup_table_general_type), pointer :: lookup
+    PetscReal :: real_time_datamax
+  end type crit_inventory_lookup_type
+
+  ! Stores variables for the criticality inventory lookup table
+  type, public :: crit_inventory_type
+    character(len=MAXSTRINGLENGTH) :: file_name
+    PetscInt :: num_start_times
+    PetscInt :: num_powers
+    PetscInt :: num_real_times
+    PetscInt :: num_species
+    type(crit_inventory_lookup_type), allocatable ::  nuclide(:)
+    class(crit_inventory_type), pointer :: next
+  contains
+    procedure, public :: Read => CritInventoryRead
+    ! procedure, public :: Evaluate => CritInventoryEvaluate
+  end type crit_inventory_type
+
+! -------------------------------------------------------------------
+
 ! Stores variables relevant to criticality calculations
   type, public :: crit_mechanism_base_type
     character(len=MAXWORDLENGTH) :: mech_name
@@ -486,6 +508,7 @@ module PM_Waste_Form_class
     class(dataset_ascii_type), pointer :: rad_dataset
     class(dataset_ascii_type), pointer :: heat_dataset
     class(crit_heat_type), pointer :: crit_heat_dataset
+    class(crit_inventory_type), pointer :: inventory_dataset
     class(crit_mechanism_base_type), pointer :: next
   end type crit_mechanism_base_type
 
@@ -6355,6 +6378,7 @@ subroutine CriticalityMechInit(this)
   nullify(this%rad_dataset)
   nullify(this%heat_dataset)
   nullify(this%crit_heat_dataset)
+  nullify(this%inventory_dataset)
 
 end subroutine CriticalityMechInit
 
@@ -6592,6 +6616,15 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           internal_units,error_string,option)
                   new_crit_mech%rad_dataset%time_storage% &
                           time_interpolation_method = 2
+              !-----------------------------
+                case('EXPANDED_DATASET')
+                  allocate(new_crit_mech%inventory_dataset)
+                  new_crit_mech%inventory_dataset => CritInventoryCreate()
+                  call InputReadFilename(input,option,new_crit_mech% &
+                         inventory_dataset%file_name)
+                  call new_crit_mech%inventory_dataset%Read(new_crit_mech% &
+                                                            inventory_dataset% &
+                                                            file_name,option)
               !-----------------------------
                 case default
                   call InputKeywordUnrecognized(input,word,error_string,option)
@@ -7050,6 +7083,299 @@ end subroutine CritHeatRead
 
 ! ************************************************************************** !
 
+subroutine CritInventoryRead(this,filename,option)
+  !
+  ! Reads in tables of time-dependent radionuclide inventories parametrized by
+  !   the criticality start time and power output.
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/16/2022
+  !
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Units_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(crit_inventory_type) :: this
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(option_type) :: option
+  ! ----------------------------------
+  character(len=MAXSTRINGLENGTH) :: string, error_string, istr1, istr2
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  type(input_type), pointer :: input
+  PetscInt :: i
+  PetscInt :: ict
+  PetscInt :: num_species
+  PetscInt :: temp_int
+  PetscReal :: time_units_conversion
+  PetscReal :: power_units_conversion
+  PetscReal :: data_units_conversion
+  PetscReal, pointer :: tmpaxis1(:)
+  PetscReal, pointer :: tmpaxis2(:)
+  PetscReal, pointer :: tmpaxis3(:)
+  ! ----------------------------------
+
+  ict = 0
+  num_species = 0
+  time_units_conversion  = 1.d0
+  power_units_conversion = 1.d0
+  data_units_conversion  = 1.d0
+  
+  write(istr1,*)ict
+  write(istr2,*)num_species
+
+  if (len_trim(filename) < 1) then
+    option%io_buffer = 'Filename must be specified for criticality inventory ' &
+                     //'lookup table.'
+    call PrintErrMsg(option)
+  endif
+
+  ! this%lookup_table => LookupTableCreateGeneral(THREE_INTEGER) !3D interpolation
+  error_string = 'criticality inventory lookup table'
+  input => InputCreate(IUNIT_TEMP,filename,option)
+  input%ierr = 0
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+    !-------------------------------------
+      case('NUM_START_TIMES')
+        call InputReadInt(input,option,this%num_start_times)
+        call InputErrorMsg(input,option,'number of start times',error_string)
+    !-------------------------------------
+      case('NUM_POWERS')
+        call InputReadInt(input,option,this%num_powers)
+        call InputErrorMsg(input,option,'number of power outputs',error_string)
+    !-------------------------------------      
+      case('NUM_REAL_TIMES')
+        call InputReadInt(input,option,this%num_real_times)
+        call InputErrorMsg(input,option,'number of inventory evaluation times',&
+                           error_string)
+    !-------------------------------------      
+      case('NUM_SPECIES')
+        call InputReadInt(input,option,this%num_species)
+        call InputErrorMsg(input,option,'number of species in inventory', &
+                           error_string)
+        num_species = this%num_species
+        allocate(this%nuclide(num_species))
+        write(istr2,*)num_species
+    !-------------------------------------      
+      case('TIME_UNITS')
+        internal_units = 'sec'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'UNITS','CONDITION')
+        time_units_conversion = UnitsConvertToInternal(word, &
+                                internal_units,option)
+    !-------------------------------------      
+      case('POWER_UNITS')
+        internal_units = 'MW'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'UNITS','CONDITION')
+        power_units_conversion = UnitsConvertToInternal(word, &
+                                 internal_units,option)
+    !-------------------------------------      
+      case('DATA_UNITS')
+        internal_units = 'g/g'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'UNITS','CONDITION')
+        data_units_conversion = UnitsConvertToInternal(word, &
+                                 internal_units,option)
+    !-------------------------------------      
+      case('START_TIME')
+        if (Uninitialized(this%num_species)) then
+          option%io_buffer = 'NUM_SPECIES must be specified prior to ' &
+                           //'reading the constituent arrays.'
+          call PrintErrMsg(option)
+        endif
+        if (Uninitialized(this%num_start_times)) then
+          option%io_buffer = 'NUM_START_TIMES must be specified prior to ' &
+                           //'reading the constituent arrays.'
+          call PrintErrMsg(option)
+        endif
+        if (Uninitialized(this%num_powers)) then
+          option%io_buffer = 'NUM_POWERS must be specified prior to ' &
+                           //'reading the constituent arrays.'
+          call PrintErrMsg(option)
+        endif
+        if (Uninitialized(this%num_real_times)) then
+          option%io_buffer = 'NUM_REAL_TIMES must be specified prior to ' &
+                           //'reading the constituent arrays.'
+          call PrintErrMsg(option)
+        endif
+        
+        temp_int = this%num_start_times*this%num_powers*this%num_real_times
+        allocate(tmpaxis1(this%num_start_times))
+        allocate(tmpaxis2(this%num_powers))
+        allocate(tmpaxis3(temp_int))
+
+        do i = 1, num_species
+          this%nuclide(i)%lookup => LookupTableCreateGeneral(THREE_INTEGER) ! 3D interpolation
+          this%nuclide(i)%lookup%dims(1) = this%num_start_times
+          this%nuclide(i)%lookup%dims(2) = this%num_powers
+          this%nuclide(i)%lookup%dims(3) = this%num_real_times
+          allocate(this%nuclide(i)%lookup%axis1%values(this%num_start_times))
+          allocate(this%nuclide(i)%lookup%axis2%values(this%num_powers))
+          allocate(this%nuclide(i)%lookup%axis3%values(temp_int))
+          allocate(this%nuclide(i)%lookup%data(temp_int))
+        enddo
+
+        string = 'START_TIME in criticality inventory lookup table'
+        call UtilityReadArray(tmpaxis1, &
+                              NEG_ONE_INTEGER,string, &
+                              input,option)
+        tmpaxis1 = tmpaxis1 * time_units_conversion
+        do i = 1, num_species
+          this%nuclide(i)%lookup%axis1%values => tmpaxis1
+          if (size(this%nuclide(i)%lookup%axis1%values) /= &
+              this%num_start_times) then
+            option%io_buffer = &
+              'Number of start times does not match NUM_START_TIMES.'
+            call PrintErrMsg(option)
+          endif
+        enddo
+    !-------------------------------------      
+      case('POWER')
+        if (Uninitialized(this%num_species) .or. &
+            Uninitialized(this%num_start_times) .or. &
+            Uninitialized(this%num_powers) .or. &
+            Uninitialized(this%num_real_times)) then
+          option%io_buffer = 'NUM_SPECIES, NUM_START_TIMES, NUM_POWERS, and ' &
+                           //'NUM_REAL_TIMES must be specified prior to ' &
+                           //'reading the constituent arrays.'
+          call PrintErrMsg(option)
+        endif
+
+        string = 'POWER in criticality inventory lookup table'
+        call UtilityReadArray(tmpaxis2, &
+                              NEG_ONE_INTEGER, &
+                              string,input,option)
+        tmpaxis2 = tmpaxis2 * power_units_conversion
+        do i = 1, num_species
+          this%nuclide(i)%lookup%axis2%values => tmpaxis2
+          if (size(this%nuclide(i)%lookup%axis2%values) /= this%num_powers) then
+            option%io_buffer = 'Number of powers does not match NUM_POWERS.'
+            call PrintErrMsg(option)
+          endif
+        enddo
+    !-------------------------------------      
+      case('REAL_TIME')
+        if (Uninitialized(this%num_species) .or. &
+            Uninitialized(this%num_start_times) .or. &
+            Uninitialized(this%num_powers) .or. &
+            Uninitialized(this%num_real_times)) then
+          option%io_buffer = 'NUM_SPECIES, NUM_START_TIMES, NUM_POWERS, and ' &
+                           //'NUM_REAL_TIMES must be specified prior to ' &
+                           //'reading the constituent arrays.'
+          call PrintErrMsg(option)
+        endif
+
+        string = 'REAL_TIME in criticality inventory lookup table'
+        call UtilityReadArray(tmpaxis3, &
+                              NEG_ONE_INTEGER, &
+                              string,input,option)
+        tmpaxis3 = tmpaxis3 * time_units_conversion
+        do i = 1, num_species
+          this%nuclide(i)%lookup%axis3%values => tmpaxis3
+          if (size(this%nuclide(i)%lookup%axis3%values) /= &
+              this%num_start_times*this%num_powers*this%num_real_times) then
+            option%io_buffer = 'Number of evaluation times does not match ' &
+                             //'NUM_START_TIMES * NUM_POWERS * NUM_REAL_TIMES.'
+            call PrintErrMsg(option)
+          endif
+          this%nuclide(i)%real_time_datamax = &
+            maxval(this%nuclide(i)%lookup%axis3%values)
+        enddo
+    !-------------------------------------      
+      case('INVENTORY','INVENTORIES')
+        if (Uninitialized(this%num_species) .or. &
+            Uninitialized(this%num_start_times) .or. &
+            Uninitialized(this%num_powers) .or. &
+            Uninitialized(this%num_real_times)) then
+          option%io_buffer = 'NUM_SPECIES, NUM_START_TIMES, NUM_POWERS, and ' &
+                           //'NUM_REAL_TIMES must be specified prior to ' &
+                           //'reading the constituent arrays.'
+          call PrintErrMsg(option)
+        endif
+        
+        ict = ict + 1
+        
+        write(istr1,*)ict
+
+        string = 'INVENTORY (#' &
+               // trim(adjustl(istr1)) &
+               //') in criticality inventory lookup table'
+        
+        ! NEST ORDER
+        !
+        ! I  start time i
+        ! I  start time i+1
+        ! I  ...
+        ! I  start time imax
+        !
+        ! J    power output j
+        ! J    power output j+1
+        ! J    ...
+        ! J    power output jmax
+        !
+        ! K      start i    power j   : times(i   ,j   )
+        ! K      start i    power j+1 : times(i   ,j+1 )
+        ! K      ...
+        ! K      start i    power jmax: times(i  ,jmax )
+        ! K      start i+1  power j   : times(i+1,j    )
+        ! K      ...
+        ! K      start imax power jmax: times(imax,jmax)
+        !
+        !  There is a lookup table for each nuclide z
+        !      lookup_table(1)
+        ! I,J,K    start i    power j    nuclide z   : inventory(t) for times(i   ,j   )
+        ! I,J,K    start i    power j+1  nuclide z   : inventory(t) for times(i   ,j+1 )
+        ! I,J,K    start i    power j+2  nuclide z   : inventory(t) for times(i   ,j+2 )
+        ! I,J,K    ...
+        ! I,J,K    start i    power jmax nuclide z   : inventory(t) for times(i   ,jmax)
+        ! I,J,K    start i+1  power j    nuclide z   : inventory(t) for times(i+1 ,jmax)
+        ! I,J,K    start i+1  power j+1  nuclide z   : inventory(t) for times(i+1 ,j+1 )
+        ! I,J,K    ...
+        ! I,J,K    start imax power jmax nuclide z   : inventory(t) for times(imax,jmax)
+        !      lookup_table(2)
+        ! I,J,K    start i    power j    nuclide z+1 : inventory(t) for times(i   ,j   )
+        ! I,J,K    start i    power j+1  nuclide z+1 : inventory(t) for times(i   ,j+1 )
+        ! I,J,K    ...
+        ! I,J,K
+        ! I,J,K    start imax power jmax nuclide zmax: inventory(t) for times(imax,jmax)
+        
+        call UtilityReadArray(this%nuclide(ict)%lookup%data, &
+                              NEG_ONE_INTEGER, &
+                              string,input,option)
+        this%nuclide(ict)%lookup%data = &
+          this%nuclide(ict)%lookup%data * data_units_conversion
+   !-------------------------------------
+     case default
+        error_string = trim(error_string) // ': ' // filename
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
+  enddo
+  call InputDestroy(input)
+
+  if (ict /=  num_species) then
+    option%io_buffer = 'Total number of inventories in data table (' &
+                     // trim(adjustl(istr1)) &
+                     //') does not match NUM_SPECIES specified (' &
+                     // trim(adjustl(istr2)) //').'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine CritInventoryRead
+
+! ************************************************************************** !
+
 function CritHeatEvaluate(this,start_time,temperature)
   ! 
   ! Author: Alex Salazar III
@@ -7095,6 +7421,43 @@ function CritHeatCreate()
   CritHeatCreate => ch
 
 end function CritHeatCreate
+
+! ************************************************************************** !
+
+function CritInventoryCreate()
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 02/16/2022
+  ! 
+
+  implicit none
+  
+  class(crit_inventory_type), pointer :: CritInventoryCreate
+  class(crit_inventory_type), pointer :: ci
+  
+  PetscInt :: i
+  
+  allocate(ci)
+  nullify(ci%next)
+  
+  if (allocated(ci%nuclide)) then
+    do i = 1, size(ci%nuclide)
+      if (associated(ci%nuclide(i)%lookup)) then
+        nullify(ci%nuclide(i)%lookup)
+      endif
+    enddo
+    deallocate(ci%nuclide)
+  endif
+  
+  ci%file_name = ''
+  ci%num_start_times = UNINITIALIZED_INTEGER
+  ci%num_powers      = UNINITIALIZED_INTEGER
+  ci%num_real_times  = UNINITIALIZED_INTEGER
+  ci%num_species     = UNINITIALIZED_INTEGER
+
+  CritInventoryCreate => ci
+
+end function CritInventoryCreate
 
 ! ************************************************************************** !
 
