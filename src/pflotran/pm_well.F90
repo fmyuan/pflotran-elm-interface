@@ -133,6 +133,8 @@ module PM_Well_class
     PetscReal :: rho0
     ! fluid density [kg/m3]
     PetscReal, pointer :: rho(:)
+    ! fluid viscosity [Pa-s]
+    PetscReal, pointer :: visc(:)
     ! fluid saturation
     PetscReal, pointer :: s(:)
     ! fluid source/sink in/out of well [kg/s]   
@@ -352,6 +354,7 @@ function PMWellCreate()
   PMWellCreate%well%liq%mobility = UNINITIALIZED_DOUBLE
   PMWellCreate%well%liq%rho0 = UNINITIALIZED_DOUBLE
   nullify(PMWellCreate%well%liq%rho)
+  nullify(PMWellCreate%well%liq%visc)
   nullify(PMWellCreate%well%liq%s)
   nullify(PMWellCreate%well%liq%Q)
   allocate(PMWellCreate%well_pert(ONE_INTEGER)%liq)
@@ -370,6 +373,7 @@ function PMWellCreate()
   PMWellCreate%well%gas%mobility = UNINITIALIZED_DOUBLE
   PMWellCreate%well%gas%rho0 = UNINITIALIZED_DOUBLE
   nullify(PMWellCreate%well%gas%rho)
+  nullify(PMWellCreate%well%gas%visc)
   nullify(PMWellCreate%well%gas%s)
   nullify(PMWellCreate%well%gas%Q)
   allocate(PMWellCreate%well_pert(ONE_INTEGER)%gas)
@@ -483,12 +487,12 @@ subroutine PMWellSetup(this)
     this%grid%h(k)%x = this%grid%bottomhole(1)+(dh_x*(k-0.5))
     this%grid%h(k)%y = this%grid%bottomhole(2)+(dh_y*(k-0.5))
     this%grid%h(k)%z = this%grid%bottomhole(3)+(dh_z*(k-0.5))
-    if (k < this%grid%nsegments) then
-      this%grid%h(k)%id = k
-      this%grid%h(k)%x = this%grid%h(k)%x + dh_x/2.d0
-      this%grid%h(k)%y = this%grid%h(k)%y + dh_y/2.d0
-      this%grid%h(k)%z = this%grid%h(k)%z + dh_z/2.d0
-    endif
+    !if (k < this%grid%nsegments) then
+    !  this%grid%h(k)%id = k
+    !  this%grid%h(k)%x = this%grid%h(k)%x + dh_x/2.d0
+    !  this%grid%h(k)%y = this%grid%h(k)%y + dh_y/2.d0
+    !  this%grid%h(k)%z = this%grid%h(k)%z + dh_z/2.d0
+    !endif
   enddo
 
   this%grid%dh(:) = total_length/nsegments
@@ -597,36 +601,8 @@ subroutine PMWellSetup(this)
   allocate(this%well%volume(nsegments))
   this%well%volume = this%well%area*this%grid%dh
 
-  ! Initialize perturbations
-  allocate(this%pert(nsegments,this%nphase))
-  this%pert = 0.d0
-
-  ! Initialize stored aux variables at well perturbations
-  do k = 1,this%nphase
-    this%well_pert(k)%well_model_type = this%well%well_model_type
-    this%well_pert(k)%wi_model = this%well%wi_model
-    allocate(this%well_pert(k)%diameter(nsegments))
-    allocate(this%well_pert(k)%WI_base(nsegments))
-    allocate(this%well_pert(k)%permeability(nsegments))
-    allocate(this%well_pert(k)%phi(nsegments))
-    allocate(this%well_pert(k)%f(nsegments))
-    allocate(this%well_pert(k)%area(nsegments))
-    allocate(this%well_pert(k)%volume(nsegments))
-    this%well_pert(k)%diameter(:) = this%well%diameter(:)
-    this%well_pert(k)%WI_base(:) = this%well%WI_base(:)
-    this%well_pert(k)%permeability(:) = this%well%permeability(:)
-    this%well_pert(k)%phi(:) = this%well%phi(:)
-    this%well_pert(k)%f(:) = this%well%f(:)
-    this%well_pert(k)%area(:) = this%well%area(:)
-    this%well_pert(k)%volume(:) = this%well%volume(:)
-    this%well_pert(k)%bh_p = this%well%bh_p
-    this%well_pert(k)%th_p = this%well%th_p
-    this%well_pert(k)%bh_ql = this%well%bh_ql
-    this%well_pert(k)%bh_qg = this%well%bh_qg
-    this%well_pert(k)%th_ql = this%well%th_ql
-    this%well_pert(k)%th_qg = this%well%th_qg
-    
-  enddo
+  allocate(this%well%liq%visc(nsegments))
+  allocate(this%well%gas%visc(nsegments))
 
   this%soln%ndof = this%nphase !+ 1
   allocate(this%soln%prev_soln%pl(this%grid%nsegments))
@@ -1507,7 +1483,7 @@ recursive subroutine PMWellInitializeRun(this)
 
   class(pm_well_type) :: this
   
-  PetscInt :: nsegments 
+  PetscInt :: nsegments, k
 
   nsegments = this%grid%nsegments 
 
@@ -1535,56 +1511,78 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%well%pg(nsegments))
   allocate(this%well%vm(nsegments))
 
-  allocate(this%well_pert(ONE_INTEGER)%WI(nsegments))
-  allocate(this%well_pert(ONE_INTEGER)%mixrho(nsegments))
-  allocate(this%well_pert(ONE_INTEGER)%pl(nsegments))
-  allocate(this%well_pert(ONE_INTEGER)%pg(nsegments))
-  allocate(this%well_pert(ONE_INTEGER)%vm(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%WI(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%mixrho(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%pl(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%pg(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%vm(nsegments))
-
   allocate(this%well%liq%s(nsegments))
   this%well%liq%rho0 = this%option%flow%reference_density(1)
   allocate(this%well%liq%rho(nsegments))
   this%well%liq%rho(:) = this%well%liq%rho0
+  allocate(this%well%liq%visc(nsegments))
+  this%well%liq%visc(:) = 2.1d-3
   allocate(this%well%liq%Q(nsegments))
   if (this%nphase == 2) then
     allocate(this%well%gas%s(nsegments))
     this%well%gas%rho0 = this%option%flow%reference_density(2)
     allocate(this%well%gas%rho(nsegments))
     this%well%gas%rho(:) = this%well%gas%rho0
+    allocate(this%well%gas%visc(nsegments))
+    this%well%gas%visc(:) = 8.9339d-6
     allocate(this%well%gas%Q(nsegments))
   endif
 
-  allocate(this%well_pert(ONE_INTEGER)%liq%s(nsegments))
-  this%well_pert(ONE_INTEGER)%liq%rho0 = this%option%flow%reference_density(1)
-  allocate(this%well_pert(ONE_INTEGER)%liq%rho(nsegments))
-  this%well_pert(ONE_INTEGER)%liq%rho(:) = this%well%liq%rho0
-  allocate(this%well_pert(ONE_INTEGER)%liq%Q(nsegments))
-  allocate(this%well_pert(TWO_INTEGER)%liq%s(nsegments))
-  this%well_pert(TWO_INTEGER)%liq%rho0 = this%option%flow%reference_density(1)
-  allocate(this%well_pert(TWO_INTEGER)%liq%rho(nsegments))
-  this%well_pert(TWO_INTEGER)%liq%rho(:) = this%well%liq%rho0
-  allocate(this%well_pert(TWO_INTEGER)%liq%Q(nsegments))
-  this%well_pert(ONE_INTEGER)%liq%mobility = this%well%liq%mobility
-  this%well_pert(TWO_INTEGER)%liq%mobility = this%well%liq%mobility
-  if (this%nphase == 2) then
-    allocate(this%well_pert(ONE_INTEGER)%gas%s(nsegments))
-    this%well_pert(ONE_INTEGER)%gas%rho0 = this%option%flow%reference_density(2)
-    allocate(this%well_pert(ONE_INTEGER)%gas%rho(nsegments))
-    this%well_pert(ONE_INTEGER)%gas%rho(:) = this%well%gas%rho0
-    allocate(this%well_pert(ONE_INTEGER)%gas%Q(nsegments))
-    allocate(this%well_pert(TWO_INTEGER)%gas%s(nsegments))
-    this%well_pert(TWO_INTEGER)%gas%rho0 = this%option%flow%reference_density(2)
-    allocate(this%well_pert(TWO_INTEGER)%gas%rho(nsegments))
-    this%well_pert(TWO_INTEGER)%gas%rho(:) = this%well%gas%rho0
-    allocate(this%well_pert(TWO_INTEGER)%gas%Q(nsegments))
-    this%well_pert(ONE_INTEGER)%gas%mobility = this%well%gas%mobility
-    this%well_pert(TWO_INTEGER)%gas%mobility = this%well%gas%mobility
-  endif
+  ! Initialize perturbations
+  allocate(this%pert(nsegments,this%nphase))
+  this%pert = 0.d0
+
+  ! Initialize stored aux variables at well perturbations
+  do k = 1,this%nphase
+    this%well_pert(k)%well_model_type = this%well%well_model_type
+    this%well_pert(k)%wi_model = this%well%wi_model
+
+    allocate(this%well_pert(k)%WI(nsegments))
+    allocate(this%well_pert(k)%mixrho(nsegments))
+    allocate(this%well_pert(k)%pl(nsegments))
+    allocate(this%well_pert(k)%pg(nsegments))
+    allocate(this%well_pert(k)%vm(nsegments))
+    allocate(this%well_pert(k)%diameter(nsegments))
+    allocate(this%well_pert(k)%WI_base(nsegments))
+    allocate(this%well_pert(k)%permeability(nsegments))
+    allocate(this%well_pert(k)%phi(nsegments))
+    allocate(this%well_pert(k)%f(nsegments))
+    allocate(this%well_pert(k)%area(nsegments))
+    allocate(this%well_pert(k)%volume(nsegments))
+    allocate(this%well_pert(k)%liq%visc(nsegments))
+    allocate(this%well_pert(k)%gas%visc(nsegments))
+    allocate(this%well_pert(k)%liq%s(nsegments))
+    allocate(this%well_pert(k)%gas%s(nsegments))
+    allocate(this%well_pert(k)%liq%rho(nsegments))
+    allocate(this%well_pert(k)%gas%rho(nsegments))
+    allocate(this%well_pert(k)%liq%Q(nsegments))
+    allocate(this%well_pert(k)%gas%Q(nsegments))
+
+    this%well_pert(k)%liq%rho0 = this%option%flow%reference_density(1)
+    this%well_pert(k)%liq%rho(:) = this%well%liq%rho0
+    this%well_pert(k)%liq%visc(:) = this%well%liq%visc(:)
+    this%well_pert(k)%liq%mobility = this%well%liq%mobility
+    this%well_pert(k)%gas%rho0 = this%option%flow%reference_density(2)
+    this%well_pert(k)%gas%rho(:) = this%well%gas%rho0
+    this%well_pert(k)%gas%visc(:) = this%well%gas%visc(:)
+    this%well_pert(k)%gas%mobility = this%well%gas%mobility
+    this%well_pert(k)%diameter(:) = this%well%diameter(:)
+    this%well_pert(k)%WI_base(:) = this%well%WI_base(:)
+    this%well_pert(k)%permeability(:) = this%well%permeability(:)
+    this%well_pert(k)%phi(:) = this%well%phi(:)
+    this%well_pert(k)%f(:) = this%well%f(:)
+    this%well_pert(k)%area(:) = this%well%area(:)
+    this%well_pert(k)%volume(:) = this%well%volume(:)
+    this%well_pert(k)%bh_p = this%well%bh_p
+    this%well_pert(k)%th_p = this%well%th_p
+    this%well_pert(k)%bh_ql = this%well%bh_ql
+    this%well_pert(k)%bh_qg = this%well%bh_qg
+    this%well_pert(k)%th_ql = this%well%th_ql
+    this%well_pert(k)%th_qg = this%well%th_qg
+    this%well_pert(k)%liq%visc(:) = this%well%liq%visc(:)
+    this%well_pert(k)%gas%visc(:) = this%well%gas%visc(:)
+  enddo
+
 
   allocate(this%reservoir%p_l(nsegments))
   allocate(this%reservoir%p_g(nsegments))
@@ -1647,13 +1645,15 @@ subroutine PMWellInitializeTimestep(this)
   ! update the reservoir object's pressure and saturations
   call PMWellUpdateReservoir(this)
 
-  !if (initialize_well) then
+  if (initialize_well) then
     this%well%pl = this%reservoir%p_l
     this%well%pg = this%reservoir%p_g
     this%well%liq%s = this%reservoir%s_l
     this%well%gas%s = this%reservoir%s_g
     this%well%liq%rho = this%reservoir%rho_l
     this%well%gas%rho = this%reservoir%rho_g
+    this%well%liq%visc = this%reservoir%visc_l
+    this%well%gas%visc = this%reservoir%visc_g
     this%well_pert(ONE_INTEGER)%pl = this%reservoir%p_l
     this%well_pert(TWO_INTEGER)%pl = this%reservoir%p_l
     this%well_pert(ONE_INTEGER)%pg = this%reservoir%p_g
@@ -1666,12 +1666,17 @@ subroutine PMWellInitializeTimestep(this)
     this%well_pert(ONE_INTEGER)%gas%rho = this%reservoir%rho_g
     this%well_pert(TWO_INTEGER)%liq%rho = this%reservoir%rho_l
     this%well_pert(TWO_INTEGER)%gas%rho = this%reservoir%rho_g
+    this%well_pert(ONE_INTEGER)%liq%visc = this%reservoir%visc_l
+    this%well_pert(ONE_INTEGER)%gas%visc = this%reservoir%visc_g
+    this%well_pert(TWO_INTEGER)%liq%visc = this%reservoir%visc_l
+    this%well_pert(TWO_INTEGER)%gas%visc = this%reservoir%visc_g
+
     initialize_well = PETSC_FALSE
     this%soln%prev_soln%pl = this%well%pl
     this%soln%prev_soln%sg = this%well%gas%s
     
   !else
-  !endif
+  endif
 
   call PMWellUpdateProperties(this%well)
   !MAN: need to add adaptive timestepping
@@ -2875,8 +2880,9 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
   PetscInt :: i, ghosted_id
   PetscReal :: pres_up, pres_dn
 
-  PetscReal :: perm_ave_over_dist, density_kg_ave
-  PetscReal :: perm_up, perm_dn, dist_up, dist_dn
+  PetscReal :: perm_ave_over_dist(2), perm_rho_mu_area_up(2), &
+               perm_rho_mu_area_dn(2)
+  PetscReal :: perm_up, perm_dn, dist_up, dist_dn, density_kg_ave
   PetscReal :: gravity_term, delta_pressure, v_darcy
   PetscReal :: density_ave_kmol, q, tot_mole_flux
   PetscReal :: up_scale, dn_scale
@@ -2903,8 +2909,21 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
         dist_up = grid%dh(iup)/2.d0
         dist_dn = grid%dh(idn)/2.d0
 
-        perm_ave_over_dist = (perm_up * perm_dn) / &
-                          (dist_up*perm_dn + dist_dn*perm_up)
+        perm_rho_mu_area_up(1) = perm_up * well_up%liq%rho(iup) / &
+                              FMWH2O / well_up%liq%visc(iup) * &
+                              PI * (well_up%diameter(iup)/2.d0)**2
+        perm_rho_mu_area_up(2) = perm_up * well_up%gas%rho(iup) / &
+                              fmw_comp(TWO_INTEGER) / well_up%gas%visc(iup) * &
+                              PI * (well_up%diameter(iup)/2.d0)**2
+        perm_rho_mu_area_dn(1) = perm_dn * well_dn%liq%rho(idn) / &
+                              FMWH2O / well_dn%liq%visc(idn) * &
+                              PI * (well_dn%diameter(idn)/2.d0)**2
+        perm_rho_mu_area_dn(2) = perm_dn * well_dn%gas%rho(idn) / &
+                              fmw_comp(TWO_INTEGER) / well_dn%gas%visc(idn) * &
+                              PI * (well_dn%diameter(idn)/2.d0)**2
+
+        perm_ave_over_dist = (perm_rho_mu_area_up * perm_rho_mu_area_dn) / &
+                     (dist_up*perm_rho_mu_area_dn + dist_dn*perm_rho_mu_area_up)
 
         ! Liquid flux
         ! Mobility may need to be non-constant?
@@ -2936,7 +2955,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
           if (well_up%liq%mobility > floweps ) then
           ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
           !                    dP[Pa]]
-            v_darcy = perm_ave_over_dist * well_up%liq%mobility * &
+            v_darcy = perm_ave_over_dist(1) * well_up%liq%mobility * &
                       delta_pressure
             density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
           ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
@@ -2981,7 +3000,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
           if (well_up%gas%mobility > floweps ) then
           ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
           !                    dP[Pa]]
-            v_darcy = perm_ave_over_dist * well_up%gas%mobility * &
+            v_darcy = perm_ave_over_dist(1) * well_up%gas%mobility * &
                       delta_pressure
             density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
           ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
@@ -3338,11 +3357,11 @@ subroutine PMWellUpdateProperties(well)
   well%pg = well%pl
 
   !Densities
-  !do i = 1,size(well%pl)
-  !  call EOSWaterDensityBRAGFLO(t,well%pl(i),PETSC_FALSE, &
-  !                              dw,dwmol,dwp,dwt,ierr)
-  !  well%liq%rho(i) = dw
-  !enddo
+  do i = 1,size(well%pl)
+    call EOSWaterDensityBRAGFLO(t,well%pl(i),PETSC_FALSE, &
+                                dw,dwmol,dwp,dwt,ierr)
+    well%liq%rho(i) = dw
+  enddo
 
 end subroutine PMWellUpdateProperties
 
@@ -3550,16 +3569,58 @@ subroutine PMWellDestroy(this)
   call DeallocateArray(this%well%pg)
   call DeallocateArray(this%well%vm)
   call DeallocateArray(this%well%liq%rho)
+  call DeallocateArray(this%well%liq%visc)
   call DeallocateArray(this%well%liq%s)
   call DeallocateArray(this%well%liq%Q)
   call DeallocateArray(this%well%gas%rho)
+  call DeallocateArray(this%well%gas%visc)
   call DeallocateArray(this%well%gas%s)
   call DeallocateArray(this%well%gas%Q)
   nullify(this%well%liq)
   nullify(this%well%gas)
   nullify(this%well)
 
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%area)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%diameter)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%volume)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%f)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%WI)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%mixrho)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%pl)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%pg)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%vm)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%liq%rho)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%liq%visc)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%liq%s)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%liq%Q)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%gas%rho)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%gas%visc)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%gas%s)
+  call DeallocateArray(this%well_pert(ONE_INTEGER)%gas%Q)
+  nullify(this%well_pert(ONE_INTEGER)%liq)
+  nullify(this%well_pert(ONE_INTEGER)%gas)
 
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%area)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%diameter)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%volume)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%f)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%WI)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%mixrho)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%pl)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%pg)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%vm)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%liq%rho)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%liq%visc)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%liq%s)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%liq%Q)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%gas%rho)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%gas%visc)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%gas%s)
+  call DeallocateArray(this%well_pert(TWO_INTEGER)%gas%Q)
+  nullify(this%well_pert(TWO_INTEGER)%liq)
+  nullify(this%well_pert(TWO_INTEGER)%gas)
+  nullify(this%well_pert)
+  
   call DeallocateArray(this%soln%residual)
   call DeallocateArray(this%soln%res_p)
   call DeallocateArray(this%soln%res_vm)
