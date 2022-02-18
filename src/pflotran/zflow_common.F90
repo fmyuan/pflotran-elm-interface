@@ -528,15 +528,16 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     derivative_toggle = PETSC_TRUE
     select case(bc_type)
       ! figure out the direction of flow
-      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
-          HYDROSTATIC_CONDUCTANCE_BC)
+      case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+           HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
         if (zflow_auxvar_up%kr + zflow_auxvar_dn%kr > eps) then
           ! dist(0) = scalar - magnitude of distance
           ! gravity = vector(3)
           ! dist(1:3) = vector(3) - unit vector
           dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-          if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+          if (bc_type == DIRICHLET_CONDUCTANCE_BC .or. &
+              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
             idof = auxvar_mapping(ZFLOW_COND_WATER_AUX_INDEX)
             perm_ave_over_dist_visc = auxvars(idof) / zflow_viscosity
           else
@@ -550,16 +551,17 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                           zflow_auxvar_dn%pres + &
                           gravity_term
           ddelta_pressure_dpdn = -1.d0
-          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
-                ! flow in         ! boundary cell is <= pref
-            if (delta_pressure > 0.d0 .and. &
-                zflow_auxvar_up%pres - &
-                  option%flow%reference_pressure < eps) then
-              delta_pressure = 0.d0
-              ddelta_pressure_dpdn = 0.d0
-            endif
-          endif
+          select case(bc_type)
+            case(DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+                 HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+                  ! flow in         ! boundary cell is <= pref
+              if (delta_pressure > 0.d0 .and. &
+                  zflow_auxvar_up%pres - &
+                    option%flow%reference_pressure < eps) then
+                delta_pressure = 0.d0
+                ddelta_pressure_dpdn = 0.d0
+              endif
+          end select
           if (zflow_tensorial_rel_perm) then
             if (delta_pressure >= 0.d0) then
               call ZFlowAuxTensorialRelPerm(zflow_auxvar_up, &
@@ -741,12 +743,19 @@ subroutine ZFlowSrcSink(option,flow_aux_real_var,flow_src_sink_mapping, &
   endif
 
   if (zflow_sol_tran_eq > 0) then
-    dof_index = flow_src_sink_mapping(ZFLOW_COND_SOLUTE_INDEX)
-    tempreal = flow_aux_real_var(dof_index)
+    if (qsrc_m3 >= 0.d0) then
+      ! injection
+      dof_index = flow_src_sink_mapping(ZFLOW_COND_SOLUTE_INDEX)
+      tempreal = flow_aux_real_var(dof_index)
+    else
+      ! extraction
+      tempreal = zflow_auxvar%conc
+    endif
     qsrc_L = qsrc_m3 * L_per_m3
     Res(zflow_sol_tran_eq) = qsrc_L * tempreal
     if (calculate_derivatives) then
-      if (zflow_liq_flow_eq > 0) then
+      if (qsrc_m3 < 0.d0) then
+       Jdn(zflow_sol_tran_eq,zflow_sol_tran_eq) = qsrc_L
       endif
     endif
   endif

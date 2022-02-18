@@ -559,7 +559,7 @@ subroutine ZFlowUpdateAuxVars(realization)
       if (zflow_liq_flow_eq > 0) then
         select case(boundary_condition%flow_bc_type(water_index))
           case(DIRICHLET_BC, DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
-              HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+               HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
             xxbc(zflow_liq_flow_eq) = &
               boundary_condition%flow_aux_real_var(water_index,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC, &

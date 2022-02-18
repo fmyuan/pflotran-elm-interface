@@ -4190,6 +4190,11 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
       case(ZFLOW_MODE)
+        if (zflow_calc_adjoint .and. iscale_type /= SCALE_BY_VOLUME) then
+          option%io_buffer = 'ZFLOW inversion must factor in derivative &
+            &of scaled source/sink by permeability'
+          call PrintErrMsg(option)
+        endif
         source_sink%flow_aux_real_var( &
             source_sink%flow_aux_mapping(ZFLOW_COND_WATER_AUX_INDEX),&
             iconn) = vec_ptr(local_id)
