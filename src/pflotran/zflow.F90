@@ -1033,21 +1033,15 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      if (associated(source_sink%flow_aux_real_var)) then
-        scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
-      else
-        scale = 1.d0
-      endif
-
       call ZFlowSrcSinkDerivative(option, &
-                                  source_sink%flow_condition%rate% &
-                                    dataset%rarray(:), &
-                                  source_sink%flow_condition%rate%itype, &
+                                  source_sink%flow_aux_real_var(:,iconn), &
+                                  source_sink%flow_aux_mapping, &
+                                  source_sink%flow_bc_type, &
                                   zflow_auxvars(:,ghosted_id), &
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id), &
                                   material_auxvars_pert(:,ghosted_id), &
-                                  ss_flow_vol_flux,scale,Res,Jdn, &
+                                  ss_flow_vol_flux,Res,Jdn, &
                                   dResdparamdn)
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux

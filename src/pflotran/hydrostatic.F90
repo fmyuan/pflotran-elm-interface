@@ -471,7 +471,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   select case(option%iflowmode)
     case(ZFLOW_MODE)
       water_index = coupler%flow_aux_mapping(ZFLOW_COND_WATER_INDEX)
-      conductance_index = coupler%flow_aux_mapping(ZFLOW_COND_CONDUCTANCE_INDEX)
+      conductance_index = coupler%flow_aux_mapping(ZFLOW_COND_WATER_AUX_INDEX)
       energy_index = coupler%flow_aux_mapping(ZFLOW_COND_ENERGY_INDEX)
       solute_index = coupler%flow_aux_mapping(ZFLOW_COND_SOLUTE_INDEX)
   end select

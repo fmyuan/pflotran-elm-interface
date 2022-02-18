@@ -908,7 +908,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                        DIRICHLET_CONDUCTANCE_BC, &
                        HET_HYDROSTATIC_CONDUCTANCE_BC)
                     temp_int = temp_int + 1
-                    iflag = PETSC_FALSE
+                    iflag = PETSC_TRUE
                 end select
                 allocate(coupler%flow_bc_type(ndof))
                 allocate(coupler%flow_aux_real_var(ndof+temp_int, &
@@ -999,44 +999,58 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
           if (associated(coupler%flow_condition%rate)) then
 
-            select case(coupler%flow_condition%rate%itype)
-              case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
-                   VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
-                   HET_VOL_RATE_SS,HET_MASS_RATE_SS)
-                select case(option%iflowmode)
-                  case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE)
-                    allocate(coupler%flow_aux_real_var(1,num_connections))
-                    coupler%flow_aux_real_var = 0.d0
-                  case(ZFLOW_MODE)
-                    ndof = option%nflowdof
-                    select case(coupler%flow_condition%rate%itype)
-                      case(SCALED_MASS_RATE_SS,MASS_RATE_SS, &
-                           HET_VOL_RATE_SS,HET_MASS_RATE_SS)
-                        option%io_buffer = 'Mass rate source/sinks not &
-                          &supported in ZFLOW mode.'
-                        call PrintErrMsg(option)
-                    end select
-                    allocate(coupler%flow_aux_real_var(ndof,num_connections))
-                    coupler%flow_aux_real_var = 0.d0
-                    coupler%flow_aux_mapping => ZFlowAuxMapConditionIndices(PETSC_FALSE)
-                  case(TH_MODE,TH_TS_MODE)
-                    allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
-                    coupler%flow_aux_real_var = 0.d0
-                  case(MPH_MODE)
-                    ! do nothing
-                  case default
-                    string = GetSubConditionName(coupler%flow_condition%rate%itype)
-                    option%io_buffer='Source/Sink of rate%itype = "' // &
-                      trim(adjustl(string)) // '", not implemented in this mode.'
-                    call PrintErrMsg(option)
-                end select
-              case default
-                string = GetSubConditionName(coupler%flow_condition%rate%itype)
-                option%io_buffer = &
-                  FlowConditionUnknownItype(coupler%flow_condition,'rate', &
-                                            string)
-                call PrintErrMsg(option)
-            end select
+            if (option%iflowmode == ZFLOW_MODE) then
+              ndof = option%nflowdof
+              iflag = PETSC_FALSE
+              temp_int = 0
+              select case(coupler%flow_condition%rate%itype)
+                case(SCALED_VOLUMETRIC_RATE_SS)
+                  temp_int = 1
+                  iflag = PETSC_TRUE
+                case(SCALED_MASS_RATE_SS,MASS_RATE_SS, &
+                     HET_VOL_RATE_SS,HET_MASS_RATE_SS)
+                  option%io_buffer = 'Mass rate source/sinks not &
+                    &supported in ZFLOW mode.'
+                  call PrintErrMsg(option)
+              end select
+              allocate(coupler%flow_bc_type(ndof))
+              allocate(coupler%flow_aux_real_var(ndof+temp_int,num_connections))
+              coupler%flow_bc_type = 0
+              coupler%flow_aux_real_var = 0.d0
+              coupler%flow_aux_mapping => &
+                ZFlowAuxMapConditionIndices(iflag)
+            else
+              select case(coupler%flow_condition%rate%itype)
+                case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
+                     VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
+                     HET_VOL_RATE_SS,HET_MASS_RATE_SS)
+                  select case(option%iflowmode)
+                    case(RICHARDS_MODE,RICHARDS_TS_MODE,PNF_MODE)
+                      allocate(coupler%flow_aux_real_var(1,num_connections))
+                      coupler%flow_aux_real_var = 0.d0
+                    case(TH_MODE,TH_TS_MODE)
+                      allocate(coupler%flow_aux_real_var(option%nflowdof, &
+                                                         num_connections))
+                      coupler%flow_aux_real_var = 0.d0
+                    case(MPH_MODE)
+                      ! do nothing
+                    case default
+                      string = GetSubConditionName(coupler%flow_condition%&
+                                                   rate%itype)
+                      option%io_buffer='Source/Sink of rate%itype = "' // &
+                        trim(adjustl(string)) // &
+                        '", not implemented in this mode.'
+                      call PrintErrMsg(option)
+                  end select
+                case default
+                  string = GetSubConditionName(coupler%flow_condition% &
+                                               rate%itype)
+                  option%io_buffer = &
+                    FlowConditionUnknownItype(coupler%flow_condition,'rate', &
+                                              string)
+                  call PrintErrMsg(option)
+              end select
+            endif
           ! handles source/sinks in general mode
           else if (associated(coupler%flow_condition%general)) then
             if (associated(coupler%flow_condition%general%rate)) then
@@ -3674,7 +3688,7 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
 
   type(flow_condition_type), pointer :: flow_condition
   class(dataset_common_hdf5_type), pointer :: dataset
-  PetscInt :: water_index, conductance_index, energy_index, solute_index
+  PetscInt :: water_index, water_aux_index, energy_index, solute_index
   PetscInt :: num_connections,sum_connection
   PetscInt :: iconn, local_id, ghosted_id
   PetscBool :: hydrostatic_update_called
@@ -3683,7 +3697,7 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
   num_connections = coupler%connection_set%num_connections
 
   water_index = coupler%flow_aux_mapping(ZFLOW_COND_WATER_INDEX)
-  conductance_index = coupler%flow_aux_mapping(ZFLOW_COND_CONDUCTANCE_INDEX)
+  water_aux_index = coupler%flow_aux_mapping(ZFLOW_COND_WATER_AUX_INDEX)
   energy_index = coupler%flow_aux_mapping(ZFLOW_COND_ENERGY_INDEX)
   solute_index = coupler%flow_aux_mapping(ZFLOW_COND_SOLUTE_INDEX)
 
@@ -3710,7 +3724,7 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
         end select
         select case(flow_condition%pressure%itype)
           case(DIRICHLET_CONDUCTANCE_BC)
-            coupler%flow_aux_real_var(conductance_index,1:num_connections) = &
+            coupler%flow_aux_real_var(water_aux_index,1:num_connections) = &
                                            flow_condition%pressure%aux_real(1)
         end select
       case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
@@ -3723,7 +3737,7 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
                 water_index,option)
         if (flow_condition%pressure%itype == &
             HET_HYDROSTATIC_CONDUCTANCE_BC) then
-          coupler%flow_aux_real_var(conductance_index, &
+          coupler%flow_aux_real_var(water_aux_index, &
                                     1:num_connections) = &
             flow_condition%pressure%aux_real(1)
         endif
@@ -3731,16 +3745,19 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
   endif
 
   if (associated(flow_condition%rate)) then
-    !geh: not allocated
-    !coupler%flow_bc_type(water_index) = flow_condition%rate%itype
+    coupler%flow_bc_type(water_index) = flow_condition%rate%itype
+    coupler%flow_aux_real_var(water_index,1:num_connections) = &
+          flow_condition%rate%dataset%rarray(1)
     select case(flow_condition%rate%itype)
       case(SCALED_VOLUMETRIC_RATE_SS)
         call PatchScaleSourceSink(patch,coupler, &
                                   flow_condition%rate%isubtype,option)
-      case (HET_VOL_RATE_SS)
-        call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
-                flow_condition%rate%dataset, &
-                water_index,option)
+! not yet supported
+!      case(HET_VOL_RATE_SS)
+!        call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
+!                flow_condition%rate%dataset, &
+!                water_index,option)
+      case default
     end select
   endif
 
@@ -3749,9 +3766,8 @@ subroutine PatchUpdateCouplerAuxVarsZFlow(patch,coupler,option)
     select case(flow_condition%concentration%itype)
       case(DIRICHLET_BC,ZERO_GRADIENT_BC)
         if (.not.hydrostatic_update_called) then
-          coupler%flow_aux_real_var(solute_index, &
-                                    1:num_connections) = &
-                flow_condition%concentration%dataset%rarray(1)
+          coupler%flow_aux_real_var(solute_index,1:num_connections) = &
+            flow_condition%concentration%dataset%rarray(1)
         endif
       case(NEUMANN_BC)
         option%io_buffer = 'NEUMANN_BC not supported for ZFLOW concentration'
@@ -4175,7 +4191,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
           vec_ptr(local_id)
       case(ZFLOW_MODE)
         source_sink%flow_aux_real_var( &
-            source_sink%flow_aux_mapping(ZFLOW_COND_WATER_INDEX),&
+            source_sink%flow_aux_mapping(ZFLOW_COND_WATER_AUX_INDEX),&
             iconn) = vec_ptr(local_id)
       case(MPH_MODE,PNF_MODE)
         option%io_buffer = 'PatchScaleSourceSink not set up for flow mode'
