@@ -744,6 +744,7 @@ subroutine ZFlowAuxDestroy(aux)
 
   if (associated(aux%zflow_parameter)) then
     call DeallocateArray(aux%zflow_parameter%tensorial_rel_perm_exponent)
+    deallocate(aux%zflow_parameter)
   endif
   nullify(aux%zflow_parameter)
 

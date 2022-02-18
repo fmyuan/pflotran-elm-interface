@@ -2620,6 +2620,7 @@ subroutine GeneralAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%xmol)  
   call DeallocateArray(auxvar%H)  
   call DeallocateArray(auxvar%U)  
+  call DeallocateArray(auxvar%kr)  
   call DeallocateArray(auxvar%mobility)  
   if (associated(auxvar%d)) then
     deallocate(auxvar%d)

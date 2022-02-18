@@ -2379,6 +2379,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   !
+  use Dataset_module
 
   implicit none
 
@@ -2401,6 +2402,12 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%electrical_conductivity_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)
+
+  if (associated(material_property%multicontinuum)) then
+    call DatasetDestroy(material_property%multicontinuum%epsilon_dataset)
+    deallocate(material_property%multicontinuum)
+    nullify(material_property%multicontinuum)
+  endif
 
   deallocate(material_property)
   nullify(material_property)
