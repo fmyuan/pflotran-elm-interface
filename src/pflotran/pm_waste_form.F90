@@ -7203,22 +7203,26 @@ subroutine CritInventoryRead(this,filename,option)
       case('START_TIME')
         if (Uninitialized(this%num_species)) then
           option%io_buffer = 'NUM_SPECIES must be specified prior to ' &
-                           //'reading the constituent arrays.'
+                           //'reading the constituent arrays in ' &
+                           // trim(filename) // '.'
           call PrintErrMsg(option)
         endif
         if (Uninitialized(this%num_start_times)) then
           option%io_buffer = 'NUM_START_TIMES must be specified prior to ' &
-                           //'reading the constituent arrays.'
+                           //'reading the constituent arrays in ' &
+                           // trim(filename) // '.'
           call PrintErrMsg(option)
         endif
         if (Uninitialized(this%num_powers)) then
           option%io_buffer = 'NUM_POWERS must be specified prior to ' &
-                           //'reading the constituent arrays.'
+                           //'reading the constituent arrays in ' &
+                           // trim(filename) // '.'
           call PrintErrMsg(option)
         endif
         if (Uninitialized(this%num_real_times)) then
           option%io_buffer = 'NUM_REAL_TIMES must be specified prior to ' &
-                           //'reading the constituent arrays.'
+                           //'reading the constituent arrays in ' &
+                           // trim(filename) // '.'
           call PrintErrMsg(option)
         endif
         
@@ -7257,7 +7261,8 @@ subroutine CritInventoryRead(this,filename,option)
           write(str3,*) size(tmpaxis1)
           option%io_buffer = 'Number of start times listed in START_TIME ('&
                            // trim(adjustl(str3)) &
-                           //') does not match NUM_START_TIMES.'
+                           //') does not match NUM_START_TIMES in ' &
+                           // trim(filename) // '.'
           call PrintErrMsg(option)
         endif
 
@@ -7274,7 +7279,8 @@ subroutine CritInventoryRead(this,filename,option)
             Uninitialized(this%num_real_times)) then
           option%io_buffer = 'NUM_SPECIES, NUM_START_TIMES, NUM_POWERS, and ' &
                            //'NUM_REAL_TIMES must be specified prior to ' &
-                           //'reading the constituent arrays.'
+                           //'reading the constituent arrays in '&
+                           // trim(filename) // '.'
           call PrintErrMsg(option)
         endif
 
@@ -7288,7 +7294,8 @@ subroutine CritInventoryRead(this,filename,option)
           write(str3,*) size(tmpaxis2)
           option%io_buffer = 'Number of powers listed in POWER ('&
                            // trim(adjustl(str3)) &
-                           //') does not match NUM_POWERS.'
+                           //') does not match NUM_POWERS in ' &
+                           // trim(filename) // '.'
           call PrintErrMsg(option)
         endif
 
@@ -7305,7 +7312,8 @@ subroutine CritInventoryRead(this,filename,option)
             Uninitialized(this%num_real_times)) then
           option%io_buffer = 'NUM_SPECIES, NUM_START_TIMES, NUM_POWERS, and ' &
                            //'NUM_REAL_TIMES must be specified prior to ' &
-                           //'reading the constituent arrays.'
+                           //'reading the constituent arrays in ' &
+                           // trim(filename) // "."
           call PrintErrMsg(option)
         endif
 
@@ -7332,10 +7340,10 @@ subroutine CritInventoryRead(this,filename,option)
         endif
 
         this%real_time_datamax = maxval(tmpaxis3)
-
+        
         do i = 1, num_species
           this%nuclide(i)%lookup%axis3%values => tmpaxis3
-          call CritInvRealTimeSections(this%nuclide(i)%lookup,option)
+          call CritInvRealTimeSections(this%nuclide(i)%lookup,filename,option)
         enddo
     !-------------------------------------      
       case('INVENTORY','INVENTORIES')
@@ -7400,6 +7408,12 @@ subroutine CritInventoryRead(this,filename,option)
                               string,input,option)
         this%nuclide(ict)%lookup%data = &
           this%nuclide(ict)%lookup%data * data_units_conversion
+
+        write(str3,*) ict
+        error_string = trim(filename) //' for nuclide #' &
+                    // trim(adjustl(str3))
+
+        call CritInvDataSections(this%nuclide(ict)%lookup,error_string,option)
     !-------------------------------------
       case default
         error_string = trim(error_string) // ': ' // filename
@@ -7412,7 +7426,7 @@ subroutine CritInventoryRead(this,filename,option)
     option%io_buffer = 'Total number of inventories in data table (' &
                      // trim(adjustl(str1)) &
                      //') does not match NUM_SPECIES specified (' &
-                     // trim(adjustl(str2)) //').'
+                     // trim(adjustl(str2)) //') in '// trim(filename) // '.'
     call PrintErrMsg(option)
   endif
   
@@ -7424,7 +7438,7 @@ end subroutine CritInventoryRead
 
 ! ************************************************************************** !
 
-subroutine CritInvRealTimeSections(this,option)
+subroutine CritInvRealTimeSections(this,string,option)
   !
   ! Partition of monontically increasing real time values (axis3) for
   !   criticality inventory lookup tables
@@ -7437,6 +7451,7 @@ subroutine CritInvRealTimeSections(this,option)
   implicit none
   ! ----------------------------------
   class(lookup_table_general_type), pointer :: this ! lookup table
+  character(len=MAXSTRINGLENGTH), intent(in) :: string
   class (option_type), intent(inout) :: option
   ! ----------------------------------
   PetscReal, pointer :: array(:)    ! array of real times
@@ -7444,7 +7459,6 @@ subroutine CritInvRealTimeSections(this,option)
   PetscInt  :: sz
   PetscInt  :: bnd1, bnd2
   PetscReal :: tmp1, tmp2
-  PetscReal, allocatable :: values(:)
   character(len=MAXSTRINGLENGTH) :: str1, str2
   ! ----------------------------------
 
@@ -7466,7 +7480,8 @@ subroutine CritInvRealTimeSections(this,option)
   if (associated(this%axis3%values)) then
     array => this%axis3%values
   else
-    option%io_buffer = 'Values for REAL_TIME (axis3) were not associated.'
+    option%io_buffer = 'Values for REAL_TIME (axis3) were not associated in '&
+                     // trim(string) // '.'
     call PrintErrMsg(option)
   endif
   
@@ -7486,7 +7501,7 @@ subroutine CritInvRealTimeSections(this,option)
         ! write(str2,'(es12.6)') tmp2
         option%io_buffer = 'Values for REAL_TIME must monotonically '&
                          //'increase for each inventory evaluation ' &
-                         //'in the table.'
+                         //'in the table for ' // trim(string) // '.'
         call PrintErrMsg(option)
       endif
     endif
@@ -7521,6 +7536,88 @@ subroutine CritInvRealTimeSections(this,option)
   if (associated(array)) nullify(array)
   
 end subroutine CritInvRealTimeSections
+
+! ************************************************************************** !
+
+subroutine CritInvDataSections(this,string,option)
+  !
+  ! Partition of nuclide inventory data for criticality inventory lookup tables
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type), pointer :: this ! lookup table
+  character(len=MAXSTRINGLENGTH), intent(in) :: string
+  class (option_type), intent(inout) :: option
+  ! ----------------------------------
+  PetscReal, pointer :: array(:)    ! array of real times
+  PetscInt  :: i, j, k, l
+  PetscInt  :: szlim, sz
+  PetscInt  :: bnd1, bnd2
+  PetscReal :: tmp1, tmp2
+  character(len=MAXSTRINGLENGTH) :: str1, str2
+  ! ----------------------------------
+
+  ! This subroutine is not needed if axis3 was not partitioned
+  if (this%axis3%num_sections <= 0) return
+
+  ! Verify inventory data values are associated
+  if (associated(this%data)) then
+    array => this%data
+    szlim = size(this%data)
+  else
+    option%io_buffer = 'Values for inventory data were not associated in ' & 
+                     // trim(string) // '.'
+    call PrintErrMsg(option)
+  endif
+
+  ! Verify axis3 partition bounds exist
+  if (.not. allocated(this%axis3%bounds)) then
+    option%io_buffer = 'Boundaries for axis3 were not defined in ' &
+                      // trim(string) // '.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! Allocate data partition
+  if (.not. allocated(this%partition)) then
+    allocate(this%partition(this%axis3%num_sections))
+  endif
+  
+  if (szlim /= maxval(this%axis3%bounds)) then
+    option%io_buffer = 'Array length mismatch between axis3 values and data ' &
+                     //'in ' // trim(string) // '.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! Partition the array
+  j = 1
+  sz = 0
+  bnd1 = 0
+  bnd2 = 0
+  do i = 1, size(this%axis3%bounds)
+    if (i == 1) then
+      bnd1 = 1 ! start of unpartitioned array
+    else
+      bnd1 = this%axis3%bounds(i-1) + 1
+    endif
+    bnd2 = this%axis3%bounds(i)
+    sz = abs(bnd2 - bnd1) + 1
+    l = 1
+    allocate(this%partition(j)%data(sz))
+    do k = bnd1, bnd2
+      this%partition(j)%data(l) = array(k)
+      l = l + 1
+    enddo
+    j = j + 1
+  enddo
+  
+  if (associated(array)) nullify(array)
+  
+end subroutine CritInvDataSections
 
 ! ************************************************************************** !
 

@@ -51,10 +51,15 @@ module Lookup_Table_module
     procedure, public :: SampleAndGradient => ValAndGradUniform
     procedure, public :: AxesAreSMInc => AxesAreSMIncUniform
   end type lookup_table_uniform_type
+
+  type, public :: data_partition_type
+    PetscReal, allocatable :: data(:)
+  end type data_partition_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
     class(lookup_table_axis2_general_type), pointer :: axis2
     class(lookup_table_axis3_general_type), pointer :: axis3
+    type(data_partition_type), allocatable :: partition(:)
   contains
     procedure, public :: Sample => LookupTableEvaluateGeneral
     procedure, public :: SampleAndGradient => ValAndGradGeneral
