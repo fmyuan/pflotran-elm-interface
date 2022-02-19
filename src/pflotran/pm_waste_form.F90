@@ -7106,19 +7106,17 @@ subroutine CritInventoryRead(this,filename,option)
   character(len=MAXSTRINGLENGTH) :: filename
   type(option_type) :: option
   ! ----------------------------------
-  character(len=MAXSTRINGLENGTH) :: string, error_string, str1, str2, str3, str4
+  character(len=MAXSTRINGLENGTH) :: string, error_string, str1, str2, str3
   character(len=MAXWORDLENGTH) :: keyword, word, internal_units
   type(input_type), pointer :: input
-  PetscInt :: i, j
+  PetscInt :: i
   PetscInt :: ict
   PetscInt :: num_species
   PetscInt :: num_sections
   PetscInt :: arr_size
-  PetscInt, allocatable :: tmpint1(:)
   PetscReal :: time_units_conversion
   PetscReal :: power_units_conversion
   PetscReal :: data_units_conversion
-  PetscReal :: tmp1, tmp2
   PetscReal, pointer :: tmpaxis1(:)
   PetscReal, pointer :: tmpaxis2(:)
   PetscReal, pointer :: tmpaxis3(:)
@@ -7131,8 +7129,6 @@ subroutine CritInventoryRead(this,filename,option)
   time_units_conversion  = 1.d0
   power_units_conversion = 1.d0
   data_units_conversion  = 1.d0
-  tmp1 = 0.d0
-  tmp2 = 0.d0
   
   write(str1,*)ict
   write(str2,*)num_species
@@ -7235,20 +7231,20 @@ subroutine CritInventoryRead(this,filename,option)
         allocate(tmpaxis1(this%num_start_times))
         allocate(tmpaxis2(this%num_powers))
         allocate(tmpaxis3(arr_size))
-        num_sections = (this%num_start_times*this%num_powers)-1
-        if (num_sections > 0) allocate(tmpint1(num_sections))
+        num_sections = (this%num_start_times*this%num_powers)
 
         do i = 1, num_species
           this%nuclide(i)%lookup => LookupTableCreateGeneral(THREE_INTEGER) ! 3D interpolation
           this%nuclide(i)%lookup%dims(1) = this%num_start_times
           this%nuclide(i)%lookup%dims(2) = this%num_powers
           this%nuclide(i)%lookup%dims(3) = this%num_real_times
+          this%nuclide(i)%lookup%axis3%num_sections = num_sections
           allocate(this%nuclide(i)%lookup%axis1%values(this%num_start_times))
           allocate(this%nuclide(i)%lookup%axis2%values(this%num_powers))
           allocate(this%nuclide(i)%lookup%axis3%values(arr_size))
           allocate(this%nuclide(i)%lookup%data(arr_size))
-          if (num_sections > 0) &
-            allocate(this%nuclide(i)%lookup%axis3%sections(num_sections))
+          allocate(this%nuclide(i)%lookup%axis3%bounds(num_sections))
+          allocate(this%nuclide(i)%lookup%axis3%partition(num_sections))
         enddo
 
         string = 'START_TIME in criticality inventory lookup table'
@@ -7337,35 +7333,9 @@ subroutine CritInventoryRead(this,filename,option)
 
         this%real_time_datamax = maxval(tmpaxis3)
 
-        ! Assuming monotonic real times, identify indices for different sections
-        j = 1
-        if (num_sections > 0) then
-          tmpint1 = 0
-          do i = 1, size(tmpaxis3)
-            tmp1 = tmpaxis3(i)
-            if (i > 1) then
-              if (tmp1 < tmp2) then
-                if (j > num_sections) then
-                  write(str3,'(es12.6)') tmp1
-                  write(str4,'(es12.6)') tmp2
-                  option%io_buffer = 'Values for REAL_TIME must monotonically '&
-                                   //'increase for each inventory evaluation ' &
-                                   //'in the table. Check list at ' &
-                                   // trim(str3) // ' - ' // trim(str4) // '.'
-                  call PrintErrMsg(option)
-                endif
-                tmpint1(j) = i
-                j = j + 1
-              endif
-            endif
-            tmp2 = tmp1 ! store previous time value
-          enddo
-        endif
-
         do i = 1, num_species
           this%nuclide(i)%lookup%axis3%values => tmpaxis3
-          if (num_sections > 0) &
-            this%nuclide(i)%lookup%axis3%sections = tmpint1
+          call CritInvRealTimeSections(this%nuclide(i)%lookup,option)
         enddo
     !-------------------------------------      
       case('INVENTORY','INVENTORIES')
@@ -7449,9 +7419,108 @@ subroutine CritInventoryRead(this,filename,option)
   if (associated(tmpaxis1)) nullify(tmpaxis1)
   if (associated(tmpaxis2)) nullify(tmpaxis2)
   if (associated(tmpaxis3)) nullify(tmpaxis3)
-  if (allocated(tmpint1)) deallocate(tmpint1)
 
 end subroutine CritInventoryRead
+
+! ************************************************************************** !
+
+subroutine CritInvRealTimeSections(this,option)
+  !
+  ! Partition of monontically increasing real time values (axis3) for
+  !   criticality inventory lookup tables
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type), pointer :: this ! lookup table
+  class (option_type), intent(inout) :: option
+  ! ----------------------------------
+  PetscReal, pointer :: array(:)    ! array of real times
+  PetscInt  :: i, j, k, l
+  PetscInt  :: sz
+  PetscInt  :: bnd1, bnd2
+  PetscReal :: tmp1, tmp2
+  PetscReal, allocatable :: values(:)
+  character(len=MAXSTRINGLENGTH) :: str1, str2
+  ! ----------------------------------
+
+  ! This subroutine only operates upon axis3
+  if (.not. associated(this%axis3)) return
+
+  ! This subroutine is not needed if the axis3 does not need to be partitioned
+  if (this%axis3%num_sections <= 0) return
+
+  ! Allocate axis3 objects
+  if (.not. allocated(this%axis3%bounds)) then
+    allocate(this%axis3%bounds(this%axis3%num_sections))
+  endif
+  
+  if (.not. allocated(this%axis3%partition)) then
+    allocate(this%axis3%partition(this%axis3%num_sections))
+  endif
+  
+  if (associated(this%axis3%values)) then
+    array => this%axis3%values
+  else
+    option%io_buffer = 'Values for REAL_TIME (axis3) were not associated.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! Assuming monotonic real times, identify bounds for the different partitions
+  j = 1
+  tmp1 = 0.d0
+  tmp2 = 0.d0
+  do i = 1, size(array)
+    tmp1 = array(i)
+    if (i > 1) then
+      if (tmp1 < tmp2) then
+        this%axis3%bounds(j) = i - 1
+        j = j + 1
+    else
+      if (j > this%axis3%num_sections .and. i == size(array)) then
+        ! write(str1,'(es12.6)') tmp1
+        ! write(str2,'(es12.6)') tmp2
+        option%io_buffer = 'Values for REAL_TIME must monotonically '&
+                         //'increase for each inventory evaluation ' &
+                         //'in the table.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    endif
+    tmp2 = tmp1 ! store previous axis3 value
+  enddo
+  ! The last bound is the size of the unparitioned array
+  this%axis3%bounds(j) = size(array)
+  
+  ! Partition the array
+  j = 1
+  sz = 0
+  bnd1 = 0
+  bnd2 = 0
+  do i = 1, size(this%axis3%bounds)
+    if (i == 1) then
+      bnd1 = 1 ! start of unpartitioned array
+    else
+      bnd1 = this%axis3%bounds(i-1) + 1
+    endif
+    bnd2 = this%axis3%bounds(i)
+    sz = abs(bnd2 - bnd1) + 1
+    l = 1
+    allocate(this%axis3%partition(j)%values(sz))
+    do k = bnd1, bnd2
+      this%axis3%partition(j)%values(l) = array(k)
+      l = l + 1
+    enddo
+    j = j + 1
+  enddo
+  
+  if (associated(array)) nullify(array)
+  
+end subroutine CritInvRealTimeSections
 
 ! ************************************************************************** !
 

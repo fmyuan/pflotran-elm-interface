@@ -71,9 +71,15 @@ module Lookup_Table_module
     PetscInt :: saved_index2
   end type lookup_table_axis2_general_type
 
+  type, public :: axis3_partitions_type
+    PetscReal, allocatable :: values(:)
+  end type axis3_partitions_type
+
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
     PetscInt :: saved_index3
-    PetscInt, allocatable :: sections(:)
+    PetscInt :: num_sections
+    PetscInt, allocatable :: bounds(:)
+    type(axis3_partitions_type), allocatable :: partition(:)
   end type lookup_table_axis3_general_type
 
   type, public :: lookup_table_var_type
@@ -261,6 +267,7 @@ function LookupTableCreateGeneralDim(dim)
     allocate(lookup_table%axis3)
     call LookupTableAxisInit(lookup_table%axis3)
     lookup_table%axis3%saved_index3 = 1
+    lookup_table%axis3%num_sections = UNINITIALIZED_INTEGER
   endif
   
   LookupTableCreateGeneralDim => lookup_table
