@@ -317,15 +317,17 @@ subroutine InversionSubsurfInitialize(this)
   ! Date: 06/04/21
   !
   use Connection_module
-  use Discretization_module
   use Coupler_module
+  use Discretization_module
   use Grid_module
+  use Option_module
   use Patch_module
+  use String_module
 
   class(inversion_subsurface_type) :: this
 
   type(patch_type), pointer :: patch
-  type(inversion_ts_aux_type), pointer :: inversion_ts_aux
+  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
   PetscInt :: i
   PetscInt :: sum_connection
   PetscInt :: num_measurements, num_measurements_local
@@ -333,6 +335,7 @@ subroutine InversionSubsurfInitialize(this)
   PetscInt, allocatable :: int_array(:)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal :: tempreal
+  PetscInt :: max_cell_id
   Vec :: v
   IS :: is_petsc
   PetscErrorCode :: ierr
@@ -382,10 +385,10 @@ subroutine InversionSubsurfInitialize(this)
       sum_connection2 = &
         CouplerGetNumConnectionsInList(patch%boundary_condition_list)
       ! set up pointer to solution vec
-      inversion_ts_aux%mat_vec_solution_ptr%solution = &
+      inversion_forward_aux%solution_ptr = &
         this%realization%field%flow_xx
 ! the old flux approach
-      call InvTSAuxAllocateFluxCoefArrays(inversion_ts_aux,sum_connection, &
+      call InvTSAuxAllocateFluxCoefArrays(inversion_forward_aux,sum_connection, &
                                           sum_connection2)
       allocate(int_array(patch%grid%nlmax))
       int_array = 0
@@ -427,11 +430,18 @@ subroutine InversionSubsurfInitialize(this)
 
     ! map measurement vec to the solution vector
     if (this%driver%comm%myrank == 0) then
+      max_cell_id = 0
       do i = 1, num_measurements
         tempreal = dble(this%measurements(i)%cell_id)
         call VecSetValue(this%measurement_vec,i-1,tempreal, &
                          INSERT_VALUES,ierr);CHKERRQ(ierr)
+        max_cell_id = max(max_cell_id,this%measurements(i)%cell_id)
       enddo
+      if (max_cell_id > patch%grid%nmax) then
+        this%realization%option%io_buffer = 'A measurement cell ID (' // &
+          trim(StringWrite(max_cell_id)) // ') is beyond the maximum cell ID.'
+        call PrintErrMsg(this%realization%option)
+      endif
     endif
     call VecAssemblyBegin(this%measurement_vec,ierr);CHKERRQ(ierr)
     call VecAssemblyEnd(this%measurement_vec,ierr);CHKERRQ(ierr)
@@ -453,17 +463,34 @@ subroutine InversionSubsurfInitialize(this)
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_petsc,ierr);
     deallocate(int_array)
+
+    this%inversion_aux%scatter_global_to_measurement = &
+      this%scatter_global_to_measurement
+    this%inversion_aux%measurements => this%measurements
+    this%inversion_aux%measurement_vec = this%measurement_vec
+
+    inversion_forward_aux => InversionForwardAuxCreate()
+    inversion_forward_aux%iobsfunc = this%iobsfunc
+    inversion_forward_aux%scatter_global_to_measurement = &
+      this%scatter_global_to_measurement
+    inversion_forward_aux%measurements => this%measurements
+    inversion_forward_aux%measurement_vec = this%measurement_vec
+    ! set up pointer to M matrix
+    this%inversion_aux%inversion_forward_aux => inversion_forward_aux
   endif
 
-  ! create inversion_ts_aux for first time step
-  nullify(inversion_ts_aux) ! must pass in null object
-  inversion_ts_aux => InversionTSAuxCreate(inversion_ts_aux)
-  ! set up pointer to M matrix
-  inversion_ts_aux%mat_vec_solution_ptr%M = &
+  inversion_forward_aux => this%inversion_aux%inversion_forward_aux
+  inversion_forward_aux%M_ptr = &
     this%forward_simulation%flow_process_model_coupler%timestepper%solver%M
-
-  this%inversion_aux%inversion_ts_aux_list => inversion_ts_aux
-  call InvTSAuxAllocate(inversion_ts_aux,this%realization%option%nflowdof, &
+! create inversion_ts_aux for first time step
+  nullify(inversion_forward_aux%first) ! must pass in null object
+  inversion_forward_aux%first => &
+    InversionTSAuxCreate(inversion_forward_aux%first, &
+                         inversion_forward_aux%M_ptr)
+  inversion_forward_aux%current => inversion_forward_aux%first
+  call InvTSAuxAllocate(inversion_forward_aux%first, &
+                        inversion_forward_aux%M_ptr, &
+                        this%realization%option%nflowdof, &
                         patch%grid%nlmax)
 
 end subroutine InversionSubsurfInitialize
@@ -529,8 +556,9 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   PetscErrorCode :: ierr
 
-  this%realization%patch%aux%inversion_ts_aux => &
-    this%inversion_aux%inversion_ts_aux_list
+  this%realization%patch%aux%inversion_forward_aux => &
+    this%inversion_aux%inversion_forward_aux
+  call InvForwardAuxResetMeasurements(this%inversion_aux%inversion_forward_aux)
 
   ! on first pass, store and set thereafter
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
@@ -571,8 +599,8 @@ subroutine InvSubsurfCalculateSensitivity(this)
   class(inversion_subsurface_type) :: this
 
   type(inversion_aux_type), pointer :: inversion_aux
-  type(inversion_ts_aux_type), pointer :: cur_inversion_ts_aux
-  type(inversion_ts_aux_type), pointer :: prev_inversion_ts_aux
+  type(inversion_forward_ts_aux_type), pointer :: cur_inversion_ts_aux
+  type(inversion_forward_ts_aux_type), pointer :: prev_inversion_ts_aux
   type(option_type), pointer :: option
   class(timer_type), pointer :: timer
   PetscInt :: imeasurement
@@ -593,15 +621,11 @@ subroutine InvSubsurfCalculateSensitivity(this)
   enddo
 
   ! go to end of list
-  cur_inversion_ts_aux => inversion_aux%inversion_ts_aux_list
+  cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%last
   if (.not.associated(cur_inversion_ts_aux)) then
     option%io_buffer = 'Inversion timestep auxiliary list is NULL.'
     call PrintErrMsg(option)
   endif
-  do
-    if (.not.associated(cur_inversion_ts_aux%next)) exit
-    cur_inversion_ts_aux => cur_inversion_ts_aux%next
-  enddo
 
   ! the last link should be allocated, but not populated. this is by design
   if (cur_inversion_ts_aux%dResdu /= PETSC_NULL_MAT) then
@@ -619,13 +643,14 @@ subroutine InvSubsurfCalculateSensitivity(this)
     nullify(prev_inversion_ts_aux%next)
     call InversionTSAuxDestroy(cur_inversion_ts_aux)
     ! point cur_inversion_ts_aux to the end of the list
-    cur_inversion_ts_aux => prev_inversion_ts_aux
-    this%inversion_aux%max_ts = cur_inversion_ts_aux%timestep
+    inversion_aux%inversion_forward_aux%last => prev_inversion_ts_aux
+    this%inversion_aux%max_ts = prev_inversion_ts_aux%timestep
   endif
 
   ! work backward through list
   call OptionPrint(' Working backward through inversion_ts_aux list &
                    &calculating lambdas.',option)
+  cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%last
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
     print *, '  call InvSubsurfCalcLambda: ', cur_inversion_ts_aux%timestep
@@ -637,7 +662,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call OptionPrint(' Working forward through inversion_ts_aux list &
                    &calculating sensitivity coefficients.',option)
   call MatZeroEntries(inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
-  cur_inversion_ts_aux => inversion_aux%inversion_ts_aux_list
+  cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%first
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
     print *, '  call InvSubsurfAddSensitivity: ', cur_inversion_ts_aux%timestep
@@ -649,7 +674,8 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call MatAssemblyEnd(inversion_aux%JsensitivityT, &
                       MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-  call InversionTSAuxListDestroy(inversion_aux%inversion_ts_aux_list,PETSC_TRUE)
+  call InvForwardAuxDestroyList(inversion_aux%inversion_forward_aux, &
+                                PETSC_TRUE)
 
   call timer%Stop()
   option%io_buffer = '    ' // &
@@ -662,7 +688,7 @@ end subroutine InvSubsurfCalculateSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
+subroutine InvSubsurfCalcLambda(this,inversion_forward_ts_aux)
   !
   ! Calculates sensitivity matrix Jsensitivity
   !
@@ -687,11 +713,11 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
   use PM_ZFlow_class
 
   class(inversion_subsurface_type) :: this
+  type(inversion_forward_ts_aux_type), pointer :: inversion_forward_ts_aux
 
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(inversion_aux_type), pointer :: inversion_aux
-  type(inversion_ts_aux_type), pointer :: inversion_ts_aux
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(solver_type), pointer :: solver
@@ -744,22 +770,23 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
 
   if (this%debug_verbosity > 2) then
     if (OptionPrintToScreen(option)) print *, 'M'
-    call MatView(inversion_ts_aux%dResdu,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
+    call MatView(inversion_forward_ts_aux%dResdu,PETSC_VIEWER_STDOUT_WORLD, &
+                 ierr);CHKERRQ(ierr)
   endif
   call VecDuplicateVecsF90(ndof_vec,size(this%measurements), &
-                           inversion_ts_aux%lambda,ierr);CHKERRQ(ierr)
-  call KSPSetOperators(solver%ksp,inversion_ts_aux%dResdu, &
-                       inversion_ts_aux%dResdu,ierr);CHKERRQ(ierr)
+                           inversion_forward_ts_aux%lambda,ierr);CHKERRQ(ierr)
+  call KSPSetOperators(solver%ksp,inversion_forward_ts_aux%dResdu, &
+                       inversion_forward_ts_aux%dResdu,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(this%measurements)
     if (Initialized(this%measurements(imeasurement)%time) .and. &
-        inversion_ts_aux%time > this%measurements(imeasurement)%time + tol) then
-      call VecZeroEntries(inversion_ts_aux%lambda(imeasurement), &
+        inversion_forward_ts_aux%time > this%measurements(imeasurement)%time + tol) then
+      call VecZeroEntries(inversion_forward_ts_aux%lambda(imeasurement), &
                           ierr);CHKERRQ(ierr)
       cycle
     endif
     if (.not.this%measurements(imeasurement)%first_lambda) then
 !      call InversionMeasurementPrint(this%measurements(imeasurement),option)
-!      print *, inversion_ts_aux%time/(3600.*24.*365.)
+!      print *, inversion_forward_ts_aux%time/(3600.*24.*365.)
       this%measurements(imeasurement)%first_lambda = PETSC_TRUE
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (option%myrank == 0) then
@@ -800,7 +827,7 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
       call VecZeroEntries(p,ierr);CHKERRQ(ierr)
       call VecZeroEntries(dReskp1_duk_lambdak,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecGetArrayF90(inversion_ts_aux%next%lambda(imeasurement), &
+      call VecGetArrayF90(inversion_forward_ts_aux%next%lambda(imeasurement), &
                           vec_ptr2,ierr);CHKERRQ(ierr)
       do local_id = 1, grid%nlmax
         offset = (local_id-1)*ndof
@@ -809,28 +836,28 @@ subroutine InvSubsurfCalcLambda(this,inversion_ts_aux)
           do j = 1, ndof
             tempreal = tempreal + &
               ! this is a transpose block matmult: i,j -> j,i
-              inversion_ts_aux%next%dRes_du_k(j,i,local_id)*vec_ptr2(offset+j)
+              inversion_forward_ts_aux%next%dRes_du_k(j,i,local_id)*vec_ptr2(offset+j)
           enddo
           vec_ptr(offset+i) = tempreal
         enddo
       enddo
       call VecRestoreArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(inversion_ts_aux%next%lambda(imeasurement), &
+      call VecRestoreArrayF90(inversion_forward_ts_aux%next%lambda(imeasurement), &
                               vec_ptr2,ierr);CHKERRQ(ierr)
     endif
     call VecWAXPY(rhs,-1.d0,dReskp1_duk_lambdak,p,ierr);CHKERRQ(ierr)
     call KSPSolveTranspose(solver%ksp,rhs, &
-                           inversion_ts_aux%lambda(imeasurement), &
+                           inversion_forward_ts_aux%lambda(imeasurement), &
                            ierr);CHKERRQ(ierr)
     if (this%debug_verbosity > 2) then
       if (OptionPrintToScreen(option)) print *, 'lambda'
-      call VecView(inversion_ts_aux%lambda(imeasurement), &
+      call VecView(inversion_forward_ts_aux%lambda(imeasurement), &
                    PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
       if (option%comm%mycommsize == 1) then
-        call VecGetArrayF90(inversion_ts_aux%lambda(imeasurement), &
+        call VecGetArrayF90(inversion_forward_ts_aux%lambda(imeasurement), &
                             vec_ptr,ierr);CHKERRQ(ierr)
         print *, vec_ptr(:)
-        call VecRestoreArrayF90(inversion_ts_aux%lambda(imeasurement), &
+        call VecRestoreArrayF90(inversion_forward_ts_aux%lambda(imeasurement), &
                                 vec_ptr,ierr);CHKERRQ(ierr)
       endif
     endif
@@ -853,7 +880,7 @@ end subroutine InvSubsurfCalcLambda
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
+subroutine InvSubsurfAddSensitivity(this,inversion_forward_ts_aux)
   !
   ! Calculates sensitivity matrix Jsensitivity
   !
@@ -878,7 +905,7 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(inversion_aux_type), pointer :: inversion_aux
-  type(inversion_ts_aux_type), pointer :: inversion_ts_aux
+  type(inversion_forward_ts_aux_type), pointer :: inversion_forward_ts_aux
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(solver_type), pointer :: solver
@@ -917,37 +944,37 @@ subroutine InvSubsurfAddSensitivity(this,inversion_ts_aux)
                     dResdKLambda,ierr);CHKERRQ(ierr)
 
   if (this%debug_adjoint) then
-    string = 'dResdK_ts'//trim(StringWrite(inversion_ts_aux%timestep))//'.txt'
+    string = 'dResdK_ts'//trim(StringWrite(inversion_forward_ts_aux%timestep))//'.txt'
     call PetscViewerASCIIOpen(option%mycomm,string, &
                               viewer,ierr);CHKERRQ(ierr)
-    call MatView(inversion_ts_aux%dResdparam,viewer,ierr);CHKERRQ(ierr)
+    call MatView(inversion_forward_ts_aux%dResdparam,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
     if (this%debug_verbosity > 2) then
       if (OptionPrintToScreen(option)) print *, 'dResdK'
-      call MatView(inversion_ts_aux%dResdparam, &
+      call MatView(inversion_forward_ts_aux%dResdparam, &
                    PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
     endif
   endif
 
   do imeasurement = 1, size(this%measurements)
     if (this%debug_adjoint) then
-      string = 'lambda_ts'//trim(StringWrite(inversion_ts_aux%timestep)) // &
+      string = 'lambda_ts'//trim(StringWrite(inversion_forward_ts_aux%timestep)) // &
                 '_' // &
                 trim(StringWrite(this%measurements(imeasurement)%cell_id)) // &
                 '.txt'
       call PetscViewerASCIIOpen(option%mycomm,string, &
                                 viewer,ierr);CHKERRQ(ierr)
-      call VecView(inversion_ts_aux%lambda(imeasurement),viewer, &
+      call VecView(inversion_forward_ts_aux%lambda(imeasurement),viewer, &
                     ierr);CHKERRQ(ierr)
       call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
       if (this%debug_verbosity > 2) then
         if (OptionPrintToScreen(option)) print *, 'lambda ', imeasurement
-        call VecView(inversion_ts_aux%lambda(imeasurement), &
+        call VecView(inversion_forward_ts_aux%lambda(imeasurement), &
                      PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
       endif
     endif
-    call MatMultTranspose(inversion_ts_aux%dResdparam, &
-                          inversion_ts_aux%lambda(imeasurement), &
+    call MatMultTranspose(inversion_forward_ts_aux%dResdparam, &
+                          inversion_forward_ts_aux%lambda(imeasurement), &
                           dResdKLambda,ierr);CHKERRQ(ierr)
     if (this%debug_verbosity > 2) then
       if (OptionPrintToScreen(option)) print *, 'dGamdp ', imeasurement
@@ -1000,7 +1027,8 @@ subroutine InvSubsrfBMinusSM(this,local_id,lambda_ptr,solution,value_)
   type(connection_set_type), pointer :: connection_set
   type(grid_type), pointer :: grid
   type(inversion_aux_type), pointer :: inversion_aux
-  type(inversion_ts_aux_type), pointer :: inversion_ts_aux
+  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+  type(inversion_forward_ts_aux_type), pointer :: inversion_forward_ts_aux
   PetscReal :: Mlambda_up
   PetscReal :: Mlambda_dn
   PetscReal :: rhs_up
@@ -1015,7 +1043,8 @@ subroutine InvSubsrfBMinusSM(this,local_id,lambda_ptr,solution,value_)
   grid => this%realization%patch%grid
   connection_set => grid%internal_connection_set_list%first
   inversion_aux => this%inversion_aux
-  inversion_ts_aux => inversion_aux%inversion_ts_aux_list
+  inversion_forward_aux => inversion_aux%inversion_forward_aux
+  inversion_forward_ts_aux => inversion_forward_aux%first
 
   Mlambda = 0.d0
   rhs = 0.d0
@@ -1030,26 +1059,26 @@ subroutine InvSubsrfBMinusSM(this,local_id,lambda_ptr,solution,value_)
     rhs_dn = 0.d0
     if (ghosted_id == ghosted_id_up) then
       Mlambda_up = Mlambda_up + &
-        inversion_ts_aux%dFluxdIntConn(1,iconn)*lambda_ptr(ghosted_id_up)
+        inversion_forward_ts_aux%dFluxdIntConn(1,iconn)*lambda_ptr(ghosted_id_up)
       Mlambda_dn = Mlambda_dn + &
-        inversion_ts_aux%dFluxdIntConn(3,iconn)*lambda_ptr(ghosted_id_up)
+        inversion_forward_ts_aux%dFluxdIntConn(3,iconn)*lambda_ptr(ghosted_id_up)
       Mlambda_dn = Mlambda_dn - &
-        inversion_ts_aux%dFluxdIntConn(3,iconn)*lambda_ptr(ghosted_id_dn)
+        inversion_forward_ts_aux%dFluxdIntConn(3,iconn)*lambda_ptr(ghosted_id_dn)
       Mlambda_up = Mlambda_up - &
-        inversion_ts_aux%dFluxdIntConn(1,iconn)*lambda_ptr(ghosted_id_dn)
-      rhs_up = rhs_up - inversion_ts_aux%dFluxdIntConn(5,iconn)
-      rhs_dn = rhs_dn + inversion_ts_aux%dFluxdIntConn(5,iconn)
+        inversion_forward_ts_aux%dFluxdIntConn(1,iconn)*lambda_ptr(ghosted_id_dn)
+      rhs_up = rhs_up - inversion_forward_ts_aux%dFluxdIntConn(5,iconn)
+      rhs_dn = rhs_dn + inversion_forward_ts_aux%dFluxdIntConn(5,iconn)
     elseif (ghosted_id == ghosted_id_dn) then
       Mlambda_up = Mlambda_up + &
-        inversion_ts_aux%dFluxdIntConn(2,iconn)*lambda_ptr(ghosted_id_up)
+        inversion_forward_ts_aux%dFluxdIntConn(2,iconn)*lambda_ptr(ghosted_id_up)
       Mlambda_dn = Mlambda_dn + &
-        inversion_ts_aux%dFluxdIntConn(4,iconn)*lambda_ptr(ghosted_id_up)
+        inversion_forward_ts_aux%dFluxdIntConn(4,iconn)*lambda_ptr(ghosted_id_up)
       Mlambda_dn = Mlambda_dn - &
-        inversion_ts_aux%dFluxdIntConn(4,iconn)*lambda_ptr(ghosted_id_dn)
+        inversion_forward_ts_aux%dFluxdIntConn(4,iconn)*lambda_ptr(ghosted_id_dn)
       Mlambda_up = Mlambda_up - &
-        inversion_ts_aux%dFluxdIntConn(2,iconn)*lambda_ptr(ghosted_id_dn)
-      rhs_up = rhs_up - inversion_ts_aux%dFluxdIntConn(6,iconn)
-      rhs_dn = rhs_dn + inversion_ts_aux%dFluxdIntConn(6,iconn)
+        inversion_forward_ts_aux%dFluxdIntConn(2,iconn)*lambda_ptr(ghosted_id_dn)
+      rhs_up = rhs_up - inversion_forward_ts_aux%dFluxdIntConn(6,iconn)
+      rhs_dn = rhs_dn + inversion_forward_ts_aux%dFluxdIntConn(6,iconn)
     else
       this%realization%option%io_buffer = 'Incorrect mapping of connection'
       call PrintErrMsg(this%realization%option)
@@ -1063,9 +1092,9 @@ subroutine InvSubsrfBMinusSM(this,local_id,lambda_ptr,solution,value_)
   do i = 1, inversion_aux%cell_to_bc_connection(0,local_id)
     iconn = inversion_aux%cell_to_bc_connection(i,local_id)
     Mlambda(ghosted_id) = Mlambda(ghosted_id) + &
-      inversion_ts_aux%dFluxdBCConn(1,iconn)*lambda_ptr(ghosted_id)
+      inversion_forward_ts_aux%dFluxdBCConn(1,iconn)*lambda_ptr(ghosted_id)
     rhs(ghosted_id) = rhs(ghosted_id) + &
-      inversion_ts_aux%dFluxdBCConn(2,iconn)
+      inversion_forward_ts_aux%dFluxdBCConn(2,iconn)
   enddo
 
   value_ = dot_product(rhs,lambda_ptr) - dot_product(solution,Mlambda)

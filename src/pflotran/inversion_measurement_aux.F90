@@ -14,7 +14,9 @@ module Inversion_Measurement_Aux_module
     character(len=4) :: time_units
     PetscInt :: cell_id
     PetscReal :: value
+    PetscReal :: simulated_value
     PetscBool :: first_lambda
+    PetscBool :: measured
     type(inversion_measurement_aux_type), pointer :: next
   end type inversion_measurement_aux_type
 
@@ -22,6 +24,7 @@ module Inversion_Measurement_Aux_module
             InversionMeasurementAuxInit, &
             InversionMeasurementAuxCopy, &
             InversionMeasurementPrint, &
+            InversionMeasurementMeasure, &
             InversionMeasurementAuxRead, &
             InversionMeasureAuxListDestroy, &
             InversionMeasurementAuxStrip, &
@@ -68,7 +71,9 @@ subroutine InversionMeasurementAuxInit(measurement)
   measurement%time_units = ''
   measurement%cell_id = UNINITIALIZED_INTEGER
   measurement%value = UNINITIALIZED_DOUBLE
+  measurement%simulated_value = UNINITIALIZED_DOUBLE
   measurement%first_lambda = PETSC_FALSE
+  measurement%measured = PETSC_FALSE
 
   nullify(measurement%next)
 
@@ -92,8 +97,39 @@ subroutine InversionMeasurementAuxCopy(measurement,measurement2)
   measurement2%time_units = measurement%time_units
   measurement2%cell_id = measurement%cell_id
   measurement2%value = measurement%value
+  measurement2%simulated_value = measurement%simulated_value
 
 end subroutine InversionMeasurementAuxCopy
+
+! ************************************************************************** !
+
+subroutine InversionMeasurementMeasure(time,measurement,value_)
+  !
+  ! Copies the value into measurement
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/21/22
+  !
+  PetscReal :: time
+  type(inversion_measurement_aux_type) :: measurement
+  PetscReal :: value_
+
+  PetscReal, parameter :: tol = 1.d0
+  PetscBool :: measure
+
+  measure = PETSC_FALSE
+  if (Uninitialized(measurement%time)) then
+    measure = PETSC_TRUE
+  else
+    measure = .not.measurement%measured .and. measurement%time <= time + tol
+  endif
+
+  if (measure) then
+    measurement%simulated_value = value_
+    measurement%measured = PETSC_TRUE
+  endif
+
+end subroutine InversionMeasurementMeasure
 
 ! ************************************************************************** !
 
@@ -117,13 +153,15 @@ subroutine InversionMeasurementPrint(measurement,option)
   if (optionPrintToScreen(option)) then
     print *, 'Measurment: ' // trim(StringWrite(measurement%id))
     word = 'sec'
-    print *, '      Time: ' // &
+    print *, '             Time: ' // &
       trim(StringWrite(measurement%time / &
                        UnitsConvertToInternal(measurement%time_units,word, &
                                               option,ierr))) // ' ' // &
       measurement%time_units
-    print *, '   Cell ID: ' // trim(StringWrite(measurement%cell_id))
-    print *, '     Value: ' // trim(StringWrite(measurement%value))
+    print *, '          Cell ID: ' // trim(StringWrite(measurement%cell_id))
+    print *, '            Value: ' // trim(StringWrite(measurement%value))
+    print *, '  Simulated Value: ' // &
+      trim(StringWrite(measurement%simulated_value))
   endif
 
 end subroutine InversionMeasurementPrint
