@@ -18,7 +18,7 @@ module PM_Well_class
   private
 
   PetscBool :: initialize_well = PETSC_TRUE
-  PetscReal, parameter :: gravity = -9.80665d0 ! [m/s2]
+  PetscReal, parameter :: gravity = -9.8 !-9.80665d0 ! [m/s2]
 
   type :: well_grid_type
     ! number of well segments
@@ -136,6 +136,8 @@ module PM_Well_class
     PetscInt :: ifluid
     ! fluid mobility (phase_permeability/viscosity)
     PetscReal :: mobility
+    ! fluid rel perm
+    PetscReal :: kr
     ! fluid reference density [kg/m3]
     PetscReal :: rho0
     ! fluid density [kg/m3]
@@ -383,6 +385,7 @@ function PMWellCreate()
   allocate(PMWellCreate%well%liq)
   PMWellCreate%well%liq%ifluid = 1 
   PMWellCreate%well%liq%mobility = UNINITIALIZED_DOUBLE
+  PMWellCreate%well%liq%kr = 0.92897288828666891 !for debugging
   PMWellCreate%well%liq%rho0 = UNINITIALIZED_DOUBLE
   nullify(PMWellCreate%well%liq%rho)
   nullify(PMWellCreate%well%liq%visc)
@@ -394,6 +397,8 @@ function PMWellCreate()
   PMWellCreate%well_pert(TWO_INTEGER)%liq%ifluid = 1
   PMWellCreate%well_pert(ONE_INTEGER)%liq%mobility = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(TWO_INTEGER)%liq%mobility = UNINITIALIZED_DOUBLE
+  PMWellCreate%well_pert(ONE_INTEGER)%liq%kr = 0.92897288828666891!for debugging
+  PMWellCreate%well_pert(TWO_INTEGER)%liq%kr = 0.92897288828666891!for debugging
   PMWellCreate%well_pert(ONE_INTEGER)%liq%rho0 = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(TWO_INTEGER)%liq%rho0 = UNINITIALIZED_DOUBLE
 
@@ -401,6 +406,7 @@ function PMWellCreate()
   allocate(PMWellCreate%well%gas)
   PMWellCreate%well%gas%ifluid = 2
   PMWellCreate%well%gas%mobility = UNINITIALIZED_DOUBLE
+  PMWellCreate%well%gas%kr = 7.3999938652989818d-6 !for debugging
   PMWellCreate%well%gas%rho0 = UNINITIALIZED_DOUBLE
   nullify(PMWellCreate%well%gas%rho)
   nullify(PMWellCreate%well%gas%visc)
@@ -412,6 +418,8 @@ function PMWellCreate()
   PMWellCreate%well_pert(TWO_INTEGER)%gas%ifluid = 2
   PMWellCreate%well_pert(ONE_INTEGER)%gas%mobility = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(TWO_INTEGER)%gas%mobility = UNINITIALIZED_DOUBLE
+  PMWellCreate%well_pert(ONE_INTEGER)%gas%kr = 7.3999938652989818d-6 !debugging
+  PMWellCreate%well_pert(TWO_INTEGER)%gas%kr = 7.3999938652989818d-6 !debugging
   PMWellCreate%well_pert(ONE_INTEGER)%gas%rho0 = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(TWO_INTEGER)%gas%rho0 = UNINITIALIZED_DOUBLE
 
@@ -434,11 +442,11 @@ function PMWellCreate()
   PMWellCreate%flow_soln%max_ts_cut = 20
   PMWellCreate%flow_soln%ts_cut_factor = 2
   PMWellCreate%flow_soln%itol_abs_res = 1.0d-8
-  PMWellCreate%flow_soln%itol_scaled_res = 1.0d-4
+  PMWellCreate%flow_soln%itol_scaled_res = 1.0d-5
   PMWellCreate%flow_soln%itol_abs_update_p = 1.0d0
-  PMWellCreate%flow_soln%itol_abs_update_s = 1.0d-3
-  PMWellCreate%flow_soln%itol_rel_update_p = 1.0d-1
-  PMWellCreate%flow_soln%itol_rel_update_s = 1.0d-1
+  PMWellCreate%flow_soln%itol_abs_update_s = 1.0d-5
+  PMWellCreate%flow_soln%itol_rel_update_p = 1.0d-4
+  PMWellCreate%flow_soln%itol_rel_update_s = 1.0d-4
   PMWellCreate%flow_soln%n_steps = 0
   PMWellCreate%flow_soln%n_newton = 0
 
@@ -1550,8 +1558,8 @@ subroutine PMWellReadWellModelType(this,input,option,keyword,error_string,found)
             this%well%well_model_type = 'CONSTANT_PRESSURE_HYDROSTATIC'
           case('CONSTANT_RATE')
             this%well%well_model_type = 'CONSTANT_RATE'
-          case('DARCY')
-            this%well%well_model_type = 'DARCY'
+          case('WIPP_DARCY')
+            this%well%well_model_type = 'WIPP_DARCY'
             !call PMWellReadDarcyInput(this,input,option,keyword,&
             !                           error_string,found)
         !-----------------------------
@@ -1753,10 +1761,12 @@ recursive subroutine PMWellInitializeRun(this)
     this%well_pert(k)%liq%rho(:) = this%well%liq%rho0
     this%well_pert(k)%liq%visc(:) = this%well%liq%visc(:)
     this%well_pert(k)%liq%mobility = this%well%liq%mobility
+    this%well_pert(k)%liq%kr = this%well%liq%kr
     this%well_pert(k)%gas%rho0 = this%option%flow%reference_density(2)
     this%well_pert(k)%gas%rho(:) = this%well%gas%rho0
     this%well_pert(k)%gas%visc(:) = this%well%gas%visc(:)
     this%well_pert(k)%gas%mobility = this%well%gas%mobility
+    this%well_pert(k)%gas%kr = this%well%gas%kr
     this%well_pert(k)%diameter(:) = this%well%diameter(:)
     this%well_pert(k)%WI_base(:) = this%well%WI_base(:)
     this%well_pert(k)%permeability(:) = this%well%permeability(:)
@@ -2079,7 +2089,7 @@ subroutine PMWellResidual(this)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
     !-------------------------------------------------------------------------
-    case('DARCY')
+    case('WIPP_DARCY')
 
       call PMWellBCFlux(this,this%well,res_flux_bc)
 
@@ -2093,30 +2103,31 @@ subroutine PMWellResidual(this)
              this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) + &
              res_accum(ONE_INTEGER)
         if (i == 1) then
-          ! Water mass residual in cell i: Add flux in from BC, 
-          ! subtract flux to i+1 cell
-          this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
-               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
-               + res_flux_bc(1) - res_flux(1)
-          ! Water mass residual in cell i+1: Add flux to i+1 cell
+          ! Water mass residual in cell i+1: Subtract flux to i+1 cell
           this%flow_soln%residual(this%flow_soln%ndof*i+1) = &
                this%flow_soln%residual(this%flow_soln%ndof*i+1) &
-               + res_flux(1)
+               - res_flux(1)
+
+          ! Water mass residual in cell i: Add flux in from BC, 
+          ! add flux to i+1 cell
+          this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
+               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
+               - res_flux_bc(1) + res_flux(1)
 
         elseif (i < this%grid%nsegments) then
           ! Water mass residual in cell i: Subtract flux to i+1 cell
           this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
                this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
-               - res_flux(1) 
+               + res_flux(1) 
           ! Water mass residual in cell i+1: Add flux to i+1 cell
           this%flow_soln%residual(this%flow_soln%ndof*i+1) = &
                this%flow_soln%residual(this%flow_soln%ndof*i+1) &
-               + res_flux(1)
+               - res_flux(1)
         else
           ! Water mass residual in cell i: Subtract flux to BC
           this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
                this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) &
-               - res_flux_bc(1)
+               - res_flux_bc(3)
         endif
 
         if (this%nphase == 2) then
@@ -2124,29 +2135,29 @@ subroutine PMWellResidual(this)
                this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) + &
                res_accum(TWO_INTEGER)
           if (i == 1) then
-            ! Air mass residual in cell i: Add flux in from BC, 
-            ! subtract flux to i+1 cell
-            this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
-                 this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) &
-                 + res_flux_bc(2) - res_flux(2)
-            ! Air mass residual in cell i+1: Add flux to i+1 cell
+            ! Air mass residual in cell i+1: Subtract flux to i+1 cell
             this%flow_soln%residual(this%flow_soln%ndof*i+2) = &
                  this%flow_soln%residual(this%flow_soln%ndof*i+2) &
-                 + res_flux(2)
+                 - res_flux(2)
+            ! Air mass residual in cell i: Subtract flux in from BC, 
+            ! add flux to i+1 cell
+            this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
+                 this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) &
+                 - res_flux_bc(2) + res_flux(2)
           elseif (i < this%grid%nsegments) then
             ! Air mass residual in cell i: Subtract flux to i+1 cell
             this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
                  this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) & 
-                 - res_flux(2) 
+                 + res_flux(2) 
             ! Air mass residual in cell i+1: Add flux to i+1 cell
             this%flow_soln%residual(this%flow_soln%ndof*i+2) = &
                  this%flow_soln%residual(this%flow_soln%ndof*i+2) &
-                 + res_flux(2)
+                 - res_flux(2)
           else
             ! Air mass residual in cell i: Subtract flux to BC
             this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
                  this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) &
-                 - res_flux_bc(2)
+                 - res_flux_bc(4)
           endif
         endif
       enddo
@@ -2201,7 +2212,7 @@ subroutine PMWellJacobian(this)
   select case(this%well%well_model_type)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
-    case('DARCY')
+    case('WIPP_DARCY')
       ! Not expecting ghosting at this time (1D model)
       !if (.not. well_analytical_derivatives) then
       !  call PMWellPerturb(this)
@@ -2436,7 +2447,7 @@ subroutine PMWellUpdateSolution(pm_well)
   select case(pm_well%well%well_model_type)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
-    case('DARCY')
+    case('WIPP_DARCY')
       do i = 1,pm_well%grid%nsegments
         idof = pm_well%flow_soln%ndof*(i-1)
         pm_well%well%pl(i) = pm_well%well%pl(i) +  &
@@ -2465,7 +2476,7 @@ subroutine PMWellCutTimestep(pm_well)
   select case(pm_well%well%well_model_type)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
-    case('DARCY')
+    case('WIPP_DARCY')
       ! could make this smarter or call smarter timestepping routines
       pm_well%dt = pm_well%dt / pm_well%flow_soln%ts_cut_factor
       pm_well%dt = max(pm_well%dt,pm_well%min_dt)
@@ -2517,7 +2528,7 @@ subroutine PMWellNewton(this)
     this%well%pl(:) = this%well%bh_p
     this%well%pg(:) = this%well%bh_p
   !--------------------------------------
-  case('DARCY')
+  case('WIPP_DARCY')
     do i = 1,this%nphase*this%grid%nsegments
       do j = 1,this%nphase*this%grid%nsegments
         if (i==j) then
@@ -2528,13 +2539,13 @@ subroutine PMWellNewton(this)
       enddo
     enddo
     Jac_save = this%flow_soln%Jacobian
-    call LUDecomposition(this%flow_soln%Jacobian,this%nphase*this%grid%nsegments, &
-                         indx,d)
+    call LUDecomposition(this%flow_soln%Jacobian,this%nphase*this%grid% &
+                         nsegments,indx,d)
     res_save = this%flow_soln%residual
     call LUBackSubstitution(this%flow_soln%Jacobian, &
                             this%nphase*this%grid%nsegments,&
                             indx,this%flow_soln%residual)
-    new_dx = this%flow_soln%residual
+    new_dx = -1.d0 * this%flow_soln%residual
     this%flow_soln%update(:) = new_dx(:)
 
     this%flow_soln%residual = res_save
@@ -2624,10 +2635,14 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   cnvgd_due_to_rel_update = PETSC_FALSE
   rsn_string = ''
 
+  ! Update the residual
+  this%flow_soln%residual = fixed_accum
+  call PMWellResidual(this)
+
   do k = 1,this%grid%nsegments
-    idof = this%flow_soln%ndof*(k-1)
-    update_s(k) = flow_soln%update(idof)
-    update_p(k) = flow_soln%update(idof+1)
+    idof = this%flow_soln%ndof*(k-1)+1
+    update_p(k) = flow_soln%update(idof)
+    update_s(k) = flow_soln%update(idof+1)
 
     ! Absolute Solution Updates
     temp_real = dabs(update_p(k))
@@ -2729,6 +2744,9 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
     out_string = ' Solution converged!  ---> ' // trim(rsn_string)
     call OptionPrint(out_string,this%option); WRITE(*,*) ""
     this%cumulative_dt = this%cumulative_dt + this%dt
+    this%flow_soln%prev_soln%pl = this%well%pl
+    this%flow_soln%prev_soln%sg = this%well%gas%s
+    !call PMWellUpdateSolution(this)
   else
     flow_soln%converged = PETSC_FALSE
     flow_soln%not_converged = PETSC_TRUE
@@ -2822,7 +2840,7 @@ subroutine PMWellCalcVelocity(this)
     !-------------------------------------------------------------------------
     case('CONSTANT_RATE')
     !-------------------------------------------------------------------------
-    case('DARCY')
+    case('WIPP_DARCY')
       do k = 1,(grid%nsegments-1)
         iup = k
         idn = k+1
@@ -2916,7 +2934,7 @@ subroutine PMWellAccumulation(pm_well,well,id,Res)
   select case(well%well_model_type)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
-    case('DARCY')
+    case('WIPP_DARCY')
       ! liquid accumulation term
       Res(1) = (Res(1) + well%liq%s(id) * well%liq%rho(id)) / FMWH2O * &
                 well%phi(id) * well%volume(id) / pm_well%dt 
@@ -3001,7 +3019,7 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
   select case(pm_well%well%well_model_type)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
-    case('DARCY')
+    case('WIPP_DARCY')
       ! This is good for either: single-phase liquid, or two-phase liquid/gas.
       ! Vertical well, no Klinkenberg, no capillary pressure, constant mobility.
         !MAN: need to check that this is the correct up/dn orientation
@@ -3057,15 +3075,14 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
           if (well_up%liq%mobility > floweps ) then
           ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
           !                    dP[Pa]]
-            v_darcy = perm_ave_over_dist(1) * well_up%liq%mobility * &
+            tot_mole_flux = perm_ave_over_dist(1) * well_up%liq%kr * &
                       delta_pressure
             density_ave_kmol = density_kg_ave * fmw_comp(ONE_INTEGER)
           ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-            q = v_darcy * 5.d-1*(well_up%area(iup) + &
+            q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
                                  well_dn%area(idn))
           ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
           !                             density_ave[kmol phase/m^3 phase]        
-            tot_mole_flux = q*density_ave_kmol
           ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
           !                                 xmol[kmol comp/kmol phase]
             Res(1) = Res(1) + tot_mole_flux
@@ -3102,15 +3119,14 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
           if (well_up%gas%mobility > floweps ) then
           ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
           !                    dP[Pa]]
-            v_darcy = perm_ave_over_dist(1) * well_up%gas%mobility * &
+            tot_mole_flux = perm_ave_over_dist(2) * well_up%gas%kr * &
                       delta_pressure
             density_ave_kmol = density_kg_ave * fmw_comp(TWO_INTEGER)
           ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
-            q = v_darcy * 5.d-1*(well_up%area(iup) + &
+            q = tot_mole_flux * 5.d-1*(well_up%area(iup) + &
                                  well_dn%area(idn))
           ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
           !                             density_ave[kmol phase/m^3 phase]        
-            tot_mole_flux = q*density_ave_kmol
           ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
           !                                 xmol[kmol comp/kmol phase]
             Res(2) = Res(2) + tot_mole_flux
@@ -3213,7 +3229,7 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   select case(well%well_model_type)
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
-    case('DARCY')
+    case('WIPP_DARCY')
       ! This is good for either: single-phase liquid, or two-phase liquid/gas.
       ! Vertical well, no Klinkenberg, no capillary pressure, constant mobility.
       itop = pm_well%grid%nsegments
@@ -3237,13 +3253,18 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        v_darcy = perm_ave_over_dist * well%liq%mobility * delta_pressure
+        v_darcy = perm_ave_over_dist * well%liq%kr/well%liq%visc(1) * &
+                  delta_pressure
         density_ave = well%liq%rho(1) / fmw_comp(ONE_INTEGER)
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(1) = Res(1) + tot_mole_flux
 
-        v_darcy = perm_ave_over_dist * well%gas%mobility * delta_pressure
+        gravity_term = well%gas%rho(1) * gravity * &
+                       grid%dh(1)/2.d0
+        delta_pressure = boundary_pressure - well%pl(1) + gravity_term
+        v_darcy = perm_ave_over_dist * well%gas%kr/well%gas%visc(1) * &
+                  delta_pressure
         density_ave = well%gas%rho(1) / fmw_comp(TWO_INTEGER)
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
@@ -3295,13 +3316,17 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        v_darcy = perm_ave_over_dist * well%liq%mobility * delta_pressure
+        v_darcy = perm_ave_over_dist * well%liq%kr / well%liq%visc(itop) * &
+                  delta_pressure
         density_ave = well%liq%rho(itop) / fmw_comp(ONE_INTEGER)
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         Res(3) = Res(3) + tot_mole_flux
 
-        v_darcy = perm_ave_over_dist * well%gas%mobility * delta_pressure
+        gravity_term = well%gas%rho(itop) * gravity * &
+                       grid%dh(itop)/2.d0
+        v_darcy = perm_ave_over_dist * well%gas%kr / well%gas%visc(itop) * &
+                  delta_pressure
         density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
@@ -3405,6 +3430,12 @@ subroutine PMWellPerturb(pm_well)
   ! different objects
   x(:,ONE_INTEGER) = pm_well%well%pl
   x(:,TWO_INTEGER) = pm_well%well%gas%s
+
+  ! Re-initialize perturbations
+  pm_well%well_pert(ONE_INTEGER)%pl = pm_well%well%pl
+  pm_well%well_pert(TWO_INTEGER)%pl = pm_well%well%pl
+  pm_well%well_pert(ONE_INTEGER)%gas%s = pm_well%well%gas%s
+  pm_well%well_pert(TWO_INTEGER)%gas%s = pm_well%well%gas%s
 
   pert(:,ONE_INTEGER) = perturbation_tolerance*x(:,ONE_INTEGER) + &
                         min_perturbation
