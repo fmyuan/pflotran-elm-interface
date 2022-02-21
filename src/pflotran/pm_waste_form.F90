@@ -490,7 +490,7 @@ module PM_Waste_Form_class
     class(crit_inventory_type), pointer :: next
   contains
     procedure, public :: Read => CritInventoryRead
-    ! procedure, public :: Evaluate => CritInventoryEvaluate
+    procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_type
 
 ! -------------------------------------------------------------------
@@ -7638,6 +7638,29 @@ function CritHeatEvaluate(this,start_time,temperature)
   CritHeatEvaluate = this%lookup_table%Sample(start_time,temperature)
   
 end function CritHeatEvaluate
+
+! ************************************************************************** !
+
+function CritInventoryEvaluate(this,index,start_time,power,time)
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 02/21/2022
+  !
+
+  implicit none
+
+  class(crit_inventory_type) :: this
+  PetscInt  :: index ! index of nuclide being evaluated
+  PetscReal :: start_time
+  PetscReal :: power
+  PetscReal :: time
+
+  PetscReal :: CritInventoryEvaluate
+
+  CritInventoryEvaluate = this%nuclide(index)%lookup% &
+                            Sample(start_time,power,time)
+  
+end function CritInventoryEvaluate
 
 ! ************************************************************************** !
 

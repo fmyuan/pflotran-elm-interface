@@ -69,6 +69,7 @@ module Lookup_Table_module
   type, public :: lookup_table_axis_type
     PetscInt :: itype
     PetscInt :: saved_index
+    PetscInt :: saved_index1
     PetscReal, pointer :: values(:)
   end type lookup_table_axis_type
   
@@ -251,6 +252,7 @@ function LookupTableCreateGeneralDim(dim)
   implicit none
   
   PetscInt :: dim
+  PetscInt :: i
   
   class(lookup_table_general_type), pointer :: LookupTableCreateGeneralDim
 
@@ -273,6 +275,14 @@ function LookupTableCreateGeneralDim(dim)
     call LookupTableAxisInit(lookup_table%axis3)
     lookup_table%axis3%saved_index3 = 1
     lookup_table%axis3%num_sections = UNINITIALIZED_INTEGER
+    if (allocated(lookup_table%axis3%bounds)) then
+      deallocate(lookup_table%axis3%bounds)
+    endif
+    if (allocated(lookup_table%axis3%partition)) then
+      do i = 1, size(lookup_table%axis3%partition)
+        deallocate(lookup_table%axis3%partition(i)%values)
+      enddo
+    endif
   endif
   
   LookupTableCreateGeneralDim => lookup_table
@@ -416,6 +426,7 @@ subroutine LookupTableAxisInit(axis)
   
   axis%itype = 0
   axis%saved_index = 1
+  axis%saved_index1 = 1
   nullify(axis%values)
   
 end subroutine LookupTableAxisInit
@@ -619,6 +630,9 @@ subroutine LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
   ! Author: Glenn Hammond
   ! Date: 10/15/14
   ! 
+  ! Modified by: Alex Salazar III
+  ! Date: 02/18/2022
+  !
   implicit none
   
   class(lookup_table_general_type) :: this
@@ -629,37 +643,208 @@ subroutine LookupTableIndexGeneral(this,lookup1,lookup2,lookup3)
   PetscInt :: ja, jb
   PetscInt :: istart, iend
   class(lookup_table_axis2_general_type), pointer :: axis2
+  class(lookup_table_axis3_general_type), pointer :: axis3
   
   ! axis 1 corresponds to the j dim below
   call LookupTableAxisIndexGeneral(lookup1,this%axis1%values, &
                                    this%axis1%saved_index)
   
-  if (.not. associated(this%axis2)) return
-  
-  axis2 => this%axis2
- 
-  ja = this%axis1%saved_index
-  if (ja > 0) then
-    jb = max(min(ja+1,this%dims(1)),1)
-  else
-    ja = 1
-    jb = 1
-  endif
-  
-  iend = ja*this%dims(2)
-  istart = iend - this%dims(2) + 1
-  call LookupTableAxisIndexGeneral(lookup2,axis2%values(istart:iend), &
-                                   axis2%saved_index)
-  if (ja /= jb) then
-    iend = jb*this%dims(2)
+  if (associated(this%axis3)) then
+
+    call LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
+
+  elseif (associated(this%axis2)) then
+
+    axis2 => this%axis2
+
+    ja = this%axis1%saved_index
+    if (ja > 0) then
+      jb = max(min(ja+1,this%dims(1)),1)
+    else
+      ja = 1
+      jb = 1
+    endif
+
+    iend = ja*this%dims(2)
     istart = iend - this%dims(2) + 1
     call LookupTableAxisIndexGeneral(lookup2,axis2%values(istart:iend), &
-                                     axis2%saved_index2)
-  else 
-    axis2%saved_index2 = axis2%saved_index
+                                     axis2%saved_index)
+    if (ja /= jb) then
+      iend = jb*this%dims(2)
+      istart = iend - this%dims(2) + 1
+      call LookupTableAxisIndexGeneral(lookup2,axis2%values(istart:iend), &
+                                       axis2%saved_index2)
+    else 
+      axis2%saved_index2 = axis2%saved_index
+    endif
   endif
 
 end subroutine LookupTableIndexGeneral
+
+! ************************************************************************** !
+
+subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/21/2022
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type) :: this
+  PetscReal :: lookup1
+  PetscReal :: lookup2
+  PetscReal :: lookup3
+  ! ----------------------------------
+  class(lookup_table_axis_type), pointer :: axis1
+  class(lookup_table_axis2_general_type), pointer :: axis2
+  class(lookup_table_axis3_general_type), pointer :: axis3
+  PetscInt :: i, j, k    ! iterators
+  PetscInt :: li, lj, lk ! array lengths
+  PetscInt :: i1, j1, k1 ! left bounds
+  PetscInt :: i2, j2, k2 ! right bounds
+  PetscBool :: iexact ! lookup1 falls exactly on an axis1 value
+  PetscBool :: jexact ! lookup2 falls exactly on an axis2 value
+  PetscBool :: kexact ! lookup3 falls exactly on an axis3 value
+  PetscInt :: kselect    ! relevant partition of axis3
+  PetscReal, pointer :: v3(:) ! subset of axis3 values
+  PetscInt :: kstart, kend    ! start and end of axis3 array to interpolate
+  ! ----------------------------------
+
+  axis1 => this%axis1
+  axis2 => this%axis2
+  axis3 => this%axis3
+
+  iexact = PETSC_FALSE
+  jexact = PETSC_FALSE
+  kexact = PETSC_FALSE
+
+  li = size(axis1%values)
+  lj = size(axis2%values)
+  lk = size(axis3%values)
+
+  ! axis1 indices
+  if (li == 1) then
+    i1 = 1
+    i2 = 1
+  else
+    if(lookup1 <= axis1%values(1)) then
+      i2 = 2   ! extrapolation - use first and second points
+      if (axis1%values(1) == lookup1) iexact = PETSC_TRUE
+    elseif (lookup1 > axis1%values(li)) then
+      i2 = li  ! extrapolation - use final and penultimate points
+    else
+      ! interpolation
+      do i = 2, li
+        if (axis1%values(i - 1) < lookup1 .and. axis1%values(i) >= lookup1) then
+          i2 = i
+          if (axis1%values(i) == lookup1) iexact = PETSC_TRUE
+          exit
+        endif
+      enddo
+    endif
+    i1 = i2 - 1
+  endif
+
+  ! axis2 indices
+  if (lj == 1) then
+    j1 = 1
+    j2 = 1
+  else
+    if(lookup2 <= axis2%values(1)) then
+      j2 = 2   ! extrapolation - first and second points will be used
+      if (axis2%values(1) == lookup2) jexact = PETSC_TRUE
+    elseif (lookup2 > axis2%values(lj)) then
+      j2 = lj  ! extrapolation - final and penultimate points will be used
+    else
+      ! interpolation
+      do j = 2, lj
+        if (axis2%values(j - 1) < lookup2 .and. axis2%values(j) >= lookup2) then
+          j2 = j
+          if (axis2%values(j) == lookup2) jexact = PETSC_TRUE
+          exit
+        endif
+      enddo
+    endif
+    j1 = j2 - 1
+  endif
+
+  ! axis3 indexing
+  if (allocated(axis3%bounds)) then
+    ! axis3 is has defined partitions (non-rectangular)
+    kselect = 0
+
+    kselect = this%dims(2)*(i1 - 1) + j1
+
+    v3 => axis3%partition(kselect)%values
+    lk = size(v3) ! redfine length
+
+    ! axis3 indices
+    if (lk == 1) then
+      ! This should not be the case...
+      k1 = 1
+      k2 = 1
+    else
+      if(lookup3 <= v3(1)) then
+        k2 = 2   ! extrapolation - first and second points will be used
+        if (v3(1) == lookup3) kexact = PETSC_TRUE
+      elseif (lookup3 > v3(lk)) then
+        k2 = lk  ! extrapolation - final and penultimate points will be used
+      else
+        ! interpolation
+        do k = 2, lk
+          if (v3(k - 1) < lookup3 .and. v3(k) >= lookup3) then
+            k2 = k
+            if (v3(k) == lookup3) kexact = PETSC_TRUE
+            exit
+          endif
+        enddo
+      endif
+      k1 = k2 - 1
+    endif
+
+    if (associated(v3)) nullify(v3)
+
+  else
+    ! axis3 is described by the dim(3) value (rectangular)
+    
+    kstart = (((this%dims(2)*(i1 - 1) + j1) - 1) * this%dims(3)) + 1
+    kend = ((this%dims(2)*(i1 - 1) + j1)) * this%dims(3)
+    
+    ! axis3 indices
+    if (lk == 1) then
+      ! This should not be the case...
+      k1 = 1
+      k2 = 1
+    else
+      if(lookup3 <= axis3%values(1)) then
+        k2 = 2   ! extrapolation - first and second points will be used
+        if (axis3%values(1) == lookup3) kexact = PETSC_TRUE
+      elseif (lookup3 > axis3%values(lk)) then
+        k2 = lk  ! extrapolation - final and penultimate points will be used
+      else
+        ! interpolation
+        do k = kstart + 1, kend
+          if (axis3%values(k - 1) < lookup3 .and. axis3%values(k) >= lookup3) then
+            k2 = k
+            if (axis3%values(k) == lookup3) kexact = PETSC_TRUE
+            exit
+          endif
+        enddo
+      endif
+      k1 = k2 - 1
+    endif
+    
+  endif
+
+  axis1%saved_index = i1
+  axis2%saved_index = j1
+  axis3%saved_index = k1
+
+  axis1%saved_index1 = i2
+  axis2%saved_index2 = j2
+  axis3%saved_index3 = k2
+
+end subroutine LookupTableIndexAxis3
 
 ! ************************************************************************** !
 
