@@ -3,12 +3,27 @@ module Inversion_TS_Aux_module
 #include "petsc/finclude/petscmat.h"
   use petscmat
   use PFLOTRAN_Constants_module
+  use Inversion_Measurement_Aux_module
 
   implicit none
 
   private
 
-  type, public :: inversion_ts_aux_type
+  type, public :: inversion_forward_aux_type
+    PetscBool :: store_adjoint
+    PetscInt :: num_timesteps
+    PetscInt :: iobsfunc
+    Mat :: M_ptr
+    Vec :: solution_ptr
+    type(inversion_forward_ts_aux_type), pointer :: first
+    type(inversion_forward_ts_aux_type), pointer :: last
+    type(inversion_forward_ts_aux_type), pointer :: current
+    type(inversion_measurement_aux_type), pointer :: measurements(:)
+    VecScatter :: scatter_global_to_measurement
+    Vec :: measurement_vec
+  end type inversion_forward_aux_type
+
+  type, public :: inversion_forward_ts_aux_type
     PetscInt :: timestep
     PetscReal :: time
     Mat :: dResdu             ! copy of Jacobian: df(u)/du
@@ -19,28 +34,113 @@ module Inversion_TS_Aux_module
     PetscReal, pointer :: dFluxdIntConn(:,:)
     PetscReal, pointer :: dFluxdBCConn(:,:)
     Vec :: solution
-    type(inversion_mat_vec_pointer_type), pointer :: mat_vec_solution_ptr
-    type(inversion_ts_aux_type), pointer :: prev
-    type(inversion_ts_aux_type), pointer :: next
-  end type inversion_ts_aux_type
+    type(inversion_forward_ts_aux_type), pointer :: prev
+    type(inversion_forward_ts_aux_type), pointer :: next
+  end type inversion_forward_ts_aux_type
 
-  type, public :: inversion_mat_vec_pointer_type
-    Mat :: M
-    Vec :: solution
-  end type inversion_mat_vec_pointer_type
 
-  public :: InversionTSAuxCreate, &
+  public :: InversionForwardAuxCreate, &
+            InvForwardAuxResetMeasurements, &
+            InversionForwardAuxStep, &
+            InvForwardAuxDestroyList, &
+            InversionForwardAuxDestroy, &
+            InversionTSAuxCreate, &
             InvTSAuxAllocate, &
             InvTSAuxAllocateFluxCoefArrays, &
             InvTSAuxStoreCopyGlobalMatVecs, &
-            InversionTSAuxListDestroy, &
             InversionTSAuxDestroy
 
 contains
 
 ! ************************************************************************** !
 
-function InversionTSAuxCreate(prev_ts_aux)
+function InversionForwardAuxCreate()
+  !
+  ! Allocate and initialize auxiliary inversion forward object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+  !
+  implicit none
+
+  type(inversion_forward_aux_type), pointer :: InversionForwardAuxCreate
+
+  type(inversion_forward_aux_type), pointer :: aux
+
+  allocate(aux)
+
+  aux%store_adjoint = PETSC_TRUE
+  aux%num_timesteps = 0
+  aux%iobsfunc = UNINITIALIZED_INTEGER
+  aux%M_ptr = PETSC_NULL_MAT
+  aux%solution_ptr = PETSC_NULL_VEC
+  nullify(aux%first)
+  nullify(aux%last)
+  nullify(aux%current)
+  nullify(aux%measurements)
+  aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
+  aux%measurement_vec = PETSC_NULL_VEC
+
+  InversionForwardAuxCreate => aux
+
+end function InversionForwardAuxCreate
+
+! ************************************************************************** !
+
+subroutine InvForwardAuxResetMeasurements(aux)
+  !
+  ! Appends a time step to the linked list
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/21/22
+
+  type(inversion_forward_aux_type), pointer :: aux
+
+  PetscInt :: imeasurement
+
+  do imeasurement = 1, size(aux%measurements)
+    aux%measurements(imeasurement)%measured = PETSC_FALSE
+  enddo
+
+end subroutine InvForwardAuxResetMeasurements
+
+! ************************************************************************** !
+
+subroutine InversionForwardAuxStep(aux,time)
+  !
+  ! Appends a time step to the linked list
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+
+  type(inversion_forward_aux_type), pointer :: aux
+  PetscReal :: time
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: imeasurement
+  PetscErrorCode :: ierr
+
+  if (associated(aux%current)) then
+    aux%current%time = time
+    ! store the solution
+    call InvTSAuxStoreCopyGlobalMatVecs(aux,aux%current)
+    ! append next time step
+    aux%current => InversionTSAuxCreate(aux%current,aux%M_ptr)
+    aux%last => aux%current
+  endif
+
+  call VecGetArrayReadF90(aux%measurement_vec,vec_ptr,ierr)
+  do imeasurement = 1, size(aux%measurements)
+    call InversionMeasurementMeasure(time,aux%measurements(imeasurement), &
+                                     vec_ptr(imeasurement))
+  enddo
+  call VecRestoreArrayReadF90(aux%measurement_vec,vec_ptr,ierr)
+
+end subroutine InversionForwardAuxStep
+
+! ************************************************************************** !
+
+function InversionTSAuxCreate(prev_ts_aux,M_ptr)
   !
   ! Allocate and initialize auxiliary inversion time step object
   !
@@ -49,11 +149,12 @@ function InversionTSAuxCreate(prev_ts_aux)
   !
   implicit none
 
-  type(inversion_ts_aux_type), pointer :: prev_ts_aux
+  type(inversion_forward_ts_aux_type), pointer :: prev_ts_aux
+  Mat :: M_ptr
 
-  type(inversion_ts_aux_type), pointer :: InversionTSAuxCreate
+  type(inversion_forward_ts_aux_type), pointer :: InversionTSAuxCreate
 
-  type(inversion_ts_aux_type), pointer :: aux
+  type(inversion_forward_ts_aux_type), pointer :: aux
 
   allocate(aux)
 
@@ -63,7 +164,6 @@ function InversionTSAuxCreate(prev_ts_aux)
   aux%solution = PETSC_NULL_VEC
   nullify(aux%lambda)
 
-  nullify(aux%mat_vec_solution_ptr)
   nullify(aux%dRes_du_k)
   nullify(aux%dFluxdIntConn)
   nullify(aux%dFluxdBCConn)
@@ -72,10 +172,9 @@ function InversionTSAuxCreate(prev_ts_aux)
 
   if (associated(prev_ts_aux)) then
     aux%timestep = prev_ts_aux%timestep + 1
-    aux%mat_vec_solution_ptr => prev_ts_aux%mat_vec_solution_ptr
     prev_ts_aux%next => aux
     aux%prev => prev_ts_aux
-    call InvTSAuxAllocate(aux,size(prev_ts_aux%dRes_du_k,1), &
+    call InvTSAuxAllocate(aux,M_ptr,size(prev_ts_aux%dRes_du_k,1), &
                           size(prev_ts_aux%dRes_du_k,3))
     if (associated(prev_ts_aux%dFluxdIntConn)) then
       call InvTSAuxAllocateFluxCoefArrays(aux, &
@@ -84,9 +183,6 @@ function InversionTSAuxCreate(prev_ts_aux)
     endif
   else
     aux%timestep = 1
-    allocate(aux%mat_vec_solution_ptr)
-    aux%mat_vec_solution_ptr%M = PETSC_NULL_MAT
-    aux%mat_vec_solution_ptr%solution = PETSC_NULL_VEC
   endif
 
   InversionTSAuxCreate => aux
@@ -95,19 +191,20 @@ end function InversionTSAuxCreate
 
 ! ************************************************************************** !
 
-subroutine InvTSAuxAllocate(aux,ndof,ncell)
+subroutine InvTSAuxAllocate(aux,M_ptr,ndof,ncell)
   !
   ! Allocated array holding Jacobian and dResdk matrix coefficients
   !
   ! Author: Glenn Hammond
   ! Date: 11/19/21
 
-  type(inversion_ts_aux_type), pointer :: aux
+  type(inversion_forward_ts_aux_type), pointer :: aux
+  Mat :: M_ptr
   PetscInt :: ndof
   PetscInt :: ncell
   PetscErrorCode :: ierr
 
-  call MatDuplicate(aux%mat_vec_solution_ptr%M,MAT_SHARE_NONZERO_PATTERN, &
+  call MatDuplicate(M_ptr,MAT_SHARE_NONZERO_PATTERN, &
                     aux%dResdparam,ierr);CHKERRQ(ierr)
   allocate(aux%dRes_du_k(ndof,ndof,ncell))
   aux%dRes_du_k = 0.d0
@@ -123,10 +220,9 @@ subroutine InvTSAuxAllocateFluxCoefArrays(aux,num_internal,num_boundary)
   ! Author: Glenn Hammond
   ! Date: 11/19/21
 
-  type(inversion_ts_aux_type), pointer :: aux
+  type(inversion_forward_ts_aux_type), pointer :: aux
   PetscInt :: num_internal
   PetscInt :: num_boundary
-  PetscErrorCode :: ierr
 
   allocate(aux%dFluxdIntConn(6,num_internal))
   aux%dFluxdIntConn = 0.d0
@@ -137,44 +233,72 @@ end subroutine InvTSAuxAllocateFluxCoefArrays
 
 ! ************************************************************************** !
 
-subroutine InvTSAuxStoreCopyGlobalMatVecs(aux)
+subroutine InvTSAuxStoreCopyGlobalMatVecs(forward_aux,ts_aux)
   !
-  ! Allocated array holding internal flux coefficients
+  ! Copies Jacobian matrix and solution vector
   !
   ! Author: Glenn Hammond
-  ! Date: 11/19/21
+  ! Date: 02/14/22
 
-  type(inversion_ts_aux_type), pointer :: aux
+  type(inversion_forward_aux_type), pointer :: forward_aux
+  type(inversion_forward_ts_aux_type), pointer :: ts_aux
 
   PetscErrorCode :: ierr
 
-  call MatDuplicate(aux%mat_vec_solution_ptr%M,MAT_COPY_VALUES, &
-                    aux%dResdu,ierr);CHKERRQ(ierr)
-  if (aux%mat_vec_solution_ptr%solution /= PETSC_NULL_VEC) then
-    call VecDuplicate(aux%mat_vec_solution_ptr%solution, &
-                      aux%solution,ierr);CHKERRQ(ierr)
-    call VecCopy(aux%mat_vec_solution_ptr%solution,aux%solution, &
-                ierr);CHKERRQ(ierr)
+  call MatDuplicate(forward_aux%M_ptr,MAT_COPY_VALUES, &
+                    ts_aux%dResdu,ierr);CHKERRQ(ierr)
+  if (forward_aux%solution_ptr /= PETSC_NULL_VEC) then
+    call VecDuplicate(forward_aux%solution_ptr,ts_aux%solution, &
+                      ierr);CHKERRQ(ierr)
+    call VecCopy(forward_aux%solution_ptr,ts_aux%solution,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine InvTSAuxStoreCopyGlobalMatVecs
 
 ! ************************************************************************** !
 
-subroutine InversionTSAuxListDestroy(inversion_ts_aux_list,print_msg)
+subroutine InversionForwardAuxDestroy(aux)
+  !
+  ! Deallocates a inversion forward auxiliary object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 02/14/22
+  !
+  use Utility_module, only : DeallocateArray
+
+  type(inversion_forward_aux_type), pointer :: aux
+
+  call InvForwardAuxDestroyList(aux,PETSC_FALSE)
+  ! simply nullify
+  nullify(aux%last)
+  nullify(aux%current)
+  aux%M_ptr = PETSC_NULL_MAT
+  aux%solution_ptr = PETSC_NULL_VEC
+  nullify(aux%measurements)
+  aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
+  aux%measurement_vec = PETSC_NULL_VEC
+
+  deallocate(aux)
+  nullify(aux)
+
+end subroutine InversionForwardAuxDestroy
+
+! ************************************************************************** !
+
+subroutine InvForwardAuxDestroyList(aux,print_msg)
   !
   ! Deallocates a inversion auxiliary timestep list object
   !
   ! Author: Glenn Hammond
   ! Date: 12/03/21
   !
-  type(inversion_ts_aux_type), pointer :: inversion_ts_aux_list
+  type(inversion_forward_aux_type) :: aux
   PetscBool :: print_msg
 
-  type(inversion_ts_aux_type), pointer :: cur_inversion_ts_aux
-  type(inversion_ts_aux_type), pointer :: next_inversion_ts_aux
+  type(inversion_forward_ts_aux_type), pointer :: cur_inversion_ts_aux
+  type(inversion_forward_ts_aux_type), pointer :: next_inversion_ts_aux
 
-  cur_inversion_ts_aux => inversion_ts_aux_list
+  cur_inversion_ts_aux => aux%first
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
     next_inversion_ts_aux => cur_inversion_ts_aux%next
@@ -192,9 +316,11 @@ subroutine InversionTSAuxListDestroy(inversion_ts_aux_list,print_msg)
     cur_inversion_ts_aux => next_inversion_ts_aux
   enddo
 
-  nullify(inversion_ts_aux_list)
+  nullify(aux%first)
+  nullify(aux%current)
+  nullify(aux%last)
 
-end subroutine InversionTSAuxListDestroy
+end subroutine InvForwardAuxDestroyList
 
 ! ************************************************************************** !
 
@@ -207,7 +333,7 @@ subroutine InversionTSAuxDestroy(aux)
   !
   use Utility_module, only : DeallocateArray
 
-  type(inversion_ts_aux_type), pointer :: aux
+  type(inversion_forward_ts_aux_type), pointer :: aux
 
   PetscInt :: iaux
   PetscErrorCode :: ierr
@@ -217,11 +343,6 @@ subroutine InversionTSAuxDestroy(aux)
   nullify(aux%prev)
   nullify(aux%next)
 
-  ! only destroy once
-  if (aux%timestep == 1) then
-    deallocate(aux%mat_vec_solution_ptr)
-  endif
-  nullify(aux%mat_vec_solution_ptr)
   if (aux%dResdu /= PETSC_NULL_MAT) then
     call MatDestroy(aux%dResdu,ierr);CHKERRQ(ierr)
   endif

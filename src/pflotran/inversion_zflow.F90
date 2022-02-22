@@ -270,7 +270,7 @@ subroutine InversionZFlowAllocateWorkArrays(this)
 
   grid => this%realization%patch%grid
 
-  num_measurement = size(this%measurement)
+  num_measurement = size(this%measurements)
   num_constraints = this%num_constraints_local
 
   allocate(this%b(num_measurement + num_constraints))
@@ -811,7 +811,7 @@ subroutine InvZFlowEvaluateCostFunction(this)
   constrained_block => this%constrained_block
   rblock => this%rblock
 
-  num_measurement = size(this%measurement)
+  num_measurement = size(this%measurements)
 
   call RealizationGetVariable(this%realization, &
                               this%realization%field%work, &
@@ -823,11 +823,11 @@ subroutine InvZFlowEvaluateCostFunction(this)
   this%phi_data = 0.d0
   do idata=1,num_measurement
 
-    wd = 0.05 * this%measurement(idata)
+    wd = 0.05 * this%measurements(idata)%value
     wd = 1/wd
 
-    icell = this%imeasurement(idata)
-    tempreal = wd * (this%measurement(idata) - vec_ptr(icell))
+    icell = this%measurements(idata)%CELL_ID
+    tempreal = wd * (this%measurements(idata)%value - vec_ptr(icell))
     this%phi_data = this%phi_data + tempreal * tempreal
 !print*,icell,vec_ptr(icell),this%measurement(idata)
   enddo
@@ -1067,7 +1067,7 @@ subroutine InversionZFlowCGLSSolve(this)
     write(*,'(" --> Solving ZFlow normal equation using CGLS solver:")')
   endif
 
-  nm = size(this%measurement)
+  nm = size(this%measurements)
   ncons = this%num_constraints_local
 
   ! Get RHS vector this%b
@@ -1191,7 +1191,7 @@ subroutine InversionZFlowCGLSRhs(this)
 
   this%b = 0.0d0
 
-  num_measurement = size(this%measurement)
+  num_measurement = size(this%measurements)
 
   call RealizationGetVariable(this%realization, &
                               this%realization%field%work, &
@@ -1201,11 +1201,11 @@ subroutine InversionZFlowCGLSRhs(this)
   ! Data part
   do idata=1,num_measurement
 
-    wd = 0.05 * this%measurement(idata)
+    wd = 0.05 * this%measurements(idata)%value
     wd = 1/wd
 
-    icell = this%imeasurement(idata)
-    this%b(idata) = wd * (this%measurement(idata) - vec_ptr(icell))
+    icell = this%measurements(idata)%cell_id
+    this%b(idata) = wd * (this%measurements(idata)%value - vec_ptr(icell))
   enddo
 
   call VecRestoreArrayF90(this%realization%field%work,vec_ptr, &
@@ -1620,7 +1620,7 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
 
   this%q = 0.d0
 
-  num_measurement = size(this%measurement)
+  num_measurement = size(this%measurements)
 
   ! Data part
   call VecDuplicate(field%work,p1,ierr);CHKERRQ(ierr)
@@ -1723,7 +1723,7 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
   this%s = 0.0d0
 
-  num_measurement = size(this%measurement)
+  num_measurement = size(this%measurements)
 
   ! Model part -> s2
   call VecGetArrayF90(field%work_loc,s2vec_ptr,ierr);CHKERRQ(ierr)
@@ -1914,13 +1914,13 @@ subroutine InversionZFlowScaleSensitivity(this)
                               this%realization%field%work, &
                               PERMEABILITY,ZERO_INTEGER)
 
-  num_measurement = size(this%imeasurement)
+  num_measurement = size(this%measurements)
   call VecCreateMPI(this%driver%comm%mycomm,num_measurement,num_measurement, &
                     wd_vec,ierr);CHKERRQ(ierr)
   call VecZeroEntries(wd_vec,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   do idata = 1, num_measurement
-    wd = 0.05 * this%measurement(idata)
+    wd = 0.05 * this%measurements(idata)%value
     wd = 1/wd
     wdvec_ptr(idata) = wd
   enddo

@@ -66,6 +66,7 @@ if not row_count == num_rows2:
         sys.exit("ERROR: Number of rows in second matrix does not match the number of rows in the first ({} vs {})".format(row_count,num_rows2))
 f.close()
 
+max_abs_val = max(np.absolute(array1).max(),np.absolute(array2).max())
 max_rel_diff = 0.
 max_row = -999
 max_col = -999
@@ -74,11 +75,13 @@ for irow in range(num_rows):
         value1 = array1[irow][icol]
         value2 = array2[irow][icol]
         rel_diff = 0.
+        diff = 0.
         if abs(value1) > 0.:
-            rel_diff = (value1-value2)/value1
+            diff = value1-value2
+            rel_diff = diff/value1
         elif abs(value2) > 0.:
             print('Both values are not zero.')
-        print(irow+1,icol+1,value1,value2,rel_diff)
+        print('{} {} {:.8e} {:.8e} {:.5f} {:.3e}'.format(irow+1,icol+1,value1,value2,rel_diff,diff/max_abs_val))
         if abs(rel_diff) > max_rel_diff:
             max_row = irow+1
             max_col = icol+1

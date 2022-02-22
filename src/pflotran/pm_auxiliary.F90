@@ -1,7 +1,7 @@
 module PM_Auxiliary_class
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use PM_Base_class
   use Realization_Subsurface_class
   use Communicator_Base_class
@@ -363,6 +363,7 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
   ! Date: 02/10/16
 
   use Inversion_TS_Aux_module
+  use Realization_Base_class
 
   implicit none
 
@@ -370,15 +371,24 @@ subroutine PMAuxiliaryInversion(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 
+  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+
   ierr = 0
-  if (associated(this%realization%patch%aux%inversion_ts_aux)) then
-    this%realization%patch%aux%inversion_ts_aux%time = time
-    ! store solution
-    call InvTSAuxStoreCopyGlobalMatVecs(this%realization%patch%aux% &
-                                          inversion_ts_aux)
-    ! append next time step
-    this%realization%patch%aux%inversion_ts_aux => &
-      InversionTSAuxCreate(this%realization%patch%aux%inversion_ts_aux)
+  inversion_forward_aux => this%realization%patch%aux%inversion_forward_aux
+  if (associated(this%realization%patch%aux%inversion_forward_aux)) then
+    call RealizationGetVariable(this%realization, &
+                                this%realization%field%work, &
+                                inversion_forward_aux%iobsfunc,ZERO_INTEGER)
+    call VecScatterBegin(inversion_forward_aux%scatter_global_to_measurement, &
+                         this%realization%field%work, &
+                         inversion_forward_aux%measurement_vec, &
+                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call VecScatterEnd(inversion_forward_aux%scatter_global_to_measurement, &
+                       this%realization%field%work, &
+                       inversion_forward_aux%measurement_vec, &
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+    call InversionForwardAuxStep(this%realization%patch%aux% &
+                                 inversion_forward_aux,time)
   endif
 
 end subroutine PMAuxiliaryInversion
