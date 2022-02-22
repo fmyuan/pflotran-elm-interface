@@ -7247,8 +7247,10 @@ subroutine CritInventoryRead(this,filename,option)
           allocate(this%nuclide(i)%lookup%axis2%values(this%num_powers))
           allocate(this%nuclide(i)%lookup%axis3%values(arr_size))
           allocate(this%nuclide(i)%lookup%data(arr_size))
-          allocate(this%nuclide(i)%lookup%axis3%bounds(num_sections))
-          allocate(this%nuclide(i)%lookup%axis3%partition(num_sections))
+          if (Initialized(this%total_points)) then
+            allocate(this%nuclide(i)%lookup%axis3%bounds(num_sections))
+            allocate(this%nuclide(i)%lookup%axis3%partition(num_sections))
+          endif
         enddo
 
         string = 'START_TIME in criticality inventory lookup table'
@@ -7343,7 +7345,9 @@ subroutine CritInventoryRead(this,filename,option)
         
         do i = 1, num_species
           this%nuclide(i)%lookup%axis3%values => tmpaxis3
-          call CritInvRealTimeSections(this%nuclide(i)%lookup,filename,option)
+          if (Initialized(this%total_points)) then
+            call CritInvRealTimeSections(this%nuclide(i)%lookup,filename,option)
+          endif
         enddo
     !-------------------------------------      
       case('INVENTORY','INVENTORIES')
@@ -7413,7 +7417,9 @@ subroutine CritInventoryRead(this,filename,option)
         error_string = trim(filename) //' for nuclide #' &
                     // trim(adjustl(str3))
 
-        call CritInvDataSections(this%nuclide(ict)%lookup,error_string,option)
+        if (Initialized(this%total_points)) then
+          call CritInvDataSections(this%nuclide(ict)%lookup,error_string,option)
+        endif
     !-------------------------------------
       case default
         error_string = trim(error_string) // ': ' // filename
