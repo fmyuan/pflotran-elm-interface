@@ -283,6 +283,11 @@ subroutine OptionSetDriver(option,driver)
   option%driver => driver
   option%comm => driver%comm
   call OptionUpdateComm(option)
+  if (option%comm%start_time < 1.d-40) then
+    option%io_buffer = 'option%comm%start_time not set. WALLCLOCK_STOP &
+      &will not function properly.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine OptionSetDriver
 
