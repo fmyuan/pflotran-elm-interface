@@ -13,15 +13,17 @@ module PM_ZFlow_class
   private
 
   PetscInt, parameter :: MAX_CHANGE_LIQ_PRES_NI = 1
-  PetscInt, parameter :: MAX_RES_LIQ = 2
+  PetscInt, parameter :: MAX_CHANGE_CONC_NI = 2
+  PetscInt, parameter :: MAX_RES_LIQ_EQ = 3
+  PetscInt, parameter :: MAX_RES_SOL_EQ = 4
 
   type, public, extends(pm_subsurface_flow_type) :: pm_zflow_type
     PetscInt, pointer :: max_change_ivar(:)
     PetscReal :: max_allow_liq_pres_change_ni
     PetscReal :: liq_pres_change_ts_governor
     PetscReal :: liq_sat_change_ts_governor
-    PetscInt :: convergence_flags(MAX_RES_LIQ)
-    PetscReal :: convergence_reals(MAX_RES_LIQ)
+    PetscInt :: convergence_flags(MAX_RES_SOL_EQ)
+    PetscReal :: convergence_reals(MAX_RES_SOL_EQ)
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMZFlowReadSimOptionsBlock
@@ -89,24 +91,26 @@ subroutine PMZFlowInitObject(this)
   ! Author: Glenn Hammond
   ! Date: 08/13/21
   !
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION
-  use EOS_Water_module, only : EOSWaterSetDensity
+  use Option_module
+  use String_module
+  use Variables_module
 
   implicit none
 
   class(pm_zflow_type) :: this
 
-  allocate(this%max_change_ivar(3))
   call PMSubsurfaceFlowInit(this)
   this%name = 'Z Flow'
   this%header = 'Z FLOW'
+
+  nullify(this%max_change_ivar)
 
   ! set to UNINITIALIZED_DOUBLE and report error below is set from input
   this%pressure_change_governor = UNINITIALIZED_DOUBLE
   this%temperature_change_governor = UNINITIALIZED_DOUBLE
   this%saturation_change_governor = UNINITIALIZED_DOUBLE
+  this%xmol_change_governor = UNINITIALIZED_DOUBLE
 
-  this%max_change_ivar = [LIQUID_PRESSURE, LIQUID_SATURATION]
   this%check_post_convergence = PETSC_TRUE
 
   this%max_allow_liq_pres_change_ni = 1.d20
@@ -336,6 +340,7 @@ recursive subroutine PMZFlowInitializeRun(this)
   use Patch_module
   use Field_module
   use Option_module
+  use Variables_module
 
   implicit none
 
@@ -346,6 +351,7 @@ recursive subroutine PMZFlowInitializeRun(this)
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
+  PetscInt :: ivar
 
   patch => this%realization%patch
   field => this%realization%field
@@ -353,8 +359,29 @@ recursive subroutine PMZFlowInitializeRun(this)
 
   if (this%steady_state) zflow_calc_accum = PETSC_FALSE
 
+  ivar = 0
+  if (zflow_liq_flow_eq > 0) then
+    ivar = ivar + 2
+  endif
+  if (zflow_sol_tran_eq > 0) then
+    ivar = ivar + 1
+  endif
+  allocate(this%max_change_ivar(ivar))
+  ivar = 1
+  if (zflow_liq_flow_eq > 0) then
+    this%max_change_ivar(ivar) = LIQUID_PRESSURE
+    ivar = ivar + 1
+    this%max_change_ivar(ivar) = LIQUID_SATURATION
+    ivar = ivar + 1
+  endif
+  if (zflow_sol_tran_eq > 0) then
+    this%max_change_ivar(ivar) = SOLUTE_CONCENTRATION
+    ivar = ivar + 1
+  endif
+
   ! need to allocate vectors for max change
-  call VecDuplicateVecsF90(field%work,TWO_INTEGER,field%max_change_vecs, &
+  i = size(this%max_change_ivar)
+  call VecDuplicateVecsF90(field%work,i,field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
   do i = 1, size(field%max_change_vecs)
@@ -657,14 +684,17 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscReal, pointer :: X0_p(:)
   PetscReal, pointer :: X1_p(:)
   PetscReal, pointer :: dX_p(:)
-  PetscReal, pointer :: press_ptr(:)
 
   PetscInt :: local_id, ghosted_id
+  PetscInt :: offset
   PetscReal :: tempreal
 
   PetscBool :: converged_liquid_pressure
   PetscReal :: max_abs_pressure_change_NI
   PetscInt :: max_abs_pressure_change_NI_cell
+  PetscBool :: converged_concentration
+  PetscReal :: max_abs_conc_change_NI
+  PetscInt :: max_abs_conc_change_NI_cell
 
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -680,20 +710,32 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
-  ! max change variables: [LIQUID_PRESSURE]
-  call VecGetArrayReadF90(field%max_change_vecs(1),press_ptr,ierr);CHKERRQ(ierr)
   converged_liquid_pressure = PETSC_TRUE
+  converged_concentration = PETSC_FALSE
   max_abs_pressure_change_NI = 0.d0
   max_abs_pressure_change_NI_cell = 0
+  max_abs_conc_change_NI = 0.d0
+  max_abs_conc_change_NI_cell = 0
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
 
-    ! maximum absolute change in liquid pressure over Newton iteration
-    tempreal = dabs(dX_p(local_id))
-    if (tempreal > dabs(max_abs_pressure_change_NI)) then
-      max_abs_pressure_change_NI_cell = local_id
-      max_abs_pressure_change_NI = tempreal
+    offset = (local_id-1)*option%nflowdof
+    if (zflow_liq_flow_eq > 0) then
+      ! maximum absolute change in liquid pressure over Newton iteration
+      tempreal = dabs(dX_p(offset+zflow_liq_flow_eq))
+      if (tempreal > dabs(max_abs_pressure_change_NI)) then
+        max_abs_pressure_change_NI_cell = local_id
+        max_abs_pressure_change_NI = tempreal
+      endif
+    endif
+    if (zflow_sol_tran_eq > 0) then
+      ! maximum absolute change in liquid pressure over Newton iteration
+      tempreal = dabs(dX_p(offset+zflow_sol_tran_eq))
+      if (tempreal > dabs(max_abs_conc_change_NI)) then
+        max_abs_conc_change_NI_cell = local_id
+        max_abs_conc_change_NI = tempreal
+      endif
     endif
   enddo
 
@@ -709,12 +751,11 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
 
   ! the following flags are for REPORTING purposes only
   this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI) = max_abs_pressure_change_NI
+  this%convergence_reals(MAX_CHANGE_CONC_NI) = max_abs_conc_change_NI
 
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(field%max_change_vecs(1),press_ptr, &
-                              ierr);CHKERRQ(ierr)
 
 end subroutine PMZFlowCheckUpdatePost
 
@@ -767,6 +808,9 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
 
   PetscReal :: max_abs_res_liq_
   PetscInt :: max_abs_res_liq_cell
+  PetscReal :: max_abs_res_sol_
+  PetscInt :: max_abs_res_sol_cell
+  PetscInt :: offset
   PetscMPIInt :: int_mpi
 
   PetscReal :: accumulation
@@ -786,15 +830,28 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
+    offset = (local_id-1)*option%nflowdof
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
-    residual = r_p(local_id)
-    accumulation = accum2_p(local_id)
-    ! residual
-    tempreal = dabs(residual)
-    if (tempreal > max_abs_res_liq_) then
-      max_abs_res_liq_ = tempreal
-      max_abs_res_liq_cell = local_id
+    if (zflow_liq_flow_eq > 0) then
+      residual = r_p(offset+zflow_liq_flow_eq)
+      accumulation = accum2_p(offset+zflow_liq_flow_eq)
+      ! residual
+      tempreal = dabs(residual)
+      if (tempreal > max_abs_res_liq_) then
+        max_abs_res_liq_ = tempreal
+        max_abs_res_liq_cell = local_id
+      endif
+    endif
+    if (zflow_sol_tran_eq > 0) then
+      residual = r_p(offset+zflow_sol_tran_eq)
+      accumulation = accum2_p(offset+zflow_sol_tran_eq)
+      ! residual
+      tempreal = dabs(residual)
+      if (tempreal > max_abs_res_sol_) then
+        max_abs_res_sol_ = tempreal
+        max_abs_res_sol_cell = local_id
+      endif
     endif
   enddo
 
@@ -802,8 +859,10 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
   ! currently none
 
   ! the following flags are for REPORTING purposes only
-  this%convergence_flags(MAX_RES_LIQ) = max_abs_res_liq_cell
-  this%convergence_reals(MAX_RES_LIQ) = max_abs_res_liq_
+  this%convergence_flags(MAX_RES_LIQ_EQ) = max_abs_res_liq_cell
+  this%convergence_reals(MAX_RES_LIQ_EQ) = max_abs_res_liq_
+  this%convergence_flags(MAX_RES_SOL_EQ) = max_abs_res_sol_cell
+  this%convergence_reals(MAX_RES_SOL_EQ) = max_abs_res_sol_
 
   int_mpi = size(this%convergence_flags)
   call MPI_Allreduce(MPI_IN_PLACE,this%convergence_flags,int_mpi, &
@@ -813,10 +872,14 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
 
   ! these conditionals cannot change order
-  reason_string = '-|-'
+  reason_string = '---| '
   converged_flag = CONVERGENCE_CONVERGED
   if (this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI) > 0) then
-    reason_string(2:2) = 'P'
+    reason_string(1:1) = 'P'
+    converged_flag = CONVERGENCE_KEEP_ITERATING
+  endif
+  if (this%convergence_flags(MAX_CHANGE_CONC_NI) > 0) then
+    reason_string(2:2) = 'C'
     converged_flag = CONVERGENCE_KEEP_ITERATING
   endif
 #if 0
@@ -919,8 +982,8 @@ subroutine PMZFlowMaxChange(this)
   use Option_module
   use Field_module
   use Grid_module
+  use String_module
   use ZFlow_Aux_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION
 
   implicit none
 
@@ -931,10 +994,12 @@ subroutine PMZFlowMaxChange(this)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   PetscReal, pointer :: vec_old_ptr(:), vec_new_ptr(:)
-  PetscReal :: max_change_local(2)
-  PetscReal :: max_change_global(2)
+  PetscReal, allocatable :: max_change_global(:)
   PetscReal :: max_change, change
   PetscInt :: i, j
+  PetscInt :: ivar
+  PetscInt :: fids(2)
+  character(len=MAXSTRINGLENGTH) :: string
 
   PetscErrorCode :: ierr
 
@@ -943,12 +1008,10 @@ subroutine PMZFlowMaxChange(this)
   field => realization%field
   grid => realization%patch%grid
 
+  allocate(max_change_global(size(this%max_change_ivar)))
   max_change_global = 0.d0
-  max_change_local = 0.d0
 
-  ! max change variables: [LIQUID_PRESSURE, LIQUID_SATURATION]
-  ! these are values from the previous time step
-  do i = 1, 2
+  do i = 1, size(this%max_change_ivar)
     call RealizationGetVariable(realization,field%work, &
                                 this%max_change_ivar(i),ZERO_INTEGER)
     ! yes, we could use VecWAXPY and a norm here, but we need the ability
@@ -960,28 +1023,34 @@ subroutine PMZFlowMaxChange(this)
       change = dabs(vec_new_ptr(j)-vec_old_ptr(j))
       max_change = max(max_change,change)
     enddo
-    max_change_local(i) = max_change
+    max_change_global(i) = max_change
     call VecRestoreArrayF90(field%work,vec_new_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%max_change_vecs(i),vec_old_ptr, &
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
-  call MPI_Allreduce(max_change_local,max_change_global,TWO_INTEGER, &
+  i = size(max_change_global)
+  call MPI_Allreduce(MPI_IN_PLACE,max_change_global,i, &
                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-  ! print them out
-  if (OptionPrintToScreen(option)) then
-    write(*,'("  --> max chng: dpl= ",1pe12.4, " dsl= ",1pe12.4)') &
-      max_change_global(1:2)
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dsl= ", &
-                          &1pe12.4)') &
-      max_change_global(1:2)
-  endif
 
-  ! max change variables: [LIQUID_PRESSURE, LIQUID_SATURATION]
-  this%max_pressure_change = max_change_global(1)
-  this%max_saturation_change = max_change_global(2)
+  fids = OptionGetFIDs(option)
+  ivar = 1
+  if (zflow_liq_flow_eq > 0) then
+    write(string,'("  --> max chng: dpl= ",1pe12.4, " dsl= ",1pe12.4)') &
+      max_change_global(ivar:ivar+1)
+    this%max_pressure_change = max_change_global(ivar)
+    this%max_saturation_change = max_change_global(ivar+1)
+    ivar = ivar+2
+    call StringWriteToUnits(fids,string)
+  endif
+  if (zflow_sol_tran_eq > 0) then
+    write(string,'("                 dc= ",1pe12.4)') max_change_global(ivar)
+    ! hijacking xmol_change
+    this%max_xmol_change = max_change_global(ivar)
+    ivar = ivar+1
+    call StringWriteToUnits(fids,string)
+  endif
+  deallocate(max_change_global)
 
 end subroutine PMZFlowMaxChange
 

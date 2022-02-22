@@ -528,16 +528,17 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     derivative_toggle = PETSC_TRUE
     select case(bc_type)
       ! figure out the direction of flow
-      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
-          HYDROSTATIC_CONDUCTANCE_BC)
+      case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+           HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
         if (zflow_auxvar_up%kr + zflow_auxvar_dn%kr > eps) then
           ! dist(0) = scalar - magnitude of distance
           ! gravity = vector(3)
           ! dist(1:3) = vector(3) - unit vector
           dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-          if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
-            idof = auxvar_mapping(ZFLOW_COND_CONDUCTANCE_INDEX)
+          if (bc_type == DIRICHLET_CONDUCTANCE_BC .or. &
+              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
+            idof = auxvar_mapping(ZFLOW_COND_WATER_AUX_INDEX)
             perm_ave_over_dist_visc = auxvars(idof) / zflow_viscosity
           else
             perm_ave_over_dist_visc = perm_dn / (dist(0) * zflow_viscosity)
@@ -550,16 +551,17 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
                           zflow_auxvar_dn%pres + &
                           gravity_term
           ddelta_pressure_dpdn = -1.d0
-          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
-                ! flow in         ! boundary cell is <= pref
-            if (delta_pressure > 0.d0 .and. &
-                zflow_auxvar_up%pres - &
-                  option%flow%reference_pressure < eps) then
-              delta_pressure = 0.d0
-              ddelta_pressure_dpdn = 0.d0
-            endif
-          endif
+          select case(bc_type)
+            case(DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+                 HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+                  ! flow in         ! boundary cell is <= pref
+              if (delta_pressure > 0.d0 .and. &
+                  zflow_auxvar_up%pres - &
+                    option%flow%reference_pressure < eps) then
+                delta_pressure = 0.d0
+                ddelta_pressure_dpdn = 0.d0
+              endif
+          end select
           if (zflow_tensorial_rel_perm) then
             if (delta_pressure >= 0.d0) then
               call ZFlowAuxTensorialRelPerm(zflow_auxvar_up, &
@@ -679,9 +681,10 @@ end subroutine ZFlowBCFluxHarmonicPermOnly
 
 ! ************************************************************************** !
 
-subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
+subroutine ZFlowSrcSink(option,flow_aux_real_var,flow_src_sink_mapping, &
+                        flow_src_sink_type, &
                         zflow_auxvar,global_auxvar,material_auxvar, &
-                        ss_flow_vol_flux,scale,Res,Jdn,dResdparamdn, &
+                        ss_flow_vol_flux,Res,Jdn,dResdparamdn, &
                         calculate_derivatives)
   !
   ! Computes the source/sink terms for the residual
@@ -697,34 +700,36 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   implicit none
 
   type(option_type) :: option
-  PetscReal :: qsrc(:)
-  PetscInt :: flow_src_sink_type
+  PetscReal :: flow_aux_real_var(:)
+  PetscInt :: flow_src_sink_mapping(:)
+  PetscInt :: flow_src_sink_type(:)
   type(zflow_auxvar_type) :: zflow_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux
-  PetscReal :: scale
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparamdn(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscBool :: calculate_derivatives
 
+  PetscReal :: tempreal
   PetscReal :: qsrc_m3, qsrc_L
   PetscReal, parameter :: L_per_m3 = 1.d3
+  PetscInt :: dof_index, index_
 
   Res = 0.d0
   Jdn = 0.d0
 
   if (zflow_liq_flow_eq > 0) then
-    ! liquid phase
+    dof_index = flow_src_sink_mapping(ZFLOW_COND_WATER_INDEX)
     qsrc_m3 = 0.d0
-    select case(flow_src_sink_type)
-      case(VOLUMETRIC_RATE_SS)  ! assume local density for now
-        ! qsrc1 = m^3/sec
-        qsrc_m3 = qsrc(zflow_liq_flow_eq)
-      case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
-        ! qsrc1 = m^3/sec             ! den = kmol/m^3
-        qsrc_m3 = qsrc(zflow_liq_flow_eq)*scale
+    tempreal = flow_aux_real_var(dof_index)
+    select case(flow_src_sink_type(dof_index))
+      case(VOLUMETRIC_RATE_SS)
+        qsrc_m3 = tempreal
+      case(SCALED_VOLUMETRIC_RATE_SS)
+        index_ = flow_src_sink_mapping(ZFLOW_COND_WATER_AUX_INDEX)
+        qsrc_m3 = tempreal*flow_aux_real_var(index_)
       case default
         option%io_buffer = 'src_sink_type not supported in ZFlowSrcSink'
         call PrintErrMsg(option)
@@ -738,11 +743,19 @@ subroutine ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
   endif
 
   if (zflow_sol_tran_eq > 0) then
+    if (qsrc_m3 >= 0.d0) then
+      ! injection
+      dof_index = flow_src_sink_mapping(ZFLOW_COND_SOLUTE_INDEX)
+      tempreal = flow_aux_real_var(dof_index)
+    else
+      ! extraction
+      tempreal = zflow_auxvar%conc
+    endif
     qsrc_L = qsrc_m3 * L_per_m3
-    Res(zflow_sol_tran_eq) = qsrc_L * qsrc(zflow_sol_tran_eq)
+    Res(zflow_sol_tran_eq) = qsrc_L * tempreal
     if (calculate_derivatives) then
-      Jdn(zflow_sol_tran_eq,zflow_sol_tran_eq) = qsrc_L
-      if (zflow_liq_flow_eq > 0) then
+      if (qsrc_m3 < 0.d0) then
+       Jdn(zflow_sol_tran_eq,zflow_sol_tran_eq) = qsrc_L
       endif
     endif
   endif
@@ -1014,11 +1027,13 @@ end subroutine XXBCFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
+subroutine ZFlowSrcSinkDerivative(option,flow_aux_real_var, &
+                                  flow_src_sink_mapping, &
+                                  flow_src_sink_type, &
                                   zflow_auxvar,global_auxvar, &
                                   material_auxvar, &
                                   material_auxvar_pert, &
-                                  ss_flow_vol_flux,scale, &
+                                  ss_flow_vol_flux, &
                                   Res,Jac,dResdparam)
   !
   ! Computes the source/sink terms for the residual
@@ -1032,14 +1047,14 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   implicit none
 
   type(option_type) :: option
-  PetscReal :: qsrc(:)
-  PetscInt :: flow_src_sink_type
+  PetscReal :: flow_aux_real_var(:)
+  PetscInt :: flow_src_sink_mapping(:)
+  PetscInt :: flow_src_sink_type(:)
   type(zflow_auxvar_type) :: zflow_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
   type(material_auxvar_type) :: material_auxvar
   type(material_auxvar_type) :: material_auxvar_pert(:)
   PetscReal :: ss_flow_vol_flux
-  PetscReal :: scale
   PetscReal :: Res(ZFLOW_MAX_DOF)
   PetscReal :: Jac(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
   PetscReal :: dResdparam(ZFLOW_MAX_DOF,ZFLOW_MAX_DOF)
@@ -1051,19 +1066,21 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
 
   Jac = 0.d0
   ! unperturbed zflow_auxvars value
-  call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
+  call ZFlowSrcSink(option,flow_aux_real_var,flow_src_sink_mapping, &
+                    flow_src_sink_type, &
                     zflow_auxvar(ZERO_INTEGER),global_auxvar, &
                     material_auxvar, &
-                    ss_flow_vol_flux,scale, &
+                    ss_flow_vol_flux, &
                     Res,Jac,dResdparam,.not.zflow_numerical_derivatives)
 
   if (zflow_numerical_derivatives) then
     ! perturbed zflow_auxvars values
     do idof = 1, option%nflowdof
-      call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
+      call ZFlowSrcSink(option,flow_aux_real_var,flow_src_sink_mapping, &
+                        flow_src_sink_type, &
                         zflow_auxvar(idof),global_auxvar, &
                         material_auxvar, &
-                        dummy_real,scale, &
+                        dummy_real, &
                         res_pert,Jdum,Jdum,PETSC_FALSE)
       do ieq = 1, option%nflowdof
       Jac(ieq,idof) = (res_pert(ieq)-Res(ieq)) / &
@@ -1072,10 +1089,11 @@ subroutine ZFlowSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
     enddo
     if (zflow_calc_adjoint) then
       idof = 1
-      call ZFlowSrcSink(option,qsrc,flow_src_sink_type, &
+      call ZFlowSrcSink(option,flow_aux_real_var,flow_src_sink_mapping, &
+                        flow_src_sink_type, &
                         zflow_auxvar(option%nflowdof+1),global_auxvar, &
                         material_auxvar_pert(ONE_INTEGER), &
-                        dummy_real,scale, &
+                        dummy_real, &
                         res_pert,Jdum,Jdum,PETSC_FALSE)
       do ieq = 1, option%nflowdof
         dResdparam(ieq,idof) = &
