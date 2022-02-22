@@ -1645,8 +1645,11 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
   ! ----------------------------------
   PetscReal, pointer :: x(:)  ! lookup1 table
   PetscReal, pointer :: y(:)  ! lookup2 table
-  PetscReal, pointer :: z(:)  ! lookup3 table - partition
   PetscReal, pointer :: z0(:) ! lookup3 table - full
+  type zs
+    PetscReal, pointer :: z(:) ! lookup3 table - partition
+  end type
+  type(zs) :: za(4)  ! axis3 of interest, needed for partitions
   PetscReal :: F(8)  ! reference data
   PetscInt  :: i, j, k, m
   PetscInt  :: i1, i2
@@ -1720,6 +1723,13 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
     k2 = this%axis3%saved_indices3(i, j, 2)
     indices2(m,:)   = (/i, j, k1/) ! a5* coefficients
     indices2(m+4,:) = (/i, j, k2/) ! a6* coefficients
+    ! redefine z-axis as-needed
+    if (allocated(this%axis3%partition)) then
+      pselect = this%axis3%saved_index_partition(i, j)
+      za(m)%z => this%axis3%partition(pselect)%values
+    else
+      za(m)%z => this%axis3%values
+    endif
   enddo
 
   ! retrieve data
@@ -1729,14 +1739,6 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
     k = indices2(m,3)
     F(m) = this%data_references(i, j, k)
   enddo
-
-  ! redefine z-axis as-needed
-  if (allocated(this%axis3%partition)) then
-    pselect = this%axis3%saved_index_partition(i, j)
-    z => this%axis3%partition(pselect)%values
-  else
-    z => this%axis3%values
-  endif
 
   ! define coefficients of polymomial based on lookups
   !   lookups are compared to opposite i, j, and k indices
@@ -1754,14 +1756,14 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
   k23 = this%axis3%saved_indices3(i2, j1, 2) ! k23 -> i2,j1,k2
   k24 = this%axis3%saved_indices3(i2, j2, 2) ! k24 -> i2,j2,k2
 
-  a51 = ( lookup3 - z(k21) ) / ( z(k11) - z(k21) ) ! a51 -> i1,j1,k1
-  a52 = ( lookup3 - z(k22) ) / ( z(k12) - z(k22) ) ! a52 -> i1,j2,k1
-  a53 = ( lookup3 - z(k23) ) / ( z(k13) - z(k23) ) ! a53 -> i2,j1,k1
-  a54 = ( lookup3 - z(k24) ) / ( z(k14) - z(k24) ) ! a54 -> i2,j2,k1
-  a61 = ( lookup3 - z(k11) ) / ( z(k21) - z(k11) ) ! a61 -> i1,j1,k2
-  a62 = ( lookup3 - z(k12) ) / ( z(k22) - z(k12) ) ! a62 -> i1,j2,k2
-  a63 = ( lookup3 - z(k13) ) / ( z(k23) - z(k13) ) ! a63 -> i2,j1,k2
-  a64 = ( lookup3 - z(k14) ) / ( z(k24) - z(k14) ) ! a64 -> i2,j2,k2
+  a51 = ( lookup3 - za(1)%z(k21) ) / ( za(1)%z(k11) - za(1)%z(k21) ) ! a51 -> i1,j1,k1
+  a52 = ( lookup3 - za(2)%z(k22) ) / ( za(2)%z(k12) - za(2)%z(k22) ) ! a52 -> i1,j2,k1
+  a53 = ( lookup3 - za(3)%z(k23) ) / ( za(3)%z(k13) - za(3)%z(k23) ) ! a53 -> i2,j1,k1
+  a54 = ( lookup3 - za(4)%z(k24) ) / ( za(4)%z(k14) - za(4)%z(k24) ) ! a54 -> i2,j2,k1
+  a61 = ( lookup3 - za(1)%z(k11) ) / ( za(1)%z(k21) - za(1)%z(k11) ) ! a61 -> i1,j1,k2
+  a62 = ( lookup3 - za(2)%z(k12) ) / ( za(2)%z(k22) - za(2)%z(k12) ) ! a62 -> i1,j2,k2
+  a63 = ( lookup3 - za(3)%z(k13) ) / ( za(3)%z(k23) - za(3)%z(k13) ) ! a63 -> i2,j1,k2
+  a64 = ( lookup3 - za(4)%z(k14) ) / ( za(4)%z(k24) - za(4)%z(k14) ) ! a64 -> i2,j2,k2
   
   ! product operator bypasses identical indices --> pick one term to cancel
   if (i1 == i2) then
