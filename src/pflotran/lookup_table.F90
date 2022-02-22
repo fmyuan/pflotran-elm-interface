@@ -53,7 +53,7 @@ module Lookup_Table_module
   end type lookup_table_uniform_type
 
   type, public :: data_partition_type
-    PetscReal, allocatable :: data(:)
+    PetscReal, pointer :: data(:)
   end type data_partition_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
@@ -78,7 +78,7 @@ module Lookup_Table_module
   end type lookup_table_axis2_general_type
 
   type, public :: axis3_partitions_type
-    PetscReal, allocatable :: values(:)
+    PetscReal, pointer :: values(:)
   end type axis3_partitions_type
 
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
@@ -264,6 +264,11 @@ function LookupTableCreateGeneralDim(dim)
   lookup_table%dim = dim
   nullify(lookup_table%axis2)
   nullify(lookup_table%axis3)
+  if (allocated(lookup_table%partition)) then
+    do i = 1, size(lookup_table%partition)
+      nullify(lookup_table%partition(i)%data)
+    enddo
+  endif
   allocate(lookup_table%axis1)
   call LookupTableAxisInit(lookup_table%axis1)
   if (dim > 1) then
@@ -282,7 +287,7 @@ function LookupTableCreateGeneralDim(dim)
     endif
     if (allocated(lookup_table%axis3%partition)) then
       do i = 1, size(lookup_table%axis3%partition)
-        deallocate(lookup_table%axis3%partition(i)%values)
+        nullify(lookup_table%axis3%partition(i)%values)
       enddo
     endif
   endif
