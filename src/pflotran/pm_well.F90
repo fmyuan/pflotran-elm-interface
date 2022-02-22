@@ -109,6 +109,8 @@ module PM_Well_class
     PetscReal, pointer :: ql(:)
     ! well gas Darcy flux [m3/m2-s] of interior interfaces  
     PetscReal, pointer :: qg(:)
+    ! well species names
+    character(len=MAXWORDLENGTH), pointer :: species_names(:)
     ! well species aqueous concentration [mol/m3-liq] (idof,conc@segment)
     PetscReal, pointer :: aqueous_conc(:,:)
     ! well species aqueous mass [mol] (idof,mass@segment)
@@ -236,7 +238,8 @@ module PM_Well_class
     PetscInt :: nspecies 
     PetscReal :: dt
     PetscReal :: min_dt
-    PetscReal :: cumulative_dt
+    PetscReal :: cumulative_dt_flow
+    PetscReal :: cumulative_dt_tran
     PetscBool :: transport
   contains
     procedure, public :: Setup => PMWellSetup
@@ -306,6 +309,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well%pg)
   nullify(PMWellCreate%well%ql)
   nullify(PMWellCreate%well%qg)
+  nullify(PMWellCreate%well%species_names)
   nullify(PMWellCreate%well%aqueous_conc)
   nullify(PMWellCreate%well%aqueous_mass)
   nullify(PMWellCreate%well%permeability)
@@ -1808,6 +1812,14 @@ recursive subroutine PMWellInitializeRun(this)
     allocate(this%reservoir%aqueous_mass(this%nspecies,this%grid%nsegments))
   endif
 
+  if (this%transport) then
+    allocate(this%well%species_names(this%nspecies))
+    do k = 1,this%nspecies
+      this%well%species_names(k) =  &
+        this%realization%reaction_nw%species_names(k)
+    enddo
+  endif
+
   call PMWellOutputHeader(this)
   
 end subroutine PMWellInitializeRun
@@ -2304,24 +2316,98 @@ subroutine PMWellPreSolve(this)
   
   class(pm_well_type) :: this
 
+  ! pseudo-code for solve order of operations:
+  !
+  ! call pm%solve()
+  !   call pm_well%pmwellsolve()
+  !     call pm_well%pmwellsolveflow()
+  !       call pm_well%pmwellpresolveflow() 
+  !       flow solve occurs
+  !       call pm_well%pmwellpostsolveflow()
+  !     call pm_well%pmwellsolvetran()       ---> if (transport)
+  !       call pm_well%pmwellpresolvetran()  ---> if (transport)
+  !       transport solve occurs             ---> if (transport)
+  !       call pm_well%pmwellpostsolvetran() ---> if (transport)
+
+  
+end subroutine PMWellPreSolve
+
+! ************************************************************************** !
+
+subroutine PMWellPreSolveFlow(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal :: cur_time
   
   this%flow_soln%not_converged = PETSC_TRUE
   this%flow_soln%converged = PETSC_FALSE
 
-  cur_time = this%option%time - this%option%flow_dt + this%cumulative_dt
+  cur_time = this%option%time - this%option%flow_dt + this%cumulative_dt_flow
 
-  write(out_string,'(" Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+  write(out_string,'(" FLOW Step ",i6,"   Time =",1pe12.5,"   Dt =", &
                      1pe12.5," sec.")') &
                    (this%flow_soln%n_steps+1),cur_time,this%dt  
   call OptionPrint(out_string,this%option)
   
-end subroutine PMWellPreSolve
+end subroutine PMWellPreSolveFlow
+
+! ************************************************************************** !
+
+subroutine PMWellPreSolveTran(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/22/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: out_string
+  PetscReal :: cur_time
+  
+  this%tran_soln%not_converged = PETSC_TRUE
+  this%tran_soln%converged = PETSC_FALSE
+
+  cur_time = this%option%time - this%option%flow_dt + this%cumulative_dt_tran
+
+  write(out_string,'(" TRAN Step ",i6,"   Time =",1pe12.5,"   Dt =", &
+                     1pe12.5," sec.")') &
+                   (this%tran_soln%n_steps+1),cur_time,this%dt  
+  call OptionPrint(out_string,this%option)
+  
+end subroutine PMWellPreSolveTran
 
 ! ************************************************************************** !
 
 subroutine PMWellSolve(this,time,ierr)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 12/01/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: ierr
+
+  call PMWellSolveFlow(this,time,ierr)
+
+  if (this%transport) then
+    call PMWellSolveTran(this,time,ierr)
+  endif
+  
+end subroutine PMWellSolve
+
+! ************************************************************************** !
+
+subroutine PMWellSolveFlow(this,time,ierr)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 12/01/2021
@@ -2348,13 +2434,13 @@ subroutine PMWellSolve(this,time,ierr)
   ts_cut = 0
   easy_converge_count = 0
 
-  this%cumulative_dt = 0.d0
+  this%cumulative_dt_flow = 0.d0
   flow_soln%converged = PETSC_FALSE
   flow_soln%not_converged = PETSC_TRUE
 
-  do while (this%cumulative_dt < this%realization%option%flow_dt) 
+  do while (this%cumulative_dt_flow < this%realization%option%flow_dt) 
 
-    call PMWellPreSolve(this)
+    call PMWellPreSolveFlow(this)
 
     ! Fixed accumulation term
     res_fixed = 0.d0
@@ -2380,7 +2466,7 @@ subroutine PMWellSolve(this,time,ierr)
       endif
       if (ts_cut > flow_soln%max_ts_cut) then
         this%realization%option%io_buffer = &
-          'Maximum timestep cuts reached in PM Well. Solution has not &
+          ' Maximum timestep cuts reached in PM Well. Solution has not &
            &converged. Exiting.'
         call PrintErrMsg(this%realization%option)
       endif
@@ -2391,22 +2477,23 @@ subroutine PMWellSolve(this,time,ierr)
       easy_converge_count = easy_converge_count + 1
 
       ! use Newton's method to solve for the well pressure and saturation
-      call PMWellNewton(this)
+      call PMWellNewtonFlow(this)
       ! Declare convergence
-      call PMWellCheckConvergence(this,n_iter,res_fixed)
+      call PMWellCheckConvergenceFlow(this,n_iter,res_fixed)
     enddo
 
     if (.not. flow_soln%not_converged .and. flow_soln%cut_timestep .and. &
          easy_converge_count > 10 ) then
-      if (this%cumulative_dt + this%dt * this%flow_soln%ts_cut_factor < &
+      if (this%cumulative_dt_flow + this%dt * this%flow_soln%ts_cut_factor < &
           this%realization%option%flow_dt) then
         this%dt = this%dt * this%flow_soln%ts_cut_factor 
         flow_soln%cut_timestep = PETSC_FALSE
       endif
     endif
 
-    if (this%cumulative_dt + this%dt > this%realization%option%flow_dt) then
-      this%dt = this%realization%option%flow_dt - this%cumulative_dt
+    if (this%cumulative_dt_flow + this%dt > &
+        this%realization%option%flow_dt) then
+      this%dt = this%realization%option%flow_dt - this%cumulative_dt_flow
     endif
 
     ts_cut = 0
@@ -2414,7 +2501,7 @@ subroutine PMWellSolve(this,time,ierr)
  
   enddo
 
-  call PMWellPostSolve(this)
+  call PMWellPostSolveFlow(this)
 
   ! update well index (should not need to be updated every time if
   ! grid permeability and discretization are static
@@ -2428,7 +2515,60 @@ subroutine PMWellSolve(this,time,ierr)
 
   call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
   
-end subroutine PMWellSolve
+end subroutine PMWellSolveFlow
+
+! ************************************************************************** !
+
+subroutine PMWellSolveTran(this,time,ierr)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/22/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: ierr
+
+  type(well_soln_tran_type), pointer :: tran_soln
+  character(len=MAXSTRINGLENGTH) :: out_string
+  PetscInt :: n_iter
+  PetscReal :: res_fixed(this%tran_soln%ndof*this%grid%nsegments)
+
+  tran_soln => this%tran_soln
+
+  n_iter = 0
+
+  this%cumulative_dt_tran = 0.d0
+  tran_soln%converged = PETSC_FALSE
+  tran_soln%not_converged = PETSC_TRUE
+
+  do while (this%cumulative_dt_tran < this%realization%option%flow_dt) 
+
+    call PMWellPreSolveTran(this)
+
+    ! Get fixed accumulation term
+    res_fixed = 0.d0
+
+    do while (tran_soln%not_converged)
+      ! check for ts cutting
+
+      call PMWellNewtonTran(this)
+
+      call PMWellCheckConvergenceTran(this,n_iter,res_fixed)
+
+      tran_soln%converged = PETSC_TRUE
+      tran_soln%not_converged = PETSC_FALSE
+
+      tran_soln%n_steps = tran_soln%n_steps + 1
+    enddo
+
+    this%cumulative_dt_tran = this%realization%option%flow_dt
+  enddo
+
+  call PMWellPostSolveTran(this)
+
+end subroutine PMWellSolveTran
 
 ! ************************************************************************** !
 
@@ -2489,7 +2629,7 @@ end subroutine PMWellCutTimestep
 
 ! ************************************************************************** !
 
-subroutine PMWellNewton(this)
+subroutine PMWellNewtonFlow(this)
   ! 
   ! Author: Michael Nole
   ! Date: 01/20/2022
@@ -2556,7 +2696,76 @@ subroutine PMWellNewton(this)
   !--------------------------------------
   end select
 
-end subroutine PMWellNewton
+end subroutine PMWellNewtonFlow
+
+! ************************************************************************** !
+
+subroutine PMWellNewtonTran(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/23/2022
+
+  use Utility_module
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  PetscReal :: identity(this%nspecies*this%grid%nsegments,&
+                        this%nspecies*this%grid%nsegments)
+  PetscReal :: inv_Jac(this%nspecies*this%grid%nsegments, &
+                       this%nspecies*this%grid%nsegments), &
+               Jac_save(this%nspecies*this%grid%nsegments, &
+                       this%nspecies*this%grid%nsegments)
+  PetscReal :: new_dx(this%nspecies*this%grid%nsegments), &
+               res_save(this%nspecies*this%grid%nsegments)
+  PetscInt :: indx(this%nspecies*this%grid%nsegments)
+  PetscInt :: i,j
+  PetscInt :: d
+
+  res_save = 0.d0
+  Jac_save = 0.d0 
+
+  !call PMWellPerturb(this) 
+ 
+  !call PMWellResidual(this)
+
+  !call PMWellJacobian(this)
+
+  select case (this%well%well_model_type)
+  !--------------------------------------
+  case('CONSTANT_PRESSURE')
+  !--------------------------------------
+  case('DARCY')
+    do i = 1,this%nphase*this%grid%nsegments
+      do j = 1,this%nphase*this%grid%nsegments
+        if (i==j) then
+          identity(i,j) = 1.d0
+        else
+          identity(i,j) = 0.d0
+        endif
+      enddo
+    enddo
+    Jac_save = this%tran_soln%Jacobian
+    !call LUDecomposition(this%tran_soln%Jacobian, &
+    !                     this%nspecies*this%grid%nsegments, &
+    !                     indx,d)
+    res_save = this%tran_soln%residual
+    !call LUBackSubstitution(this%tran_soln%Jacobian, &
+    !                        this%nspecies*this%grid%nsegments,&
+    !                        indx,this%tran_soln%residual)
+    new_dx = this%tran_soln%residual
+    this%tran_soln%update(:) = new_dx(:)
+
+    this%tran_soln%residual = res_save
+    this%tran_soln%Jacobian = Jac_save
+
+    !call PMWellUpdateSolution(this)
+
+  !--------------------------------------
+  end select
+
+end subroutine PMWellNewtonTran
 
 ! ************************************************************************** !
 
@@ -2569,21 +2778,57 @@ subroutine PMWellPostSolve(this)
   
   class(pm_well_type) :: this
 
-  character(len=MAXSTRINGLENGTH) :: out_string
-
-  WRITE(out_string,'(" PM Well Step Complete!    Time=",1pe12.5," sec &
-                     & Total Newton Iterations =",i8)') &
-                    this%option%time,this%flow_soln%n_newton 
-  call OptionPrint(out_string,this%option)
-  WRITE(*,*) ""
+  ! placeholder
   
 end subroutine PMWellPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
+subroutine PMWellPostSolveFlow(this)
   ! 
-  ! Checks solution convergence against prescribed tolerances.
+  ! Author: Jennifer M. Frederick
+  ! Date: 08/04/2021
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: out_string
+
+  WRITE(out_string,'(" PM Well FLOW Step Complete!    Time=",1pe12.5," sec &
+                     & Total Newton Its =",i8)') &
+                    this%option%time,this%flow_soln%n_newton 
+  call OptionPrint(out_string,this%option)
+  WRITE(*,*) ""
+  
+end subroutine PMWellPostSolveFlow
+
+! ************************************************************************** !
+
+subroutine PMWellPostSolveTran(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/22/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: out_string
+
+  WRITE(out_string,'(" PM Well TRAN Step Complete!    Time=",1pe12.5," sec &
+                     & Total Newton Its =",i8)') &
+                    this%option%time,this%tran_soln%n_newton 
+  call OptionPrint(out_string,this%option)
+  WRITE(*,*) ""
+  
+end subroutine PMWellPostSolveTran
+
+! ************************************************************************** !
+
+subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
+  ! 
+  ! Checks flow solution convergence against prescribed tolerances.
   !
   ! Author: Jennifer M. Frederick
   ! Date: 01/20/2022
@@ -2741,7 +2986,7 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
     flow_soln%converged = PETSC_TRUE
     flow_soln%not_converged = PETSC_FALSE
-    out_string = ' Solution converged!  ---> ' // trim(rsn_string)
+    out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
     call OptionPrint(out_string,this%option); WRITE(*,*) ""
     this%cumulative_dt = this%cumulative_dt + this%dt
     this%flow_soln%prev_soln%pl = this%well%pl
@@ -2753,7 +2998,26 @@ subroutine PMWellCheckConvergence(this,n_iter,fixed_accum)
   endif
 
   
-end subroutine PMWellCheckConvergence
+end subroutine PMWellCheckConvergenceFlow
+
+! ************************************************************************** !
+
+subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
+  ! 
+  ! Checks transport solution convergence against prescribed tolerances.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/23/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+  PetscInt :: n_iter
+  PetscReal :: fixed_accum(this%tran_soln%ndof*this%grid%nsegments)
+  
+  ! placeholder
+  
+end subroutine PMWellCheckConvergenceTran
 
 ! ************************************************************************** !
 
@@ -3544,7 +3808,7 @@ subroutine PMWellOutputHeader(this)
   PetscBool :: exist
   PetscInt :: fid
   PetscInt :: icolumn
-  PetscInt :: k
+  PetscInt :: k, j 
   
   output_option => this%realization%output_option
   grid => this%realization%patch%grid
@@ -3593,6 +3857,19 @@ subroutine PMWellOutputHeader(this)
     units_string = '-' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    if (this%transport) then
+      do j = 1,this%nspecies
+        variable_string = 'Aqueous Conc. ' // trim(this%well%species_names(j))
+        units_string = 'mol/m^3-liq' 
+        call OutputWriteToHeader(fid,variable_string,units_string, &
+                                 cell_string,icolumn)
+        variable_string = 'Total Bulk Conc. ' &
+                           // trim(this%well%species_names(j))
+        units_string = 'mol/m^3-bulk' 
+        call OutputWriteToHeader(fid,variable_string,units_string, &
+                                 cell_string,icolumn)
+      enddo
+    endif
   enddo
   
   close(fid)
@@ -3622,7 +3899,7 @@ subroutine PMWellOutput(this)
   type(grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
-  PetscInt :: k
+  PetscInt :: k, j
   
 100 format(100es18.8)
 101 format(1I6.1)
@@ -3647,6 +3924,12 @@ subroutine PMWellOutput(this)
                                 this%well%pl(k), &
                                 this%well%liq%s(k), &
                                 this%well%gas%s(k) 
+    if (this%transport) then
+      do j = 1,this%nspecies
+        write(fid,100,advance="no") this%well%aqueous_conc(j,k), &
+                                    this%well%aqueous_mass(j,k)
+      enddo
+    endif
   enddo
   
   close(fid)
