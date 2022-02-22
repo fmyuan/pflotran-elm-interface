@@ -109,6 +109,8 @@ module PM_Well_class
     PetscReal, pointer :: ql(:)
     ! well gas Darcy flux [m3/m2-s] of interior interfaces  
     PetscReal, pointer :: qg(:)
+    ! well species names
+    character(len=MAXWORDLENGTH), pointer :: species_names(:)
     ! well species aqueous concentration [mol/m3-liq] (idof,conc@segment)
     PetscReal, pointer :: aqueous_conc(:,:)
     ! well species aqueous mass [mol] (idof,mass@segment)
@@ -302,6 +304,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well%pg)
   nullify(PMWellCreate%well%ql)
   nullify(PMWellCreate%well%qg)
+  nullify(PMWellCreate%well%species_names)
   nullify(PMWellCreate%well%aqueous_conc)
   nullify(PMWellCreate%well%aqueous_mass)
   nullify(PMWellCreate%well%permeability)
@@ -1680,6 +1683,7 @@ recursive subroutine PMWellInitializeRun(this)
   class(pm_well_type) :: this
   
   PetscInt :: nsegments 
+  PetscInt :: k
 
   nsegments = this%grid%nsegments 
 
@@ -1810,6 +1814,14 @@ recursive subroutine PMWellInitializeRun(this)
   if (this%transport) then
     allocate(this%reservoir%aqueous_conc(this%nspecies,this%grid%nsegments))
     allocate(this%reservoir%aqueous_mass(this%nspecies,this%grid%nsegments))
+  endif
+
+  if (this%transport) then
+    allocate(this%well%species_names(this%nspecies))
+    do k = 1,this%nspecies
+      this%well%species_names(k) =  &
+        this%realization%reaction_nw%species_names(k)
+    enddo
   endif
 
   call PMWellOutputHeader(this)
@@ -3506,7 +3518,7 @@ subroutine PMWellOutputHeader(this)
   PetscBool :: exist
   PetscInt :: fid
   PetscInt :: icolumn
-  PetscInt :: k
+  PetscInt :: k, j 
   
   output_option => this%realization%output_option
   grid => this%realization%patch%grid
@@ -3555,6 +3567,19 @@ subroutine PMWellOutputHeader(this)
     units_string = '-' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    if (this%transport) then
+      do j = 1,this%nspecies
+        variable_string = 'Aqueous Conc. ' // trim(this%well%species_names(j))
+        units_string = 'mol/m^3-liq' 
+        call OutputWriteToHeader(fid,variable_string,units_string, &
+                                 cell_string,icolumn)
+        variable_string = 'Total Bulk Conc. ' &
+                           // trim(this%well%species_names(j))
+        units_string = 'mol/m^3-bulk' 
+        call OutputWriteToHeader(fid,variable_string,units_string, &
+                                 cell_string,icolumn)
+      enddo
+    endif
   enddo
   
   close(fid)
@@ -3584,7 +3609,7 @@ subroutine PMWellOutput(this)
   type(grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: filename
   PetscInt :: fid
-  PetscInt :: k
+  PetscInt :: k, j
   
 100 format(100es18.8)
 101 format(1I6.1)
@@ -3609,6 +3634,12 @@ subroutine PMWellOutput(this)
                                 this%well%pl(k), &
                                 this%well%liq%s(k), &
                                 this%well%gas%s(k) 
+    if (this%transport) then
+      do j = 1,this%nspecies
+        write(fid,100,advance="no") this%well%aqueous_conc(j,k), &
+                                    this%well%aqueous_mass(j,k)
+      enddo
+    endif
   enddo
   
   close(fid)
