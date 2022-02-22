@@ -84,6 +84,7 @@ module Lookup_Table_module
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
     PetscInt :: saved_index3
     PetscInt :: num_sections
+    PetscInt :: saved_index_partition
     PetscInt, allocatable :: bounds(:)
     type(axis3_partitions_type), allocatable :: partition(:)
   end type lookup_table_axis3_general_type
@@ -274,6 +275,7 @@ function LookupTableCreateGeneralDim(dim)
     allocate(lookup_table%axis3)
     call LookupTableAxisInit(lookup_table%axis3)
     lookup_table%axis3%saved_index3 = 1
+    lookup_table%axis3%saved_index_partition = 1
     lookup_table%axis3%num_sections = UNINITIALIZED_INTEGER
     if (allocated(lookup_table%axis3%bounds)) then
       deallocate(lookup_table%axis3%bounds)
@@ -774,6 +776,8 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
     kselect = 0
 
     kselect = this%dims(2)*(i1 - 1) + j1
+    
+    axis3%saved_index_partition = kselect
 
     v3 => axis3%partition(kselect)%values
     lk = size(v3) ! redfine length
