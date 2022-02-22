@@ -2988,7 +2988,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     flow_soln%not_converged = PETSC_FALSE
     out_string = ' FLOW Solution converged!  ---> ' // trim(rsn_string)
     call OptionPrint(out_string,this%option); WRITE(*,*) ""
-    this%cumulative_dt = this%cumulative_dt + this%dt
+    this%cumulative_dt_flow = this%cumulative_dt_flow + this%dt
     this%flow_soln%prev_soln%pl = this%well%pl
     this%flow_soln%prev_soln%sg = this%well%gas%s
     !call PMWellUpdateSolution(this)
