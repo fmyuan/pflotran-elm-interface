@@ -768,6 +768,7 @@ call this%process_model_coupler_list%Destroy()
   nullify(this%realization)
   call RegressionDestroy(this%regression)
   call WaypointListDestroy(this%waypoint_list_subsurface)
+  call WaypointListDestroy(this%waypoint_list_outer)
   call OptionDestroy(this%option)
 
 end subroutine SimSubsurfStrip
