@@ -738,7 +738,9 @@ subroutine FlowConditionRead(condition,input,option)
   use String_module
   use Logging_module
   use Time_Storage_module
+  use ZFlow_Aux_module
   use Dataset_module
+  use Utility_module
 
   implicit none
 
@@ -1473,7 +1475,7 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(energy_rate)) &
         condition%itype(TWO_INTEGER) = energy_rate%itype
 
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate) .and. &
           .not.associated(saturation) .and. .not.associated(well)) then
         option%io_buffer = 'pressure, rate and saturation condition null in &
@@ -1520,6 +1522,79 @@ subroutine FlowConditionRead(condition,input,option)
       ! these are not used with richards
       if (associated(temperature)) call FlowSubConditionDestroy(temperature)
       if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
+
+    case(ZFLOW_MODE)
+
+      condition%num_sub_conditions = 0
+      ! deallocate, if allocated, as we will not use itype
+      call DeallocateArray(condition%itype)
+
+      ! IMPORTANT - at this point zflow_liq_flow_eq, zflow_heat_tran_eq and
+      ! zflow_sol_tran_eq are solely flags set to 0 or 1. They cannot 
+      ! index any arrays
+
+      if (zflow_liq_flow_eq > 0) then
+        condition%num_sub_conditions = condition%num_sub_conditions + 1
+        if (.not.associated(pressure) .and. .not.associated(rate)) then
+          option%io_buffer = 'pressure and rate null in &
+                             &condition: ' // trim(condition%name)
+          call PrintErrMsg(option)
+        endif
+      endif
+
+      if (zflow_heat_tran_eq > 0) then
+        condition%num_sub_conditions = condition%num_sub_conditions + 1
+        if (.not.associated(temperature) .and. .not.associated(enthalpy)) then
+          option%io_buffer = 'temperature and enthalpy null in &
+                             &condition: ' // trim(condition%name)
+          call PrintErrMsg(option)
+        endif
+      endif
+
+      if (zflow_sol_tran_eq > 0) then
+        condition%num_sub_conditions = condition%num_sub_conditions + 1
+        if (.not.associated(concentration)) then
+          option%io_buffer = 'concentration null in condition: ' // &
+            trim(condition%name)
+          call PrintErrMsg(option)
+        endif
+      endif
+
+      allocate(condition%sub_condition_ptr(condition%num_sub_conditions))
+      do idof = 1, condition%num_sub_conditions
+        nullify(condition%sub_condition_ptr(idof)%ptr)
+      enddo
+
+      idof = 0
+      if (zflow_liq_flow_eq > 0) then
+        idof = idof + 1
+        if (associated(pressure)) then
+          condition%pressure => pressure
+          condition%sub_condition_ptr(idof)%ptr => pressure
+        elseif (associated(rate)) then
+          condition%rate => rate
+          condition%sub_condition_ptr(idof)%ptr => rate
+        endif
+      endif
+
+      if (zflow_heat_tran_eq > 0) then
+        idof = idof + 1
+        if (associated(temperature)) then
+          condition%temperature => temperature
+          condition%sub_condition_ptr(idof)%ptr => temperature
+        elseif (associated(enthalpy)) then
+          condition%enthalpy => enthalpy
+          condition%sub_condition_ptr(idof)%ptr => enthalpy
+        endif
+      endif
+
+      if (zflow_sol_tran_eq > 0) then
+        idof = idof + 1
+        if (associated(concentration)) then
+          condition%concentration => concentration
+          condition%sub_condition_ptr(idof)%ptr => concentration
+        endif
+      endif
 
     case(PNF_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)) then
@@ -3037,7 +3112,7 @@ subroutine GeopConditionRead(condition,input,option)
             case('DIRICHLET')
               condition%itype = DIRICHLET_BC
             case('ZERO_GRADIENT')
-              condition%itype = ZERO_GRADIENT_BC  
+              condition%itype = ZERO_GRADIENT_BC
             case default ! only Dirichlet/Zero Flux implemented for now!
               call InputKeywordUnrecognized(input,word, &
                                             'geophysics condition type', &

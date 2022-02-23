@@ -2479,8 +2479,15 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
                 RealizGetVariableValueAtCell(realization_base,ghosted_id, &
                                              SECONDARY_CONCENTRATION,sec_id, &
                                              naqcomp)
-               enddo
+              enddo
             endif
+            do i=1,reaction%gas%nactive_gas
+              if (reaction%gas%active_print_me(i)) then
+                write(OUTPUT_UNIT,1000,advance='no') &
+                RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                               SECONDARY_CONCENTRATION_GAS,sec_id,i)
+              endif
+            enddo 
           endif
         endif
         if (observation%print_secondary_data(3)) then
@@ -2681,8 +2688,14 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
         if (print_secondary_data(2)) then
           do j = 1, reaction%naqcomp
             string = 'Free ion ' // trim(reaction%primary_species_names(j))
-            call OutputWriteToHeader(fid,string,'molal',cell_string,icolumn)
+            call OutputWriteToHeader(fid,string,'M',cell_string,icolumn)
           enddo
+          do j=1,reaction%gas%nactive_gas
+            if (reaction%gas%active_print_me(j)) then
+              string = 'Active Gas ' // trim(reaction%gas%active_names(j))  
+              call OutputWriteToHeader(fid,string,'Bar',cell_string,icolumn)
+            endif
+          enddo 
         endif
 
         ! add secondary mineral volume fractions to header

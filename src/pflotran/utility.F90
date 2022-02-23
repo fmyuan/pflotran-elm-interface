@@ -101,7 +101,8 @@ module Utility_module
             MatCompare, &
             ArrayIsSMonotonicInc, &
             expm1, &
-            PrintHeader
+            PrintHeader, &
+            UtilityTensorToScalar
 
 contains
 
@@ -2649,5 +2650,23 @@ subroutine PrintHeader(header,option)
   call OptionPrint(string,option)
 
 end subroutine PrintHeader
+
+
+! ************************************************************************** !
+
+function UtilityTensorToScalar(dist,v)
+
+  implicit none
+
+  PetscReal :: UtilityTensorToScalar
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal :: v(3)
+
+  PetscReal :: d(3)
+
+  d = dist(1:3)**2
+  UtilityTensorToScalar = dot_product(v,d)
+
+end function UtilityTensorToScalar
 
 end module Utility_module

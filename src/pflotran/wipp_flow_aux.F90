@@ -280,7 +280,8 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Characteristic_Curves_WIPP_module
-  use Material_Aux_class
+  use Characteristic_Curves_WIPP_Invariant_module
+  use Material_Aux_module
   use Creep_Closure_module
   use Fracture_module
   use Klinkenberg_module
@@ -295,7 +296,7 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   PetscReal :: x(option%nflowdof)
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(creep_closure_type), pointer :: creep_closure
   PetscInt :: natural_id
 
@@ -414,6 +415,8 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
       class is(sat_func_WIPP_type)
         sf%pct = sf%pct_a * perm_for_cc ** sf%pct_exp
         option%flow%pct_updated = PETSC_TRUE
+      class is (sf_WIPP_type)
+        call sf%setK(perm_for_cc)
       class default
         option%flow%pct_updated = PETSC_FALSE
     end select
@@ -456,7 +459,15 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
                          wippflo_auxvar%den_kg(lid), &
                          wippflo_auxvar%den(lid),ierr)
   else
-    aux(1) = global_auxvar%m_nacl(1)
+    if (option%iflag == WIPPFLO_UPDATE_FOR_FIXED_ACCUM) then
+      ! For the computation of fixed accumulation term use NaCl
+      ! value, m_nacl(2), from the previous time step.
+      aux(1) = global_auxvar%m_nacl(2)
+    else
+      ! Use NaCl value for the current time step, m_nacl(1), for computing
+      ! the accumulation term
+      aux(1) = global_auxvar%m_nacl(1)
+    endif
     call EOSWaterDensityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid),aux, &
                             wippflo_auxvar%den_kg(lid), &
                             wippflo_auxvar%den(lid),ierr)
@@ -479,7 +490,15 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
     call EOSWaterViscosity(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
                            wippflo_auxvar%pres(spid),visl,ierr)
   else
-    aux(1) = global_auxvar%m_nacl(1)
+    if (option%iflag == WIPPFLO_UPDATE_FOR_FIXED_ACCUM) then
+      ! For the computation of fixed accumulation term use NaCl
+      ! value, m_nacl(2), from the previous time step.
+      aux(1) = global_auxvar%m_nacl(2)
+    else
+      ! Use NaCl value for the current time step, m_nacl(1), for computing
+      ! the accumulation term
+      aux(1) = global_auxvar%m_nacl(1)
+    endif
     call EOSWaterViscosityExt(wippflo_auxvar%temp,wippflo_auxvar%pres(lid), &
                               wippflo_auxvar%pres(spid),aux,visl,ierr)
   endif
@@ -519,7 +538,7 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
   use Option_module
   use Characteristic_Curves_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -527,7 +546,7 @@ subroutine WIPPFloAuxVarPerturb(wippflo_auxvar,global_auxvar, &
   PetscInt :: natural_id
   type(wippflo_auxvar_type) :: wippflo_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
      
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
@@ -604,14 +623,14 @@ subroutine WIPPFloScalePerm(wippflo_auxvar,material_auxvar,perm,ivar)
   ! Author: Glenn Hammond
   ! Date: 08/29/17
   ! 
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module, only : GAS_PERMEABILITY, GAS_PERMEABILITY_X, &
                                GAS_PERMEABILITY_Y, GAS_PERMEABILITY_Z
 
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: perm
   PetscInt :: ivar
 
@@ -643,14 +662,14 @@ subroutine WIPPFloPrintAuxVars(wippflo_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: string
   type(option_type) :: option
@@ -718,14 +737,14 @@ subroutine WIPPFloOutputAuxVars1(wippflo_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: string
   PetscBool :: append
@@ -987,13 +1006,13 @@ subroutine WIPPFloConvertUnitsToBRAGFloRes(Res,material_auxvar,option)
   ! Date: 11/16/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof)
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   if (wippflo_use_bragflo_units) then
     Res = Res * fmw_comp * option%flow_dt / material_auxvar%volume
@@ -1012,13 +1031,13 @@ subroutine WIPPFloConvertUnitsToBRAGFloJac(Jac,material_auxvar,option)
   ! Date: 11/16/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(option_type) :: option
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscInt :: irow
 

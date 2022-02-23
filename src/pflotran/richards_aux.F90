@@ -20,6 +20,9 @@ module Richards_Aux_module
   PetscInt, public :: richards_ts_cut_count
   PetscInt, public :: richards_ts_count
 
+  PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_FIXED_ACCUM = 0
+  PetscInt, parameter, public :: RICHARDS_UPDATE_FOR_ACCUM = 1
+
   type, public :: richards_auxvar_type
   
     PetscReal :: pc
@@ -197,7 +200,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -206,7 +209,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: x(option%nflowdof)
   type(richards_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   PetscBool :: update_porosity
   
@@ -325,7 +328,15 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,0.d0, &
                            visl,dvis_dt,dvis_dp,ierr) 
   else
-    aux(1) = global_auxvar%m_nacl(1)
+    if (option%iflag == RICHARDS_UPDATE_FOR_FIXED_ACCUM) then
+      ! For the computation of fixed accumulation term use NaCl
+      ! value, m_nacl(2), from the previous time step.
+      aux(1) = global_auxvar%m_nacl(2)
+    else
+      ! Use NaCl value for the current time step, m_nacl(1), for computing
+      ! the accumulation term
+      aux(1) = global_auxvar%m_nacl(1)
+    endif
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
@@ -373,7 +384,7 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   use EOS_Water_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Common_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -381,7 +392,7 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   class(characteristic_curves_type) :: characteristic_curves
   type(richards_auxvar_type) :: rich_auxvar, rich_auxvar_pert
   type(global_auxvar_type) :: global_auxvar, global_auxvar_pert
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(material_auxvar_type) :: material_auxvar_pert
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), pert
   PetscInt :: ideriv

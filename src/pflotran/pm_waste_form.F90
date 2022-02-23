@@ -2576,7 +2576,7 @@ subroutine PMWFSetRegionScaling(this,waste_form)
   ! Date: 10/21/2016
   !
 
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
   use Utility_module
 
@@ -2602,7 +2602,7 @@ subroutine PMWFSetRegionScaling(this,waste_form)
 ! total_volume_local: [m3] total local waste form region volume
 ! total_volume_global: [m3] total global waste form region volume
 ! -----------------------------------------------------------
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   PetscInt :: k 
   PetscInt :: local_id, ghosted_id
@@ -3114,7 +3114,7 @@ subroutine PMWFInitializeTimestep(this)
 
   use Utility_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Field_module
   use Option_module
   use Grid_module
@@ -3177,7 +3177,7 @@ subroutine PMWFInitializeTimestep(this)
   class(waste_form_base_type), pointer :: cur_waste_form
   class(wf_mechanism_base_type), pointer :: cwfm
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -3689,7 +3689,7 @@ subroutine PMWFSolve(this,time,ierr)
   ! must be the outer loop, in order for the vec_p(i) indexing to work.
   
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reactive_Transport_Aux_module, only : rt_min_saturation
   use Grid_module
   use Option_module
@@ -3747,7 +3747,7 @@ subroutine PMWFSolve(this,time,ierr)
   PetscLogDouble :: log_start_time, log_end_time
   character(len=MAXWORDLENGTH) :: word
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   class(crit_mechanism_base_type), pointer :: cur_criticality
   type(option_type), pointer :: option
@@ -7215,7 +7215,7 @@ subroutine ANNReadH5File(this, option)
  
   call h5open_f(hdf5_err)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
+  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
   call HDF5GroupOpen(file_id,group_name,group_id,option)
 
   dataset_name = 'input_hidden1_weights'
@@ -7442,7 +7442,7 @@ subroutine KnnrReadH5File(this, option)
  
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
  
-  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,option)
+  call HDF5OpenFileReadOnly(h5_name,file_id,prop_id,'',option)
 
   call h5pclose_f(prop_id,hdf5_err)
 

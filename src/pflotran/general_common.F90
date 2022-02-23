@@ -58,13 +58,13 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   type(general_auxvar_type) :: gen_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: soil_heat_capacity
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof) 
@@ -421,7 +421,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   ! Date: 03/09/11
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Connection_module
   use Fracture_module
   use Klinkenberg_module
@@ -433,7 +433,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   
   type(general_auxvar_type) :: gen_auxvar_up, gen_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
@@ -528,8 +528,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_up,dist,perm_up)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
   
 #if 0
 !TODO(geh): remove for now
@@ -2497,7 +2497,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! Date: 03/09/11
   ! 
   use Option_module                              
-  use Material_Aux_class
+  use Material_Aux_module
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
@@ -2512,7 +2512,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(general_auxvar_type) :: gen_auxvar_up, gen_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
@@ -2611,7 +2611,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   J = 0.d0
   v_darcy = 0.d0  
 
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
 
 #if 0
   ! Fracture permeability change only available for structured grid (Heeho)
@@ -3927,7 +3927,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   use Option_module
   use EOS_Water_module
   use EOS_Gas_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Characteristic_Curves_module
 
   implicit none
@@ -3935,7 +3935,7 @@ subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
   type(option_type) :: option
   type(general_auxvar_type) :: gen_auxvar,gen_auxvar_ss
   type(global_auxvar_type) :: global_auxvar,global_auxvar_ss
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: ss_flow_vol_flux(option%nphase)
   class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
@@ -4341,13 +4341,13 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   type(general_auxvar_type) :: gen_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
@@ -4409,7 +4409,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   ! Date: 03/09/11
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module, only : count_upwind_direction_flip
   use Characteristic_Curves_Thermal_module
   
@@ -4417,7 +4417,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   
   type(general_auxvar_type) :: gen_auxvar_up(0:), gen_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -4541,7 +4541,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   ! 
 
   use Option_module 
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module, only : count_upwind_direction_flip
   use Characteristic_Curves_Thermal_module
   
@@ -4553,7 +4553,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(general_auxvar_type) :: gen_auxvar_up, gen_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   class(cc_thermal_type) :: thermal_cc_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -4637,7 +4637,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
 
   use Option_module
   use Coupler_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Characteristic_Curves_module
 
   implicit none
@@ -4648,7 +4648,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   type(global_auxvar_type) :: global_auxvar, global_auxvar_ss
   class(characteristic_curves_type) :: characteristic_curves
   PetscInt :: natural_id
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   
@@ -4767,7 +4767,7 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
   use Option_module
   use General_Aux_module
   use Global_Aux_module
-  use Material_Aux_class  
+  use Material_Aux_module  
 
   implicit none
   
@@ -4775,7 +4775,7 @@ subroutine GeneralAuxVarDiff(idof,general_auxvar,global_auxvar, &
   PetscInt :: idof
   type(general_auxvar_type) :: general_auxvar, general_auxvar_pert
   type(global_auxvar_type) :: global_auxvar, global_auxvar_pert
-  class(material_auxvar_type) :: material_auxvar, material_auxvar_pert
+  type(material_auxvar_type) :: material_auxvar, material_auxvar_pert
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: compare_analytical_derivative
   PetscReal :: pert

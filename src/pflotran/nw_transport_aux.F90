@@ -576,7 +576,8 @@ subroutine NWTRead(reaction_nw,input,option)
         enddo
         if (num_materials == 0) then
           option%io_buffer = 'ERROR: At least one borehole MATERIAL_PROPERTY &
-            &name must be provided in the ' // trim(error_string_base) // ' block.'
+            &name must be provided in the ' // trim(error_string_base) // &
+            ' block.'
           call PrintErrMsg(option)
         endif
         allocate(reaction_nw%params%bh_material_names(num_materials))
@@ -584,6 +585,7 @@ subroutine NWTRead(reaction_nw,input,option)
           reaction_nw%params%bh_material_names(num_materials) = &
                                                   bh_materials(num_materials)
         enddo
+  !===========================================================================!
       case('WASHING_MACHINE')
         error_string = trim(error_string_base) // ',WASHING_MACHINE'
         do 
@@ -606,6 +608,7 @@ subroutine NWTRead(reaction_nw,input,option)
             call InputErrorMsg(input,option,'VALUE',error_string)
           endif
         enddo
+  !===========================================================================!
       case default
         call InputKeywordUnrecognized(input,keyword,error_string_base,option)
     end select

@@ -219,7 +219,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   end select
   
   if (option%flow%density_depends_on_salinity) then
-    allocate(auxvar%m_nacl(ONE_INTEGER))
+    allocate(auxvar%m_nacl(TWO_INTEGER))
     auxvar%m_nacl = 0.d0
   endif
   

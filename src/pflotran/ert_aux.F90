@@ -129,7 +129,7 @@ subroutine ERTAuxVarCompute(x,ert_auxvar,global_auxvar,rt_auxvar, &
   use Option_module
   use Global_Aux_module
   use Reactive_Transport_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -138,7 +138,7 @@ subroutine ERTAuxVarCompute(x,ert_auxvar,global_auxvar,rt_auxvar, &
   type(ert_auxvar_type) :: ert_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
 
   ! calculate bulk_conductivity = f(global,rt,material-auxars)

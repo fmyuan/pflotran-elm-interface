@@ -839,14 +839,14 @@ subroutine InvERTEvaluateCostFunction(this)
 
   use Option_module
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Survey_module
 
   implicit none
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(survey_type), pointer :: survey
@@ -911,6 +911,8 @@ subroutine InvERTEvaluateCostFunction(this)
     ! get cond & block of the ith constrained eq.
     ghosted_id = rblock(iconst,1)
     ghosted_id_nb = rblock(iconst,2)
+    if ((patch%imat(ghosted_id) <= 0) .or. &
+        (patch%imat(ghosted_id_nb) <= 0)) cycle
     irb = rblock(iconst,3)
     cond_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
     x = 0.d0
@@ -1065,7 +1067,7 @@ subroutine InversionERTCalculateUpdate(this)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
 
-  PetscInt :: local_id
+  PetscInt :: local_id,ghosted_id
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
@@ -1082,6 +1084,8 @@ subroutine InversionERTCalculateUpdate(this)
     ! Get updated conductivity as m_new = m_old + del_m (where m = log(sigma))
     call VecGetArrayF90(this%quantity_of_interest,vec_ptr,ierr);CHKERRQ(ierr)
     do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
       vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + this%del_cond(local_id))
       if (vec_ptr(local_id) > this%maxcond) vec_ptr(local_id) = this%maxcond
       if (vec_ptr(local_id) < this%mincond) vec_ptr(local_id) = this%mincond
@@ -1231,7 +1235,7 @@ subroutine InversionERTCGLSRhs(this)
   !
 
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   use Survey_module
 
@@ -1239,7 +1243,7 @@ subroutine InversionERTCGLSRhs(this)
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(survey_type), pointer :: survey
@@ -1334,14 +1338,14 @@ subroutine InversionERTBuildWm(this)
 
   use Patch_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1388,6 +1392,9 @@ contains
     ! get cond & block of the ith constrained eq.
     ghosted_id = rblock(iconst,1)
     ghosted_id_nb = rblock(iconst,2)
+    if (patch%imat(ghosted_id) <= 0 .or.   &
+        patch%imat(ghosted_id_nb) <=0 ) return
+
     irb = rblock(iconst,3)
     cond_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
     x = 0.d0
@@ -1531,6 +1538,7 @@ subroutine InversionERTAllocateWm(this)
   num_constraints = 0
   do local_id=1,grid%nlmax
     ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
     do iconblock=1,constrained_block%num_constrained_block
       if (constrained_block%structure_metric(iconblock) > 0) then
         if (constrained_block%material_id(iconblock) == &
@@ -1543,6 +1551,7 @@ subroutine InversionERTAllocateWm(this)
             do inbr=1,num_neighbor
               ghosted_id_nbr = abs( &
                             grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) <= 0) cycle
               if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
                 do ilink=1,constrained_block%block_link(iconblock,1)
                   if (constrained_block%block_link(iconblock,ilink+1) == &
@@ -1575,6 +1584,7 @@ subroutine InversionERTAllocateWm(this)
   num_constraints = 0
   do local_id=1,grid%nlmax
     ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
     do iconblock=1,constrained_block%num_constrained_block
       if (constrained_block%structure_metric(iconblock) > 0) then
         if (constrained_block%material_id(iconblock) == &
@@ -1589,6 +1599,7 @@ subroutine InversionERTAllocateWm(this)
             do inbr=1,num_neighbor
               ghosted_id_nbr = abs( &
                             grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) <= 0) cycle
               if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
                 do ilink=1,constrained_block%block_link(iconblock,1)
                   if (constrained_block%block_link(iconblock,ilink+1) == &
@@ -1704,13 +1715,14 @@ subroutine InversionERTComputeMatVecProductJp(this)
     wm = this%Wm(iconst)
     irb = rblock(iconst,3)
     ghosted_id = rblock(iconst,1)
-
+    if (patch%imat(ghosted_id) <= 0) cycle
     if (constrained_block%structure_metric(irb) == 3 .or. &
         constrained_block%structure_metric(irb) == 4) then
       this%q(num_measurement + iconst) = &
         sqrt(beta) * wm * pvec_ptr(ghosted_id)
     else
       ghosted_id_nb = rblock(iconst,2)
+      if (patch%imat(ghosted_id_nb) <= 0) cycle
       this%q(num_measurement + iconst) = &
           sqrt(beta) * wm * (pvec_ptr(ghosted_id) - pvec_ptr(ghosted_id_nb))
     endif
@@ -1782,13 +1794,14 @@ subroutine InversionERTComputeMatVecProductJtr(this)
     wm = this%Wm(iconst)
     irb = rblock(iconst,3)
     ghosted_id = rblock(iconst,1)
-
+    if (patch%imat(ghosted_id) <= 0) cycle
     if (constrained_block%structure_metric(irb) == 3 .or. &
         constrained_block%structure_metric(irb) == 4) then
       svec_ptr(ghosted_id) = svec_ptr(ghosted_id) + &
         sqrt(beta) * wm * this%r(num_measurement + iconst)
     else
       ghosted_id_nb = rblock(iconst,2)
+      if (patch%imat(ghosted_id_nb) <= 0) cycle
       svec_ptr(ghosted_id) = svec_ptr(ghosted_id) + &
               sqrt(beta) * wm * this%r(num_measurement + iconst)
       svec_ptr(ghosted_id_nb) = svec_ptr(ghosted_id_nb) - &

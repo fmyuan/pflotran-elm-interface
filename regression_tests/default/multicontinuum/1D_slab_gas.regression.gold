@@ -1,0 +1,23 @@
+-- CONCENTRATION: Total A(aq) --
+      Max:   8.5203613541160E-01
+      Min:   8.5203613541160E-01
+     Mean:   8.5203613541160E-01
+        1:   8.5203613541160E-01
+-- CONCENTRATION: Active Gas A(g) --
+      Max:   2.7841522963199E+05
+      Min:   2.7841522963199E+05
+     Mean:   2.7841522963199E+05
+        1:   2.7841522963199E+05
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   7.1596384048462E-02
+   Time Steps:          208
+   Newton Iterations:          504
+   Linear Solver Iterations:          504
+   Time Step Cuts:            0
+   Solution 2-Norm:   8.5446246166260E-01
+   Residual 2-Norm:   2.8782857174059E-16

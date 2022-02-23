@@ -46,7 +46,7 @@ subroutine WIPPFloSetup(realization)
   use Coupler_module
   use Connection_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Output_Aux_module
   use Characteristic_Curves_module
   use WIPP_Characteristic_Curve_module
@@ -54,7 +54,7 @@ subroutine WIPPFloSetup(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -72,7 +72,7 @@ subroutine WIPPFloSetup(realization)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(characteristic_curves_type), pointer :: cc
   
   option => realization%option
@@ -200,7 +200,7 @@ subroutine WIPPFloInitializeTimestep(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   wippflo_newton_iteration_number = 0
   update_upwind_direction = PETSC_TRUE
@@ -224,7 +224,7 @@ subroutine WIPPFloUpdateSolution(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   if (realization%option%compute_mass_balance_new) then
     call WIPPFloUpdateMassBalance(realization)
@@ -251,7 +251,7 @@ subroutine WIPPFloTimeCut(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   wippflo_ts_cut_count = wippflo_ts_cut_count + 1
 
@@ -274,11 +274,11 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
 
   type(option_type), pointer :: option
@@ -286,7 +286,7 @@ subroutine WIPPFloComputeMassBalance(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id
@@ -340,7 +340,7 @@ subroutine WIPPFloZeroMassBalanceDelta(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -381,7 +381,7 @@ subroutine WIPPFloUpdateMassBalance(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -434,12 +434,12 @@ subroutine WIPPFloUpdateAuxVars(realization)
   use Coupler_module
   use Connection_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use General_Aux_module, only : ANY_STATE, TWO_PHASE_STATE
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -450,7 +450,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)  
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)  
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
@@ -600,11 +600,11 @@ subroutine WIPPFloUpdateFixedAccum(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -612,7 +612,7 @@ subroutine WIPPFloUpdateFixedAccum(realization)
   type(field_type), pointer :: field
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
@@ -656,7 +656,6 @@ subroutine WIPPFloUpdateFixedAccum(realization)
     call WIPPFloAccumulation(wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
-                             material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              PETSC_FALSE)
     call WIPPFloConvertUnitsToBRAGFlo(accum_p(local_start:local_end), &
@@ -688,7 +687,7 @@ subroutine WIPPFloNumericalJacobianTest(xx,B,realization,pmwss_ptr)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   Mat :: B
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
 
@@ -843,7 +842,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   use Connection_module
   use Grid_module
   use Coupler_module
-  use Material_Aux_class
+  use Material_Aux_module
   use PM_WIPP_SrcSink_class
   use Upwind_Direction_module
 
@@ -852,7 +851,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscErrorCode :: ierr
   PetscViewer :: viewer
@@ -872,7 +871,7 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt, pointer :: upwind_direction(:,:)
@@ -972,7 +971,6 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
     call WIPPFloAccumulation(wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
-                             material_parameter%soil_heat_capacity(imat), &
                              option,Res,PETSC_FALSE)
     call WIPPFloConvertUnitsToBRAGFlo(Res,material_auxvars(ghosted_id),option)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
@@ -1318,7 +1316,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   use Connection_module
   use Coupler_module
   use Field_module
-  use Material_Aux_class
+  use Material_Aux_module
   use PM_WIPP_SrcSink_class
   use Upwind_Direction_module
   use Debug_module
@@ -1328,7 +1326,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   class(pm_wipp_srcsink_type), pointer :: pmwss_ptr
   PetscErrorCode :: ierr
   PetscViewer :: viewer
@@ -1364,7 +1362,7 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt, pointer :: upwind_direction(:,:)
   PetscInt, pointer :: upwind_direction_bc(:,:)
   
@@ -1418,7 +1416,6 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
     call WIPPFloAccumDerivative(wippflo_auxvars(:,ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
-                              material_parameter%soil_heat_capacity(imat), &
                               option, &
                               Jup) 
     call WIPPFloConvertUnitsToBRAGFlo(Jup,material_auxvars(ghosted_id), &
@@ -1725,7 +1722,7 @@ subroutine WIPPFloSetPlotVariables(realization,list)
     
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
@@ -1783,7 +1780,7 @@ subroutine WIPPFloCreepShutDown(realization)
   use Option_module
   use WIPP_module
   use Creep_Closure_module
-  use Material_Aux_class, only: material_auxvar_type, MaterialAuxVarSetValue
+  use Material_Aux_module, only: material_auxvar_type, MaterialAuxVarSetValue
   use Variables_module, only : SOIL_REFERENCE_PRESSURE
   
   implicit none
@@ -1793,7 +1790,7 @@ subroutine WIPPFloCreepShutDown(realization)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(creep_closure_type), pointer :: creep_closure
   PetscInt :: ghosted_id
   PetscInt :: creep_closure_id
@@ -1842,7 +1839,7 @@ subroutine WIPPFloSSSandbox(residual,Jacobian,compute_derivative, &
   use petscmat
   use Option_module
   use Grid_module
-  use Material_Aux_class, only: material_auxvar_type
+  use Material_Aux_module, only: material_auxvar_type
   use SrcSink_Sandbox_module
   use SrcSink_Sandbox_Base_class
   
@@ -1851,7 +1848,7 @@ subroutine WIPPFloSSSandbox(residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   
   type(grid_type) :: grid
@@ -1969,7 +1966,7 @@ subroutine WIPPFloMapBCAuxVarsToGlobal(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -2020,7 +2017,7 @@ subroutine WIPPFloDestroy(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.

@@ -7,7 +7,7 @@ module PM_TH_TS_class
   use TH_module
   use TH_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
   use PM_TH_class
@@ -125,7 +125,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   PetscInt :: ghosted_id,local_id,istart,iend
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: icc, icct
   PetscErrorCode :: ierr
 
@@ -239,7 +239,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   use Grid_module
   use Patch_module
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Field_module
 
   implicit none
@@ -254,7 +254,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(th_parameter_type), pointer :: th_parameter
   PetscInt :: local_id, ghosted_id
 
@@ -427,7 +427,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   use Grid_module
   use Patch_module
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Field_module
 
   implicit none
@@ -443,7 +443,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(th_parameter_type), pointer :: th_parameter
 
   PetscInt :: local_id, ghosted_id

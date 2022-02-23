@@ -136,7 +136,7 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
                                          error_string,option)
   ! 
   ! Reads input file parameters associated with the subsurface flow process 
-  !       model
+  ! model. SC stands for "select case"
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/05/16
@@ -416,7 +416,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   use Condition_Control_module
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_class, only : POROSITY_INITIAL, POROSITY_BASE, &
+  use Material_Aux_module, only : POROSITY_INITIAL, POROSITY_BASE, &
                                  POROSITY_CURRENT
   use String_module, only : StringWrite
   use Utility_module, only : Equal
@@ -501,7 +501,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
   use Patch_module
   use Discretization_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Material_module
   use HDF5_module
   use Dataset_Base_class
@@ -513,10 +513,10 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_type), pointer :: Material
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(material_property_type), pointer :: material_property
@@ -636,7 +636,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
   use Variables_module, only : POROSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE, POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
   
   implicit none
   
@@ -677,7 +677,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   use Variables_module, only : POROSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z
   use Material_module
-  use Material_Aux_class, only : POROSITY_CURRENT, POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_CURRENT, POROSITY_BASE
   
   implicit none
   
@@ -869,7 +869,7 @@ subroutine PMSubsurfaceFlowTimeCut(this)
   ! Date: 04/21/14 
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_class, only : POROSITY_BASE, POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_BASE, POROSITY_CURRENT
   
   implicit none
   
@@ -908,7 +908,7 @@ subroutine PMSubsurfaceFlowTimeCutPostInit(this)
   ! Date: 08/23/17
   use Material_module
   use Variables_module, only : POROSITY
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   
   implicit none
   
@@ -938,7 +938,7 @@ subroutine PMSubsurfaceFlowFinalizeTimestep(this)
   use Material_module
   use Global_module
   use Variables_module, only : POROSITY
-  use Material_Aux_class, only : POROSITY_CURRENT
+  use Material_Aux_module, only : POROSITY_CURRENT
 
   implicit none
   

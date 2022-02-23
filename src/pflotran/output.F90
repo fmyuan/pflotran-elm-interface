@@ -2455,7 +2455,7 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
   ! Date: 03/02/17
   !
   use Option_module
-  use Material_Aux_class, only : soil_compressibility_index, &
+  use Material_Aux_module, only : soil_compressibility_index, &
                                  soil_reference_pressure_index
   use Variables_module
 

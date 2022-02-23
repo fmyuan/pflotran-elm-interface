@@ -19,6 +19,8 @@ module Communicator_Aux_module
     PetscMPIInt :: mycommsize       ! size of PETSC_COMM_WORLD
     PetscMPIInt :: mygroup          ! id of group in PETSC_COMM_WORLD
     PetscMPIInt :: mygroup_id
+
+    PetscLogDouble :: start_time
   end type comm_type
 
   public :: CommCreate, &
@@ -54,8 +56,9 @@ function CommCreate()
   comm%myrank = 0
   comm%mycommsize = 0
   comm%mygroup = 0
-
   comm%mygroup_id = 0
+
+  comm%start_time = 0.d0
 
   CommCreate => comm
 
@@ -77,6 +80,7 @@ subroutine CommInitPetsc(comm,communicator)
   call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)
 
   comm%global_comm = PETSC_COMM_WORLD
+  call PetscTime(comm%start_time,ierr);CHKERRQ(ierr)
   call CommPopulate(comm)
 
 end subroutine CommInitPetsc
