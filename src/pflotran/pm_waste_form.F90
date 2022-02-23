@@ -7120,6 +7120,9 @@ subroutine CritInventoryRead(this,filename,option)
   PetscReal, pointer :: tmpaxis1(:)
   PetscReal, pointer :: tmpaxis2(:)
   PetscReal, pointer :: tmpaxis3(:)
+  PetscInt :: mode
+  PetscInt, parameter :: mode_lp = 1
+  PetscInt, parameter :: mode_tl = 2
   ! ----------------------------------
 
   ict = 0
@@ -7129,6 +7132,7 @@ subroutine CritInventoryRead(this,filename,option)
   time_units_conversion  = 1.d0
   power_units_conversion = 1.d0
   data_units_conversion  = 1.d0
+  mode = UNINITIALIZED_INTEGER
   
   write(str1,*)ict
   write(str2,*)num_species
@@ -7152,6 +7156,23 @@ subroutine CritInventoryRead(this,filename,option)
     call StringToUpper(keyword)
 
     select case(trim(keyword))
+    !-------------------------------------
+      case('MODE')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'interpolation mode',error_string)
+        call StringToUpper(word)
+        select case(word)
+        !-------------------------------------
+          case('POLYNOMIAL','LAGRANGE_POLYNOMIAL')
+            mode = mode_lp
+        !-------------------------------------
+          case('LINEAR','TRILINEAR')
+            mode = mode_tl
+        !-------------------------------------
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                   'interpolation mode',option)
+        end select
     !-------------------------------------
       case('NUM_START_TIMES')
         call InputReadInt(input,option,this%num_start_times)
@@ -7250,6 +7271,9 @@ subroutine CritInventoryRead(this,filename,option)
           if (Initialized(this%total_points)) then
             allocate(this%nuclide(i)%lookup%axis3%bounds(num_sections))
             allocate(this%nuclide(i)%lookup%axis3%partition(num_sections))
+          endif
+          if (Initialized(mode)) then
+            this%nuclide(i)%lookup%mode = mode
           endif
         enddo
 
