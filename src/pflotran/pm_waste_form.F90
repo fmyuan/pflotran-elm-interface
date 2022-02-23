@@ -3236,7 +3236,9 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal :: t_low, t_high
   PetscReal, pointer :: times(:)
   PetscBool :: dataset_solution
+  PetscBool :: expanded_dataset_solution
   class(dataset_ascii_type), pointer :: dataset
+  class(crit_inventory_type), pointer :: critinv
   
   avg_temp_global = UNINITIALIZED_DOUBLE
   avg_sat_global = UNINITIALIZED_DOUBLE
@@ -3457,13 +3459,52 @@ subroutine PMWFInitializeTimestep(this)
         (option%time >= cur_waste_form%decay_start_time)) then !--------------
 
     dataset_solution = PETSC_FALSE
+    expanded_dataset_solution = PETSC_FALSE
     if (associated(cur_waste_form%criticality_mechanism)) then
       if (associated(cur_waste_form%criticality_mechanism%rad_dataset)) then 
         dataset_solution = PETSC_TRUE
       endif 
+      if (associated(cur_waste_form%criticality_mechanism% &
+        inventory_dataset)) then 
+        expanded_dataset_solution = PETSC_TRUE
+      endif 
     endif
 
-    if (dataset_solution) then
+    if (expanded_dataset_solution) then
+      ! interpolate radionuclide inventories using lookup tables from external
+      !   neutronics calculations
+      cur_criticality => cur_waste_form%criticality_mechanism
+      critinv => cur_criticality%inventory_dataset
+      
+      ! check number of species
+      if (num_species > critinv%num_species) then
+        option%io_buffer = 'Number of species listed in the criticality ' &
+                         //'inventory lookup table "' //trim(critinv%file_name)&
+                         //'" is less than the number specified ' &
+                         //'in Waste Form Process Model.' 
+        call PrintErrMsg(option)
+      elseif (num_species < critinv%num_species) then
+        option%io_buffer = 'Number of species listed in the criticality ' &
+                         //'inventory lookup table "' //trim(critinv%file_name)&
+                         //'" is greater than the number ' &
+                         //'specified in Waste Form Process Model.'
+        call PrintErrMsg(option)
+      endif
+      
+      do k = 1,num_species
+       cur_waste_form%rad_mass_fraction(k) = &
+         critinv%Evaluate(k, &
+                          cur_criticality%crit_event%crit_start, &
+                          cur_criticality%crit_heat, &
+                          option%time)
+        
+       cur_waste_form%rad_concentration(k) = &
+         cur_waste_form%rad_mass_fraction(k) / &
+         cwfm%rad_species_list(k)%formula_weight
+      enddo
+      
+      
+    elseif (dataset_solution) then
       !Import radionuclide inventory from external neutronics code calculations
       dataset => cur_waste_form%criticality_mechanism%rad_dataset
       times => dataset%time_storage%times
