@@ -2446,7 +2446,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
     res_fixed = 0.d0
     do i = 1,this%grid%nsegments
       call PMWellAccumulation(this,this%well,i,res)
-      res_fixed(flow_soln%ndof*(i-1)+1:flow_soln%ndof*i) = -1.d0 * res 
+      res_fixed(flow_soln%ndof*(i-1)+1:flow_soln%ndof*i) = -1.d0 * res * this%dt
     enddo
 
     n_iter = 0
@@ -2472,7 +2472,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
       endif
 
       flow_soln%residual = 0.d0
-      flow_soln%residual = res_fixed
+      flow_soln%residual = res_fixed / this%dt
 
       easy_converge_count = easy_converge_count + 1
 
@@ -2881,7 +2881,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   rsn_string = ''
 
   ! Update the residual
-  this%flow_soln%residual = fixed_accum
+  this%flow_soln%residual = fixed_accum / this%dt
   call PMWellResidual(this)
 
   do k = 1,this%grid%nsegments
