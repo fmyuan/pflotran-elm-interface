@@ -235,9 +235,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
   PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
 
-  PetscInt, parameter, public :: ZFLOW_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: ZFLOW_CONDUCTANCE_DOF = 2
-
   PetscInt, parameter, public :: MIS_PRESSURE_DOF = 1
   PetscInt, parameter, public :: MIS_CONCENTRATION_DOF = 2
 

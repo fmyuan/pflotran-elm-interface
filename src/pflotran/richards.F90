@@ -5,7 +5,7 @@ module Richards_module
   use Richards_Aux_module
   use Richards_Common_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use InlineSurface_Aux_module
   use InlineSurface_module
 #ifdef BUFFER_MATRIX
@@ -66,7 +66,7 @@ subroutine RichardsTimeCut(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   richards_ts_cut_count = richards_ts_cut_count + 1
   call RichardsInitializeTimestep(realization)  
@@ -85,7 +85,7 @@ subroutine RichardsSetup(realization)
   use Patch_module
   use Output_Aux_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(output_variable_list_type), pointer :: list
   
@@ -122,7 +122,7 @@ subroutine RichardsSetupPatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -139,7 +139,7 @@ subroutine RichardsSetupPatch(realization)
   PetscReal :: tempreal
   PetscErrorCode :: ierr
   type(material_parameter_type), pointer :: material_parameter
-  class(material_auxvar_type), pointer :: material_auxvars(:)  
+  type(material_auxvar_type), pointer :: material_auxvars(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars_bc(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars_ss(:)  
@@ -368,7 +368,7 @@ subroutine RichardsComputeMassBalance(realization,mass_balance)
 
   use Realization_Subsurface_class
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
   
   mass_balance = 0.d0
@@ -396,7 +396,7 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nphase)
 
   type(option_type), pointer :: option
@@ -404,7 +404,7 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: inlinesurface_auxvars(:)
   type(region_type), pointer :: region
   
@@ -466,7 +466,7 @@ subroutine RichardsZeroMassBalDeltaPatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -519,7 +519,7 @@ subroutine RichardsUpdateMassBalancePatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -580,12 +580,12 @@ subroutine RichardsUpdatePermPatch(realization)
   use Patch_module
   use Field_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -593,7 +593,7 @@ subroutine RichardsUpdatePermPatch(realization)
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(discretization_type), pointer :: discretization
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
   PetscReal :: scale
@@ -639,19 +639,12 @@ subroutine RichardsUpdatePermPatch(realization)
         scale = permfactor_max
       endif
     endif
-    !geh: this is a kludge for gfortran.  the code reports errors when 
-    !     material_auxvars(ghosted_id)%permeability is used.
-    ! Not an issue with Intel
-    perm_ptr => material_auxvars(ghosted_id)%permeability
-    perm_ptr(perm_xx_index) = perm0_xx_p(local_id)*scale
-    perm_ptr(perm_yy_index) = perm0_yy_p(local_id)*scale
-    perm_ptr(perm_zz_index) = perm0_zz_p(local_id)*scale
-!    material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
-!      perm0_xx_p(local_id)*scale
-!    material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
-!      perm0_yy_p(local_id)*scale
-!    material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
-!      perm0_zz_p(local_id)*scale
+    material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
+      perm0_xx_p(local_id)*scale
+    material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
+      perm0_yy_p(local_id)*scale
+    material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
+      perm0_zz_p(local_id)*scale
   enddo
   
   call VecRestoreArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
@@ -693,7 +686,7 @@ subroutine RichardsUpdateAuxVars(realization)
   ! 
 
   use Realization_Subsurface_class
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   call RichardsUpdateAuxVarsPatch(realization)
 
@@ -723,7 +716,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -739,7 +732,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)  
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)  
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, region_id
   PetscInt :: iphasebc, iphase, i, istart, iend
   PetscReal, pointer :: xx_loc_p(:)
@@ -935,7 +928,7 @@ subroutine RichardsInitializeTimestep(realization)
   
 
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscViewer :: viewer
   PetscErrorCode :: ierr
@@ -980,7 +973,7 @@ subroutine RichardsUpdateSolution(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   call RichardsUpdateSolutionPatch(realization)
 
@@ -1001,7 +994,7 @@ subroutine RichardsUpdateSolutionPatch(realization)
     
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   if (realization%option%compute_mass_balance_new) then
     call RichardsUpdateMassBalancePatch(realization)
@@ -1031,7 +1024,7 @@ subroutine RichardsUpdateFixedAccum(realization)
 
   use Realization_Subsurface_class
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   call RichardsUpdateFixedAccumPatch(realization)
 
@@ -1058,7 +1051,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1067,7 +1060,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   type(region_type), pointer :: region
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id
   PetscInt :: numfaces, jface, ghost_face_id, j, region_id
@@ -1156,7 +1149,7 @@ subroutine RichardsNumericalJacTest(xx,realization)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   Vec :: xx_pert
   Vec :: res
@@ -1248,7 +1241,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   use Option_module
   use Logging_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module
   use Debug_module
 
@@ -1257,7 +1250,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscViewer :: viewer
   PetscInt :: skip_conn_type
   PetscErrorCode :: ierr
@@ -1325,7 +1318,7 @@ subroutine RichardsResidualPreliminaries(xx,r,realization,ierr)
 
   Vec, intent(inout) :: xx
   Vec, intent(inout) :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -1366,14 +1359,14 @@ subroutine RichardsUpdateLocalVecs(xx,realization,ierr)
   use Option_module
   use Logging_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module
   use Debug_module
 
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
   type(discretization_type), pointer :: discretization
@@ -1432,7 +1425,7 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: skip_conn_type
   PetscErrorCode :: ierr
 
@@ -1443,7 +1436,7 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: insurf_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
@@ -1603,7 +1596,7 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1613,7 +1606,7 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -1768,7 +1761,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1776,7 +1769,7 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   type(field_type), pointer :: field
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -1971,7 +1964,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   implicit none
 
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1980,7 +1973,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   type(region_type), pointer :: region
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: inlinesurface_auxvars(:)
   
   PetscInt :: local_id, ghosted_id, region_id
@@ -2071,7 +2064,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   Mat :: J
@@ -2170,13 +2163,13 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Region_module
   
   implicit none
 
   Mat, intent(inout) :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
 
@@ -2202,7 +2195,7 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: insurf_auxvars(:)
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -2406,13 +2399,13 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Region_module
   
   implicit none
 
   Mat, intent(inout) :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
 
@@ -2438,7 +2431,7 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_bc(:) 
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -2594,7 +2587,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
   implicit none
 
   Mat, intent(inout) :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
 
@@ -2609,7 +2602,7 @@ subroutine RichardsJacobianAccumulation(A,realization,ierr)
   type(region_type), pointer :: region
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(inlinesurface_auxvar_type), pointer :: inlinesurface_auxvars(:)
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
@@ -2709,7 +2702,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   implicit none
 
   Mat, intent(inout) :: A
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
 
@@ -2728,7 +2721,7 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   type(field_type), pointer :: field 
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: flow_pc
   PetscViewer :: viewer
   PetscReal, pointer :: mmsrc(:)
@@ -3004,7 +2997,7 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   use petscmat
   use Option_module
   use Grid_module
-  use Material_Aux_class, only: material_auxvar_type
+  use Material_Aux_module, only: material_auxvar_type
   use SrcSink_Sandbox_module
   use SrcSink_Sandbox_Base_class
   
@@ -3013,7 +3006,7 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(grid_type) :: grid
@@ -3113,7 +3106,7 @@ subroutine RichardsComputeLateralMassFlux(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(field_type), pointer :: field
   PetscErrorCode :: ierr
 
@@ -3177,7 +3170,7 @@ subroutine RichardsDestroy(realization)
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   call RichardsDestroyPatch(realization)
 
@@ -3197,7 +3190,7 @@ subroutine RichardsDestroyPatch(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   ! taken care of in auxiliary.F90
 

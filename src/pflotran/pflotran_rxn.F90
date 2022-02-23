@@ -78,7 +78,7 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
   use Reaction_Database_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Transport_Constraint_module
   use Transport_Constraint_RT_module
   use Transport_Constraint_Base_module
@@ -94,7 +94,7 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
   class(reaction_rt_type), pointer :: reaction
   type(global_auxvar_type), pointer :: global_auxvars
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars
-  class(material_auxvar_type), pointer :: material_auxvars
+  type(material_auxvar_type), pointer :: material_auxvars
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler 
   type(tran_constraint_list_type), pointer :: transport_constraints
 
@@ -203,7 +203,7 @@ program pflotran_rxn
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_Database_module
   use Communicator_Aux_module
   use Option_module
@@ -232,7 +232,7 @@ program pflotran_rxn
 
   type(global_auxvar_type), pointer :: global_auxvars
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars
-  class(material_auxvar_type), pointer :: material_auxvars
+  type(material_auxvar_type), pointer :: material_auxvars
 
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: word

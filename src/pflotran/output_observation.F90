@@ -2331,7 +2331,7 @@ subroutine OutputMassBalance(realization_base)
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp
   use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
 

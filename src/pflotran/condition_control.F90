@@ -739,7 +739,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_module
   use HDF5_module
   
@@ -767,7 +767,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
   class(tran_constraint_rt_type), pointer :: constraint
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: iphase
   PetscInt :: offset
@@ -1223,7 +1223,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   use NW_Transport_module
   use NW_Transport_Aux_module
   use NWT_Equilibrium_module
-  use Material_Aux_class
+  use Material_Aux_module
   use HDF5_module
   
   implicit none
@@ -1244,7 +1244,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
   class(reaction_nw_type), pointer :: reaction_nw
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   class(tran_constraint_coupler_nwt_type), pointer :: constraint_coupler
@@ -1467,7 +1467,7 @@ subroutine CondControlScaleSourceSink(realization)
   use Condition_module
   use Grid_module
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Variables_module, only : PERMEABILITY_X
 
   implicit none
@@ -1483,7 +1483,7 @@ subroutine CondControlScaleSourceSink(realization)
   type(discretization_type), pointer :: discretization
   type(coupler_type), pointer :: cur_source_sink
   type(connection_set_type), pointer :: cur_connection_set
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(patch_type), pointer :: cur_patch
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: local_id

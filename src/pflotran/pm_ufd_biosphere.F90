@@ -825,7 +825,7 @@ subroutine PMUFDBAssociateRegion(this,region_list)
   use Region_module
   use Option_module
   use String_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
   
   implicit none
@@ -836,7 +836,7 @@ subroutine PMUFDBAssociateRegion(this,region_list)
   type(region_type), pointer :: cur_region
   class(ERB_base_type), pointer :: cur_ERB
   type(option_type), pointer :: option
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   PetscInt :: ghosted_id
   PetscReal :: total_volume_local, total_volume_global
@@ -1052,7 +1052,7 @@ subroutine PMUFDBAscUnsuppRadWithSuppRad(this)
 
   use Option_module
   use String_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
   
   implicit none
@@ -1062,7 +1062,7 @@ subroutine PMUFDBAscUnsuppRadWithSuppRad(this)
   type(supported_rad_type), pointer :: cur_supp_rad
   type(unsupported_rad_type), pointer :: cur_unsupp_rad
   class(ERB_base_type), pointer :: cur_ERB
-  class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(material_auxvar_type), pointer :: material_auxvar(:)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   PetscInt :: ghosted_id
@@ -1340,7 +1340,7 @@ end subroutine PMUFDBInitializeTimestep
   
   use Utility_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Global_Aux_module
   use Reactive_Transport_Aux_module
   
@@ -1363,7 +1363,7 @@ end subroutine PMUFDBInitializeTimestep
   PetscInt :: position
   PetscInt :: i, k
   type(grid_type), pointer :: grid
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   PetscReal, parameter :: avagadro = 6.0221409d23

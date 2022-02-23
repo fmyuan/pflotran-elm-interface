@@ -133,7 +133,6 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: restart_filename
     character(len=MAXSTRINGLENGTH) :: input_filename
 
-    PetscLogDouble :: start_time
     PetscBool :: wallclock_stop_flag
     PetscLogDouble :: wallclock_stop_time
 
@@ -284,6 +283,11 @@ subroutine OptionSetDriver(option,driver)
   option%driver => driver
   option%comm => driver%comm
   call OptionUpdateComm(option)
+  if (option%comm%start_time < 1.d-40) then
+    option%io_buffer = 'option%comm%start_time not set. WALLCLOCK_STOP &
+      &will not function properly.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine OptionSetDriver
 
@@ -409,6 +413,7 @@ subroutine OptionInitRealization(option)
   option%iflowmode = NULL_MODE
   option%iflow_sub_mode = NULL_MODE
   option%nflowdof = 0
+  option%nflowspec = 0
   option%nmechdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0
@@ -482,7 +487,6 @@ subroutine OptionInitRealization(option)
   option%restart_filename = ""
   option%restart_time = UNINITIALIZED_DOUBLE
 
-  option%start_time = 0.d0
   option%wallclock_stop_flag = PETSC_FALSE
   option%wallclock_stop_time = 0.d0
 

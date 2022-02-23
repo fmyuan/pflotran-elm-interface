@@ -558,7 +558,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
             loop_invariant = PETSC_TRUE
           case('KPC')
             call InputReadInt(input,option,sf%kpc)
-            wipp_kpc = sf%kpc 
+            wipp_kpc = sf%kpc
             call InputErrorMsg(input,option,'KPC',error_string)
           case('M')
             call InputReadDouble(input,option,sf%m)
@@ -800,7 +800,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
             loop_invariant = PETSC_TRUE
           case('KPC')
             call InputReadInt(input,option,sf%kpc)
-            wipp_kpc = sf%kpc 
+            wipp_kpc = sf%kpc
             call InputErrorMsg(input,option,'KPC',error_string)
           case('PCT_A')
             call InputReadDouble(input,option,sf%pct_a)
@@ -881,8 +881,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
       option%io_buffer = 'CANNOT specify ALPHA without IGNORE_PERMEABILITY option'
     end if
   end if
-  
-  if (loop_invariant) then 
+
+  if (loop_invariant) then
     ! Use default junction saturation if not specified
     if (Slj == 0d0) Slj = Sr + 5d-2*(1d0-Sr)
     ! Call constructor
@@ -916,7 +916,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
       option%io_buffer = 'Construction of the saturation function object &
       & failed.'
       call PrintErrMsg(option)
-    end if 
+    end if
   else if (unsat_ext /= '') then
     ! Throw an error if unsaturated extensions are with loop_invariant
     option%io_buffer = 'Unsaturated extensions are unavailable without the &
@@ -1383,7 +1383,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
               'BRAGFLO_KRP3_GAS relative permeability function', &
               option)
         end select
- 
+
     !------------------------------------------
       class is(rpf_KRP4_liq_type)
         select case(keyword)
@@ -2035,7 +2035,7 @@ subroutine CharacteristicCurvesTest(characteristic_curves,option)
                                                  characteristic_curves%name, &
                                                  phase,option)
   end if
-       
+
   if ( associated(characteristic_curves%gas_rel_perm_function) ) then
     phase = 'gas'
     call characteristic_curves%gas_rel_perm_function%Test( &

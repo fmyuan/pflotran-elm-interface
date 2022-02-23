@@ -148,8 +148,9 @@ subroutine InversionPerturbationInitialize(this)
   PetscErrorCode :: ierr
 
   call InversionSubsurfInitialize(this)
-  call InversionTSAuxListDestroy(this%inversion_aux%inversion_ts_aux_list, &
-                                 PETSC_FALSE)
+  call InvForwardAuxDestroyList(this%inversion_aux%inversion_forward_aux, &
+                                PETSC_FALSE)
+  this%inversion_aux%inversion_forward_aux%store_adjoint = PETSC_FALSE
 
   if (this%idof_pert == 0) then
     this%ndof = this%realization%patch%grid%nmax
@@ -312,17 +313,13 @@ subroutine InversionPerturbationFillRow(this,iteration)
   PetscInt :: i
   PetscErrorCode :: ierr
 
-  call RealizationGetVariable(this%realization, &
-                              this%realization%field%work, &
-                              this%iobsfunc,ZERO_INTEGER)
-  call VecScatterBegin(this%scatter_global_to_measurement, &
-                       this%realization%field%work, &
-                       this%measurement_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_global_to_measurement, &
-                     this%realization%field%work, &
-                     this%measurement_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+
+  call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr)
+  do i = 1, size(this%measurements)
+    vec_ptr(i) = this%measurements(i)%simulated_value
+  enddo
+  call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr)
+
   if (iteration == 0) then
     call VecCopy(this%measurement_vec,this%base_measurement_vec, &
                  ierr);CHKERRQ(ierr)

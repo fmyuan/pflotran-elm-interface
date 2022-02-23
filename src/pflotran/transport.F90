@@ -4,7 +4,7 @@ module Transport_module
   use petscsnes
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Matrix_Block_Aux_module  
 
   use PFLOTRAN_Constants_module
@@ -74,7 +74,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   
   type(option_type) :: option
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   PetscReal :: dispersivity_up(3), dispersivity_dn(3)
   PetscReal :: cell_centered_velocity_up(3,2), &
                cell_centered_velocity_dn(3,2)
@@ -260,7 +260,7 @@ subroutine TDispersionBC(ibndtype, &
   PetscInt :: ibndtype
   type(option_type) :: option
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: dispersivity_dn(3)
   PetscReal :: cell_centered_velocity_dn(3,2)
   PetscReal :: epsilon_dn

@@ -92,11 +92,11 @@ subroutine FractureAuxVarInit(auxvar)
   ! Date: 7/8/2015, 6/15/17
   !
 
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
-  class(material_auxvar_type), intent(inout) :: auxvar
+  type(material_auxvar_type), intent(inout) :: auxvar
 
   call MaterialAuxVarFractureStrip(auxvar%fracture)
   allocate(auxvar%fracture)
@@ -114,7 +114,7 @@ subroutine FracturePropertytoAux(fracture_auxvar,fracture_property)
   ! Date: 7/8/2015
   !
 
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -224,7 +224,7 @@ subroutine FractureSetInitialPressure(fracture,initial_cell_pressure)
   !
   ! Sets the pressure referenced in fracture
   !
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
   
@@ -253,12 +253,12 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
   !
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
 !  class(fracture_type) :: this
-  class(material_auxvar_type), intent(in) :: auxvar
+  type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
@@ -331,12 +331,12 @@ subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
   !
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
 !  class(fracture_type) :: this
-  class(material_auxvar_type), intent(in) :: auxvar
+  type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: liquid_pressure
   PetscReal, intent(in) :: effective_porosity
   PetscReal, intent(out) :: scaling_factor

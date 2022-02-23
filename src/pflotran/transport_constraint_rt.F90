@@ -47,6 +47,8 @@ module Transport_Constraint_RT_module
   type, public, extends(tran_constraint_coupler_base_type) :: &
                                            tran_constraint_coupler_rt_type
     type(reactive_transport_auxvar_type), pointer :: rt_auxvar
+  contains
+    procedure, public :: Strip => TranConstraintCouplerRTStrip
   end type tran_constraint_coupler_rt_type
       
   public :: TranConstraintRTCreate, &
