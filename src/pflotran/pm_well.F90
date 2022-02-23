@@ -1558,10 +1558,13 @@ subroutine PMWellReadWellModelType(this,input,option,keyword,error_string,found)
         !-----------------------------
           case('CONSTANT_PRESSURE')
             this%well%well_model_type = 'CONSTANT_PRESSURE'
+        !-----------------------------
           case('CONSTANT_PRESSURE_HYDROSTATIC')
             this%well%well_model_type = 'CONSTANT_PRESSURE_HYDROSTATIC'
+        !-----------------------------
           case('CONSTANT_RATE')
             this%well%well_model_type = 'CONSTANT_RATE'
+        !-----------------------------
           case('WIPP_DARCY')
             this%well%well_model_type = 'WIPP_DARCY'
             !call PMWellReadDarcyInput(this,input,option,keyword,&
@@ -1569,7 +1572,6 @@ subroutine PMWellReadWellModelType(this,input,option,keyword,error_string,found)
         !-----------------------------
           case('FULL_MOMENTUM')
         !-----------------------------
-
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -2844,7 +2846,8 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   character(len=MAXSTRINGLENGTH) :: rsn_string
   PetscBool :: cnvgd_due_to_residual(this%grid%nsegments*this%flow_soln%ndof)
   PetscBool :: cnvgd_due_to_abs_res(this%grid%nsegments*this%flow_soln%ndof)
-  PetscBool :: cnvgd_due_to_scaled_res(this%grid%nsegments*this%flow_soln%ndof)
+  PetscBool :: cnvgd_due_to_scaled_res(this%grid%nsegments* &
+                                       this%flow_soln%ndof)
   PetscBool :: cnvgd_due_to_update(this%grid%nsegments)
   PetscBool :: cnvgd_due_to_abs_update_p(this%grid%nsegments)
   PetscBool :: cnvgd_due_to_abs_update_s(this%grid%nsegments)
@@ -2868,6 +2871,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
 
   n_iter = n_iter + 1
   flow_soln%n_newton = flow_soln%n_newton + 1
+
   cnvgd_due_to_residual = PETSC_FALSE
   cnvgd_due_to_abs_res = PETSC_FALSE
   cnvgd_due_to_scaled_res = PETSC_FALSE
@@ -2881,11 +2885,11 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   rsn_string = ''
 
   ! Update the residual
-  this%flow_soln%residual = fixed_accum
+  flow_soln%residual = fixed_accum
   call PMWellResidual(this)
 
   do k = 1,this%grid%nsegments
-    idof = this%flow_soln%ndof*(k-1)+1
+    idof = flow_soln%ndof*(k-1)+1
     update_p(k) = flow_soln%update(idof)
     update_s(k) = flow_soln%update(idof+1)
 
@@ -3015,7 +3019,27 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   PetscInt :: n_iter
   PetscReal :: fixed_accum(this%tran_soln%ndof*this%grid%nsegments)
   
-  ! placeholder
+  type(well_soln_tran_type), pointer :: soln
+  character(len=MAXSTRINGLENGTH) :: out_string
+  character(len=MAXSTRINGLENGTH) :: rsn_string
+  PetscBool :: cnvgd_due_to_residual(this%grid%nsegments*this%tran_soln%ndof)
+  PetscBool :: cnvgd_due_to_abs_res(this%grid%nsegments*this%tran_soln%ndof)
+  PetscBool :: cnvgd_due_to_scaled_res(this%grid%nsegments* &
+                                       this%tran_soln%ndof)
+
+  soln => this%tran_soln
+
+  n_iter = n_iter + 1
+  soln%n_newton = soln%n_newton + 1
+
+  cnvgd_due_to_residual = PETSC_FALSE
+  cnvgd_due_to_abs_res = PETSC_FALSE
+  cnvgd_due_to_scaled_res = PETSC_FALSE
+  rsn_string = ''
+
+  ! Update the residual
+  soln%residual = fixed_accum
+  !call PMWellResidual(this)        need to split out flow and tran residuals
   
 end subroutine PMWellCheckConvergenceTran
 
