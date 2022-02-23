@@ -606,8 +606,9 @@ pm_waste_form.o : checkpoint.o condition.o data_mediator_vec.o dataset.o \
                   realization_subsurface.o region.o string.o units.o utility.o
 pm_well.o : condition.o connection.o coupler.o dataset.o dataset_ascii.o \
             dataset_base.o eos_water.o geometry.o global_aux.o grid.o \
-            input_aux.o material_aux.o option.o output_aux.o \
-            pflotran_constants.o pm_base.o realization_subsurface.o string.o \
+            input_aux.o material_aux.o nw_transport_aux.o option.o \
+            output_aux.o pflotran_constants.o pm_base.o \
+            realization_subsurface.o string.o transport_constraint_nwt.o \
             utility.o wipp_flow_aux.o
 pm_wipp_flow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
                  dataset_common_hdf5.o debug.o discretization.o field.o \

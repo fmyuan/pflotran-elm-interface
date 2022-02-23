@@ -1912,7 +1912,7 @@ subroutine PMWellUpdateReservoir(this)
   ! Date: 12/01/2021
 
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
 
   implicit none
@@ -2111,7 +2111,7 @@ subroutine PMWellResidual(this)
         iup = i
         idn = i + 1
         call PMWellFlux(this,this%well,this%well,iup,idn,res_flux)
-        call PMWellAccumulation(this,this%well,i,res_accum)
+        call PMWellAccumulationFlow(this,this%well,i,res_accum)
 
         this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
              this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) + &
@@ -2411,7 +2411,7 @@ end subroutine PMWellSolve
 
 subroutine PMWellSolveFlow(this,time,ierr)
   ! 
-  ! Author: Jennifer M. Frederick
+  ! Author: Michael Nole
   ! Date: 12/01/2021
 
   implicit none
@@ -2432,7 +2432,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ierr = 0
   call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
 
-  n_iter = 0
   ts_cut = 0
   easy_converge_count = 0
 
@@ -2447,7 +2446,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
     ! Fixed accumulation term
     res_fixed = 0.d0
     do i = 1,this%grid%nsegments
-      call PMWellAccumulation(this,this%well,i,res)
+      call PMWellAccumulationFlow(this,this%well,i,res)
       res_fixed(flow_soln%ndof*(i-1)+1:flow_soln%ndof*i) = -1.d0 * res 
     enddo
 
@@ -2534,12 +2533,18 @@ subroutine PMWellSolveTran(this,time,ierr)
 
   type(well_soln_tran_type), pointer :: tran_soln
   character(len=MAXSTRINGLENGTH) :: out_string
-  PetscInt :: n_iter
+  PetscLogDouble :: log_start_time, log_end_time
+  PetscInt :: n_iter, ts_cut
+  PetscReal :: res(this%tran_soln%ndof)
   PetscReal :: res_fixed(this%tran_soln%ndof*this%grid%nsegments)
+  PetscInt :: k 
 
   tran_soln => this%tran_soln
 
-  n_iter = 0
+  ierr = 0
+  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+
+  ts_cut = 0
 
   this%cumulative_dt_tran = 0.d0
   tran_soln%converged = PETSC_FALSE
@@ -2551,6 +2556,12 @@ subroutine PMWellSolveTran(this,time,ierr)
 
     ! Get fixed accumulation term
     res_fixed = 0.d0
+    do k = 1,this%grid%nsegments
+      call PMWellAccumulationTran(this,this%well,k,res)
+      res_fixed(tran_soln%ndof*(k-1)+1:tran_soln%ndof*k) = -1.d0 * res 
+    enddo
+
+    n_iter = 0
 
     do while (tran_soln%not_converged)
       ! check for ts cutting
@@ -2981,7 +2992,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   endif
 
   write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  uP:" &
-        ,es10.2,"  uS:",es10.2,"  ruP:",es10.2,"  ruS:",es10.2)') &
+        &,es10.2,"  uS:",es10.2,"  ruP:",es10.2,"  ruS:",es10.2)') &
         n_iter,max_absolute_residual,max_scaled_residual, &
         max_absolute_update_p,max_absolute_update_s, &
         max_relative_update_p,max_relative_update_s  
@@ -3200,9 +3211,9 @@ end subroutine PMWellComputeWellIndex
 
 ! ************************************************************************** !
 
-subroutine PMWellAccumulation(pm_well,well,id,Res)
+subroutine PMWellAccumulationFlow(pm_well,well,id,Res)
   !
-  ! Computes the accumulation term for the residual based on the 
+  ! Computes the fixed accumulation term for the flow residual based on the 
   ! chosen well model.
   !
   ! Author: Michael Nole
@@ -3213,15 +3224,18 @@ subroutine PMWellAccumulation(pm_well,well,id,Res)
 
   type(pm_well_type) :: pm_well
   type(well_type) :: well
-
+  PetscInt :: id
   PetscReal :: Res(pm_well%nphase)
-  PetscInt :: id,iphase
+
+  PetscInt :: iphase
 
   Res = 0.d0
 
   select case(well%well_model_type)
+    !---------------------------------------------
     case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
       ! No nonlinear solve needed.
+    !---------------------------------------------
     case('WIPP_DARCY')
       ! liquid accumulation term
       Res(1) = (Res(1) + well%liq%s(id) * well%liq%rho(id)) / FMWH2O * &
@@ -3230,10 +3244,47 @@ subroutine PMWellAccumulation(pm_well,well,id,Res)
       Res(2) = (Res(2) + well%gas%s(id) * well%gas%rho(id)) / &
                 fmw_comp(TWO_INTEGER) * well%phi(id) * well%volume(id) / &
                 pm_well%dt
+    !---------------------------------------------
     case default
+    !---------------------------------------------
   end select
 
-end subroutine PMWellAccumulation
+end subroutine PMWellAccumulationFlow
+
+! ************************************************************************** !
+
+subroutine PMWellAccumulationTran(pm_well,well,isegment,Res)
+  !
+  ! Computes the fixed accumulation term for the transport residual.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/23/2022
+  !
+
+  implicit none
+
+  type(pm_well_type) :: pm_well
+  type(well_type) :: well
+  PetscInt :: isegment, ispecies, k
+  PetscReal :: Res(pm_well%nspecies)
+
+  Res = 0.d0
+
+  ! porosity in [m^3-void/m^3-bulk]
+  ! saturation in [m^3-liq/m^3-void]
+  ! volume in [m^3-bulk]
+  ! aqueous conc in [mol-species/m^3-liq]
+  ! Res(:) in [mol-species]
+
+  ! NOTE: division by dt occurs later, when the fixed accumulation is needed
+
+  do ispecies = 1,pm_well%nspecies
+    k = ispecies
+    Res(k) = well%volume(isegment) * well%phi(isegment) * &
+             well%liq%s(isegment) * well%aqueous_conc(ispecies,isegment)  
+  enddo
+
+end subroutine PMWellAccumulationTran
 
 ! ************************************************************************** !
 
@@ -3255,10 +3306,11 @@ subroutine PMWellAccumDerivative(pm_well,local_id,Jac)
   PetscInt :: idof, irow
   PetscReal :: res(pm_well%nphase),res_pert(pm_well%nphase)
 
-  call PMWellAccumulation(pm_well,pm_well%well,local_id,res)
+  call PMWellAccumulationFlow(pm_well,pm_well%well,local_id,res)
 
   do idof = 1, pm_well%nphase
-    call PMWellAccumulation(pm_well,pm_well%well_pert(idof),local_id,res_pert)
+    call PMWellAccumulationFlow(pm_well,pm_well%well_pert(idof),local_id, &
+                                res_pert)
     do irow = 1, pm_well%nphase
       Jac(irow,idof) = (res_pert(irow)-res(irow))/pm_well%pert(local_id,idof)
     enddo !irow
