@@ -891,9 +891,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'secondary cont. mnrl area', &
                            'MATERIAL_PROPERTY')
             case('LOG_GRID_SPACING')
-              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_CUBES")) then
+              if (StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
                 option%io_buffer = 'LOG_GRID_SPACING is &
-                                    &only supported for NESTED_CUBES.'
+                                    &not supported for NESTED_SPHERES.'
                 call PrintErrMsg(option)
               endif
               call InputReadDouble(input,option, &
