@@ -6040,6 +6040,11 @@ subroutine CritMechInputRecord(this)
       endif
     endif
     
+    if (associated(cur_crit_mech%inventory_dataset)) then
+      write(id,'(a29)',advance='no') 'crit. inv. lookup table: '
+      write(id,'(a)') trim(adjustl(cur_crit_mech%inventory_dataset%file_name))
+    endif
+    
     if (associated(cur_crit_mech%crit_heat_dataset)) then
       write(id,'(a29)',advance='no') 'crit. heat lookup table: '
       write(id,'(a)') trim(adjustl(cur_crit_mech%crit_heat_dataset%file_name))
