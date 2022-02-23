@@ -324,16 +324,9 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
   option => this%option
 
   allocate(temp_species_names(50))
-  
-  !found = PETSC_TRUE
-  !call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
-  !if (found) return
     
   found = PETSC_TRUE
   select case(trim(keyword))
-!geh: these have not been implemented
-!    case('NUMERICAL_JACOBIAN')
-!      option%transport%numerical_derivatives = PETSC_TRUE
     !------------------------------------------------------------------------
     case('MAXIMUM_NUMBER_OF_ITERATIONS')
       error_string_ex = trim(error_string) // ',MAXIMUM_NUMBER_OF_ITERATIONS'
@@ -1175,14 +1168,6 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   SNESConvergedReason :: reason
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: dC_p(:) ! SOLUTION UPDATE STEP
-  PetscReal, pointer :: C_p(:) ! CURRENT SOLUTION 
-  Vec :: update_vec, curr_solution_vec
-  PetscReal :: max_relative_change
-  PetscReal :: max_update
-  PetscBool :: converged_due_to_rel_update
-  PetscInt :: converged_flag, temp_int
-
   call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
                        this%realization%patch%grid, &
                        this%option,this%solver,ierr)
@@ -1340,6 +1325,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
+  character(len=MAXSTRINGLENGTH) :: out_string
   PetscReal, pointer :: C0_p(:)
   PetscReal, pointer :: dC_p(:)
   PetscReal, pointer :: r_p(:)
@@ -1378,6 +1364,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   option => this%realization%option
   field => this%realization%field
   patch => this%realization%patch
+  out_string = ''
   
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
@@ -1479,28 +1466,32 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
 
   endif
 
-  WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  '          max scaled residual = ', max_scaled_residual
-  WRITE(*,*)  '                     location = ', loc_max_scaled_residual
-  WRITE(*,*)  '               residual @ max = ', residual_at_max
-  WRITE(*,*)  '                  accum @ max = ', accum_at_max
-  WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  '     max absolute residual = ', max_absolute_residual
-  WRITE(*,*)  '                  location = ', loc_max_abs_residual
-  WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  ' idof_cnvgd_due_to_residual = ', idof_cnvgd_due_to_residual
-  WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  '      max relative update = ', max_relative_change
-  WRITE(*,*)  '                 location = ', loc_max_rel_update
-  WRITE(*,*)  '             update @ max = ', update_at_max
-  WRITE(*,*)  '               soln @ max = ', soln_at_max
-  WRITE(*,*)  '                   min C0 = ', min_C0
-  WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  ' idof_cnvgd_due_to_update = ', idof_cnvgd_due_to_update
-  WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  ' ITOL converged_flag = ', converged_flag
-  WRITE(*,*)  ' --------------------------------------------------------------'
+  write(out_string,'("    aR:",es9.2," sR:",es9.2," rUP:" es9.2)') &
+        max_absolute_residual,max_scaled_residual,max_relative_change 
+  call OptionPrint(out_string,option)
+
+  !WRITE(*,*)  ' --------------------------------------------------------------'
+  !WRITE(*,*)  '          max scaled residual = ', max_scaled_residual
+  !WRITE(*,*)  '                     location = ', loc_max_scaled_residual
+  !WRITE(*,*)  '               residual @ max = ', residual_at_max
+  !WRITE(*,*)  '                  accum @ max = ', accum_at_max
+  !WRITE(*,*)  ' --------------------------------------------------------------'
+  !WRITE(*,*)  '     max absolute residual = ', max_absolute_residual
+  !WRITE(*,*)  '                  location = ', loc_max_abs_residual
+  !WRITE(*,*)  ' --------------------------------------------------------------'
+  WRITE(*,*)  '   residual converged = ', idof_cnvgd_due_to_residual
+  !WRITE(*,*)  ' --------------------------------------------------------------'
+  !WRITE(*,*)  '      max relative update = ', max_relative_change
+  !WRITE(*,*)  '                 location = ', loc_max_rel_update
+  !WRITE(*,*)  '             update @ max = ', update_at_max
+  !WRITE(*,*)  '               soln @ max = ', soln_at_max
+  !WRITE(*,*)  '                   min C0 = ', min_C0
+  !WRITE(*,*)  ' --------------------------------------------------------------'
+  WRITE(*,*)  '   update converged =   ', idof_cnvgd_due_to_update
+  !WRITE(*,*)  ' --------------------------------------------------------------'
+  !WRITE(*,*)  ' --------------------------------------------------------------'
+  !WRITE(*,*)  ' ITOL converged_flag = ', converged_flag
+  !WRITE(*,*)  ' --------------------------------------------------------------'
 
   
   ! get global minimum
@@ -1517,9 +1508,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
       endif
     else  ! means ITOL_* tolerances were satisfied, but the previous
           ! criteria were maybe not met
-      ! do nothing - let the instruction proceed based on previous criteria
-
-      ! test:
+      ! do nothing = let the instruction proceed based on previous criteria
       this%realization%option%converged = PETSC_TRUE
       this%realization%option%convergence = CONVERGENCE_CONVERGED
     endif
