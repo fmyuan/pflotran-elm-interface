@@ -111,6 +111,10 @@ module PM_Well_class
     PetscReal, pointer :: ql(:)
     ! well gas Darcy flux [m3/m2-s] of interior interfaces  
     PetscReal, pointer :: qg(:)
+    ! well liquid Darcy flux [m3/m2-s] of top/bottom boundaries  
+    PetscReal, pointer :: ql_bc(:)
+    ! well gas Darcy flux [m3/m2-s] of top/bottom boundaries 
+    PetscReal, pointer :: qg_bc(:)
     ! well species names
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
     ! well species aqueous concentration [mol/m3-liq] (idof,conc@segment)
@@ -304,6 +308,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well%pg)
   nullify(PMWellCreate%well%ql)
   nullify(PMWellCreate%well%qg)
+  nullify(PMWellCreate%well%ql_bc)
+  nullify(PMWellCreate%well%qg_bc)
   nullify(PMWellCreate%well%species_names)
   nullify(PMWellCreate%well%aqueous_conc)
   nullify(PMWellCreate%well%aqueous_mass)
@@ -329,6 +335,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%pg)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%ql_bc)
+  nullify(PMWellCreate%well_pert(ONE_INTEGER)%qg_bc)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%aqueous_conc)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%aqueous_mass)
   nullify(PMWellCreate%well_pert(ONE_INTEGER)%permeability)
@@ -343,6 +351,8 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%pg)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%ql_bc)
+  nullify(PMWellCreate%well_pert(TWO_INTEGER)%qg_bc)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%aqueous_conc)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%aqueous_mass)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%permeability)
@@ -1706,6 +1716,8 @@ recursive subroutine PMWellInitializeRun(this)
   allocate(this%well%pg(nsegments))
   allocate(this%well%ql(nsegments-1))
   allocate(this%well%qg(nsegments-1))
+  allocate(this%well%ql_bc(2))
+  allocate(this%well%qg_bc(2))
   if (this%transport) then
     allocate(this%well%aqueous_conc(this%nspecies,nsegments))
     allocate(this%well%aqueous_mass(this%nspecies,nsegments))
@@ -2292,6 +2304,9 @@ end subroutine PMWellResidualTranAccum
 ! ************************************************************************** !
 
 subroutine PMWellResidualTranFlux(this)
+  !
+  ! Calculates the interior and BC flux terms for the transport residual 
+  ! equation.
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 02/24/2022
@@ -2302,9 +2317,31 @@ subroutine PMWellResidualTranFlux(this)
 
   PetscInt :: ispecies, isegment, k
   PetscInt :: offset, istart, iend
+  PetscInt :: n_up, n_dn 
+  PetscReal :: area_up, area_dn
+  PetscReal :: q_up, q_dn
+  PetscReal :: sat, conc 
+  PetscReal :: diffusion
   PetscReal :: Res(this%nspecies)
+  PetscReal :: Res_up(this%nspecies), Res_dn(this%nspecies)
 
-  do isegment = 1,this%grid%nsegments
+  ! NOTE: The up direction is towards well top, and the dn direction is
+  !       towards the well bottom.
+
+  n_dn = +1
+  n_up = -1
+
+  do isegment = 2,(this%grid%nsegments-1)
+
+    Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0 
+
+    area_up = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment+1))
+    area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
+
+    q_up = this%well%ql(isegment)
+    q_dn = this%well%ql(isegment-1) 
+
+    diffusion = 0.d0 ! for now, since WIPP has no diffusion
 
     offset = (isegment-1)*this%nspecies
     istart = offset + 1
@@ -2312,11 +2349,38 @@ subroutine PMWellResidualTranFlux(this)
 
     do ispecies = 1,this%nspecies
       k = ispecies
-      !Res(k) = 
+
+      ! north surface:
+      if (q_up > 0.d0) then
+        sat = this%well%liq%s(isegment)
+        conc = this%well%aqueous_conc(k,isegment)
+        Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+      elseif (q_up < 0.d0) then
+        sat = this%well%liq%s(isegment+1)
+        conc = this%well%aqueous_conc(k,isegment+1)
+        Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+      else ! q_up = 0
+        Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
+      endif
+
+      ! south surface:
+      if (q_dn > 0.d0) then
+        sat = this%well%liq%s(isegment-1)
+        conc = this%well%aqueous_conc(k,isegment-1)
+        Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+      elseif (q_dn < 0.d0) then
+        sat = this%well%liq%s(isegment)
+        conc = this%well%aqueous_conc(k,isegment)
+        Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+      else ! q_dn = 0
+        Res_dn(k) = (n_dn*area_dn)*(0.d0 - diffusion)
+      endif
+
+      Res(k) = Res_up(k) + Res_dn(k)
     enddo
 
-    !this%tran_soln%residual(istart:iend) = &
-    !  this%tran_soln%residual(istart:iend) + Res(:)
+    this%tran_soln%residual(istart:iend) = &
+                      this%tran_soln%residual(istart:iend) + Res(:)
 
   enddo
 
@@ -3321,9 +3385,8 @@ subroutine PMWellCalcVelocity(this)
   ! up direction goes towards well bottom (towards lower k value)
   ! dn direction goes towards well top (towards higher k value)
 
-  ! the routines for calculating velocity must match PMWellFlux() exactly
-
-  ! the BC q's are not calculated here
+  ! the routines for calculating velocity must match PMWellFlux() 
+  ! and PMWellBCFlux() exactly
   
   select case(well%well_model_type)
     !-------------------------------------------------------------------------
@@ -3334,6 +3397,7 @@ subroutine PMWellCalcVelocity(this)
     case('CONSTANT_RATE')
     !-------------------------------------------------------------------------
     case('WIPP_DARCY')
+      !---------------------------------------INTERIOR-FLUXES-----------------
       do k = 1,(grid%nsegments-1)
         iup = k
         idn = k+1
@@ -3350,16 +3414,65 @@ subroutine PMWellCalcVelocity(this)
         density_kg_ave = 0.5d0*(well%liq%rho(iup)+well%liq%rho(idn))
         gravity_term = density_kg_ave*gravity*grid%dh(iup)
         delta_pressure = well%pl(iup) - well%pl(idn) + gravity_term
-        well%ql(k) = perm_ave_over_dist*well%liq%mobility*delta_pressure
+        well%ql(k) = -perm_ave_over_dist*well%liq%mobility*delta_pressure
 
 
         ! ------- gas Darcy flux ----------
         density_kg_ave = 0.5d0*(well%gas%rho(iup)+well%gas%rho(idn))
         gravity_term = density_kg_ave*gravity*grid%dh(iup)
         delta_pressure = well%pg(iup) - well%pg(idn) + gravity_term
-        well%qg(k) = perm_ave_over_dist*well%gas%mobility*delta_pressure
+        well%qg(k) = -perm_ave_over_dist*well%gas%mobility*delta_pressure
 
       enddo
+      !---------------------------------------BOUNDARY-FLUXES-----------------
+      if (this%flow_soln%bh_p) then
+        perm_ave_over_dist = well%permeability(1)/(grid%dh(1)/2.d0)
+
+        ! ------- liquid Darcy flux -------
+        gravity_term = well%liq%rho(1)*gravity*(grid%dh(1)/2.d0)
+        delta_pressure = well%bh_p - well%pl(1) + gravity_term
+        well%ql_bc(1) = -perm_ave_over_dist*well%liq%kr/well%liq%visc(1)* &
+                        delta_pressure
+
+        ! ------- gas Darcy flux ----------
+        gravity_term = well%gas%rho(1)*gravity*(grid%dh(1)/2.d0)
+        delta_pressure = well%bh_p - well%pg(1) + gravity_term
+        well%qg_bc(1) = -perm_ave_over_dist*well%gas%kr/well%gas%visc(1)* &
+                        delta_pressure
+
+      elseif (this%flow_soln%bh_q) then
+        well%ql_bc(1) = this%well%bh_ql
+        well%qg_bc(1) = this%well%bh_qg
+
+      else 
+        ! error message
+      endif
+
+      if (this%flow_soln%th_p) then
+        perm_ave_over_dist = well%permeability(grid%nsegments)/ &
+                             (grid%dh(grid%nsegments)/2.d0)
+
+        ! ------- liquid Darcy flux -------
+        gravity_term = well%liq%rho(grid%nsegments)*gravity* &
+                       (grid%dh(grid%nsegments)/2.d0)
+        delta_pressure = well%th_p - well%pl(grid%nsegments) + gravity_term
+        well%ql_bc(2) = -perm_ave_over_dist*well%liq%kr/ &
+                        well%liq%visc(grid%nsegments)*delta_pressure
+
+        ! ------- gas Darcy flux ----------
+        gravity_term = well%gas%rho(grid%nsegments)*gravity* &
+                       (grid%dh(grid%nsegments)/2.d0)
+        delta_pressure = well%th_p - well%pg(grid%nsegments) + gravity_term
+        well%qg_bc(2) = -perm_ave_over_dist*well%gas%kr/ &
+                        well%gas%visc(grid%nsegments)*delta_pressure
+
+      elseif (this%flow_soln%th_q) then
+        well%ql_bc(2) = this%well%th_ql
+        well%qg_bc(2) = this%well%th_qg
+        
+      else
+        ! error message
+      endif
     !-------------------------------------------------------------------------
     case('FULL_MOMENTUM')
     !-------------------------------------------------------------------------
