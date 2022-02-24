@@ -2229,21 +2229,98 @@ subroutine PMWellResidualTran(this)
 
   ! update the auxiliary variables (runs through the equilibrium 
   ! diss/precip/sorb routine) - we only need to update the aqueous_conc from
-  ! the aqueous_mass value, or vice versa? but it has to be the tran_soln
-  ! objects.
+  ! the aqueous_mass value, or vice versa? 
 
-  ! calculate the accumulation term as:
-  ! residual = (Res_accum/tran_dt) - residual(which is already = fixed_accum/dt)
+  call PMWellResidualTranAccum(this) 
 
   ! calculate the source/sink terms (in/out of well segments)
 
   ! calculate the rxn terms (decay/ingrowth)
 
   ! calculate the flux terms
+  call PMWellResidualTranFlux(this)
 
   ! calculate the boundary flux terms
 
 end subroutine PMWellResidualTran
+
+! ************************************************************************** !
+
+subroutine PMWellResidualTranAccum(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/23/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  PetscInt :: ispecies, isegment, k
+  PetscInt :: offset, istart, iend
+  PetscReal :: Res(this%nspecies)
+
+  ! porosity in [m^3-void/m^3-bulk]
+  ! saturation in [m^3-liq/m^3-void]
+  ! volume in [m^3-bulk]
+  ! aqueous conc in [mol-species/m^3-liq]
+  ! residual in [mol-species/sec]
+
+  ! calculate the accumulation term as:
+  ! residual = (Res_accum/tran_dt) 
+  !            - residual(which is already = fixed_accum/dt)
+
+  do isegment = 1,this%grid%nsegments
+
+    offset = (isegment-1)*this%nspecies
+    istart = offset + 1
+    iend = offset + this%nspecies
+
+    do ispecies = 1,this%nspecies
+      k = ispecies
+      Res(k) = this%well%volume(isegment) * this%well%phi(isegment) * &
+               this%well%liq%s(isegment) * &
+               this%well%aqueous_conc(ispecies,isegment) 
+      Res(k) = Res(k) / this%dt_tran 
+    enddo
+
+    this%tran_soln%residual(istart:iend) = Res(:) - &
+                                         this%tran_soln%residual(istart:iend)
+  enddo
+
+end subroutine PMWellResidualTranAccum
+
+! ************************************************************************** !
+
+subroutine PMWellResidualTranFlux(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 02/24/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  PetscInt :: ispecies, isegment, k
+  PetscInt :: offset, istart, iend
+  PetscReal :: Res(this%nspecies)
+
+  do isegment = 1,this%grid%nsegments
+
+    offset = (isegment-1)*this%nspecies
+    istart = offset + 1
+    iend = offset + this%nspecies
+
+    do ispecies = 1,this%nspecies
+      k = ispecies
+      !Res(k) = 
+    enddo
+
+    !this%tran_soln%residual(istart:iend) = &
+    !  this%tran_soln%residual(istart:iend) + Res(:)
+
+  enddo
+
+end subroutine PMWellResidualTranFlux
 
 ! ************************************************************************** !
 
@@ -3106,10 +3183,14 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   type(well_soln_tran_type), pointer :: soln
   character(len=MAXSTRINGLENGTH) :: out_string
   character(len=MAXSTRINGLENGTH) :: rsn_string
+  PetscReal :: temp_real
   PetscBool :: cnvgd_due_to_residual(this%grid%nsegments*this%tran_soln%ndof)
   PetscBool :: cnvgd_due_to_abs_res(this%grid%nsegments*this%tran_soln%ndof)
   PetscBool :: cnvgd_due_to_scaled_res(this%grid%nsegments* &
                                        this%tran_soln%ndof)
+  PetscReal :: max_scaled_residual,max_absolute_residual
+  PetscInt :: loc_max_scaled_residual,loc_max_abs_residual
+  PetscInt :: k 
 
   soln => this%tran_soln
 
@@ -3121,6 +3202,47 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   cnvgd_due_to_scaled_res = PETSC_FALSE
   rsn_string = ''
 
+  ! Michael updates the residual here, but I think it should already be set
+  ! at where it's at for transport.
+
+  do k = 1,(this%grid%nsegments*soln%ndof)
+    ! Absolute Residual
+    temp_real = dabs(soln%residual(k))
+    if (temp_real < soln%itol_abs_res) then
+      cnvgd_due_to_abs_res(k) = PETSC_TRUE
+    endif
+ 
+    ! Scaled Residual
+    temp_real = dabs(soln%residual(k)/(fixed_accum(k)/this%dt_tran))
+    if (temp_real < soln%itol_scaled_res) then
+      cnvgd_due_to_scaled_res(k) = PETSC_TRUE
+    endif
+  enddo
+
+  max_absolute_residual = maxval(dabs(soln%residual))
+  loc_max_abs_residual = maxloc(dabs(soln%residual),1)
+
+  max_scaled_residual = maxval(dabs(soln%residual/ &
+                                    (fixed_accum/this%dt_tran)))
+  loc_max_scaled_residual = maxloc(dabs(soln%residual/ &
+                                        (fixed_accum/this%dt_tran)),1)
+
+  do k = 1,(this%grid%nsegments*soln%ndof)
+    if (cnvgd_due_to_scaled_res(k) .or. cnvgd_due_to_abs_res(k)) then
+      cnvgd_due_to_residual(k) = PETSC_TRUE
+    endif
+  enddo
+
+  if (all(cnvgd_due_to_abs_res)) then
+    rsn_string = trim(rsn_string) // ' R '
+  endif
+  if (all(cnvgd_due_to_scaled_res)) then
+    rsn_string = trim(rsn_string) // ' sR '
+  endif
+
+  write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2)') &
+        n_iter,max_absolute_residual,max_scaled_residual   
+  call OptionPrint(out_string,this%option)
   
 end subroutine PMWellCheckConvergenceTran
 
