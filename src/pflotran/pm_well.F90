@@ -930,6 +930,12 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
         call PrintMsg(option)
         num_errors = num_errors + 1
       endif
+      if (pm_well%grid%nsegments < 3) then
+        option%io_buffer = 'ERROR: The well must consist of >= 3 segments &
+                           &in the ' // trim(error_string) // ' block.'
+        call PrintMsg(option)
+        num_errors = num_errors + 1
+      endif
       if (Uninitialized(pm_well%grid%tophole(1)) .or. &
           Uninitialized(pm_well%grid%tophole(2)) .or. &
           Uninitialized(pm_well%grid%tophole(3))) then
@@ -2331,6 +2337,8 @@ subroutine PMWellResidualTranFlux(this)
   n_dn = +1
   n_up = -1
 
+  ! ----------------------------------------INTERIOR-FLUXES------------------
+
   do isegment = 2,(this%grid%nsegments-1)
 
     Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0 
@@ -2381,8 +2389,109 @@ subroutine PMWellResidualTranFlux(this)
 
     this%tran_soln%residual(istart:iend) = &
                       this%tran_soln%residual(istart:iend) + Res(:)
-
   enddo
+
+  ! ----------------------------------------BOUNDARY-FLUXES------------------
+  diffusion = 0.d0 ! for now, since WIPP has no diffusion
+
+  ! ----- bottom of well -----
+  isegment = 1
+  Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0 
+
+  area_up = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment+1))
+  area_dn = this%well%area(isegment)
+
+  q_up = this%well%ql(isegment)
+  q_dn = this%well%ql_bc(1)
+
+  offset = (isegment-1)*this%nspecies
+  istart = offset + 1
+  iend = offset + this%nspecies
+
+  do ispecies = 1,this%nspecies
+    k = ispecies
+
+    ! north surface:
+    if (q_up > 0.d0) then
+      sat = this%well%liq%s(isegment)
+      conc = this%well%aqueous_conc(k,isegment)
+      Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+    elseif (q_up < 0.d0) then
+      sat = this%well%liq%s(isegment+1)
+      conc = this%well%aqueous_conc(k,isegment+1)
+      Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+    else ! q_up = 0
+      Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
+    endif
+
+    ! south surface:
+    if (q_dn > 0.d0) then
+      sat = this%reservoir%s_l(isegment)
+      conc = this%reservoir%aqueous_conc(k,isegment)
+      Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+    elseif (q_dn < 0.d0) then
+      sat = this%well%liq%s(isegment)
+      conc = this%well%aqueous_conc(k,isegment)
+      Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+    else ! q_dn = 0
+      Res_dn(k) = (n_dn*area_dn)*(0.d0 - diffusion)
+    endif
+
+    Res(k) = Res_up(k) + Res_dn(k)
+  enddo
+
+  this%tran_soln%residual(istart:iend) = &
+                      this%tran_soln%residual(istart:iend) + Res(:)
+
+
+  ! ----- top of well -----
+  isegment = this%grid%nsegments
+  Res(:) = 0.d0; Res_up(:) = 0.d0; Res_dn(:) = 0.d0 
+
+  area_up = this%well%area(isegment) 
+  area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
+
+  q_up = this%well%ql_bc(2)
+  q_dn = this%well%ql(isegment-1)
+
+  offset = (isegment-1)*this%nspecies
+  istart = offset + 1
+  iend = offset + this%nspecies
+
+  do ispecies = 1,this%nspecies
+    k = ispecies
+
+    ! north surface:
+    if (q_up > 0.d0) then
+      sat = this%well%liq%s(isegment)
+      conc = this%well%aqueous_conc(k,isegment)
+      Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+    elseif (q_up < 0.d0) then
+      sat = 0.d0 ! top transport BC, injection fluid composition
+      conc = 0.d0 ! top transport BC, injection fluid composition
+      Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
+    else ! q_up = 0
+      Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
+    endif
+
+    ! south surface:
+    if (q_dn > 0.d0) then
+      sat = this%well%liq%s(isegment-1)
+      conc = this%well%aqueous_conc(k,isegment-1)
+      Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+    elseif (q_dn < 0.d0) then
+      sat = this%well%liq%s(isegment)
+      conc = this%well%aqueous_conc(k,isegment)
+      Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
+    else ! q_dn = 0
+      Res_dn(k) = (n_dn*area_dn)*(0.d0 - diffusion)
+    endif
+
+    Res(k) = Res_up(k) + Res_dn(k)
+  enddo
+
+  this%tran_soln%residual(istart:iend) = &
+                      this%tran_soln%residual(istart:iend) + Res(:)
 
 end subroutine PMWellResidualTranFlux
 
@@ -3469,7 +3578,7 @@ subroutine PMWellCalcVelocity(this)
       elseif (this%flow_soln%th_q) then
         well%ql_bc(2) = this%well%th_ql
         well%qg_bc(2) = this%well%th_qg
-        
+
       else
         ! error message
       endif
