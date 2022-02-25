@@ -87,7 +87,6 @@ module Lookup_Table_module
   end type axis3_partitions_type
 
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
-    PetscInt :: saved_index3
     PetscInt, allocatable :: saved_indices3(:,:,:) ! index k per i, j coordinate, right
     PetscInt :: num_sections ! number of partitions
     PetscInt, allocatable :: saved_index_partition(:,:) ! index partition per i, j coordinate
@@ -286,22 +285,7 @@ function LookupTableCreateGeneralDim(dim)
     allocate(lookup_table%axis3)
     call LookupTableAxisInit(lookup_table%axis3)
     lookup_table%mode = INTERP_3D_LP
-    lookup_table%axis3%saved_index3 = 1
     lookup_table%axis3%num_sections = UNINITIALIZED_INTEGER
-    if (allocated(lookup_table%axis3%bounds)) then
-      deallocate(lookup_table%axis3%bounds)
-    endif
-    if (allocated(lookup_table%axis3%saved_indices3)) then
-      deallocate(lookup_table%axis3%saved_indices3)
-    endif
-    if (allocated(lookup_table%axis3%saved_index_partition)) then
-      deallocate(lookup_table%axis3%saved_index_partition)
-    endif
-    if (allocated(lookup_table%axis3%partition)) then
-      do i = 1, size(lookup_table%axis3%partition)
-        nullify(lookup_table%axis3%partition(i)%values)
-      enddo
-    endif
   endif
   
   LookupTableCreateGeneralDim => lookup_table
@@ -1893,18 +1877,19 @@ subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
   !    p7: (x2,y1,z2,u7)
   !    p8: (x2,y2,z2,u8)
   !
-  !  Determine differences along x, y, and z between lookup values and vertices,
-  !    where minimum-bounding vertex serves as the origin.
+  !  Determine differences along x, y, and z between the lookup values and
+  !    vertices, where the minimum-bounding vertex serves as the origin.
   !
-  !  Marching along x direction from origin, find intermediate interpolated data
-  !     values using data from all vertices -- this forms a yz plane.
+  !  Marching along x direction beginning at origin, find intermediate
+  !    interpolated data values using data from all vertices
+  !    -- this forms a yz plane.
   !
-  !  Marching along y direction on the yz plane defined earlier, find intermediate
-  !    interpolated data values using four points of the yz plane -- this forms
-  !    a line collinear with the z axis.
+  !  Marching along y direction on the yz plane defined earlier, find
+  !    intermediate interpolated data values using four points of the yz plane
+  !    -- this forms a line collinear with the z axis.
   !
-  !  Marching along the z direction along the z line defined earlier, find final
-  !    interpolated data value.
+  !  Marching along the z line defined earlier, find final interpolated data
+  !    value.
 
   x  => this%axis1%values ! axis1 values
   y  => this%axis2%values ! axis2 values
