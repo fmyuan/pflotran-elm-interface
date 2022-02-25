@@ -90,24 +90,33 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
                            'must be specified for SLAB type ' 
         call PrintErrMsg(option)
       endif
-      dy = sec_continuum%slab%length/nmat
       if (aream0 > 0.d0) then
         aream0 = sec_continuum%slab%area
       else
-         aream0 = 1.0 / (sec_continuum%slab%length + aperture)
+        aream0 = 1.0 / (sec_continuum%slab%length + aperture)
       endif
-      do m = 1, nmat
-        volm(m) = dy*aream0
-      enddo
       am0 = aream0
-      vm0 = nmat*dy*aream0
+      vm0 = sec_continuum%slab%length*aream0
       interfacial_area = am0/vm0
-     
-      do m = 1, nmat
-        aream(m) = aream0
-        dm1(m) = 0.5d0*dy
-        dm2(m) = 0.5d0*dy
-      enddo
+      if (log_spacing) then
+        call SecondaryContinuumCalcLogSpacing(sec_continuum%slab%length,outer_spacing, &
+             nmat,grid_spacing,option)
+        do m = 1, nmat
+          volm(m) = 2.0d0 * grid_spacing(m) * aream0
+          aream(m) = aream0
+          dm1(m) = grid_spacing(m)
+          dm2(m) = grid_spacing(m)
+        enddo
+        
+      else
+        dy = sec_continuum%slab%length/nmat
+        do m = 1, nmat
+          volm(m) = dy*aream0
+          aream(m) = aream0
+          dm1(m) = 0.5d0*dy
+          dm2(m) = 0.5d0*dy
+        enddo
+      endif
 
       if (icall == 0 .and. OptionPrintToFile(option)) then
         icall = 1
