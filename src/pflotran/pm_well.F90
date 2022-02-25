@@ -1995,8 +1995,10 @@ subroutine PMWellUpdateReservoir(this)
 
     wippflo_auxvar => &
       this%realization%patch%aux%wippflo%auxvars(0,ghosted_id)
-    nwt_auxvar => &
-      this%realization%patch%aux%nwt%auxvars(ghosted_id)
+    if (this%transport) then
+      nwt_auxvar => &
+        this%realization%patch%aux%nwt%auxvars(ghosted_id)
+    endif
     material_auxvar => &
       this%realization%patch%aux%material%auxvars(ghosted_id)
 
@@ -2763,7 +2765,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
       call PMWellAccumulationFlow(this,this%well,i,res)
       istart = flow_soln%ndof*(i-1)+1
       iend = flow_soln%ndof*i
-      res_fixed(istart:iend) = -1.d0 * res
+      res_fixed(istart:iend) = -1.d0 * res * this%dt_flow
     enddo
 
     n_iter = 0
