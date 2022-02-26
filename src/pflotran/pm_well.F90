@@ -2757,7 +2757,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
     ts_cut = 0
     flow_soln%n_steps = flow_soln%n_steps + 1
 
-    if (this%ss_check) then
+    if (this%ss_check .and. flow_soln%converged) then
       ss_check_p(:,2) = this%well%pl(:)
       ss_check_s(:,2) = this%well%gas%s(:)
       if (maxval((ss_check_p(:,2)-ss_check_p(:,1))/ss_check_p(:,1)) &
@@ -2766,14 +2766,16 @@ subroutine PMWellSolveFlow(this,time,ierr)
             < eps) then
           ss_step_count = ss_step_count + 1
           if (ss_step_count > steps_to_declare_ss) steady_state = PETSC_TRUE
+        else
+          ss_step_count = 0
         endif
       endif 
       if (steady_state) then
         this%cumulative_dt_flow = this%realization%option%flow_dt
       endif
+      ss_check_p(:,1) = this%well%pl(:)
+      ss_check_s(:,1) = this%well%gas%s(:)
     endif
-    ss_check_p(:,1) = this%well%pl(:)
-    ss_check_s(:,1) = this%well%gas%s(:)
   enddo
 
   call PMWellPostSolveFlow(this)
