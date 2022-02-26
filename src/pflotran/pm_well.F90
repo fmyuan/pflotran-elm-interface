@@ -239,6 +239,7 @@ module PM_Well_class
     PetscReal :: cumulative_dt_flow
     PetscReal :: cumulative_dt_tran
     PetscBool :: transport
+    PetscBool :: ss_check
   contains
     procedure, public :: Setup => PMWellSetup
     procedure, public :: ReadPMBlock => PMWellReadPMBlock
@@ -282,6 +283,7 @@ function PMWellCreate()
   PMWellCreate%nphase = 0
   PMWellCreate%nspecies = 0
   PMWellCreate%transport = PETSC_FALSE
+  PMWellCreate%ss_check = PETSC_FALSE
 
   nullify(PMWellCreate%pert)
 
@@ -721,6 +723,9 @@ subroutine PMWellReadPMBlock(this,input)
     !-------------------------------------
       case('TWO_PHASE')
         this%nphase = 2
+        cycle
+      case('CHECK_FOR_SS')
+        this%ss_check = PETSC_TRUE
         cycle
     end select
 
@@ -1845,17 +1850,21 @@ subroutine PMWellInitializeWell(this)
           this%well%ccid(k) = strata%material_property%saturation_function_id
           this%well%permeability(k) = strata%material_property%permeability(3,3)
           this%well%phi(k) = strata%material_property%porosity
+          exit
         endif
-        exit
       endif
       strata => strata%next
     enddo
   enddo
 
+  ! For strata that do not evolve, I believe
+  call PMWellComputeWellIndex(this)
+
   do k = 1,this%nphase
     this%well_pert(k)%permeability(:) = this%well%permeability(:)
     this%well_pert(k)%phi(:) = this%well%phi(:)
     this%well_pert(k)%ccid(:) = this%well%ccid(:)
+    this%well_pert(k)%WI(:) = this%well%WI(:)
   enddo
 
   initialize_well = PETSC_FALSE
@@ -2044,10 +2053,12 @@ subroutine PMWellResidualFlow(this)
 
   PetscInt :: i, k, iup, idn
   PetscReal :: res_accum(this%nphase)
+  PetscReal :: res_src_sink(this%nphase)
   PetscReal :: res_flux(this%nphase)
   PetscReal :: res_flux_bc(2*this%nphase)
 
   res_accum = 0.d0
+  res_src_sink = 0.d0
   res_flux = 0.d0
   res_flux_bc = 0.d0
 
@@ -2065,10 +2076,16 @@ subroutine PMWellResidualFlow(this)
         idn = i + 1
         call PMWellFlux(this,this%well,this%well,iup,idn,res_flux)
         call PMWellAccumulationFlow(this,this%well,i,res_accum)
+        call PMWellSrcSink(this,this%well,i,res_src_sink)
 
         this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
              this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) + &
              res_accum(ONE_INTEGER)
+
+        this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) = &
+             this%flow_soln%residual(this%flow_soln%ndof*(i-1)+1) + &
+             res_src_sink(ONE_INTEGER)
+
         if (i == 1) then
           ! Water mass residual in cell i+1: Subtract flux to i+1 cell
           this%flow_soln%residual(this%flow_soln%ndof*i+1) = &
@@ -2098,9 +2115,15 @@ subroutine PMWellResidualFlow(this)
         endif
 
         if (this%nphase == 2) then
+
           this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
                this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) + &
                res_accum(TWO_INTEGER)
+
+          this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) = &
+               this%flow_soln%residual(this%flow_soln%ndof*(i-1)+2) + &
+               res_src_sink(TWO_INTEGER)
+
           if (i == 1) then
             ! Air mass residual in cell i+1: Subtract flux to i+1 cell
             this%flow_soln%residual(this%flow_soln%ndof*i+2) = &
@@ -2450,8 +2473,13 @@ subroutine PMWellJacobian(this)
       !endif
       ! Accumulation terms ------------------------------------
       do local_id = 1,this%grid%nsegments
+
         call PMWellAccumDerivative(this,local_id,Jup)
         call PMWellFillJac(this,Jac,Jup,local_id,local_id)
+
+        call PMWellSrcSinkDerivative(this,local_id,Jup)
+        call PMWellFillJac(this,Jac,Jup,local_id,local_id)
+
       enddo
 
       ! Interior Flux Terms ----------------------------------- 
@@ -2644,6 +2672,11 @@ subroutine PMWellSolveFlow(this,time,ierr)
   PetscInt :: istart, iend
   PetscReal :: res(this%flow_soln%ndof)
   PetscReal :: res_fixed(this%flow_soln%ndof*this%grid%nsegments)
+  PetscBool :: steady_state
+  PetscReal :: ss_check_p(this%grid%nsegments,2), &
+               ss_check_s(this%grid%nsegments,2)
+  PetscInt :: ss_step_count, steps_to_declare_ss
+  PetscReal, parameter :: eps = 1.d-5
 
   flow_soln => this%flow_soln
 
@@ -2656,6 +2689,12 @@ subroutine PMWellSolveFlow(this,time,ierr)
   this%cumulative_dt_flow = 0.d0
   flow_soln%converged = PETSC_FALSE
   flow_soln%not_converged = PETSC_TRUE
+
+  ss_check_p(:,1) = this%well%pl(:)
+  ss_check_s(:,1) = this%well%gas%s(:)
+  steady_state = PETSC_FALSE
+  ss_step_count = 0
+  steps_to_declare_ss = 3
 
   do while (this%cumulative_dt_flow < this%realization%option%flow_dt) 
 
@@ -2702,8 +2741,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
       call PMWellCheckConvergenceFlow(this,n_iter,res_fixed)
     enddo
 
-    if (.not. flow_soln%not_converged .and. flow_soln%cut_timestep .and. &
-         easy_converge_count > 10 ) then
+    if (easy_converge_count > 10 ) then
       if (this%cumulative_dt_flow + this%dt_flow * &
           flow_soln%ts_cut_factor < this%realization%option%flow_dt) then
         this%dt_flow = this%dt_flow * flow_soln%ts_cut_factor 
@@ -2718,7 +2756,24 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
     ts_cut = 0
     flow_soln%n_steps = flow_soln%n_steps + 1
- 
+
+    if (this%ss_check) then
+      ss_check_p(:,2) = this%well%pl(:)
+      ss_check_s(:,2) = this%well%gas%s(:)
+      if (maxval((ss_check_p(:,2)-ss_check_p(:,1))/ss_check_p(:,1)) &
+          < eps) then
+        if (maxval((ss_check_s(:,2)-ss_check_s(:,1))/ss_check_s(:,1)) &
+            < eps) then
+          ss_step_count = ss_step_count + 1
+          if (ss_step_count > steps_to_declare_ss) steady_state = PETSC_TRUE
+        endif
+      endif 
+      if (steady_state) then
+        this%cumulative_dt_flow = this%realization%option%flow_dt
+      endif
+    endif
+    ss_check_p(:,1) = this%well%pl(:)
+    ss_check_s(:,1) = this%well%gas%s(:)
   enddo
 
   call PMWellPostSolveFlow(this)
@@ -3338,14 +3393,18 @@ subroutine PMWellUpdateWellQ(well,reservoir)
 
   implicit none
   
-  type(well_type), pointer :: well
+  type(well_type) :: well
   type(well_reservoir_type), pointer :: reservoir
 
   type(well_fluid_type), pointer :: liq
   type(well_fluid_type), pointer :: gas
 
+  PetscInt :: i, nsegments
+
   liq => well%liq
   gas => well%gas
+
+  nsegments = size(well%liq%Q)
 
   select case (well%well_model_type)
     !------------------------------------------------------------------------
@@ -3361,9 +3420,13 @@ subroutine PMWellUpdateWellQ(well,reservoir)
       endif
     !------------------------------------------------------------------------
     case default 
-      ! Flowrate in kg/s
-      liq%Q = liq%rho*liq%kr/liq%visc*well%WI*(reservoir%p_l-well%pl)
-      gas%Q = gas%rho*gas%kr/gas%visc*well%WI*(reservoir%p_g-well%pg)
+      do i = 1,nsegments
+        ! Flowrate in kg/s
+        liq%Q(i) = liq%rho(i)*liq%kr(i)/liq%visc(i)*well%WI(i)* &
+                   (reservoir%p_l(i)-well%pl(i)) 
+        gas%Q(i) = gas%rho(i)*gas%kr(i)/gas%visc(i)*well%WI(i)* &
+                   (reservoir%p_g(i)-well%pg(i)) 
+      enddo
     !------------------------------------------------------------------------
   end select
   
@@ -3539,7 +3602,7 @@ end subroutine PMWellComputeWellIndex
 
 subroutine PMWellAccumulationFlow(pm_well,well,id,Res)
   !
-  ! Computes the fixed accumulation term for the flow residual based on the 
+  ! Computes the accumulation term for the flow residual based on the 
   ! chosen well model.
   !
   ! Author: Michael Nole
@@ -3576,6 +3639,47 @@ subroutine PMWellAccumulationFlow(pm_well,well,id,Res)
   end select
 
 end subroutine PMWellAccumulationFlow
+
+! ************************************************************************** !
+
+subroutine PMWellSrcSink(pm_well,well,id,Res)
+  !
+  ! Computes the source/sink term for the flow residual based on the 
+  ! chosen well model.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/26/2022
+  !
+
+  implicit none
+
+  type(pm_well_type) :: pm_well
+  type(well_type) :: well
+  PetscInt :: id
+  PetscReal :: Res(pm_well%nphase)
+
+  PetscInt :: iphase
+
+  Res = 0.d0
+
+  select case(well%well_model_type)
+    !---------------------------------------------
+    case('CONSTANT_RATE', 'CONSTANT_PRESSURE','CONSTANT_PRESSURE_HYDROSTATIC')
+      ! No nonlinear solve needed.
+    !---------------------------------------------
+    case('WIPP_DARCY')
+      ! liquid accumulation term
+      ! kg/s --> kmol/s
+      Res(1) = Res(1) + well%liq%Q(id) / FMWH2O 
+      ! gas accumulation term
+      ! kg/s --> kmol/s
+      Res(2) = Res(2) + well%gas%Q(id) / fmw_comp(TWO_INTEGER)
+    !---------------------------------------------
+    case default
+    !---------------------------------------------
+  end select
+
+end subroutine PMWellSrcSink
 
 ! ************************************************************************** !
 
@@ -3648,6 +3752,36 @@ subroutine PMWellAccumDerivative(pm_well,local_id,Jac)
   enddo ! idof
 
 end subroutine PMWellAccumDerivative
+! ************************************************************************** !
+
+subroutine PMWellSrcSinkDerivative(pm_well,local_id,Jac)
+  !
+  ! Computes the derivative of the source/sink term for the Jacobian, 
+  ! based on the chosen well model.
+  !
+  ! Author: Michael Nole
+  ! Date: 02/26/2022
+  !
+
+  implicit none
+
+  type(pm_well_type) :: pm_well
+  PetscInt :: local_id
+  PetscReal :: Jac(pm_well%nphase,pm_well%nphase)
+
+  PetscInt :: idof, irow
+  PetscReal :: res(pm_well%nphase),res_pert(pm_well%nphase)
+
+  call PMWellSrcSink(pm_well,pm_well%well,local_id,res)
+
+  do idof = 1, pm_well%nphase
+    call PMWellSrcSink(pm_well,pm_well%well_pert(idof),local_id,res_pert)
+    do irow = 1, pm_well%nphase
+      Jac(irow,idof) = (res_pert(irow)-res(irow))/pm_well%pert(local_id,idof)
+    enddo !irow
+  enddo ! idof
+
+end subroutine PMWellSrcSinkDerivative
 
 ! ************************************************************************** !
 
@@ -4104,12 +4238,17 @@ subroutine PMWellPerturb(pm_well)
   pm_well%well_pert(ONE_INTEGER)%pl = x(:,ONE_INTEGER) + pert(:,ONE_INTEGER)
   pm_well%well_pert(TWO_INTEGER)%gas%s = x(:,TWO_INTEGER) + pert(:,TWO_INTEGER)
 
+  ! Update perturbed well properties
   call PMWellUpdatePropertiesFlow(pm_well%well_pert(ONE_INTEGER), &
                         pm_well%realization%patch%characteristic_curves_array, &
                         pm_well%realization%option)
   call PMWellUpdatePropertiesFlow(pm_well%well_pert(TWO_INTEGER), &
                         pm_well%realization%patch%characteristic_curves_array, &
                         pm_well%realization%option)
+
+  ! Update perturbed source/sink term from the reservoir
+  call PMWellUpdateWellQ(pm_well%well_pert(ONE_INTEGER),pm_well%reservoir)
+  call PMWellUpdateWellQ(pm_well%well_pert(TWO_INTEGER),pm_well%reservoir)
 
   pm_well%pert = pert
 
