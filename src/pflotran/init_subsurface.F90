@@ -197,7 +197,9 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
             endif
             ghosted_id = grid%nL2G(local_id)
             if (strata%active) then
-              cur_patch%imat(ghosted_id) = material_property%internal_id
+              if (.not. strata%well) then
+                cur_patch%imat(ghosted_id) = material_property%internal_id
+              endif
             else
               ! if not active, set material id to zero
               cur_patch%imat(ghosted_id) = 0
