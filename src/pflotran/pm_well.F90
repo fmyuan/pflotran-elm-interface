@@ -2027,9 +2027,9 @@ subroutine PMWellUpdateReservoirSrcSink(this)
 
       if (trim(srcsink_name) == trim(source_sink%name)) then
         source_sink%flow_condition%general%rate%dataset%rarray(1) = &
-          this%well%liq%Q(k) ! [kg/s]
+          -1.d0 * this%well%liq%Q(k) ! [kg/s]
         source_sink%flow_condition%general%rate%dataset%rarray(2) = &
-          this%well%gas%Q(k) ! [kg/s]
+          -1.d0 * this%well%gas%Q(k) ! [kg/s]
         exit
       endif
 
