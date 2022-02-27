@@ -2675,8 +2675,10 @@ subroutine PMWellSolveFlow(this,time,ierr)
   PetscBool :: steady_state
   PetscReal :: ss_check_p(this%grid%nsegments,2), &
                ss_check_s(this%grid%nsegments,2)
+  PetscReal :: dpdt(this%grid%nsegments), dsdt(this%grid%nsegments)
   PetscInt :: ss_step_count, steps_to_declare_ss
-  PetscReal, parameter :: eps = 1.d-5
+  PetscReal, parameter :: eps_p = 1.d-2
+  PetscReal, parameter :: eps_s = 1.d-5
 
   flow_soln => this%flow_soln
 
@@ -2694,7 +2696,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ss_check_s(:,1) = this%well%gas%s(:)
   steady_state = PETSC_FALSE
   ss_step_count = 0
-  steps_to_declare_ss = 3
+  steps_to_declare_ss = 10 !3
 
   do while (this%cumulative_dt_flow < this%realization%option%flow_dt) 
 
@@ -2757,25 +2759,44 @@ subroutine PMWellSolveFlow(this,time,ierr)
     ts_cut = 0
     flow_soln%n_steps = flow_soln%n_steps + 1
 
-    if (this%ss_check .and. flow_soln%converged) then
-      ss_check_p(:,2) = this%well%pl(:)
-      ss_check_s(:,2) = this%well%gas%s(:)
-      if (maxval((ss_check_p(:,2)-ss_check_p(:,1))/ss_check_p(:,1)) &
-          < eps) then
-        if (maxval((ss_check_s(:,2)-ss_check_s(:,1))/ss_check_s(:,1)) &
-            < eps) then
-          ss_step_count = ss_step_count + 1
-          if (ss_step_count > steps_to_declare_ss) steady_state = PETSC_TRUE
-        else
-          ss_step_count = 0
-        endif
-      endif 
-      if (steady_state) then
+    ! Check if we're at steady-state
+
+    ! TOUGH way:
+    if (n_iter == 1 .and. flow_soln%converged) then
+      ss_step_count = ss_step_count+1
+    else
+      ss_step_count = 0
+    endif
+
+    !if (this%ss_check .and. flow_soln%converged) then
+    !  ss_check_p(:,2) = this%well%pl(:)
+    !  ss_check_s(:,2) = this%well%gas%s(:)
+
+    !  dpdt = (ss_check_p(:,2) - ss_check_p(:,1)) / this%dt_flow
+    !  dsdt = (ss_check_s(:,2) - ss_check_s(:,1)) / this%dt_flow
+
+    !  if (maxval(dpdt) < eps_p) then
+    !    if (maxval(dsdt) < eps_s) then
+    !      ss_step_count = ss_step_count + 1
+    !      if (ss_step_count > steps_to_declare_ss) steady_state = PETSC_TRUE
+    !    else
+    !      ss_step_count = 0
+    !    endif
+    !  endif 
+    !  if (steady_state) then
+    !    this%cumulative_dt_flow = this%realization%option%flow_dt
+    !  endif
+    !  ss_check_p(:,1) = this%well%pl(:)
+    !  ss_check_s(:,1) = this%well%gas%s(:)
+    !endif
+
+    if (this%ss_check) then
+      if (ss_step_count >= steps_to_declare_ss) then
+        steady_state = PETSC_TRUE
         this%cumulative_dt_flow = this%realization%option%flow_dt
       endif
-      ss_check_p(:,1) = this%well%pl(:)
-      ss_check_s(:,1) = this%well%gas%s(:)
     endif
+
   enddo
 
   call PMWellPostSolveFlow(this)
