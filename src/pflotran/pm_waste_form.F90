@@ -7158,7 +7158,7 @@ subroutine CritInventoryRead(this,filename,option)
   PetscInt :: i
   PetscInt :: ict
   PetscInt :: num_species
-  PetscInt :: num_sections
+  PetscInt :: num_partitions
   PetscInt :: arr_size
   PetscReal :: time_units_conversion
   PetscReal :: power_units_conversion
@@ -7173,7 +7173,7 @@ subroutine CritInventoryRead(this,filename,option)
 
   ict = 0
   num_species = 0
-  num_sections = 0
+  num_partitions = 0
   arr_size = 0
   time_units_conversion  = 1.d0
   power_units_conversion = 1.d0
@@ -7302,21 +7302,21 @@ subroutine CritInventoryRead(this,filename,option)
         allocate(tmpaxis1(this%num_start_times))
         allocate(tmpaxis2(this%num_powers))
         allocate(tmpaxis3(arr_size))
-        num_sections = (this%num_start_times*this%num_powers)
+        num_partitions = (this%num_start_times*this%num_powers)
 
         do i = 1, num_species
           this%nuclide(i)%lookup => LookupTableCreateGeneral(THREE_INTEGER) ! 3D interpolation
           this%nuclide(i)%lookup%dims(1) = this%num_start_times
           this%nuclide(i)%lookup%dims(2) = this%num_powers
           this%nuclide(i)%lookup%dims(3) = this%num_real_times
-          this%nuclide(i)%lookup%axis3%num_sections = num_sections
+          this%nuclide(i)%lookup%axis3%num_partitions = num_partitions
           allocate(this%nuclide(i)%lookup%axis1%values(this%num_start_times))
           allocate(this%nuclide(i)%lookup%axis2%values(this%num_powers))
           allocate(this%nuclide(i)%lookup%axis3%values(arr_size))
           allocate(this%nuclide(i)%lookup%data(arr_size))
           if (Initialized(this%total_points)) then
-            allocate(this%nuclide(i)%lookup%axis3%bounds(num_sections))
-            allocate(this%nuclide(i)%lookup%axis3%partition(num_sections))
+            allocate(this%nuclide(i)%lookup%axis3%bounds(num_partitions))
+            allocate(this%nuclide(i)%lookup%axis3%partition(num_partitions))
           endif
           if (Initialized(mode)) then
             this%nuclide(i)%lookup%mode = mode
@@ -7542,15 +7542,15 @@ subroutine CritInvRealTimeSections(this,string,option)
   if (.not. associated(this%axis3)) return
 
   ! This subroutine is not needed if the axis3 does not need to be partitioned
-  if (this%axis3%num_sections <= 0) return
+  if (this%axis3%num_partitions <= 0) return
 
   ! Allocate axis3 objects
   if (.not. allocated(this%axis3%bounds)) then
-    allocate(this%axis3%bounds(this%axis3%num_sections))
+    allocate(this%axis3%bounds(this%axis3%num_partitions))
   endif
   
   if (.not. allocated(this%axis3%partition)) then
-    allocate(this%axis3%partition(this%axis3%num_sections))
+    allocate(this%axis3%partition(this%axis3%num_partitions))
   endif
   
   if (associated(this%axis3%values)) then
@@ -7572,7 +7572,7 @@ subroutine CritInvRealTimeSections(this,string,option)
         this%axis3%bounds(j) = i - 1
         j = j + 1
     else
-      if (j > this%axis3%num_sections .and. i == size(array)) then
+      if (j > this%axis3%num_partitions .and. i == size(array)) then
         ! write(str1,'(es12.6)') tmp1
         ! write(str2,'(es12.6)') tmp2
         option%io_buffer = 'Values for REAL_TIME must monotonically '&
@@ -7639,7 +7639,7 @@ subroutine CritInvDataSections(this,string,option)
   ! ----------------------------------
 
   ! This subroutine is not needed if axis3 was not partitioned
-  if (this%axis3%num_sections <= 0) return
+  if (this%axis3%num_partitions <= 0) return
 
   ! Verify inventory data values are associated
   if (associated(this%data)) then
@@ -7660,7 +7660,7 @@ subroutine CritInvDataSections(this,string,option)
   
   ! Allocate data partition
   if (.not. allocated(this%partition)) then
-    allocate(this%partition(this%axis3%num_sections))
+    allocate(this%partition(this%axis3%num_partitions))
   endif
   
   if (szlim /= maxval(this%axis3%bounds)) then

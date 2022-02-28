@@ -88,7 +88,7 @@ module Lookup_Table_module
 
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
     PetscInt, allocatable :: saved_indices3(:,:,:) ! index k per i, j coordinate, right
-    PetscInt :: num_sections ! number of partitions
+    PetscInt :: num_partitions ! number of partitions
     PetscInt, allocatable :: saved_index_partition(:,:) ! index partition per i, j coordinate
     PetscInt, allocatable :: bounds(:) ! bounds of axis3 partitions
     type(axis3_partitions_type), allocatable :: partition(:) ! axis 3 is partitioned
@@ -285,7 +285,7 @@ function LookupTableCreateGeneralDim(dim)
     allocate(lookup_table%axis3)
     call LookupTableAxisInit(lookup_table%axis3)
     lookup_table%mode = INTERP_3D_LP
-    lookup_table%axis3%num_sections = UNINITIALIZED_INTEGER
+    lookup_table%axis3%num_partitions = UNINITIALIZED_INTEGER
   endif
   
   LookupTableCreateGeneralDim => lookup_table
@@ -802,7 +802,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   indices1(4,:) = (/i2, j2/)
 
   ! axis3 (independent variables) 
-  ! indexing based on i, j combinations
+  !   indexing is based on i, j combinations
   if (.not. allocated(axis3%saved_indices3)) then
     allocate(axis3%saved_indices3(li,lj,2))
     axis3%saved_indices3 = 0
@@ -856,7 +856,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
 
       indices2(m,:)   = (/i, j, k1/)
       indices2(m+4,:) = (/i, j, k2/)
-      
+
       axis3%saved_indices3(i, j, 1) = k1
       axis3%saved_indices3(i, j, 2) = k2
 
