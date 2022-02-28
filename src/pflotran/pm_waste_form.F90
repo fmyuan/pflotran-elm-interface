@@ -7416,7 +7416,8 @@ subroutine CritInventoryRead(this,filename,option)
         do i = 1, num_species
           this%nuclide(i)%lookup%axis3%values => tmpaxis3
           if (Initialized(this%total_points)) then
-            call CritInvRealTimeSections(this%nuclide(i)%lookup,filename,option)
+            call CritInventoryRealTimeSections(this%nuclide(i)%lookup,filename,&
+                                               option)
           endif
         enddo
     !-------------------------------------      
@@ -7488,7 +7489,8 @@ subroutine CritInventoryRead(this,filename,option)
                     // trim(adjustl(str3))
 
         if (Initialized(this%total_points)) then
-          call CritInvDataSections(this%nuclide(ict)%lookup,error_string,option)
+          call CritInventoryDataSections(this%nuclide(ict)%lookup,error_string,&
+                                         option)
         endif
     !-------------------------------------
       case default
@@ -7514,7 +7516,7 @@ end subroutine CritInventoryRead
 
 ! ************************************************************************** !
 
-subroutine CritInvRealTimeSections(this,string,option)
+subroutine CritInventoryRealTimeSections(this,string,option)
   !
   ! Partition of monontically increasing real time values (axis3) for
   !   criticality inventory lookup tables
@@ -7573,8 +7575,6 @@ subroutine CritInvRealTimeSections(this,string,option)
         j = j + 1
     else
       if (j > this%axis3%num_partitions .and. i == size(array)) then
-        ! write(str1,'(es12.6)') tmp1
-        ! write(str2,'(es12.6)') tmp2
         option%io_buffer = 'Values for REAL_TIME must monotonically '&
                          //'increase for each inventory evaluation ' &
                          //'in the table for ' // trim(string) // '.'
@@ -7611,11 +7611,11 @@ subroutine CritInvRealTimeSections(this,string,option)
   
   if (associated(array)) nullify(array)
   
-end subroutine CritInvRealTimeSections
+end subroutine CritInventoryRealTimeSections
 
 ! ************************************************************************** !
 
-subroutine CritInvDataSections(this,string,option)
+subroutine CritInventoryDataSections(this,string,option)
   !
   ! Partition of nuclide inventory data for criticality inventory lookup tables
   !
@@ -7693,7 +7693,7 @@ subroutine CritInvDataSections(this,string,option)
   
   if (associated(array)) nullify(array)
   
-end subroutine CritInvDataSections
+end subroutine CritInventoryDataSections
 
 ! ************************************************************************** !
 
