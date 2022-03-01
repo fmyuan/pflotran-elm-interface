@@ -259,7 +259,10 @@ subroutine RTSetup(realization)
     do ghosted_id = 1, grid%ngmax
     ! Assuming the same secondary continuum type for all regions
       call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr% &
-                                 multicontinuum,material_auxvars(ghosted_id)%epsilon, &
+                                 multicontinuum,material_auxvars(ghosted_id)% &
+                                 soil_properties(epsilon_index), &
+                                 material_auxvars(ghosted_id)% &
+                                 soil_properties(matrix_length_index), &                                 
                                  rt_sec_transport_vars(ghosted_id), &
                                  reaction,initial_condition, &
                                  sec_tran_constraint,option)

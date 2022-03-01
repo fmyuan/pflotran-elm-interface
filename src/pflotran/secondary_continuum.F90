@@ -90,7 +90,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
                            'must be specified for SLAB type ' 
         call PrintErrMsg(option)
       endif
-      if (aream0 > 0.d0) then
+      if (sec_continuum%slab%area > 0.d0) then
         aream0 = sec_continuum%slab%area
       else
         aream0 = 1.0 / (sec_continuum%slab%length + aperture)
@@ -550,8 +550,8 @@ end subroutine SecondaryRTTimeCut
 
 ! ************************************************************************** !
 
-subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,reaction, &
-                                 initial_condition,constraint,option)
+subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,length,rt_sec_transport_vars, &
+                                 reaction,initial_condition,constraint,option)
   ! 
   ! Initializes all the secondary continuum reactive
   ! transport variables
@@ -593,6 +593,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
   PetscReal :: area_per_vol
   PetscReal :: dum1
   PetscReal :: epsilon
+  PetscReal :: length
   PetscInt :: num_iterations
   PetscErrorCode :: ierr
   
@@ -605,7 +606,7 @@ subroutine SecondaryRTAuxVarInit(multicontinuum,epsilon,rt_sec_transport_vars,re
   call SecondaryContinuumSetProperties( &
         rt_sec_transport_vars%sec_continuum, &
         multicontinuum%name, &
-        multicontinuum%length, &
+        length, &
         multicontinuum%matrix_block_size, &
         multicontinuum%fracture_spacing, &
         multicontinuum%radius, &
