@@ -486,6 +486,7 @@ module PM_Waste_Form_class
     PetscReal :: start_time_datamax
     PetscReal :: power_datamax
     PetscReal :: real_time_datamax
+    PetscBool :: switch_implicit
     PetscBool :: allow_implicit
     PetscBool :: allow_extrap
     type(crit_inventory_lookup_type), allocatable ::  nuclide(:)
@@ -3239,6 +3240,7 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal, pointer :: times(:)
   PetscBool :: dataset_solution
   PetscBool :: expanded_dataset_solution
+  PetscBool :: switch_to_implicit ! warning message for switch to implicit soln
   class(dataset_ascii_type), pointer :: dataset
   class(crit_inventory_type), pointer :: critinv
   
@@ -3462,6 +3464,7 @@ subroutine PMWFInitializeTimestep(this)
 
     dataset_solution = PETSC_FALSE
     expanded_dataset_solution = PETSC_FALSE
+    switch_to_implicit = PETSC_FALSE
     if (associated(cur_waste_form%criticality_mechanism)) then
       if (associated(cur_waste_form%criticality_mechanism%rad_dataset)) then 
         dataset_solution = PETSC_TRUE
@@ -3469,8 +3472,13 @@ subroutine PMWFInitializeTimestep(this)
       endif 
       if (associated(cur_waste_form%criticality_mechanism% &
         inventory_dataset)) then 
-        expanded_dataset_solution = PETSC_TRUE
-        if (this%implicit_solution) this%implicit_solution = PETSC_FALSE
+        if (cur_waste_form%criticality_mechanism%inventory_dataset% &
+          switch_implicit) then
+          this%implicit_solution = PETSC_TRUE
+        else
+          expanded_dataset_solution = PETSC_TRUE
+          if (this%implicit_solution) this%implicit_solution = PETSC_FALSE
+        endif
       endif 
     endif
 
@@ -3504,28 +3512,26 @@ subroutine PMWFInitializeTimestep(this)
 
        if (critinv%nuclide(k)%lookup%axis3%extrapolate .and. &
            .not. critinv%allow_extrap) then
-         ! Fallback options if extrapolation is needed
+         ! Fallback options if extrapolation is detected
          if (critinv%allow_implicit) then
            ! Resort to implicit solution
            this%implicit_solution = PETSC_TRUE
-           expanded_dataset_solution = PETSC_FALSE
-           ! option%io_buffer = 'Switching from inventory lookup table to ' &
-           !                  //'implicit solution.'
-           ! call PrintWrnMsg(option)
+           critinv%switch_implicit = PETSC_TRUE
+           switch_to_implicit =  PETSC_TRUE
          else
-           ! Alert user that extrapolation is being used
-           option%io_buffer = 'Extrapolation of inventory lookup table has ' &
+           ! Alert user that extrapolation has been attempted
+           option%io_buffer = 'Extrapolation of inventory lookup table"' &
+                            // trim(critinv%file_name) // '" has ' &
                             //'been detected. Extrapolation can be enabled ' &
                             //'with keyword USE_LOOKUP_AND_EXTRAPOLATION in ' &
                             //'the OPTION sub-block.'
            call PrintErrMsg(option)
          endif
        else
-
+         ! Modify the radionuclide concentration
          cur_waste_form%rad_concentration(k) = &
            cur_waste_form%rad_mass_fraction(k) / &
            cwfm%rad_species_list(k)%formula_weight
-
        endif
 
       enddo
@@ -3658,6 +3664,19 @@ subroutine PMWFInitializeTimestep(this)
       enddo     
 
     endif !--------------------------------------------------------------------
+
+    ! Warning message for switch to implicit solution from lookup table
+    if (switch_to_implicit) then
+      if (associated(cur_waste_form%criticality_mechanism%inventory_dataset)) &
+        then
+        critinv => cur_waste_form%criticality_mechanism%inventory_dataset
+        option%io_buffer = 'Switching from inventory lookup table "' &
+                         // trim(critinv%file_name) &
+                         //'" to implicit solution.'
+        call PrintWrnMsg(option)
+      endif
+    endif
+
     if (this%implicit_solution) then 
 
     ! implicit solution based on Bateman's equations and Newton's method
@@ -7885,6 +7904,7 @@ function CritInventoryCreate()
   ci%start_time_datamax = UNINITIALIZED_DOUBLE
   ci%power_datamax      = UNINITIALIZED_DOUBLE
   ci%real_time_datamax  = UNINITIALIZED_DOUBLE
+  ci%switch_implicit = PETSC_FALSE
   ci%allow_implicit = PETSC_FALSE
   ci%allow_extrap   = PETSC_FALSE
 

@@ -805,7 +805,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   axis1%saved_index1 = i2
   axis2%saved_index  = j1
   axis2%saved_index2 = j2
-  
+
   ! list i, j combinations
   indices1(1,:) = (/i1, j1/)
   indices1(2,:) = (/i1, j2/)
@@ -900,7 +900,8 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
         else
           ! interpolation
           do k = kstart + 1, kend
-            if (axis3%values(k - 1) < lookup3 .and. axis3%values(k) >= lookup3) then
+            if (axis3%values(k - 1) < lookup3 .and. &
+                axis3%values(k) >= lookup3) then
               k2 = k
               if (axis3%values(k) == lookup3) kexact = PETSC_TRUE
               exit
@@ -917,14 +918,13 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
       axis3%saved_indices3(i, j, 2) = k2
 
     enddo
+
   endif
 
   ! assign reference data points to the indices
   nullify(this%data_references)
-  if (.not. associated(this%data_references)) then
-    allocate(this%data_references(li,lj,lk))
-    this%data_references = 0.0d0
-  endif
+  allocate(this%data_references(li,lj,lk))
+  this%data_references = 0.0d0
   if (allocated(this%partition)) then
     do m = 1, 8
       i = indices2(m,1)
