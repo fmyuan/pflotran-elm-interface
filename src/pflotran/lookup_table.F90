@@ -60,11 +60,11 @@ module Lookup_Table_module
   end type data_partition_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
-    PetscReal, pointer :: data_references(:,:,:) ! reference data values from interpolation indices
     class(lookup_table_axis2_general_type), pointer :: axis2
     class(lookup_table_axis3_general_type), pointer :: axis3
-    type(data_partition_type), allocatable :: partition(:) ! data is partitioned
     PetscInt :: mode ! interpolation mode
+    PetscReal, pointer :: data_references(:,:,:) ! reference data values from interpolation indices
+    type(data_partition_type), allocatable :: partition(:) ! data is partitioned
   contains
     procedure, public :: Sample => LookupTableEvaluateGeneral
     procedure, public :: SampleAndGradient => ValAndGradGeneral
@@ -82,17 +82,17 @@ module Lookup_Table_module
     PetscInt :: saved_index2
   end type lookup_table_axis2_general_type
 
-  type, public :: axis3_partitions_type
+  type, public :: axis3_partition_type
     PetscReal, pointer :: values(:)
-  end type axis3_partitions_type
+  end type axis3_partition_type
 
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
     PetscBool :: extrapolate ! extrapolation from axis3 required
-    PetscInt, allocatable :: saved_indices3(:,:,:) ! index k per i, j coordinate, right
-    PetscInt :: num_partitions ! number of partitions
-    PetscInt, allocatable :: saved_index_partition(:,:) ! index partition per i, j coordinate
+    PetscInt :: num_partitions ! number of axis3 partitions
     PetscInt, allocatable :: bounds(:) ! bounds of axis3 partitions
-    type(axis3_partitions_type), allocatable :: partition(:) ! axis 3 is partitioned
+    PetscInt, allocatable :: saved_index_partition(:,:) ! index of partition per i, j coordinate
+    PetscInt, allocatable :: saved_indices3(:,:,:) ! left/right index k per i, j coordinate
+    type(axis3_partition_type), allocatable :: partition(:) ! axis 3 is partitioned
   end type lookup_table_axis3_general_type
 
   type, public :: lookup_table_var_type
@@ -259,7 +259,6 @@ function LookupTableCreateGeneralDim(dim)
   implicit none
   
   PetscInt :: dim
-  PetscInt :: i
   
   class(lookup_table_general_type), pointer :: LookupTableCreateGeneralDim
 
@@ -270,11 +269,6 @@ function LookupTableCreateGeneralDim(dim)
   lookup_table%dim = dim
   nullify(lookup_table%axis2)
   nullify(lookup_table%axis3)
-  if (allocated(lookup_table%partition)) then
-    do i = 1, size(lookup_table%partition)
-      nullify(lookup_table%partition(i)%data)
-    enddo
-  endif
   allocate(lookup_table%axis1)
   call LookupTableAxisInit(lookup_table%axis1)
   if (dim > 1) then

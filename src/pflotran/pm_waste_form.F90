@@ -7760,7 +7760,7 @@ subroutine CritInventoryDataSections(this,string,option)
     call PrintErrMsg(option)
   endif
   
-  ! Allocate data partition
+  ! Allocate data partition based on axis3 partitions if needed
   if (.not. allocated(this%partition)) then
     allocate(this%partition(this%axis3%num_partitions))
   endif
