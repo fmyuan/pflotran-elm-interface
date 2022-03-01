@@ -24,6 +24,7 @@ module PM_ZFlow_class
     PetscReal :: liq_sat_change_ts_governor
     PetscInt :: convergence_flags(MAX_RES_SOL_EQ)
     PetscReal :: convergence_reals(MAX_RES_SOL_EQ)
+    PetscBool :: verbose_convergence
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMZFlowReadSimOptionsBlock
@@ -112,6 +113,7 @@ subroutine PMZFlowInitObject(this)
   this%xmol_change_governor = UNINITIALIZED_DOUBLE
 
   this%check_post_convergence = PETSC_TRUE
+  this%verbose_convergence = PETSC_FALSE
 
   this%max_allow_liq_pres_change_ni = 1.d20
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
@@ -193,6 +195,8 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
           end select
         enddo
         call InputPopBlock(input,option)
+      case('VERBOSE_CONVERGENCE')
+        this%verbose_convergence = PETSC_TRUE
       case('NO_ACCUMULATION')
         zflow_calc_accum = PETSC_FALSE
       case('NO_FLUX')
@@ -882,21 +886,28 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
     reason_string(2:2) = 'C'
     converged_flag = CONVERGENCE_KEEP_ITERATING
   endif
-#if 0
-  if (OptionPrintToScreen(option)) then
-    if (option%comm%mycommsize > 1 .or. grid%nmax > 9999) then
+
+  if (this%verbose_convergence .and. &
+      OptionPrintToScreen(option)) then
+    if (option%comm%mycommsize > 1) then 
       write(*,'(4x,"Rsn: ",a10,2es10.2)') reason_string, &
-        this%convergence_reals(MAX_RES_LIQ), &
+        this%convergence_reals(MAX_RES_LIQ_EQ), &
+        this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI)
+    else if (grid%nmax > 9999) then
+      write(*,'(4x,"Rsn: ",a10,2(i8,es10.2))') reason_string, &
+        this%convergence_flags(MAX_RES_LIQ_EQ), &
+        this%convergence_reals(MAX_RES_LIQ_EQ), &
+        this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI), &
         this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI)
     else
       write(*,'(4x,"Rsn: ",a10,2(i5,es10.2))') reason_string, &
-        this%convergence_flags(MAX_RES_LIQ), &
-        this%convergence_reals(MAX_RES_LIQ), &
+        this%convergence_flags(MAX_RES_LIQ_EQ), &
+        this%convergence_reals(MAX_RES_LIQ_EQ), &
         this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI), &
         this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI)
     endif
   endif
-#endif
+
   option%convergence = converged_flag
 
   call VecRestoreArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
