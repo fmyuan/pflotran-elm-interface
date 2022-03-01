@@ -42,7 +42,8 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use PNF_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
-  use PM_Hydrate_class 
+  use PM_Hydrate_class
+  use PM_WIPP_Flow_class
  
   implicit none
 
@@ -84,6 +85,15 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call MphaseSetup(realization)
       case(WF_MODE)
         call WIPPFloSetup(realization)
+        pm => simulation%flow_process_model_coupler%pm_list
+        do
+          if (.not. associated(pm)) exit
+          select type (pm)
+            class is (pm_wippflo_type)
+              call PMWIPPFloReadSrcSinkBlock(realization,pm)
+          end select
+          pm => pm%next
+        enddo
       case(G_MODE)
         call GeneralSetup(realization)
       case(H_MODE)

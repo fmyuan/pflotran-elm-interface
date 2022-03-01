@@ -98,7 +98,9 @@ module PM_WIPP_Flow_class
     procedure, public :: ComputeMassBalance => PMWIPPFloComputeMassBalance
     procedure, public :: InputRecord => PMWIPPFloInputRecord
     procedure, public :: CheckpointBinary => PMWIPPFloCheckpointBinary
+    procedure, public :: CheckpointHDF5 => PMWIPPFloCheckpointHDF5
     procedure, public :: RestartBinary => PMWIPPFloRestartBinary
+    procedure, public :: RestartHDF5 => PMWIPPFloRestartHDF5
     procedure, public :: Destroy => PMWIPPFloDestroy
   end type pm_wippflo_type
   
@@ -107,6 +109,7 @@ module PM_WIPP_Flow_class
             PMWIPPFloInitializeRun, &
             PMWIPPFloFinalizeTimestep, &
             PMWIPPFloCheckUpdatePre, &
+            PMWIPPFloReadSrcSinkBlock, &
             PMWIPPFloDestroy
   
 contains
@@ -227,12 +230,12 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   implicit none
   
   type(input_type), pointer :: input
-  
+  type(input_type), pointer :: input2
   character(len=MAXWORDLENGTH) :: keyword, word, word2
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
-  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: error_string, block_string
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
   PetscInt :: icount
@@ -451,7 +454,7 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   ! always calculate neg_log10_rel_gas_sat_change_ni automatically
   this%neg_log10_rel_gas_sat_change_ni = &
     -1.d0*log10(this%max_allow_rel_gas_sat_change_ni)
-   
+ 
 end subroutine PMWIPPFloReadSimOptionsBlock
 
 ! ************************************************************************** !
@@ -628,6 +631,40 @@ subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
 end subroutine PMWIPPFloReadNewtonSelectCase
 
 ! ************************************************************************** !
+subroutine PMWIPPFloReadSrcSinkBlock(realization,this)
+  
+  use Input_Aux_module
+  use Option_module
+  use Realization_Subsurface_class
+  use WIPP_Flow_Aux_module
+
+  implicit none
+  
+  class(realization_subsurface_type), pointer :: realization
+  class(pm_wippflo_type) :: this
+  type(option_type), pointer :: option
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: block_string
+  
+  option => realization%option
+  
+  ! look for WIPP_SOURCE_SINK block
+ 
+  input => InputCreate(IN_UNIT,option%input_filename,option)
+  block_string = 'WIPP_SOURCE_SINK'
+  call InputFindStringInFile(input,option,block_string)
+  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
+    this%pmwss_ptr => PMWSSCreate()
+    this%pmwss_ptr%option => option
+    call this%pmwss_ptr%ReadPMBlock(input)
+    call PMWSSSetRealization(this%pmwss_ptr,realization)
+    call this%pmwss_ptr%Setup()
+    call InputDestroy(input)
+  endif
+  
+end subroutine PMWIPPFloReadSrcSinkBlock
+
+! ************************************************************************** !
 
 recursive subroutine PMWIPPFloInitializeRun(this)
   ! 
@@ -640,7 +677,6 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   use Patch_module
   use WIPP_Flow_module, only : WIPPFloUpdateAuxVars
   use WIPP_Flow_Aux_module
-  use Input_Aux_module
   use Dataset_Base_class
   use Dataset_Common_HDF5_class
   use Dataset_module
@@ -657,8 +693,6 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   
   PetscInt :: i
   PetscErrorCode :: ierr
-  type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: block_string
   class(dataset_base_type), pointer :: dataset
   type(field_type), pointer :: field
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
@@ -708,19 +742,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   ! call parent implementation
   call PMSubsurfaceFlowInitializeRun(this)
   
-  ! look for WIPP_SOURCE_SINK block 
-  input => InputCreate(IN_UNIT,option%input_filename,option)
-  block_string = 'WIPP_SOURCE_SINK'
-  call InputFindStringInFile(input,option,block_string)
-  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
-    this%pmwss_ptr => PMWSSCreate()
-    this%pmwss_ptr%option => option
-    call this%pmwss_ptr%ReadPMBlock(input)
-  endif
   ! call setup/initialization of all WIPP process models
   if (associated(this%pmwss_ptr)) then
-    call PMWSSSetRealization(this%pmwss_ptr,this%realization)
-    call this%pmwss_ptr%Setup()
     call this%pmwss_ptr%InitializeRun()
   endif
 
@@ -2426,8 +2449,38 @@ subroutine PMWIPPFloCheckpointBinary(this,viewer)
   PetscViewer :: viewer
   
   call PMSubsurfaceFlowCheckpointBinary(this,viewer)
+
+  if (associated(this%pmwss_ptr)) then
+    call PMWSSCheckpointBinary(this%pmwss_ptr,viewer)
+  endif
   
 end subroutine PMWIPPFloCheckpointBinary
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloCheckpointHDF5(this,pm_grp_id)
+  ! 
+  ! Checkpoints data associated with WIPPFlo PM
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/11/17
+
+  use Checkpoint_module
+  use Global_module
+  use hdf5
+
+  implicit none
+#include "petsc/finclude/petscviewer.h"      
+
+  class(pm_wippflo_type) :: this
+  integer(HID_T) :: pm_grp_id
+
+  call PMSubsurfaceFlowCheckpointHDF5(this,pm_grp_id)  
+  
+  if (associated(this%pmwss_ptr)) then
+    call PMWSSCheckpointHDF5(this%pmwss_ptr,pm_grp_id)
+  endif
+end subroutine PMWIPPFloCheckpointHDF5
 
 ! ************************************************************************** !
 
@@ -2449,8 +2502,38 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
   PetscViewer :: viewer
   
   call PMSubsurfaceFlowRestartBinary(this,viewer)
+
+  if (associated(this%pmwss_ptr)) then
+    call PMWSSRestartBinary(this%pmwss_ptr,viewer)
+  endif
   
 end subroutine PMWIPPFloRestartBinary
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloRestartHDF5(this,pm_grp_id)
+  ! 
+  ! Checkpoints data associated with WIPPFlo PM
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/11/17
+
+  use Checkpoint_module
+  use Global_module
+  use hdf5
+
+  implicit none
+#include "petsc/finclude/petscviewer.h"      
+
+  class(pm_wippflo_type) :: this
+  integer(HID_T) :: pm_grp_id
+
+  call PMSubsurfaceFlowRestartHDF5(this,pm_grp_id)  
+  
+  if (associated(this%pmwss_ptr)) then
+    call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
+  endif
+end subroutine PMWIPPFloRestartHDF5
 
 ! ************************************************************************** !
 
