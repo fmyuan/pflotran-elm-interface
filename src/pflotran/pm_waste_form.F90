@@ -486,6 +486,8 @@ module PM_Waste_Form_class
     PetscReal :: start_time_datamax
     PetscReal :: power_datamax
     PetscReal :: real_time_datamax
+    PetscBool :: allow_implicit
+    PetscBool :: allow_extrap
     type(crit_inventory_lookup_type), allocatable ::  nuclide(:)
     class(crit_inventory_type), pointer :: next
   contains
@@ -3463,10 +3465,12 @@ subroutine PMWFInitializeTimestep(this)
     if (associated(cur_waste_form%criticality_mechanism)) then
       if (associated(cur_waste_form%criticality_mechanism%rad_dataset)) then 
         dataset_solution = PETSC_TRUE
+        if (this%implicit_solution) this%implicit_solution = PETSC_FALSE
       endif 
       if (associated(cur_waste_form%criticality_mechanism% &
         inventory_dataset)) then 
         expanded_dataset_solution = PETSC_TRUE
+        if (this%implicit_solution) this%implicit_solution = PETSC_FALSE
       endif 
     endif
 
@@ -3497,10 +3501,33 @@ subroutine PMWFInitializeTimestep(this)
                           cur_criticality%crit_event%crit_start, &
                           cur_criticality%crit_heat, &
                           option%time)
-        
-       cur_waste_form%rad_concentration(k) = &
-         cur_waste_form%rad_mass_fraction(k) / &
-         cwfm%rad_species_list(k)%formula_weight
+
+       if (critinv%nuclide(k)%lookup%axis3%extrapolate .and. &
+           .not. critinv%allow_extrap) then
+         ! Fallback options if extrapolation is needed
+         if (critinv%allow_implicit) then
+           ! Resort to implicit solution
+           this%implicit_solution = PETSC_TRUE
+           expanded_dataset_solution = PETSC_FALSE
+           ! option%io_buffer = 'Switching from inventory lookup table to ' &
+           !                  //'implicit solution.'
+           ! call PrintWrnMsg(option)
+         else
+           ! Alert user that extrapolation is being used
+           option%io_buffer = 'Extrapolation of inventory lookup table has ' &
+                            //'been detected. Extrapolation can be enabled ' &
+                            //'with keyword USE_LOOKUP_AND_EXTRAPOLATION in ' &
+                            //'the OPTION sub-block.'
+           call PrintErrMsg(option)
+         endif
+       else
+
+         cur_waste_form%rad_concentration(k) = &
+           cur_waste_form%rad_mass_fraction(k) / &
+           cwfm%rad_species_list(k)%formula_weight
+
+       endif
+
       enddo
       
       
@@ -3630,7 +3657,8 @@ subroutine PMWFInitializeTimestep(this)
         enddo ! parent loop
       enddo     
 
-    else !--------------------------------------------------------------------
+    endif !--------------------------------------------------------------------
+    if (this%implicit_solution) then 
 
     ! implicit solution based on Bateman's equations and Newton's method
 
@@ -6675,6 +6703,61 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                                                             inventory_dataset% &
                                                             file_name,option)
               !-----------------------------
+                case('OPTION')
+                  call InputPushBlock(input,option)
+                  do
+                    call InputReadPflotranString(input,option)
+                    if (InputError(input)) exit
+                    if (InputCheckExit(input,option)) exit
+                    call InputReadCard(input,option,word,PETSC_FALSE)
+                    select case(trim(word))
+                    !-----------------------------
+                      case('USE_LOOKUP_AND_IMPLICIT')
+                        ! Implicit solution becomes fallback if extrapolation
+                        !   is needed from real time array
+                        if (associated(new_crit_mech%inventory_dataset)) then
+                          new_crit_mech%inventory_dataset%allow_implicit = &
+                            PETSC_TRUE
+                          ! Detect conflicting options
+                          if (new_crit_mech%inventory_dataset%allow_extrap) then
+                            option%io_buffer = 'Option "' // trim(word) // &
+                                               '" conflicts with others listed.'
+                            call PrintErrMsg(option)
+                          endif
+                        else
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+                    !-----------------------------
+                      case('USE_LOOKUP_AND_EXTRAPOLATION')
+                        ! Allow extrapolation from lookup table
+                        if (associated(new_crit_mech%inventory_dataset)) then
+                          new_crit_mech%inventory_dataset%allow_extrap = &
+                            PETSC_TRUE
+                          ! Detect conflicting options
+                          if (new_crit_mech%inventory_dataset% &
+                              allow_implicit) then
+                            option%io_buffer = 'Option "' // trim(word) // &
+                                               '" conflicts with others listed.'
+                            call PrintErrMsg(option)
+                          endif
+                        else
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+                    !-----------------------------
+                      case default
+                        call InputKeywordUnrecognized(input,word,error_string, &
+                                                      option)
+                    !-----------------------------
+                    end select
+                  enddo
+                  call InputPopBlock(input,option)
+              !-----------------------------
                 case default
                   call InputKeywordUnrecognized(input,word,error_string,option)
               !-----------------------------
@@ -7802,6 +7885,8 @@ function CritInventoryCreate()
   ci%start_time_datamax = UNINITIALIZED_DOUBLE
   ci%power_datamax      = UNINITIALIZED_DOUBLE
   ci%real_time_datamax  = UNINITIALIZED_DOUBLE
+  ci%allow_implicit = PETSC_FALSE
+  ci%allow_extrap   = PETSC_FALSE
 
   CritInventoryCreate => ci
 

@@ -87,6 +87,7 @@ module Lookup_Table_module
   end type axis3_partitions_type
 
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
+    PetscBool :: extrapolate ! extrapolation from axis3 required
     PetscInt, allocatable :: saved_indices3(:,:,:) ! index k per i, j coordinate, right
     PetscInt :: num_partitions ! number of partitions
     PetscInt, allocatable :: saved_index_partition(:,:) ! index partition per i, j coordinate
@@ -286,6 +287,7 @@ function LookupTableCreateGeneralDim(dim)
     call LookupTableAxisInit(lookup_table%axis3)
     lookup_table%mode = INTERP_3D_LP
     lookup_table%axis3%num_partitions = UNINITIALIZED_INTEGER
+    lookup_table%axis3%extrapolate = PETSC_FALSE
   endif
   
   LookupTableCreateGeneralDim => lookup_table
@@ -722,6 +724,9 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   PetscBool :: iexact ! lookup1 falls exactly on an axis1 value
   PetscBool :: jexact ! lookup2 falls exactly on an axis2 value
   PetscBool :: kexact ! lookup3 falls exactly on an axis3 value
+  PetscBool :: iextrp ! lookup1 requires extrapolation from axis 1
+  PetscBool :: jextrp ! lookup2 requires extrapolation from axis 2
+  PetscBool :: kextrp ! lookup3 requires extrapolation from axis 3
   PetscInt :: pselect ! relevant partition of axis3
   PetscReal, pointer :: v3(:) ! subset of axis3 values
   PetscInt :: kstart, kend    ! start and end of axis3 array to interpolate
@@ -736,6 +741,10 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   iexact = PETSC_FALSE
   jexact = PETSC_FALSE
   kexact = PETSC_FALSE
+
+  iextrp = PETSC_FALSE
+  jextrp = PETSC_FALSE
+  kextrp = PETSC_FALSE
 
   li = size(axis1%values)
   lj = size(axis2%values)
@@ -752,6 +761,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
       if (axis1%values(1) == lookup1) iexact = PETSC_TRUE
     elseif (lookup1 > axis1%values(li)) then
       i2 = li  ! extrapolation - use final and penultimate points
+      iextrp = PETSC_TRUE
     else
       ! interpolation
       do i = 2, li
@@ -776,6 +786,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
       if (axis2%values(1) == lookup2) jexact = PETSC_TRUE
     elseif (lookup2 > axis2%values(lj)) then
       j2 = lj  ! extrapolation - final and penultimate points will be used
+      jextrp = PETSC_TRUE
     else
       ! interpolation
       do j = 2, lj
@@ -841,6 +852,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
           if (v3(1) == lookup3) kexact = PETSC_TRUE
         elseif (lookup3 > v3(lk)) then
           k2 = lk  ! extrapolation - final and penultimate points will be used
+          kextrp = PETSC_TRUE
         else
           ! interpolation
           do k = 2, lk
@@ -884,6 +896,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
           if (axis3%values(1) == lookup3) kexact = PETSC_TRUE
         elseif (lookup3 > axis3%values(lk)) then
           k2 = lk  ! extrapolation - final and penultimate points will be used
+          kextrp = PETSC_TRUE
         else
           ! interpolation
           do k = kstart + 1, kend
@@ -928,6 +941,8 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
       this%data_references(i, j, k) = this%data(k)
     enddo
   endif
+
+  if (kextrp) this%axis3%extrapolate = PETSC_TRUE
 
 end subroutine LookupTableIndexAxis3
 
