@@ -7425,7 +7425,8 @@ subroutine CritInventoryRead(this,filename,option)
           endif
         enddo
 
-        string = 'START_TIME in criticality inventory lookup table'
+        string = 'START_TIME in criticality inventory lookup table "' &
+                 // trim(filename) // '"'
         call UtilityReadArray(tmpaxis1, &
                               NEG_ONE_INTEGER,string, &
                               input,option)
@@ -7458,7 +7459,8 @@ subroutine CritInventoryRead(this,filename,option)
           call PrintErrMsg(option)
         endif
 
-        string = 'POWER in criticality inventory lookup table'
+        string = 'POWER in criticality inventory lookup table "' &
+                 // trim(filename) // '"'
         call UtilityReadArray(tmpaxis2, &
                               NEG_ONE_INTEGER, &
                               string,input,option)
@@ -7491,7 +7493,8 @@ subroutine CritInventoryRead(this,filename,option)
           call PrintErrMsg(option)
         endif
 
-        string = 'REAL_TIME in criticality inventory lookup table'
+        string = 'REAL_TIME in criticality inventory lookup table "' &
+                 // trim(filename) // '"'
         call UtilityReadArray(tmpaxis3, &
                               NEG_ONE_INTEGER, &
                               string,input,option)
@@ -7521,6 +7524,8 @@ subroutine CritInventoryRead(this,filename,option)
             call CritInventoryRealTimeSections(this%nuclide(i)%lookup,filename,&
                                                option)
           endif
+          call CritInventoryCheckDuplicates(this%nuclide(i)%lookup,filename,&
+                                            option)
         enddo
     !-------------------------------------      
       case('INVENTORY','INVENTORIES')
@@ -7796,6 +7801,126 @@ subroutine CritInventoryDataSections(this,string,option)
   if (associated(array)) nullify(array)
   
 end subroutine CritInventoryDataSections
+
+! ************************************************************************** !
+
+subroutine CritInventoryCheckDuplicates(this,string,option)
+  !
+  ! Checks for duplicate entries within the lookup table axes
+  !
+  ! Author: Alex Salazar III
+  ! Date: 03/01/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type), pointer :: this ! lookup table
+  character(len=MAXSTRINGLENGTH), intent(in) :: string
+  type(option_type) :: option
+  ! ----------------------------------
+  PetscReal, pointer :: values(:) ! values under inspection
+  PetscInt :: i, j, k ! iterators
+  PetscReal :: ref1, ref2 ! comparison
+  PetscInt :: kstart, kend ! start and end of axis3 array to interpolate
+  PetscInt :: nk ! number of lists expected in axis3
+  character(len=MAXSTRINGLENGTH) :: sref1, sref2
+  ! ----------------------------------
+
+  ! Check axis1 for duplicates
+  if (associated(this%axis1)) then
+    values => this%axis1%values
+    do i = 1, size(values)
+      ref1 = values(i)
+      do j = 1, size(values)
+        if (i == j) cycle
+        ref2 = values(j)
+        if (ref1 == ref2) then
+          write(sref1,'(es12.5)') ref1
+          option%io_buffer = 'Duplicate entry (' // trim(adjustl(sref1)) &
+                           //') detected in axis1 for "' & 
+                           // trim(string) // '".'
+          call PrintErrMsg(option)
+        end if
+      enddo
+    end do
+  endif
+
+  ! Check axis2 for duplicates
+  if (associated(this%axis2)) then
+    values => this%axis2%values
+    do i = 1, size(values)
+      ref1 = values(i)
+      do j = 1, size(values)
+        if (i == j) cycle
+        ref2 = values(j)
+        if (ref1 == ref2) then
+          write(sref1,'(es12.5)') ref1
+          option%io_buffer = 'Duplicate entry (' // trim(adjustl(sref1)) &
+                           //') detected in axis2 for "' & 
+                           // trim(string) // '".'
+          call PrintErrMsg(option)
+        end if
+      enddo
+    end do
+  endif
+
+  ! Check axis3 for duplicates
+  if (associated(this%axis3)) then
+    
+    if (allocated(this%axis3%partition)) then
+      ! ---> axis3 is has defined partitions (non-rectangular)
+      do k = 1, size(this%axis3%partition)
+        values => this%axis3%partition(k)%values
+        do i = 1, size(values)
+          ref1 = values(i)
+          do j = 1, size(values)
+            if (i == j) cycle
+            ref2 = values(j)
+            if (ref1 == ref2) then
+              write(sref1,'(es12.5)') ref1
+              write(sref2,'(i3)') k
+              option%io_buffer = 'Duplicate entry (' // trim(adjustl(sref1)) &
+                               //') detected in partition ' &
+                               // trim(adjustl(sref2)) //' of axis3 for "' & 
+                               // trim(string) // '".'
+              call PrintErrMsg(option)
+            end if
+          enddo
+        end do
+      enddo
+      
+    else
+      ! ---> axis3 is described by the dim(3) value (rectangular)
+      nk = size(this%axis3%values)/this%dims(3)
+      kstart = 0
+      kend = 0
+      do k = 1, nk
+        kstart = (k - 1)*this%dims(3) + 1
+        kend = k*this%dims(3)
+        
+        values => this%axis3%values(kstart:kend)
+        do i = 1, size(values)
+          ref1 = values(i)
+          do j = 1, size(values)
+            if (i == j) cycle
+            ref2 = values(j)
+            if (ref1 == ref2) then
+              write(sref1,'(es12.5)') ref1
+              write(sref2,'(i3)') k
+              option%io_buffer = 'Duplicate entry (' // trim(adjustl(sref1)) &
+                               //') detected in dataset ' &
+                               // trim(adjustl(sref2)) //' of axis3 for "' & 
+                               // trim(string) // '".'
+              call PrintErrMsg(option)
+            end if
+          enddo
+        end do
+      enddo
+    endif
+  endif
+
+end subroutine CritInventoryCheckDuplicates
 
 ! ************************************************************************** !
 
