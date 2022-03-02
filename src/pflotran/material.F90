@@ -891,15 +891,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'secondary cont. mnrl area', &
                            'MATERIAL_PROPERTY')
             case('LOG_GRID_SPACING')
-              option%io_buffer = 'LOG_GRID_SPACING is &
-                                  &temporarily disabled for multiple &
-                                  continuum model.'
-              call PrintErrMsg(option)
-           !  call InputReadDouble(input,option, &
-           !                   material_property%multicontinuum%outer_spacing)
-           !   call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
-           !                  'MATERIAL_PROPERTY')
-           !   material_property%multicontinuum%log_spacing = PETSC_TRUE
+              if (StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
+                option%io_buffer = 'LOG_GRID_SPACING is &
+                                    &not supported for NESTED_SPHERES.'
+                call PrintErrMsg(option)
+              endif
+              call InputReadDouble(input,option, &
+                              material_property%multicontinuum%outer_spacing)
+              call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
+                             'MATERIAL_PROPERTY')
+              material_property%multicontinuum%log_spacing = PETSC_TRUE
             case('AREA_SCALING_FACTOR')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%area_scaling)
@@ -2383,6 +2384,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   !
+  use Dataset_module
 
   implicit none
 
@@ -2405,6 +2407,12 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%electrical_conductivity_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)
+
+  if (associated(material_property%multicontinuum)) then
+    call DatasetDestroy(material_property%multicontinuum%epsilon_dataset)
+    deallocate(material_property%multicontinuum)
+    nullify(material_property%multicontinuum)
+  endif
 
   deallocate(material_property)
   nullify(material_property)

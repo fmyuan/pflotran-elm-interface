@@ -3,6 +3,7 @@ module Inversion_Aux_module
 #include "petsc/finclude/petscmat.h"
   use petscmat
   use PFLOTRAN_Constants_module
+  use Inversion_Measurement_Aux_module
   use Inversion_TS_Aux_module
 
   implicit none
@@ -16,7 +17,10 @@ module Inversion_Aux_module
     Vec :: solution ! solely a pointer
     PetscInt, pointer :: cell_to_internal_connection(:,:)
     PetscInt, pointer :: cell_to_bc_connection(:,:)
-    type(inversion_ts_aux_type), pointer :: inversion_ts_aux_list
+    type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+    type(inversion_measurement_aux_type), pointer :: measurements(:)
+    VecScatter :: scatter_global_to_measurement
+    Vec :: measurement_vec
   end type inversion_aux_type
 
   public :: InversionAuxCreate, &
@@ -40,11 +44,14 @@ function InversionAuxCreate()
   allocate(aux)
   nullify(aux%cell_to_internal_connection)
   nullify(aux%cell_to_bc_connection)
-  nullify(aux%inversion_ts_aux_list)
+  nullify(aux%inversion_forward_aux)
 
   aux%max_ts = UNINITIALIZED_INTEGER
   aux%M = PETSC_NULL_MAT
   aux%solution = PETSC_NULL_VEC
+  nullify(aux%measurements)
+  aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
+  aux%measurement_vec = PETSC_NULL_VEC
 
   aux%JsensitivityT = PETSC_NULL_MAT
 
@@ -70,12 +77,15 @@ subroutine InversionAuxDestroy(aux)
   call DeallocateArray(aux%cell_to_internal_connection)
   call DeallocateArray(aux%cell_to_bc_connection)
 
-  call InversionTSAuxListDestroy(aux%inversion_ts_aux_list,PETSC_TRUE)
+  call InversionForwardAuxDestroy(aux%inversion_forward_aux)
 
   ! these objects are destroyed elsewhere, do not destroy
   aux%JsensitivityT = PETSC_NULL_MAT
   aux%M = PETSC_NULL_MAT
   aux%solution = PETSC_NULL_VEC
+  nullify(aux%measurements)
+  aux%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
+  aux%measurement_vec = PETSC_NULL_VEC
 
   deallocate(aux)
   nullify(aux)

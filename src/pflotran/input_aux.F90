@@ -817,17 +817,20 @@ subroutine InputReadPflotranStringSlave(input, option)
         call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
         call StringToUpper(word)
         if (word(1:4) == 'SKIP') then
-          skip_count = skip_count + 1
-          call InputPushCard(input,word,option)
+          ! to avoid keywords that start with SKIP
+          if (len_trim(word) == 4) then
+            skip_count = skip_count + 1
+            call InputPushCard(input,word,option)
+          endif
         endif
-        if (word(1:4) == 'NOSK') then
+        if (word(1:6) == 'NOSKIP') then
           call InputPushCard(input,word,option)
           skip_count = skip_count - 1
           if (skip_count == 0) exit
         endif
       enddo
       if (InputError(input)) exit
-    else if (word(1:1) /= ' ' .and. word(1:4) /= 'NOSK') then
+    else if (word(1:1) /= ' ' .and. word(1:6) /= 'NOSKIP') then
       exit
     endif
   enddo

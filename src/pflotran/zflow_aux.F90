@@ -44,7 +44,7 @@ module ZFlow_Aux_module
   PetscInt, parameter, public :: ZFLOW_COND_WATER_INDEX = 1
   PetscInt, parameter, public :: ZFLOW_COND_ENERGY_INDEX = 2
   PetscInt, parameter, public :: ZFLOW_COND_SOLUTE_INDEX = 3
-  PetscInt, parameter, public :: ZFLOW_COND_CONDUCTANCE_INDEX = 4
+  PetscInt, parameter, public :: ZFLOW_COND_WATER_AUX_INDEX = 4
   PetscInt, parameter, public :: ZFLOW_MAX_INDEX = 4
 
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_DERIVATIVE = -1
@@ -550,7 +550,7 @@ end subroutine ZFlowOutputAuxVars1
 
 ! ************************************************************************** !
 
-function ZFlowAuxMapConditionIndices(include_conductance)
+function ZFlowAuxMapConditionIndices(include_water_aux)
   !
   ! Maps indexing of conditions
   !
@@ -562,7 +562,7 @@ function ZFlowAuxMapConditionIndices(include_conductance)
 
   implicit none
 
-  PetscBool :: include_conductance
+  PetscBool :: include_water_aux
 
   PetscInt, pointer :: ZFlowAuxMapConditionIndices(:)
 
@@ -577,9 +577,9 @@ function ZFlowAuxMapConditionIndices(include_conductance)
   if (zflow_liq_flow_eq > 0) then
     temp_int = temp_int + 1
     mapping(ZFLOW_COND_WATER_INDEX) = temp_int
-    if (include_conductance) then
+    if (include_water_aux) then
       temp_int = temp_int + 1
-      mapping(ZFLOW_COND_CONDUCTANCE_INDEX) = temp_int
+      mapping(ZFLOW_COND_WATER_AUX_INDEX) = temp_int
     endif
   endif
   if (zflow_heat_tran_eq > 0) then
@@ -744,6 +744,7 @@ subroutine ZFlowAuxDestroy(aux)
 
   if (associated(aux%zflow_parameter)) then
     call DeallocateArray(aux%zflow_parameter%tensorial_rel_perm_exponent)
+    deallocate(aux%zflow_parameter)
   endif
   nullify(aux%zflow_parameter)
 
