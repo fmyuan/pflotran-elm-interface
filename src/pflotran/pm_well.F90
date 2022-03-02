@@ -35,6 +35,8 @@ module PM_Well_class
     ! the ghosted id of the reservoir grid cell within which each segment 
     ! center resides 
     PetscInt, pointer :: h_ghosted_id(:)
+    ! the strata id number associated with each well segment
+    PetscInt, pointer :: strata_id(:)
     ! coordinate of the top/bottom of the well [m]
     PetscReal :: tophole(3)
     PetscReal :: bottomhole(3)     
@@ -298,6 +300,7 @@ function PMWellCreate()
   nullify(PMWellCreate%grid%h)
   nullify(PMWellCreate%grid%h_local_id)
   nullify(PMWellCreate%grid%h_ghosted_id)
+  nullify(PMWellCreate%grid%strata_id)
   PMWellCreate%grid%tophole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%bottomhole(:) = UNINITIALIZED_DOUBLE
 
@@ -535,6 +538,9 @@ subroutine PMWellSetup(this)
   allocate(this%grid%h(nsegments))
   allocate(this%grid%h_local_id(nsegments))
   allocate(this%grid%h_ghosted_id(nsegments))
+  allocate(this%grid%strata_id(nsegments))
+
+  this%grid%strata_id(:) = UNINITIALIZED_INTEGER
 
   this%grid%nconnections = this%grid%nsegments - 1
 
@@ -1533,7 +1539,7 @@ subroutine PMWellReadWIPPIntrusion(this,input,option,keyword,error_string, &
 
   select case(trim(keyword))
   !-------------------------------------
-    case('WELL_MODEL_TYPE')
+    case('WIPP_INTRUSION')
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
@@ -1649,14 +1655,37 @@ recursive subroutine PMWellInitializeRun(this)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
+
+  use Strata_module
   
   implicit none
 
   class(pm_well_type) :: this
   
+  type(strata_type), pointer :: strata
   PetscInt :: nsegments, k
 
   nsegments = this%grid%nsegments 
+
+  do k = 1,nsegments
+    strata => this%realization%patch%strata_list%first
+    do 
+      if (.not.associated(strata)) exit
+      if (strata%well) then
+        if ((any(strata%region%cell_ids == this%grid%h_ghosted_id(k))) .and. &
+            (strata%active)) then
+          this%grid%strata_id(k) = strata%id
+        endif
+      endif
+      strata => strata%next
+    enddo
+    if (Uninitialized(this%grid%strata_id(k))) then
+      this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has not &
+        &been assigned with a REGION and MATERIAL_PROPERTY with the use of the &
+        &STRATA block.'
+      call PrintErrMsg(this%option)
+    endif
+  enddo
 
   allocate(this%flow_soln%residual(nsegments*this%flow_soln%ndof))
   allocate(this%flow_soln%update(nsegments*this%flow_soln%ndof))
@@ -1818,10 +1847,15 @@ subroutine PMWellInitializeTimestep(this)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
+
+  use Strata_module
   
   implicit none
   
   class(pm_well_type) :: this
+
+  type(strata_type), pointer :: strata
+  PetscInt :: k
 
   ! update the reservoir object's pressure and saturations
   call PMWellUpdateReservoir(this)
@@ -1830,6 +1864,12 @@ subroutine PMWellInitializeTimestep(this)
     ! enter here if its the very first timestep
     call PMWellInitializeWell(this)
   endif
+
+  ! loop thru strata and turn them on/off strata%active
+  ! update the grid%strata_id assignment 
+
+  ! in the following UpdatePropertiesFlow/Tran routines, update the material 
+  ! properties according to the active strata
 
   call PMWellUpdatePropertiesFlow(this%well,&
           this%realization%patch%characteristic_curves_array,&
@@ -1913,13 +1953,9 @@ subroutine PMWellInitializeWell(this)
   do k = 1,this%grid%nsegments
     strata => this%realization%patch%strata_list%first
     do
-      if (.not. associated(strata)) then
-         this%option%io_buffer =  &
-                              'Well regions must link with corresponding STRATA'
-         call PrintErrMsg(this%option)
-      endif
+      if (.not.associated(strata)) exit
       if (strata%well) then
-        if (any(strata%region%cell_ids == this%grid%h_ghosted_id(k))) then
+        if (strata%id == this%grid%strata_id(k)) then
           this%well%ccid(k) = strata%material_property%saturation_function_id
           this%well%permeability(k) = strata%material_property%permeability(3,3)
           this%well%phi(k) = strata%material_property%porosity

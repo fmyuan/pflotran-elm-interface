@@ -253,6 +253,12 @@ subroutine StrataRead(strata,input,option)
   if (Initialized(strata%start_time)) then
     option%flow%transient_porosity = PETSC_TRUE
   endif
+
+  if (strata%well) then
+    if (Initialized(strata%start_time) .and. (strata%start_time > 0.d0)) then
+      strata%active = PETSC_FALSE
+    endif
+  endif
   
 end subroutine StrataRead
 
