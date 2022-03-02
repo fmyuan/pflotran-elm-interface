@@ -3520,7 +3520,7 @@ subroutine PMWFInitializeTimestep(this)
            switch_to_implicit =  PETSC_TRUE
          else
            ! Alert user that extrapolation has been attempted
-           option%io_buffer = 'Extrapolation of inventory lookup table"' &
+           option%io_buffer = 'Extrapolation of inventory lookup table "' &
                             // trim(critinv%file_name) // '" has ' &
                             //'been detected. Extrapolation can be enabled ' &
                             //'with keyword USE_LOOKUP_AND_EXTRAPOLATION in ' &
@@ -7489,7 +7489,7 @@ subroutine CritInventoryRead(this,filename,option)
           option%io_buffer = 'NUM_SPECIES, NUM_START_TIMES, NUM_POWERS, and ' &
                            //'NUM_REAL_TIMES must be specified prior to ' &
                            //'reading the constituent arrays in ' &
-                           // trim(filename) // "."
+                           // trim(filename) // '.'
           call PrintErrMsg(option)
         endif
 
