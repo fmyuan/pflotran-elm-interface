@@ -727,9 +727,11 @@ subroutine PMWellReadPMBlock(this,input)
       case('TWO_PHASE')
         this%nphase = 2
         cycle
+    !-------------------------------------
       case('CHECK_FOR_SS')
         this%ss_check = PETSC_TRUE
         cycle
+    !-------------------------------------
     end select
 
     ! Read sub-blocks within WELLBORE_MODEL block:
@@ -739,6 +741,10 @@ subroutine PMWellReadPMBlock(this,input)
     
     error_string = 'WELLBORE_MODEL'
     call PMWellReadWell(this,input,option,word,error_string,found)
+    if (found) cycle
+
+    error_string = 'WELLBORE_MODEL'
+    call PMWellReadWIPPIntrusion(this,input,option,word,error_string,found)
     if (found) cycle
 
     error_string = 'WELLBORE_MODEL'
@@ -1427,10 +1433,10 @@ subroutine PMWellReadTranSolver(pm_well,input,option,keyword,error_string, &
 
 ! ************************************************************************** !
 
-subroutine PMWellReadWellModelType(this,input,option,keyword,error_string,found)
+subroutine PMWellReadWellModelType(this,input,option,keyword,error_string, &
+                                   found)
   ! 
-  ! Reads input file parameters associated with the well model 
-  ! type.
+  ! Reads input file parameters associated with the well model type.
   ! 
   ! Author: Michael Nole
   ! Date: 12/22/2021
@@ -1450,7 +1456,7 @@ subroutine PMWellReadWellModelType(this,input,option,keyword,error_string,found)
 
   character(len=MAXWORDLENGTH) :: word
 
-  error_string = trim(error_string) // ',WELL_BOUNDARY_CONDITIONS'
+  error_string = trim(error_string) // ',WELL_MODEL_TYPE'
   found = PETSC_TRUE
 
   select case(trim(keyword))
@@ -1499,6 +1505,70 @@ end subroutine PMWellReadWellModelType
 
 ! ************************************************************************** !
 
+subroutine PMWellReadWIPPIntrusion(this,input,option,keyword,error_string, &
+                                  found)
+  ! 
+  ! Reads input file parameters associated with a WIPP intrusion scenario.
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 03/01/2022
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  class(pm_well_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  character(len=MAXWORDLENGTH) :: word
+
+  error_string = trim(error_string) // ',WIPP_INTRUSION'
+  found = PETSC_TRUE
+
+  select case(trim(keyword))
+  !-------------------------------------
+    case('WELL_MODEL_TYPE')
+      call InputPushBlock(input,option)
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+        !-----------------------------
+          case('START_TIME')
+            call InputReadDouble(input,option,this%intrusion_time_start)
+            call InputErrorMsg(input,option,'START_TIME',error_string)
+        !-----------------------------
+          case('END_TIME')
+            call InputReadDouble(input,option,this%intrusion_time_end)
+            call InputErrorMsg(input,option,'END_TIME',error_string)
+        !-----------------------------
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        !-----------------------------
+        end select
+      enddo
+      call InputPopBlock(input,option)
+
+  !-------------------------------------
+    case default
+      found = PETSC_FALSE
+  !-------------------------------------
+  end select
+
+end subroutine PMWellReadWIPPIntrusion
+
+! ************************************************************************** !
+
 subroutine PMWellReadPass2(input,option)
   ! 
   ! Reads input file parameters associated with the well process model.
@@ -1536,7 +1606,7 @@ subroutine PMWellReadPass2(input,option)
     select case(trim(keyword))
     !--------------------
     case('GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
-         'WELL_TRANSPORT_SOLVER')
+         'WELL_TRANSPORT_SOLVER','WIPP_INTRUSION')
       call InputSkipToEND(input,option,card)
     !--------------------
     case('WELL_BOUNDARY_CONDITIONS')
