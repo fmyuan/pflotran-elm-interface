@@ -123,6 +123,11 @@ WELLBORE_MODEL
     TOP_OF_HOLE    5.0d-1 1.50d0 300.0d0  # [x,y,z] in meters
     BOTTOM_OF_HOLE 5.0d-1 1.5d0  0.0d0  # [x,y,z] in meters
   /
+
+  WIPP_INTRUSION
+    START_TIME 1.103760000d+10 # [sec] 350 yr
+    END_TIME   3.155800000d+11 # [sec] 10,000 yr
+  /
   
   # The number of values listed in the WELL sub-block needs to match the
   # number of segments. If all segments have the same value, then you can
@@ -136,9 +141,6 @@ WELLBORE_MODEL
     POROSITY 0.99d0
   /
   
-  # Either BOTTOM_OF_HOLE or TOP_OF_HOLE sub-blocks need to be specified.
-  # You can only specify a PRESSURE [Pa] or a FLUX.
-  # For FLUX, is it going to be a MASS_FLUX or a VOLUMETRIC_FLUX????
   WELL_BOUNDARY_CONDITIONS
     BOTTOM_OF_HOLE
       #PRESSURE -1.d15 # [Pa]

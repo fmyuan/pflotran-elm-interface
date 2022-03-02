@@ -234,6 +234,7 @@ module PM_Well_class
     PetscReal, pointer :: pert(:,:)
     PetscInt :: nphase 
     PetscInt :: nspecies 
+    PetscReal :: intrusion_time_start, intrusion_time_end
     PetscReal :: dt_flow, dt_tran
     PetscReal :: min_dt_flow, min_dt_tran
     PetscReal :: cumulative_dt_flow
@@ -280,6 +281,8 @@ function PMWellCreate()
   nullify(PMWellCreate%realization)
   PMWellCreate%min_dt_flow = 1.d-15
   PMWellCreate%min_dt_tran = 1.d-15
+  PMWellCreate%intrusion_time_start = 0.d0
+  PMWellCreate%intrusion_time_end = MAX_DOUBLE 
   PMWellCreate%nphase = 0
   PMWellCreate%nspecies = 0
   PMWellCreate%transport = PETSC_FALSE
