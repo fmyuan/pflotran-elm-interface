@@ -715,9 +715,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   PetscInt :: li, lj, lk ! array lengths
   PetscInt :: i1, j1, k1 ! left bounds
   PetscInt :: i2, j2, k2 ! right bounds
-  PetscBool :: iexact ! lookup1 falls exactly on an axis1 value
-  PetscBool :: jexact ! lookup2 falls exactly on an axis2 value
-  PetscBool :: kexact ! lookup3 falls exactly on an axis3 value
   PetscBool :: iextrp ! lookup1 requires extrapolation from axis 1
   PetscBool :: jextrp ! lookup2 requires extrapolation from axis 2
   PetscBool :: kextrp ! lookup3 requires extrapolation from axis 3
@@ -731,10 +728,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   axis1 => this%axis1
   axis2 => this%axis2
   axis3 => this%axis3
-
-  iexact = PETSC_FALSE
-  jexact = PETSC_FALSE
-  kexact = PETSC_FALSE
 
   iextrp = PETSC_FALSE
   jextrp = PETSC_FALSE
@@ -752,7 +745,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   else
     if(lookup1 <= axis1%values(1)) then
       i2 = 2   ! extrapolation - use first and second points
-      if (axis1%values(1) == lookup1) iexact = PETSC_TRUE
     elseif (lookup1 > axis1%values(li)) then
       i2 = li  ! extrapolation - use final and penultimate points
       iextrp = PETSC_TRUE
@@ -761,7 +753,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
       do i = 2, li
         if (axis1%values(i - 1) < lookup1 .and. axis1%values(i) >= lookup1) then
           i2 = i
-          if (axis1%values(i) == lookup1) iexact = PETSC_TRUE
           exit
         endif
       enddo
@@ -777,7 +768,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
   else
     if(lookup2 <= axis2%values(1)) then
       j2 = 2   ! extrapolation - first and second points will be used
-      if (axis2%values(1) == lookup2) jexact = PETSC_TRUE
     elseif (lookup2 > axis2%values(lj)) then
       j2 = lj  ! extrapolation - final and penultimate points will be used
       jextrp = PETSC_TRUE
@@ -786,7 +776,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
       do j = 2, lj
         if (axis2%values(j - 1) < lookup2 .and. axis2%values(j) >= lookup2) then
           j2 = j
-          if (axis2%values(j) == lookup2) jexact = PETSC_TRUE
           exit
         endif
       enddo
@@ -843,7 +832,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
       else
         if(lookup3 <= v3(1)) then
           k2 = 2   ! extrapolation - first and second points will be used
-          if (v3(1) == lookup3) kexact = PETSC_TRUE
         elseif (lookup3 > v3(lk)) then
           k2 = lk  ! extrapolation - final and penultimate points will be used
           kextrp = PETSC_TRUE
@@ -852,7 +840,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
           do k = 2, lk
             if (v3(k - 1) < lookup3 .and. v3(k) >= lookup3) then
               k2 = k
-              if (v3(k) == lookup3) kexact = PETSC_TRUE
               exit
             endif
           enddo
@@ -887,7 +874,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
       else
         if(lookup3 <= axis3%values(1)) then
           k2 = 2   ! extrapolation - first and second points will be used
-          if (axis3%values(1) == lookup3) kexact = PETSC_TRUE
         elseif (lookup3 > axis3%values(lk)) then
           k2 = lk  ! extrapolation - final and penultimate points will be used
           kextrp = PETSC_TRUE
@@ -897,7 +883,6 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
             if (axis3%values(k - 1) < lookup3 .and. &
                 axis3%values(k) >= lookup3) then
               k2 = k
-              if (axis3%values(k) == lookup3) kexact = PETSC_TRUE
               exit
             endif
           enddo

@@ -7817,7 +7817,7 @@ subroutine CritInventoryCheckDuplicates(this,string,option)
   ! ----------------------------------
   class(lookup_table_general_type), pointer :: this ! lookup table
   character(len=MAXSTRINGLENGTH), intent(in) :: string
-  type(option_type) :: option
+  type(option_type), intent(inout) :: option
   ! ----------------------------------
   PetscReal, pointer :: values(:) ! values under inspection
   PetscInt :: i, j, k ! iterators
