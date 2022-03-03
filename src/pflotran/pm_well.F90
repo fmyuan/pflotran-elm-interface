@@ -236,7 +236,7 @@ module PM_Well_class
     PetscReal, pointer :: pert(:,:)
     PetscInt :: nphase 
     PetscInt :: nspecies 
-    PetscReal :: intrusion_time_start, intrusion_time_end
+    PetscReal :: intrusion_time_start
     PetscReal :: dt_flow, dt_tran
     PetscReal :: min_dt_flow, min_dt_tran
     PetscReal :: cumulative_dt_flow
@@ -283,8 +283,7 @@ function PMWellCreate()
   nullify(PMWellCreate%realization)
   PMWellCreate%min_dt_flow = 1.d-15
   PMWellCreate%min_dt_tran = 1.d-15
-  PMWellCreate%intrusion_time_start = 0.d0
-  PMWellCreate%intrusion_time_end = MAX_DOUBLE 
+  PMWellCreate%intrusion_time_start = UNINITIALIZED_DOUBLE
   PMWellCreate%nphase = 0
   PMWellCreate%nspecies = 0
   PMWellCreate%transport = PETSC_FALSE
@@ -740,6 +739,13 @@ subroutine PMWellReadPMBlock(this,input)
     !-------------------------------------
       case('CHECK_FOR_SS')
         this%ss_check = PETSC_TRUE
+        cycle!-------------------------------------
+      case('WIPP_INTRUSION_START_TIME')
+        call InputReadDouble(input,option,this%intrusion_time_start)
+        call InputErrorMsg(input,option,'WIPP_INTRUSION_START_TIME', &
+                           error_string)
+        call InputReadAndConvertUnits(input,this%intrusion_time_start,'sec', &
+                           'WELLBORE_MODEL, WIPP_INTRUSION_START_TIME',option)
         cycle
     !-------------------------------------
     end select
@@ -751,10 +757,6 @@ subroutine PMWellReadPMBlock(this,input)
     
     error_string = 'WELLBORE_MODEL'
     call PMWellReadWell(this,input,option,word,error_string,found)
-    if (found) cycle
-
-    error_string = 'WELLBORE_MODEL'
-    call PMWellReadWIPPIntrusion(this,input,option,word,error_string,found)
     if (found) cycle
 
     error_string = 'WELLBORE_MODEL'
@@ -1113,6 +1115,9 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                   !-----------------------------
                     case('PRESSURE')
                       call InputReadDouble(input,option,this%well%bh_p)
+                      call InputReadAndConvertUnits(input,this%well%bh_p, &
+                           'Pa','WELL_BOUNDARY_CONDITIONS,BOTTOM_OF_HOLE,&
+                           &PRESSURE',option)
                       if (InputError(input)) exit
                   !-----------------------------
                     case('PRESSURE_SET_BY_RESERVOIR')
@@ -1120,9 +1125,15 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                   !-----------------------------
                     case('LIQUID_RATE')
                       call InputReadDouble(input,option,this%well%bh_ql)
+                      call InputReadAndConvertUnits(input,this%well%bh_ql, &
+                           'm/s','WELL_BOUNDARY_CONDITIONS,BOTTOM_OF_HOLE,&
+                           &LIQUID_RATE',option)
                   !-----------------------------
                     case('GAS_RATE')
                       call InputReadDouble(input,option,this%well%bh_qg)
+                      call InputReadAndConvertUnits(input,this%well%bh_qg, &
+                           'm/s','WELL_BOUNDARY_CONDITIONS,BOTTOM_OF_HOLE,&
+                           &GAS_RATE',option)
                   !-----------------------------
                     case default
                       call InputKeywordUnrecognized(input,word, &
@@ -1145,13 +1156,22 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                   !-----------------------------
                     case('PRESSURE')
                       call InputReadDouble(input,option,this%well%th_p)
+                      call InputReadAndConvertUnits(input,this%well%th_p, &
+                           'Pa','WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE,&
+                           &PRESSURE',option)
                       if (InputError(input)) exit
                   !-----------------------------
                     case('LIQUID_RATE')
                       call InputReadDouble(input,option,this%well%th_ql)
+                      call InputReadAndConvertUnits(input,this%well%th_ql, &
+                           'm/s','WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE,&
+                           &LIQUID_RATE',option)
                   !-----------------------------
                     case('GAS_RATE')
                       call InputReadDouble(input,option,this%well%th_qg)
+                      call InputReadAndConvertUnits(input,this%well%th_qg, &
+                           'm/s','WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE,&
+                           &GAS_RATE',option)
                   !-----------------------------
                     case default
                       call InputKeywordUnrecognized(input,word, &
@@ -1509,69 +1529,6 @@ end subroutine PMWellReadWellModelType
 
 ! ************************************************************************** !
 
-subroutine PMWellReadWIPPIntrusion(this,input,option,keyword,error_string, &
-                                  found)
-  ! 
-  ! Reads input file parameters associated with a WIPP intrusion scenario.
-  ! 
-  ! Author: Jennifer M. Frederick
-  ! Date: 03/01/2022
-  !
-  use Input_Aux_module
-  use String_module
-
-  implicit none
-
-  class(pm_well_type) :: this
-  type(input_type), pointer :: input
-  type(option_type) :: option
-  character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
-  PetscBool :: found
-
-  character(len=MAXWORDLENGTH) :: word
-
-  error_string = trim(error_string) // ',WIPP_INTRUSION'
-  found = PETSC_TRUE
-
-  select case(trim(keyword))
-  !-------------------------------------
-    case('WIPP_INTRUSION')
-      call InputPushBlock(input,option)
-      do
-        call InputReadPflotranString(input,option)
-        if (InputError(input)) exit
-        if (InputCheckExit(input,option)) exit
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'keyword',error_string)
-        call StringToUpper(word)
-        select case(trim(word))
-        !-----------------------------
-          case('START_TIME')
-            call InputReadDouble(input,option,this%intrusion_time_start)
-            call InputErrorMsg(input,option,'START_TIME',error_string)
-        !-----------------------------
-          case('END_TIME')
-            call InputReadDouble(input,option,this%intrusion_time_end)
-            call InputErrorMsg(input,option,'END_TIME',error_string)
-        !-----------------------------
-          case default
-            call InputKeywordUnrecognized(input,word,error_string,option)
-        !-----------------------------
-        end select
-      enddo
-      call InputPopBlock(input,option)
-
-  !-------------------------------------
-    case default
-      found = PETSC_FALSE
-  !-------------------------------------
-  end select
-
-end subroutine PMWellReadWIPPIntrusion
-
-! ************************************************************************** !
-
 subroutine PMWellReadPass2(input,option)
   ! 
   ! Reads input file parameters associated with the well process model.
@@ -1607,16 +1564,16 @@ subroutine PMWellReadPass2(input,option)
     call StringToUpper(keyword)
 
     select case(trim(keyword))
-    !--------------------
-    case('GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
-         'WELL_TRANSPORT_SOLVER','WIPP_INTRUSION')
-      call InputSkipToEND(input,option,card)
-    !--------------------
-    case('WELL_BOUNDARY_CONDITIONS')
-      call InputSkipToEND(input,option,card) 
-      call InputSkipToEND(input,option,card)
-      call InputSkipToEND(input,option,card)
-    !--------------------
+      !--------------------
+      case('GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
+           'WELL_TRANSPORT_SOLVER')
+        call InputSkipToEND(input,option,card)
+      !--------------------
+      case('WELL_BOUNDARY_CONDITIONS')
+        call InputSkipToEND(input,option,card)
+        call InputSkipToEND(input,option,card)
+        call InputSkipToEND(input,option,card)
+      !--------------------
     end select
 
   enddo
@@ -1657,49 +1614,52 @@ recursive subroutine PMWellInitializeRun(this)
 
   class(pm_well_type) :: this
   
-  type(strata_type), pointer :: strata
+  type(strata_type), pointer :: patch_strata, well_strata
   PetscInt :: nsegments, k
   PetscReal :: curr_time
 
   curr_time = this%option%time
   nsegments = this%grid%nsegments 
 
-  strata => this%realization%patch%strata_list%first
+  patch_strata => this%realization%patch%strata_list%first
   do 
-    if (.not.associated(strata)) exit
-    if (strata%well) then
-      call StrataAddToList(strata,this%strata_list)
+    if (.not.associated(patch_strata)) exit
+    if (patch_strata%well) then
+      well_strata => StrataCreateFromStrata(patch_strata)
+      well_strata%region => patch_strata%region
+      well_strata%material_property => patch_strata%material_property
+      call StrataAddToList(well_strata,this%strata_list) 
     endif
-    strata => strata%next
+    patch_strata => patch_strata%next
   enddo
 
-  ! loop thru strata and mark them as active or inactive
-  strata => this%strata_list%first
+  ! loop thru well stratas and mark them as active or inactive
+  well_strata => this%strata_list%first
   do 
-    if (.not.associated(strata)) exit
-    if (Initialized(strata%start_time) .and. &
-        Initialized(strata%final_time)) then
-      if ((curr_time >= strata%start_time) .and. &
-          (curr_time <= strata%final_time))  then
-        strata%active = PETSC_TRUE
+    if (.not.associated(well_strata)) exit
+    if (Initialized(well_strata%start_time) .and. &
+        Initialized(well_strata%final_time)) then
+      if ((curr_time >= well_strata%start_time) .and. &
+          (curr_time <= well_strata%final_time))  then
+        well_strata%active = PETSC_TRUE
       else
-        strata%active = PETSC_FALSE
+        well_strata%active = PETSC_FALSE
       endif
     else
-      strata%active = PETSC_TRUE
+      well_strata%active = PETSC_TRUE
     endif
-    strata => strata%next
+    well_strata => well_strata%next
   enddo
 
   do k = 1,nsegments
-    strata => this%strata_list%first
+    well_strata => this%strata_list%first
     do 
-      if (.not.associated(strata)) exit
-      if ((any(strata%region%cell_ids == this%grid%h_ghosted_id(k))) .and. &
-          (strata%active)) then
-        this%grid%strata_id(k) = strata%id
+      if (.not.associated(well_strata)) exit
+      if ((any(well_strata%region%cell_ids == this%grid%h_ghosted_id(k))) .and. &
+          (well_strata%active)) then
+        this%grid%strata_id(k) = well_strata%id
       endif
-      strata => strata%next
+      well_strata => well_strata%next
     enddo
     if (Uninitialized(this%grid%strata_id(k))) then
       this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has not &
@@ -1878,7 +1838,10 @@ subroutine PMWellInitializeTimestep(this)
   PetscInt :: k
   PetscReal :: curr_time
 
-  curr_time = this%option%time
+  curr_time = this%option%time - this%option%flow_dt
+
+  if (Initialized(this%intrusion_time_start) .and. &
+      (curr_time < this%intrusion_time_start)) return
 
   ! update the reservoir object with current reservoir properties
   call PMWellUpdateReservoir(this)
@@ -2153,6 +2116,13 @@ subroutine PMWellFinalizeTimestep(this)
   implicit none
   
   class(pm_well_type) :: this
+
+  PetscReal :: curr_time
+
+  curr_time = this%option%time - this%option%flow_dt
+
+  if (Initialized(this%intrusion_time_start) .and. &
+      (curr_time < this%intrusion_time_start)) return
 
   call PMWellUpdateReservoirSrcSink(this)
 
@@ -2594,16 +2564,10 @@ subroutine PMWellJacobian(this)
 
   class(pm_well_type) :: this
 
-  !SNES :: snes
-  !Vec :: xx
   Mat :: A, B
-  !type(realization_subsurface_type) :: realization
-  PetscErrorCode :: ierr
-
   Mat :: J
   MatType :: mat_type
-  PetscReal :: norm
-  PetscViewer :: viewer
+  PetscErrorCode :: ierr
 
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
@@ -2804,6 +2768,19 @@ subroutine PMWellSolve(this,time,ierr)
   class(pm_well_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
+
+  character(len=MAXSTRINGLENGTH) :: out_string
+  PetscReal :: curr_time
+
+  curr_time = this%option%time - this%option%flow_dt
+
+  if (Initialized(this%intrusion_time_start) .and. &
+      (curr_time < this%intrusion_time_start)) then
+    write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time 
+    call OptionPrint(out_string,this%option)
+    ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs!
+    return
+  endif
 
   call PMWellSolveFlow(this,time,ierr)
 
@@ -4180,18 +4157,18 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   type(well_grid_type), pointer :: grid
   type(well_reservoir_type), pointer :: reservoir
 
-  PetscInt :: i, iup, idn, ghosted_id
+  PetscInt :: iup
   PetscReal :: pres_up, pres_dn
 
   !MAN: clean these up
-  PetscReal :: perm_ave_over_dist, density_kg_ave
-  PetscReal :: perm_up, perm_dn, dist_up, dist_dn
+  PetscReal :: perm_ave_over_dist
+  PetscReal :: perm_up, perm_dn
   PetscReal :: gravity_term, delta_pressure
-  PetscReal :: density_ave, density_ave_kmol, tot_mole_flux
+  PetscReal :: density_ave, tot_mole_flux
   PetscReal :: boundary_pressure, viscosity
   PetscReal :: v_darcy,q
   PetscBool :: upwind
-  PetscInt :: idof, irow, itop
+  PetscInt :: itop
 
   PetscReal, parameter :: eps = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
@@ -4343,7 +4320,6 @@ subroutine PMWellBCFluxDerivative(pm_well,Jtop,Jbtm)
   implicit none
 
   type(pm_well_type) :: pm_well
-  PetscInt :: idn
   PetscReal :: Jtop(pm_well%flow_soln%ndof,pm_well%flow_soln%ndof), &
                Jbtm(pm_well%flow_soln%ndof,pm_well%flow_soln%ndof)
 
@@ -4387,10 +4363,8 @@ subroutine PMWellPerturb(pm_well)
   type(pm_well_type) :: pm_well
 
   PetscReal :: x(pm_well%grid%nsegments,pm_well%nphase), &
-               x_pert(pm_well%grid%nsegments,pm_well%nphase), &
                pert(pm_well%grid%nsegments,pm_well%nphase)
-  PetscBool :: pert_indices(pm_well%grid%nsegments)
-  PetscInt :: idof,i
+  PetscInt :: i
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: min_perturbation = 1.d-10

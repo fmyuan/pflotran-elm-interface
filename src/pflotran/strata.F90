@@ -46,6 +46,7 @@ module Strata_module
   end interface
   
   public :: StrataCreate, &
+            StrataCreateFromStrata, &
             StrataDestroy, &
             StrataInitList, &
             StrataAddToList, &
