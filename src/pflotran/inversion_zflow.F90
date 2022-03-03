@@ -823,16 +823,16 @@ subroutine InvZFlowEvaluateCostFunction(this)
                      this%measurements(idata)%simulated_value)
     this%phi_data = this%phi_data + tempreal * tempreal
     ! DBG
-    !print*,"MEASUREMENT"
-    !print*,"  TIME ",this%measurements(idata)%time," s"
-    !print*,"  CELL_ID ",this%measurements(idata)%cell_id
-    !print*,"  VALUE ",this%measurements(idata)%simulated_value
-    !print*,"/"
+    print*,"MEASUREMENT"
+    print*,"  TIME ",this%measurements(idata)%time," s"
+    print*,"  CELL_ID ",this%measurements(idata)%cell_id
+    print*,"  VALUE ",this%measurements(idata)%simulated_value
+    print*,"/"
     print*,this%measurements(idata)%cell_id, &
            this%measurements(idata)%simulated_value, &
-           this%measurements(idata)%value
+          this%measurements(idata)%value
   enddo
-
+!stop
   this%current_chi2 = this%phi_data / num_measurement
   call VecRestoreArrayF90(this%realization%field%work,vec_ptr, &
                           ierr);CHKERRQ(ierr)
