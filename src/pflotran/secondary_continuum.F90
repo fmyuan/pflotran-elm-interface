@@ -78,19 +78,25 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
     
   select case (igeom)      
     case(SLAB)
-      if (epsilon > 0.d0 .and. aperture > 0.d0) then
+      if (Initialized(epsilon) .and. Initialized(aperture) .and. &
+          Initialized(sec_continuum%slab%length)) then
+        option%io_buffer = 'SLAB GEOMETRY OVERDEFINED. DEFINE ONLY &
+                            &EPSILON and APERTURE, LENGTH and APERTURE &
+                            &or LENGTH and EPSILON ' 
+        call PrintErrMsg(option)
+      else if (Initialized(epsilon) .and. Initialized(aperture)) then
         sec_continuum%slab%length = 2.d0 * aperture / ((1.d0 - epsilon) ** (-1.d0/3.d0) - 1.d0)
-      else if (sec_continuum%slab%length > 0.d0 .and. aperture > 0.d0) then
+      else if (Initialized(sec_continuum%slab%length) .and. Initialized(aperture)) then
         epsilon = aperture / (sec_continuum%slab%length + aperture)
-      else if (sec_continuum%slab%length > 0.d0 .and. epsilon > 0.d0) then
+      else if (Initialized(sec_continuum%slab%length) .and. Initialized(epsilon)) then
         aperture = (sec_continuum%slab%length * epsilon) / (1.d0 - epsilon)
       else
-        option%io_buffer = 'EPSILON and APERTURE, LENGTH and APERTURE' // &
-                           'or LENGTH and EPSILON' // &
-                           'must be specified for SLAB type ' 
+        option%io_buffer = 'EPSILON and APERTURE, LENGTH and APERTURE &
+                           &or LENGTH and EPSILON &
+                           &must be specified for SLAB type ' 
         call PrintErrMsg(option)
       endif
-      if (sec_continuum%slab%area > 0.d0) then
+      if (Initialized(sec_continuum%slab%area)) then
         aream0 = sec_continuum%slab%area
       else
         aream0 = 1.0 / (sec_continuum%slab%length + aperture)
@@ -146,17 +152,17 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
           
     case(NESTED_CUBES)
 
-      if (sec_continuum%nested_cube%fracture_spacing > 0.d0) then
+      if (Initialized(sec_continuum%nested_cube%fracture_spacing)) then
 
         fracture_spacing = sec_continuum%nested_cube%fracture_spacing
 !        override epsilon if aperture defined
-        if (aperture > 0.d0) then
+        if (Initialized(aperture)) then
           r0 = fracture_spacing - aperture
           epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.d0)
-        else if (epsilon > 0.d0) then
+        else if (Initialized(epsilon)) then
           r0 = fracture_spacing*(1.d0-epsilon)**(1.d0/3.d0)
           aperture = r0*((1.d0-epsilon)**(-1.d0/3.d0)-1.d0)
-        else if (sec_continuum%nested_cube%matrix_block_size > 0.d0) then
+        else if (Initialized(sec_continuum%nested_cube%matrix_block_size)) then
           r0 = sec_continuum%nested_cube%matrix_block_size
           aperture = 0.5 * (fracture_spacing - r0)
           epsilon = 1.0 - (r0/fracture_spacing)**3
@@ -167,15 +173,15 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
           call PrintErrMsg(option)
         endif
                                             
-      else if (sec_continuum%nested_cube%matrix_block_size > 0.d0) then
+      else if (Initialized(sec_continuum%nested_cube%matrix_block_size)) then
 
         r0 = sec_continuum%nested_cube%matrix_block_size
 
 !        override epsilon if aperture defined
-        if (aperture > 0.d0) then
+        if (Initialized(aperture)) then
           fracture_spacing = r0 + aperture
           epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.d0)
-        else if (epsilon > 0.d0) then
+        else if (Initialized(epsilon)) then
           fracture_spacing = r0*(1.d0-epsilon)**(-1.d0/3.d0)
           aperture = fracture_spacing - r0
         else
@@ -270,7 +276,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
       enddo     
 
     case(NESTED_SPHERES)
-      if (epsilon < 0.0 ) then 
+      if (Uninitialized(epsilon)) then 
         option%io_buffer = 'EPSILON must be specified in' // &
                            ' NESTED_SPHERES type ' 
         call PrintErrMsg(option)

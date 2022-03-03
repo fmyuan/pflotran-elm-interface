@@ -2433,8 +2433,8 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%soil_reference_pressure_dataset)
 
   if (associated(material_property%multicontinuum)) then
-!    call DatasetDestroy(material_property%multicontinuum%length_dataset)
-!    call DatasetDestroy(material_property%multicontinuum%epsilon_dataset)
+    nullify(material_property%multicontinuum%length_dataset)
+    nullify(material_property%multicontinuum%epsilon_dataset)
     deallocate(material_property%multicontinuum)
     nullify(material_property%multicontinuum)
   endif
