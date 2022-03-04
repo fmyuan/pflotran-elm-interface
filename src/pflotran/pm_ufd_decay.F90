@@ -810,7 +810,7 @@ subroutine PMUFDDecayInit(this)
     do d = 1, this%isotope_daughters(0,iisotope)
       id = this%isotope_daughters(d,iisotope)
       if (Uninitialized(this%isotope_daughter_stoich(d,iisotope))) then
-        option%io_buffer = 'A stoichiomtry must be defined for isotope ' // &
+        option%io_buffer = 'A stoichiometry must be defined for isotope ' // &
           trim(this%isotope_name(iisotope)) // "'s daughter " // '"' // &
           trim(this%isotope_name(id)) // '".'
         call PrintErrMsg(option)
@@ -899,6 +899,8 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   use Patch_module
   use Grid_module
   use Reactive_Transport_Aux_module
+  use Material_Aux_module
+  use Material_Transform_module
   
   implicit none
 
@@ -929,6 +931,8 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  class(material_transform_type), pointer :: material_transform
+  class(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   PetscReal :: kd_kgw_m3b
   PetscInt :: local_id, ghosted_id
   PetscInt :: iele, iiso, ipri, i, imat
@@ -937,14 +941,45 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   patch => this%realization%patch
   grid => patch%grid
   rt_auxvars => patch%aux%RT%auxvars
+  if (associated(patch%aux%MT)) then
+    MT_auxvars => patch%aux%MT%auxvars
+  endif
   
   ! set initial sorbed concentration in equilibrium with aqueous phase
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     imat = patch%imat(ghosted_id) 
     if (imat <= 0) cycle
+
+    if (associated(patch%material_transform_array)) then
+      material_transform => &
+        patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+      if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+        call material_transform%illitization%illitization_function% &
+               CheckElements(this%element_name, &
+                             this%num_elements, &
+                             this%option)
+      endif
+    endif
+
     do iele = 1, this%num_elements
       kd_kgw_m3b = this%element_Kd(iele,imat)
+      
+      ! modify kd if needed
+      if (associated(patch%aux%MT)) then
+        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+          ! if (this%option%time > MT_auxvars(ghosted_id)%il_aux%ts) then
+            if (this%option%dt > 0.d0 .or. this%option%restart_flag) then
+              call material_transform%illitization%illitization_function% &
+                     ShiftKd(kd_kgw_m3b, &
+                             this%element_name(iele), &
+                             MT_auxvars(ghosted_id)%il_aux, &
+                             this%option)
+            endif
+          ! endif
+        endif
+      endif
+
       do i = 1, this%element_isotopes(0,iele)
         iiso = this%element_isotopes(i,iele)
         ipri = this%isotope_to_primary_species(iiso)
@@ -1038,6 +1073,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Material_Aux_module
+  use Material_Transform_module
   use Utility_module
   
   implicit none
@@ -1130,6 +1166,8 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
+  class(material_transform_type), pointer :: material_transform
+  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat
@@ -1160,6 +1198,8 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   PetscReal, parameter :: tolerance = 1.d-6
   PetscInt :: idaughter
   PetscInt :: it
+  PetscReal :: scale, shift_perm
+  character(len=MAXWORDLENGTH) :: kdmode
 ! -----------------------------------------------------------------------
 
   ierr = 0
@@ -1172,6 +1212,10 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   rt_auxvars => patch%aux%RT%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
+
+  if (associated(patch%aux%MT)) then
+    MT_auxvars => patch%aux%MT%auxvars
+  endif
   
   dt = option%tran_dt
   one_over_dt = 1.d0 / dt
@@ -1190,6 +1234,11 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     sat = global_auxvars(ghosted_id)%sat(1)
     vps = vol * por * sat ! m^3 water
     
+    if (associated(patch%material_transform_array)) then
+      material_transform => &
+        patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+    endif
+
     ! sum up mass of each isotope across phases and decay
     do iele = 1, this%num_elements
       do i = 1, this%element_isotopes(0,iele)
@@ -1357,6 +1406,22 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 
       ! split mass between phases
       kd_kgw_m3b = this%element_Kd(iele,imat)
+
+      ! modify kd if needed
+      if (associated(patch%aux%MT)) then
+        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+          ! if (option%time > MT_auxvars(ghosted_id)%il_aux%ts) then
+            if (option%dt > 0.d0) then
+              call material_transform%illitization%illitization_function% &
+                     ShiftKd(kd_kgw_m3b, &
+                             this%element_name(iele), &
+                             MT_auxvars(ghosted_id)%il_aux, &
+                             option)
+            endif
+          ! endif
+        endif
+      endif
+
       conc_ele_aq1 = mass_ele_tot1 / (1.d0+kd_kgw_m3b/(den_w_kg*por*sat)) / &
                          (vps*1.d3)
       above_solubility = conc_ele_aq1 > this%element_solubility(iele)

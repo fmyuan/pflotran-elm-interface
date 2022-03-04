@@ -15,6 +15,7 @@ module Realization_Subsurface_class
   use Saturation_Function_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
+  use Material_Transform_module
   use Dataset_Base_class
   use Fluid_module
   use Patch_module
@@ -42,6 +43,7 @@ private
     type(saturation_function_type), pointer :: saturation_functions
     class(characteristic_curves_type), pointer :: characteristic_curves
     class(cc_thermal_type), pointer :: characteristic_curves_thermal
+    class(material_transform_type), pointer :: material_transform
     class(dataset_base_type), pointer :: datasets
 
     class(dataset_base_type), pointer :: uniform_velocity_dataset
@@ -161,6 +163,7 @@ function RealizationCreate2(option)
   nullify(realization%saturation_functions)
   nullify(realization%characteristic_curves)
   nullify(realization%characteristic_curves_thermal)
+  nullify(realization%material_transform)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
@@ -2393,6 +2396,9 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(CCT_ID_ARRAY)
       call GridCopyIntegerArrayToVec(grid,patch%cct_id, &
                                      field%work_loc, grid%ngmax)
+    case(MTF_ID_ARRAY)
+      call GridCopyIntegerArrayToVec(grid,patch%mtf_id, &
+                                     field%work_loc, grid%ngmax)
   end select
 
   call DiscretizationLocalToLocal(realization%discretization,field%work_loc, &
@@ -2407,6 +2413,9 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
                                       field%work_loc, grid%ngmax)
     case(CCT_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%cct_id, &
+                                      field%work_loc, grid%ngmax)
+    case(MTF_ID_ARRAY)
+      call GridCopyVecToIntegerArray(grid,patch%mtf_id, &
                                       field%work_loc, grid%ngmax)
   end select
 
@@ -2947,6 +2956,10 @@ subroutine RealizationStrip(this)
 
   if (associated(this%characteristic_curves_thermal)) then
     call CharCurvesThermalDestroy(this%characteristic_curves_thermal)
+  endif
+
+  if (associated(this%material_transform)) then
+    call MaterialTransformDestroy(this%material_transform)
   endif
 
   call DatasetDestroy(this%datasets)

@@ -96,6 +96,8 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
           cur_patch%cc_id = UNINITIALIZED_INTEGER
           allocate(cur_patch%cct_id(grid%ngmax))
           cur_patch%cct_id = UNINITIALIZED_INTEGER
+          allocate(cur_patch%mtf_id(grid%ngmax)) 
+          cur_patch%mtf_id = UNINITIALIZED_INTEGER
       end select
     endif
 

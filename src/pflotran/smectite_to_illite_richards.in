@@ -1,0 +1,494 @@
+# Description: Smectite-to-illite material transform model (Richards mode)
+
+#================================ RICHARDS Mode ===============================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+    WASTE_FORM wf_general
+      TYPE GENERAL
+    /
+    UFD_DECAY ufd_decay
+    /
+  /
+  CHECKPOINT
+    FORMAT HDF5
+  /
+  # RESTART
+  #   FILENAME smectite_to_illite_richards-restart.h5
+  # /
+  # INPUT_RECORD_FILE
+END
+
+SUBSURFACE
+
+#============================ numerical methods ===============================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+  /
+
+  LINEAR_SOLVER
+    #  KSP_TYPE PREONLY
+    #  PC_TYPE LU
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    #  KSP_TYPE PREONLY
+    #  PC_TYPE LU
+  /
+
+END
+
+#================================ chemistry ===================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    Cs137
+    Sr90
+  /
+  MINERALS
+    Cs137(s)
+    Sr90(s)
+  /
+  MINERAL_KINETICS
+    Cs137(s)
+      RATE_CONSTANT 0.0d+0
+    /
+    Sr90(s)
+      RATE_CONSTANT 0.0d+0
+    /
+  /
+
+  DATABASE ./ufd-decay-smectite-to-illite.dat
+
+  TRUNCATE_CONCENTRATION 1.0d-20
+
+  OUTPUT
+    TOTAL
+    all
+  /
+
+END
+
+#================================ regression ==================================
+REGRESSION
+  CELL_IDS
+    2
+    3
+    4
+    8
+  /
+END
+
+#============================== debug settings ================================
+
+#============================== discretization ================================
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.0d+0 0.0d+0 0.0d+0
+  NXYZ 1 1 8
+  BOUNDS
+    0.0d+0 0.0d+0 0.0d+0
+    1.0d+0 1.0d+0 8.0d+0
+  /
+END
+
+#============================ fluid properties ================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.0d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  POROSITY 3.5d-1
+  TORTUOSITY 5.0d-1
+  CHARACTERISTIC_CURVES cc_default
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY wp
+  ID 2
+  POROSITY 5.0d-1
+  TORTUOSITY 1.0d+0
+  CHARACTERISTIC_CURVES cc_default
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY buffer1
+  ID 3
+  POROSITY 3.5d-1
+  TORTUOSITY 5.0d-1
+  CHARACTERISTIC_CURVES cc_bentonite
+  MATERIAL_TRANSFORM def_3
+  PERMEABILITY
+    PERM_ISO 1.d-16
+  /
+END
+
+MATERIAL_PROPERTY buffer2
+  ID 4
+  POROSITY 3.5d-1
+  TORTUOSITY 5.0d-1
+  CHARACTERISTIC_CURVES cc_bentonite
+  MATERIAL_TRANSFORM def_1
+  PERMEABILITY
+    PERM_ISO 1.d-17
+  /
+END
+
+MATERIAL_PROPERTY buffer3
+  ID 5
+  POROSITY 3.5d-1
+  TORTUOSITY 5.0d-1
+  CHARACTERISTIC_CURVES cc_bentonite
+  MATERIAL_TRANSFORM def_2
+  PERMEABILITY
+    PERM_ISO 1.d-16
+  /
+END
+
+#========================= material transformations ===========================
+MATERIAL_TRANSFORM def_1
+  ILLITIZATION
+    ILLITIZATION_FUNCTION DEFAULT
+      THRESHOLD_TEMPERATURE 2.00000d+1 C
+      EA                    1.17152d+5 J/mol
+      FREQ                  8.08000d+4 L/mol-s
+      K_CONC                2.16000d-3 M
+      SMECTITE_INITIAL      9.75000d-1
+      SHIFT_PERM  DEFAULT   1.50000d+3
+      SHIFT_KD
+        Cs  DEFAULT  -0.50000d+0
+        Sr  DEFAULT  -0.50000d+0
+      /
+    END
+  END
+END
+
+MATERIAL_TRANSFORM def_2
+  ILLITIZATION
+    ILLITIZATION_FUNCTION DEFAULT
+      THRESHOLD_TEMPERATURE 2.25000d+1 C
+      EA                    1.20000d+5 J/mol
+      FREQ                  8.10000d+4 L/mol-s
+      K_CONC                2.20000d-3 M
+      SMECTITE_INITIAL      9.75000d-1
+      SHIFT_PERM    POWER   5.00000d+2 5.00000d-1
+      SHIFT_KD
+        Cs  QUADRATIC    -2.50000d-1 -2.50000d-1
+        Sr  EXPONENTIAL  -6.94000d-1
+      /
+    END
+  END
+END
+
+MATERIAL_TRANSFORM def_3
+  ILLITIZATION
+    ILLITIZATION_FUNCTION GENERAL
+      THRESHOLD_TEMPERATURE 2.50000d+1 C
+      EA                    7.00000d+3 cal/mol
+      FREQ                  8.44907d-6
+      K_CONC                2.16000d-3 M
+      K_EXP                 2.50000d-1
+      SMECTITE_INITIAL      9.75000d-1
+      SMECTITE_EXP          5.00000d+0
+      SHIFT_PERM  LINEAR    5.00000d+2
+      SHIFT_KD
+        Cs  LINEAR  0.10000d+0
+        Sr  LINEAR  0.10000d+0
+      /
+    END
+  END
+END
+
+#============================ characteristic curves ===========================
+CHARACTERISTIC_CURVES cc_default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 2.86d-1
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 1.15d-1
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 2.86d-1
+    LIQUID_RESIDUAL_SATURATION 1.15d-1
+  /
+END
+
+CHARACTERISTIC_CURVES cc_bentonite
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 6.25d-8
+    M 3.75d-1
+    LIQUID_RESIDUAL_SATURATION 1.0d-1
+    MAX_CAPILLARY_PRESSURE 1.0d+8
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    PHASE LIQUID
+    M 3.75d-1
+    LIQUID_RESIDUAL_SATURATION 1.0d-1
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    M 3.75d-1
+    LIQUID_RESIDUAL_SATURATION 1.0d-1
+    GAS_RESIDUAL_SATURATION 1.0d-1
+  /
+END
+
+#============================== output options ================================
+OUTPUT
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    # PERIODIC TIME 1.0d-3 y between 1.0d-3 y and 1.0d-2 y
+    # PERIODIC TIME 1.0d-2 y between 1.0d-2 y and 1.0d-1 y
+    # PERIODIC TIME 1.0d-1 y between 1.0d-1 y and 1.0d+0 y
+    # PERIODIC TIME 1.0d+0 y between 1.0d+0 y and 1.0d+1 y
+    # PERIODIC TIME 1.0d+1 y between 1.0d+1 y and 1.0d+2 y
+    # PERIODIC TIME 1.0d+2 y between 1.0d+2 y and 1.0d+3 y
+  /
+  VARIABLES
+    LIQUID_PRESSURE
+    SMECTITE
+    PERMEABILITY
+  /
+END
+
+#================================== times =====================================
+TIME
+  FINAL_TIME 1.0d+3 y
+  INITIAL_TIMESTEP_SIZE 1.d-6 y
+  MAXIMUM_TIMESTEP_SIZE 1.d+2 y
+END
+
+#================================== regions ===================================
+REGION all
+  COORDINATES
+    0.0d+0 0.0d+0 0.0d+0
+    1.0d+0 1.0d+0 8.0d+0
+  /
+END
+
+REGION buffer1
+  COORDINATES
+    0.0d+0 0.0d+0 1.0d+0
+    1.0d+0 1.0d+0 2.0d+0
+  /
+END
+
+REGION buffer2
+  COORDINATES
+    0.0d+0 0.0d+0 2.0d+0
+    1.0d+0 1.0d+0 3.0d+0
+  /
+END
+
+REGION buffer3
+  COORDINATES
+    0.0d+0 0.0d+0 3.0d+0
+    1.0d+0 1.0d+0 4.0d+0
+  /
+END
+
+REGION wp
+  COORDINATES
+    0.0d+0 0.0d+0 0.0d+0
+    1.0d+0 1.0d+0 1.0d+0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.0d+0 0.0d+0 0.0d+0
+    0.0d+0 1.0d+0 8.0d+0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    1.0d+0 0.0d+0 0.0d+0
+    1.0d+0 1.0d+0 8.0d+0
+  /
+END
+
+REGION north
+  COORDINATES
+    0.0d+0 0.0d+0 0.0d+0
+    1.0d+0 1.0d+0 0.0d+0
+  /
+  FACE NORTH
+END
+
+REGION south
+  COORDINATES
+    0.0d+0 0.0d+0 8.0d+0
+    1.0d+0 1.0d+0 8.0d+0
+  /
+  FACE SOUTH
+END
+
+REGION north_side
+  COORDINATE 0.5d+0 0.5d+0 0.5d+0
+END
+
+REGION south_side
+  COORDINATE 0.5d+0 0.5d+0 7.5d+0
+END
+
+#=========================== observation points ===============================
+skip
+OBSERVATION
+  REGION north_side
+  VELOCITY
+/
+
+OBSERVATION
+  REGION south_side
+  VELOCITY
+/
+noskip
+
+#=========================== reference temperature ============================
+REFERENCE_TEMPERATURE 2.60d+2 C
+
+#============================= flow conditions ================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE DIRICHLET
+  /
+  PRESSURE 2.01325d+5 Pa
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d+0 initial
+  /
+END
+
+#========================== transport constraints =============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    Cs137     1.0d-20 T
+    Sr90      1.0d-20 T
+  /
+  MINERALS
+    Cs137(s)  0.0d+0  1.0d+0
+    Sr90(s)   0.0d+0  1.0d+0
+  /
+END
+
+#====================== initial and boundary conditions =======================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#========================== stratigraphy couplers =============================
+STRATA
+  MATERIAL soil
+  REGION all
+/
+
+STRATA
+  MATERIAL wp
+  REGION wp
+/
+
+STRATA
+  MATERIAL buffer1
+  REGION buffer1
+/
+
+STRATA
+  MATERIAL buffer2
+  REGION buffer2
+/
+
+STRATA
+  MATERIAL buffer3
+  REGION buffer3
+/
+
+END_SUBSURFACE
+
+#=============================== waste forms ==================================
+WASTE_FORM_GENERAL
+
+  WASTE_FORM
+    REGION wp
+    EXPOSURE_FACTOR 1.0d+0
+    VOLUME 1.0d+0 m^3
+    CANISTER_BREACH_TIME 0.0d+0 y
+    MECHANISM_NAME csnf
+  /
+
+  PRINT_MASS_BALANCE
+
+  MECHANISM CUSTOM
+    NAME csnf
+    FRACTIONAL_DISSOLUTION_RATE 1.0d-6 1/y
+    MATRIX_DENSITY 10920.0d+0
+    SPECIES
+    # iso  | g/mol   | 1/s     | g/g waste | instant release fraction | daughter
+      Cs137  1.3691d+2 7.31d-10  1.5d-7      0.0d+0
+      Sr90   8.9910d+1 7.61d-10  7.0d-8      0.0d+0
+    /
+    CANISTER_DEGRADATION_MODEL
+      CANISTER_MATERIAL_CONSTANT 1500.
+    /
+  END #MECHANISM CUSTOM
+
+END_WASTE_FORM_GENERAL
+
+#=========================== ufd decay ========================================
+UFD_DECAY
+
+  ELEMENT Sr
+    SOLUBILITY 1.0d-11
+    KD
+      wp      1.0d+0 #kg water/m^3 bulk
+      soil    2.0d+3 #kg water/m^3 bulk
+      buffer1 1.0d+2 #kg water/m^3 bulk
+      buffer2 1.0d+2 #kg water/m^3 bulk
+      buffer3 1.0d+2 #kg water/m^3 bulk
+    /
+  /
+  ISOTOPE Sr90
+    ELEMENT Sr
+    DECAY_RATE 7.61d-10
+  /
+
+  ELEMENT Cs
+    SOLUBILITY 1.0d-11
+    KD
+      wp      1.0d+0 #kg water/m^3 bulk
+      soil    2.0d+1 #kg water/m^3 bulk
+      buffer1 1.0d+1 #kg water/m^3 bulk
+      buffer2 1.0d+1 #kg water/m^3 bulk
+      buffer3 1.0d+1 #kg water/m^3 bulk
+    /
+  /
+  ISOTOPE Cs137
+    ELEMENT Cs
+    DECAY_RATE 7.31d-10
+  /
+
+END #UFD
