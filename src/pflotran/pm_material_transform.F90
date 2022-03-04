@@ -90,6 +90,31 @@ subroutine PMMaterialTransformSetRealization(this,realization)
   ! Author: Alex Salazar III
   ! Date: 01/19/2022
 
+  implicit none
+
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): material transform process model object
+! realization (input): subsurface realization object
+! ----------------------------------
+  class(pm_material_transform_type) :: this
+  class(realization_subsurface_type), pointer :: realization
+! ----------------------------------
+
+  this%realization => realization
+  this%realization_base => realization
+
+end subroutine PMMaterialTransformSetRealization
+
+! ************************************************************************** !
+
+subroutine PMMaterialTransformSetup(this)
+  !
+  ! Sets up auxiliary process model
+  !
+  ! Author: Alex Salazar III
+  ! Date: 01/19/2022
+
   use Realization_Subsurface_class
   use Patch_module
   use Option_module
@@ -101,26 +126,25 @@ subroutine PMMaterialTransformSetRealization(this,realization)
 ! INPUT ARGUMENTS:
 ! ================
 ! this (input/output): material transform process model object
-! realization (input): subsurface realization object
 ! ----------------------------------
   class(pm_material_transform_type) :: this
-  class(realization_subsurface_type), pointer :: realization
 ! ----------------------------------
 ! LOCAL VARIABLES:
 ! ================
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
+  type(grid_type), pointer :: grid
   type(material_transform_type), pointer :: mtf
+  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(material_property_type), pointer :: null_material_property
-  type(grid_type), pointer :: grid
   PetscInt :: local_id, ghosted_id, material_id
 ! ----------------------------------
 
-  patch => realization%patch
-  option => realization%option
+  patch => this%realization%patch
+  option => this%realization%option
   grid => patch%grid
-
+  
   ! pass material transform list from PM to realization
   if (associated(this%mtl)) then
 
@@ -128,20 +152,20 @@ subroutine PMMaterialTransformSetRealization(this,realization)
 
     mtf => this%mtl
 
-    call MaterialTransformAddToList(mtf,realization%material_transform)
+    call MaterialTransformAddToList(mtf,this%realization%material_transform)
 
     nullify(mtf)
 
   endif
 
   ! set up mapping for material transform functions
-  patch%material_transform => realization%material_transform
+  patch%material_transform => this%realization%material_transform
   call MaterialTransformConvertListToArray(patch%material_transform, &
                                            patch%material_transform_array, &
                                            option)
 
   ! material property mapping to PM Material Transform
-  cur_material_property => realization%material_properties
+  cur_material_property => this%realization%material_properties
 
   do
     if (.not.associated(cur_material_property)) exit
@@ -195,56 +219,12 @@ subroutine PMMaterialTransformSetRealization(this,realization)
         patch%mtf_id(ghosted_id) = &  
           cur_material_property%material_transform_id
 
-        call RealLocalToLocalWithArray(realization,MTF_ID_ARRAY)
+        call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
 
       endif
     endif
     
   enddo
-
-  this%realization => realization
-  this%realization_base => realization
-
-end subroutine PMMaterialTransformSetRealization
-
-! ************************************************************************** !
-
-subroutine PMMaterialTransformSetup(this)
-  !
-  ! Sets up auxiliary process model
-  !
-  ! Author: Alex Salazar III
-  ! Date: 01/19/2022
-
-  use Realization_Subsurface_class
-  use Patch_module
-  use Option_module
-  use Material_module
-  use Grid_module
-
-  implicit none
-
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! ----------------------------------
-  class(pm_material_transform_type) :: this
-! ----------------------------------
-! LOCAL VARIABLES:
-! ================
-  type(patch_type), pointer :: patch
-  type(option_type), pointer :: option
-  type(grid_type), pointer :: grid
-  class(material_transform_type), pointer :: mtf
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
-  PetscBool :: check_ilt ! check if illitization is active
-  PetscBool :: check_be  ! check if buffer erosion is active
-  PetscInt :: local_id, ghosted_id, material_id
-! ----------------------------------
-
-  patch => this%realization%patch
-  option => this%realization%option
-  grid => patch%grid
 
   patch%aux%MT => MaterialTransformCreate()
   allocate(MT_auxvars(grid%nlmax))
@@ -403,8 +383,6 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
   type(material_auxvar_type), pointer :: material_aux
   type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   type(material_transform_auxvar_type), pointer :: MT_aux
-  PetscBool :: check_ilt ! check if illitization is active
-  PetscBool :: check_be  ! check if buffer erosion is active
   PetscInt :: local_id, ghosted_id, material_id
 ! ----------------------------------
 
@@ -601,8 +579,6 @@ subroutine PMMaterialTransformSolve(this,time,ierr)
   type(global_auxvar_type), pointer :: global_aux
   type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   type(material_transform_auxvar_type), pointer :: MT_aux
-  PetscBool :: check_ilt ! check if illitization is active
-  PetscBool :: check_be  ! check if buffer erosion is active
   PetscInt :: local_id, ghosted_id, material_id
 ! ----------------------------------
 
