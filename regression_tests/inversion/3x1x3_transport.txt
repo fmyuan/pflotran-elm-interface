@@ -21,6 +21,11 @@ GRID
   /
 END
 
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 3
+END
+
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
