@@ -523,19 +523,28 @@ subroutine PMWellSetup(this)
   type(coupler_type), pointer :: source_sink
   type(input_type) :: input_dummy
   class(dataset_ascii_type), pointer :: dataset_ascii
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: string, string2
   type(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
+  PetscReal, pointer :: res_grid_z_list(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
   PetscReal :: temp_real
   PetscInt :: local_id
   PetscInt :: nsegments
-  PetscInt :: k
+  PetscInt :: k, count
 
   option => this%option
   res_grid => this%realization%patch%grid
   nsegments = this%grid%nsegments
+  write(string2,'(I0.5)') nsegments
+
+  if (.not.res_grid%ctype == 'STRUCTURED') then
+    option%io_buffer = 'WELLBORE_MODEL is only compatible with a structured &
+                        &reservoir grid. Unstructured reservoir grid capability &
+                        &is in development.'
+    call PrintErrMsg(option)
+  endif
 
   allocate(this%grid%dh(nsegments))
   allocate(this%grid%h(nsegments))
@@ -566,12 +575,6 @@ subroutine PMWellSetup(this)
     this%grid%h(k)%x = this%grid%bottomhole(1)+(dh_x*(k-0.5))
     this%grid%h(k)%y = this%grid%bottomhole(2)+(dh_y*(k-0.5))
     this%grid%h(k)%z = this%grid%bottomhole(3)+(dh_z*(k-0.5))
-    !if (k < this%grid%nsegments) then
-    !  this%grid%h(k)%id = k
-    !  this%grid%h(k)%x = this%grid%h(k)%x + dh_x/2.d0
-    !  this%grid%h(k)%y = this%grid%h(k)%y + dh_y/2.d0
-    !  this%grid%h(k)%z = this%grid%h(k)%z + dh_z/2.d0
-    !endif
   enddo
 
   this%grid%dh(:) = total_length/nsegments
@@ -584,6 +587,30 @@ subroutine PMWellSetup(this)
     this%grid%h_local_id(k) = local_id
     this%grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
   enddo
+
+  ! Check that no reservoir grid cells were skipped
+  ! I fear this will fail in parallel
+  count = 0
+  do k = 1,size(res_grid%z)
+    if ( (res_grid%z(k) >= this%grid%bottomhole(3)) .and. &
+         (res_grid%z(k) <= this%grid%tophole(3)) ) then
+      count = count + 1
+    endif
+  enddo
+  write(string,'(I0.5)') count
+
+  ! warning: this is an incomplete check on skipped grid cells!
+  ! nsegments >= count is necessary, but not sufficient
+  ! still need to add more checking here
+  if (nsegments < count) then
+    option%io_buffer = 'WELLBORE_MODEL --------->  &
+      &The number of well segments (' // trim(string2) // ') is smaller &
+      &than the number of reservoir grid cells it occupies (' // &
+      trim(string) // '). Therefore, some of the reservoir grid cells &
+      &have been skipped and have no connection to the well. You must &
+      &increase the resolution of the WELLBORE_MODEL grid.'
+    call PrintErrMsg(option)
+  endif
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -2057,15 +2084,9 @@ subroutine PMWellUpdateReservoir(this)
     this%reservoir%kz(k) = material_auxvar%permeability(3)
     this%reservoir%volume(k) = material_auxvar%volume
 
-    if (associated(grid%structured_grid)) then
-      this%reservoir%dx(k) = grid%structured_grid%dx(ghosted_id) 
-      this%reservoir%dy(k) = grid%structured_grid%dy(ghosted_id)
-      this%reservoir%dz(k) = grid%structured_grid%dz(ghosted_id)
-    else
-      option%io_buffer = 'Well model is not yet compatible with an &
-                         &unstructured grid reservoir. '
-      call PrintErrMsg(option)
-    endif
+    this%reservoir%dx(k) = grid%structured_grid%dx(ghosted_id) 
+    this%reservoir%dy(k) = grid%structured_grid%dy(ghosted_id)
+    this%reservoir%dz(k) = grid%structured_grid%dz(ghosted_id)
 
     if (this%transport) then
       this%reservoir%aqueous_conc(:,k) = nwt_auxvar%aqueous_eq_conc(:)
