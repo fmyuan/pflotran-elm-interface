@@ -43,7 +43,7 @@ private
     type(saturation_function_type), pointer :: saturation_functions
     class(characteristic_curves_type), pointer :: characteristic_curves
     class(cc_thermal_type), pointer :: characteristic_curves_thermal
-    class(material_transform_type), pointer :: material_transform
+    type(material_transform_type), pointer :: material_transform
     class(dataset_base_type), pointer :: datasets
 
     class(dataset_base_type), pointer :: uniform_velocity_dataset

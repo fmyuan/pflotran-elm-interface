@@ -110,7 +110,7 @@ subroutine PMMaterialTransformSetRealization(this,realization)
 ! ================
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
-  class(material_transform_type), pointer :: mtf
+  type(material_transform_type), pointer :: mtf
   type(material_property_type), pointer :: cur_material_property
   type(material_property_type), pointer :: null_material_property
   type(grid_type), pointer :: grid
@@ -841,7 +841,7 @@ subroutine PMMaterialTransformStrip(this)
 ! cur_mt: pointer to current material transform object
 ! prev_mt: pointer to previous material transform object
 ! --------------------------------
-  class(material_transform_type), pointer :: cur_mt, prev_mt
+  type(material_transform_type), pointer :: cur_mt, prev_mt
 ! --------------------------------
 
   nullify(this%realization)

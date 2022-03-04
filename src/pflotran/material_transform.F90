@@ -110,7 +110,7 @@ module Material_Transform_module
     class(buffer_erosion_type), pointer :: buffer_erosion
     
     ! Linked list
-    class(material_transform_type), pointer :: next
+    type(material_transform_type), pointer :: next
   end type material_transform_type
   !---------------------------------------------------------------------------
   type, public :: material_transform_ptr_type
@@ -1686,8 +1686,8 @@ subroutine MaterialTransformAddToList(new_mtf,list)
   !
   implicit none
 
-  class(material_transform_type), pointer :: new_mtf
-  class(material_transform_type), pointer :: list
+  type(material_transform_type), pointer :: new_mtf
+  type(material_transform_type), pointer :: list
 
   class(material_transform_type), pointer :: cur_mtf
 
@@ -2169,7 +2169,7 @@ subroutine IllitizationAuxVarStrip(auxvar)
 
   implicit none
 
-  type(illitization_auxvar_type), pointer :: auxvar
+  class(illitization_auxvar_type), pointer :: auxvar
 
   if (.not.associated(auxvar)) return
   
@@ -2213,7 +2213,7 @@ subroutine BufferErosionAuxVarStrip(auxvar)
 
   implicit none
 
-  type(buffer_erosion_auxvar_type), pointer :: auxvar
+  class(buffer_erosion_auxvar_type), pointer :: auxvar
 
   if (.not.associated(auxvar)) return
 
