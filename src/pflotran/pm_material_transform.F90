@@ -378,7 +378,7 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  class(material_transform_type), pointer :: mtf
+  type(material_transform_type), pointer :: mtf
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_auxvar_type), pointer :: material_aux
   type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
@@ -402,14 +402,16 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
     
     if (Initialized(patch%mtf_id(ghosted_id))) then
       ! pointer to material transform in patch ghosted id
-      mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-
-      if (associated(MT_aux%il_aux)) then
-        MT_aux%il_aux%fs0 = &
-          mtf%illitization%illitization_function%ilt_fs0
-        MT_aux%il_aux%fs = &
-          mtf%illitization%illitization_function%ilt_fs0
-        
+      if (associated(patch%material_transform_array)) then
+        allocate(mtf)
+        mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+        if (associated(MT_aux%il_aux)) then
+          MT_aux%il_aux%fs0 = &
+            mtf%illitization%illitization_function%ilt_fs0
+          MT_aux%il_aux%fs = &
+            mtf%illitization%illitization_function%ilt_fs0
+        endif
+        nullify(mtf)
       endif
       
     endif
