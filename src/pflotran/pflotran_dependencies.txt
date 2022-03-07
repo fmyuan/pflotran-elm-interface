@@ -326,7 +326,7 @@ init_subsurface_flow.o : co2_sw.o condition_control.o discretization.o field.o \
                          general.o grid.o hdf5.o hydrate.o init_common.o \
                          material.o mphase.o option.o patch.o \
                          pflotran_constants.o pm_base.o pm_hydrate.o \
-                         pm_richards_ts.o pm_th_ts.o pnf.o \
+                         pm_richards_ts.o pm_th_ts.o pm_wipp_flow.o pnf.o \
                          realization_subsurface.o richards.o \
                          simulation_subsurface.o th.o wipp_flow.o zflow.o
 init_subsurface_geophysics.o : ert.o option.o pflotran_constants.o \
@@ -612,11 +612,12 @@ pm_wipp_flow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
                  realization_base.o realization_subsurface.o region.o \
                  saturation_function.o string.o upwind_direction.o utility.o \
                  variables.o wipp_flow.o wipp_flow_aux.o
-pm_wipp_srcsink.o : data_mediator_vec.o eos_gas.o eos_water.o global_aux.o \
-                    grid.o input_aux.o material.o material_aux.o option.o \
-                    output_aux.o patch.o pflotran_constants.o pm_base.o \
-                    realization_base.o realization_subsurface.o region.o \
-                    string.o utility.o wipp_flow_aux.o
+pm_wipp_srcsink.o : data_mediator_vec.o discretization.o eos_gas.o eos_water.o \
+                    field.o global_aux.o grid.o hdf5.o input_aux.o material.o \
+                    material_aux.o option.o output_aux.o patch.o \
+                    pflotran_constants.o pm_base.o realization_base.o \
+                    realization_subsurface.o region.o string.o utility.o \
+                    wipp_flow_aux.o
 pm_zflow.o : checkpoint.o convergence.o debug.o eos_water.o field.o global.o \
              grid.o input_aux.o material_aux.o option.o patch.o \
              pflotran_constants.o pm_base.o pm_subsurface_flow.o \
