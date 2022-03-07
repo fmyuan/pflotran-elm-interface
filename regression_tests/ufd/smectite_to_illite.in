@@ -172,60 +172,6 @@ MATERIAL_PROPERTY buffer2
   /
 /
 
-#========================= material transformations ===========================
-MATERIAL_TRANSFORM def_1
-  ILLITIZATION
-    ILLITIZATION_FUNCTION DEFAULT
-      THRESHOLD_TEMPERATURE 2.00000d+1 C
-      EA                    1.17152d+5 J/mol
-      FREQ                  8.08000d+4 L/mol-s
-      K_CONC                2.16000d-3 M
-      SMECTITE_INITIAL      9.50000d-1
-      SHIFT_PERM  DEFAULT   1.50000d+3
-      SHIFT_KD
-        Cs  DEFAULT  -0.50000d+0
-        Sr  DEFAULT  -0.50000d+0
-      /
-    END
-  END
-END
-
-MATERIAL_TRANSFORM def_2
-  ILLITIZATION
-    ILLITIZATION_FUNCTION DEFAULT
-      THRESHOLD_TEMPERATURE 2.75000d+1 C
-      EA                    1.20000d+5 J/mol
-      FREQ                  8.10000d+4 L/mol-s
-      K_CONC                2.20000d-3 M
-      SMECTITE_INITIAL      9.75000d-1
-      SHIFT_PERM    POWER   5.00000d+2 5.00000d-1
-      SHIFT_KD
-        Cs  QUADRATIC    -2.50000d-1 -2.50000d-1
-        Sr  EXPONENTIAL  -6.94000d-1
-      /
-    END
-  END
-END
-
-MATERIAL_TRANSFORM def_3
-  ILLITIZATION
-    ILLITIZATION_FUNCTION GENERAL
-      THRESHOLD_TEMPERATURE 2.50000d+1 C
-      EA                    7.00000d+3 cal/mol
-      FREQ                  8.44907d-6
-      K_CONC                2.16000d-3 M
-      K_EXP                 2.50000d-1
-      SMECTITE_INITIAL      9.95000d-1
-      SMECTITE_EXP          5.00000d+0
-      SHIFT_PERM  LINEAR    9.72000d+2
-      SHIFT_KD
-        Cs  LINEAR  0.10000d+0
-        Sr  LINEAR  0.10000d+0
-      /
-    END
-  END
-END
-
 #======================= thermal characteristic curves ========================
 THERMAL_CHARACTERISTIC_CURVES cct_buffer
   THERMAL_CONDUCTIVITY_FUNCTION DEFAULT
@@ -538,3 +484,59 @@ UFD_DECAY
   /
 
 END #UFD
+
+#========================= material transformations ===========================
+MATERIAL_TRANSFORM_GENERAL
+  MATERIAL_TRANSFORM def_1
+    ILLITIZATION
+      ILLITIZATION_FUNCTION DEFAULT
+        THRESHOLD_TEMPERATURE 2.00000d+1 C
+        EA                    1.17152d+5 J/mol
+        FREQ                  8.08000d+4 L/mol-s
+        K_CONC                2.16000d-3 M
+        SMECTITE_INITIAL      9.50000d-1
+        SHIFT_PERM  DEFAULT   1.50000d+3
+        SHIFT_KD
+          Cs  DEFAULT  -0.50000d+0
+          Sr  DEFAULT  -0.50000d+0
+        /
+      END
+    END
+  END
+  
+  MATERIAL_TRANSFORM def_2
+    ILLITIZATION
+      ILLITIZATION_FUNCTION DEFAULT
+        THRESHOLD_TEMPERATURE 2.75000d+1 C
+        EA                    1.20000d+5 J/mol
+        FREQ                  8.10000d+4 L/mol-s
+        K_CONC                2.20000d-3 M
+        SMECTITE_INITIAL      9.75000d-1
+        SHIFT_PERM    POWER   5.00000d+2 5.00000d-1
+        SHIFT_KD
+          Cs  QUADRATIC    -2.50000d-1 -2.50000d-1
+          Sr  EXPONENTIAL  -6.94000d-1
+        /
+      END
+    END
+  END
+  
+  MATERIAL_TRANSFORM def_3
+    ILLITIZATION
+      ILLITIZATION_FUNCTION GENERAL
+        THRESHOLD_TEMPERATURE 2.50000d+1 C
+        EA                    7.00000d+3 cal/mol
+        FREQ                  8.44907d-6
+        K_CONC                2.16000d-3 M
+        K_EXP                 2.50000d-1
+        SMECTITE_INITIAL      9.95000d-1
+        SMECTITE_EXP          5.00000d+0
+        SHIFT_PERM  LINEAR    9.72000d+2
+        SHIFT_KD
+          Cs  LINEAR  0.10000d+0
+          Sr  LINEAR  0.10000d+0
+        /
+      END
+    END
+  END
+END # MATERIAL_TRANSFORM_GENERAL
