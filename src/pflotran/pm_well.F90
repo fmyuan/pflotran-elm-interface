@@ -2027,9 +2027,9 @@ subroutine PMWellUpdateReservoirSrcSink(this)
 
       if (trim(srcsink_name) == trim(source_sink%name)) then
         source_sink%flow_condition%general%rate%dataset%rarray(1) = &
-          -1.d0 * this%well%liq%Q(k) ! [kg/s]
+          -1.d0 * this%well%liq%Q(k) * FMWH2O ! [kg/s]
         source_sink%flow_condition%general%rate%dataset%rarray(2) = &
-          -1.d0 * this%well%gas%Q(k) ! [kg/s]
+          -1.d0 * this%well%gas%Q(k) * fmw_comp(TWO_INTEGER) ! [kg/s]
         exit
       endif
 
@@ -3444,7 +3444,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
     !------------------------------------------------------------------------
     case default 
       do i = 1,nsegments
-        ! Flowrate in kg/s
+        ! Flowrate in kmol/s
         liq%Q(i) = liq%rho(i)*liq%kr(i)/liq%visc(i)*well%WI(i)* &
                    (reservoir%p_l(i)-well%pl(i)) 
         gas%Q(i) = gas%rho(i)*gas%kr(i)/gas%visc(i)*well%WI(i)* &
@@ -3838,7 +3838,6 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
   PetscBool :: upwind
 
   PetscReal, parameter :: eps = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24
 
   grid => pm_well%grid
 
@@ -4034,7 +4033,6 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   PetscInt :: idof, irow, itop
 
   PetscReal, parameter :: eps = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24
 
   grid => pm_well%grid
   reservoir => pm_well%reservoir
