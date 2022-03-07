@@ -230,12 +230,11 @@ subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   implicit none
   
   type(input_type), pointer :: input
-  type(input_type), pointer :: input2
   character(len=MAXWORDLENGTH) :: keyword, word, word2
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
-  character(len=MAXSTRINGLENGTH) :: error_string, block_string
+  character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
   PetscInt :: icount
@@ -2469,8 +2468,7 @@ subroutine PMWIPPFloCheckpointHDF5(this,pm_grp_id)
   use Global_module
   use hdf5
 
-  implicit none
-#include "petsc/finclude/petscviewer.h"      
+  implicit none    
 
   class(pm_wippflo_type) :: this
   integer(HID_T) :: pm_grp_id
@@ -2522,8 +2520,7 @@ subroutine PMWIPPFloRestartHDF5(this,pm_grp_id)
   use Global_module
   use hdf5
 
-  implicit none
-#include "petsc/finclude/petscviewer.h"      
+  implicit none 
 
   class(pm_wippflo_type) :: this
   integer(HID_T) :: pm_grp_id

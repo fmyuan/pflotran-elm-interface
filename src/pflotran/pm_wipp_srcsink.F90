@@ -5196,7 +5196,7 @@ subroutine PMWSSCheckpointHDF5(this,pm_grp_id)
   
   PetscErrorCode :: ierr
   PetscInt :: local_stride, n_wp_local, n_wp_global, &
-              local_stride_tmp, i, j, stride, stride_rad, &
+              local_stride_tmp, i, stride, stride_rad, &
               local_stride_rad, local_stride_tmp_rad
   PetscInt, allocatable :: indices(:), int_array(:)
 
@@ -5245,8 +5245,7 @@ subroutine PMWSSCheckpointHDF5(this,pm_grp_id)
                   MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
   call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
                   MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
-
-  
+ 
   dataset_name = "Fe_s" // CHAR(0)
   call PMWSSWriteVariableHDF5(this,pm_grp_id,FE_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
   
@@ -5644,7 +5643,7 @@ subroutine PMWSSCheckpointBinary(this,viewer)
   
   PetscErrorCode :: ierr
   PetscInt :: local_stride, n_wp_local, n_wp_global, &
-              local_stride_tmp, i, j, stride, stride_rad, &
+              local_stride_tmp, i, stride, stride_rad, &
               local_stride_rad, local_stride_tmp_rad
   PetscInt, allocatable :: indices(:), int_array(:)
 
