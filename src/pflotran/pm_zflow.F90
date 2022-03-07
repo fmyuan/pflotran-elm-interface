@@ -24,6 +24,8 @@ module PM_ZFlow_class
     PetscReal :: liq_sat_change_ts_governor
     PetscInt :: convergence_flags(MAX_RES_SOL_EQ)
     PetscReal :: convergence_reals(MAX_RES_SOL_EQ)
+    PetscReal :: sat_update_trunc_ni
+    PetscReal :: unsat_to_sat_pres_damping_ni
     PetscBool :: verbose_convergence
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
@@ -118,6 +120,9 @@ subroutine PMZFlowInitObject(this)
   this%max_allow_liq_pres_change_ni = UNINITIALIZED_DOUBLE
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
   this%liq_sat_change_ts_governor = 1.d0
+  this%sat_update_trunc_ni = UNINITIALIZED_DOUBLE
+  this%unsat_to_sat_pres_damping_ni = UNINITIALIZED_DOUBLE
+
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
 
@@ -324,6 +329,12 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
       ! units conversion since it is absolute
       call InputReadAndConvertUnits(input,this%max_allow_liq_pres_change_ni, &
                                     'Pa',keyword,option)
+    case('SATURATION_UPDATE_TRUNCATION_NI')
+      call InputReadDouble(input,option,this%sat_update_trunc_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('UNSAT_TO_SAT_PRESSURE_DAMPING_NI')
+      call InputReadDouble(input,option,this%unsat_to_sat_pres_damping_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
 
@@ -662,6 +673,8 @@ subroutine PMZFlowCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal :: tempreal
   PetscReal, pointer :: X_p(:)
   PetscReal, pointer :: dX_p(:)
+  PetscBool :: unsat_to_sat_damping_flag
+  PetscBool :: sat_update_trunc_flag
   type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
@@ -677,6 +690,8 @@ subroutine PMZFlowCheckUpdatePre(this,snes,X,dX,changed,ierr)
   changed = PETSC_FALSE
 
   p_ref = option%flow%reference_pressure
+  unsat_to_sat_damping_flag = Initialized(this%unsat_to_sat_pres_damping_ni)
+  sat_update_trunc_flag = Initialized(this%sat_update_trunc_ni)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
@@ -690,32 +705,33 @@ subroutine PMZFlowCheckUpdatePre(this,snes,X,dX,changed,ierr)
       dp = -dX_p(p_index)
       p0 = X_p(p_index)
       p1 = p0+dp
-      sl = zflow_auxvars(ZERO_INTEGER,ghosted_id)%sat + &
-           sign(0.125d0,dp)
-      call patch%characteristic_curves_array( &
-             patch%cc_id(ghosted_id))%ptr%saturation_function% &
-               CapillaryPressure(sl,pc,tempreal,option)
-      if (pc > 0.d0) then
-        p_target = p_ref-pc
-        if (dp >= 0.d0) then
-          if (p1 > p_target) then
+      if (unsat_to_sat_damping_flag) then
+        sl = zflow_auxvars(ZERO_INTEGER,ghosted_id)%sat + &
+            sign(this%sat_update_trunc_ni,dp)
+        call patch%characteristic_curves_array( &
+              patch%cc_id(ghosted_id))%ptr%saturation_function% &
+                CapillaryPressure(sl,pc,tempreal,option)
+        if (pc > 0.d0) then
+          p_target = p_ref-pc
+          if ((dp >= 0.d0 .and. p1 > p_target) .or. &
+              (dp < 0.d0 .and. p1 < p_target)) then
             dX_p(p_index) = p0-p_target ! p1 = p0 - dX_p()
             changed = PETSC_TRUE
           endif
-        else
-          if (p1 < p_target) then
-            dX_p(p_index) = p0-p_target
-            changed = PETSC_TRUE
-          endif
+        endif
+        ! update these incase used below
+        dp = -dX_p(p_index)
+        p1 = p0+dp
+      endif
+      if (unsat_to_sat_damping_flag) then
+        ! the following initiate damping when transitioning from
+        ! unsaturated to saturated state
+        if (p0 < p_ref .and. p1 > p_ref) then
+          dX_p(p_index) = this%unsat_to_sat_pres_damping_ni*dX_p(p_index)
+          changed = PETSC_TRUE
         endif
       endif
-      dp = -dX_p(p_index)
-      p1 = p0+dp
-      if (p0 < p_ref .and. p1 > p_ref) then
-        dX_p(p_index) = 0.6d0*dX_p(p_index)
-      endif
     endif
-!    print *, local_id, p0, dp, -dX_p(p_index), p0-dX_p(p_index)
   enddo
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
