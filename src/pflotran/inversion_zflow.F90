@@ -792,7 +792,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
 
-  PetscInt :: icell
   PetscInt :: idata,num_measurement
   PetscInt :: iconst,num_constraints
   PetscInt :: irb,ghosted_id,ghosted_id_nb
@@ -813,12 +812,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
 
   num_measurement = size(this%measurements)
 
-  call RealizationGetVariable(this%realization, &
-                              this%realization%field%work, &
-                              this%iobsfunc,ZERO_INTEGER)
-
-  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
-
   ! Data part
   this%phi_data = 0.d0
   do idata=1,num_measurement
@@ -826,11 +819,12 @@ subroutine InvZFlowEvaluateCostFunction(this)
     wd = 0.05 * this%measurements(idata)%value
     wd = 1/wd
 
-    icell = this%measurements(idata)%CELL_ID
-    tempreal = wd * (this%measurements(idata)%value - vec_ptr(icell))
+    tempreal = wd * (this%measurements(idata)%value - &
+                     this%measurements(idata)%simulated_value)
     this%phi_data = this%phi_data + tempreal * tempreal
-!print*,icell,vec_ptr(icell),this%measurement(idata)
+
   enddo
+
   this%current_chi2 = this%phi_data / num_measurement
   call VecRestoreArrayF90(this%realization%field%work,vec_ptr, &
                           ierr);CHKERRQ(ierr)
@@ -1173,7 +1167,6 @@ subroutine InversionZFlowCGLSRhs(this)
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
 
-  PetscInt :: icell
   PetscInt :: idata,iconst,irb,num_measurement
   PetscInt, pointer :: rblock(:,:)
   PetscReal :: perm_ce,perm_nb,x     ! cell's and neighbor's
@@ -1193,19 +1186,14 @@ subroutine InversionZFlowCGLSRhs(this)
 
   num_measurement = size(this%measurements)
 
-  call RealizationGetVariable(this%realization, &
-                              this%realization%field%work, &
-                              this%iobsfunc,ZERO_INTEGER)
-  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
-
   ! Data part
   do idata=1,num_measurement
 
     wd = 0.05 * this%measurements(idata)%value
     wd = 1/wd
 
-    icell = this%measurements(idata)%cell_id
-    this%b(idata) = wd * (this%measurements(idata)%value - vec_ptr(icell))
+    this%b(idata) = wd * (this%measurements(idata)%value - &
+                          this%measurements(idata)%simulated_value)
   enddo
 
   call VecRestoreArrayF90(this%realization%field%work,vec_ptr, &
