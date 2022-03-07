@@ -7,10 +7,9 @@ module PM_Well_class
   use PM_Base_class
   use Option_module
   use Geometry_module
+  use Strata_module
   use Realization_Subsurface_class
-  
   use PFLOTRAN_Constants_module
-
   use WIPP_Flow_Aux_module
 
   implicit none
@@ -35,6 +34,8 @@ module PM_Well_class
     ! the ghosted id of the reservoir grid cell within which each segment 
     ! center resides 
     PetscInt, pointer :: h_ghosted_id(:)
+    ! the strata id number associated with each well segment
+    PetscInt, pointer :: strata_id(:)
     ! coordinate of the top/bottom of the well [m]
     PetscReal :: tophole(3)
     PetscReal :: bottomhole(3)     
@@ -231,9 +232,11 @@ module PM_Well_class
     type(well_reservoir_type), pointer :: reservoir 
     type(well_soln_flow_type), pointer :: flow_soln
     type(well_soln_tran_type), pointer :: tran_soln
+    type(strata_list_type), pointer :: strata_list
     PetscReal, pointer :: pert(:,:)
     PetscInt :: nphase 
     PetscInt :: nspecies 
+    PetscReal :: intrusion_time_start
     PetscReal :: dt_flow, dt_tran
     PetscReal :: min_dt_flow, min_dt_tran
     PetscReal :: cumulative_dt_flow
@@ -280,6 +283,7 @@ function PMWellCreate()
   nullify(PMWellCreate%realization)
   PMWellCreate%min_dt_flow = 1.d-15
   PMWellCreate%min_dt_tran = 1.d-15
+  PMWellCreate%intrusion_time_start = UNINITIALIZED_DOUBLE
   PMWellCreate%nphase = 0
   PMWellCreate%nspecies = 0
   PMWellCreate%transport = PETSC_FALSE
@@ -295,6 +299,7 @@ function PMWellCreate()
   nullify(PMWellCreate%grid%h)
   nullify(PMWellCreate%grid%h_local_id)
   nullify(PMWellCreate%grid%h_ghosted_id)
+  nullify(PMWellCreate%grid%strata_id)
   PMWellCreate%grid%tophole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%bottomhole(:) = UNINITIALIZED_DOUBLE
 
@@ -480,6 +485,11 @@ function PMWellCreate()
   PMWellCreate%tran_soln%n_steps = 0
   PMWellCreate%tran_soln%n_newton = 0
 
+  ! strata list specific to well
+  allocate(PMWellCreate%strata_list)
+  nullify(PMWellCreate%strata_list%first)
+  nullify(PMWellCreate%strata_list%last)
+  nullify(PMWellCreate%strata_list%array)
 
 end function PMWellCreate
 
@@ -493,7 +503,6 @@ subroutine PMWellSetup(this)
   ! Date: 08/04/2021
   ! 
 
-  use Option_module
   use Grid_module
   use Coupler_module
   use Connection_module
@@ -514,24 +523,36 @@ subroutine PMWellSetup(this)
   type(coupler_type), pointer :: source_sink
   type(input_type) :: input_dummy
   class(dataset_ascii_type), pointer :: dataset_ascii
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: string, string2
   type(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
+  PetscReal, pointer :: res_grid_z_list(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
   PetscReal :: temp_real
   PetscInt :: local_id
   PetscInt :: nsegments
-  PetscInt :: k
+  PetscInt :: k, count
 
   option => this%option
   res_grid => this%realization%patch%grid
   nsegments = this%grid%nsegments
+  write(string2,'(I0.5)') nsegments
+
+  if (.not.res_grid%ctype == 'STRUCTURED') then
+    option%io_buffer = 'WELLBORE_MODEL is only compatible with a structured &
+                        &reservoir grid. Unstructured reservoir grid capability &
+                        &is in development.'
+    call PrintErrMsg(option)
+  endif
 
   allocate(this%grid%dh(nsegments))
   allocate(this%grid%h(nsegments))
   allocate(this%grid%h_local_id(nsegments))
   allocate(this%grid%h_ghosted_id(nsegments))
+  allocate(this%grid%strata_id(nsegments))
+
+  this%grid%strata_id(:) = UNINITIALIZED_INTEGER
 
   this%grid%nconnections = this%grid%nsegments - 1
 
@@ -554,12 +575,6 @@ subroutine PMWellSetup(this)
     this%grid%h(k)%x = this%grid%bottomhole(1)+(dh_x*(k-0.5))
     this%grid%h(k)%y = this%grid%bottomhole(2)+(dh_y*(k-0.5))
     this%grid%h(k)%z = this%grid%bottomhole(3)+(dh_z*(k-0.5))
-    !if (k < this%grid%nsegments) then
-    !  this%grid%h(k)%id = k
-    !  this%grid%h(k)%x = this%grid%h(k)%x + dh_x/2.d0
-    !  this%grid%h(k)%y = this%grid%h(k)%y + dh_y/2.d0
-    !  this%grid%h(k)%z = this%grid%h(k)%z + dh_z/2.d0
-    !endif
   enddo
 
   this%grid%dh(:) = total_length/nsegments
@@ -572,6 +587,30 @@ subroutine PMWellSetup(this)
     this%grid%h_local_id(k) = local_id
     this%grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
   enddo
+
+  ! Check that no reservoir grid cells were skipped
+  ! I fear this will fail in parallel
+  count = 0
+  do k = 1,size(res_grid%z)
+    if ( (res_grid%z(k) >= this%grid%bottomhole(3)) .and. &
+         (res_grid%z(k) <= this%grid%tophole(3)) ) then
+      count = count + 1
+    endif
+  enddo
+  write(string,'(I0.5)') count
+
+  ! warning: this is an incomplete check on skipped grid cells!
+  ! nsegments >= count is necessary, but not sufficient
+  ! still need to add more checking here
+  if (nsegments < count) then
+    option%io_buffer = 'WELLBORE_MODEL --------->  &
+      &The number of well segments (' // trim(string2) // ') is smaller &
+      &than the number of reservoir grid cells it occupies (' // &
+      trim(string) // '). Therefore, some of the reservoir grid cells &
+      &have been skipped and have no connection to the well. You must &
+      &increase the resolution of the WELLBORE_MODEL grid.'
+    call PrintErrMsg(option)
+  endif
 
   if (size(this%well%diameter) /= nsegments) then
     if (size(this%well%diameter) == 1) then
@@ -724,9 +763,18 @@ subroutine PMWellReadPMBlock(this,input)
       case('TWO_PHASE')
         this%nphase = 2
         cycle
+    !-------------------------------------
       case('CHECK_FOR_SS')
         this%ss_check = PETSC_TRUE
+        cycle!-------------------------------------
+      case('WIPP_INTRUSION_START_TIME')
+        call InputReadDouble(input,option,this%intrusion_time_start)
+        call InputErrorMsg(input,option,'WIPP_INTRUSION_START_TIME', &
+                           error_string)
+        call InputReadAndConvertUnits(input,this%intrusion_time_start,'sec', &
+                           'WELLBORE_MODEL, WIPP_INTRUSION_START_TIME',option)
         cycle
+    !-------------------------------------
     end select
 
     ! Read sub-blocks within WELLBORE_MODEL block:
@@ -782,7 +830,6 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
   ! Date: 11/03/2021
   !
   use Input_Aux_module
-  use Option_module
   use String_module
 
   implicit none
@@ -903,7 +950,6 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
   ! Date: 11/03/2021
   !
   use Input_Aux_module
-  use Option_module
   use String_module
 
   implicit none
@@ -1054,7 +1100,6 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
   ! Date: 12/01/2021
   !
   use Input_Aux_module
-  use Option_module
   use String_module
 
   implicit none
@@ -1097,6 +1142,9 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                   !-----------------------------
                     case('PRESSURE')
                       call InputReadDouble(input,option,this%well%bh_p)
+                      call InputReadAndConvertUnits(input,this%well%bh_p, &
+                           'Pa','WELL_BOUNDARY_CONDITIONS,BOTTOM_OF_HOLE,&
+                           &PRESSURE',option)
                       if (InputError(input)) exit
                   !-----------------------------
                     case('PRESSURE_SET_BY_RESERVOIR')
@@ -1104,9 +1152,15 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                   !-----------------------------
                     case('LIQUID_RATE')
                       call InputReadDouble(input,option,this%well%bh_ql)
+                      call InputReadAndConvertUnits(input,this%well%bh_ql, &
+                           'm/s','WELL_BOUNDARY_CONDITIONS,BOTTOM_OF_HOLE,&
+                           &LIQUID_RATE',option)
                   !-----------------------------
                     case('GAS_RATE')
                       call InputReadDouble(input,option,this%well%bh_qg)
+                      call InputReadAndConvertUnits(input,this%well%bh_qg, &
+                           'm/s','WELL_BOUNDARY_CONDITIONS,BOTTOM_OF_HOLE,&
+                           &GAS_RATE',option)
                   !-----------------------------
                     case default
                       call InputKeywordUnrecognized(input,word, &
@@ -1129,13 +1183,22 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                   !-----------------------------
                     case('PRESSURE')
                       call InputReadDouble(input,option,this%well%th_p)
+                      call InputReadAndConvertUnits(input,this%well%th_p, &
+                           'Pa','WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE,&
+                           &PRESSURE',option)
                       if (InputError(input)) exit
                   !-----------------------------
                     case('LIQUID_RATE')
                       call InputReadDouble(input,option,this%well%th_ql)
+                      call InputReadAndConvertUnits(input,this%well%th_ql, &
+                           'm/s','WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE,&
+                           &LIQUID_RATE',option)
                   !-----------------------------
                     case('GAS_RATE')
                       call InputReadDouble(input,option,this%well%th_qg)
+                      call InputReadAndConvertUnits(input,this%well%th_qg, &
+                           'm/s','WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE,&
+                           &GAS_RATE',option)
                   !-----------------------------
                     case default
                       call InputKeywordUnrecognized(input,word, &
@@ -1212,7 +1275,6 @@ subroutine PMWellReadFlowSolver(pm_well,input,option,keyword,error_string, &
   ! Date: 02/03/2022
   !
   use Input_Aux_module
-  use Option_module
   use String_module
 
   implicit none
@@ -1326,7 +1388,6 @@ subroutine PMWellReadTranSolver(pm_well,input,option,keyword,error_string, &
   ! Date: 02/17/2022
   !
   use Input_Aux_module
-  use Option_module
   use String_module
 
   implicit none
@@ -1424,16 +1485,15 @@ subroutine PMWellReadTranSolver(pm_well,input,option,keyword,error_string, &
 
 ! ************************************************************************** !
 
-subroutine PMWellReadWellModelType(this,input,option,keyword,error_string,found)
+subroutine PMWellReadWellModelType(this,input,option,keyword,error_string, &
+                                   found)
   ! 
-  ! Reads input file parameters associated with the well model 
-  ! type.
+  ! Reads input file parameters associated with the well model type.
   ! 
   ! Author: Michael Nole
   ! Date: 12/22/2021
   !
   use Input_Aux_module
-  use Option_module
   use String_module
 
   implicit none
@@ -1447,7 +1507,7 @@ subroutine PMWellReadWellModelType(this,input,option,keyword,error_string,found)
 
   character(len=MAXWORDLENGTH) :: word
 
-  error_string = trim(error_string) // ',WELL_BOUNDARY_CONDITIONS'
+  error_string = trim(error_string) // ',WELL_MODEL_TYPE'
   found = PETSC_TRUE
 
   select case(trim(keyword))
@@ -1531,16 +1591,16 @@ subroutine PMWellReadPass2(input,option)
     call StringToUpper(keyword)
 
     select case(trim(keyword))
-    !--------------------
-    case('GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
-         'WELL_TRANSPORT_SOLVER')
-      call InputSkipToEND(input,option,card)
-    !--------------------
-    case('WELL_BOUNDARY_CONDITIONS')
-      call InputSkipToEND(input,option,card) 
-      call InputSkipToEND(input,option,card)
-      call InputSkipToEND(input,option,card)
-    !--------------------
+      !--------------------
+      case('GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
+           'WELL_TRANSPORT_SOLVER')
+        call InputSkipToEND(input,option,card)
+      !--------------------
+      case('WELL_BOUNDARY_CONDITIONS')
+        call InputSkipToEND(input,option,card)
+        call InputSkipToEND(input,option,card)
+        call InputSkipToEND(input,option,card)
+      !--------------------
     end select
 
   enddo
@@ -1581,9 +1641,60 @@ recursive subroutine PMWellInitializeRun(this)
 
   class(pm_well_type) :: this
   
+  type(strata_type), pointer :: patch_strata, well_strata
   PetscInt :: nsegments, k
+  PetscReal :: curr_time
 
+  curr_time = this%option%time
   nsegments = this%grid%nsegments 
+
+  patch_strata => this%realization%patch%strata_list%first
+  do 
+    if (.not.associated(patch_strata)) exit
+    if (patch_strata%well) then
+      well_strata => StrataCreateFromStrata(patch_strata)
+      well_strata%region => patch_strata%region
+      well_strata%material_property => patch_strata%material_property
+      call StrataAddToList(well_strata,this%strata_list) 
+    endif
+    patch_strata => patch_strata%next
+  enddo
+
+  ! loop thru well stratas and mark them as active or inactive
+  well_strata => this%strata_list%first
+  do 
+    if (.not.associated(well_strata)) exit
+    if (Initialized(well_strata%start_time) .and. &
+        Initialized(well_strata%final_time)) then
+      if ((curr_time >= well_strata%start_time) .and. &
+          (curr_time <= well_strata%final_time))  then
+        well_strata%active = PETSC_TRUE
+      else
+        well_strata%active = PETSC_FALSE
+      endif
+    else
+      well_strata%active = PETSC_TRUE
+    endif
+    well_strata => well_strata%next
+  enddo
+
+  do k = 1,nsegments
+    well_strata => this%strata_list%first
+    do 
+      if (.not.associated(well_strata)) exit
+      if ((any(well_strata%region%cell_ids == this%grid%h_ghosted_id(k))) .and. &
+          (well_strata%active)) then
+        this%grid%strata_id(k) = well_strata%id
+      endif
+      well_strata => well_strata%next
+    enddo
+    if (Uninitialized(this%grid%strata_id(k))) then
+      this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has not &
+        &been assigned with a REGION and MATERIAL_PROPERTY with the use of the &
+        &STRATA block.'
+      call PrintErrMsg(this%option)
+    endif
+  enddo
 
   allocate(this%flow_soln%residual(nsegments*this%flow_soln%ndof))
   allocate(this%flow_soln%update(nsegments*this%flow_soln%ndof))
@@ -1750,17 +1861,66 @@ subroutine PMWellInitializeTimestep(this)
   
   class(pm_well_type) :: this
 
-  ! update the reservoir object's pressure and saturations
+  type(strata_type), pointer :: strata
+  PetscInt :: k
+  PetscReal :: curr_time
+
+  curr_time = this%option%time - this%option%flow_dt
+
+  if (Initialized(this%intrusion_time_start) .and. &
+      (curr_time < this%intrusion_time_start)) return
+
+  ! update the reservoir object with current reservoir properties
   call PMWellUpdateReservoir(this)
+  call PMWellComputeWellIndex(this)
+
+  ! loop thru strata and mark them as active or inactive
+  strata => this%strata_list%first
+  do 
+    if (.not.associated(strata)) exit
+    if (Initialized(strata%start_time) .and. &
+        Initialized(strata%final_time)) then
+      if ((curr_time >= strata%start_time) .and. &
+          (curr_time <= strata%final_time))  then
+        strata%active = PETSC_TRUE
+      else
+        strata%active = PETSC_FALSE
+      endif
+    else
+      strata%active = PETSC_TRUE
+    endif
+    strata => strata%next
+  enddo
+
+  ! update the grid%strata_id assignment for active strata
+  this%grid%strata_id(:) = 0 
+  do k = 1,this%grid%nsegments
+    strata => this%strata_list%first
+    do 
+      if (.not.associated(strata)) exit
+      if ((any(strata%region%cell_ids == this%grid%h_ghosted_id(k))) .and. &
+          (strata%active)) then
+        this%grid%strata_id(k) = strata%id
+      endif
+      strata => strata%next
+    enddo
+  enddo
+  if (any(this%grid%strata_id == 0)) then
+    this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has not &
+        &been assigned with a REGION and MATERIAL_PROPERTY with the use of the &
+        &STRATA block. Check the STRATA START_TIME/FINAL_TIME cards associated &
+        &with the WELL keyword.'
+    call PrintErrMsg(this%option)
+  endif
 
   if (initialize_well) then
     ! enter here if its the very first timestep
     call PMWellInitializeWell(this)
   endif
 
-  call PMWellUpdatePropertiesFlow(this%well,&
-          this%realization%patch%characteristic_curves_array,&
-          this%realization%option)
+  call PMWellUpdatePropertiesFlow(this,this%well,&
+                        this%realization%patch%characteristic_curves_array,&
+                        this%realization%option)
   !MAN: need to add adaptive timestepping
   this%dt_flow = this%realization%option%flow_dt
 
@@ -1778,9 +1938,7 @@ subroutine PMWellInitializeWell(this)
   ! Initializes the well for the first time step.
   ! 
   ! Author: Jennifer M. Frederick
-  ! Date: 02/23/2022
-
-  use Strata_module  
+  ! Date: 02/23/2022  
 
   implicit none  
 
@@ -1835,29 +1993,22 @@ subroutine PMWellInitializeWell(this)
     this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
     this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
   endif
-    
+
   ! Link well material properties
   do k = 1,this%grid%nsegments
-    strata => this%realization%patch%strata_list%first
+    strata => this%strata_list%first
     do
-      if (.not. associated(strata)) then
-         this%option%io_buffer =  &
-                              'Well regions must link with corresponding STRATA'
-         call PrintErrMsg(this%option)
-      endif
-      if (strata%well) then
-        if (any(strata%region%cell_ids == this%grid%h_ghosted_id(k))) then
-          this%well%ccid(k) = strata%material_property%saturation_function_id
-          this%well%permeability(k) = strata%material_property%permeability(3,3)
-          this%well%phi(k) = strata%material_property%porosity
-          exit
-        endif
+      if (.not.associated(strata)) exit
+      if (strata%id == this%grid%strata_id(k)) then
+        this%well%ccid(k) = strata%material_property%saturation_function_id
+        this%well%permeability(k) = strata%material_property%permeability(3,3)
+        this%well%phi(k) = strata%material_property%porosity
+        exit
       endif
       strata => strata%next
     enddo
   enddo
 
-  ! For strata that do not evolve, I believe
   call PMWellComputeWellIndex(this)
 
   do k = 1,this%nphase
@@ -1933,15 +2084,9 @@ subroutine PMWellUpdateReservoir(this)
     this%reservoir%kz(k) = material_auxvar%permeability(3)
     this%reservoir%volume(k) = material_auxvar%volume
 
-    if (associated(grid%structured_grid)) then
-      this%reservoir%dx(k) = grid%structured_grid%dx(ghosted_id) 
-      this%reservoir%dy(k) = grid%structured_grid%dy(ghosted_id)
-      this%reservoir%dz(k) = grid%structured_grid%dz(ghosted_id)
-    else
-      option%io_buffer = 'Well model is not yet compatible with an &
-                         &unstructured grid reservoir. '
-      call PrintErrMsg(option)
-    endif
+    this%reservoir%dx(k) = grid%structured_grid%dx(ghosted_id) 
+    this%reservoir%dy(k) = grid%structured_grid%dy(ghosted_id)
+    this%reservoir%dz(k) = grid%structured_grid%dz(ghosted_id)
 
     if (this%transport) then
       this%reservoir%aqueous_conc(:,k) = nwt_auxvar%aqueous_eq_conc(:)
@@ -1992,6 +2137,13 @@ subroutine PMWellFinalizeTimestep(this)
   implicit none
   
   class(pm_well_type) :: this
+
+  PetscReal :: curr_time
+
+  curr_time = this%option%time - this%option%flow_dt
+
+  if (Initialized(this%intrusion_time_start) .and. &
+      (curr_time < this%intrusion_time_start)) return
 
   call PMWellUpdateReservoirSrcSink(this)
 
@@ -2433,16 +2585,10 @@ subroutine PMWellJacobian(this)
 
   class(pm_well_type) :: this
 
-  !SNES :: snes
-  !Vec :: xx
   Mat :: A, B
-  !type(realization_subsurface_type) :: realization
-  PetscErrorCode :: ierr
-
   Mat :: J
   MatType :: mat_type
-  PetscReal :: norm
-  PetscViewer :: viewer
+  PetscErrorCode :: ierr
 
   PetscReal :: qsrc, scale
   PetscInt :: imat, imat_up, imat_dn
@@ -2643,6 +2789,19 @@ subroutine PMWellSolve(this,time,ierr)
   class(pm_well_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
+
+  character(len=MAXSTRINGLENGTH) :: out_string
+  PetscReal :: curr_time
+
+  curr_time = this%option%time - this%option%flow_dt
+
+  if (Initialized(this%intrusion_time_start) .and. &
+      (curr_time < this%intrusion_time_start)) then
+    write(out_string,'(" Inactive.    Time =",1pe12.5," sec.")') curr_time 
+    call OptionPrint(out_string,this%option)
+    ierr = 0 ! If this is not set to zero, TS_STOP_FAILURE occurs!
+    return
+  endif
 
   call PMWellSolveFlow(this,time,ierr)
 
@@ -2942,9 +3101,9 @@ subroutine PMWellUpdateSolution(pm_well)
         pm_well%well%gas%s(i) = pm_well%well%gas%s(i) + &
                                 pm_well%flow_soln%update(idof)
       enddo
-      call PMWellUpdatePropertiesFlow(pm_well%well, &
-                pm_well%realization%patch%characteristic_curves_array, &
-                pm_well%realization%option)
+      call PMWellUpdatePropertiesFlow(pm_well,pm_well%well, &
+                     pm_well%realization%patch%characteristic_curves_array, &
+                     pm_well%realization%option)
   end select
 end subroutine PMWellUpdateSolution
 
@@ -2968,7 +3127,7 @@ subroutine PMWellCutTimestepFlow(pm_well)
       pm_well%dt_flow = max(pm_well%dt_flow,pm_well%min_dt_flow)
       pm_well%well%pl = pm_well%flow_soln%prev_soln%pl
       pm_well%well%gas%s = pm_well%flow_soln%prev_soln%sg
-      call PMWellUpdatePropertiesFlow(pm_well%well, &
+      call PMWellUpdatePropertiesFlow(pm_well,pm_well%well, &
                      pm_well%realization%patch%characteristic_curves_array, &
                      pm_well%realization%option)
   end select
@@ -3618,7 +3777,6 @@ subroutine PMWellComputeWellIndex(this)
 
   this%well%WI = this%well%WI*this%well%WI_base
 
-
 end subroutine PMWellComputeWellIndex
 
 ! ************************************************************************** !
@@ -4019,18 +4177,18 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   type(well_grid_type), pointer :: grid
   type(well_reservoir_type), pointer :: reservoir
 
-  PetscInt :: i, iup, idn, ghosted_id
+  PetscInt :: iup
   PetscReal :: pres_up, pres_dn
 
   !MAN: clean these up
-  PetscReal :: perm_ave_over_dist, density_kg_ave
-  PetscReal :: perm_up, perm_dn, dist_up, dist_dn
+  PetscReal :: perm_ave_over_dist
+  PetscReal :: perm_up, perm_dn
   PetscReal :: gravity_term, delta_pressure
-  PetscReal :: density_ave, density_ave_kmol, tot_mole_flux
+  PetscReal :: density_ave, tot_mole_flux
   PetscReal :: boundary_pressure, viscosity
   PetscReal :: v_darcy,q
   PetscBool :: upwind
-  PetscInt :: idof, irow, itop
+  PetscInt :: itop
 
   PetscReal, parameter :: eps = 1.d-8
 
@@ -4181,7 +4339,6 @@ subroutine PMWellBCFluxDerivative(pm_well,Jtop,Jbtm)
   implicit none
 
   type(pm_well_type) :: pm_well
-  PetscInt :: idn
   PetscReal :: Jtop(pm_well%flow_soln%ndof,pm_well%flow_soln%ndof), &
                Jbtm(pm_well%flow_soln%ndof,pm_well%flow_soln%ndof)
 
@@ -4220,17 +4377,13 @@ subroutine PMWellPerturb(pm_well)
   ! Date: 01/06/2022
   !
 
-  use Option_module
-
   implicit none
 
   type(pm_well_type) :: pm_well
 
   PetscReal :: x(pm_well%grid%nsegments,pm_well%nphase), &
-               x_pert(pm_well%grid%nsegments,pm_well%nphase), &
                pert(pm_well%grid%nsegments,pm_well%nphase)
-  PetscBool :: pert_indices(pm_well%grid%nsegments)
-  PetscInt :: idof,i
+  PetscInt :: i
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: min_perturbation = 1.d-10
@@ -4260,10 +4413,10 @@ subroutine PMWellPerturb(pm_well)
   pm_well%well_pert(TWO_INTEGER)%gas%s = x(:,TWO_INTEGER) + pert(:,TWO_INTEGER)
 
   ! Update perturbed well properties
-  call PMWellUpdatePropertiesFlow(pm_well%well_pert(ONE_INTEGER), &
+  call PMWellUpdatePropertiesFlow(pm_well,pm_well%well_pert(ONE_INTEGER), &
                         pm_well%realization%patch%characteristic_curves_array, &
                         pm_well%realization%option)
-  call PMWellUpdatePropertiesFlow(pm_well%well_pert(TWO_INTEGER), &
+  call PMWellUpdatePropertiesFlow(pm_well,pm_well%well_pert(TWO_INTEGER), &
                         pm_well%realization%patch%characteristic_curves_array, &
                         pm_well%realization%option)
 
@@ -4277,7 +4430,8 @@ end subroutine PMWellPerturb
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdatePropertiesFlow(well,characteristic_curves_array,option)
+subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
+                                      option)
   !
   ! Updates flow well object properties.
   !
@@ -4285,7 +4439,6 @@ subroutine PMWellUpdatePropertiesFlow(well,characteristic_curves_array,option)
   ! Date: 01/06/2022
   !
 
-  use Option_module
   use EOS_Water_module
   use EOS_Gas_module
   use Characteristic_Curves_module
@@ -4294,20 +4447,35 @@ subroutine PMWellUpdatePropertiesFlow(well,characteristic_curves_array,option)
 
   implicit none
 
+  class(pm_well_type) :: this
   type(well_type) :: well
   type(characteristic_curves_ptr_type), pointer::characteristic_curves_array(:)
   type(option_type) :: option
 
   class(characteristic_curves_type), allocatable :: characteristic_curves 
   class(sat_func_base_type), allocatable :: saturation_function
+  type(strata_type), pointer :: strata
   PetscInt :: i,nsegments
   PetscReal :: t,dw,dg,dwmol,dwp,dwt,Psat,visl,visg
   PetscReal :: Pc,dpc_dsatl,krl,dkrl_dsatl,krg,dkrg_dsatl
   PetscErrorCode :: ierr
 
-  nsegments = size(well%pl)
+  nsegments =this%grid%nsegments
 
   do i = 1,nsegments
+    ! Material Properties
+    strata => this%strata_list%first
+    do
+      if (.not.associated(strata)) exit
+      if (strata%id == this%grid%strata_id(i)) then
+        well%ccid(i) = strata%material_property%saturation_function_id
+        well%permeability(i) = strata%material_property%permeability(3,3)
+        well%phi(i) = strata%material_property%porosity
+        exit
+      endif
+      strata => strata%next
+    enddo
+
     ! Saturations
     well%gas%s(i) = max(well%gas%s(i),0.d0)
     well%gas%s(i) = min(well%gas%s(i),1.d0)
@@ -4373,8 +4541,6 @@ subroutine PMWellUpdatePropertiesTran(well)
   ! Date: 02/23/2022
   !
 
-  use Option_module
-
   implicit none
 
   type(well_type) :: well
@@ -4391,8 +4557,6 @@ subroutine PMWellCopyWell(well,well_copy)
   ! Author: Michael Nole
   ! Date: 02/25/2022
   !
-
-  use Option_module
 
   implicit none
 
@@ -4433,8 +4597,6 @@ function PMWellOutputFilename(option)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
-
-  use Option_module
 
   implicit none
   
@@ -4549,7 +4711,6 @@ subroutine PMWellOutput(this)
   ! Author: Jennifer M. Frederick
   ! Date: 12/16/2021
 
-  use Option_module
   use Output_Aux_module
   use Global_Aux_module
   use Grid_module
@@ -4610,7 +4771,6 @@ subroutine PMWellDestroy(this)
   ! Date: 08/04/2021
   !
   use Utility_module, only : DeallocateArray
-  use Option_module
 
   implicit none
   
@@ -4720,6 +4880,8 @@ subroutine PMWellDestroy(this)
     call DeallocateArray(this%tran_soln%prev_soln%aqueous_mass)
     nullify(this%tran_soln)
   endif
+
+  nullify(this%strata_list)
   
 end subroutine PMWellDestroy
 

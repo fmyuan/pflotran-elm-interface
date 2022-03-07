@@ -172,7 +172,8 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
       if (.not.associated(strata)) exit
       ! if not within time period specified, skip the strata.
       ! use a one second tolerance on the start time and end time
-      if (StrataWithinTimePeriod(strata,option%time)) then
+      if (StrataWithinTimePeriod(strata,option%time) .and. &
+          (.not. strata%well)) then
         ! Read in cell by cell material ids if they exist
         if (.not.associated(strata%region) .and. strata%active) then
           call SubsurfReadMaterialIDsFromFile(realization, &
@@ -197,9 +198,7 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
             endif
             ghosted_id = grid%nL2G(local_id)
             if (strata%active) then
-              if (.not. strata%well) then
-                cur_patch%imat(ghosted_id) = material_property%internal_id
-              endif
+              cur_patch%imat(ghosted_id) = material_property%internal_id
             else
               ! if not active, set material id to zero
               cur_patch%imat(ghosted_id) = 0
