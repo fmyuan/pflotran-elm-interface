@@ -15,6 +15,8 @@ SIMULATION
     WASTE_FORM wf_general
       TYPE GENERAL
     /
+    MATERIAL_TRANSFORM smectite-to-illite
+    /
   /
   CHECKPOINT
     # TIMES y 1.0d-1 1.0d+0
