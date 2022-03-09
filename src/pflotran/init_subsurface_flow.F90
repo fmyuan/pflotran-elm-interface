@@ -84,8 +84,17 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call init_span_wagner(option)
         call MphaseSetup(realization)
       case(WF_MODE)
-        pm => simulation%flow_process_model_coupler%pm_list
-        call WIPPFloSetup(realization,pm)
+         call WIPPFloSetup(realization)
+         pm => simulation%flow_process_model_coupler%pm_list
+         do
+           if (.not. associated(pm)) exit
+           select type (pm)
+             class is (pm_wippflo_type)
+               if (associated(pm%pmwss_ptr)) &
+                 call pm%pmwss_ptr%Setup()
+           end select
+           pm => pm%next 
+         enddo
       case(G_MODE)
         call GeneralSetup(realization)
       case(H_MODE)
