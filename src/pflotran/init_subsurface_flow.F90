@@ -84,16 +84,8 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
         call init_span_wagner(option)
         call MphaseSetup(realization)
       case(WF_MODE)
-        call WIPPFloSetup(realization)
         pm => simulation%flow_process_model_coupler%pm_list
-        do
-          if (.not. associated(pm)) exit
-          select type (pm)
-            class is (pm_wippflo_type)
-              call PMWIPPFloReadSrcSinkBlock(realization,pm)
-          end select
-          pm => pm%next
-        enddo
+        call WIPPFloSetup(realization,pm)
       case(G_MODE)
         call GeneralSetup(realization)
       case(H_MODE)

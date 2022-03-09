@@ -32,7 +32,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine WIPPFloSetup(realization)
+subroutine WIPPFloSetup(realization,pm)
   ! 
   ! Creates arrays for auxiliary variables
   ! 
@@ -51,11 +51,14 @@ subroutine WIPPFloSetup(realization)
   use Characteristic_Curves_module
   use WIPP_Characteristic_Curve_module
   use Matrix_Zeroing_module
- 
+  use PM_Base_class
+  use PM_WIPP_Flow_class
+  
   implicit none
   
   class(realization_subsurface_type) :: realization
-
+  class(pm_base_type), pointer :: pm
+  
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
@@ -181,9 +184,18 @@ subroutine WIPPFloSetup(realization)
   wippflo_ts_cut_count = 0
   wippflo_ni_count = 0
   
-
   call PatchSetupUpwindDirection(patch,option)
 
+  do
+    if (.not. associated(pm)) exit
+    select type (pm)
+      class is (pm_wippflo_type)
+        if (associated(pm%pmwss_ptr)) &
+          call pm%pmwss_ptr%Setup()
+    end select
+    pm => pm%next 
+  enddo
+ 
 end subroutine WIPPFloSetup
 
 ! ************************************************************************** !

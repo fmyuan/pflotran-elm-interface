@@ -109,7 +109,6 @@ module PM_WIPP_Flow_class
             PMWIPPFloInitializeRun, &
             PMWIPPFloFinalizeTimestep, &
             PMWIPPFloCheckUpdatePre, &
-            PMWIPPFloReadSrcSinkBlock, &
             PMWIPPFloDestroy
   
 contains
@@ -628,40 +627,6 @@ subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
   end select
   
 end subroutine PMWIPPFloReadNewtonSelectCase
-
-! ************************************************************************** !
-subroutine PMWIPPFloReadSrcSinkBlock(realization,this)
-  
-  use Input_Aux_module
-  use Option_module
-  use Realization_Subsurface_class
-  use WIPP_Flow_Aux_module
-
-  implicit none
-  
-  class(realization_subsurface_type), pointer :: realization
-  class(pm_wippflo_type) :: this
-  type(option_type), pointer :: option
-  type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: block_string
-  
-  option => realization%option
-  
-  ! look for WIPP_SOURCE_SINK block
- 
-  input => InputCreate(IN_UNIT,option%input_filename,option)
-  block_string = 'WIPP_SOURCE_SINK'
-  call InputFindStringInFile(input,option,block_string)
-  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
-    this%pmwss_ptr => PMWSSCreate()
-    this%pmwss_ptr%option => option
-    call this%pmwss_ptr%ReadPMBlock(input)
-    call PMWSSSetRealization(this%pmwss_ptr,realization)
-    call this%pmwss_ptr%Setup()
-    call InputDestroy(input)
-  endif
-  
-end subroutine PMWIPPFloReadSrcSinkBlock
 
 ! ************************************************************************** !
 
