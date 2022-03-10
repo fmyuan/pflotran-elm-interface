@@ -30,7 +30,7 @@ module PM_Material_Transform_class
 ! --------------------------------------------------------------------------  
   type, public, extends(pm_base_type) :: pm_material_transform_type
     class(realization_subsurface_type), pointer :: realization
-    class(material_transform_type), pointer :: mtl
+    type(material_transform_type), pointer :: mtl
   contains
     procedure, public :: Setup => PMMaterialTransformSetup
     procedure, public :: ReadPMBlock => PMMaterialTransformReadPMBlock
@@ -639,8 +639,9 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   !
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
-  ! 
-
+  !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use hdf5
@@ -658,15 +659,140 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
 ! ----------------------------------
 ! LOCAL VARIABLES:
 ! ================
-!
+! is: PETSc index set
+! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
+! local_mt_vec: local vector of material transform checkpoint values
+! global_mt_vec: global vector of material transform checkpoint values
+! ierr: I/O status indicator
+! local_stride: local number of vector elements between start and end of block 
+! local_stride_tmp: temporary counter for local stride
+! stride: global number of vector elements between start and end of block
+! n_mt_local: number of material transforms on process
+! n_mt_global: number of material transforms globally
+! n_check_vars: number of values to checkpoint
+! i, j: iterators
+! indices: indices of the local material transform vector
+! int_array: keeps track of the material transform number
+! check_vars: array of checkpointed values
+! cur_mt: material transform object
+! dataset_name: descriptor of the material transform checkpoint data
+! ----------------------------------
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: local_mt_vec
+  Vec :: global_mt_vec
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride
+  PetscInt :: local_stride_tmp
+  PetscInt :: stride
+  PetscInt :: n_mt_local
+  PetscInt :: n_mt_global
+  PetscInt :: n_check_vars
+  PetscInt :: i, j
+  PetscInt, allocatable :: indices(:)
+  PetscInt, allocatable :: int_array(:)
+  PetscReal, allocatable :: check_vars(:)
+  class(material_transform_type), pointer :: cur_mt
+  character(len=MAXSTRINGLENGTH) :: dataset_name
 ! ----------------------------------
 
-! ----------------------------------
+  local_stride = 0
+  local_stride_tmp = 0
+  n_mt_local = 0
+  n_mt_global = 0
+
+  ! current information in PM Material Transform that is checkpointed:
+  !   (1) num_aux
+  n_check_vars = 1 !number of scalar checkpoint variables
   
+  cur_mt => this%mtl
+  do 
+    if (.not.associated(cur_mt)) exit
+    n_mt_local = n_mt_local + 1
+    local_stride_tmp = local_stride_tmp + n_check_vars
+    cur_mt => cur_mt%next
+    if (local_stride_tmp > local_stride) then
+      local_stride = local_stride_tmp
+    endif
+    local_stride_tmp = 0
+  enddo
+
+  allocate(int_array(n_mt_local))
+  cur_mt => this%mtl
+  i = 1
+  do
+    if (.not.associated(cur_mt)) exit
+    int_array(i) = i - 1
+    i = i + 1
+    cur_mt => cur_mt%next
+  enddo
+
+  ! gather relevant information from all processes
+  call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
+                     MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
+  call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
+                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)   
+
+  ! create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, & 
+                    global_mt_vec,ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
+         CHKERRQ(ierr)
+  call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
+  call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
+
+  allocate(check_vars(stride))
+  allocate(indices(stride))
+
+  ! collect data for checkpointing
+  j = 1
+  cur_mt => this%mtl
+  do
+    if (.not. associated(cur_mt)) exit
+
+    check_vars(1) = cur_mt%num_aux ! checkpoint #1
+
+    i = n_check_vars + 1
+    do
+      if (i > stride) exit
+      check_vars(i) = -9999
+      i = i + 1
+    enddo
+
+    do i = 1, stride
+      indices(i) = (j - 1)*stride + i - 1
+    enddo
+    j = j + 1
+
+    call VecSetValues(local_mt_vec, stride, indices, check_vars, &
+                     INSERT_VALUES, ierr); CHKERRQ(ierr)
+
+    cur_mt => cur_mt%next
+
+  enddo
+
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm, stride, n_mt_local, int_array, &
+                     PETSC_COPY_VALUES, is, ierr); CHKERRQ(ierr)
+  call VecScatterCreate(local_mt_vec, PETSC_NULL_IS, global_mt_vec, &
+                        is, scatter_ctx, ierr); CHKERRQ(ierr)
+  call VecScatterBegin(scatter_ctx, local_mt_vec, global_mt_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, local_mt_vec, global_mt_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+
+  ! write the checkpoint file
+  dataset_name='material transform model information'
+  call HDF5WriteDataSetFromVec(dataset_name, this%option, global_mt_vec,&
+                               pm_grp_id, H5T_NATIVE_DOUBLE)
+  call VecScatterDestroy(scatter_ctx, ierr); CHKERRQ(ierr)
+  call ISDestroy(is, ierr); CHKERRQ(ierr)
+  call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
+  call VecDestroy(local_mt_vec, ierr); CHKERRQ(ierr)
+
 end subroutine PMMaterialTransformCheckpointHDF5
 
 ! ***************************************************************************** !
-
 
 subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   ! 
@@ -674,7 +800,9 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   ! 
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
-
+  !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use hdf5
@@ -692,12 +820,129 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
 ! ----------------------------------
 ! LOCAL VARIABLES:
 ! ================
-!
+! is: PETSc index set
+! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
+! local_mt_vec: local vector of material transform checkpoint values
+! global_mt_vec: global vector of material transform checkpoint values
+! ierr: I/O status indicator
+! local_stride: local number of vector elements between start and end of block 
+! local_stride_tmp: temporary counter for local stride
+! stride: global number of vector elements between start and end of block
+! n_mt_local: number of material transforms on process
+! n_mt_global: number of material transforms globally
+! n_check_vars: number of values to checkpoint
+! i: iterator
+! indices: indices of the local material transform vector
+! int_array: keeps track of the material transform number
+! check_vars: array of checkpointed values
+! local_mt_array : data converted into a Fortran array
+! cur_mt: material transform object
+! dataset_name: descriptor of the material transform checkpoint data
+! ----------------------------------
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: local_mt_vec
+  Vec :: global_mt_vec
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride
+  PetscInt :: n_mt_local
+  PetscInt :: n_mt_global
+  PetscInt :: n_check_vars
+  PetscInt :: local_stride_tmp
+  PetscInt :: i
+  PetscInt :: stride
+  PetscInt, allocatable :: indices(:)
+  PetscInt, allocatable :: int_array(:)
+  PetscReal, allocatable :: check_vars(:)
+  PetscReal, pointer :: local_mt_array(:)
+  class(material_transform_type), pointer :: cur_mt
+  character(len=MAXSTRINGLENGTH) :: dataset_name
 ! ----------------------------------
 
-! ----------------------------------
+  local_stride = 0
+  local_stride_tmp = 0
+  n_mt_local = 0
+  n_mt_global = 0
 
-  
+  ! current information in PM Material Transform that is checkpointed:
+  !   (1) num_aux
+  n_check_vars = 1 !number of scalar checkpoint variables
+
+  cur_mt => this%mtl
+  do 
+    if (.not. associated(cur_mt)) exit
+    n_mt_local = n_mt_local + 1
+    local_stride_tmp = local_stride_tmp + n_check_vars
+    cur_mt => cur_mt%next
+    if (local_stride_tmp > local_stride) then
+      local_stride = local_stride_tmp
+    endif
+    local_stride_tmp = 0
+  enddo
+
+  allocate(int_array(n_mt_local))
+  i = 1
+  cur_mt => this%mtl
+  do
+    if (.not. associated(cur_mt)) exit
+    int_array(i) = i
+    i = i + 1
+    cur_mt => cur_mt%next
+  enddo
+
+  ! gather relevant information from all processes
+  call MPI_Allreduce(local_stride, stride, ONE_INTEGER_MPI, &
+                     MPI_INTEGER, MPI_MAX, this%option%mycomm, ierr)
+  call MPI_Allreduce(n_mt_local, n_mt_global, ONE_INTEGER_MPI, &
+                     MPI_INTEGER, MPI_SUM, this%option%mycomm, ierr)   
+
+  ! create MPI vector for HDF5 reading and sequential vector for mt information
+  !   stored in the process
+  call VecCreateMPI(this%option%mycomm, n_mt_local*stride, n_mt_global*stride, & 
+                    global_mt_vec,ierr); CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, n_mt_local*stride, local_mt_vec, ierr); &
+         CHKERRQ(ierr)
+  call VecSetBlockSize(global_mt_vec, stride, ierr); CHKERRQ(ierr)
+  call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
+
+  ! read data from HDF5
+  dataset_name='material transform model information'
+  call HDF5ReadDataSetInVec(dataset_name, this%option, global_mt_vec, &
+                            pm_grp_id, H5T_NATIVE_DOUBLE)
+
+  ! create mapping between MPI and sequential vectors
+  call ISCreateBlock(this%option%mycomm, stride, n_mt_local, int_array, &
+                     PETSC_COPY_VALUES, is, ierr); CHKERRQ(ierr)
+  call VecScatterCreate(global_mt_vec, is, local_mt_vec, &
+                        PETSC_NULL_IS, scatter_ctx, ierr); CHKERRQ(ierr)
+
+  ! obtain data from the MPI vector
+  call VecScatterBegin(scatter_ctx, global_mt_vec, local_mt_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, global_mt_vec, local_mt_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+
+  ! convert the data into a Fortran array
+  call VecGetArrayF90(local_mt_vec, local_mt_array, ierr); CHKERRQ(ierr)
+
+  ! assign checkpointed material transform information
+  i = 1
+  cur_mt => this%mtl
+  do
+    if (.not. associated(cur_mt)) exit
+
+    cur_mt%num_aux = local_mt_array(i) ! checkpoint #1
+
+    cur_mt => cur_mt%next
+    i = i + stride
+  enddo
+
+  call VecRestoreArrayF90(local_mt_vec, local_mt_array, ierr); CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx, ierr); CHKERRQ(ierr)
+  call ISDestroy(is, ierr); CHKERRQ(ierr)
+  call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
+  call VecDestroy(local_mt_vec, ierr); CHKERRQ(ierr)
+
 end subroutine PMMaterialTransformRestartHDF5
 
 ! ************************************************************************** !

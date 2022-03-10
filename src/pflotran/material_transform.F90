@@ -97,8 +97,8 @@ module Material_Transform_module
   end type material_transform_auxvar_type
   !---------------------------------------------------------------------------
   type, public :: material_transform_type
-    character(len=MAXWORDLENGTH) :: name
-    PetscBool :: test
+    character(len=MAXWORDLENGTH) :: name ! name of material transform
+    PetscBool :: test ! not yet implemented
     
     ! Auxiliary variables
     PetscBool :: auxvars_up_to_date
