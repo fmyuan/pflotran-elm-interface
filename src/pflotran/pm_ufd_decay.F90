@@ -954,7 +954,8 @@ recursive subroutine PMUFDDecayInitializeRun(this)
     if (associated(patch%material_transform_array)) then
       material_transform => &
         patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-      if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+      if (associated(MT_auxvars(ghosted_id)%il_aux) .and. &
+          associated(material_transform)) then
         call material_transform%illitization%illitization_function% &
                CheckElements(this%element_name, &
                              this%num_elements, &
@@ -968,7 +969,6 @@ recursive subroutine PMUFDDecayInitializeRun(this)
       ! modify kd if needed
       if (associated(patch%aux%MT)) then
         if (associated(MT_auxvars(ghosted_id)%il_aux)) then
-          ! if (this%option%time > MT_auxvars(ghosted_id)%il_aux%ts) then
             if (this%option%dt > 0.d0 .or. this%option%restart_flag) then
               call material_transform%illitization%illitization_function% &
                      ShiftKd(kd_kgw_m3b, &
@@ -976,7 +976,6 @@ recursive subroutine PMUFDDecayInitializeRun(this)
                              MT_auxvars(ghosted_id)%il_aux, &
                              this%option)
             endif
-          ! endif
         endif
       endif
 
@@ -1409,8 +1408,8 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 
       ! modify kd if needed
       if (associated(patch%aux%MT)) then
-        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
-          ! if (option%time > MT_auxvars(ghosted_id)%il_aux%ts) then
+        if (associated(MT_auxvars(ghosted_id)%il_aux) .and. &
+            associated(material_transform)) then
             if (option%dt > 0.d0) then
               call material_transform%illitization%illitization_function% &
                      ShiftKd(kd_kgw_m3b, &
@@ -1418,7 +1417,6 @@ subroutine PMUFDDecaySolve(this,time,ierr)
                              MT_auxvars(ghosted_id)%il_aux, &
                              option)
             endif
-          ! endif
         endif
       endif
 

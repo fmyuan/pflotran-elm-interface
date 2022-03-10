@@ -2416,7 +2416,7 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
                                       field%work_loc, grid%ngmax)
     case(MTF_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%mtf_id, &
-                                      field%work_loc, grid%ngmax)
+                                     field%work_loc, grid%ngmax)
   end select
 
 end subroutine RealLocalToLocalWithArray

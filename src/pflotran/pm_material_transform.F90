@@ -43,10 +43,10 @@ module PM_Material_Transform_class
     procedure, public :: Solve => PMMaterialTransformSolve
     procedure, public :: TimeCut => PMMaterialTransformTimeCut
     procedure, public :: UpdateAuxVars => PMMaterialTransformUpdateAuxVars
-    ! procedure, public :: CheckpointHDF5 => PMMaterialTransformCheckpointHDF5
-    ! procedure, public :: CheckpointBinary => PMMaterialTransformCheckpointBinary
-    ! procedure, public :: RestartHDF5 => PMMaterialTransformRestartHDF5
-    ! procedure, public :: RestartBinary => PMMaterialTransformRestartBinary
+    procedure, public :: CheckpointHDF5 => PMMaterialTransformCheckpointHDF5
+    procedure, public :: CheckpointBinary => PMMaterialTransformCheckpointBinary
+    procedure, public :: RestartHDF5 => PMMaterialTransformRestartHDF5
+    procedure, public :: RestartBinary => PMMaterialTransformRestartBinary
     procedure, public :: InputRecord => PMMaterialTransformInputRecord
     procedure, public :: Destroy => PMMaterialTransformDestroy
   end type pm_material_transform_type
@@ -144,18 +144,10 @@ subroutine PMMaterialTransformSetup(this)
   patch => this%realization%patch
   option => this%realization%option
   grid => patch%grid
-  
+
   ! pass material transform list from PM to realization
   if (associated(this%mtl)) then
-
-    allocate(mtf)
-
-    mtf => this%mtl
-
-    call MaterialTransformAddToList(mtf,this%realization%material_transform)
-
-    nullify(mtf)
-
+    call MaterialTransformAddToList(this%mtl,this%realization%material_transform)
   endif
 
   ! set up mapping for material transform functions
@@ -169,7 +161,7 @@ subroutine PMMaterialTransformSetup(this)
 
   do
     if (.not.associated(cur_material_property)) exit
-    
+
     ! material transform function id 
     if (associated(patch%material_transform_array)) then
       if (cur_material_property%mtf) then
@@ -189,9 +181,9 @@ subroutine PMMaterialTransformSetup(this)
         '" not found for material "'//trim(cur_material_property%name) // '".'
       call PrintErrMsg(option)
     endif
-    
+
     cur_material_property => cur_material_property%next
-    
+
   enddo
 
   ! create null material property for inactive cells
@@ -200,7 +192,8 @@ subroutine PMMaterialTransformSetup(this)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
-    
+    if (material_id <= 0) cycle
+
     ! get material property from id
     if (material_id == 0) then
       cur_material_property => null_material_property
@@ -223,7 +216,7 @@ subroutine PMMaterialTransformSetup(this)
 
       endif
     endif
-    
+
   enddo
 
   patch%aux%MT => MaterialTransformCreate()
@@ -231,21 +224,23 @@ subroutine PMMaterialTransformSetup(this)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
-    
+    if (material_id <= 0) cycle
+
     call MaterialTransformAuxVarInit(MT_auxvars(ghosted_id))
     
     if (Initialized(patch%mtf_id(ghosted_id))) then
       ! pointer to material transform in patch ghosted id
       mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-      
-      if (associated(mtf%illitization)) then
-        MT_auxvars(ghosted_id)%il_aux => IllitizationAuxVarInit(option)
+
+      if (associated(mtf)) then
+        if (associated(mtf%illitization)) then
+          MT_auxvars(ghosted_id)%il_aux => IllitizationAuxVarInit(option)
+        endif
+        if (associated(mtf%buffer_erosion)) then
+          MT_auxvars(ghosted_id)%be_aux => BufferErosionAuxVarInit()
+        endif
       endif
 
-      if (associated(mtf%buffer_erosion)) then
-        MT_auxvars(ghosted_id)%be_aux => BufferErosionAuxVarInit()
-      endif
-      
     endif
     
   enddo
@@ -396,6 +391,7 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
+    if (material_id <= 0) cycle
     
     material_aux => material_auxvars(ghosted_id)
     MT_aux => MT_auxvars(ghosted_id)
@@ -405,7 +401,7 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
       if (associated(patch%material_transform_array)) then
         allocate(mtf)
         mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-        if (associated(MT_aux%il_aux)) then
+        if (associated(MT_aux%il_aux) .and. associated(mtf)) then
           MT_aux%il_aux%fs0 = &
             mtf%illitization%illitization_function%ilt_fs0
           MT_aux%il_aux%fs = &
@@ -476,6 +472,10 @@ recursive subroutine PMMaterialTransformFinalizeRun(this)
 ! --------------------------------
   class(pm_material_transform_type) :: this
 ! --------------------------------
+
+  if (associated(this%next)) then
+    call this%next%FinalizeRun()
+  endif  
 
 end subroutine PMMaterialTransformFinalizeRun
 
@@ -595,34 +595,35 @@ subroutine PMMaterialTransformSolve(this,time,ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
-    
+    if (material_id <= 0) cycle
+
     global_aux => global_auxvars(ghosted_id)
     material_aux => material_auxvars(ghosted_id)
     MT_aux => MT_auxvars(ghosted_id)
-    
+
     if (Initialized(patch%mtf_id(ghosted_id))) then
       ! pointer to material transform in patch ghosted id
       mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-      
-      if (associated(mtf%illitization)) then
-        call mtf%illitization%illitization_function%CalculateILT( &
-               MT_aux%il_aux%fs, &
-               global_aux%temp, &
-               time, &
-               MT_aux%il_aux%fi, &
-               MT_aux%il_aux%scale, &
-               option)
-        call mtf%illitization%illitization_function%ShiftPerm( &
-               material_aux, &
-               MT_aux%il_aux, &
-               option)
-      endif
 
-      ! if (associated(mtf%buffer_erosion)) then
-      ! endif
-      
+      if (associated(mtf)) then
+        if (associated(mtf%illitization)) then
+          call mtf%illitization%illitization_function%CalculateILT( &
+                 MT_aux%il_aux%fs, &
+                 global_aux%temp, &
+                 option%dt, &
+                 MT_aux%il_aux%fi, &
+                 MT_aux%il_aux%scale, &
+                 option)
+          call mtf%illitization%illitization_function%ShiftPerm( &
+                 material_aux, &
+                 MT_aux%il_aux, &
+                 option)
+        endif
+        ! if (associated(mtf%buffer_erosion)) then
+        ! endif
+      endif
     endif
-    
+
   enddo
 
 
