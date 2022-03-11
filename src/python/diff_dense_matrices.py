@@ -67,7 +67,9 @@ if not row_count == num_rows2:
 f.close()
 
 max_abs_val = max(np.absolute(array1).max(),np.absolute(array2).max())
+min_abs_val = min(np.absolute(array1).min(),np.absolute(array2).min())
 max_rel_diff = 0.
+values = [0.,0.]
 max_row = -999
 max_col = -999
 for irow in range(num_rows):
@@ -85,6 +87,9 @@ for irow in range(num_rows):
         if abs(rel_diff) > max_rel_diff:
             max_row = irow+1
             max_col = icol+1
+            values = [value1,value2]
             max_rel_diff = abs(rel_diff)
             
-print('Maximum relative difference: {} at {} {}'.format(max_rel_diff,max_row,max_col))
+print('Maximum relative difference: {:.3e} (values = {:.8e}, {:.8e}) at {} {}'.format(max_rel_diff,values[0],values[1],max_row,max_col))
+print('Maximum absolute value: {:.8e}'.format(max_abs_val))
+print('Minimum absolute value: {:.8e}'.format(min_abs_val))

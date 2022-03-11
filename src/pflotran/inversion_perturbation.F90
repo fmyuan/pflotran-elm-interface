@@ -332,22 +332,22 @@ subroutine InversionPerturbationFillRow(this,iteration)
 
   if (iteration == 0) return
 
-#if 0
-  ! not implemented in PETSc 3.13; use this functionality later
-  call MatDenseGetColumnVecWrite(this%inversion_aux%JsensitivityT, &
-                                 iteration-1,mat_col_vec,ierr);CHKERRQ(ierr)
-  call VecCopy(this%measurement_vec,mat_col_vec,ierr);CHKERRQ(ierr)
-  call MatDenseRestoreColumnVecWrite(this%inversion_aux%JsensitivityT, &
-                                     iteration-1,mat_col_vec,ierr);CHKERRQ(ierr)
-#else
-  call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  ! don't need to use the distributed vec, but why not
+  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+                       this%measurement_vec,this%dist_measurement_vec, &
+                       INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+                     this%measurement_vec,this%dist_measurement_vec, &
+                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                     ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(this%dist_measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do i = 1, size(vec_ptr)
     call MatSetValue(this%inversion_aux%JsensitivityT,iteration-1, &
-                     this%measurement_offset+i-1,vec_ptr(i), &
+                     this%dist_measurement_offset+i-1,vec_ptr(i), &
                      INSERT_VALUES,ierr);CHKERRQ(ierr)
   enddo
-  call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-#endif
+  call VecRestoreArrayF90(this%dist_measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   if (iteration == this%ndof) then
     call MatAssemblyBegin(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
