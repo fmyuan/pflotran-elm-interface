@@ -885,7 +885,7 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   cur_mt => this%mtl
   do
     if (.not. associated(cur_mt)) exit
-    int_array(i) = i
+    int_array(i) = i - 1
     i = i + 1
     cur_mt => cur_mt%next
   enddo
