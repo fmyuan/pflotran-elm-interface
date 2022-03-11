@@ -92,14 +92,14 @@ subroutine PMMaterialTransformSetRealization(this,realization)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! realization (input): subsurface realization object
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! realization (input): subsurface realization object
+  ! ----------------------------------
   class(pm_material_transform_type) :: this
   class(realization_subsurface_type), pointer :: realization
-! ----------------------------------
+  ! ----------------------------------
 
   this%realization => realization
   this%realization_base => realization
@@ -123,14 +123,14 @@ subroutine PMMaterialTransformSetup(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! ----------------------------------
   class(pm_material_transform_type) :: this
-! ----------------------------------
-! LOCAL VARIABLES:
-! ================
+  ! ----------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -139,7 +139,7 @@ subroutine PMMaterialTransformSetup(this)
   type(material_property_type), pointer :: cur_material_property
   type(material_property_type), pointer :: null_material_property
   PetscInt :: local_id, ghosted_id, material_id
-! ----------------------------------
+  ! ----------------------------------
 
   patch => this%realization%patch
   option => this%realization%option
@@ -268,28 +268,28 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! input (input/output): pointer to input object
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! input (input/output): pointer to input object
+  ! ----------------------------------
   class(pm_material_transform_type) :: this
   type(input_type), pointer :: input
-! ----------------------------------
-! LOCAL VARIABLES:
-! ================
-! option: pointer to option object
-! word: temporary string
-! error_string: error message string
-! material_transform: pointer to material transform object
-! prev_material_transform: pointer for linked list creation
-! ----------------------------------
+  ! ----------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  ! option: pointer to option object
+  ! word: temporary string
+  ! error_string: error message string
+  ! material_transform: pointer to material transform object
+  ! prev_material_transform: pointer for linked list creation
+  ! ----------------------------------
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   class(material_transform_type), pointer :: material_transform
   class(material_transform_type), pointer :: prev_material_transform
-! ----------------------------------
+  ! ----------------------------------
 
   option => this%option
   
@@ -363,14 +363,14 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! --------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! --------------------------------
   class(pm_material_transform_type) :: this
-! --------------------------------
-! LOCAL VARIABLES:
-! ================
+  ! --------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -380,7 +380,7 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
   type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   type(material_transform_auxvar_type), pointer :: MT_aux
   PetscInt :: local_id, ghosted_id, material_id
-! ----------------------------------
+  ! ----------------------------------
 
   patch => this%realization%patch
   option => this%realization%option
@@ -427,12 +427,12 @@ subroutine PMMaterialTransformInitializeTS(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! --------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! --------------------------------
   class(pm_material_transform_type) :: this
-! --------------------------------
+  ! --------------------------------
 
 end subroutine PMMaterialTransformInitializeTS
 
@@ -445,12 +445,12 @@ subroutine PMMaterialTransformFinalizeTS(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! --------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! --------------------------------
   class(pm_material_transform_type) :: this
-! --------------------------------
+  ! --------------------------------
 
   call RealizationUpdatePropertiesTS(this%realization)
 
@@ -468,12 +468,12 @@ recursive subroutine PMMaterialTransformFinalizeRun(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! --------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! --------------------------------
   class(pm_material_transform_type) :: this
-! --------------------------------
+  ! --------------------------------
 
   if (associated(this%next)) then
     call this%next%FinalizeRun()
@@ -493,12 +493,12 @@ subroutine PMMaterialTransformUpdateSolution(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! ---------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! ---------------------------------
   class(pm_material_transform_type) :: this
-! ---------------------------------
+  ! ---------------------------------
 
 end subroutine PMMaterialTransformUpdateSolution
 
@@ -513,12 +513,12 @@ subroutine PMMaterialTransformUpdateAuxVars(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! ----------------------------------
   class(pm_material_transform_type) :: this
-! ----------------------------------
+  ! ----------------------------------
 
 end subroutine PMMaterialTransformUpdateAuxVars
 
@@ -533,12 +533,12 @@ subroutine PMMaterialTransformTimeCut(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! ----------------------------------
   class(pm_material_transform_type) :: this
-! ----------------------------------
+  ! ----------------------------------
 
 end subroutine PMMaterialTransformTimeCut
 
@@ -561,18 +561,18 @@ subroutine PMMaterialTransformSolve(this,time,ierr)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! time (input): [sec] simulation time
-! ierr (input/output): [-] PETSc error integer
-! ---------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! time (input): [sec] simulation time
+  ! ierr (input/output): [-] PETSc error integer
+  ! ---------------------------------
   class(pm_material_transform_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
-! ---------------------------------
-! LOCAL VARIABLES:
-! ================
+  ! ---------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -584,7 +584,7 @@ subroutine PMMaterialTransformSolve(this,time,ierr)
   type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   type(material_transform_auxvar_type), pointer :: MT_aux
   PetscInt :: local_id, ghosted_id, material_id
-! ----------------------------------
+  ! ----------------------------------
 
   patch => this%realization%patch
   option => this%realization%option
@@ -633,7 +633,7 @@ subroutine PMMaterialTransformSolve(this,time,ierr)
 
 end subroutine PMMaterialTransformSolve
 
-! ***************************************************************************** !
+! ************************************************************************** !
 
 subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   ! 
@@ -654,43 +654,43 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! pm_grp_id: file id number
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! pm_grp_id: file id number
+  ! ----------------------------------
   class(pm_material_transform_type) :: this
   integer(HID_T) :: pm_grp_id
-! ----------------------------------
-! LOCAL VARIABLES:
-! ================
-! is: PETSc index set
-! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
-! local_mt_vec: local vector of material transform checkpoint values
-! global_mt_vec: global vector of material transform checkpoint values
-! ierr: I/O status indicator
-! local_stride: local number of vector elements between start and end of block 
-! local_stride_tmp: temporary counter for local stride
-! stride: global number of vector elements between start and end of block
-! n_mt_local: number of material transforms on process
-! n_mt_global: number of material transforms globally
-! n_check_vars: number of values to checkpoint
-! i, j: iterators
-! indices: indices of the local material transform vector
-! int_array: keeps track of the material transform number
-! check_vars: array of checkpointed values
-! cur_mt: material transform object
-! dataset_name: descriptor of the material transform checkpoint data
-! global_vec: global discretization PETSc vector 
-! natural_vec: local discretization PETSc vector 
-! check_il: logical check for presence of illitization functions in the material
-!   transform objects so auxiliary variables can be checkpointed
-! check_be: logical check for presence of buffer erosion models in the material
-!   transform objects so auxiliary variables can be checkpointed
-! option: option object
-! field: field object
-! discretization: discretization object
-! ----------------------------------
+  ! ----------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  ! is: PETSc index set
+  ! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
+  ! local_mt_vec: local vector of material transform checkpoint values
+  ! global_mt_vec: global vector of material transform checkpoint values
+  ! ierr: I/O status indicator
+  ! local_stride: local number of vector elements between start and end of block 
+  ! local_stride_tmp: temporary counter for local stride
+  ! stride: global number of vector elements between start and end of block
+  ! n_mt_local: number of material transforms on process
+  ! n_mt_global: number of material transforms globally
+  ! n_check_vars: number of values to checkpoint
+  ! i, j: iterators
+  ! indices: indices of the local material transform vector
+  ! int_array: keeps track of the material transform number
+  ! check_vars: array of checkpointed values
+  ! cur_mt: material transform object
+  ! dataset_name: descriptor of the material transform checkpoint data
+  ! global_vec: global discretization PETSc vector 
+  ! natural_vec: local discretization PETSc vector 
+  ! check_il: logical check for presence of illitization functions in the
+  !   material transform objects so auxiliary variables can be checkpointed
+  ! check_be: logical check for presence of buffer erosion models in the
+  !   material transform objects so auxiliary variables can be checkpointed
+  ! option: option object
+  ! field: field object
+  ! discretization: discretization object
+  ! ----------------------------------
   IS :: is
   VecScatter :: scatter_ctx
   Vec :: local_mt_vec
@@ -715,7 +715,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
-! ----------------------------------
+  ! ----------------------------------
 
   option => this%realization%option
   field => this%realization%field
@@ -853,7 +853,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
 
 end subroutine PMMaterialTransformCheckpointHDF5
 
-! ***************************************************************************** !
+! ************************************************************************** !
 
 subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   ! 
@@ -874,44 +874,44 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! pm_grp_id: file id number
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! pm_grp_id: file id number
+  ! ----------------------------------
   class(pm_material_transform_type) :: this
   integer(HID_T) :: pm_grp_id
-! ----------------------------------
-! LOCAL VARIABLES:
-! ================
-! is: PETSc index set
-! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
-! local_mt_vec: local vector of material transform checkpoint values
-! global_mt_vec: global vector of material transform checkpoint values
-! ierr: I/O status indicator
-! local_stride: local number of vector elements between start and end of block 
-! local_stride_tmp: temporary counter for local stride
-! stride: global number of vector elements between start and end of block
-! n_mt_local: number of material transforms on process
-! n_mt_global: number of material transforms globally
-! n_check_vars: number of values to checkpoint
-! i: iterator
-! indices: indices of the local material transform vector
-! int_array: keeps track of the material transform number
-! check_vars: array of checkpointed values
-! local_mt_array : data converted into a Fortran array
-! cur_mt: material transform object
-! dataset_name: descriptor of the material transform checkpoint data
-! global_vec: global discretization PETSc vector 
-! natural_vec: local discretization PETSc vector 
-! check_il: logical check for presence of illitization functions in the material
-!   transform objects so auxiliary variables can be checkpointed
-! check_be: logical check for presence of buffer erosion models in the material
-!   transform objects so auxiliary variables can be checkpointed
-! option: option object
-! field: field object
-! discretization: discretization object
-! ----------------------------------
+  ! ----------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  ! is: PETSc index set
+  ! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
+  ! local_mt_vec: local vector of material transform checkpoint values
+  ! global_mt_vec: global vector of material transform checkpoint values
+  ! ierr: I/O status indicator
+  ! local_stride: local number of vector elements between start and end of block 
+  ! local_stride_tmp: temporary counter for local stride
+  ! stride: global number of vector elements between start and end of block
+  ! n_mt_local: number of material transforms on process
+  ! n_mt_global: number of material transforms globally
+  ! n_check_vars: number of values to checkpoint
+  ! i: iterator
+  ! indices: indices of the local material transform vector
+  ! int_array: keeps track of the material transform number
+  ! check_vars: array of checkpointed values
+  ! local_mt_array : data converted into a Fortran array
+  ! cur_mt: material transform object
+  ! dataset_name: descriptor of the material transform checkpoint data
+  ! global_vec: global discretization PETSc vector 
+  ! natural_vec: local discretization PETSc vector 
+  ! check_il: logical check for presence of illitization functions in the
+  !   material transform objects so auxiliary variables can be checkpointed
+  ! check_be: logical check for presence of buffer erosion models in the
+  !   material transform objects so auxiliary variables can be checkpointed
+  ! option: option object
+  ! field: field object
+  ! discretization: discretization object
+  ! ----------------------------------
   IS :: is
   VecScatter :: scatter_ctx
   Vec :: local_mt_vec
@@ -937,7 +937,7 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
-! ----------------------------------
+  ! ----------------------------------
 
   option => this%realization%option
   field => this%realization%field
@@ -1086,43 +1086,43 @@ subroutine PMMaterialTransformCheckpointBinary(this,viewer)
   
   implicit none
   
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! viewer: petsc viewer variable
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! viewer: petsc viewer variable
+  ! ----------------------------------
   PetscViewer :: viewer
   class(pm_material_transform_type) :: this
-! ----------------------------------
-! LOCAL VARIABLES:
-! ================
-! is: PETSc index set
-! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
-! local_mt_vec: local vector of material transform checkpoint values
-! global_mt_vec: global vector of material transform checkpoint values
-! ierr: I/O status indicator
-! local_stride: local number of vector elements between start and end of block 
-! local_stride_tmp: temporary counter for local stride
-! stride: global number of vector elements between start and end of block
-! n_mt_local: number of material transforms on process
-! n_mt_global: number of material transforms globally
-! n_check_vars: number of values to checkpoint
-! i, j: iterators
-! indices: indices of the local material transform vector
-! int_array: keeps track of the material transform number
-! check_vars: array of checkpointed values
-! cur_mt: material transform object
-! dataset_name: descriptor of the material transform checkpoint data
-! global_vec: global discretization PETSc vector 
-! natural_vec: local discretization PETSc vector 
-! check_il: logical check for presence of illitization functions in the material
-!   transform objects so auxiliary variables can be checkpointed
-! check_be: logical check for presence of buffer erosion models in the material
-!   transform objects so auxiliary variables can be checkpointed
-! option: option object
-! field: field object
-! discretization: discretization object
-! ----------------------------------
+  ! ----------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  ! is: PETSc index set
+  ! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
+  ! local_mt_vec: local vector of material transform checkpoint values
+  ! global_mt_vec: global vector of material transform checkpoint values
+  ! ierr: I/O status indicator
+  ! local_stride: local number of vector elements between start and end of block 
+  ! local_stride_tmp: temporary counter for local stride
+  ! stride: global number of vector elements between start and end of block
+  ! n_mt_local: number of material transforms on process
+  ! n_mt_global: number of material transforms globally
+  ! n_check_vars: number of values to checkpoint
+  ! i, j: iterators
+  ! indices: indices of the local material transform vector
+  ! int_array: keeps track of the material transform number
+  ! check_vars: array of checkpointed values
+  ! cur_mt: material transform object
+  ! dataset_name: descriptor of the material transform checkpoint data
+  ! global_vec: global discretization PETSc vector 
+  ! natural_vec: local discretization PETSc vector 
+  ! check_il: logical check for presence of illitization functions in the
+  !   material transform objects so auxiliary variables can be checkpointed
+  ! check_be: logical check for presence of buffer erosion models in the
+  !   material transform objects so auxiliary variables can be checkpointed
+  ! option: option object
+  ! field: field object
+  ! discretization: discretization object
+  ! ----------------------------------
   IS :: is
   VecScatter :: scatter_ctx
   Vec :: local_mt_vec
@@ -1147,7 +1147,7 @@ subroutine PMMaterialTransformCheckpointBinary(this,viewer)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
-! ----------------------------------
+  ! ----------------------------------
 
   option => this%realization%option
   field => this%realization%field
@@ -1280,7 +1280,7 @@ subroutine PMMaterialTransformCheckpointBinary(this,viewer)
 
 end subroutine PMMaterialTransformCheckpointBinary
 
-! ***************************************************************************** !
+! ************************************************************************** !
 
 subroutine PMMaterialTransformRestartBinary(this,viewer)
   !
@@ -1297,44 +1297,44 @@ subroutine PMMaterialTransformRestartBinary(this,viewer)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! viewer: petsc viewer variable
-! ----------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! viewer: petsc viewer variable
+  ! ----------------------------------
   PetscViewer :: viewer
   class(pm_material_transform_type) :: this
-! ----------------------------------
-! LOCAL VARIABLES:
-! ================
-! is: PETSc index set
-! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
-! local_mt_vec: local vector of material transform checkpoint values
-! global_mt_vec: global vector of material transform checkpoint values
-! ierr: I/O status indicator
-! local_stride: local number of vector elements between start and end of block 
-! local_stride_tmp: temporary counter for local stride
-! stride: global number of vector elements between start and end of block
-! n_mt_local: number of material transforms on process
-! n_mt_global: number of material transforms globally
-! n_check_vars: number of values to checkpoint
-! i: iterator
-! indices: indices of the local material transform vector
-! int_array: keeps track of the material transform number
-! check_vars: array of checkpointed values
-! local_mt_array : data converted into a Fortran array
-! cur_mt: material transform object
-! dataset_name: descriptor of the material transform checkpoint data
-! global_vec: global discretization PETSc vector 
-! natural_vec: local discretization PETSc vector 
-! check_il: logical check for presence of illitization functions in the material
-!   transform objects so auxiliary variables can be checkpointed
-! check_be: logical check for presence of buffer erosion models in the material
-!   transform objects so auxiliary variables can be checkpointed
-! option: option object
-! field: field object
-! discretization: discretization object
-! ----------------------------------
+  ! ----------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  ! is: PETSc index set
+  ! scatter_ctx: copies an MPI vector to sequential vectors on all MPI ranks
+  ! local_mt_vec: local vector of material transform checkpoint values
+  ! global_mt_vec: global vector of material transform checkpoint values
+  ! ierr: I/O status indicator
+  ! local_stride: local number of vector elements between start and end of block 
+  ! local_stride_tmp: temporary counter for local stride
+  ! stride: global number of vector elements between start and end of block
+  ! n_mt_local: number of material transforms on process
+  ! n_mt_global: number of material transforms globally
+  ! n_check_vars: number of values to checkpoint
+  ! i: iterator
+  ! indices: indices of the local material transform vector
+  ! int_array: keeps track of the material transform number
+  ! check_vars: array of checkpointed values
+  ! local_mt_array : data converted into a Fortran array
+  ! cur_mt: material transform object
+  ! dataset_name: descriptor of the material transform checkpoint data
+  ! global_vec: global discretization PETSc vector 
+  ! natural_vec: local discretization PETSc vector 
+  ! check_il: logical check for presence of illitization functions in the
+  !   material transform objects so auxiliary variables can be checkpointed
+  ! check_be: logical check for presence of buffer erosion models in the
+  !   material transform objects so auxiliary variables can be checkpointed
+  ! option: option object
+  ! field: field object
+  ! discretization: discretization object
+  ! ----------------------------------
   IS :: is
   VecScatter :: scatter_ctx
   Vec :: local_mt_vec
@@ -1360,7 +1360,7 @@ subroutine PMMaterialTransformRestartBinary(this,viewer)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
-! ----------------------------------
+  ! ----------------------------------
 
   option => this%realization%option
   field => this%realization%field
@@ -1492,18 +1492,18 @@ subroutine PMMaterialTransformInputRecord(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! --------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! --------------------------------
   class(pm_material_transform_type) :: this
-! --------------------------------
-! LOCAL VARIABLES:
-! ================
-! id: number of output unit
-! --------------------------------
+  ! --------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  ! id: number of output unit
+  ! --------------------------------
   PetscInt :: id
-! --------------------------------
+  ! --------------------------------
 
   id = INPUT_RECORD_UNIT
 
@@ -1523,19 +1523,19 @@ subroutine PMMaterialTransformStrip(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! --------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! --------------------------------
   class(pm_material_transform_type) :: this
-! --------------------------------
-! LOCAL VARIABLES:
-! ================
-! cur_mt: pointer to current material transform object
-! prev_mt: pointer to previous material transform object
-! --------------------------------
+  ! --------------------------------
+  ! LOCAL VARIABLES:
+  ! ================
+  ! cur_mt: pointer to current material transform object
+  ! prev_mt: pointer to previous material transform object
+  ! --------------------------------
   type(material_transform_type), pointer :: cur_mt, prev_mt
-! --------------------------------
+  ! --------------------------------
 
   nullify(this%realization)
   cur_mt => this%mtl
@@ -1560,12 +1560,12 @@ subroutine PMMaterialTransformDestroy(this)
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): material transform process model object
-! --------------------------------
+  ! INPUT ARGUMENTS:
+  ! ================
+  ! this (input/output): material transform process model object
+  ! --------------------------------
   class(pm_material_transform_type) :: this
-! --------------------------------
+  ! --------------------------------
 
   call PMBaseDestroy(this)
   call PMMaterialTransformStrip(this)
