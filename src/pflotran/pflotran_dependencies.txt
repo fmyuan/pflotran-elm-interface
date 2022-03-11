@@ -388,7 +388,7 @@ material.o : characteristic_curves.o communicator_base.o dataset.o \
              wipp.o
 material_aux.o : option.o pflotran_constants.o utility.o variables.o
 material_transform.o : input_aux.o material_aux.o option.o \
-                       pflotran_constants.o string.o utility.o
+                       pflotran_constants.o string.o utility.o variables.o
 matrix_block_aux.o : option.o pflotran_constants.o utility.o
 matrix_buffer.o : grid.o grid_structured.o pflotran_constants.o
 matrix_zeroing.o : pflotran_constants.o utility.o
@@ -533,11 +533,11 @@ pm_hydrate.o : checkpoint.o convergence.o field.o fluid.o global.o \
                pm_subsurface_flow.o realization_base.o \
                realization_subsurface.o saturation_function.o solver.o \
                string.o upwind_direction.o utility.o variables.o
-pm_material_transform.o : discretization.o global_aux.o grid.o hdf5.o \
+pm_material_transform.o : discretization.o field.o global_aux.o grid.o hdf5.o \
                           input_aux.o material.o material_aux.o \
                           material_transform.o option.o patch.o \
                           pflotran_constants.o pm_base.o \
-                          realization_subsurface.o string.o
+                          realization_subsurface.o string.o variables.o
 pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
               input_aux.o mphase.o mphase_aux.o option.o patch.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \

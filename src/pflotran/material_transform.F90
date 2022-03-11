@@ -128,6 +128,8 @@ module Material_Transform_module
             MaterialTransformInputRecord, &
             MaterialTransformRead, &
             MaterialTransformAuxVarInit, &
+            MaterialTransformGetAuxVarVecLoc, &
+            MaterialTransformSetAuxVarVecLoc, &
             IllitizationCreate, &
             IllitizationAuxVarInit, &
             BufferErosionCreate, &
@@ -2112,6 +2114,96 @@ subroutine MaterialTransformAuxVarInit(auxvar)
 
 
 end subroutine MaterialTransformAuxVarInit
+
+! ************************************************************************** !
+
+subroutine MaterialTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
+                                            isubvar)
+  !
+  ! Retrieves values of material transform auxvar data using a vector.
+  !
+  ! Author: Alex Salazar III
+  ! Date: 03/10/2022
+  !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Variables_module, only: SMECTITE
+
+  implicit none
+  ! ----------------------------------
+  type(material_transform_type) :: material_transform ! from realization%patch%aux%MT
+  Vec :: vec_loc
+  PetscInt :: ivar
+  PetscInt :: isubvar
+  ! ----------------------------------
+  PetscInt :: ghosted_id
+  PetscReal, pointer :: vec_loc_p(:)
+  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  PetscErrorCode :: ierr
+  ! ----------------------------------
+
+  MT_auxvars => material_transform%auxvars
+  call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+
+  select case(ivar)
+  !-----------------------------
+    case(SMECTITE)
+      do ghosted_id = 1, material_transform%num_aux
+        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+          vec_loc_p(ghosted_id) = MT_auxvars(ghosted_id)%il_aux%fs
+        else
+          vec_loc_p(ghosted_id) = UNINITIALIZED_DOUBLE
+        endif
+      enddo
+  end select
+
+  call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+
+end subroutine MaterialTransformGetAuxVarVecLoc
+
+! ************************************************************************** !
+
+subroutine MaterialTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
+                                            isubvar)
+  !
+  ! Sets values of material transform auxvar data using a vector.
+  !
+  ! Author: Alex Salazar III
+  ! Date: 03/10/2022
+  !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Variables_module, only: SMECTITE
+
+  implicit none
+  ! ----------------------------------
+  type(material_transform_type) :: material_transform ! from realization%patch%aux%MT
+  Vec :: vec_loc
+  PetscInt :: ivar
+  PetscInt :: isubvar
+  ! ----------------------------------
+  PetscInt :: ghosted_id
+  PetscReal, pointer :: vec_loc_p(:)
+  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  PetscErrorCode :: ierr
+  ! ----------------------------------
+
+  MT_auxvars => material_transform%auxvars
+  call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+
+  select case(ivar)
+  !-----------------------------
+    case(SMECTITE)
+      do ghosted_id = 1, material_transform%num_aux
+        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+          MT_auxvars(ghosted_id)%il_aux%fs = vec_loc_p(ghosted_id) 
+        endif
+      enddo
+  end select
+
+  call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+
+end subroutine MaterialTransformSetAuxVarVecLoc
 
 ! ************************************************************************** !
 

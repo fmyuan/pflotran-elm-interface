@@ -147,7 +147,8 @@ subroutine PMMaterialTransformSetup(this)
 
   ! pass material transform list from PM to realization
   if (associated(this%mtl)) then
-    call MaterialTransformAddToList(this%mtl,this%realization%material_transform)
+    call MaterialTransformAddToList(this%mtl, &
+                                    this%realization%material_transform)
   endif
 
   ! set up mapping for material transform functions
@@ -396,7 +397,8 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
     material_aux => material_auxvars(ghosted_id)
     MT_aux => MT_auxvars(ghosted_id)
     
-    if (Initialized(patch%mtf_id(ghosted_id))) then
+    if (Initialized(patch%mtf_id(ghosted_id)) .and. &
+        .not. option%restart_flag) then
       ! pointer to material transform in patch ghosted id
       if (associated(patch%material_transform_array)) then
         allocate(mtf)
@@ -646,6 +648,10 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   use Realization_Subsurface_class
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  use Variables_module, only: SMECTITE
 
   implicit none
 
@@ -676,6 +682,15 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
 ! check_vars: array of checkpointed values
 ! cur_mt: material transform object
 ! dataset_name: descriptor of the material transform checkpoint data
+! global_vec: global discretization PETSc vector 
+! natural_vec: local discretization PETSc vector 
+! check_il: logical check for presence of illitization functions in the material
+!   transform objects so auxiliary variables can be checkpointed
+! check_be: logical check for presence of buffer erosion models in the material
+!   transform objects so auxiliary variables can be checkpointed
+! option: option object
+! field: field object
+! discretization: discretization object
 ! ----------------------------------
   IS :: is
   VecScatter :: scatter_ctx
@@ -694,7 +709,18 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   PetscReal, allocatable :: check_vars(:)
   class(material_transform_type), pointer :: cur_mt
   character(len=MAXSTRINGLENGTH) :: dataset_name
+  Vec :: global_vec
+  Vec :: natural_vec
+  PetscBool :: check_il
+  PetscBool :: check_be
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
 ! ----------------------------------
+
+  option => this%realization%option
+  field => this%realization%field
+  discretization => this%realization%discretization
 
   local_stride = 0
   local_stride_tmp = 0
@@ -782,13 +808,49 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
                      INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
 
   ! write the checkpoint file
-  dataset_name='material transform model information'
+  dataset_name='material transform model info'
   call HDF5WriteDataSetFromVec(dataset_name, this%option, global_mt_vec,&
                                pm_grp_id, H5T_NATIVE_DOUBLE)
   call VecScatterDestroy(scatter_ctx, ierr); CHKERRQ(ierr)
   call ISDestroy(is, ierr); CHKERRQ(ierr)
   call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
   call VecDestroy(local_mt_vec, ierr); CHKERRQ(ierr)
+
+  ! checkpoint the auxiliary variables
+  check_il = PETSC_FALSE
+  check_be = PETSC_FALSE
+  cur_mt => this%mtl
+  do
+    if (.not. associated(cur_mt)) exit
+    if (associated(cur_mt%illitization)) then
+      check_il = PETSC_TRUE
+    endif
+    if (associated(cur_mt%buffer_erosion)) then
+      check_be = PETSC_TRUE
+    endif
+    cur_mt => cur_mt%next
+  enddo
+
+  if (check_il) then
+    global_vec = PETSC_NULL_VEC
+    call DiscretizationCreateVector(this%realization%discretization, ONEDOF, &
+                                    global_vec, GLOBAL, option)
+    call DiscretizationCreateVector(this%realization%discretization, ONEDOF, &
+                                    natural_vec, NATURAL, option)
+    call MaterialTransformGetAuxVarVecLoc(this%realization%patch%aux%MT, &
+                                       field%work_loc, SMECTITE, ZERO_INTEGER)
+    call DiscretizationLocalToGlobal(discretization, field%work_loc, &
+                                     global_vec, ONEDOF)
+    call DiscretizationGlobalToNatural(discretization, global_vec, &
+                                       natural_vec, ONEDOF)
+    dataset_name = "Smectite" // CHAR(0)
+    call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+                                 pm_grp_id, H5T_NATIVE_DOUBLE)
+    call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+  endif
+  ! if (check_be) then
+  ! endif
 
 end subroutine PMMaterialTransformCheckpointHDF5
 
@@ -807,6 +869,10 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   use Realization_Subsurface_class
   use hdf5
   use HDF5_module, only : HDF5ReadDataSetInVec
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  use Variables_module, only: SMECTITE
 
   implicit none
 
@@ -838,6 +904,15 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
 ! local_mt_array : data converted into a Fortran array
 ! cur_mt: material transform object
 ! dataset_name: descriptor of the material transform checkpoint data
+! global_vec: global discretization PETSc vector 
+! natural_vec: local discretization PETSc vector 
+! check_il: logical check for presence of illitization functions in the material
+!   transform objects so auxiliary variables can be checkpointed
+! check_be: logical check for presence of buffer erosion models in the material
+!   transform objects so auxiliary variables can be checkpointed
+! option: option object
+! field: field object
+! discretization: discretization object
 ! ----------------------------------
   IS :: is
   VecScatter :: scatter_ctx
@@ -857,7 +932,18 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   PetscReal, pointer :: local_mt_array(:)
   class(material_transform_type), pointer :: cur_mt
   character(len=MAXSTRINGLENGTH) :: dataset_name
+  Vec :: global_vec
+  Vec :: natural_vec
+  PetscBool :: check_il
+  PetscBool :: check_be
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
 ! ----------------------------------
+
+  option => this%realization%option
+  field => this%realization%field
+  discretization => this%realization%discretization
 
   local_stride = 0
   local_stride_tmp = 0
@@ -906,7 +992,7 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   call VecSetBlockSize(local_mt_vec, stride, ierr); CHKERRQ(ierr)
 
   ! read data from HDF5
-  dataset_name='material transform model information'
+  dataset_name='material transform model info'
   call HDF5ReadDataSetInVec(dataset_name, this%option, global_mt_vec, &
                             pm_grp_id, H5T_NATIVE_DOUBLE)
 
@@ -942,6 +1028,43 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   call ISDestroy(is, ierr); CHKERRQ(ierr)
   call VecDestroy(global_mt_vec, ierr); CHKERRQ(ierr)
   call VecDestroy(local_mt_vec, ierr); CHKERRQ(ierr)
+
+  ! retrieve the auxiliary variables
+  check_il = PETSC_FALSE
+  check_be = PETSC_FALSE
+  cur_mt => this%mtl
+  do
+    if (.not. associated(cur_mt)) exit
+    if (associated(cur_mt%illitization)) then
+      check_il = PETSC_TRUE
+    endif
+    if (associated(cur_mt%buffer_erosion)) then
+      check_be = PETSC_TRUE
+    endif
+    cur_mt => cur_mt%next
+  enddo
+
+  if (check_il) then
+    global_vec = PETSC_NULL_VEC
+    call DiscretizationCreateVector(this%realization%discretization, ONEDOF, &
+                                    global_vec, GLOBAL, option)
+    call DiscretizationCreateVector(this%realization%discretization, ONEDOF, &
+                                    natural_vec, NATURAL, option)
+    dataset_name = "Smectite" // CHAR(0)
+    call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+                              pm_grp_id, H5T_NATIVE_DOUBLE)
+    call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                       global_vec, ONEDOF)
+    call DiscretizationGlobalToLocal(discretization, global_vec, &
+                                     field%work_loc, ONEDOF)
+    call MaterialTransformSetAuxVarVecLoc(this%realization%patch%aux%MT, &
+                                          field%work_loc, SMECTITE, &
+                                          ZERO_INTEGER)
+    call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
+    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+  endif
+  ! if (check_be) then
+  ! endif
 
 end subroutine PMMaterialTransformRestartHDF5
 
