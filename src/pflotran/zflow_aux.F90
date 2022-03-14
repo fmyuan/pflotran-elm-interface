@@ -442,15 +442,18 @@ subroutine ZFlowAuxTensorialRelPerm(auxvar,tensorial_rel_perm_exponent, &
   PetscReal :: drel_perm_dp
   type(option_type) :: option
 
-  PetscReal :: exponent
+  PetscReal :: exponent_
   PetscReal :: tensorial_scale
 
-  exponent = UtilityTensorToScalar(dist,tensorial_rel_perm_exponent)
+  exponent_ = UtilityTensorToScalar(dist,tensorial_rel_perm_exponent)
 
-  tensorial_scale = auxvar%effective_saturation**exponent
+  ! remember that the default 0.5 was subtracted from the tensorial value
+  ! in ZFlowSetup. If 0.5 is specified for the tensorial exponent in the
+  ! input file, this value will be 0. 
+  tensorial_scale = auxvar%effective_saturation**exponent_
   rel_perm = auxvar%kr * tensorial_scale
   drel_perm_dp = auxvar%dkr_dp * tensorial_scale + &
-                 exponent * rel_perm / &
+                 exponent_ * rel_perm / &
                  auxvar%effective_saturation * &
                  auxvar%deffsat_dp
 
