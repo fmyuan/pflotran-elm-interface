@@ -984,7 +984,7 @@ subroutine InversionZFlowCalculateUpdate(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 10/13/21
   !
-
+  use Discretization_module
   use Patch_module
   use Grid_module
 
@@ -997,6 +997,7 @@ subroutine InversionZFlowCalculateUpdate(this)
 
   PetscInt :: local_id,ghosted_id
   PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec2_ptr(:)
   PetscErrorCode :: ierr
 
   patch => this%realization%patch
@@ -1009,17 +1010,27 @@ subroutine InversionZFlowCalculateUpdate(this)
     ! get inversion%del_perm
     call InversionZFlowCGLSSolve(this)
 
+    call VecGetArrayF90(this%natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    vec_ptr(:) = this%del_perm(:)
+    call VecRestoreArrayF90(this%natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call DiscretizationNaturalToGlobal(this%realization%discretization, &
+                                       this%natural_vec, &
+                                       this%realization%field%work,ONEDOF)
+
     ! Get updated permeability as m_new = m_old + del_m (where m = log(perm))
     call VecGetArrayF90(this%quantity_of_interest,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%realization%field%work,vec2_ptr,ierr);CHKERRQ(ierr)
     do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-      vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + this%del_perm(local_id))
+      vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + vec2_ptr(local_id))
       if (vec_ptr(local_id) > this%maxperm) vec_ptr(local_id) = this%maxperm
       if (vec_ptr(local_id) < this%minperm) vec_ptr(local_id) = this%minperm
     enddo
     call VecRestoreArrayF90(this%quantity_of_interest,vec_ptr, &
-                                                          ierr);CHKERRQ(ierr)
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(this%realization%field%work,vec2_ptr, &
+                            ierr);CHKERRQ(ierr)
     call InversionZFlowDeallocateWorkArrays(this)
 
   endif
