@@ -944,14 +944,16 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   if (associated(patch%aux%MT)) then
     MT_auxvars => patch%aux%MT%auxvars
   endif
-  
+  nullify(material_transform)
+
   ! set initial sorbed concentration in equilibrium with aqueous phase
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     imat = patch%imat(ghosted_id) 
     if (imat <= 0) cycle
 
-    if (associated(patch%material_transform_array)) then
+    if (associated(patch%material_transform_array) .and. &
+        Initialized(patch%mtf_id(ghosted_id))) then
       material_transform => &
         patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
       if (associated(MT_auxvars(ghosted_id)%il_aux) .and. &
@@ -1233,7 +1235,8 @@ subroutine PMUFDDecaySolve(this,time,ierr)
     sat = global_auxvars(ghosted_id)%sat(1)
     vps = vol * por * sat ! m^3 water
     
-    if (associated(patch%material_transform_array)) then
+    if (associated(patch%material_transform_array) .and. &
+        Initialized(patch%mtf_id(ghosted_id))) then
       material_transform => &
         patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
     endif

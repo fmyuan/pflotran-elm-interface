@@ -221,9 +221,8 @@ subroutine PMMaterialTransformSetup(this)
   enddo
 
   patch%aux%MT => MaterialTransformCreate()
-  allocate(MT_auxvars(grid%nlmax))
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
+  allocate(MT_auxvars(grid%ngmax))
+  do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
 
@@ -246,7 +245,7 @@ subroutine PMMaterialTransformSetup(this)
     
   enddo
   patch%aux%MT%auxvars => MT_auxvars
-  patch%aux%MT%num_aux = grid%nlmax
+  patch%aux%MT%num_aux = grid%ngmax
 
 end subroutine PMMaterialTransformSetup
 
