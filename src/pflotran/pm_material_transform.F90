@@ -86,7 +86,7 @@ end function PMMaterialTransformCreate
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformSetRealization(this,realization)
+subroutine PMMaterialTransformSetRealization(this, realization)
   !
   ! Author: Alex Salazar III
   ! Date: 01/19/2022
@@ -96,7 +96,7 @@ subroutine PMMaterialTransformSetRealization(this,realization)
   ! INPUT ARGUMENTS:
   ! ================
   ! this (input/output): material transform process model object
-  ! realization (input): subsurface realization object
+  ! realization (input): pointer to subsurface realization object
   ! ----------------------------------
   class(pm_material_transform_type) :: this
   class(realization_subsurface_type), pointer :: realization
@@ -132,14 +132,14 @@ subroutine PMMaterialTransformSetup(this)
   ! ----------------------------------
   ! LOCAL VARIABLES:
   ! ================
-  ! patch : pointer to patch object within realization
-  ! option : pointer to option object within realization
-  ! grid : pointer to grid object within realization
-  ! mtf : pointer to material transform object within patch
-  ! MT_auxvars : pointer to array of material transform auxiliary variables
-  ! cur_material_property : pointer to material property within realization
-  ! null_material_property : null pointer for regions without materials
-  ! local_id : grid cell id number
+  ! patch: pointer to patch object within realization
+  ! option: pointer to option object within realization
+  ! grid: pointer to grid object within realization
+  ! mtf: pointer to material transform object within patch
+  ! MT_auxvars: pointer to array of material transform auxiliary variables
+  ! cur_material_property: pointer to material property within realization
+  ! null_material_property: null pointer for regions without materials
+  ! local_id: grid cell id number
   ! ghosted_id: ghosted grid cell id number
   ! material_id: id number of material
   ! ----------------------------------
@@ -173,7 +173,7 @@ subroutine PMMaterialTransformSetup(this)
   cur_material_property => this%realization%material_properties
 
   do
-    if (.not.associated(cur_material_property)) exit
+    if (.not. associated(cur_material_property)) exit
 
     ! material transform function id 
     if (associated(patch%material_transform_array)) then
@@ -381,17 +381,17 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
   ! --------------------------------
   ! LOCAL VARIABLES:
   ! ================
-  ! patch : pointer to patch object within realization
-  ! option : pointer to option object within realization
-  ! grid : pointer to grid object within realization
-  ! mtf : pointer to material transform object within patch
+  ! patch: pointer to patch object within realization
+  ! option: pointer to option object within realization
+  ! grid: pointer to grid object within realization
+  ! mtf: pointer to material transform object within patch
   ! material_auxvars: pointer to array of material auxiliary variables
   ! material aux: pointer to material auxiliary variable object in list
-  ! MT_auxvars : pointer to array of material transform auxiliary variables
-  ! MT_aux: pointer to material transform auxiliary variable object in list
-  ! cur_material_property : pointer to material property within realization
-  ! null_material_property : null pointer for regions without materials
-  ! local_id : grid cell id number
+  ! MT_auxvars: pointer to array of material transform auxiliary variables
+  ! MT_au: pointer to material transform auxiliary variable object in list
+  ! cur_material_property: pointer to material property within realization
+  ! null_material_property: null pointer for regions without materials
+  ! local_id: grid cell id number
   ! ghosted_id: ghosted grid cell id number
   ! material_id: id number of material
   ! --------------------------------
@@ -446,6 +446,8 @@ end subroutine PMMaterialTransformInitializeRun
 
 subroutine PMMaterialTransformInitializeTS(this)
   !
+  ! Initializes the time step
+  !
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
 
@@ -463,6 +465,8 @@ end subroutine PMMaterialTransformInitializeTS
 ! ************************************************************************** !
 
 subroutine PMMaterialTransformFinalizeTS(this)
+  !
+  ! Finalizes the time step
   !
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
@@ -567,9 +571,9 @@ end subroutine PMMaterialTransformTimeCut
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformSolve(this,time,ierr)
+subroutine PMMaterialTransformSolve(this, time, ierr)
   !
-  ! Updates the soil composition based on the model chosen
+  ! Updates materials based on the active models
   !
   ! Author: Alex Salazar III
   ! Date: 01/19/2022
@@ -596,17 +600,17 @@ subroutine PMMaterialTransformSolve(this,time,ierr)
   ! ---------------------------------
   ! LOCAL VARIABLES:
   ! ================
-  ! patch : pointer to patch object within realization
-  ! option : pointer to option object within realization
-  ! grid : pointer to grid object within realization
-  ! mtf : pointer to material transform object within patch
+  ! patch: pointer to patch object within realization
+  ! option: pointer to option object within realization
+  ! grid: pointer to grid object within realization
+  ! mtf: pointer to material transform object within patch
   ! material_auxvars: pointer to array of material auxiliary variables
   ! material aux: pointer to material auxiliary variable object in list
   ! global_auxvars: pointer to array of global auxiliary variables
   ! global aux: pointer to global auxiliary variable object in list
-  ! MT_auxvars : pointer to array of material transform auxiliary variables
+  ! MT_auxvars: pointer to array of material transform auxiliary variables
   ! MT_aux: pointer to material transform auxiliary variable object in list
-  ! local_id : grid cell id number
+  ! local_id: grid cell id number
   ! ghosted_id: ghosted grid cell id number
   ! material_id: id number of material
   ! ---------------------------------
@@ -671,7 +675,7 @@ end subroutine PMMaterialTransformSolve
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
+subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
   ! 
   ! Checkpoints data associated with the material transform process model
   !
@@ -705,7 +709,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   ! local_mt_vec: local vector of material transform checkpoint values
   ! global_mt_vec: global vector of material transform checkpoint values
   ! ierr: I/O status indicator
-  ! local_stride: local number of vector elements between start and end of block 
+  ! local_stride: local number of vector elements between start and end of block
   ! local_stride_tmp: temporary counter for local stride
   ! stride: global number of vector elements between start and end of block
   ! n_mt_local: number of material transforms on process
@@ -768,7 +772,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   
   cur_mt => this%mtl
   do 
-    if (.not.associated(cur_mt)) exit
+    if (.not. associated(cur_mt)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
     cur_mt => cur_mt%next
@@ -782,7 +786,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   cur_mt => this%mtl
   i = 1
   do
-    if (.not.associated(cur_mt)) exit
+    if (.not. associated(cur_mt)) exit
     int_array(i) = i - 1
     i = i + 1
     cur_mt => cur_mt%next
@@ -873,7 +877,8 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
     call DiscretizationCreateVector(this%realization%discretization, ONEDOF, &
                                     natural_vec, NATURAL, option)
     call MaterialTransformGetAuxVarVecLoc(this%realization%patch%aux%MT, &
-                                       field%work_loc, SMECTITE, ZERO_INTEGER)
+                                          field%work_loc, SMECTITE, &
+                                          ZERO_INTEGER)
     call DiscretizationLocalToGlobal(discretization, field%work_loc, &
                                      global_vec, ONEDOF)
     call DiscretizationGlobalToNatural(discretization, global_vec, &
@@ -891,7 +896,7 @@ end subroutine PMMaterialTransformCheckpointHDF5
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
+subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   ! 
   ! Restarts data associated with material transform process model
   ! 
@@ -925,7 +930,7 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   ! local_mt_vec: local vector of material transform checkpoint values
   ! global_mt_vec: global vector of material transform checkpoint values
   ! ierr: I/O status indicator
-  ! local_stride: local number of vector elements between start and end of block 
+  ! local_stride: local number of vector elements between start and end of block
   ! local_stride_tmp: temporary counter for local stride
   ! stride: global number of vector elements between start and end of block
   ! n_mt_local: number of material transforms on process
@@ -935,7 +940,7 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   ! indices: indices of the local material transform vector
   ! int_array: keeps track of the material transform number
   ! check_vars: array of checkpointed values
-  ! local_mt_array : data converted into a Fortran array
+  ! local_mt_array: data converted into a Fortran array
   ! cur_mt: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
   ! global_vec: global discretization PETSc vector 
@@ -1104,7 +1109,7 @@ end subroutine PMMaterialTransformRestartHDF5
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformCheckpointBinary(this,viewer)
+subroutine PMMaterialTransformCheckpointBinary(this, viewer)
   ! 
   ! Checkpoints data associated with the material transform process model
   !
@@ -1137,7 +1142,7 @@ subroutine PMMaterialTransformCheckpointBinary(this,viewer)
   ! local_mt_vec: local vector of material transform checkpoint values
   ! global_mt_vec: global vector of material transform checkpoint values
   ! ierr: I/O status indicator
-  ! local_stride: local number of vector elements between start and end of block 
+  ! local_stride: local number of vector elements between start and end of block
   ! local_stride_tmp: temporary counter for local stride
   ! stride: global number of vector elements between start and end of block
   ! n_mt_local: number of material transforms on process
@@ -1200,7 +1205,7 @@ subroutine PMMaterialTransformCheckpointBinary(this,viewer)
   
   cur_mt => this%mtl
   do 
-    if (.not.associated(cur_mt)) exit
+    if (.not. associated(cur_mt)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
     cur_mt => cur_mt%next
@@ -1214,7 +1219,7 @@ subroutine PMMaterialTransformCheckpointBinary(this,viewer)
   cur_mt => this%mtl
   i = 1
   do
-    if (.not.associated(cur_mt)) exit
+    if (.not. associated(cur_mt)) exit
     int_array(i) = i - 1
     i = i + 1
     cur_mt => cur_mt%next
@@ -1318,7 +1323,7 @@ end subroutine PMMaterialTransformCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformRestartBinary(this,viewer)
+subroutine PMMaterialTransformRestartBinary(this, viewer)
   !
   ! Restarts data associated with material transform process model
   ! 
@@ -1348,7 +1353,7 @@ subroutine PMMaterialTransformRestartBinary(this,viewer)
   ! local_mt_vec: local vector of material transform checkpoint values
   ! global_mt_vec: global vector of material transform checkpoint values
   ! ierr: I/O status indicator
-  ! local_stride: local number of vector elements between start and end of block 
+  ! local_stride: local number of vector elements between start and end of block
   ! local_stride_tmp: temporary counter for local stride
   ! stride: global number of vector elements between start and end of block
   ! n_mt_local: number of material transforms on process
@@ -1358,7 +1363,7 @@ subroutine PMMaterialTransformRestartBinary(this,viewer)
   ! indices: indices of the local material transform vector
   ! int_array: keeps track of the material transform number
   ! check_vars: array of checkpointed values
-  ! local_mt_array : data converted into a Fortran array
+  ! local_mt_array: data converted into a Fortran array
   ! cur_mt: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
   ! global_vec: global discretization PETSc vector 
@@ -1581,11 +1586,12 @@ subroutine PMMaterialTransformStrip(this)
   nullify(this%realization)
   cur_mt => this%mtl
   do
-    if (.not.associated(cur_mt)) exit
+    if (.not. associated(cur_mt)) exit
     prev_mt => cur_mt
     cur_mt => cur_mt%next
     call MaterialTransformDestroy(prev_mt)
   enddo
+  deallocate(this%mtl)
   nullify(this%mtl)
 
 end subroutine PMMaterialTransformStrip

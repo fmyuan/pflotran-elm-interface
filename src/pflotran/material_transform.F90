@@ -135,7 +135,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine ILTBaseVerify(this,name,option)
+subroutine ILTBaseVerify(this, name, option)
   ! 
   ! Checks parameters in the illitization_base_type class
   ! 
@@ -171,7 +171,7 @@ end subroutine ILTBaseVerify
 
 ! ************************************************************************** !
 
-subroutine ILTBaseIllitization(this,fs,temperature,dt,fi,scale,option)
+subroutine ILTBaseIllitization(this, fs, temperature, dt, fi, scale, option)
 
   use Option_module
 
@@ -192,7 +192,7 @@ end subroutine ILTBaseIllitization
 
 ! ************************************************************************** !
 
-subroutine ILTBaseTest(this,name,option)
+subroutine ILTBaseTest(this, name, option)
   !
   ! Tests illitization functions using a range of initial smectite contents and
   !   temperatures over geological time
@@ -301,7 +301,7 @@ subroutine ILTDestroy(ilf)
 
   class(illitization_base_type), pointer :: ilf
 
-  if (.not.associated(ilf)) return
+  if (.not. associated(ilf)) return
   deallocate(ilf)
   nullify(ilf)
 
@@ -410,7 +410,7 @@ end function ILTKdEffectsCreate
 
 ! ************************************************************************** !
 
-subroutine ILTDefaultVerify(this,name,option)
+subroutine ILTDefaultVerify(this, name, option)
   ! 
   ! Checks parameters in the ILT_default_type class
   ! 
@@ -453,7 +453,7 @@ end subroutine ILTDefaultVerify
 
 ! ************************************************************************** !
 
-subroutine ILTGeneralVerify(this,name,option)
+subroutine ILTGeneralVerify(this, name, option)
   ! 
   ! Checks parameters in the ILT_general_type class
   ! 
@@ -492,7 +492,7 @@ end subroutine ILTGeneralVerify
 
 ! ************************************************************************** !
 
-subroutine ILTDefaultIllitization(this,fs,temperature,dt,fi,scale,option)
+subroutine ILTDefaultIllitization(this, fs, temperature, dt, fi, scale, option)
 
   use Option_module
 
@@ -549,7 +549,7 @@ end subroutine ILTDefaultIllitization
 
 ! ************************************************************************** !
 
-subroutine ILTGeneralIllitization(this,fs,temperature,dt,fi,scale,option)
+subroutine ILTGeneralIllitization(this, fs, temperature, dt, fi, scale, option)
 
   use Option_module
 
@@ -609,7 +609,7 @@ end subroutine ILTGeneralIllitization
 
 ! ************************************************************************** !
 
-subroutine ILTBaseShiftSorption(this,kd0,ele,auxvar,option)
+subroutine ILTBaseShiftSorption(this, kd0, ele, auxvar, option)
 
   use Option_module
   use Material_Aux_module
@@ -630,7 +630,7 @@ end subroutine ILTBaseShiftSorption
 
 ! ************************************************************************** !
 
-subroutine ILTShiftSorption(this,kd0,ele,auxvar,option)
+subroutine ILTShiftSorption(this, kd0, ele, auxvar, option)
   !
   ! Modifies the kd of selected elements using results from the
   !   illitization model and a user-specified functional form.
@@ -719,7 +719,7 @@ end subroutine ILTShiftSorption
 
 ! ************************************************************************** !
 
-subroutine ILTBaseCheckElements(this,pm_ufd_elements,num,option)
+subroutine ILTBaseCheckElements(this, pm_ufd_elements, num, option)
 
   use Option_module
 
@@ -736,7 +736,7 @@ end subroutine ILTBaseCheckElements
 
 ! ************************************************************************** !
 
-subroutine ILTCheckElements(this,pm_ufd_elements,num,option)
+subroutine ILTCheckElements(this, pm_ufd_elements, num, option)
   !
   ! Ensures that the elements specified for kd modification in ILLITIZATION are
   !   present in the reference list (UFD Decay)
@@ -800,7 +800,7 @@ end subroutine ILTCheckElements
 
 ! ************************************************************************** !
 
-subroutine ILTBaseShiftPerm(this,material_auxvar,auxvar,option)
+subroutine ILTBaseShiftPerm(this, material_auxvar, auxvar, option)
 
   use Option_module
   use Material_Aux_module
@@ -820,7 +820,7 @@ end subroutine ILTBaseShiftPerm
 
 ! ************************************************************************** !
 
-subroutine ILTShiftPerm(this,material_auxvar,auxvar,option)
+subroutine ILTShiftPerm(this, material_auxvar, auxvar, option)
   !
   ! Modifies the permeability tensor using results from the
   !   illitization model and a user-specified functional form.
@@ -989,7 +989,7 @@ end function BufferErosionCreate
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformRead(this,input,option)
+subroutine MaterialTransformRead(this, input, option)
   !
   ! Reads in components of a MATERIAL_TRANSFORM block
   !
@@ -1044,7 +1044,7 @@ end subroutine MaterialTransformRead
 
 ! ************************************************************************** !
 
-subroutine IllitizationRead(this,input,option)
+subroutine IllitizationRead(this, input, option)
   !
   ! Reads in contents of an ILLITIZATION block from MATERIAL_TRANSFORM
   !
@@ -1133,7 +1133,7 @@ end subroutine IllitizationRead
 
 ! ************************************************************************** !
 
-subroutine BufferErosionRead(this,input,option)
+subroutine BufferErosionRead(this, input, option)
   !
   ! Reads in contents of a BUFFER_EROSION block from MATERIAL_TRANSFORM
   !
@@ -1206,7 +1206,7 @@ end subroutine BufferErosionRead
 
 ! ************************************************************************** !
 
-subroutine ILTRead(illitization_function,input,option)
+subroutine ILTRead(illitization_function, input, option)
   !
   ! Reads in contents of a ILLITIZATION_FUNCTION block
   !
@@ -1280,7 +1280,7 @@ end subroutine ILTRead
 
 ! ************************************************************************** !
 
-subroutine ILTBaseRead(ilf,input,keyword,error_string,kind,option)
+subroutine ILTBaseRead(ilf, input, keyword, error_string, kind, option)
   !
   ! Reads in contents of ILLITIZATION_FUNCTION block for the illitization 
   !   base class
@@ -1623,7 +1623,7 @@ end subroutine ILTBaseRead
 
 ! ************************************************************************** !
 
-subroutine ILTDefaultRead(ilf,input,keyword,error_string,kind,option)
+subroutine ILTDefaultRead(ilf, input, keyword, error_string, kind, option)
   !
   ! Reads in contents of ILLITIZATION_FUNCTION block for illitization
   !   default class
@@ -1675,7 +1675,7 @@ end subroutine ILTDefaultRead
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformAddToList(new_mtf,list)
+subroutine MaterialTransformAddToList(new_mtf, list)
   !
   ! Populates the next pointer with a new material transform
   !
@@ -1693,7 +1693,7 @@ subroutine MaterialTransformAddToList(new_mtf,list)
     cur_mtf => list
     ! loop to end of list
     do
-      if (.not.associated(cur_mtf%next)) exit
+      if (.not. associated(cur_mtf%next)) exit
       cur_mtf => cur_mtf%next
     enddo
     cur_mtf%next => new_mtf
@@ -1705,7 +1705,7 @@ end subroutine MaterialTransformAddToList
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformConvertListToArray(list,array,option)
+subroutine MaterialTransformConvertListToArray(list, array, option)
   !
   ! Populates the material transform pointer type
   !
@@ -1727,7 +1727,7 @@ subroutine MaterialTransformConvertListToArray(list,array,option)
   count = 0
   cur_mtf => list
   do
-    if (.not.associated(cur_mtf)) exit
+    if (.not. associated(cur_mtf)) exit
     count = count + 1
     cur_mtf => cur_mtf%next
   enddo
@@ -1738,7 +1738,7 @@ subroutine MaterialTransformConvertListToArray(list,array,option)
   count = 0
   cur_mtf => list
   do
-    if (.not.associated(cur_mtf)) exit
+    if (.not. associated(cur_mtf)) exit
     count = count + 1
     array(count)%ptr => cur_mtf
     call OptionSetBlocking(option,PETSC_FALSE)
@@ -2032,7 +2032,7 @@ end subroutine MaterialTransformAuxVarInit
 subroutine MaterialTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
                                             isubvar)
   !
-  ! Retrieves values of material transform auxvar data using a vector.
+  ! Assigns vector location of material transform auxvar data for checkpoint.
   !
   ! Author: Alex Salazar III
   ! Date: 03/10/2022
@@ -2078,7 +2078,7 @@ end subroutine MaterialTransformGetAuxVarVecLoc
 subroutine MaterialTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
                                             isubvar)
   !
-  ! Sets values of material transform auxvar data using a vector.
+  ! Retrieves material transform auxvar data using a vector for restart.
   !
   ! Author: Alex Salazar III
   ! Date: 03/10/2022
@@ -2175,7 +2175,7 @@ subroutine IllitizationAuxVarStrip(auxvar)
 
   class(illitization_auxvar_type), pointer :: auxvar
 
-  if (.not.associated(auxvar)) return
+  if (.not. associated(auxvar)) return
   
   if (allocated(auxvar%perm0)) then
     deallocate(auxvar%perm0)
@@ -2221,7 +2221,7 @@ subroutine BufferErosionAuxVarStrip(auxvar)
 
   class(buffer_erosion_auxvar_type), pointer :: auxvar
 
-  if (.not.associated(auxvar)) return
+  if (.not. associated(auxvar)) return
 
   deallocate(auxvar)
   nullify(auxvar)

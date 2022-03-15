@@ -817,8 +817,8 @@ end subroutine AddPMCAuxiliary
 
 ! ************************************************************************** !
 
-subroutine AddPMCMaterialTransform(simulation,pm_material_transform,pmc_name,&
-                                   realization,input,option)
+subroutine AddPMCMaterialTransform(simulation, pm_material_transform, pmc_name,&
+                                   realization, input, option)
   !
   ! Adds a material transform PMC
   !
@@ -869,7 +869,7 @@ subroutine AddPMCMaterialTransform(simulation,pm_material_transform,pmc_name,&
   call LoggingCreateStage(string,pmc_material_transform%stage)
   
   ! Material transform is child of flow and peer of transport
-  if(associated(simulation%tran_process_model_coupler)) then
+  if (associated(simulation%tran_process_model_coupler)) then
     call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_material_transform), &
            PM_CHILD,PMCCastToBase(simulation%flow_process_model_coupler), &
            PMCCastToBase(simulation%tran_process_model_coupler),PM_INSERT)
@@ -1550,7 +1550,7 @@ end subroutine FactorySubsurfReadGeophysicsPM
 
 ! ************************************************************************** !
 
-subroutine FactorySubsurfaceReadMTPM(input,option,pm)
+subroutine FactorySubsurfaceReadMTPM(input, option, pm)
   !
   ! Author: Alex Salazar III
   ! Date: 01/19/2022
