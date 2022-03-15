@@ -98,8 +98,7 @@ module Material_Transform_module
   !---------------------------------------------------------------------------
   type, public :: material_transform_type
     character(len=MAXWORDLENGTH) :: name ! name of material transform
-    PetscBool :: test ! not yet implemented
-    
+
     ! Auxiliary variables
     PetscBool :: auxvars_up_to_date
     PetscInt :: num_aux
@@ -120,8 +119,6 @@ module Material_Transform_module
 
   public :: MaterialTransformCreate, &
             MaterialTransformGetID, &
-            MaterialTransformCheckILT, &
-            MaterialTransformCheckBE, &
             MaterialTransformAddToList, &
             MaterialTransformConvertListToArray, &
             MaterialTransformDestroy, &
@@ -130,9 +127,7 @@ module Material_Transform_module
             MaterialTransformAuxVarInit, &
             MaterialTransformGetAuxVarVecLoc, &
             MaterialTransformSetAuxVarVecLoc, &
-            IllitizationCreate, &
             IllitizationAuxVarInit, &
-            BufferErosionCreate, &
             BufferErosionAuxVarInit
 
 contains
@@ -932,7 +927,6 @@ function MaterialTransformCreate()
 
   allocate(material_transform)
   material_transform%name = ''
-  material_transform%test = PETSC_FALSE
   material_transform%num_aux = 0
   nullify(material_transform%auxvars)
   nullify(material_transform%illitization)
@@ -2265,7 +2259,9 @@ subroutine IllitizationAuxVarStrip(auxvar)
 
   if (.not.associated(auxvar)) return
   
-  ! call DeallocateArray(auxvar%perm0)
+  if (allocated(auxvar%perm0)) then
+    deallocate(auxvar%perm0)
+  endif
 
   deallocate(auxvar)
   nullify(auxvar)
@@ -2323,7 +2319,6 @@ subroutine MaterialTransformAuxVarStrip(auxvar)
   ! Author: Alex Salazar
   ! Date: 01/20/2022
   ! 
-  use Utility_module, only : DeallocateArray
 
   implicit none
 
@@ -2335,8 +2330,6 @@ subroutine MaterialTransformAuxVarStrip(auxvar)
   if (associated(auxvar%be_aux)) then
     call BufferErosionAuxVarStrip(auxvar%be_aux)
   endif
-  
-  ! call DeallocateArray(auxvar%variable)  
   
 end subroutine MaterialTransformAuxVarStrip
 
@@ -2359,8 +2352,8 @@ recursive subroutine MaterialTransformDestroy(mtf)
       call MaterialTransformAuxVarStrip(mtf%auxvars(i))
     enddo
     deallocate(mtf%auxvars)
+    nullify(mtf%auxvars)
   endif
-  nullify(mtf%auxvars)
 
   if (associated(mtf%illitization)) then
     call IllitizationDestroy(mtf%illitization)
