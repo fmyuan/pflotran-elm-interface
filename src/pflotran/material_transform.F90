@@ -1851,7 +1851,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
     
     write(id,'(a29)',advance='no') 'material transform name: '
     write(id,'(a)') adjustl(trim(cur_mtf%name))
-    
+
+    ! Illitization
     if (associated(cur_mtf%illitization%illitization_function)) then
       write(id,'(a29)') '--------------: '
       write(id,'(a29)',advance='no') 'illitization model: '
@@ -1874,8 +1875,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
           write(id,'(a29)',advance='no') 'temperature threshold: '
           write(word,'(es12.5)') ilf%threshold
           write(id,'(a)') adjustl(trim(word))//' C'
-          call MaterialTransformPrintPerm(ilf)
-          call MaterialTransformPrintKd(ilf)
+          call ILTPrintPermEffects(ilf)
+          call ILTPrintKdEffects(ilf)
         !---------------------------------
         class is (ILT_general_type)
           write(id,'(a)') 'Cuadros and Linares, 1996'
@@ -1900,8 +1901,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
           write(id,'(a29)',advance='no') 'temperature threshold: '
           write(word,'(es12.5)') ilf%threshold
           write(id,'(a)') adjustl(trim(word))//' C'
-          call MaterialTransformPrintPerm(ilf)
-          call MaterialTransformPrintKd(ilf)
+          call ILTPrintPermEffects(ilf)
+          call ILTPrintKdEffects(ilf)
       end select
     endif
 
@@ -1913,7 +1914,7 @@ end subroutine MaterialTransformInputRecord
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformPrintKd(ilf)
+subroutine ILTPrintKdEffects(ilf)
   !
   ! Adds details on kd parameters to the input record file
   !
@@ -1960,11 +1961,11 @@ subroutine MaterialTransformPrintKd(ilf)
     write(id,'(a)')
   enddo
 
-end subroutine MaterialTransformPrintKd
+end subroutine ILTPrintKdEffects
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformPrintPerm(ilf)
+subroutine ILTPrintPermEffects(ilf)
   !
   ! Adds details on permeability parameters to the input record file
   !
@@ -2005,7 +2006,7 @@ subroutine MaterialTransformPrintPerm(ilf)
   enddo
   write(id,'(a)')
 
-end subroutine MaterialTransformPrintPerm
+end subroutine ILTPrintPermEffects
 
 ! ************************************************************************** !
 
