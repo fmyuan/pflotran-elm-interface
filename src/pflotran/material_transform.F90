@@ -4,10 +4,10 @@ module Material_Transform_module
   !
   ! Author: Alex Salazar III
   ! Date: 02/25/21
-  !
 
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
+
   use petscsys
   use PFLOTRAN_Constants_module
 
@@ -76,7 +76,7 @@ module Material_Transform_module
     PetscReal :: fs     ! fraction of smectite in material
     PetscReal :: fi     ! fraction of illite in material
     PetscReal :: ts     ! track time of last change in smectite
-    PetscBool :: qperm0 ! save initial permeability
+    PetscBool :: qperm0 ! logical for saving the initial permeability
     PetscReal :: scale  ! scale factor
     PetscReal, allocatable :: perm0(:) ! intiial permeability
   end type illitization_auxvar_type
@@ -104,11 +104,11 @@ module Material_Transform_module
     PetscBool :: auxvars_up_to_date
     PetscInt :: num_aux
     type(material_transform_auxvar_type), pointer :: auxvars(:)
-    
+
     ! Classes for material transformations
     class(illitization_type), pointer :: illitization
     class(buffer_erosion_type), pointer :: buffer_erosion
-    
+
     ! Linked list
     type(material_transform_type), pointer :: next
   end type material_transform_type
@@ -135,13 +135,969 @@ contains
 
 ! ************************************************************************** !
 
-subroutine ILTBaseVerify(this, name, option)
-  ! 
-  ! Checks parameters in the illitization_base_type class
-  ! 
+function ILTBaseCreate()
+  !
+  ! Creates base illitization function
+  !
+  ! Author: Alex Salazar III
+  ! Date: 03/31/2021
+
+  implicit none
+
+  class(illitization_base_type), pointer :: ILTBaseCreate
+
+  allocate(ILTBaseCreate)
+
+  ILTBaseCreate%threshold  = 0.0d0
+  ILTBaseCreate%fs0        = 0.0d0
+  nullify(ILTBaseCreate%shift_perm)
+  nullify(ILTBaseCreate%shift_kd_list)
+
+end function ILTBaseCreate
+
+! ************************************************************************** !
+
+function ILTDefaultCreate()
+  !
+  ! Creates default illitization function
+  !
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
+
+  implicit none
+
+  class(ILT_default_type), pointer :: ILTDefaultCreate
+
+  allocate(ILTDefaultCreate)
+
+  ILTDefaultCreate%threshold  = 0.0d0
+  ILTDefaultCreate%fs0        = 1.0d0
+  ILTDefaultCreate%ea     = UNINITIALIZED_DOUBLE
+  ILTDefaultCreate%freq   = UNINITIALIZED_DOUBLE
+  ILTDefaultCreate%K_conc = UNINITIALIZED_DOUBLE
+  nullify(ILTDefaultCreate%shift_perm)
+  nullify(ILTDefaultCreate%shift_kd_list)
+
+end function ILTDefaultCreate
+
+! ************************************************************************** !
+
+function ILTGeneralCreate()
   !
+  ! Creates general illitization function
+  !
+  ! Author: Alex Salazar III
+  ! Date: 06/16/2021
+
+  implicit none
+
+  class(ILT_general_type), pointer :: ILTGeneralCreate
+
+  allocate(ILTGeneralCreate)
+
+  ILTGeneralCreate%threshold  = 0.0d0
+  ILTGeneralCreate%fs0        = 1.0d0
+  ILTGeneralCreate%freq       = 1.0d0 ! Default of 1.0 in general model
+  ILTGeneralCreate%ea     = UNINITIALIZED_DOUBLE
+  ILTGeneralCreate%K_conc = UNINITIALIZED_DOUBLE
+  ILTGeneralCreate%K_exp  = UNINITIALIZED_DOUBLE
+  ILTGeneralCreate%exp    = UNINITIALIZED_DOUBLE
+  nullify(ILTGeneralCreate%shift_perm)
+  nullify(ILTGeneralCreate%shift_kd_list)
+
+end function ILTGeneralCreate
+
+! ************************************************************************** !
+
+function ILTPermEffectsCreate()
+  !
+  ! Creates object for modifying permeability from smectite/illite transition
+  !
+  ! Author: Alex Salazar III
+  ! Date: 11/11/2021
+
+  implicit none
+
+  class(ILT_perm_effects_type), pointer :: ILTPermEffectsCreate
+
+  allocate(ILTPermEffectsCreate)
+
+  nullify(ILTPermEffectsCreate%f_perm)
+  nullify(ILTPermEffectsCreate%f_perm_mode)
+
+end function ILTPermEffectsCreate
+
+! ************************************************************************** !
+
+function ILTKdEffectsCreate()
+  !
+  ! Creates object for modifying Kd values from smectite/illite transition
+  !
+  ! Author: Alex Salazar III
+  ! Date: 10/06/2021
+
+  implicit none
+
+  class(ILT_kd_effects_type), pointer :: ILTKdEffectsCreate
+
+  allocate(ILTKdEffectsCreate)
+
+  ILTKdEffectsCreate%num_elements = UNINITIALIZED_INTEGER
+  nullify(ILTKdEffectsCreate%f_kd)
+  nullify(ILTKdEffectsCreate%f_kd_mode)
+  nullify(ILTKdEffectsCreate%f_kd_element)
+
+end function ILTKdEffectsCreate
+
+! ************************************************************************** !
+
+function IllitizationCreate()
+  !
+  ! Creates an illitization object
+  !
+  ! Author: Alex Salazar III
+  ! Date: 01/19/2022
+
+  implicit none
+
+  class(illitization_type), pointer :: IllitizationCreate
+  class(illitization_type), pointer :: Illitization
+
+  allocate(Illitization)
+  Illitization%name = ''
+  Illitization%print_me = PETSC_FALSE
+  Illitization%test = PETSC_FALSE
+  nullify(Illitization%illitization_function)
+
+  IllitizationCreate => Illitization
+
+end function IllitizationCreate
+
+! ************************************************************************** !
+
+function BufferErosionCreate()
+  !
+  ! Creates an object for a buffer erosion model
+  !
+  ! Author: Alex Salazar III
+  ! Date: 01/20/2022
+
+  implicit none
+
+  class(buffer_erosion_type), pointer :: BufferErosionCreate
+  class(buffer_erosion_type), pointer :: BufferErosion
+
+  allocate(BufferErosion)
+  BufferErosion%name = ''
+  BufferErosion%print_me = PETSC_FALSE
+  BufferErosion%test = PETSC_FALSE
+  ! nullify(BufferErosion%buffer_erosion_model)
+
+  BufferErosionCreate => BufferErosion
+
+end function BufferErosionCreate
+
+! ************************************************************************** !
+
+function MaterialTransformCreate()
+  !
+  ! Creates a material transform object
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
+  implicit none
+
+  class(material_transform_type), pointer :: MaterialTransformCreate
+  class(material_transform_type), pointer :: material_transform
+
+  allocate(material_transform)
+  material_transform%name = ''
+  material_transform%num_aux = 0
+  material_transform%auxvars_up_to_date = PETSC_FALSE
+  nullify(material_transform%auxvars)
+  nullify(material_transform%illitization)
+  nullify(material_transform%buffer_erosion)
+  nullify(material_transform%next)
+
+  MaterialTransformCreate => material_transform
+
+end function MaterialTransformCreate
+
+! ************************************************************************** !
+
+function IllitizationAuxVarInit(option)
+  !
+  ! Initializes an illitization auxiliary object
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/10/2022
+
+  use Option_module
+
+  implicit none
+
+  class(illitization_auxvar_type), pointer :: IllitizationAuxVarInit
+  class(illitization_auxvar_type), pointer :: auxvar
+  type(option_type) :: option
+
+  allocate(auxvar)
+  ! auxvar%il_aux%initial_pressure = UNINITIALIZED_DOUBLE
+  auxvar%fs0    = 1.0d+0               ! initial fraction of smectite in material
+  auxvar%fs     = UNINITIALIZED_DOUBLE ! fraction of smectite in material
+  auxvar%fi     = UNINITIALIZED_DOUBLE ! fraction of illite in material
+  auxvar%ts     = UNINITIALIZED_DOUBLE ! track time of last change in smectite
+  auxvar%scale  = UNINITIALIZED_DOUBLE ! scale factor
+  auxvar%qperm0 = PETSC_FALSE          ! save initial permeability
+
+  if (option%iflowmode /= NULL_MODE) then
+    if (option%flow%full_perm_tensor) then
+      allocate(auxvar%perm0(6))
+    else
+      allocate(auxvar%perm0(3))
+    endif
+    auxvar%perm0 = UNINITIALIZED_DOUBLE
+  else
+    ! nullify(auxvar%perm0)
+  endif
+
+  IllitizationAuxVarInit => auxvar
+
+end function IllitizationAuxVarInit
+
+! ************************************************************************** !
+
+function BufferErosionAuxVarInit()
+  !
+  ! Initializes a buffer erosion auxiliary object
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/10/2022
+
+  implicit none
+
+  class(buffer_erosion_auxvar_type), pointer :: BufferErosionAuxVarInit
+  class(buffer_erosion_auxvar_type), pointer :: auxvar
+
+  allocate(auxvar)
+
+  BufferErosionAuxVarInit => auxvar
+
+end function BufferErosionAuxVarInit
+
+! ************************************************************************** !
+
+subroutine MaterialTransformAuxVarInit(auxvar)
+  !
+  ! Initializes a material transform auxiliary object
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/10/2022
+
+  implicit none
+
+  type(material_transform_auxvar_type) :: auxvar
+
+  nullify(auxvar%il_aux)
+  nullify(auxvar%be_aux)
+
+end subroutine MaterialTransformAuxVarInit
+
+! ************************************************************************** !
+
+subroutine ILTBaseRead(ilf, input, keyword, error_string, kind, option)
+  !
+  ! Reads in contents of ILLITIZATION_FUNCTION block for the illitization
+  !   base class
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+
+  class(illitization_base_type) :: ilf
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH)   :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=*)  :: kind
+  type(option_type) :: option
+
+  PetscInt :: i, j
+  PetscReal :: a, b, v1, v2, v3, r1, r2
+  PetscInt, parameter :: MAX_KD_SIZE = 100
+  character(len=MAXWORDLENGTH) :: word
+  class(ILT_kd_effects_type), pointer :: shift_kd_list
+  class(ILT_perm_effects_type), pointer :: shift_perm
+  PetscReal :: f_kd(MAX_KD_SIZE,10), f_perm(10)
+  PetscInt :: f_kd_mode_size(MAX_KD_SIZE), f_perm_mode_size
+  character(len=MAXWORDLENGTH) :: f_kd_element(MAX_KD_SIZE)
+  character(len=MAXWORDLENGTH) :: f_kd_mode(MAX_KD_SIZE), f_perm_mode
+
+  select case(keyword)
+    case('SMECTITE_INITIAL')
+      ! Initial fraction of smectite in the smectite/illite mixture
+      call InputReadDouble(input,option,ilf%fs0)
+      call InputErrorMsg(input,option,'initial smectite fraction', &
+                         'ILLITIZATION, '//trim(kind)//'')
+    case('THRESHOLD_TEMPERATURE')
+      ! Specifies the temperature threshold for activating illitization
+      call InputReadDouble(input,option, &
+                           ilf%threshold)
+      call InputErrorMsg(input,option,'temperature threshold', &
+                         'ILLITIZATION, '//trim(kind)//'')
+      call InputReadAndConvertUnits(input,ilf%threshold,'C', &
+                                    'ILLITIZATION, '//trim(kind)// &
+                                    ', temperature threshold',option)
+    case('SHIFT_PERM')
+      ! Functions and parameters modifying the permeability using elements
+      !   from the illitization model
+      shift_perm => ILTPermEffectsCreate()
+      f_perm_mode = ''
+      f_perm_mode_size = 0
+      f_perm(:) = UNINITIALIZED_DOUBLE
+
+      ! Function type
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,'f_perm function type', &
+                         error_string)
+      f_perm_mode = word
+
+      ! Function parameters
+      select case(f_perm_mode)
+        case ('DEFAULT','LINEAR')
+          f_perm_mode_size = 1
+          call InputReadDouble(input,option,f_perm(1))
+          call InputErrorMsg(input,option,'f_perm(1), DEFAULT/LINEAR', &
+                             error_string)
+          ! Check user values
+          if (f_perm(1) < -1.0d+0) then
+            option%io_buffer = 'Function parameter #1 in "' &
+                             // trim(f_perm_mode) &
+                             //'" must not be less than -1 for ' &
+                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
+            call PrintErrMsg(option)
+          endif
+        case ('QUADRATIC')
+          f_perm_mode_size = 2
+          call InputReadDouble(input,option,f_perm(1))
+          call InputErrorMsg(input,option,'f_perm(1), QUADRATIC',error_string)
+          call InputReadDouble(input,option,f_perm(2))
+          call InputErrorMsg(input,option,'f_perm(2), QUADRATIC',error_string)
+          ! Check user values
+          a = f_perm(1)
+          b = f_perm(2)
+          v1 = 1 + a + b    ! value at x = 1
+          v2 = a + 2*b      ! slope at x = 1
+          v3 = a**2 - 4*a*b ! check for real roots
+          if (v1 < 0.d0) then ! negative values
+            option%io_buffer = 'Function parameters in "' &
+                             // trim(f_perm_mode) //'" cannot result ' &
+                             //'in a negative value at 100% illite for ' &
+                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
+            call PrintErrMsg(option)
+          endif
+          if (a > 0.d0 .and. v2 < 0.d0) then ! positive monotonic
+            option%io_buffer = 'Function parameters in "'//trim(f_perm_mode) &
+                             //'" must provide monotonic results for ' &
+                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
+            call PrintErrMsg(option)
+          endif
+          if (a < 0.d0 .and. v2 > 0.d0) then ! negative monotonic
+            option%io_buffer = 'Function parameters in "'//trim(f_perm_mode) &
+                             //'" must provide monotonic results for ' &
+                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
+            call PrintErrMsg(option)
+          endif
+          if (v3 > 0) then ! roots between 0 and 1
+            r1 = (-1*a - sqrt(v3))/(2*b)
+            r2 = (-1*a + sqrt(v3))/(2*b)
+            if ((r1 >= 0.d0 .and. r1 < 1.d0) .or. &
+                (r2 >= 0.d0 .and. r2 < 1.d0)) then
+              option%io_buffer = 'Function parameters in "'//trim(f_perm_mode) &
+                               //'" must not have roots between 0 and 1 for ' &
+                               //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
+              call PrintErrMsg(option)
+            endif
+          endif
+        case ('POWER')
+          f_perm_mode_size = 2
+          call InputReadDouble(input,option,f_perm(1))
+          call InputErrorMsg(input,option,'f_perm(1), POWER',error_string)
+          call InputReadDouble(input,option,f_perm(2))
+          call InputErrorMsg(input,option,'f_perm(2), POWER',error_string)
+          ! Check user values
+          a = f_perm(1)
+          b = f_perm(2)
+          v1 = 1 + a ! value at x = 1
+          if (v1 < 0.d0) then
+            option%io_buffer = 'Function parameters in "' &
+                             // trim(f_perm_mode) //'" cannot result ' &
+                             //'in a negative value at 100% illite for ' &
+                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
+            call PrintErrMsg(option)
+          endif
+          if (b <= 0.d0) then
+            option%io_buffer = 'Function parameter #2 in "' &
+                             // trim(f_perm_mode) //'" must be greater than ' &
+                             //'zero for SHIFT_PERM in ILLITIZATION, ' &
+                             //trim(kind)//'.'
+            call PrintErrMsg(option)
+          endif
+        case ('EXPONENTIAL')
+          f_perm_mode_size = 1
+          call InputReadDouble(input,option,f_perm(1))
+          call InputErrorMsg(input,option,'f_perm(1), EXPONENTIAL',error_string)
+        case default
+          option%io_buffer = 'Permeability modification function "' &
+                           // trim(f_perm_mode) &
+                           //'" was not found among the available options ' &
+                           //'for SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
+          call PrintErrMsg(option)
+      end select
+
+      if (f_perm_mode_size == 0) then
+        option%io_buffer = 'No function parameters were specified &
+          &for SHIFT_PERM in ' // trim(error_string) // '.'
+        call PrintErrMsg(option)
+      endif
+
+      allocate(shift_perm%f_perm(f_perm_mode_size))
+      shift_perm%f_perm = f_perm(1:f_perm_mode_size)
+      allocate(shift_perm%f_perm_mode)
+      shift_perm%f_perm_mode = f_perm_mode
+
+      ilf%shift_perm => shift_perm
+
+      nullify(shift_perm)
+
+    case('SHIFT_KD')
+      ! Functions and parameters modifying selected kd values using elements
+      !   from the illitization model
+      shift_kd_list => ILTKdEffectsCreate()
+      i = 0
+      f_kd_mode_size(:) = 0
+      f_kd(:,:) = UNINITIALIZED_DOUBLE
+      f_kd_mode(:) = ''
+      f_kd_element(:) = ''
+
+      call InputPushBlock(input,option)
+
+      do
+        call InputReadPflotranString(input,option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        i = i + 1
+        if (i > MAX_KD_SIZE) then
+          write(word,*) i-1
+          option%io_buffer = 'f_kd array in ILLITIZATION must be' &
+            //'allocated larger than ' // trim(adjustl(word)) &
+            //' under SHIFT_KD in' // trim(error_string) // '.'
+          call PrintErrMsg(option)
+        endif
+
+        ! Element
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'f_kd element symbol', &
+                           error_string)
+        f_kd_element(i) = word
+
+        ! Function type
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'f_kd function type', &
+                           error_string)
+        f_kd_mode(i) = word
+
+        ! Function parameters
+        select case(f_kd_mode(i))
+          case ('DEFAULT','LINEAR')
+            f_kd_mode_size(i) = 1
+            call InputReadDouble(input,option,f_kd(i,1))
+            call InputErrorMsg(input,option,'f_kd(*,1), DEFAULT/LINEAR', &
+                               error_string)
+
+            ! Check user values
+            if (f_kd(i,1) < -1.0d+0) then
+              option%io_buffer = 'Function parameter #1 in "' &
+                               // trim(f_kd_mode(i)) // '" for element "'&
+                               // trim(f_kd_element(i)) &
+                               //'" must not be less than -1 for ' &
+                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
+              call PrintErrMsg(option)
+
+            endif
+          case ('QUADRATIC')
+            f_kd_mode_size(i) = 2
+            call InputReadDouble(input,option,f_kd(i,1))
+            call InputErrorMsg(input,option,'f_kd(*,1), QUADRATIC',error_string)
+            call InputReadDouble(input,option,f_kd(i,2))
+            call InputErrorMsg(input,option,'f_kd(*,2), QUADRATIC',error_string)
+            ! Check user values
+            a = f_kd(i,1)
+            b = f_kd(i,2)
+            v1 = 1 + a + b    ! value at x = 1
+            v2 = a + 2*b      ! slope at x = 1
+            v3 = a**2 - 4*a*b ! check for real roots
+            if (v1 < 0.d0) then ! negative values
+              option%io_buffer = 'Function parameters in "' &
+                               // trim(f_kd_mode(i)) //'" cannot result ' &
+                               //'in a negative value at 100% illite for ' &
+                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
+              call PrintErrMsg(option)
+            endif
+            if (a > 0.d0 .and. v2 < 0.d0) then ! positive monotonic
+              option%io_buffer = 'Function parameters in "' &
+                               // trim(f_kd_mode(i)) &
+                               //'" must provide monotonic results for ' &
+                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
+              call PrintErrMsg(option)
+            endif
+            if (a < 0.d0 .and. v2 > 0.d0) then ! negative monotonic
+              option%io_buffer = 'Function parameters in "' &
+                               // trim(f_kd_mode(i)) &
+                               //'" must provide monotonic results for ' &
+                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
+              call PrintErrMsg(option)
+            endif
+            if (v3 > 0) then ! roots between 0 and 1
+              r1 = (-1*a - sqrt(v3))/(2*b)
+              r2 = (-1*a + sqrt(v3))/(2*b)
+              if ((r1 >= 0.d0 .and. r1 < 1.d0) .or. &
+                  (r2 >= 0.d0 .and. r2 < 1.d0)) then
+                option%io_buffer = 'Function parameters in "' &
+                                 // trim(f_kd_mode(i)) &
+                                 //'" must not have roots between 0 and 1 for '&
+                                 //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
+                call PrintErrMsg(option)
+              endif
+            endif
+          case ('POWER')
+            f_kd_mode_size(i) = 2
+            call InputReadDouble(input,option,f_kd(i,1))
+            call InputErrorMsg(input,option,'f_kd(*,1), POWER',error_string)
+            call InputReadDouble(input,option,f_kd(i,2))
+            call InputErrorMsg(input,option,'f_kd(*,2), POWER',error_string)
+            ! Check user values
+            a = f_kd(i,1)
+            b = f_kd(i,2)
+            v1 = 1 + a ! value at x = 1
+            if (v1 < 0.d0) then
+              option%io_buffer = 'Function parameters in "' &
+                               // trim(f_kd_mode(i)) //'" cannot result ' &
+                               //'in a negative value at 100% illite for ' &
+                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
+              call PrintErrMsg(option)
+            endif
+            if (b <= 0.d0) then
+              option%io_buffer = 'Function parameter #2 in "' &
+                               // trim(f_kd_mode(i)) //'" must be greater ' &
+                               //'than zero for SHIFT_KD in ILLITIZATION, ' &
+                               //trim(kind)//'.'
+              call PrintErrMsg(option)
+            endif
+          case ('EXPONENTIAL')
+            f_kd_mode_size(i) = 1
+            call InputReadDouble(input,option,f_kd(i,1))
+            call InputErrorMsg(input,option,'f_kd(*,1), EXPONENTIAL', &
+                               error_string)
+          case default
+            option%io_buffer = 'Sorption modification function "' &
+                             // trim(f_kd_mode(i)) // '" for element "'&
+                             // trim(f_kd_element(i)) &
+                             //'" was not found among the available options ' &
+                             //'for SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
+            call PrintErrMsg(option)
+        end select
+      enddo
+
+      call InputPopBlock(input,option)
+
+      if (i == 0) then
+        option%io_buffer = 'No element/function parameter combinations &
+          &specified under SHIFT_KD in ' // trim(error_string) // '.'
+        call PrintErrMsg(option)
+      endif
+
+      j = maxval(f_kd_mode_size)
+
+      if (j == 0) then
+        option%io_buffer = 'No function parameters were &
+          &specified under SHIFT_KD in ' // trim(error_string) // '.'
+        call PrintErrMsg(option)
+      endif
+
+      allocate(shift_kd_list%f_kd(i,j))
+      shift_kd_list%f_kd = f_kd(1:i,1:j)
+      allocate(shift_kd_list%f_kd_element(i))
+      shift_kd_list%f_kd_element = f_kd_element(1:i)
+      allocate(shift_kd_list%f_kd_mode(i))
+      shift_kd_list%f_kd_mode = f_kd_mode(1:i)
+      shift_kd_list%num_elements = i
+
+      ilf%shift_kd_list => shift_kd_list
+
+      nullify(shift_kd_list)
+
+    case default
+      call InputKeywordUnrecognized(input,keyword, &
+           'illitization function ('//trim(kind)//')',option)
+  end select
+
+end subroutine ILTBaseRead
+
+! ************************************************************************** !
+
+subroutine ILTDefaultRead(ilf, input, keyword, error_string, kind, option)
+  !
+  ! Reads in contents of ILLITIZATION_FUNCTION block for illitization
+  !   default class
+  !
+  ! Author: Alex Salazar III
+  ! Date: 10/12/2021
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+
+  class(ILT_default_type) :: ilf
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH)   :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=*)  :: kind
+  type(option_type) :: option
+
+  select case(keyword)
+    case('EA')
+      ! Activation energy in Arrhenius term
+      call InputReadDouble(input,option,ilf%ea)
+      call InputErrorMsg(input,option,'activation energy', &
+                         'ILLITIZATION, '//trim(kind)//'')
+      call InputReadAndConvertUnits(input,ilf%ea, &
+                                    'J/mol','ILLITIZATION, '//trim(kind)// &
+                                    ', activation energy',option)
+    case('FREQ')
+      ! Frequency factor (scaling constant of Arrhenius term)
+      call InputReadDouble(input,option,ilf%freq)
+      call InputErrorMsg(input,option,'frequency term', &
+                         'ILLITIZATION, '//trim(kind)//'')
+      call InputReadAndConvertUnits(input,ilf%freq, &
+                                    'L/s-mol','ILLITIZATION, '//trim(kind)// &
+                                    ', frequency term',option)
+    case('K_CONC')
+      ! Concentration of potassium cation
+      call InputReadDouble(input,option,ilf%K_conc)
+      call InputErrorMsg(input,option,'potassium concentration', &
+                         'ILLITIZATION, '//trim(kind)//'')
+      call InputReadAndConvertUnits(input,ilf%K_conc,'M',&
+                                    'ILLITIZATION, ' //trim(kind)// &
+                                    ', potassium concentration',option)
+    case default
+      call ILTBaseRead(ilf,input,keyword,error_string,kind,option)
+  end select
+
+end subroutine ILTDefaultRead
+
+! ************************************************************************** !
+
+subroutine ILTRead(illitization_function, input, option)
+  !
+  ! Reads in contents of a ILLITIZATION_FUNCTION block
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+
+  implicit none
+
+  class(illitization_base_type) :: illitization_function
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  input%ierr = 0
+  error_string = 'ILLITIZATION_FUNCTION,'
+  select type(ilf => illitization_function)
+    class is(ILT_default_type)
+      error_string = trim(error_string) // 'DEFAULT'
+    class is(ILT_general_type)
+      error_string = trim(error_string) // 'GENERAL'
+  end select
+
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select type(ilf => illitization_function)
+      !------------------------------------------
+      class is(ILT_default_type)
+        select case(trim(keyword))
+          case default
+            call ILTDefaultRead(ilf,input,keyword,error_string,'DEFAULT',option)
+        end select
+      !------------------------------------------
+      class is(ILT_general_type)
+        select case(trim(keyword))
+          case('K_EXP')
+            ! Exponent of potassium cation concentration
+            call InputReadDouble(input,option,ilf%K_exp)
+            call InputErrorMsg(input,option,'potassium concentration exponent',&
+                               'ILLITIZATION, GENERAL')
+          case('SMECTITE_EXP')
+            ! Exponent of smectite fraction
+            call InputReadDouble(input,option,ilf%exp)
+            call InputErrorMsg(input,option,'smectite exponent', &
+                               'ILLITIZATION, GENERAL')
+          case default
+            call ILTDefaultRead(ilf,input,keyword,error_string,'GENERAL',option)
+        end select
+      !------------------------------------------
+      class default
+        option%io_buffer = 'Read routine not implemented for ' &
+             // trim(error_string) // '.'
+        call PrintErrMsg(option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine ILTRead
+
+! ************************************************************************** !
+
+subroutine IllitizationRead(this, input, option)
+  !
+  ! Reads in contents of an ILLITIZATION block from MATERIAL_TRANSFORM
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+
+  implicit none
+
+  class(illitization_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXSTRINGLENGTH) :: error_string, verify_string
+  class(illitization_base_type), pointer :: illitization_function_ptr
+
+  nullify(illitization_function_ptr)
+
+  input%ierr = 0
+  error_string = 'ILLITIZATION'
+
+  if (associated(this%illitization_function)) then
+    option%io_buffer = 'There may only be one instance of '// &
+                       'ILLITIZATION_FUNCTION in ILLITIZATION "'// &
+                       trim(this%name)//'".'
+    call PrintErrMsg(option)
+  endif
+
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+      !------------------------------------------
+      case('ILLITIZATION_FUNCTION')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option, &
+             'ILLITIZATION_FUNCTION',error_string)
+        call StringToUpper(word)
+        select case(word)
+          !-------------------------------------
+          case('DEFAULT','HUANG')
+            this%illitization_function => ILTDefaultCreate()
+          !-------------------------------------
+          case('GENERAL','CUADROS_AND_LINARES')
+            this%illitization_function => ILTGeneralCreate()
+          !-------------------------------------
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                 'ILLITIZATION_FUNCTION',option)
+        end select
+        call ILTRead(this%illitization_function,input,option)
+      !------------------------------------------
+      case('TEST')
+        this%test = PETSC_TRUE
+      !------------------------------------------
+      case default
+        call InputKeywordUnrecognized(input,keyword,'ILLITIZATION',option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+  verify_string = 'ILLITIZATION(' // trim(this%name) // '),'
+
+  if (associated(this%illitization_function)) then
+    call this%illitization_function%Verify(verify_string,option)
+  else
+    option%io_buffer = 'A illitization function has &
+         &not been set under ILLITIZATION "' // &
+         trim(this%name) // '". An ILLITIZATION_FUNCTION &
+         &block must be specified.'
+  endif
+
+end subroutine IllitizationRead
+
+! ************************************************************************** !
+
+subroutine BufferErosionRead(this, input, option)
+  !
+  ! Reads in contents of a BUFFER_EROSION block from MATERIAL_TRANSFORM
+  !
+  ! Author: Alex Salazar III
+  ! Date: 01/20/2022
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+
+  implicit none
+
+  class(buffer_erosion_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXSTRINGLENGTH) :: error_string, verify_string
+  ! class(buffer_erosion_base_type), pointer :: buffer_erosion_model_ptr
+
+  ! nullify(buffer_erosion_model_ptr)
+
+  input%ierr = 0
+  error_string = 'BUFFER_EROSION'
+
+  ! if (associated(this%buffer_erosion_model)) then
+  !   option%io_buffer = 'There may only be one instance of '// &
+  !                      'BUFFER_EROSION_MODEL in BUFFER_EROSION "'// &
+  !                      trim(this%name)//'".'
+  !   call PrintErrMsg(option)
+  ! endif
+
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+      !------------------------------------------
+      case('BUFFER_EROSION_MODEL')
+        ! Placeholder for erosion models
+      !------------------------------------------
+      case('TEST')
+        this%test = PETSC_TRUE
+      !------------------------------------------
+      case default
+        call InputKeywordUnrecognized(input,keyword,'BUFFER_EROSION',option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+  verify_string = 'BUFFER_EROSION(' // trim(this%name) // '),'
+
+  ! if (associated(this%buffer_erosion_model)) then
+  !   call this%buffer_erosion_model%Verify(verify_string,option)
+  ! else
+  !   option%io_buffer = 'A buffer erosion model has &
+  !        &not been set under BUFFER_EROSION "' // &
+  !        trim(this%name) // '". A BUFFER_EROSION_MODEL &
+  !        &block must be specified.'
+  ! endif
+
+end subroutine BufferErosionRead
+
+! ************************************************************************** !
+
+subroutine MaterialTransformRead(this, input, option)
+  !
+  ! Reads in components of a MATERIAL_TRANSFORM block
+  !
+  ! Author: Alex Salazar III
+  ! Date: 11/09/2021
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+
+  implicit none
+
+  class(material_transform_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  input%ierr = 0
+  error_string = 'MATERIAL_TRANSFORM "'//trim(this%name)//'"'
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+      !------------------------------------------
+      case('ILLITIZATION')
+        this%illitization => IllitizationCreate()
+        call IllitizationRead(this%illitization,input,option)
+      !------------------------------------------
+      case('BUFFER_EROSION')
+        this%buffer_erosion=> BufferErosionCreate()
+        call BufferErosionRead(this%buffer_erosion,input,option)
+      !------------------------------------------
+      case default
+        call InputKeywordUnrecognized(input,keyword, &
+               'MATERIAL_TRANSFORM "'//trim(this%name)//'"',option)
+    end select
+
+  enddo
+
+  call InputPopBlock(input,option)
+
+end subroutine MaterialTransformRead
+
+! ************************************************************************** !
+
+subroutine ILTBaseVerify(this, name, option)
+  !
+  ! Checks parameters in the illitization_base_type class
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
   use Option_module
 
   implicit none
@@ -171,6 +1127,88 @@ end subroutine ILTBaseVerify
 
 ! ************************************************************************** !
 
+subroutine ILTDefaultVerify(this, name, option)
+  !
+  ! Checks parameters in the ILT_default_type class
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
+  use Option_module
+
+  implicit none
+
+  class(ILT_default_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'ILLITIZATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'ILLITIZATION_FUNCTION, DEFAULT'
+  endif
+  call ILTBaseVerify(this,string,option)
+  if (Uninitialized(this%ea)) then
+    option%io_buffer = 'Illitization activation energy must be specified in' &
+                     //' function "'//trim(string)//'".'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%freq)) then
+    option%io_buffer = 'Illitization frequency term must be specified in' &
+                     //' function "'//trim(string)//'".'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_conc)) then
+    option%io_buffer = 'Illitization potassium concentration must be ' &
+                     //'specified in function "'//trim(string)//'".'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine ILTDefaultVerify
+
+! ************************************************************************** !
+
+subroutine ILTGeneralVerify(this, name, option)
+  !
+  ! Checks parameters in the ILT_general_type class
+  !
+  ! Author: Alex Salazar III
+  ! Date: 06/16/2021
+
+  use Option_module
+
+  implicit none
+
+  class(ILT_general_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'ILLITIZATION_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'ILLITIZATION_FUNCTION, GENERAL'
+  endif
+  call ILTBaseVerify(this,string,option)
+  call ILTDefaultVerify(this,string,option)
+  if (Uninitialized(this%exp)) then
+    option%io_buffer = 'Illitization smectite exponent must be specified in' &
+                     //' function "'//trim(string)//'".'
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%K_exp)) then
+    option%io_buffer = 'Illitization postassium exponent must be specified in' &
+                     //' function "'//trim(string)//'".'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine ILTGeneralVerify
+
+! ************************************************************************** !
+
 subroutine ILTBaseIllitization(this, fs, temperature, dt, fi, scale, option)
 
   use Option_module
@@ -192,6 +1230,137 @@ end subroutine ILTBaseIllitization
 
 ! ************************************************************************** !
 
+subroutine ILTDefaultIllitization(this, fs, temperature, dt, fi, scale, option)
+  !
+  ! This function calculates the fraction of illite relative to smectite given
+  !   the illitization model from Huang et al., 1993. It also calculates a
+  !   scaling parameter for modifying material properties.
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
+  use Option_module
+
+  implicit none
+
+  class(ILT_default_type) :: this      ! illitization object
+  PetscReal, intent(inout) :: fs       ! fraction smectite
+  PetscReal, intent(in) :: temperature ! temperature of material
+  PetscReal, intent(in) :: dt          ! change in time
+  PetscReal, intent(out) :: fi         ! fraction illite
+  PetscReal, intent(out) :: scale      ! scaling parameter based on composition
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: ds   ! change in smectite
+  PetscReal :: T    ! temperature in Kelvin
+  PetscReal :: rate ! temperature-dependent illitization rate in sec^-1
+
+  ! Model based on W-L Huang, J.M. Longo, & D.R. Pevear,
+  !  "An Experimentally Derived Kinetic Model for Smectite-to-Illite Conversion
+  !  and its Use as a Geothermometer," Clay and Clay Minerals, vol. 41, no 2.,
+  !  pp. 162-177, 1993
+
+  ! Use Kelvin to calculate rate
+  T = temperature + 273.15d0
+
+  ! Check if temperature is above threshold for illitization
+  if (temperature >= this%threshold) then
+    ! Negative of illitization rate [L/mol-s]
+    rate = this%K_conc * this%freq * &
+      exp(-1.0d0 * this%ea / (IDEAL_GAS_CONSTANT * T))
+  else
+    rate = 0.0d0
+  endif
+
+  ! Log change in smectite as time proceeds
+  ds = rate * dt
+
+  ! Fraction smectite
+  fs = fs / (1.0d0 + (fs * ds))
+
+  if (fs > 1.0d0) then
+    fs = 1.0d0
+  elseif (fs < 0.0d0) then
+    fs = 0.0d0
+  endif
+
+  ! Fraction illite
+  fi = 1.0d0 - fs
+
+  ! Calculate scale factor
+  scale = ((fi - (1.0d+0 - this%fs0)) / this%fs0)
+
+end subroutine ILTDefaultIllitization
+
+! ************************************************************************** !
+
+subroutine ILTGeneralIllitization(this, fs, temperature, dt, fi, scale, option)
+  !
+  ! This function calculates the fraction of illite relative to smectite given
+  !   the illitization model from Cuadros and Linares, 1996. It also calculates
+  !   a scaling parameter for modifying material properties.
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
+  use Option_module
+
+  implicit none
+
+  class(ILT_general_type) :: this      ! illitization object
+  PetscReal, intent(inout) :: fs       ! fraction smectite
+  PetscReal, intent(in) :: temperature ! temperature of material
+  PetscReal, intent(in) :: dt          ! change in time
+  PetscReal, intent(out) :: fi         ! fraction illite
+  PetscReal, intent(out) :: scale      ! scaling parameter based on composition
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: T    ! temperature in Kelvin
+  PetscReal :: rate ! temperature-dependent illitization rate in sec^-1
+
+  ! Model based on J. Cuadros & J. Linares, "Experimental Kinetic Study of the
+  !   Smectite-to-Illite Transformation," Geochimica et Cosmochimica Acta,
+  !   vol. 60, no. 3, pp. 439-453, 1996
+
+  ! Use Kelvin to calculate rate
+  T = temperature + 273.15d0
+
+  ! Check if temperature is above threshold for illitization
+  if (temperature >= this%threshold) then
+    ! Negative of illitization rate [L/mol-s]
+    rate = this%freq * &
+      exp(-1.0d0 * this%ea / (IDEAL_GAS_CONSTANT * T))
+  else
+    rate = 0.0d0
+  endif
+
+  ! Fraction smectite - pivot solution based on choice of exponent
+  if (this%exp == 1.0d0) then
+    ! n = 1
+    fs = fs * exp(-1.0d0 * rate * (this%K_conc**this%K_exp) * dt)
+  else
+    ! n != 1
+    fs = (rate * (this%K_conc**this%K_exp) * &
+         (this%exp - 1.0d0) * dt + &
+         fs**(1.0d0 - this%exp))**(1.0d0/(1.0d0 - this%exp))
+  endif
+
+  if (fs > 1.0d0) then
+    fs = 1.0d0
+  elseif (fs < 0.0d0) then
+    fs = 0.0d0
+  endif
+
+  ! Fraction illite
+  fi = 1.0d0 - fs
+
+  ! Calculate scale factor
+  scale = ((fi - (1.0d+0 - this%fs0)) / this%fs0)
+
+end subroutine ILTGeneralIllitization
+
+! ************************************************************************** !
+
 subroutine ILTBaseTest(this, name, option)
   !
   ! Tests illitization functions using a range of initial smectite contents and
@@ -199,7 +1368,7 @@ subroutine ILTBaseTest(this, name, option)
   !
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
-  !
+
   use Option_module
 
   implicit none
@@ -295,320 +1464,6 @@ end subroutine ILTBaseTest
 
 ! ************************************************************************** !
 
-subroutine ILTDestroy(ilf)
-
-  implicit none
-
-  class(illitization_base_type), pointer :: ilf
-
-  if (.not. associated(ilf)) return
-  deallocate(ilf)
-  nullify(ilf)
-
-end subroutine ILTDestroy
-
-! ************************************************************************** !
-
-function ILTBaseCreate()
-
-  implicit none
-
-  class(illitization_base_type), pointer :: ILTBaseCreate
-
-  allocate(ILTBaseCreate)
-
-  ILTBaseCreate%threshold  = 0.0d0
-  ILTBaseCreate%fs0        = 0.0d0
-  nullify(ILTBaseCreate%shift_perm)
-  nullify(ILTBaseCreate%shift_kd_list)
-
-end function ILTBaseCreate
-
-! ************************************************************************** !
-
-function ILTDefaultCreate()
-
-  implicit none
-
-  class(ILT_default_type), pointer :: ILTDefaultCreate
-
-  allocate(ILTDefaultCreate)
-
-  ILTDefaultCreate%threshold  = 0.0d0
-  ILTDefaultCreate%fs0        = 1.0d0
-  ILTDefaultCreate%ea     = UNINITIALIZED_DOUBLE
-  ILTDefaultCreate%freq   = UNINITIALIZED_DOUBLE
-  ILTDefaultCreate%K_conc = UNINITIALIZED_DOUBLE
-  nullify(ILTDefaultCreate%shift_perm)
-  nullify(ILTDefaultCreate%shift_kd_list)
-
-end function ILTDefaultCreate
-
-! ************************************************************************** !
-
-function ILTGeneralCreate()
-
-  implicit none
-
-  class(ILT_general_type), pointer :: ILTGeneralCreate
-
-  allocate(ILTGeneralCreate)
-
-  ILTGeneralCreate%threshold  = 0.0d0
-  ILTGeneralCreate%fs0        = 1.0d0
-  ILTGeneralCreate%freq       = 1.0d0 ! Default of 1.0 in general model
-  ILTGeneralCreate%ea     = UNINITIALIZED_DOUBLE
-  ILTGeneralCreate%K_conc = UNINITIALIZED_DOUBLE
-  ILTGeneralCreate%K_exp  = UNINITIALIZED_DOUBLE
-  ILTGeneralCreate%exp    = UNINITIALIZED_DOUBLE
-  nullify(ILTGeneralCreate%shift_perm)
-  nullify(ILTGeneralCreate%shift_kd_list)
-
-end function ILTGeneralCreate
-
-! ************************************************************************** !
-
-function ILTPermEffectsCreate()
-  ! 
-  ! Creates object for modifying permeability from smectite/illite transition
-  ! 
-  ! Author: Alex Salazar III
-  ! Date: 11/11/2021
-
-  implicit none
-
-  class(ILT_perm_effects_type), pointer :: ILTPermEffectsCreate
-
-  allocate(ILTPermEffectsCreate)
-  
-  nullify(ILTPermEffectsCreate%f_perm)
-  nullify(ILTPermEffectsCreate%f_perm_mode)
-
-end function ILTPermEffectsCreate
-
-! ************************************************************************** !
-
-function ILTKdEffectsCreate()
-  ! 
-  ! Creates object for modifying Kd values from smectite/illite transition
-  ! 
-  ! Author: Alex Salazar III
-  ! Date: 10/06/2021
-
-  implicit none
-
-  class(ILT_kd_effects_type), pointer :: ILTKdEffectsCreate
-
-  allocate(ILTKdEffectsCreate)
-  
-  ILTKdEffectsCreate%num_elements = UNINITIALIZED_INTEGER
-  nullify(ILTKdEffectsCreate%f_kd)
-  nullify(ILTKdEffectsCreate%f_kd_mode)
-  nullify(ILTKdEffectsCreate%f_kd_element)
-
-end function ILTKdEffectsCreate
-
-! ************************************************************************** !
-
-subroutine ILTDefaultVerify(this, name, option)
-  ! 
-  ! Checks parameters in the ILT_default_type class
-  ! 
-  ! Author: Alex Salazar III
-  ! Date: 02/26/2021
-  !
-  use Option_module
-
-  implicit none
-
-  class(ILT_default_type) :: this
-  character(len=MAXSTRINGLENGTH) :: name
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: string
-
-  if (index(name,'ILLITIZATION_FUNCTION') > 0) then
-    string = name
-  else
-    string = trim(name) // 'ILLITIZATION_FUNCTION, DEFAULT'
-  endif
-  call ILTBaseVerify(this,string,option)
-  if (Uninitialized(this%ea)) then
-    option%io_buffer = 'Illitization activation energy must be specified in' &
-                     //' function "'//trim(string)//'".'
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(this%freq)) then
-    option%io_buffer = 'Illitization frequency term must be specified in' &
-                     //' function "'//trim(string)//'".'
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(this%K_conc)) then
-    option%io_buffer = 'Illitization potassium concentration must be ' &
-                     //'specified in function "'//trim(string)//'".'
-    call PrintErrMsg(option)
-  endif
-
-end subroutine ILTDefaultVerify
-
-! ************************************************************************** !
-
-subroutine ILTGeneralVerify(this, name, option)
-  ! 
-  ! Checks parameters in the ILT_general_type class
-  ! 
-  ! Author: Alex Salazar III
-  ! Date: 06/16/2021
-  !
-  use Option_module
-
-  implicit none
-
-  class(ILT_general_type) :: this
-  character(len=MAXSTRINGLENGTH) :: name
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: string
-
-  if (index(name,'ILLITIZATION_FUNCTION') > 0) then
-    string = name
-  else
-    string = trim(name) // 'ILLITIZATION_FUNCTION, GENERAL'
-  endif
-  call ILTBaseVerify(this,string,option)
-  call ILTDefaultVerify(this,string,option)
-  if (Uninitialized(this%exp)) then
-    option%io_buffer = 'Illitization smectite exponent must be specified in' &
-                     //' function "'//trim(string)//'".'
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(this%K_exp)) then
-    option%io_buffer = 'Illitization postassium exponent must be specified in' &
-                     //' function "'//trim(string)//'".'
-    call PrintErrMsg(option)
-  endif
-
-end subroutine ILTGeneralVerify
-
-! ************************************************************************** !
-
-subroutine ILTDefaultIllitization(this, fs, temperature, dt, fi, scale, option)
-
-  use Option_module
-
-  implicit none
-
-  class(ILT_default_type) :: this
-  PetscReal, intent(inout) :: fs
-  PetscReal, intent(in) :: temperature
-  PetscReal, intent(in) :: dt
-  PetscReal, intent(out) :: fi
-  PetscReal, intent(out) :: scale
-  type(option_type), intent(inout) :: option
-
-  PetscReal :: ds   ! change in smectite
-  PetscReal :: T    ! temperature in Kelvin
-  PetscReal :: rate ! temperature-dependent illitization rate in sec^-1
-
-  ! Model based on W-L Huang, J.M. Longo, & D.R. Pevear,
-  !  "An Experimentally Derived Kinetic Model for Smectite-to-Illite Conversion
-  !  and its Use as a Geothermometer," Clay and Clay Minerals, vol. 41, no 2., 
-  !  pp. 162-177, 1993
-
-  ! Use Kelvin to calculate rate
-  T = temperature + 273.15d0
-
-  ! Check if temperature is above threshold for illitization
-  if (temperature >= this%threshold) then
-    ! Negative of illitization rate [L/mol-s]
-    rate = this%K_conc * this%freq * &
-      exp(-1.0d0 * this%ea / (IDEAL_GAS_CONSTANT * T))
-  else
-    rate = 0.0d0
-  endif
-
-  ! Log change in smectite as time proceeds
-  ds = rate * dt
-
-  ! Fraction smectite
-  fs = fs / (1.0d0 + (fs * ds))
-
-  if (fs > 1.0d0) then
-    fs = 1.0d0
-  elseif (fs < 0.0d0) then
-    fs = 0.0d0
-  endif
-
-  ! Fraction illite
-  fi = 1.0d0 - fs
-  
-  ! Calculate scale factor
-  scale = ((fi - (1.0d+0 - this%fs0)) / this%fs0)
-
-end subroutine ILTDefaultIllitization
-
-! ************************************************************************** !
-
-subroutine ILTGeneralIllitization(this, fs, temperature, dt, fi, scale, option)
-
-  use Option_module
-
-  implicit none
-
-  class(ILT_general_type) :: this
-  PetscReal, intent(inout) :: fs
-  PetscReal, intent(in) :: temperature
-  PetscReal, intent(in) :: dt
-  PetscReal, intent(out) :: fi
-  PetscReal, intent(out) :: scale
-  type(option_type), intent(inout) :: option
-
-  PetscReal :: T    ! temperature in Kelvin
-  PetscReal :: rate ! temperature-dependent illitization rate in sec^-1
-
-  ! Model based on J. Cuadros & J. Linares, "Experimental Kinetic Study of the
-  !   Smectite-to-Illite Transformation," Geochimica et Cosmochimica Acta, 
-  !   vol. 60, no. 3, pp. 439-453, 1996
-
-  ! Use Kelvin to calculate rate
-  T = temperature + 273.15d0
-
-  ! Check if temperature is above threshold for illitization
-  if (temperature >= this%threshold) then
-    ! Negative of illitization rate [L/mol-s]
-    rate = this%freq * &
-      exp(-1.0d0 * this%ea / (IDEAL_GAS_CONSTANT * T))
-  else
-    rate = 0.0d0
-  endif
-
-  ! Fraction smectite - pivot solution based on choice of exponent
-  if (this%exp == 1.0d0) then
-    ! n = 1
-    fs = fs * exp(-1.0d0 * rate * (this%K_conc**this%K_exp) * dt)
-  else
-    ! n != 1
-    fs = (rate * (this%K_conc**this%K_exp) * &
-         (this%exp - 1.0d0) * dt + &
-         fs**(1.0d0 - this%exp))**(1.0d0/(1.0d0 - this%exp))
-  endif
-
-  if (fs > 1.0d0) then
-    fs = 1.0d0
-  elseif (fs < 0.0d0) then
-    fs = 0.0d0
-  endif
-
-  ! Fraction illite
-  fi = 1.0d0 - fs
-  
-  ! Calculate scale factor
-  scale = ((fi - (1.0d+0 - this%fs0)) / this%fs0)
-
-end subroutine ILTGeneralIllitization
-
-! ************************************************************************** !
-
 subroutine ILTBaseShiftSorption(this, kd0, ele, auxvar, option)
 
   use Option_module
@@ -621,11 +1476,11 @@ subroutine ILTBaseShiftSorption(this, kd0, ele, auxvar, option)
   character(len=MAXWORDLENGTH), intent(in) :: ele
   class(illitization_auxvar_type), intent(in) :: auxvar
   type(option_type), intent(inout) :: option
-  
+
   option%io_buffer = 'Illitization function must be extended to modify ' &
                    //'the kd values of elements in UFD Decay.'
   call PrintErrMsgByRank(option)
-  
+
 end subroutine ILTBaseShiftSorption
 
 ! ************************************************************************** !
@@ -637,7 +1492,7 @@ subroutine ILTShiftSorption(this, kd0, ele, auxvar, option)
   !
   ! Author: Alex Salazar III
   ! Date: 10/21/2021
-  !
+
   use Option_module
   use Material_Aux_module
 
@@ -648,14 +1503,14 @@ subroutine ILTShiftSorption(this, kd0, ele, auxvar, option)
   character(len=MAXWORDLENGTH), intent(in) :: ele
   class(illitization_auxvar_type), intent(in) :: auxvar
   type(option_type), intent(inout) :: option
-  
+
   class(ILT_kd_effects_type), pointer :: kdl
   character(len=MAXWORDLENGTH) :: fkdele
   character(len=MAXWORDLENGTH) :: fkdmode
   PetscReal, allocatable :: fkd(:)
   PetscInt :: i, j, k
   PetscReal :: scale, factor
-  
+
   if (.not. associated(this%shift_kd_list)) return
 
   ! Find element and functional properties
@@ -692,7 +1547,7 @@ subroutine ILTShiftSorption(this, kd0, ele, auxvar, option)
       exit
     endif
   enddo
-  
+
   ! Apply function to modify kd
   scale = auxvar%scale
   factor = 1.0d0
@@ -710,9 +1565,9 @@ subroutine ILTShiftSorption(this, kd0, ele, auxvar, option)
                        //'modification function "'// trim(fkdmode)//'".'
       call PrintErrMsgByRank(option)
   end select
-  
+
   kd0 = kd0 * factor
-  
+
   if (allocated(fkd)) deallocate(fkd)
 
 end subroutine ILTShiftSorption
@@ -729,9 +1584,9 @@ subroutine ILTBaseCheckElements(this, pm_ufd_elements, num, option)
   PetscInt, intent(in) :: num
   character(len=MAXWORDLENGTH), intent(in) :: pm_ufd_elements(num)
   type(option_type), intent(inout) :: option
-  
+
   return
-  
+
 end subroutine ILTBaseCheckElements
 
 ! ************************************************************************** !
@@ -743,7 +1598,7 @@ subroutine ILTCheckElements(this, pm_ufd_elements, num, option)
   !
   ! Author: Alex Salazar III
   ! Date: 11/01/2021
-  !
+
   use Option_module
 
   implicit none
@@ -752,14 +1607,14 @@ subroutine ILTCheckElements(this, pm_ufd_elements, num, option)
   PetscInt, intent(in) :: num
   character(len=MAXWORDLENGTH), intent(in) :: pm_ufd_elements(num)
   type(option_type), intent(inout) :: option
-  
+
   class(ILT_kd_effects_type), pointer :: kdl
   character(len=MAXWORDLENGTH) :: fkdele1, fkdele2
   PetscInt :: i, j
   PetscBool :: found
-  
+
   if (.not. associated(this%shift_kd_list)) return
-  
+
   kdl => this%shift_kd_list
   ! Check for duplicates in list
   do i = 1, kdl%num_elements
@@ -795,7 +1650,7 @@ subroutine ILTCheckElements(this, pm_ufd_elements, num, option)
       call PrintErrMsgByRank(option)
     endif
   enddo
-  
+
 end subroutine ILTCheckElements
 
 ! ************************************************************************** !
@@ -827,7 +1682,6 @@ subroutine ILTShiftPerm(this, material_auxvar, auxvar, option)
   !
   ! Author: Alex Salazar III
   ! Date: 11/11/2021
-  !
 
   use Option_module
   use Material_Aux_module
@@ -900,11 +1754,11 @@ subroutine ILTShiftPerm(this, material_auxvar, auxvar, option)
                        //'modification function "'// trim(fpermmode)//'".'
       call PrintErrMsgByRank(option)
   end select
-  
+
   do i = 1, ps
     material_auxvar%permeability(i) = auxvar%perm0(i) * factor
   enddo
-  
+
   if (allocated(fperm)) deallocate(fperm)
 
   ! Save time of permeability modification
@@ -914,774 +1768,13 @@ end subroutine ILTShiftPerm
 
 ! ************************************************************************** !
 
-function MaterialTransformCreate()
-  !
-  ! Creates a material transform object
-  !
-  ! Author: Alex Salazar III
-  ! Date: 02/26/2021
-  !
-  implicit none
-
-  class(material_transform_type), pointer :: MaterialTransformCreate
-  class(material_transform_type), pointer :: material_transform
-
-  allocate(material_transform)
-  material_transform%name = ''
-  material_transform%num_aux = 0
-  material_transform%auxvars_up_to_date = PETSC_FALSE
-  nullify(material_transform%auxvars)
-  nullify(material_transform%illitization)
-  nullify(material_transform%buffer_erosion)
-  nullify(material_transform%next)
-
-  MaterialTransformCreate => material_transform
-
-end function MaterialTransformCreate
-
-! ************************************************************************** !
-
-function IllitizationCreate()
-  !
-  ! Creates an illitization object
-  !
-  ! Author: Alex Salazar III
-  ! Date: 01/19/2022
-  !
-  implicit none
-
-  class(illitization_type), pointer :: IllitizationCreate
-  class(illitization_type), pointer :: Illitization
-
-  allocate(Illitization)
-  Illitization%name = ''
-  Illitization%print_me = PETSC_FALSE
-  Illitization%test = PETSC_FALSE
-  nullify(Illitization%illitization_function)
-
-  IllitizationCreate => Illitization
-
-end function IllitizationCreate
-
-! ************************************************************************** !
-
-function BufferErosionCreate()
-  !
-  ! Creates an object for a buffer erosion model
-  !
-  ! Author: Alex Salazar III
-  ! Date: 01/20/2022
-  !
-  implicit none
-
-  class(buffer_erosion_type), pointer :: BufferErosionCreate
-  class(buffer_erosion_type), pointer :: BufferErosion
-
-  allocate(BufferErosion)
-  BufferErosion%name = ''
-  BufferErosion%print_me = PETSC_FALSE
-  BufferErosion%test = PETSC_FALSE
-  ! nullify(BufferErosion%buffer_erosion_model)
-
-  BufferErosionCreate => BufferErosion
-
-end function BufferErosionCreate
-
-! ************************************************************************** !
-
-subroutine MaterialTransformRead(this, input, option)
-  !
-  ! Reads in components of a MATERIAL_TRANSFORM block
-  !
-  ! Author: Alex Salazar III
-  ! Date: 11/09/2021
-  !
-  use Option_module
-  use Input_Aux_module
-  use String_module
-
-  implicit none
-
-  class(material_transform_type) :: this
-  type(input_type), pointer :: input
-  type(option_type) :: option
-
-  character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
-
-  input%ierr = 0
-  error_string = 'MATERIAL_TRANSFORM "'//trim(this%name)//'"'
-  call InputPushBlock(input,option)
-  do
-    call InputReadPflotranString(input,option)
-
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)
-
-    select case(trim(keyword))
-      !------------------------------------------
-      case('ILLITIZATION')
-        this%illitization => IllitizationCreate()
-        call IllitizationRead(this%illitization,input,option)
-      !------------------------------------------
-      case('BUFFER_EROSION')
-        this%buffer_erosion=> BufferErosionCreate()
-        call BufferErosionRead(this%buffer_erosion,input,option)
-      !------------------------------------------
-      case default
-        call InputKeywordUnrecognized(input,keyword, &
-               'MATERIAL_TRANSFORM "'//trim(this%name)//'"',option)
-    end select
-    
-  enddo
-  
-  call InputPopBlock(input,option)
-
-end subroutine MaterialTransformRead
-
-! ************************************************************************** !
-
-subroutine IllitizationRead(this, input, option)
-  !
-  ! Reads in contents of an ILLITIZATION block from MATERIAL_TRANSFORM
-  !
-  ! Author: Alex Salazar III
-  ! Date: 02/26/2021
-  !
-  use Option_module
-  use Input_Aux_module
-  use String_module
-
-  implicit none
-
-  class(illitization_type) :: this
-  type(input_type), pointer :: input
-  type(option_type) :: option
-
-  character(len=MAXWORDLENGTH) :: keyword, word
-  character(len=MAXSTRINGLENGTH) :: error_string, verify_string
-  class(illitization_base_type), pointer :: illitization_function_ptr
-
-  nullify(illitization_function_ptr)
-
-  input%ierr = 0
-  error_string = 'ILLITIZATION'
-  
-  if (associated(this%illitization_function)) then
-    option%io_buffer = 'There may only be one instance of '// &
-                       'ILLITIZATION_FUNCTION in ILLITIZATION "'// &
-                       trim(this%name)//'".'
-    call PrintErrMsg(option)
-  endif
-  
-  call InputPushBlock(input,option)
-  do
-
-    call InputReadPflotranString(input,option)
-
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)
-
-    select case(trim(keyword))
-      !------------------------------------------
-      case('ILLITIZATION_FUNCTION')
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option, &
-             'ILLITIZATION_FUNCTION',error_string)
-        call StringToUpper(word)
-        select case(word)
-          !-------------------------------------
-          case('DEFAULT','HUANG')
-            this%illitization_function => ILTDefaultCreate()
-          !-------------------------------------
-          case('GENERAL','CUADROS_AND_LINARES')
-            this%illitization_function => ILTGeneralCreate()
-          !-------------------------------------
-          case default
-            call InputKeywordUnrecognized(input,word, &
-                 'ILLITIZATION_FUNCTION',option)
-        end select
-        call ILTRead(this%illitization_function,input,option)
-      !------------------------------------------
-      case('TEST')
-        this%test = PETSC_TRUE
-      !------------------------------------------
-      case default
-        call InputKeywordUnrecognized(input,keyword,'ILLITIZATION',option)
-    end select
-  enddo
-  call InputPopBlock(input,option)
-
-  verify_string = 'ILLITIZATION(' // trim(this%name) // '),'
-
-  if (associated(this%illitization_function)) then
-    call this%illitization_function%Verify(verify_string,option)
-  else
-    option%io_buffer = 'A illitization function has &
-         &not been set under ILLITIZATION "' // &
-         trim(this%name) // '". An ILLITIZATION_FUNCTION &
-         &block must be specified.'
-  endif
-
-end subroutine IllitizationRead
-
-! ************************************************************************** !
-
-subroutine BufferErosionRead(this, input, option)
-  !
-  ! Reads in contents of a BUFFER_EROSION block from MATERIAL_TRANSFORM
-  !
-  ! Author: Alex Salazar III
-  ! Date: 01/20/2022
-  !
-  use Option_module
-  use Input_Aux_module
-  use String_module
-
-  implicit none
-
-  class(buffer_erosion_type) :: this
-  type(input_type), pointer :: input
-  type(option_type) :: option
-
-  character(len=MAXWORDLENGTH) :: keyword, word
-  character(len=MAXSTRINGLENGTH) :: error_string, verify_string
-  ! class(buffer_erosion_base_type), pointer :: buffer_erosion_model_ptr
-
-  ! nullify(buffer_erosion_model_ptr)
-
-  input%ierr = 0
-  error_string = 'BUFFER_EROSION'
-  
-  ! if (associated(this%buffer_erosion_model)) then
-  !   option%io_buffer = 'There may only be one instance of '// &
-  !                      'BUFFER_EROSION_MODEL in BUFFER_EROSION "'// &
-  !                      trim(this%name)//'".'
-  !   call PrintErrMsg(option)
-  ! endif
-  
-  call InputPushBlock(input,option)
-  do
-
-    call InputReadPflotranString(input,option)
-
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)
-
-    select case(trim(keyword))
-      !------------------------------------------
-      case('BUFFER_EROSION_MODEL')
-        ! Placeholder for erosion models
-      !------------------------------------------
-      case('TEST')
-        this%test = PETSC_TRUE
-      !------------------------------------------
-      case default
-        call InputKeywordUnrecognized(input,keyword,'BUFFER_EROSION',option)
-    end select
-  enddo
-  call InputPopBlock(input,option)
-
-  verify_string = 'BUFFER_EROSION(' // trim(this%name) // '),'
-
-  ! if (associated(this%buffer_erosion_model)) then
-  !   call this%buffer_erosion_model%Verify(verify_string,option)
-  ! else
-  !   option%io_buffer = 'A buffer erosion model has &
-  !        &not been set under BUFFER_EROSION "' // &
-  !        trim(this%name) // '". A BUFFER_EROSION_MODEL &
-  !        &block must be specified.'
-  ! endif
-
-end subroutine BufferErosionRead
-
-! ************************************************************************** !
-
-subroutine ILTRead(illitization_function, input, option)
-  !
-  ! Reads in contents of a ILLITIZATION_FUNCTION block
-  !
-  ! Author: Alex Salazar III
-  ! Date: 02/26/2021
-  !
-  use Option_module
-  use Input_Aux_module
-  use String_module
-
-  implicit none
-
-  class(illitization_base_type) :: illitization_function
-  type(input_type), pointer :: input
-  type(option_type) :: option
-
-  character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
-
-  input%ierr = 0
-  error_string = 'ILLITIZATION_FUNCTION,'
-  select type(ilf => illitization_function)
-    class is(ILT_default_type)
-      error_string = trim(error_string) // 'DEFAULT'
-    class is(ILT_general_type)
-      error_string = trim(error_string) // 'GENERAL'
-  end select
-  
-  call InputPushBlock(input,option)
-  do
-    call InputReadPflotranString(input,option)
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)
-
-    select type(ilf => illitization_function)
-      !------------------------------------------
-      class is(ILT_default_type)
-        select case(trim(keyword))
-          case default
-            call ILTDefaultRead(ilf,input,keyword,error_string,'DEFAULT',option)
-        end select
-      !------------------------------------------
-      class is(ILT_general_type)
-        select case(trim(keyword))
-          case('K_EXP')
-            ! Exponent of potassium cation concentration
-            call InputReadDouble(input,option,ilf%K_exp)
-            call InputErrorMsg(input,option,'potassium concentration exponent',&
-                               'ILLITIZATION, GENERAL')
-          case('SMECTITE_EXP')
-            ! Exponent of smectite fraction
-            call InputReadDouble(input,option,ilf%exp)
-            call InputErrorMsg(input,option,'smectite exponent', &
-                               'ILLITIZATION, GENERAL')
-          case default
-            call ILTDefaultRead(ilf,input,keyword,error_string,'GENERAL',option)
-        end select
-      !------------------------------------------
-      class default
-        option%io_buffer = 'Read routine not implemented for ' &
-             // trim(error_string) // '.'
-        call PrintErrMsg(option)
-    end select
-  enddo
-  call InputPopBlock(input,option)
-
-end subroutine ILTRead
-
-! ************************************************************************** !
-
-subroutine ILTBaseRead(ilf, input, keyword, error_string, kind, option)
-  !
-  ! Reads in contents of ILLITIZATION_FUNCTION block for the illitization 
-  !   base class
-  !
-  ! Author: Alex Salazar III
-  ! Date: 02/26/2021
-  !
-  use Option_module
-  use Input_Aux_module
-  use String_module
-
-  class(illitization_base_type) :: ilf
-  type(input_type), pointer :: input
-  character(len=MAXWORDLENGTH)   :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=*)  :: kind
-  type(option_type) :: option
-  
-  PetscInt :: i, j
-  PetscReal :: a, b, v1, v2, v3, r1, r2
-  PetscInt, parameter :: MAX_KD_SIZE = 100
-  character(len=MAXWORDLENGTH) :: word
-  class(ILT_kd_effects_type), pointer :: shift_kd_list
-  class(ILT_perm_effects_type), pointer :: shift_perm
-  PetscReal :: f_kd(MAX_KD_SIZE,10), f_perm(10)
-  PetscInt :: f_kd_mode_size(MAX_KD_SIZE), f_perm_mode_size
-  character(len=MAXWORDLENGTH) :: f_kd_element(MAX_KD_SIZE)
-  character(len=MAXWORDLENGTH) :: f_kd_mode(MAX_KD_SIZE), f_perm_mode
-
-  select case(keyword)
-    case('SMECTITE_INITIAL')
-      ! Initial fraction of smectite in the smectite/illite mixture
-      call InputReadDouble(input,option,ilf%fs0)
-      call InputErrorMsg(input,option,'initial smectite fraction', &
-                         'ILLITIZATION, '//trim(kind)//'')
-    case('THRESHOLD_TEMPERATURE')
-      ! Specifies the temperature threshold for activating illitization
-      call InputReadDouble(input,option, &
-                           ilf%threshold)
-      call InputErrorMsg(input,option,'temperature threshold', &
-                         'ILLITIZATION, '//trim(kind)//'')
-      call InputReadAndConvertUnits(input,ilf%threshold,'C', &
-                                    'ILLITIZATION, '//trim(kind)// &
-                                    ', temperature threshold',option)
-    case('SHIFT_PERM')
-      ! Functions and parameters modifying the permeability using elements
-      !   from the illitization model
-      shift_perm => ILTPermEffectsCreate()
-      f_perm_mode = ''
-      f_perm_mode_size = 0
-      f_perm(:) = UNINITIALIZED_DOUBLE
-      
-      ! Function type
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,'f_perm function type', &
-                         error_string)
-      f_perm_mode = word
-      
-      ! Function parameters
-      select case(f_perm_mode)
-        case ('DEFAULT','LINEAR')
-          f_perm_mode_size = 1
-          call InputReadDouble(input,option,f_perm(1))
-          call InputErrorMsg(input,option,'f_perm(1), DEFAULT/LINEAR', &
-                             error_string)
-          ! Check user values
-          if (f_perm(1) < -1.0d+0) then
-            option%io_buffer = 'Function parameter #1 in "' &
-                             // trim(f_perm_mode) &
-                             //'" must not be less than -1 for ' &
-                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
-            call PrintErrMsg(option)
-          endif
-        case ('QUADRATIC')
-          f_perm_mode_size = 2
-          call InputReadDouble(input,option,f_perm(1))
-          call InputErrorMsg(input,option,'f_perm(1), QUADRATIC',error_string)
-          call InputReadDouble(input,option,f_perm(2))
-          call InputErrorMsg(input,option,'f_perm(2), QUADRATIC',error_string)
-          ! Check user values
-          a = f_perm(1)
-          b = f_perm(2)
-          v1 = 1 + a + b    ! value at x = 1
-          v2 = a + 2*b      ! slope at x = 1
-          v3 = a**2 - 4*a*b ! check for real roots
-          if (v1 < 0.d0) then ! negative values
-            option%io_buffer = 'Function parameters in "' &
-                             // trim(f_perm_mode) //'" cannot result ' &
-                             //'in a negative value at 100% illite for ' &
-                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
-            call PrintErrMsg(option)
-          endif
-          if (a > 0.d0 .and. v2 < 0.d0) then ! positive monotonic
-            option%io_buffer = 'Function parameters in "'//trim(f_perm_mode) &
-                             //'" must provide monotonic results for ' &
-                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
-            call PrintErrMsg(option)
-          endif
-          if (a < 0.d0 .and. v2 > 0.d0) then ! negative monotonic
-            option%io_buffer = 'Function parameters in "'//trim(f_perm_mode) &
-                             //'" must provide monotonic results for ' &
-                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
-            call PrintErrMsg(option)
-          endif
-          if (v3 > 0) then ! roots between 0 and 1
-            r1 = (-1*a - sqrt(v3))/(2*b)
-            r2 = (-1*a + sqrt(v3))/(2*b)
-            if ((r1 >= 0.d0 .and. r1 < 1.d0) .or. & 
-                (r2 >= 0.d0 .and. r2 < 1.d0)) then
-              option%io_buffer = 'Function parameters in "'//trim(f_perm_mode) &
-                               //'" must not have roots between 0 and 1 for ' &
-                               //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
-              call PrintErrMsg(option)
-            endif
-          endif
-        case ('POWER')
-          f_perm_mode_size = 2
-          call InputReadDouble(input,option,f_perm(1))
-          call InputErrorMsg(input,option,'f_perm(1), POWER',error_string)
-          call InputReadDouble(input,option,f_perm(2))
-          call InputErrorMsg(input,option,'f_perm(2), POWER',error_string)
-          ! Check user values
-          a = f_perm(1)
-          b = f_perm(2)
-          v1 = 1 + a ! value at x = 1
-          if (v1 < 0.d0) then
-            option%io_buffer = 'Function parameters in "' &
-                             // trim(f_perm_mode) //'" cannot result ' &
-                             //'in a negative value at 100% illite for ' &
-                             //'SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
-            call PrintErrMsg(option)
-          endif
-          if (b <= 0.d0) then
-            option%io_buffer = 'Function parameter #2 in "' &
-                             // trim(f_perm_mode) //'" must be greater than ' &
-                             //'zero for SHIFT_PERM in ILLITIZATION, ' &
-                             //trim(kind)//'.'
-            call PrintErrMsg(option)
-          endif
-        case ('EXPONENTIAL')
-          f_perm_mode_size = 1
-          call InputReadDouble(input,option,f_perm(1))
-          call InputErrorMsg(input,option,'f_perm(1), EXPONENTIAL',error_string)
-        case default
-          option%io_buffer = 'Permeability modification function "' &
-                           // trim(f_perm_mode) &
-                           //'" was not found among the available options ' &
-                           //'for SHIFT_PERM in ILLITIZATION, '//trim(kind)//'.'
-          call PrintErrMsg(option)
-      end select
-      
-      if (f_perm_mode_size == 0) then
-        option%io_buffer = 'No function parameters were specified &
-          &for SHIFT_PERM in ' // trim(error_string) // '.'
-        call PrintErrMsg(option)
-      endif
-      
-      allocate(shift_perm%f_perm(f_perm_mode_size))
-      shift_perm%f_perm = f_perm(1:f_perm_mode_size)
-      allocate(shift_perm%f_perm_mode)
-      shift_perm%f_perm_mode = f_perm_mode
-      
-      ilf%shift_perm => shift_perm
-      
-      nullify(shift_perm)
-      
-    case('SHIFT_KD')
-      ! Functions and parameters modifying selected kd values using elements
-      !   from the illitization model
-      shift_kd_list => ILTKdEffectsCreate()
-      i = 0
-      f_kd_mode_size(:) = 0
-      f_kd(:,:) = UNINITIALIZED_DOUBLE
-      f_kd_mode(:) = ''
-      f_kd_element(:) = ''
-      
-      call InputPushBlock(input,option)
-      
-      do
-        call InputReadPflotranString(input,option)
-        if (InputError(input)) exit
-        if (InputCheckExit(input,option)) exit
-        i = i + 1
-        if (i > MAX_KD_SIZE) then
-          write(word,*) i-1
-          option%io_buffer = 'f_kd array in ILLITIZATION must be' &
-            //'allocated larger than ' // trim(adjustl(word)) &
-            //' under SHIFT_KD in' // trim(error_string) // '.'
-          call PrintErrMsg(option)
-        endif
-        
-        ! Element
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'f_kd element symbol', &
-                           error_string)
-        f_kd_element(i) = word
-        
-        ! Function type
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'f_kd function type', &
-                           error_string)
-        f_kd_mode(i) = word
-        
-        ! Function parameters
-        select case(f_kd_mode(i))
-          case ('DEFAULT','LINEAR')
-            f_kd_mode_size(i) = 1
-            call InputReadDouble(input,option,f_kd(i,1))
-            call InputErrorMsg(input,option,'f_kd(*,1), DEFAULT/LINEAR', &
-                               error_string)
-            
-            ! Check user values
-            if (f_kd(i,1) < -1.0d+0) then
-              option%io_buffer = 'Function parameter #1 in "' &
-                               // trim(f_kd_mode(i)) // '" for element "'&
-                               // trim(f_kd_element(i)) &
-                               //'" must not be less than -1 for ' &
-                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
-              call PrintErrMsg(option)
-              
-            endif
-          case ('QUADRATIC')
-            f_kd_mode_size(i) = 2
-            call InputReadDouble(input,option,f_kd(i,1))
-            call InputErrorMsg(input,option,'f_kd(*,1), QUADRATIC',error_string)
-            call InputReadDouble(input,option,f_kd(i,2))
-            call InputErrorMsg(input,option,'f_kd(*,2), QUADRATIC',error_string)
-            ! Check user values
-            a = f_kd(i,1)
-            b = f_kd(i,2)
-            v1 = 1 + a + b    ! value at x = 1
-            v2 = a + 2*b      ! slope at x = 1
-            v3 = a**2 - 4*a*b ! check for real roots
-            if (v1 < 0.d0) then ! negative values
-              option%io_buffer = 'Function parameters in "' &
-                               // trim(f_kd_mode(i)) //'" cannot result ' &
-                               //'in a negative value at 100% illite for ' &
-                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
-              call PrintErrMsg(option)
-            endif
-            if (a > 0.d0 .and. v2 < 0.d0) then ! positive monotonic
-              option%io_buffer = 'Function parameters in "' &
-                               // trim(f_kd_mode(i)) &
-                               //'" must provide monotonic results for ' &
-                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
-              call PrintErrMsg(option)
-            endif
-            if (a < 0.d0 .and. v2 > 0.d0) then ! negative monotonic
-              option%io_buffer = 'Function parameters in "' &
-                               // trim(f_kd_mode(i)) &
-                               //'" must provide monotonic results for ' &
-                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
-              call PrintErrMsg(option)
-            endif
-            if (v3 > 0) then ! roots between 0 and 1
-              r1 = (-1*a - sqrt(v3))/(2*b)
-              r2 = (-1*a + sqrt(v3))/(2*b)
-              if ((r1 >= 0.d0 .and. r1 < 1.d0) .or. & 
-                  (r2 >= 0.d0 .and. r2 < 1.d0)) then
-                option%io_buffer = 'Function parameters in "' &
-                                 // trim(f_kd_mode(i)) &
-                                 //'" must not have roots between 0 and 1 for '&
-                                 //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
-                call PrintErrMsg(option)
-              endif
-            endif
-          case ('POWER')
-            f_kd_mode_size(i) = 2
-            call InputReadDouble(input,option,f_kd(i,1))
-            call InputErrorMsg(input,option,'f_kd(*,1), POWER',error_string)
-            call InputReadDouble(input,option,f_kd(i,2))
-            call InputErrorMsg(input,option,'f_kd(*,2), POWER',error_string)
-            ! Check user values
-            a = f_kd(i,1)
-            b = f_kd(i,2)
-            v1 = 1 + a ! value at x = 1
-            if (v1 < 0.d0) then
-              option%io_buffer = 'Function parameters in "' &
-                               // trim(f_kd_mode(i)) //'" cannot result ' &
-                               //'in a negative value at 100% illite for ' &
-                               //'SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
-              call PrintErrMsg(option)
-            endif
-            if (b <= 0.d0) then
-              option%io_buffer = 'Function parameter #2 in "' &
-                               // trim(f_kd_mode(i)) //'" must be greater ' &
-                               //'than zero for SHIFT_KD in ILLITIZATION, ' &
-                               //trim(kind)//'.'
-              call PrintErrMsg(option)
-            endif
-          case ('EXPONENTIAL')
-            f_kd_mode_size(i) = 1
-            call InputReadDouble(input,option,f_kd(i,1))
-            call InputErrorMsg(input,option,'f_kd(*,1), EXPONENTIAL', &
-                               error_string)
-          case default
-            option%io_buffer = 'Sorption modification function "' &
-                             // trim(f_kd_mode(i)) // '" for element "'&
-                             // trim(f_kd_element(i)) &
-                             //'" was not found among the available options ' &
-                             //'for SHIFT_KD in ILLITIZATION, '//trim(kind)//'.'
-            call PrintErrMsg(option)
-        end select
-      enddo
-      
-      call InputPopBlock(input,option)
-      
-      if (i == 0) then
-        option%io_buffer = 'No element/function parameter combinations &
-          &specified under SHIFT_KD in ' // trim(error_string) // '.'
-        call PrintErrMsg(option)
-      endif
-      
-      j = maxval(f_kd_mode_size)
-      
-      if (j == 0) then
-        option%io_buffer = 'No function parameters were &
-          &specified under SHIFT_KD in ' // trim(error_string) // '.'
-        call PrintErrMsg(option)
-      endif
-      
-      allocate(shift_kd_list%f_kd(i,j))
-      shift_kd_list%f_kd = f_kd(1:i,1:j)
-      allocate(shift_kd_list%f_kd_element(i))
-      shift_kd_list%f_kd_element = f_kd_element(1:i)
-      allocate(shift_kd_list%f_kd_mode(i))
-      shift_kd_list%f_kd_mode = f_kd_mode(1:i)
-      shift_kd_list%num_elements = i
-      
-      ilf%shift_kd_list => shift_kd_list
-      
-      nullify(shift_kd_list)
-      
-    case default
-      call InputKeywordUnrecognized(input,keyword, &
-           'illitization function ('//trim(kind)//')',option)
-  end select
-
-end subroutine ILTBaseRead
-
-! ************************************************************************** !
-
-subroutine ILTDefaultRead(ilf, input, keyword, error_string, kind, option)
-  !
-  ! Reads in contents of ILLITIZATION_FUNCTION block for illitization
-  !   default class
-  !
-  ! Author: Alex Salazar III
-  ! Date: 10/12/2021
-  !
-  use Option_module
-  use Input_Aux_module
-  use String_module
-
-  class(ILT_default_type) :: ilf
-  type(input_type), pointer :: input
-  character(len=MAXWORDLENGTH)   :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=*)  :: kind
-  type(option_type) :: option
-  
-  select case(keyword)
-    case('EA')
-      ! Activation energy in Arrhenius term
-      call InputReadDouble(input,option,ilf%ea)
-      call InputErrorMsg(input,option,'activation energy', &
-                         'ILLITIZATION, '//trim(kind)//'')
-      call InputReadAndConvertUnits(input,ilf%ea, &
-                                    'J/mol','ILLITIZATION, '//trim(kind)// &
-                                    ', activation energy',option)
-    case('FREQ')
-      ! Frequency factor (scaling constant of Arrhenius term)
-      call InputReadDouble(input,option,ilf%freq)
-      call InputErrorMsg(input,option,'frequency term', &
-                         'ILLITIZATION, '//trim(kind)//'')
-      call InputReadAndConvertUnits(input,ilf%freq, &
-                                    'L/s-mol','ILLITIZATION, '//trim(kind)// &
-                                    ', frequency term',option)
-    case('K_CONC')
-      ! Concentration of potassium cation
-      call InputReadDouble(input,option,ilf%K_conc)
-      call InputErrorMsg(input,option,'potassium concentration', &
-                         'ILLITIZATION, '//trim(kind)//'')
-      call InputReadAndConvertUnits(input,ilf%K_conc,'M',&
-                                    'ILLITIZATION, ' //trim(kind)// &
-                                    ', potassium concentration',option)
-    case default
-      call ILTBaseRead(ilf,input,keyword,error_string,kind,option)
-  end select
-
-end subroutine ILTDefaultRead
-
-! ************************************************************************** !
-
 subroutine MaterialTransformAddToList(new_mtf, list)
   !
   ! Populates the next pointer with a new material transform
   !
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
-  !
+
   implicit none
 
   type(material_transform_type), pointer :: new_mtf
@@ -1711,7 +1804,7 @@ subroutine MaterialTransformConvertListToArray(list, array, option)
   !
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
-  !
+
   use String_module
   use Option_module
 
@@ -1772,7 +1865,7 @@ function MaterialTransformGetID(material_transform_array, &
   !
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
-  !
+
   use Option_module
   use String_module
 
@@ -1820,13 +1913,197 @@ end function MaterialTransformGetID
 
 ! ************************************************************************** !
 
+subroutine MaterialTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
+                                            isubvar)
+  !
+  ! Assigns vector location of material transform auxvar data for checkpoint.
+  !
+  ! Author: Alex Salazar III
+  ! Date: 03/10/2022
+
+  use petscvec
+  use Variables_module, only: SMECTITE
+
+  implicit none
+  ! ----------------------------------
+  type(material_transform_type) :: material_transform ! from realization%patch%aux%MT
+  Vec :: vec_loc
+  PetscInt :: ivar
+  PetscInt :: isubvar
+  ! ----------------------------------
+  PetscInt :: ghosted_id
+  PetscReal, pointer :: vec_loc_p(:)
+  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  PetscErrorCode :: ierr
+  ! ----------------------------------
+
+  MT_auxvars => material_transform%auxvars
+  call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+
+  select case(ivar)
+  !-----------------------------
+    case(SMECTITE)
+      do ghosted_id = 1, material_transform%num_aux
+        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+          vec_loc_p(ghosted_id) = MT_auxvars(ghosted_id)%il_aux%fs
+        else
+          vec_loc_p(ghosted_id) = UNINITIALIZED_DOUBLE
+        endif
+      enddo
+  end select
+
+  call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+
+end subroutine MaterialTransformGetAuxVarVecLoc
+
+! ************************************************************************** !
+
+subroutine MaterialTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
+                                            isubvar)
+  !
+  ! Retrieves material transform auxvar data using a vector for restart.
+  !
+  ! Author: Alex Salazar III
+  ! Date: 03/10/2022
+
+  use petscvec
+  use Variables_module, only: SMECTITE
+
+  implicit none
+  ! ----------------------------------
+  type(material_transform_type) :: material_transform ! from realization%patch%aux%MT
+  Vec :: vec_loc
+  PetscInt :: ivar
+  PetscInt :: isubvar
+  ! ----------------------------------
+  PetscInt :: ghosted_id
+  PetscReal, pointer :: vec_loc_p(:)
+  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  PetscErrorCode :: ierr
+  ! ----------------------------------
+
+  MT_auxvars => material_transform%auxvars
+  call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+
+  select case(ivar)
+  !-----------------------------
+    case(SMECTITE)
+      do ghosted_id = 1, material_transform%num_aux
+        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+          MT_auxvars(ghosted_id)%il_aux%fs = vec_loc_p(ghosted_id)
+        endif
+      enddo
+  end select
+
+  call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
+
+end subroutine MaterialTransformSetAuxVarVecLoc
+
+! ************************************************************************** !
+
+subroutine ILTPrintKdEffects(ilf)
+  !
+  ! Adds details on kd parameters to the input record file
+  !
+  ! Author: Alex Salazar III
+  ! Date: 11/15/2021
+
+  implicit none
+
+  class(illitization_base_type) :: ilf
+
+  class(ILT_kd_effects_type), pointer :: kdl
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id = INPUT_RECORD_UNIT
+  PetscInt :: i, j, k
+
+  if (.not. associated(ilf%shift_kd_list)) return
+
+  j = 0
+  kdl => ilf%shift_kd_list
+
+  write(id,'(a29)',advance='no') 'shift (kd): '
+  do i = 1, kdl%num_elements
+    if (.not. i == 1) then
+      write(id,'(a29)',advance='no') ""
+    endif
+    write(word,'(a)') kdl%f_kd_element(i)
+    write(id,'(a)',advance='no') adjustl(trim(word))//" "
+    write(word,'(a)') kdl%f_kd_mode(i)
+    write(id,'(a)',advance='no') adjustl(trim(word))
+    select case(kdl%f_kd_mode(i))
+      case ('DEFAULT','LINEAR')
+        j = 1
+      case ('QUADRATIC')
+        j = 2
+      case ('POWER')
+        j = 2
+      case ('EXPONENTIAL')
+        j = 1
+    end select
+    do k = 1, j
+      write(word,'(es12.5)') kdl%f_kd(i,k)
+      write(id,'(a)',advance='no') " "//adjustl(trim(word))
+    enddo
+    write(id,'(a)')
+  enddo
+
+end subroutine ILTPrintKdEffects
+
+! ************************************************************************** !
+
+subroutine ILTPrintPermEffects(ilf)
+  !
+  ! Adds details on permeability parameters to the input record file
+  !
+  ! Author: Alex Salazar III
+  ! Date: 11/15/2021
+
+  implicit none
+
+  class(illitization_base_type) :: ilf
+
+  class(ILT_perm_effects_type), pointer :: perm
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id = INPUT_RECORD_UNIT
+  PetscInt :: j, k
+
+  if (.not. associated(ilf%shift_perm)) return
+
+  j = 0
+  perm => ilf%shift_perm
+
+  write(id,'(a29)',advance='no') 'shift (permeability): '
+  perm => ilf%shift_perm
+  write(word,'(a)') perm%f_perm_mode
+  write(id,'(a)',advance='no') adjustl(trim(word))
+  select case(perm%f_perm_mode)
+    case ('DEFAULT','LINEAR')
+      j = 1
+    case ('QUADRATIC')
+      j = 2
+    case ('POWER')
+      j = 2
+    case ('EXPONENTIAL')
+      j = 1
+  end select
+  do k = 1, j
+    write(word,'(es12.5)') perm%f_perm(k)
+    write(id,'(a)',advance='no') " "//adjustl(trim(word))
+  enddo
+  write(id,'(a)')
+
+end subroutine ILTPrintPermEffects
+
+! ************************************************************************** !
+
 subroutine MaterialTransformInputRecord(material_transform_list)
   !
   ! Adds details on material transform functions to the input record file
   !
   ! Author: Alex Salazar III
   ! Date: 02/26/2021
-  !
+
   implicit none
 
   type(material_transform_type), pointer :: material_transform_list
@@ -1838,7 +2115,7 @@ subroutine MaterialTransformInputRecord(material_transform_list)
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
   PetscInt :: i, j, k
-  
+
   write(id,'(a)') ' '
   write(id,'(a)') '---------------------------------------------------------&
        &-----------------------'
@@ -1848,7 +2125,7 @@ subroutine MaterialTransformInputRecord(material_transform_list)
   cur_mtf => material_transform_list
   do
     if (.not. associated(cur_mtf)) exit
-    
+
     write(id,'(a29)',advance='no') 'material transform name: '
     write(id,'(a)') adjustl(trim(cur_mtf%name))
 
@@ -1914,250 +2191,22 @@ end subroutine MaterialTransformInputRecord
 
 ! ************************************************************************** !
 
-subroutine ILTPrintKdEffects(ilf)
+subroutine ILTDestroy(ilf)
   !
-  ! Adds details on kd parameters to the input record file
-  !
-  ! Author: Alex Salazar III
-  ! Date: 11/15/2021
-  !
-  implicit none
-
-  class(illitization_base_type) :: ilf
-  
-  class(ILT_kd_effects_type), pointer :: kdl
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: id = INPUT_RECORD_UNIT
-  PetscInt :: i, j, k
-  
-  if (.not. associated(ilf%shift_kd_list)) return
-  
-  j = 0
-  kdl => ilf%shift_kd_list
-  
-  write(id,'(a29)',advance='no') 'shift (kd): '
-  do i = 1, kdl%num_elements
-    if (.not. i == 1) then
-      write(id,'(a29)',advance='no') ""
-    endif
-    write(word,'(a)') kdl%f_kd_element(i)
-    write(id,'(a)',advance='no') adjustl(trim(word))//" "
-    write(word,'(a)') kdl%f_kd_mode(i)
-    write(id,'(a)',advance='no') adjustl(trim(word))
-    select case(kdl%f_kd_mode(i))
-      case ('DEFAULT','LINEAR')
-        j = 1
-      case ('QUADRATIC')
-        j = 2
-      case ('POWER')
-        j = 2
-      case ('EXPONENTIAL')
-        j = 1
-    end select
-    do k = 1, j
-      write(word,'(es12.5)') kdl%f_kd(i,k)
-      write(id,'(a)',advance='no') " "//adjustl(trim(word))
-    enddo
-    write(id,'(a)')
-  enddo
-
-end subroutine ILTPrintKdEffects
-
-! ************************************************************************** !
-
-subroutine ILTPrintPermEffects(ilf)
-  !
-  ! Adds details on permeability parameters to the input record file
+  ! Deallocates an illitization function object
   !
   ! Author: Alex Salazar III
-  ! Date: 11/15/2021
-  !
-  implicit none
-
-  class(illitization_base_type) :: ilf
-  
-  class(ILT_perm_effects_type), pointer :: perm
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: id = INPUT_RECORD_UNIT
-  PetscInt :: j, k
-  
-  if (.not. associated(ilf%shift_perm)) return
-  
-  j = 0
-  perm => ilf%shift_perm
-  
-  write(id,'(a29)',advance='no') 'shift (permeability): '
-  perm => ilf%shift_perm
-  write(word,'(a)') perm%f_perm_mode
-  write(id,'(a)',advance='no') adjustl(trim(word))
-  select case(perm%f_perm_mode)
-    case ('DEFAULT','LINEAR')
-      j = 1
-    case ('QUADRATIC')
-      j = 2
-    case ('POWER')
-      j = 2
-    case ('EXPONENTIAL')
-      j = 1
-  end select
-  do k = 1, j
-    write(word,'(es12.5)') perm%f_perm(k)
-    write(id,'(a)',advance='no') " "//adjustl(trim(word))
-  enddo
-  write(id,'(a)')
-
-end subroutine ILTPrintPermEffects
-
-! ************************************************************************** !
-
-subroutine MaterialTransformAuxVarInit(auxvar)
-  !
-  ! Initializes a material transform auxiliary object
-  !
-  ! Author: Alex Salazar III
-  ! Date: 02/10/2022
-  !
+  ! Date: 02/26/2021
 
   implicit none
 
-  type(material_transform_auxvar_type) :: auxvar
+  class(illitization_base_type), pointer :: ilf
 
-  nullify(auxvar%il_aux)
-  nullify(auxvar%be_aux)
+  if (.not. associated(ilf)) return
+  deallocate(ilf)
+  nullify(ilf)
 
-end subroutine MaterialTransformAuxVarInit
-
-! ************************************************************************** !
-
-subroutine MaterialTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
-                                            isubvar)
-  !
-  ! Assigns vector location of material transform auxvar data for checkpoint.
-  !
-  ! Author: Alex Salazar III
-  ! Date: 03/10/2022
-  !
-
-  use petscvec
-  use Variables_module, only: SMECTITE
-
-  implicit none
-  ! ----------------------------------
-  type(material_transform_type) :: material_transform ! from realization%patch%aux%MT
-  Vec :: vec_loc
-  PetscInt :: ivar
-  PetscInt :: isubvar
-  ! ----------------------------------
-  PetscInt :: ghosted_id
-  PetscReal, pointer :: vec_loc_p(:)
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
-  PetscErrorCode :: ierr
-  ! ----------------------------------
-
-  MT_auxvars => material_transform%auxvars
-  call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
-
-  select case(ivar)
-  !-----------------------------
-    case(SMECTITE)
-      do ghosted_id = 1, material_transform%num_aux
-        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
-          vec_loc_p(ghosted_id) = MT_auxvars(ghosted_id)%il_aux%fs
-        else
-          vec_loc_p(ghosted_id) = UNINITIALIZED_DOUBLE
-        endif
-      enddo
-  end select
-
-  call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
-
-end subroutine MaterialTransformGetAuxVarVecLoc
-
-! ************************************************************************** !
-
-subroutine MaterialTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
-                                            isubvar)
-  !
-  ! Retrieves material transform auxvar data using a vector for restart.
-  !
-  ! Author: Alex Salazar III
-  ! Date: 03/10/2022
-  !
-
-  use petscvec
-  use Variables_module, only: SMECTITE
-
-  implicit none
-  ! ----------------------------------
-  type(material_transform_type) :: material_transform ! from realization%patch%aux%MT
-  Vec :: vec_loc
-  PetscInt :: ivar
-  PetscInt :: isubvar
-  ! ----------------------------------
-  PetscInt :: ghosted_id
-  PetscReal, pointer :: vec_loc_p(:)
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
-  PetscErrorCode :: ierr
-  ! ----------------------------------
-
-  MT_auxvars => material_transform%auxvars
-  call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
-
-  select case(ivar)
-  !-----------------------------
-    case(SMECTITE)
-      do ghosted_id = 1, material_transform%num_aux
-        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
-          MT_auxvars(ghosted_id)%il_aux%fs = vec_loc_p(ghosted_id) 
-        endif
-      enddo
-  end select
-
-  call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
-
-end subroutine MaterialTransformSetAuxVarVecLoc
-
-! ************************************************************************** !
-
-function IllitizationAuxVarInit(option)
-  !
-  ! Initializes an illitization auxiliary object
-  !
-  ! Author: Alex Salazar III
-  ! Date: 02/10/2022
-  !
-
-  use Option_module
-
-  implicit none
-
-  class(illitization_auxvar_type), pointer :: IllitizationAuxVarInit
-  class(illitization_auxvar_type), pointer :: auxvar
-  type(option_type) :: option
-
-  allocate(auxvar)
-  ! auxvar%il_aux%initial_pressure = UNINITIALIZED_DOUBLE
-  auxvar%fs0    = 1.0d+0               ! initial fraction of smectite in material
-  auxvar%fs     = UNINITIALIZED_DOUBLE ! fraction of smectite in material
-  auxvar%fi     = UNINITIALIZED_DOUBLE ! fraction of illite in material
-  auxvar%ts     = UNINITIALIZED_DOUBLE ! track time of last change in smectite
-  auxvar%scale  = UNINITIALIZED_DOUBLE ! scale factor
-  auxvar%qperm0 = PETSC_FALSE          ! save initial permeability
-
-  if (option%iflowmode /= NULL_MODE) then
-    if (option%flow%full_perm_tensor) then
-      allocate(auxvar%perm0(6))
-    else
-      allocate(auxvar%perm0(3))
-    endif
-    auxvar%perm0 = UNINITIALIZED_DOUBLE
-  else
-    ! nullify(auxvar%perm0)
-  endif
-
-  IllitizationAuxVarInit => auxvar
-
-end function IllitizationAuxVarInit
+end subroutine ILTDestroy
 
 ! ************************************************************************** !
 
@@ -2167,7 +2216,7 @@ subroutine IllitizationAuxVarStrip(auxvar)
   !
   ! Author: Alex Salazar III
   ! Date: 02/10/2022
-  !
+
 
   use Utility_module, only : DeallocateArray
 
@@ -2176,7 +2225,7 @@ subroutine IllitizationAuxVarStrip(auxvar)
   class(illitization_auxvar_type), pointer :: auxvar
 
   if (.not. associated(auxvar)) return
-  
+
   if (allocated(auxvar%perm0)) then
     deallocate(auxvar%perm0)
   endif
@@ -2188,34 +2237,12 @@ end subroutine IllitizationAuxVarStrip
 
 ! ************************************************************************** !
 
-function BufferErosionAuxVarInit()
-  !
-  ! Initializes a buffer erosion auxiliary object
-  !
-  ! Author: Alex Salazar III
-  ! Date: 02/10/2022
-  !
-
-  implicit none
-
-  class(buffer_erosion_auxvar_type), pointer :: BufferErosionAuxVarInit
-  class(buffer_erosion_auxvar_type), pointer :: auxvar
-
-  allocate(auxvar)
-
-  BufferErosionAuxVarInit => auxvar
-
-end function BufferErosionAuxVarInit
-
-! ************************************************************************** !
-
 subroutine BufferErosionAuxVarStrip(auxvar)
   !
   ! Deallocates a buffer erosion auxiliary object
   !
   ! Author: Alex Salazar III
   ! Date: 02/10/2022
-  !
 
   implicit none
 
@@ -2231,63 +2258,33 @@ end subroutine BufferErosionAuxVarStrip
 ! ************************************************************************** !
 
 subroutine MaterialTransformAuxVarStrip(auxvar)
-  ! 
+  !
   ! Deallocates a material transform auxiliary object
-  ! 
+  !
   ! Author: Alex Salazar
   ! Date: 01/20/2022
-  ! 
 
   implicit none
 
   type(material_transform_auxvar_type) :: auxvar
-  
+
   if (associated(auxvar%il_aux)) then
     call IllitizationAuxVarStrip(auxvar%il_aux)
   endif
   if (associated(auxvar%be_aux)) then
     call BufferErosionAuxVarStrip(auxvar%be_aux)
   endif
-  
+
 end subroutine MaterialTransformAuxVarStrip
 
 ! ************************************************************************** !
 
-recursive subroutine MaterialTransformDestroy(mtf)
-
-  implicit none
-
-  type(material_transform_type), pointer :: mtf
-  
-  PetscInt :: i
-
-  if (.not. associated(mtf)) return
-
-  call MaterialTransformDestroy(mtf%next)
-
-  if (associated(mtf%auxvars)) then
-    do i = 1, size(mtf%auxvars)
-      call MaterialTransformAuxVarStrip(mtf%auxvars(i))
-    enddo
-    deallocate(mtf%auxvars)
-    nullify(mtf%auxvars)
-  endif
-
-  if (associated(mtf%illitization)) then
-    call IllitizationDestroy(mtf%illitization)
-  endif
-  
-  if (associated(mtf%buffer_erosion)) then
-    call BufferErosionDestroy(mtf%buffer_erosion)
-  endif
-
-  nullify(mtf)
-
-end subroutine MaterialTransformDestroy
-
-! ************************************************************************** !
-
 recursive subroutine IllitizationDestroy(illitization)
+  !
+  ! Deallocates an illitization object
+  !
+  ! Author: Alex Salazar III
+  ! Date: 01/20/2022
 
   implicit none
 
@@ -2307,6 +2304,11 @@ end subroutine IllitizationDestroy
 ! ************************************************************************** !
 
 recursive subroutine BufferErosionDestroy(buffer_erosion)
+  !
+  ! Deallocates a buffer erosion object
+  !
+  ! Author: Alex Salazar III
+  ! Date: 01/20/2022
 
   implicit none
 
@@ -2318,5 +2320,44 @@ recursive subroutine BufferErosionDestroy(buffer_erosion)
   nullify(buffer_erosion)
 
 end subroutine BufferErosionDestroy
+
+! ************************************************************************** !
+
+recursive subroutine MaterialTransformDestroy(mtf)
+  !
+  ! Deallocates a material transform object
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/26/2021
+
+  implicit none
+
+  type(material_transform_type), pointer :: mtf
+
+  PetscInt :: i
+
+  if (.not. associated(mtf)) return
+
+  call MaterialTransformDestroy(mtf%next)
+
+  if (associated(mtf%auxvars)) then
+    do i = 1, size(mtf%auxvars)
+      call MaterialTransformAuxVarStrip(mtf%auxvars(i))
+    enddo
+    deallocate(mtf%auxvars)
+    nullify(mtf%auxvars)
+  endif
+
+  if (associated(mtf%illitization)) then
+    call IllitizationDestroy(mtf%illitization)
+  endif
+
+  if (associated(mtf%buffer_erosion)) then
+    call BufferErosionDestroy(mtf%buffer_erosion)
+  endif
+
+  nullify(mtf)
+
+end subroutine MaterialTransformDestroy
 
 end module Material_Transform_module
