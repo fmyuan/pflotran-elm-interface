@@ -1217,7 +1217,8 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   if (associated(patch%aux%MT)) then
     MT_auxvars => patch%aux%MT%auxvars
   endif
-  
+  nullify(material_transform)
+
   dt = option%tran_dt
   one_over_dt = 1.d0 / dt
   call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)

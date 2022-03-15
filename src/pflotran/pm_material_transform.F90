@@ -7,6 +7,7 @@ module PM_Material_Transform_class
 ! ===========================================================================
 
 #include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
   use petscsys
   use PM_Base_class
   use Realization_Subsurface_class
@@ -131,6 +132,17 @@ subroutine PMMaterialTransformSetup(this)
   ! ----------------------------------
   ! LOCAL VARIABLES:
   ! ================
+  ! patch : pointer to patch object within realization
+  ! option : pointer to option object within realization
+  ! grid : pointer to grid object within realization
+  ! mtf : pointer to material transform object within patch
+  ! MT_auxvars : pointer to array of material transform auxiliary variables
+  ! cur_material_property : pointer to material property within realization
+  ! null_material_property : null pointer for regions without materials
+  ! local_id : grid cell id number
+  ! ghosted_id: ghosted grid cell id number
+  ! material_id: id number of material
+  ! ----------------------------------
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -248,7 +260,6 @@ subroutine PMMaterialTransformSetup(this)
   patch%aux%MT%num_aux = grid%ngmax
 
 end subroutine PMMaterialTransformSetup
-
 
 ! ************************************************************************** !
 
@@ -370,6 +381,20 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
   ! --------------------------------
   ! LOCAL VARIABLES:
   ! ================
+  ! patch : pointer to patch object within realization
+  ! option : pointer to option object within realization
+  ! grid : pointer to grid object within realization
+  ! mtf : pointer to material transform object within patch
+  ! material_auxvars: pointer to array of material auxiliary variables
+  ! material aux: pointer to material auxiliary variable object in list
+  ! MT_auxvars : pointer to array of material transform auxiliary variables
+  ! MT_aux: pointer to material transform auxiliary variable object in list
+  ! cur_material_property : pointer to material property within realization
+  ! null_material_property : null pointer for regions without materials
+  ! local_id : grid cell id number
+  ! ghosted_id: ghosted grid cell id number
+  ! material_id: id number of material
+  ! --------------------------------
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -404,9 +429,9 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
         mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
         if (associated(MT_aux%il_aux) .and. associated(mtf)) then
           MT_aux%il_aux%fs0 = &
-            mtf%illitization%illitization_function%ilt_fs0
+            mtf%illitization%illitization_function%fs0
           MT_aux%il_aux%fs = &
-            mtf%illitization%illitization_function%ilt_fs0
+            mtf%illitization%illitization_function%fs0
         endif
         nullify(mtf)
       endif
@@ -479,7 +504,6 @@ recursive subroutine PMMaterialTransformFinalizeRun(this)
   endif  
 
 end subroutine PMMaterialTransformFinalizeRun
-
 
 ! ************************************************************************** !
 
@@ -572,6 +596,20 @@ subroutine PMMaterialTransformSolve(this,time,ierr)
   ! ---------------------------------
   ! LOCAL VARIABLES:
   ! ================
+  ! patch : pointer to patch object within realization
+  ! option : pointer to option object within realization
+  ! grid : pointer to grid object within realization
+  ! mtf : pointer to material transform object within patch
+  ! material_auxvars: pointer to array of material auxiliary variables
+  ! material aux: pointer to material auxiliary variable object in list
+  ! global_auxvars: pointer to array of global auxiliary variables
+  ! global aux: pointer to global auxiliary variable object in list
+  ! MT_auxvars : pointer to array of material transform auxiliary variables
+  ! MT_aux: pointer to material transform auxiliary variable object in list
+  ! local_id : grid cell id number
+  ! ghosted_id: ghosted grid cell id number
+  ! material_id: id number of material
+  ! ---------------------------------
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -627,7 +665,6 @@ subroutine PMMaterialTransformSolve(this,time,ierr)
 
   enddo
 
-
   ierr = 0
 
 end subroutine PMMaterialTransformSolve
@@ -641,7 +678,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this,pm_grp_id)
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
   !
-#include "petsc/finclude/petscvec.h"
+
   use petscvec
   use Option_module
   use Realization_Subsurface_class
@@ -861,7 +898,7 @@ subroutine PMMaterialTransformRestartHDF5(this,pm_grp_id)
   ! Author: Alex Salazar III
   ! Date: 01/20/2022
   !
-#include "petsc/finclude/petscvec.h"
+
   use petscvec
   use Option_module
   use Realization_Subsurface_class
