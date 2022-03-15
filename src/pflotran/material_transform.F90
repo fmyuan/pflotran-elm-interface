@@ -405,7 +405,8 @@ end subroutine MaterialTransformAuxVarInit
 
 ! ************************************************************************** !
 
-subroutine ILTBaseRead(ilf, input, keyword, error_string, kind, option)
+subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
+                       kind, option)
   !
   ! Reads in contents of ILLITIZATION_FUNCTION block for the illitization
   !   base class
@@ -417,7 +418,7 @@ subroutine ILTBaseRead(ilf, input, keyword, error_string, kind, option)
   use Input_Aux_module
   use String_module
 
-  class(illitization_base_type) :: ilf
+  class(illitization_base_type) :: illitization_function
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH)   :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
@@ -438,16 +439,15 @@ subroutine ILTBaseRead(ilf, input, keyword, error_string, kind, option)
   select case(keyword)
     case('SMECTITE_INITIAL')
       ! Initial fraction of smectite in the smectite/illite mixture
-      call InputReadDouble(input,option,ilf%fs0)
+      call InputReadDouble(input,option,illitization_function%fs0)
       call InputErrorMsg(input,option,'initial smectite fraction', &
                          'ILLITIZATION, '//trim(kind)//'')
     case('THRESHOLD_TEMPERATURE')
       ! Specifies the temperature threshold for activating illitization
-      call InputReadDouble(input,option, &
-                           ilf%threshold)
+      call InputReadDouble(input,option,illitization_function%threshold)
       call InputErrorMsg(input,option,'temperature threshold', &
                          'ILLITIZATION, '//trim(kind)//'')
-      call InputReadAndConvertUnits(input,ilf%threshold,'C', &
+      call InputReadAndConvertUnits(input,illitization_function%threshold,'C', &
                                     'ILLITIZATION, '//trim(kind)// &
                                     ', temperature threshold',option)
     case('SHIFT_PERM')
@@ -568,7 +568,7 @@ subroutine ILTBaseRead(ilf, input, keyword, error_string, kind, option)
       allocate(shift_perm%f_perm_mode)
       shift_perm%f_perm_mode = f_perm_mode
 
-      ilf%shift_perm => shift_perm
+      illitization_function%shift_perm => shift_perm
 
       nullify(shift_perm)
 
@@ -735,7 +735,7 @@ subroutine ILTBaseRead(ilf, input, keyword, error_string, kind, option)
       shift_kd_list%f_kd_mode = f_kd_mode(1:i)
       shift_kd_list%num_elements = i
 
-      ilf%shift_kd_list => shift_kd_list
+      illitization_function%shift_kd_list => shift_kd_list
 
       nullify(shift_kd_list)
 
@@ -748,7 +748,8 @@ end subroutine ILTBaseRead
 
 ! ************************************************************************** !
 
-subroutine ILTDefaultRead(ilf, input, keyword, error_string, kind, option)
+subroutine ILTDefaultRead(illitization_function, input, keyword, error_string, &
+                          kind, option)
   !
   ! Reads in contents of ILLITIZATION_FUNCTION block for illitization
   !   default class
@@ -760,7 +761,7 @@ subroutine ILTDefaultRead(ilf, input, keyword, error_string, kind, option)
   use Input_Aux_module
   use String_module
 
-  class(ILT_default_type) :: ilf
+  class(ILT_default_type) :: illitization_function
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH)   :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
@@ -770,30 +771,31 @@ subroutine ILTDefaultRead(ilf, input, keyword, error_string, kind, option)
   select case(keyword)
     case('EA')
       ! Activation energy in Arrhenius term
-      call InputReadDouble(input,option,ilf%ea)
+      call InputReadDouble(input,option,illitization_function%ea)
       call InputErrorMsg(input,option,'activation energy', &
                          'ILLITIZATION, '//trim(kind)//'')
-      call InputReadAndConvertUnits(input,ilf%ea, &
+      call InputReadAndConvertUnits(input,illitization_function%ea, &
                                     'J/mol','ILLITIZATION, '//trim(kind)// &
                                     ', activation energy',option)
     case('FREQ')
       ! Frequency factor (scaling constant of Arrhenius term)
-      call InputReadDouble(input,option,ilf%freq)
+      call InputReadDouble(input,option,illitization_function%freq)
       call InputErrorMsg(input,option,'frequency term', &
                          'ILLITIZATION, '//trim(kind)//'')
-      call InputReadAndConvertUnits(input,ilf%freq, &
+      call InputReadAndConvertUnits(input,illitization_function%freq, &
                                     'L/s-mol','ILLITIZATION, '//trim(kind)// &
                                     ', frequency term',option)
     case('K_CONC')
       ! Concentration of potassium cation
-      call InputReadDouble(input,option,ilf%K_conc)
+      call InputReadDouble(input,option,illitization_function%K_conc)
       call InputErrorMsg(input,option,'potassium concentration', &
                          'ILLITIZATION, '//trim(kind)//'')
-      call InputReadAndConvertUnits(input,ilf%K_conc,'M',&
+      call InputReadAndConvertUnits(input,illitization_function%K_conc,'M',&
                                     'ILLITIZATION, ' //trim(kind)// &
                                     ', potassium concentration',option)
     case default
-      call ILTBaseRead(ilf,input,keyword,error_string,kind,option)
+      call ILTBaseRead(illitization_function,input,keyword,error_string,kind, &
+                       option)
   end select
 
 end subroutine ILTDefaultRead
@@ -822,7 +824,7 @@ subroutine ILTRead(illitization_function, input, option)
 
   input%ierr = 0
   error_string = 'ILLITIZATION_FUNCTION,'
-  select type(ilf => illitization_function)
+  select type(illitization_function => illitization_function)
     class is(ILT_default_type)
       error_string = trim(error_string) // 'DEFAULT'
     class is(ILT_general_type)
@@ -838,28 +840,30 @@ subroutine ILTRead(illitization_function, input, option)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
 
-    select type(ilf => illitization_function)
+    select type(illitization_function => illitization_function)
       !------------------------------------------
       class is(ILT_default_type)
         select case(trim(keyword))
           case default
-            call ILTDefaultRead(ilf,input,keyword,error_string,'DEFAULT',option)
+            call ILTDefaultRead(illitization_function,input,keyword, &
+                                error_string,'DEFAULT',option)
         end select
       !------------------------------------------
       class is(ILT_general_type)
         select case(trim(keyword))
           case('K_EXP')
             ! Exponent of potassium cation concentration
-            call InputReadDouble(input,option,ilf%K_exp)
+            call InputReadDouble(input,option,illitization_function%K_exp)
             call InputErrorMsg(input,option,'potassium concentration exponent',&
                                'ILLITIZATION, GENERAL')
           case('SMECTITE_EXP')
             ! Exponent of smectite fraction
-            call InputReadDouble(input,option,ilf%exp)
+            call InputReadDouble(input,option,illitization_function%exp)
             call InputErrorMsg(input,option,'smectite exponent', &
                                'ILLITIZATION, GENERAL')
           case default
-            call ILTDefaultRead(ilf,input,keyword,error_string,'GENERAL',option)
+            call ILTDefaultRead(illitization_function,input,keyword, &
+                                error_string,'GENERAL',option)
         end select
       !------------------------------------------
       class default
@@ -1768,7 +1772,7 @@ end subroutine ILTShiftPerm
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformAddToList(new_mtf, list)
+subroutine MaterialTransformAddToList(new_material_transform, list)
   !
   ! Populates the next pointer with a new material transform
   !
@@ -1777,21 +1781,21 @@ subroutine MaterialTransformAddToList(new_mtf, list)
 
   implicit none
 
-  type(material_transform_type), pointer :: new_mtf
+  type(material_transform_type), pointer :: new_material_transform
   type(material_transform_type), pointer :: list
 
-  class(material_transform_type), pointer :: cur_mtf
+  class(material_transform_type), pointer :: cur_material_transform
 
   if (associated(list)) then
-    cur_mtf => list
+    cur_material_transform => list
     ! loop to end of list
     do
-      if (.not. associated(cur_mtf%next)) exit
-      cur_mtf => cur_mtf%next
+      if (.not. associated(cur_material_transform%next)) exit
+      cur_material_transform => cur_material_transform%next
     enddo
-    cur_mtf%next => new_mtf
+    cur_material_transform%next => new_material_transform
   else
-    list => new_mtf
+    list => new_material_transform
   endif
 
 end subroutine MaterialTransformAddToList
@@ -1814,44 +1818,46 @@ subroutine MaterialTransformConvertListToArray(list, array, option)
   type(material_transform_ptr_type), pointer :: array(:)
   type(option_type) :: option
 
-  class(material_transform_type), pointer :: cur_mtf
+  class(material_transform_type), pointer :: cur_material_transform
   PetscInt :: count
 
   count = 0
-  cur_mtf => list
+  cur_material_transform => list
   do
-    if (.not. associated(cur_mtf)) exit
+    if (.not. associated(cur_material_transform)) exit
     count = count + 1
-    cur_mtf => cur_mtf%next
+    cur_material_transform => cur_material_transform%next
   enddo
 
   if (associated(array)) deallocate(array)
   allocate(array(count))
 
   count = 0
-  cur_mtf => list
+  cur_material_transform => list
   do
-    if (.not. associated(cur_mtf)) exit
+    if (.not. associated(cur_material_transform)) exit
     count = count + 1
-    array(count)%ptr => cur_mtf
+    array(count)%ptr => cur_material_transform
     call OptionSetBlocking(option,PETSC_FALSE)
     if (OptionIsIORank(option)) then
-      if (associated(cur_mtf%illitization%illitization_function)) then
-        if (cur_mtf%illitization%test) then
-          call cur_mtf%illitization%illitization_function%Test( &
-            cur_mtf%illitization%name,option)
+      if (associated(cur_material_transform%illitization% &
+          illitization_function)) then
+        if (cur_material_transform%illitization%test) then
+          call cur_material_transform%illitization%illitization_function%Test( &
+            cur_material_transform%illitization%name,option)
         endif
       endif
-      ! if (associated(cur_mtf%buffer_erosion%buffer_erosion_model)) then
-      !   if (cur_mtf%buffer_erosion%test) then
-      !     call cur_mtf%buffer_erosion%buffer_erosion_model%Test( &
-      !       cur_mtf%buffer_erosion_model%name,option)
+      ! if (associated(cur_material_transform%buffer_erosion% &
+      !     buffer_erosion_model)) then
+      !   if (cur_material_transform%buffer_erosion%test) then
+      !     call cur_material_transform%buffer_erosion%buffer_erosion_model% &
+      !       Test(cur_material_transform%buffer_erosion_model%name,option)
       !   endif
       ! endif
     endif
     call OptionSetBlocking(option,PETSC_TRUE)
     call OptionCheckNonBlockingError(option)
-    cur_mtf => cur_mtf%next
+    cur_material_transform => cur_material_transform%next
   enddo
 
 end subroutine MaterialTransformConvertListToArray
@@ -2001,7 +2007,7 @@ end subroutine MaterialTransformSetAuxVarVecLoc
 
 ! ************************************************************************** !
 
-subroutine ILTPrintKdEffects(ilf)
+subroutine ILTPrintKdEffects(illitization_function)
   !
   ! Adds details on kd parameters to the input record file
   !
@@ -2010,17 +2016,17 @@ subroutine ILTPrintKdEffects(ilf)
 
   implicit none
 
-  class(illitization_base_type) :: ilf
+  class(illitization_base_type) :: illitization_function
 
   class(ILT_kd_effects_type), pointer :: kdl
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
   PetscInt :: i, j, k
 
-  if (.not. associated(ilf%shift_kd_list)) return
+  if (.not. associated(illitization_function%shift_kd_list)) return
 
   j = 0
-  kdl => ilf%shift_kd_list
+  kdl => illitization_function%shift_kd_list
 
   write(id,'(a29)',advance='no') 'shift (kd): '
   do i = 1, kdl%num_elements
@@ -2052,7 +2058,7 @@ end subroutine ILTPrintKdEffects
 
 ! ************************************************************************** !
 
-subroutine ILTPrintPermEffects(ilf)
+subroutine ILTPrintPermEffects(illitization_function)
   !
   ! Adds details on permeability parameters to the input record file
   !
@@ -2061,20 +2067,20 @@ subroutine ILTPrintPermEffects(ilf)
 
   implicit none
 
-  class(illitization_base_type) :: ilf
+  class(illitization_base_type) :: illitization_function
 
   class(ILT_perm_effects_type), pointer :: perm
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
   PetscInt :: j, k
 
-  if (.not. associated(ilf%shift_perm)) return
+  if (.not. associated(illitization_function%shift_perm)) return
 
   j = 0
-  perm => ilf%shift_perm
+  perm => illitization_function%shift_perm
 
   write(id,'(a29)',advance='no') 'shift (permeability): '
-  perm => ilf%shift_perm
+  perm => illitization_function%shift_perm
   write(word,'(a)') perm%f_perm_mode
   write(id,'(a)',advance='no') adjustl(trim(word))
   select case(perm%f_perm_mode)
@@ -2108,8 +2114,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
 
   type(material_transform_type), pointer :: material_transform_list
 
-  class(material_transform_type), pointer :: cur_mtf
-  class(illitization_base_type), pointer :: ilf
+  class(material_transform_type), pointer :: cur_material_transform
+  class(illitization_base_type), pointer :: illitization_function
   class(ILT_kd_effects_type), pointer :: kdl
   class(ILT_perm_effects_type), pointer :: perm
   character(len=MAXWORDLENGTH) :: word
@@ -2122,76 +2128,78 @@ subroutine MaterialTransformInputRecord(material_transform_list)
   write(id,'(a29)',advance='no') '---------------------------: '
   write(id,'(a)') 'MATERIAL TRANSFORM FUNCTIONS'
 
-  cur_mtf => material_transform_list
+  cur_material_transform => material_transform_list
   do
-    if (.not. associated(cur_mtf)) exit
+    if (.not. associated(cur_material_transform)) exit
 
     write(id,'(a29)',advance='no') 'material transform name: '
-    write(id,'(a)') adjustl(trim(cur_mtf%name))
+    write(id,'(a)') adjustl(trim(cur_material_transform%name))
 
     ! Illitization
-    if (associated(cur_mtf%illitization%illitization_function)) then
+    if (associated(cur_material_transform%illitization% &
+        illitization_function)) then
       write(id,'(a29)') '--------------: '
       write(id,'(a29)',advance='no') 'illitization model: '
-      select type (ilf => cur_mtf%illitization%illitization_function)
+      select type (illitization_function => cur_material_transform%illitization% &
+        illitization_function)
         !---------------------------------
         class is (ILT_default_type)
           write(id,'(a)') 'Huang et al., 1993'
           write(id,'(a29)',advance='no') 'initial smectite: '
-          write(word,'(es12.5)') ilf%fs0
+          write(word,'(es12.5)') illitization_function%fs0
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'frequency: '
-          write(word,'(es12.5)') ilf%freq
+          write(word,'(es12.5)') illitization_function%freq
           write(id,'(a)') adjustl(trim(word))//' L/mol-s'
           write(id,'(a29)',advance='no') 'activation energy: '
-          write(word,'(es12.5)') ilf%ea
+          write(word,'(es12.5)') illitization_function%ea
           write(id,'(a)') adjustl(trim(word))//' J/mol'
           write(id,'(a29)',advance='no') 'K+ concentration: '
-          write(word,'(es12.5)') ilf%K_conc
+          write(word,'(es12.5)') illitization_function%K_conc
           write(id,'(a)') adjustl(trim(word))//' M'
           write(id,'(a29)',advance='no') 'temperature threshold: '
-          write(word,'(es12.5)') ilf%threshold
+          write(word,'(es12.5)') illitization_function%threshold
           write(id,'(a)') adjustl(trim(word))//' C'
-          call ILTPrintPermEffects(ilf)
-          call ILTPrintKdEffects(ilf)
+          call ILTPrintPermEffects(illitization_function)
+          call ILTPrintKdEffects(illitization_function)
         !---------------------------------
         class is (ILT_general_type)
           write(id,'(a)') 'Cuadros and Linares, 1996'
           write(id,'(a29)',advance='no') 'initial smectite: '
-          write(word,'(es12.5)') ilf%fs0
+          write(word,'(es12.5)') illitization_function%fs0
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'smectite exponent: '
-          write(word,'(es12.5)') ilf%exp
+          write(word,'(es12.5)') illitization_function%exp
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'frequency: '
-          write(word,'(es12.5)') ilf%freq
+          write(word,'(es12.5)') illitization_function%freq
           write(id,'(a)') adjustl(trim(word))//' '
           write(id,'(a29)',advance='no') 'activation energy: '
-          write(word,'(es12.5)') ilf%ea
+          write(word,'(es12.5)') illitization_function%ea
           write(id,'(a)') adjustl(trim(word))//' J/mol'
           write(id,'(a29)',advance='no') 'K+ concentration: '
-          write(word,'(es12.5)') ilf%K_conc
+          write(word,'(es12.5)') illitization_function%K_conc
           write(id,'(a)') adjustl(trim(word))//' M'
           write(id,'(a29)',advance='no') 'K+ conc. exponent: '
-          write(word,'(es12.5)') ilf%K_exp
+          write(word,'(es12.5)') illitization_function%K_exp
           write(id,'(a)') adjustl(trim(word))
           write(id,'(a29)',advance='no') 'temperature threshold: '
-          write(word,'(es12.5)') ilf%threshold
+          write(word,'(es12.5)') illitization_function%threshold
           write(id,'(a)') adjustl(trim(word))//' C'
-          call ILTPrintPermEffects(ilf)
-          call ILTPrintKdEffects(ilf)
+          call ILTPrintPermEffects(illitization_function)
+          call ILTPrintKdEffects(illitization_function)
       end select
     endif
 
     write(id,'(a29)') '---------------------------: '
-    cur_mtf => cur_mtf%next
+    cur_material_transform => cur_material_transform%next
   enddo
 
 end subroutine MaterialTransformInputRecord
 
 ! ************************************************************************** !
 
-subroutine ILTDestroy(ilf)
+subroutine ILTDestroy(illitization_function)
   !
   ! Deallocates an illitization function object
   !
@@ -2200,11 +2208,11 @@ subroutine ILTDestroy(ilf)
 
   implicit none
 
-  class(illitization_base_type), pointer :: ilf
+  class(illitization_base_type), pointer :: illitization_function
 
-  if (.not. associated(ilf)) return
-  deallocate(ilf)
-  nullify(ilf)
+  if (.not. associated(illitization_function)) return
+  deallocate(illitization_function)
+  nullify(illitization_function)
 
 end subroutine ILTDestroy
 
@@ -2323,7 +2331,7 @@ end subroutine BufferErosionDestroy
 
 ! ************************************************************************** !
 
-recursive subroutine MaterialTransformDestroy(mtf)
+recursive subroutine MaterialTransformDestroy(material_transform)
   !
   ! Deallocates a material transform object
   !
@@ -2332,31 +2340,31 @@ recursive subroutine MaterialTransformDestroy(mtf)
 
   implicit none
 
-  type(material_transform_type), pointer :: mtf
+  type(material_transform_type), pointer :: material_transform
 
   PetscInt :: i
 
-  if (.not. associated(mtf)) return
+  if (.not. associated(material_transform)) return
 
-  call MaterialTransformDestroy(mtf%next)
+  call MaterialTransformDestroy(material_transform%next)
 
-  if (associated(mtf%auxvars)) then
-    do i = 1, size(mtf%auxvars)
-      call MaterialTransformAuxVarStrip(mtf%auxvars(i))
+  if (associated(material_transform%auxvars)) then
+    do i = 1, size(material_transform%auxvars)
+      call MaterialTransformAuxVarStrip(material_transform%auxvars(i))
     enddo
-    deallocate(mtf%auxvars)
-    nullify(mtf%auxvars)
+    deallocate(material_transform%auxvars)
+    nullify(material_transform%auxvars)
   endif
 
-  if (associated(mtf%illitization)) then
-    call IllitizationDestroy(mtf%illitization)
+  if (associated(material_transform%illitization)) then
+    call IllitizationDestroy(material_transform%illitization)
   endif
 
-  if (associated(mtf%buffer_erosion)) then
-    call BufferErosionDestroy(mtf%buffer_erosion)
+  if (associated(material_transform%buffer_erosion)) then
+    call BufferErosionDestroy(material_transform%buffer_erosion)
   endif
 
-  nullify(mtf)
+  nullify(material_transform)
 
 end subroutine MaterialTransformDestroy
 
