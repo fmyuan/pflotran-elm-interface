@@ -177,7 +177,7 @@ subroutine PMMaterialTransformSetup(this)
 
     ! material transform function id 
     if (associated(patch%material_transform_array)) then
-      if (cur_material_property%mtf) then
+      if (len(trim(cur_material_property%material_transform_name)) > 0) then
         ! find ID
         cur_material_property%material_transform_id = &
           MaterialTransformGetID( &
