@@ -1546,6 +1546,11 @@ subroutine PMMaterialTransformInputRecord(this)
   write(id,'(a29)',advance='no') 'pm: '
   write(id,'(a)') this%name
 
+  if (associated(this%mtl)) then
+    ! print material transform model information
+    call MaterialTransformInputRecord(this%mtl)
+  endif
+
 end subroutine PMMaterialTransformInputRecord
 
 ! ************************************************************************** !

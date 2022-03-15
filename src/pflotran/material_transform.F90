@@ -1829,35 +1829,16 @@ subroutine MaterialTransformInputRecord(material_transform_list)
   !
   implicit none
 
-  class(material_transform_type), pointer :: material_transform_list
+  type(material_transform_type), pointer :: material_transform_list
 
   class(material_transform_type), pointer :: cur_mtf
+  class(illitization_base_type), pointer :: ilf
+  class(ILT_kd_effects_type), pointer :: kdl
+  class(ILT_perm_effects_type), pointer :: perm
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: id = INPUT_RECORD_UNIT
-  
-  class(illitization_base_type), pointer :: ilf
-  class(ilt_kd_effects_type), pointer :: kdl
-  class(ilt_perm_effects_type), pointer :: perm
   PetscInt :: i, j, k
-  PetscBool :: inactive
   
-  inactive = PETSC_TRUE
-  
-  cur_mtf => material_transform_list
-  do
-    if (.not.associated(cur_mtf)) exit
-    if (associated(cur_mtf%illitization%illitization_function)) then
-      select type (ilf => cur_mtf%illitization%illitization_function)
-        class is (ILT_default_type)
-          inactive = PETSC_FALSE
-          exit
-        end select
-    endif
-    cur_mtf => cur_mtf%next
-  enddo
-
-  if (inactive) return
-
   write(id,'(a)') ' '
   write(id,'(a)') '---------------------------------------------------------&
        &-----------------------'
@@ -1866,15 +1847,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
 
   cur_mtf => material_transform_list
   do
-    if (.not.associated(cur_mtf)) exit
+    if (.not. associated(cur_mtf)) exit
     
-    if (associated(cur_mtf%illitization%illitization_function)) then
-      select type (ilf => cur_mtf%illitization%illitization_function)
-        type is (illitization_base_type)
-          exit
-        end select
-    endif
-
     write(id,'(a29)',advance='no') 'material transform name: '
     write(id,'(a)') adjustl(trim(cur_mtf%name))
     
