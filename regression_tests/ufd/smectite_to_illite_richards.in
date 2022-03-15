@@ -19,6 +19,7 @@ SIMULATION
     /
   /
   CHECKPOINT
+    # TIMES y 1.0d-1 1.0d+0
     FORMAT HDF5
   /
   # RESTART
@@ -88,7 +89,6 @@ REGRESSION
     2
     3
     4
-    8
   /
 END
 
@@ -108,61 +108,61 @@ END
 #============================ fluid properties ================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.0d-9
-END
+/
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil
   ID 1
+  CHARACTERISTIC_CURVES cc_default
   POROSITY 3.5d-1
   TORTUOSITY 5.0d-1
-  CHARACTERISTIC_CURVES cc_default
   PERMEABILITY
-    PERM_ISO 1.d-12
+    PERM_ISO 1.0d-12
   /
-END
+/
 
 MATERIAL_PROPERTY wp
   ID 2
+  CHARACTERISTIC_CURVES cc_default
   POROSITY 5.0d-1
   TORTUOSITY 1.0d+0
-  CHARACTERISTIC_CURVES cc_default
   PERMEABILITY
-    PERM_ISO 1.d-12
+    PERM_ISO 1.0d-12
   /
-END
+/
 
 MATERIAL_PROPERTY buffer1
   ID 3
-  POROSITY 3.5d-1
-  TORTUOSITY 5.0d-1
   CHARACTERISTIC_CURVES cc_bentonite
+  POROSITY 3.5d-1
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4d+0
   MATERIAL_TRANSFORM def_3
   PERMEABILITY
-    PERM_ISO 1.d-16
+    PERM_ISO 1.0d-16
   /
-END
+/
 
 MATERIAL_PROPERTY buffer2
   ID 4
-  POROSITY 3.5d-1
-  TORTUOSITY 5.0d-1
   CHARACTERISTIC_CURVES cc_bentonite
+  POROSITY 3.5d-1
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4d+0
   MATERIAL_TRANSFORM def_1
   PERMEABILITY
-    PERM_ISO 1.d-17
+    PERM_ISO 1.0d-17
   /
-END
+/
 
 MATERIAL_PROPERTY buffer3
   ID 5
-  POROSITY 3.5d-1
-  TORTUOSITY 5.0d-1
   CHARACTERISTIC_CURVES cc_bentonite
+  POROSITY 3.5d-1
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4d+0
   MATERIAL_TRANSFORM def_2
   PERMEABILITY
-    PERM_ISO 1.d-16
+    PERM_ISO 1.0d-16
   /
-END
+/
 
 #============================ characteristic curves ===========================
 CHARACTERISTIC_CURVES cc_default
@@ -207,19 +207,19 @@ OUTPUT
     # PERIODIC TIME 1.0d+0 y between 1.0d+0 y and 1.0d+1 y
     # PERIODIC TIME 1.0d+1 y between 1.0d+1 y and 1.0d+2 y
     # PERIODIC TIME 1.0d+2 y between 1.0d+2 y and 1.0d+3 y
+    VARIABLES
+      LIQUID_PRESSURE
+      PERMEABILITY
+      SMECTITE
+    /
   /
-  VARIABLES
-    LIQUID_PRESSURE
-    SMECTITE
-    PERMEABILITY
-  /
-END
+/
 
 #================================== times =====================================
 TIME
-  FINAL_TIME 1.0d+3 y
-  INITIAL_TIMESTEP_SIZE 1.d-6 y
-  MAXIMUM_TIMESTEP_SIZE 1.d+2 y
+  FINAL_TIME 1.0d+2 y
+  INITIAL_TIMESTEP_SIZE 1.0d-7 y
+  MAXIMUM_TIMESTEP_SIZE 1.0d+1 y
 END
 
 #================================== regions ===================================
@@ -319,14 +319,14 @@ FLOW_CONDITION initial
   TYPE
     PRESSURE DIRICHLET
   /
-  PRESSURE 2.01325d+5 Pa
+  PRESSURE 5.00000d+6 Pa
 END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
   TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
-    0.d+0 initial
+    0.0d+0 initial
   /
 END
 

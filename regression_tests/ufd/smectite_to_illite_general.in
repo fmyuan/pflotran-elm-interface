@@ -7,8 +7,8 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        CHECK_MAX_DPL_LIQ_STATE_ONLY
-        GAS_STATE_AIR_MASS_DOF WATER_MOL_FRAC
+        # CHECK_MAX_DPL_LIQ_STATE_ONLY
+        # GAS_STATE_AIR_MASS_DOF WATER_MOL_FRAC
       /
     /
     SUBSURFACE_TRANSPORT transport
@@ -27,7 +27,7 @@ SIMULATION
     FORMAT HDF5
   /
   # RESTART
-  #   FILENAME smectite_to_illite-restart.h5
+  #   FILENAME smectite_to_illite_general-restart.h5
   # /
   # INPUT_RECORD_FILE
 END
@@ -45,7 +45,7 @@ NUMERICAL_METHODS FLOW
   /
 
   NEWTON_SOLVER
-    MAXIMUM_NUMBER_OF_ITERATIONS 150
+    MAXIMUM_NUMBER_OF_ITERATIONS 25
     RTOL 1.0d-8
     ATOL 1.0d-8
     STOL 1.0d-30
@@ -93,7 +93,7 @@ REGRESSION
   CELL_IDS
     2
     3
-    8
+    4
   /
 END
 
@@ -125,9 +125,7 @@ MATERIAL_PROPERTY soil
   THERMAL_CHARACTERISTIC_CURVES cct_soil
   HEAT_CAPACITY 8.30d+2 J/kg-C
   PERMEABILITY
-    PERM_X 1.0d-12
-    PERM_Y 1.0d-12
-    PERM_Z 1.0d-12
+    PERM_ISO 1.0d-12
   /
 END
 
@@ -140,9 +138,7 @@ MATERIAL_PROPERTY wp
   THERMAL_CHARACTERISTIC_CURVES cct_wp
   HEAT_CAPACITY 8.30d+2 J/kg-C
   PERMEABILITY
-    PERM_X 1.0d-12
-    PERM_Y 1.0d-12
-    PERM_Z 1.0d-12
+    PERM_ISO 1.0d-12
   /
 END
 
@@ -156,7 +152,7 @@ MATERIAL_PROPERTY buffer1
   HEAT_CAPACITY 8.30d+2
   MATERIAL_TRANSFORM def_3
   PERMEABILITY
-    PERM_ISO  1.0d-17
+    PERM_ISO 1.0d-16
   /
 /
 
@@ -170,7 +166,21 @@ MATERIAL_PROPERTY buffer2
   HEAT_CAPACITY 8.30d+2
   MATERIAL_TRANSFORM def_1
   PERMEABILITY
-    PERM_ISO  1.0d-16
+    PERM_ISO 1.0d-17
+  /
+/
+
+MATERIAL_PROPERTY buffer3
+  ID 5
+  CHARACTERISTIC_CURVES cc_bentonite
+  POROSITY 3.5d-1
+  TORTUOSITY_FUNCTION_OF_POROSITY 1.4d+0
+  ROCK_DENSITY 2.700d+3
+  THERMAL_CHARACTERISTIC_CURVES cct_buffer
+  HEAT_CAPACITY 8.30d+2
+  MATERIAL_TRANSFORM def_2
+  PERMEABILITY
+    PERM_ISO 1.0d-16
   /
 /
 
@@ -232,7 +242,7 @@ CHARACTERISTIC_CURVES cc_bentonite
     PHASE GAS
     M 3.75d-1
     LIQUID_RESIDUAL_SATURATION 1.0d-1
-    GAS_RESIDUAL_SATURATION 0.1d+0
+    GAS_RESIDUAL_SATURATION 1.0d-1
   /
 END
 
@@ -240,8 +250,11 @@ END
 OUTPUT
   SNAPSHOT_FILE
     FORMAT HDF5
-      PERIODIC TIME      0.01 y between      0.01 y and       0.1  y
-      PERIODIC TIME      0.1  y between      0.10 y and       1.0  y
+    # PERIODIC TIME 1.0d-3 y between 1.0d-3 y and 1.0d-2 y
+    # PERIODIC TIME 1.0d-2 y between 1.0d-2 y and 1.0d-1 y
+    # PERIODIC TIME 1.0d-1 y between 1.0d-1 y and 1.0d+0 y
+    # PERIODIC TIME 1.0d+0 y between 1.0d+0 y and 1.0d+1 y
+    # PERIODIC TIME 1.0d+1 y between 1.0d+1 y and 1.0d+2 y
     VARIABLES
       TEMPERATURE
       LIQUID_PRESSURE
@@ -253,9 +266,9 @@ OUTPUT
 
 #================================== times =====================================
 TIME
-  FINAL_TIME 1.0d+0 y
-  INITIAL_TIMESTEP_SIZE 1.0d-4 d
-  MAXIMUM_TIMESTEP_SIZE 1.0d+0 y
+  FINAL_TIME 1.0d+2 y
+  INITIAL_TIMESTEP_SIZE 1.0d-7 y
+  MAXIMUM_TIMESTEP_SIZE 1.0d+2 y
 /
 
 #================================== regions ===================================
@@ -280,10 +293,17 @@ REGION buffer2
   /
 END
 
-REGION wp
+REGION buffer3
   COORDINATES
     0.0d+0 0.0d+0 3.0d+0
     1.0d+0 1.0d+0 4.0d+0
+  /
+END
+
+REGION wp
+  COORDINATES
+    0.0d+0 0.0d+0 0.0d+0
+    1.0d+0 1.0d+0 1.0d+0
   /
 END
 
@@ -347,7 +367,7 @@ FLOW_CONDITION initial
     MOLE_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  LIQUID_PRESSURE 1.0d+6
+  LIQUID_PRESSURE 1.0d+5
   MOLE_FRACTION 1.0d-6
   TEMPERATURE 20.0d+0
 END
@@ -365,7 +385,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.0d+0 initial
   /
@@ -402,6 +422,12 @@ BOUNDARY_CONDITION north
   REGION north
 /
 
+BOUNDARY_CONDITION south
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION south
+/
+
 #========================== stratigraphy couplers =============================
 STRATA
   MATERIAL soil
@@ -421,6 +447,11 @@ STRATA
 STRATA
   MATERIAL buffer2
   REGION buffer2
+/
+
+STRATA
+  MATERIAL buffer3
+  REGION buffer3
 /
 
 END_SUBSURFACE
@@ -454,7 +485,7 @@ WASTE_FORM_GENERAL
 
 END_WASTE_FORM_GENERAL
 
-#================================== decay =====================================
+#=========================== ufd decay ========================================
 UFD_DECAY
 
   ELEMENT Sr
@@ -464,6 +495,7 @@ UFD_DECAY
       soil    2.0d+3 #kg water/m^3 bulk
       buffer1 1.0d+2 #kg water/m^3 bulk
       buffer2 1.0d+2 #kg water/m^3 bulk
+      buffer3 1.0d+2 #kg water/m^3 bulk
     /
   /
   ISOTOPE Sr90
@@ -478,6 +510,7 @@ UFD_DECAY
       soil    2.0d+1 #kg water/m^3 bulk
       buffer1 1.0d+1 #kg water/m^3 bulk
       buffer2 1.0d+1 #kg water/m^3 bulk
+      buffer3 1.0d+1 #kg water/m^3 bulk
     /
   /
   ISOTOPE Cs137
@@ -496,7 +529,7 @@ MATERIAL_TRANSFORM_GENERAL
         EA                    1.17152d+5 J/mol
         FREQ                  8.08000d+4 L/mol-s
         K_CONC                2.16000d-3 M
-        SMECTITE_INITIAL      9.50000d-1
+        SMECTITE_INITIAL      9.75000d-1
         SHIFT_PERM  DEFAULT   1.50000d+3
         SHIFT_KD
           Cs  DEFAULT  -0.50000d+0
@@ -509,7 +542,7 @@ MATERIAL_TRANSFORM_GENERAL
   MATERIAL_TRANSFORM def_2
     ILLITIZATION
       ILLITIZATION_FUNCTION DEFAULT
-        THRESHOLD_TEMPERATURE 2.75000d+1 C
+        THRESHOLD_TEMPERATURE 2.25000d+1 C
         EA                    1.20000d+5 J/mol
         FREQ                  8.10000d+4 L/mol-s
         K_CONC                2.20000d-3 M
@@ -531,9 +564,9 @@ MATERIAL_TRANSFORM_GENERAL
         FREQ                  8.44907d-6
         K_CONC                2.16000d-3 M
         K_EXP                 2.50000d-1
-        SMECTITE_INITIAL      9.95000d-1
+        SMECTITE_INITIAL      9.75000d-1
         SMECTITE_EXP          5.00000d+0
-        SHIFT_PERM  LINEAR    9.72000d+2
+        SHIFT_PERM  LINEAR    5.00000d+2
         SHIFT_KD
           Cs  LINEAR  0.10000d+0
           Sr  LINEAR  0.10000d+0

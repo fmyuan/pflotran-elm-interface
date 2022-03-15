@@ -90,7 +90,6 @@ REGRESSION
     2
     3
     4
-    8
   /
 END
 
@@ -149,7 +148,7 @@ MATERIAL_PROPERTY buffer1
   HEAT_CAPACITY 8.30d+2
   MATERIAL_TRANSFORM def_3
   PERMEABILITY
-    PERM_ISO  1.0d-16
+    PERM_ISO 1.0d-16
   /
 /
 
@@ -163,7 +162,7 @@ MATERIAL_PROPERTY buffer2
   HEAT_CAPACITY 8.30d+2
   MATERIAL_TRANSFORM def_1
   PERMEABILITY
-    PERM_ISO  1.0d-17
+    PERM_ISO 1.0d-17
   /
 /
 
@@ -177,7 +176,7 @@ MATERIAL_PROPERTY buffer3
   HEAT_CAPACITY 8.30d+2
   MATERIAL_TRANSFORM def_2
   PERMEABILITY
-    PERM_ISO  1.0d-16
+    PERM_ISO 1.0d-16
   /
 /
 
@@ -239,7 +238,7 @@ CHARACTERISTIC_CURVES cc_bentonite
     PHASE GAS
     M 3.75d-1
     LIQUID_RESIDUAL_SATURATION 1.0d-1
-    GAS_RESIDUAL_SATURATION 0.1d+0
+    GAS_RESIDUAL_SATURATION 1.0d-1
   /
 END
 
@@ -247,12 +246,11 @@ END
 OUTPUT
   SNAPSHOT_FILE
     FORMAT HDF5
-      # PERIODIC TIME   0.001 y between   0.001 y and    0.01 y
-      # PERIODIC TIME   0.01  y between   0.01  y and    0.1  y
-      # PERIODIC TIME   0.1   y between   0.10  y and    1.0  y
-      # PERIODIC TIME   1.0   y between   1.00  y and   10.0  y
-      # PERIODIC TIME  10.0   y between  10.00  y and  100.0  y
-      # PERIODIC TIME 100.0   y between 100.00  y and 1000.0  y
+    # PERIODIC TIME 1.0d-3 y between 1.0d-3 y and 1.0d-2 y
+    # PERIODIC TIME 1.0d-2 y between 1.0d-2 y and 1.0d-1 y
+    # PERIODIC TIME 1.0d-1 y between 1.0d-1 y and 1.0d+0 y
+    # PERIODIC TIME 1.0d+0 y between 1.0d+0 y and 1.0d+1 y
+    # PERIODIC TIME 1.0d+1 y between 1.0d+1 y and 1.0d+2 y
     VARIABLES
       TEMPERATURE
       LIQUID_PRESSURE
@@ -265,7 +263,7 @@ OUTPUT
 #================================== times =====================================
 TIME
   FINAL_TIME 1.0d+2 y
-  INITIAL_TIMESTEP_SIZE 1.0d-6 y
+  INITIAL_TIMESTEP_SIZE 1.0d-7 y
   MAXIMUM_TIMESTEP_SIZE 1.0d+1 y
 /
 
@@ -381,7 +379,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.0d+0 initial
   /
@@ -481,7 +479,7 @@ WASTE_FORM_GENERAL
 
 END_WASTE_FORM_GENERAL
 
-#================================== decay =====================================
+#=========================== ufd decay ========================================
 UFD_DECAY
 
   ELEMENT Sr
