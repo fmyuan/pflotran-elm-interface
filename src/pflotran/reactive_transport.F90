@@ -257,7 +257,9 @@ subroutine RTSetup(realization)
     ! the calculation of effective diffusion coef in fluxes.
     allocate(rt_sec_transport_vars(grid%ngmax))  
     do ghosted_id = 1, grid%ngmax
-    ! Assuming the same secondary continuum type for all regions
+      ! Ignore inactive cells with inactive materials
+      if (patch%imat(ghosted_id) <= 0) cycle
+      ! Assuming the same secondary continuum type for all regions
       call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr% &
                                  multicontinuum,material_auxvars(ghosted_id)% &
                                    soil_properties(epsilon_index), &
