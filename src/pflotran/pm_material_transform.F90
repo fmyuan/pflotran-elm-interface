@@ -135,7 +135,7 @@ subroutine PMMaterialTransformSetup(this)
   ! patch: pointer to patch object within realization
   ! option: pointer to option object within realization
   ! grid: pointer to grid object within realization
-  ! mtf: pointer to material transform object within patch
+  ! material_transform: pointer to material transform object within patch
   ! MT_auxvars: pointer to array of material transform auxiliary variables
   ! cur_material_property: pointer to material property within realization
   ! null_material_property: null pointer for regions without materials
@@ -146,7 +146,7 @@ subroutine PMMaterialTransformSetup(this)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(material_transform_type), pointer :: mtf
+  type(material_transform_type), pointer :: material_transform
   type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(material_property_type), pointer :: null_material_property
@@ -232,29 +232,45 @@ subroutine PMMaterialTransformSetup(this)
 
   enddo
 
+  ! initialize the auxiliary variables
   patch%aux%MT => MaterialTransformCreate()
   allocate(MT_auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
 
+    ! initialize the material transform auxiliary variable object
     call MaterialTransformAuxVarInit(MT_auxvars(ghosted_id))
     
     if (Initialized(patch%mtf_id(ghosted_id))) then
       ! pointer to material transform in patch ghosted id
-      mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+      material_transform => &
+        patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
 
-      if (associated(mtf)) then
-        if (associated(mtf%illitization)) then
+      if (associated(material_transform)) then
+        if (associated(material_transform%illitization)) then
+          ! initialize the illitization auxiliary variable object
           MT_auxvars(ghosted_id)%il_aux => IllitizationAuxVarInit(option)
         endif
-        if (associated(mtf%buffer_erosion)) then
+
+        if (associated(material_transform%buffer_erosion)) then
+          ! initialize the buffer erosion auxiliary variable object
           MT_auxvars(ghosted_id)%be_aux => BufferErosionAuxVarInit()
         endif
-      endif
 
+        ! pass information from functions to auxiliary variables as needed
+        if (.not. option%restart_flag) then
+          if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+            ! illitization - obtain initial smectite fraction
+            MT_auxvars(ghosted_id)%il_aux%fs0 = &
+              material_transform%illitization%illitization_function%fs0
+            MT_auxvars(ghosted_id)%il_aux%fs = &
+              material_transform%illitization%illitization_function%fs0
+          endif
+        endif
+
+      endif
     endif
-    
   enddo
   patch%aux%MT%auxvars => MT_auxvars
   patch%aux%MT%num_aux = grid%ngmax
@@ -381,64 +397,7 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
   ! --------------------------------
   ! LOCAL VARIABLES:
   ! ================
-  ! patch: pointer to patch object within realization
-  ! option: pointer to option object within realization
-  ! grid: pointer to grid object within realization
-  ! mtf: pointer to material transform object within patch
-  ! material_auxvars: pointer to array of material auxiliary variables
-  ! material aux: pointer to material auxiliary variable object in list
-  ! MT_auxvars: pointer to array of material transform auxiliary variables
-  ! MT_au: pointer to material transform auxiliary variable object in list
-  ! cur_material_property: pointer to material property within realization
-  ! null_material_property: null pointer for regions without materials
-  ! local_id: grid cell id number
-  ! ghosted_id: ghosted grid cell id number
-  ! material_id: id number of material
   ! --------------------------------
-  type(patch_type), pointer :: patch
-  type(option_type), pointer :: option
-  type(grid_type), pointer :: grid
-  type(material_transform_type), pointer :: mtf
-  type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(material_auxvar_type), pointer :: material_aux
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
-  type(material_transform_auxvar_type), pointer :: MT_aux
-  PetscInt :: local_id, ghosted_id, material_id
-  ! ----------------------------------
-
-  patch => this%realization%patch
-  option => this%realization%option
-  grid => patch%grid
-
-  material_auxvars => patch%aux%Material%auxvars
-  MT_auxvars => patch%aux%MT%auxvars
-
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    material_id = patch%imat(ghosted_id)
-    if (material_id <= 0) cycle
-    
-    material_aux => material_auxvars(ghosted_id)
-    MT_aux => MT_auxvars(ghosted_id)
-    
-    if (Initialized(patch%mtf_id(ghosted_id)) .and. &
-        .not. option%restart_flag) then
-      ! pointer to material transform in patch ghosted id
-      if (associated(patch%material_transform_array)) then
-        allocate(mtf)
-        mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-        if (associated(MT_aux%il_aux) .and. associated(mtf)) then
-          MT_aux%il_aux%fs0 = &
-            mtf%illitization%illitization_function%fs0
-          MT_aux%il_aux%fs = &
-            mtf%illitization%illitization_function%fs0
-        endif
-        nullify(mtf)
-      endif
-      
-    endif
-    
-  enddo
 
 end subroutine PMMaterialTransformInitializeRun
 
@@ -603,7 +562,7 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
   ! patch: pointer to patch object within realization
   ! option: pointer to option object within realization
   ! grid: pointer to grid object within realization
-  ! mtf: pointer to material transform object within patch
+  ! material_transform: pointer to material transform object within patch
   ! material_auxvars: pointer to array of material auxiliary variables
   ! material aux: pointer to material auxiliary variable object in list
   ! global_auxvars: pointer to array of global auxiliary variables
@@ -617,7 +576,7 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  class(material_transform_type), pointer :: mtf
+  class(material_transform_type), pointer :: material_transform
   type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_auxvar_type), pointer :: material_aux
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -646,23 +605,24 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
 
     if (Initialized(patch%mtf_id(ghosted_id))) then
       ! pointer to material transform in patch ghosted id
-      mtf => patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
+      material_transform => &
+        patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
 
-      if (associated(mtf)) then
-        if (associated(mtf%illitization)) then
-          call mtf%illitization%illitization_function%CalculateILT( &
-                 MT_aux%il_aux%fs, &
-                 global_aux%temp, &
-                 option%dt, &
-                 MT_aux%il_aux%fi, &
-                 MT_aux%il_aux%scale, &
-                 option)
-          call mtf%illitization%illitization_function%ShiftPerm( &
-                 material_aux, &
-                 MT_aux%il_aux, &
-                 option)
+      if (associated(material_transform)) then
+        if (associated(material_transform%illitization)) then
+          call material_transform%illitization%illitization_function% &
+            CalculateILT(MT_aux%il_aux%fs, &
+                         global_aux%temp, &
+                         option%dt, &
+                         MT_aux%il_aux%fi, &
+                         MT_aux%il_aux%scale, &
+                         option)
+          call material_transform%illitization%illitization_function% &
+            ShiftPerm(material_aux, &
+                      MT_aux%il_aux, &
+                      option)
         endif
-        ! if (associated(mtf%buffer_erosion)) then
+        ! if (associated(material_transform%buffer_erosion)) then
         ! endif
       endif
     endif
