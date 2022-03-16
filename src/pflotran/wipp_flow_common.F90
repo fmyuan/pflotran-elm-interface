@@ -726,7 +726,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
          HYDROSTATIC_CONDUCTANCE_BC)
       if (wippflo_auxvar_up%mobility(iphase) + &
-          wippflo_auxvar_dn%mobility(iphase) > eps) then
+          wippflo_auxvar_dn%mobility(iphase) > floweps) then
 
         ! dist(0) = scalar - magnitude of distance
         ! gravity = vector(3)
@@ -833,7 +833,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,&
          HYDROSTATIC_CONDUCTANCE_BC)
       if (wippflo_auxvar_up%mobility(iphase) + &
-          wippflo_auxvar_dn%mobility(iphase) > eps) then
+          wippflo_auxvar_dn%mobility(iphase) > floweps) then
 
         ! dist(0) = scalar - magnitude of distance
         ! gravity = vector(3)
