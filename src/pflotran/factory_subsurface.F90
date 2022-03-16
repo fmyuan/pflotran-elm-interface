@@ -1584,6 +1584,7 @@ subroutine FactorySubsurfaceReadMTPM(input, option, pm)
 
   pm => PMMaterialTransformCreate()
   pm%option => option
+  option%flow%mtf_active = PETSC_TRUE
   
   word = ''
   call InputPushBlock(input,option)

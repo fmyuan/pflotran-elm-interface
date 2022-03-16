@@ -51,6 +51,9 @@ module Option_Flow_module
     ! If true, velocity is calculated to be used in reactions
     PetscBool :: store_darcy_vel
 
+    ! flag indicating that PM Material Transform is active
+    PetscBool :: mtf_active
+
   end type flow_option_type
   
   public :: OptionFlowCreate, &
@@ -158,6 +161,8 @@ subroutine OptionFlowInitRealization(option)
   option%steady_state = PETSC_FALSE
 
   option%store_darcy_vel = PETSC_FALSE
+
+  option%mtf_active = PETSC_FALSE
 
 end subroutine OptionFlowInitRealization
 
