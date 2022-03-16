@@ -120,6 +120,7 @@ subroutine PMMaterialTransformSetup(this)
   use Patch_module
   use Option_module
   use Material_module
+  use Material_Aux_module
   use Grid_module
 
   implicit none
@@ -142,6 +143,8 @@ subroutine PMMaterialTransformSetup(this)
   ! local_id: grid cell id number
   ! ghosted_id: ghosted grid cell id number
   ! material_id: id number of material
+  ! material_auxvars: pointer to array of material auxiliary variables
+  ! material aux: pointer to material auxiliary variable object in list
   ! ----------------------------------
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -150,7 +153,10 @@ subroutine PMMaterialTransformSetup(this)
   type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(material_property_type), pointer :: null_material_property
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_aux
   PetscInt :: local_id, ghosted_id, material_id
+  PetscInt :: i, ps
   ! ----------------------------------
 
   patch => this%realization%patch
@@ -234,10 +240,13 @@ subroutine PMMaterialTransformSetup(this)
 
   ! initialize the auxiliary variables
   patch%aux%MT => MaterialTransformCreate()
+  material_auxvars => patch%aux%Material%auxvars
   allocate(MT_auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
+
+    material_aux => material_auxvars(ghosted_id)
 
     ! initialize the material transform auxiliary variable object
     call MaterialTransformAuxVarInit(MT_auxvars(ghosted_id))
@@ -266,6 +275,17 @@ subroutine PMMaterialTransformSetup(this)
               material_transform%illitization%illitization_function%fs0
             MT_auxvars(ghosted_id)%il_aux%fs = &
               material_transform%illitization%illitization_function%fs0
+          endif
+        else
+          ! illitization - save permeability tensor before it is replaced with
+          !   restart values
+          if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+            ps = size(material_auxvars(ghosted_id)%permeability)
+            do i = 1, ps
+              MT_auxvars(ghosted_id)%il_aux%perm0(i) = &
+                material_auxvars(ghosted_id)%permeability(i)
+            enddo
+            MT_auxvars(ghosted_id)%il_aux%qperm0 = PETSC_TRUE
           endif
         endif
 
