@@ -157,11 +157,14 @@ subroutine PMMaterialTransformSetup(this)
   type(material_auxvar_type), pointer :: material_aux
   PetscInt :: local_id, ghosted_id, material_id
   PetscInt :: i, ps
+  PetscBool :: found
   ! ----------------------------------
 
   patch => this%realization%patch
   option => this%realization%option
   grid => patch%grid
+
+  found = PETSC_FALSE
 
   ! pass material transform list from PM to realization
   if (associated(this%mtl)) then
@@ -190,6 +193,7 @@ subroutine PMMaterialTransformSetup(this)
             patch%material_transform_array, &
             cur_material_property%material_transform_name, &
             cur_material_property%name,option)
+        found = PETSC_TRUE
       endif
     endif
 
@@ -204,6 +208,13 @@ subroutine PMMaterialTransformSetup(this)
     cur_material_property => cur_material_property%next
 
   enddo
+
+  if (.not. found) then
+    option%io_buffer = 'No materials were found with a material transform '&
+                     //'function from '// trim(this%header) // ' "' &
+                     // trim(this%name) // '."'
+    call PrintErrMsg(option)
+  endif
 
   ! create null material property for inactive cells
   null_material_property => MaterialPropertyCreate(option)
@@ -459,7 +470,9 @@ subroutine PMMaterialTransformFinalizeTS(this)
   class(pm_material_transform_type) :: this
   ! --------------------------------
 
-  call RealizationUpdatePropertiesTS(this%realization)
+  if (associated(this%realization%reaction)) then
+    call RealizationUpdatePropertiesTS(this%realization)
+  endif
 
 end subroutine PMMaterialTransformFinalizeTS
 
@@ -1292,8 +1305,6 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
     call DiscretizationLocalToGlobal(discretization, field%work_loc, &
                                      global_vec, ONEDOF)
     call VecView(global_vec, viewer, ierr); CHKERRQ(ierr)
-
-
     call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
   endif
   ! if (check_be) then

@@ -342,7 +342,6 @@ function IllitizationAuxVarInit(option)
   type(option_type) :: option
 
   allocate(auxvar)
-  ! auxvar%il_aux%initial_pressure = UNINITIALIZED_DOUBLE
   auxvar%fs0    = 1.0d+0               ! initial fraction of smectite in material
   auxvar%fs     = UNINITIALIZED_DOUBLE ! fraction of smectite in material
   auxvar%fi     = UNINITIALIZED_DOUBLE ! fraction of illite in material
@@ -357,8 +356,6 @@ function IllitizationAuxVarInit(option)
       allocate(auxvar%perm0(3))
     endif
     auxvar%perm0 = UNINITIALIZED_DOUBLE
-  else
-    ! nullify(auxvar%perm0)
   endif
 
   IllitizationAuxVarInit => auxvar
@@ -1076,10 +1073,12 @@ subroutine MaterialTransformRead(this, input, option)
       !------------------------------------------
       case('ILLITIZATION')
         this%illitization => IllitizationCreate()
+        this%illitization%name = this%name
         call IllitizationRead(this%illitization,input,option)
       !------------------------------------------
       case('BUFFER_EROSION')
         this%buffer_erosion=> BufferErosionCreate()
+        this%buffer_erosion%name = this%name
         call BufferErosionRead(this%buffer_erosion,input,option)
       !------------------------------------------
       case default
@@ -1125,6 +1124,16 @@ subroutine ILTBaseVerify(this, name, option)
         //trim(name)//'" must be nonzero positive number up to 1.'
       call PrintErrMsg(option)
     endif
+  endif
+  if (associated(this%shift_kd_list) .and. option%itranmode == NULL_MODE) then
+    option%io_buffer = 'Parameters for modifying sorption in function "' &
+      //trim(name)//'" will have no effect without transport mode active.'
+    call PrintWrnMsg(option)
+  endif
+  if (associated(this%shift_perm) .and. option%iflowmode == NULL_MODE) then
+    option%io_buffer = 'Parameters for modifying permeability in function "' &
+      //trim(name)//'" will have no effect without flow mode active.'
+    call PrintWrnMsg(option)
   endif
 
 end subroutine ILTBaseVerify
@@ -1196,7 +1205,6 @@ subroutine ILTGeneralVerify(this, name, option)
   else
     string = trim(name) // 'ILLITIZATION_FUNCTION, GENERAL'
   endif
-  call ILTBaseVerify(this,string,option)
   call ILTDefaultVerify(this,string,option)
   if (Uninitialized(this%exp)) then
     option%io_buffer = 'Illitization smectite exponent must be specified in' &

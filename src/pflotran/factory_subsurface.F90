@@ -867,7 +867,15 @@ subroutine AddPMCMaterialTransform(simulation, pm_material_transform, pmc_name,&
   ! set up logging stage
   string = 'MATERIAL_TRANSFORM_GENERAL'
   call LoggingCreateStage(string,pmc_material_transform%stage)
-  
+
+  if (.not. associated(simulation%flow_process_model_coupler)) then
+    option%io_buffer = 'The current implementation of '// trim(pmc_name) &
+                     //' for '// trim(pm_material_transform%header) &
+                     // ' "' // trim(pm_material_transform%name) &
+                     //'" requires an active flow mode.'
+    call PrintErrMsg(option)
+  endif
+
   ! Material transform is child of flow and peer of transport
   if (associated(simulation%tran_process_model_coupler)) then
     call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_material_transform), &

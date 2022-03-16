@@ -971,13 +971,13 @@ recursive subroutine PMUFDDecayInitializeRun(this)
       ! modify kd if needed
       if (associated(patch%aux%MT)) then
         if (associated(MT_auxvars(ghosted_id)%il_aux)) then
-            if (this%option%dt > 0.d0 .or. this%option%restart_flag) then
-              call material_transform%illitization%illitization_function% &
-                     ShiftKd(kd_kgw_m3b, &
-                             this%element_name(iele), &
-                             MT_auxvars(ghosted_id)%il_aux, &
-                             this%option)
-            endif
+          if (this%option%dt > 0.d0 .or. this%option%restart_flag) then
+            call material_transform%illitization%illitization_function% &
+                   ShiftKd(kd_kgw_m3b, &
+                           this%element_name(iele), &
+                           MT_auxvars(ghosted_id)%il_aux, &
+                           this%option)
+          endif
         endif
       endif
 
@@ -1414,13 +1414,13 @@ subroutine PMUFDDecaySolve(this,time,ierr)
       if (associated(patch%aux%MT)) then
         if (associated(MT_auxvars(ghosted_id)%il_aux) .and. &
             associated(material_transform)) then
-            if (option%dt > 0.d0) then
-              call material_transform%illitization%illitization_function% &
-                     ShiftKd(kd_kgw_m3b, &
-                             this%element_name(iele), &
-                             MT_auxvars(ghosted_id)%il_aux, &
-                             option)
-            endif
+          if (option%dt > 0.d0) then
+            call material_transform%illitization%illitization_function% &
+                   ShiftKd(kd_kgw_m3b, &
+                           this%element_name(iele), &
+                           MT_auxvars(ghosted_id)%il_aux, &
+                           option)
+          endif
         endif
       endif
 

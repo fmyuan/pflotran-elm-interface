@@ -6283,7 +6283,7 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
     case(SMECTITE)
       if (associated(patch%aux%MT)) then
         select case(ivar)
-        case(SMECTITE)
+          case(SMECTITE)
             do local_id=1,grid%nlmax
               if (associated(patch%aux%MT% &
                   auxvars(grid%nL2G(local_id))%il_aux)) then
