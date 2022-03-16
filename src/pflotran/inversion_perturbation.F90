@@ -173,6 +173,13 @@ subroutine InversionPerturbationInitialize(this)
     endif
     call VecDuplicate(this%measurement_vec,this%base_measurement_vec, &
                       ierr);CHKERRQ(ierr)
+  else
+    if (this%idof_pert > this%realization%patch%grid%nmax) then
+      call this%driver%PrintErrMsg('SELECT_CELLS ID is larger than &
+                                   &the problem size: '// &
+                          trim(StringWrite(this%idof_pert))//' '// &
+                    trim(StringWrite(this%realization%patch%grid%nmax)))
+    endif
   endif
 
   if (Uninitialized(this%iqoi(1))) then
@@ -207,12 +214,6 @@ subroutine InversionPerturbationStep(this)
   do
     if (associated(this%select_cells) .and. iteration > 0) then
       this%idof_pert = this%select_cells(iteration)
-      if (this%idof_pert > this%realization%patch%grid%nmax) then
-        call this%driver%PrintErrMsg('SELECT_CELLS ID is larger than &
-                                     &the problem size: '// &
-                            trim(StringWrite(this%idof_pert))//' '// &
-                      trim(StringWrite(this%realization%patch%grid%nmax)))
-      endif
     else
       this%idof_pert = iteration
     endif
