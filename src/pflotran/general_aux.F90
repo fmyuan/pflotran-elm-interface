@@ -758,10 +758,13 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
         if (characteristic_curves%saturation_function%calc_vapor_pressure) then
           ! Adjust saturation pressure so it is properly used in Henry and 
-          ! UpdateState
+          ! UpdateState. Right now this adds an extra call to density.
+          call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
+                           gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
           call characteristic_curves%saturation_function%&
-               CalcVaporPressure(gen_auxvar%pres(cpid),gen_auxvar%temp, &
-                                 gen_auxvar%pres(spid),gen_auxvar%pres(spid))
+               CalcVaporPressure(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                 gen_auxvar%temp,gen_auxvar%pres(spid), &
+                                 gen_auxvar%pres(spid))
         endif
 
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
@@ -870,10 +873,13 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
           if (characteristic_curves%saturation_function%calc_vapor_pressure) then
             ! Adjust saturation pressure so it is properly used in Henry and 
-            ! UpdateState
+            ! UpdateState. Right now this adds an extra density call
+            call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
+                           gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
             call characteristic_curves%saturation_function%&
-                 CalcVaporPressure(gen_auxvar%pres(cpid),gen_auxvar%temp, &
-                                   gen_auxvar%pres(spid),gen_auxvar%pres(spid))
+                 CalcVaporPressure(gen_auxvar%pres(cpid),gen_auxvar%den(lid), &
+                                   gen_auxvar%temp,gen_auxvar%pres(spid), &
+                                   gen_auxvar%pres(spid))
           endif
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
                            eos_henry_ierr)

@@ -559,7 +559,7 @@ end subroutine SFBaseSurfaceTension
 
 ! ************************************************************************** !
 
-subroutine SFBaseCalcVaporPressure(this,Pc,T,Psat,Pv)
+subroutine SFBaseCalcVaporPressure(this,Pc,rhow,T,Psat,Pv)
   !
   ! Kelvin equation for vapor pressure lowering
   ! vis-a-vis the Young-Laplace equation where
@@ -576,7 +576,7 @@ subroutine SFBaseCalcVaporPressure(this,Pc,T,Psat,Pv)
   implicit none
 
   class(sat_func_base_type) :: this
-  PetscReal, intent(in) :: Pc, T, Psat
+  PetscReal, intent(in) :: Pc, T, Psat, rhow
   PetscReal, intent(out) :: Pv
 
   PetscReal :: sigma, vp_factor, T_temp
@@ -584,7 +584,7 @@ subroutine SFBaseCalcVaporPressure(this,Pc,T,Psat,Pv)
   T_temp = T + 273.15d0
 
   ! For water:
-  vp_factor = Pc * FMWH2O / (IDEAL_GAS_CONSTANT * T_temp)
+  vp_factor = Pc / (rhow * 1000.d0 * IDEAL_GAS_CONSTANT * T_temp)
 
   Pv = exp(vp_factor) * Psat
 
