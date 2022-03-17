@@ -24,6 +24,9 @@ module PM_ZFlow_class
     PetscReal :: liq_sat_change_ts_governor
     PetscInt :: convergence_flags(MAX_RES_SOL_EQ)
     PetscReal :: convergence_reals(MAX_RES_SOL_EQ)
+    PetscReal :: sat_update_trunc_ni
+    PetscReal :: unsat_to_sat_pres_damping_ni
+    PetscBool :: verbose_convergence
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMZFlowReadSimOptionsBlock
@@ -112,10 +115,14 @@ subroutine PMZFlowInitObject(this)
   this%xmol_change_governor = UNINITIALIZED_DOUBLE
 
   this%check_post_convergence = PETSC_TRUE
+  this%verbose_convergence = PETSC_FALSE
 
-  this%max_allow_liq_pres_change_ni = 1.d20
+  this%max_allow_liq_pres_change_ni = UNINITIALIZED_DOUBLE
   this%liq_pres_change_ts_governor = 5.d5    ! [Pa]
   this%liq_sat_change_ts_governor = 1.d0
+  this%sat_update_trunc_ni = UNINITIALIZED_DOUBLE
+  this%unsat_to_sat_pres_damping_ni = UNINITIALIZED_DOUBLE
+
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
 
@@ -193,6 +200,8 @@ subroutine PMZFlowReadSimOptionsBlock(this,input)
           end select
         enddo
         call InputPopBlock(input,option)
+      case('VERBOSE_CONVERGENCE')
+        this%verbose_convergence = PETSC_TRUE
       case('NO_ACCUMULATION')
         zflow_calc_accum = PETSC_FALSE
       case('NO_FLUX')
@@ -320,6 +329,12 @@ subroutine PMZFlowReadNewtonSelectCase(this,input,keyword,found, &
       ! units conversion since it is absolute
       call InputReadAndConvertUnits(input,this%max_allow_liq_pres_change_ni, &
                                     'Pa',keyword,option)
+    case('SATURATION_UPDATE_TRUNCATION_NI')
+      call InputReadDouble(input,option,this%sat_update_trunc_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('UNSAT_TO_SAT_PRESSURE_DAMPING_NI')
+      call InputReadDouble(input,option,this%unsat_to_sat_pres_damping_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
 
@@ -630,8 +645,13 @@ end subroutine PMZFlowJacobian
 subroutine PMZFlowCheckUpdatePre(this,snes,X,dX,changed,ierr)
   !
   ! Author: Glenn Hammond
-  ! Date: 08/13/21
+  ! Date: 03/04/21
   !
+  use Grid_module
+  use Material_Aux_module
+  use Option_module
+  use Patch_module
+
   implicit none
 
   class(pm_zflow_type) :: this
@@ -641,9 +661,80 @@ subroutine PMZFlowCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
 
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: offset
+  PetscInt :: p_index
+  PetscReal :: p_ref, pc, p_target
+  PetscReal :: p0, p1, dp
+  PetscReal :: sl
+  PetscReal :: tempreal
+  PetscReal, pointer :: X_p(:)
+  PetscReal, pointer :: dX_p(:)
+  PetscBool :: unsat_to_sat_damping_flag
+  PetscBool :: sat_update_trunc_flag
+  type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
+
+  patch => this%realization%patch
+  grid => patch%grid
+  option => this%realization%option
+
+  zflow_auxvars => patch%aux%ZFlow%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
   changed = PETSC_FALSE
+
+  p_ref = option%flow%reference_pressure
+  unsat_to_sat_damping_flag = Initialized(this%unsat_to_sat_pres_damping_ni)
+  sat_update_trunc_flag = Initialized(this%sat_update_trunc_ni)
+
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+
+    offset = (local_id-1)*option%nflowdof
+    if (zflow_liq_flow_eq > 0) then
+      p_index = offset+zflow_liq_flow_eq
+      dp = -dX_p(p_index)
+      p0 = X_p(p_index)
+      p1 = p0+dp
+      if (unsat_to_sat_damping_flag) then
+        sl = zflow_auxvars(ZERO_INTEGER,ghosted_id)%sat + &
+            sign(this%sat_update_trunc_ni,dp)
+        call patch%characteristic_curves_array( &
+              patch%cc_id(ghosted_id))%ptr%saturation_function% &
+                CapillaryPressure(sl,pc,tempreal,option)
+        if (pc > 0.d0) then
+          p_target = p_ref-pc
+          if ((dp >= 0.d0 .and. p1 > p_target) .or. &
+              (dp < 0.d0 .and. p1 < p_target)) then
+            dX_p(p_index) = p0-p_target ! p1 = p0 - dX_p()
+            changed = PETSC_TRUE
+          endif
+        endif
+        ! update these incase used below
+        dp = -dX_p(p_index)
+        p1 = p0+dp
+      endif
+      if (unsat_to_sat_damping_flag) then
+        ! the following initiate damping when transitioning from
+        ! unsaturated to saturated state
+        if (p0 < p_ref .and. p1 > p_ref) then
+          dX_p(p_index) = this%unsat_to_sat_pres_damping_ni*dX_p(p_index)
+          changed = PETSC_TRUE
+        endif
+      endif
+    endif
+  enddo
+  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMZFlowCheckUpdatePre
 
@@ -739,7 +830,8 @@ subroutine PMZFlowCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
     endif
   enddo
 
-  if (max_abs_pressure_change_NI > this%max_allow_liq_pres_change_ni) then
+  if (Initialized(this%max_allow_liq_pres_change_ni) .and. &
+      max_abs_pressure_change_NI > this%max_allow_liq_pres_change_ni) then
     converged_liquid_pressure = PETSC_FALSE
   endif
 
@@ -882,22 +974,34 @@ subroutine PMZFlowCheckConvergence(this,snes,it,xnorm,unorm, &
     reason_string(2:2) = 'C'
     converged_flag = CONVERGENCE_KEEP_ITERATING
   endif
-#if 0
-  if (OptionPrintToScreen(option)) then
-    if (option%comm%mycommsize > 1 .or. grid%nmax > 9999) then
+
+  if (this%verbose_convergence .and. &
+      OptionPrintToScreen(option)) then
+    if (option%comm%mycommsize > 1) then
       write(*,'(4x,"Rsn: ",a10,2es10.2)') reason_string, &
-        this%convergence_reals(MAX_RES_LIQ), &
+        this%convergence_reals(MAX_RES_LIQ_EQ), &
+        this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI)
+    else if (grid%nmax > 9999) then
+      write(*,'(4x,"Rsn: ",a10,2(i8,es10.2))') reason_string, &
+        this%convergence_flags(MAX_RES_LIQ_EQ), &
+        this%convergence_reals(MAX_RES_LIQ_EQ), &
+        this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI), &
         this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI)
     else
       write(*,'(4x,"Rsn: ",a10,2(i5,es10.2))') reason_string, &
-        this%convergence_flags(MAX_RES_LIQ), &
-        this%convergence_reals(MAX_RES_LIQ), &
+        this%convergence_flags(MAX_RES_LIQ_EQ), &
+        this%convergence_reals(MAX_RES_LIQ_EQ), &
         this%convergence_flags(MAX_CHANGE_LIQ_PRES_NI), &
         this%convergence_reals(MAX_CHANGE_LIQ_PRES_NI)
     endif
   endif
-#endif
-  option%convergence = converged_flag
+
+  if (Initialized(this%max_allow_liq_pres_change_ni)) then
+    option%convergence = converged_flag
+  else
+    ! forced standard 2 norms
+    option%convergence = CONVERGENCE_OFF
+  endif
 
   call VecRestoreArrayReadF90(residual_vec,r_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)

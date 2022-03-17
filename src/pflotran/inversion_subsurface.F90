@@ -594,6 +594,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   use Option_module
   use String_module
   use Timer_class
+  use Units_module
   use Utility_module
 
   class(inversion_subsurface_type) :: this
@@ -603,6 +604,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
   type(inversion_forward_ts_aux_type), pointer :: prev_inversion_ts_aux
   type(option_type), pointer :: option
   class(timer_type), pointer :: timer
+  character(len=MAXWORDLENGTH) :: word
   PetscInt :: imeasurement
   PetscErrorCode :: ierr
 
@@ -618,6 +620,23 @@ subroutine InvSubsurfCalculateSensitivity(this)
   ! initialize first_lambda flag
   do imeasurement = 1, size(this%measurements)
     this%measurements(imeasurement)%first_lambda = PETSC_FALSE
+    if (.not.this%measurements(imeasurement)%measured) then
+      option%io_buffer = 'Measurement at cell ' // &
+        StringWrite(this%measurements(imeasurement)%cell_id)
+      if (Initialized(this%measurements(imeasurement)%time)) then
+        word = 'sec'
+        option%io_buffer = trim(option%io_buffer) // &
+          ' at ' // trim(StringWrite(this%measurements(imeasurement)%time/ &
+          UnitsConvertToInternal(this%measurements(imeasurement)%time_units, &
+                                 word,option,ierr))) // &
+          ' ' // trim(this%measurements(imeasurement)%time_units)
+      endif
+      option%io_buffer = trim(option%io_buffer) // &
+        ' with a measured value from the measurement file of ' // &
+        trim(StringWrite(this%measurements(imeasurement)%value)) // &
+        ' was not measured during the simulation.'
+      call PrintErrMsg(option)
+    endif
   enddo
 
   ! go to end of list

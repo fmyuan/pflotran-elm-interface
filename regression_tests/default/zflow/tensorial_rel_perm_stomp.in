@@ -1,0 +1,206 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        TENSORIAL_RELATIVE_PERMEABILITY
+        PROCESSES
+          LIQUID_FLOW
+        /
+        LIQUID_DENSITY 998.458      # initial in STOMP
+        LIQUID_VISCOSITY 1.01765d-3 # initial in STOMP
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY sand
+  ID 1
+  POROSITY 0.43d0
+  SOIL_COMPRESSIBILITY_FUNCTION LEIJNSE
+  SOIL_COMPRESSIBILITY 1.d-7
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  TENSORIAL_REL_PERM_EXPONENT 0.2 0.6 1.0
+  PERMEABILITY
+    PERM_X 8.5698d-11
+    PERM_Y 4.2849d-11
+    PERM_Z 8.5698d-12 
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+MATERIAL_PROPERTY silt
+  ID 2
+  POROSITY 0.45d0
+  SOIL_COMPRESSIBILITY_FUNCTION LEIJNSE
+  SOIL_COMPRESSIBILITY 1.d-7
+  SOIL_REFERENCE_PRESSURE 101325.d0
+  TENSORIAL_REL_PERM_EXPONENT 0.2 0.6 1.0
+  PERMEABILITY
+    PERM_X 1.2985d-12
+    PERM_Y 6.4923d-13
+    PERM_Z 1.2985d-13
+  /
+  CHARACTERISTIC_CURVES cc2
+END
+
+#EXTERNAL_FILE  arp_6.txt # vsat_flow_5x1x5.txt
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25
+  /
+
+  NEWTON_SOLVER
+    MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.d0
+    SATURATION_UPDATE_TRUNCATION_NI 0.125d0
+    UNSAT_TO_SAT_PRESSURE_DAMPING_NI 0.6d0
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 5
+END
+
+#=========================== solver options ===================================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 10 1 10
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1 # for sand
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA  1.479d-3 # 1/Pa =  14.5 1/m
+    M 0.6269d0  # M = 1-1/n n=2.68 
+    LIQUID_RESIDUAL_SATURATION 0.105d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.6269d0
+    LIQUID_RESIDUAL_SATURATION 0.105d0
+  /
+END
+
+CHARACTERISTIC_CURVES cc2 # for silt
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA  2.039d-4 # 1/Pa = 2.0 1/m
+    M 0.2908d0 # M=1-1/n n=1.41
+    LIQUID_RESIDUAL_SATURATION 0.149d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.2908d0
+    LIQUID_RESIDUAL_SATURATION 0.149d0
+  /
+END
+
+#=========================== output options ===================================
+skip
+OUTPUT
+  TIMES day 2.0 10 50 100
+  TIMES year 1 2 10 100 1000 
+  FORMAT HDF5
+END
+noskip
+
+#=========================== times ============================================
+TIME
+#  FINAL_TIME 1000.d0 y
+  FINAL_TIME 10.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 100.0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+     0.d0  0.d0  0.d0
+     1.d0  1.d0  1.d0
+  /
+END
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+     0.d0  0.d0  0.d0
+     1.d0  1.d0  0.d0
+  /
+END
+
+REGION sand_zone
+  COORDINATES
+     0.d0  0.d0  0.5d0
+     1.d0  1.d0  1.d0
+  /
+/
+
+REGION silt_zone
+  COORDINATES
+     0.d0  0.d0  0.d0
+     1.d0  1.d0  0.5d0
+  /
+/
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC 
+  /
+  DATUM 0.d0 0.d0 0.00
+  GRADIENT
+    LIQUID_PRESSURE 0.d0 0.d0 -9793.d0
+  /
+  LIQUID_PRESSURE 110628.0
+END
+
+FLOW_CONDITION constant_P
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+  /
+  LIQUID_PRESSURE 101325.d0
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION bottom_BC
+  FLOW_CONDITION constant_P
+  REGION bottom
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION sand_zone
+  MATERIAL sand
+END
+
+STRATA
+  REGION silt_zone
+  MATERIAL silt
+END
+
+END_SUBSURFACE
+

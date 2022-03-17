@@ -16,7 +16,7 @@ module ZFlow_Common_module
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
-  PetscReal, parameter :: floweps   = 1.d-24
+  PetscReal, parameter :: floweps   = 0.d0
 
   procedure(FluxDummy), pointer :: XXFlux => null()
   procedure(BCFluxDummy), pointer :: XXBCFlux => null()
@@ -284,7 +284,7 @@ subroutine ZFlowFluxHarmonicPermOnly(zflow_auxvar_up,global_auxvar_up, &
     denominator = dist_up*perm_dn + dist_dn*perm_up
     perm_ave_over_dist_visc = numerator / (denominator * zflow_viscosity)
 
-    if (zflow_auxvar_up%kr + zflow_auxvar_dn%kr > eps) then
+    if (zflow_auxvar_up%kr + zflow_auxvar_dn%kr > floweps) then
 
       gravity_term = zflow_density_kg * dist_gravity
       delta_pressure = zflow_auxvar_up%pres - &
@@ -530,7 +530,7 @@ subroutine ZFlowBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
       ! figure out the direction of flow
       case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
            HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
-        if (zflow_auxvar_up%kr + zflow_auxvar_dn%kr > eps) then
+        if (zflow_auxvar_up%kr + zflow_auxvar_dn%kr > floweps) then
           ! dist(0) = scalar - magnitude of distance
           ! gravity = vector(3)
           ! dist(1:3) = vector(3) - unit vector
