@@ -525,26 +525,21 @@ subroutine PMWellSetup(this)
   class(dataset_ascii_type), pointer :: dataset_ascii
   character(len=MAXSTRINGLENGTH) :: string, string2
   type(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
-  PetscReal, pointer :: res_grid_z_list(:)
+  PetscInt, pointer :: h_ghosted_id_unique(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
   PetscReal :: temp_real
-  PetscInt :: local_id
+  PetscInt :: local_id, ghosted_id
   PetscInt :: nsegments
-  PetscInt :: k, count
+  PetscInt :: max_val, min_val
+  PetscInt :: k, count1, count2
+  PetscBool :: well_grid_res_is_OK = PETSC_FALSE
 
   option => this%option
   res_grid => this%realization%patch%grid
   nsegments = this%grid%nsegments
   write(string2,'(I0.5)') nsegments
-
-  if (.not.res_grid%ctype == 'STRUCTURED') then
-    option%io_buffer = 'WELLBORE_MODEL is only compatible with a structured &
-                        &reservoir grid. Unstructured reservoir grid capability &
-                        &is in development.'
-    call PrintErrMsg(option)
-  endif
 
   allocate(this%grid%dh(nsegments))
   allocate(this%grid%h(nsegments))
@@ -559,6 +554,15 @@ subroutine PMWellSetup(this)
   diff_x = this%grid%tophole(1)-this%grid%bottomhole(1)
   diff_y = this%grid%tophole(2)-this%grid%bottomhole(2)
   diff_z = this%grid%tophole(3)-this%grid%bottomhole(3)
+
+  if ((diff_y >= 1.d-10) .or. (diff_x >= 1.d-10)) then
+    option%io_buffer = 'WELLBORE_MODEL does not support a tilted &
+                        &well geometry. Please ensure that the well is &
+                        &perfectly vertical, and the vertical direction is &
+                        &set to the z-axis. Tilted well geometry is &
+                        &still in development.'
+    call PrintErrMsg(option)
+  endif
 
   dh_x = diff_x/nsegments
   dh_y = diff_y/nsegments
@@ -588,21 +592,44 @@ subroutine PMWellSetup(this)
     this%grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
   enddo
 
-  ! Check that no reservoir grid cells were skipped
-  ! I fear this will fail in parallel
-  count = 0
+  ! Check that no reservoir grid cells were skipped.
+  ! I fear this will fail in parallel!!!
+  ! Count how many of the h_ghosted_id's are unique.
+  ! This sum must be = to the number of reservoir cells that the 
+  !   well passes through.
+  k = 0
+  allocate(h_ghosted_id_unique(nsegments))
+  h_ghosted_id_unique(:) = -999
+  min_val = minval(this%grid%h_ghosted_id)-1
+  max_val = maxval(this%grid%h_ghosted_id)
+  do while (min_val < max_val)
+    k = k + 1
+    min_val = minval(this%grid%h_ghosted_id, &
+                     mask=this%grid%h_ghosted_id > min_val)
+    h_ghosted_id_unique(k) = min_val
+  enddo
+  count1 = 0
+  do k = 1,nsegments
+    if (h_ghosted_id_unique(k) > -999) then
+      count1 = count1 + 1
+    endif
+  enddo
+  ! count1 is the number of unique reservoir grid cells that the well has
+  ! a connection to 
+
+  ! Next, sum up how many grid cells the well passes thru
+  count2 = 0
   do k = 1,size(res_grid%z)
     if ( (res_grid%z(k) >= this%grid%bottomhole(3)) .and. &
          (res_grid%z(k) <= this%grid%tophole(3)) ) then
-      count = count + 1
+      count2 = count2 + 1
     endif
   enddo
-  write(string,'(I0.5)') count
+  write(string,'(I0.5)') count2 
 
-  ! warning: this is an incomplete check on skipped grid cells!
-  ! nsegments >= count is necessary, but not sufficient
-  ! still need to add more checking here
-  if (nsegments < count) then
+  if (count1 == count2) well_grid_res_is_OK = PETSC_TRUE
+
+  if (.not.well_grid_res_is_OK) then
     option%io_buffer = 'WELLBORE_MODEL --------->  &
       &The number of well segments (' // trim(string2) // ') is smaller &
       &than the number of reservoir grid cells it occupies (' // &
@@ -610,6 +637,8 @@ subroutine PMWellSetup(this)
       &have been skipped and have no connection to the well. You must &
       &increase the resolution of the WELLBORE_MODEL grid.'
     call PrintErrMsg(option)
+  else
+
   endif
 
   if (size(this%well%diameter) /= nsegments) then
