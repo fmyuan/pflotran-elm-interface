@@ -6281,14 +6281,14 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
       endif
     ! PM Material Transform
     case(SMECTITE)
-      if (associated(patch%aux%MT)) then
+      if (associated(patch%aux%MTransform)) then
         select case(ivar)
           case(SMECTITE)
             do local_id=1,grid%nlmax
-              if (associated(patch%aux%MT% &
+              if (associated(patch%aux%MTransform% &
                   auxvars(grid%nL2G(local_id))%il_aux)) then
                 vec_ptr(local_id) = &
-                  patch%aux%MT%auxvars(grid%nL2G(local_id))%il_aux%fs
+                  patch%aux%MTransform%auxvars(grid%nL2G(local_id))%il_aux%fs
               endif
             enddo
         end select

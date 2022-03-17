@@ -919,6 +919,10 @@ recursive subroutine PMUFDDecayInitializeRun(this)
 !    stores the total sorbed species concentration [mol-species/m3-bulk],
 !    and the primary species molality [mol-species/kg-water], and is
 !    indexed by the ghosted grid cell id
+! material_transform: pointer to material transform object
+! m_transform_auxvars: pointer to auxiliary variables for material transform,
+!   which are used to modify the sorption distribution coefficients and are
+!   indexed by the ghosted grid cell id
 ! kd_kgw_m3b: [kg-water/m3-bulk] Kd value
 ! local_id: [-] local grid cell id
 ! ghosted_id: [-] ghosted grid cell id
@@ -932,7 +936,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   class(material_transform_type), pointer :: material_transform
-  class(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  class(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   PetscReal :: kd_kgw_m3b
   PetscInt :: local_id, ghosted_id
   PetscInt :: iele, iiso, ipri, i, imat
@@ -941,8 +945,8 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   patch => this%realization%patch
   grid => patch%grid
   rt_auxvars => patch%aux%RT%auxvars
-  if (associated(patch%aux%MT)) then
-    MT_auxvars => patch%aux%MT%auxvars
+  if (associated(patch%aux%MTransform)) then
+    m_transform_auxvars => patch%aux%MTransform%auxvars
   endif
   nullify(material_transform)
 
@@ -956,7 +960,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
         Initialized(patch%mtf_id(ghosted_id))) then
       material_transform => &
         patch%material_transform_array(patch%mtf_id(ghosted_id))%ptr
-      if (associated(MT_auxvars(ghosted_id)%il_aux) .and. &
+      if (associated(m_transform_auxvars(ghosted_id)%il_aux) .and. &
           associated(material_transform)) then
         call material_transform%illitization%illitization_function% &
                CheckElements(this%element_name, &
@@ -969,13 +973,13 @@ recursive subroutine PMUFDDecayInitializeRun(this)
       kd_kgw_m3b = this%element_Kd(iele,imat)
       
       ! modify kd if needed
-      if (associated(patch%aux%MT)) then
-        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+      if (associated(patch%aux%MTransform)) then
+        if (associated(m_transform_auxvars(ghosted_id)%il_aux)) then
           if (this%option%dt > 0.d0 .or. this%option%restart_flag) then
             call material_transform%illitization%illitization_function% &
                    ShiftKd(kd_kgw_m3b, &
                            this%element_name(iele), &
-                           MT_auxvars(ghosted_id)%il_aux, &
+                           m_transform_auxvars(ghosted_id)%il_aux, &
                            this%option)
           endif
         endif
@@ -1108,6 +1112,10 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 ! material_auxvars(:): pointer to the material auxvars object, which is used
 !    to access the grid cell volume [m3] and porosity, and is indexed by  
 !    the ghosted grid cell id
+! material_transform: pointer to material transform object
+! m_transform_auxvars: pointer to auxiliary variables for material transform,
+!   which are used to modify the sorption distribution coefficients and are
+!   indexed by the ghosted grid cell id
 ! local_id: [-] local grid cell id
 ! ghosted_id: [-] ghosted grid cell id
 ! iele: [-] integer element number
@@ -1168,7 +1176,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
   class(material_transform_type), pointer :: material_transform
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iele, i, p, g, ip, ig, iiso, ipri, imnrl, imat
@@ -1214,8 +1222,8 @@ subroutine PMUFDDecaySolve(this,time,ierr)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  if (associated(patch%aux%MT)) then
-    MT_auxvars => patch%aux%MT%auxvars
+  if (associated(patch%aux%MTransform)) then
+    m_transform_auxvars => patch%aux%MTransform%auxvars
   endif
   nullify(material_transform)
 
@@ -1411,14 +1419,14 @@ subroutine PMUFDDecaySolve(this,time,ierr)
       kd_kgw_m3b = this%element_Kd(iele,imat)
 
       ! modify kd if needed
-      if (associated(patch%aux%MT)) then
-        if (associated(MT_auxvars(ghosted_id)%il_aux) .and. &
+      if (associated(patch%aux%MTransform)) then
+        if (associated(m_transform_auxvars(ghosted_id)%il_aux) .and. &
             associated(material_transform)) then
           if (option%dt > 0.d0) then
             call material_transform%illitization%illitization_function% &
                    ShiftKd(kd_kgw_m3b, &
                            this%element_name(iele), &
-                           MT_auxvars(ghosted_id)%il_aux, &
+                           m_transform_auxvars(ghosted_id)%il_aux, &
                            option)
           endif
         endif

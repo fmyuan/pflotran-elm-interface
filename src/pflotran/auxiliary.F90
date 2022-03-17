@@ -39,7 +39,7 @@ module Auxiliary_module
     type(hydrate_type), pointer :: Hydrate
     type(wippflo_type), pointer :: WIPPFlo
     type(material_type), pointer :: Material
-    type(material_transform_type), pointer :: MT
+    type(material_transform_type), pointer :: MTransform
     type(ert_type), pointer :: ERT
     type(sc_heat_type), pointer :: SC_heat
     type(sc_rt_type), pointer :: SC_RT
@@ -80,7 +80,7 @@ subroutine AuxInit(aux)
   nullify(aux%Hydrate)
   nullify(aux%WIPPFlo)
   nullify(aux%Material)
-  nullify(aux%MT)
+  nullify(aux%MTransform)
   nullify(aux%SC_heat)
   nullify(aux%SC_RT)
   nullify(aux%InlineSurface)
@@ -114,7 +114,7 @@ subroutine AuxDestroy(aux)
   call HydrateAuxDestroy(aux%Hydrate)
   call WIPPFloAuxDestroy(aux%WIPPFlo)
   call MaterialAuxDestroy(aux%Material)
-  call MaterialTransformDestroy(aux%MT)
+  call MaterialTransformDestroy(aux%MTransform)
   call ERTAuxDestroy(aux%ERT)
   call SecondaryAuxHeatDestroy(aux%SC_heat)
   call SecondaryAuxRTDestroy(aux%SC_RT)
@@ -132,7 +132,7 @@ subroutine AuxDestroy(aux)
   nullify(aux%Hydrate)
   nullify(aux%WIPPFlo)
   nullify(aux%Material)
-  nullify(aux%MT)
+  nullify(aux%MTransform)
   nullify(aux%ERT)
   nullify(aux%SC_Heat)
   nullify(aux%SC_RT)

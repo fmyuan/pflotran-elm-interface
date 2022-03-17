@@ -27,27 +27,28 @@ module PM_Material_Transform_class
 ! surrogate models for physical phenomena.
 ! ---------------------------------------------------------------------------
 ! realization: pointer to subsurface realization object
-! mtl: pointer to linked list of material transforms in the pm block
+! material_transform_list: pointer to linked list of material transforms in the
+!   pm block
 ! --------------------------------------------------------------------------  
   type, public, extends(pm_base_type) :: pm_material_transform_type
     class(realization_subsurface_type), pointer :: realization
-    type(material_transform_type), pointer :: mtl
+    type(material_transform_type), pointer :: material_transform_list
   contains
     procedure, public :: Setup => PMMaterialTransformSetup
     procedure, public :: ReadPMBlock => PMMaterialTransformReadPMBlock
-    procedure, public :: SetRealization => PMMaterialTransformSetRealization
-    procedure, public :: InitializeRun => PMMaterialTransformInitializeRun
+    procedure, public :: SetRealization => PMMTransformSetRealization
+    procedure, public :: InitializeRun => PMMTransformInitializeRun
     procedure, public :: FinalizeRun => PMMaterialTransformFinalizeRun
     procedure, public :: InitializeTimestep => PMMaterialTransformInitializeTS
     procedure, public :: FinalizeTimestep => PMMaterialTransformFinalizeTS
-    procedure, public :: UpdateSolution => PMMaterialTransformUpdateSolution
+    procedure, public :: UpdateSolution => PMMTransformUpdateSolution
     procedure, public :: Solve => PMMaterialTransformSolve
     procedure, public :: TimeCut => PMMaterialTransformTimeCut
-    procedure, public :: UpdateAuxVars => PMMaterialTransformUpdateAuxVars
-    procedure, public :: CheckpointHDF5 => PMMaterialTransformCheckpointHDF5
-    procedure, public :: CheckpointBinary => PMMaterialTransformCheckpointBinary
+    procedure, public :: UpdateAuxVars => PMMTransformUpdateAuxVars
+    procedure, public :: CheckpointHDF5 => PMMTransformCheckpointHDF5
+    procedure, public :: CheckpointBinary => PMMTransformCheckpointBinary
     procedure, public :: RestartHDF5 => PMMaterialTransformRestartHDF5
-    procedure, public :: RestartBinary => PMMaterialTransformRestartBinary
+    procedure, public :: RestartBinary => PMMTransformRestartBinary
     procedure, public :: InputRecord => PMMaterialTransformInputRecord
     procedure, public :: Destroy => PMMaterialTransformDestroy
   end type pm_material_transform_type
@@ -78,7 +79,7 @@ function PMMaterialTransformCreate()
   pm%header = 'MATERIAL TRANSFORM'
 
   nullify(pm%realization)
-  nullify(pm%mtl)
+  nullify(pm%material_transform_list)
 
   PMMaterialTransformCreate => pm
 
@@ -86,7 +87,7 @@ end function PMMaterialTransformCreate
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformSetRealization(this, realization)
+subroutine PMMTransformSetRealization(this, realization)
   !
   ! Author: Alex Salazar III
   ! Date: 01/19/2022
@@ -105,7 +106,7 @@ subroutine PMMaterialTransformSetRealization(this, realization)
   this%realization => realization
   this%realization_base => realization
 
-end subroutine PMMaterialTransformSetRealization
+end subroutine PMMTransformSetRealization
 
 ! ************************************************************************** !
 
@@ -137,7 +138,8 @@ subroutine PMMaterialTransformSetup(this)
   ! option: pointer to option object within realization
   ! grid: pointer to grid object within realization
   ! material_transform: pointer to material transform object within patch
-  ! MT_auxvars: pointer to array of material transform auxiliary variables
+  ! m_transform_auxvars: pointer to auxiliary variables for material transform,
+  !   which are indexed by the ghosted grid cell id
   ! cur_material_property: pointer to material property within realization
   ! null_material_property: null pointer for regions without materials
   ! local_id: grid cell id number
@@ -150,7 +152,7 @@ subroutine PMMaterialTransformSetup(this)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(material_transform_type), pointer :: material_transform
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(material_property_type), pointer :: null_material_property
   type(material_auxvar_type), pointer :: material_auxvars(:)
@@ -167,16 +169,16 @@ subroutine PMMaterialTransformSetup(this)
   found = PETSC_FALSE
 
   ! pass material transform list from PM to realization
-  if (associated(this%mtl)) then
-    call MaterialTransformAddToList(this%mtl, &
+  if (associated(this%material_transform_list)) then
+    call MaterialTransformAddToList(this%material_transform_list, &
                                     this%realization%material_transform)
   endif
 
   ! set up mapping for material transform functions
   patch%material_transform => this%realization%material_transform
-  call MaterialTransformConvertListToArray(patch%material_transform, &
-                                           patch%material_transform_array, &
-                                           option)
+  call MTransformConvertListToArray(patch%material_transform, &
+                                    patch%material_transform_array, &
+                                    option)
 
   ! material property mapping to PM Material Transform
   cur_material_property => this%realization%material_properties
@@ -246,9 +248,9 @@ subroutine PMMaterialTransformSetup(this)
   enddo
 
   ! initialize the auxiliary variables
-  patch%aux%MT => MaterialTransformCreate()
+  patch%aux%MTransform => MaterialTransformCreate()
   material_auxvars => patch%aux%Material%auxvars
-  allocate(MT_auxvars(grid%ngmax))
+  allocate(m_transform_auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
     if (material_id <= 0) cycle
@@ -256,7 +258,7 @@ subroutine PMMaterialTransformSetup(this)
     material_aux => material_auxvars(ghosted_id)
 
     ! initialize the material transform auxiliary variable object
-    call MaterialTransformAuxVarInit(MT_auxvars(ghosted_id))
+    call MaterialTransformAuxVarInit(m_transform_auxvars(ghosted_id))
     
     if (Initialized(patch%mtf_id(ghosted_id))) then
       ! pointer to material transform in patch ghosted id
@@ -266,41 +268,43 @@ subroutine PMMaterialTransformSetup(this)
       if (associated(material_transform)) then
         if (associated(material_transform%illitization)) then
           ! initialize the illitization auxiliary variable object
-          MT_auxvars(ghosted_id)%il_aux => IllitizationAuxVarInit(option)
+          m_transform_auxvars(ghosted_id)%il_aux => &
+            IllitizationAuxVarInit(option)
         endif
 
         if (associated(material_transform%buffer_erosion)) then
           ! initialize the buffer erosion auxiliary variable object
-          MT_auxvars(ghosted_id)%be_aux => BufferErosionAuxVarInit()
+          m_transform_auxvars(ghosted_id)%be_aux => &
+            BufferErosionAuxVarInit()
         endif
 
         ! pass information from functions to auxiliary variables as needed
         if (.not. option%restart_flag) then
-          if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+          if (associated(m_transform_auxvars(ghosted_id)%il_aux)) then
             ! illitization - obtain initial smectite fraction
-            MT_auxvars(ghosted_id)%il_aux%fs0 = &
+            m_transform_auxvars(ghosted_id)%il_aux%fs0 = &
               material_transform%illitization%illitization_function%fs0
-            MT_auxvars(ghosted_id)%il_aux%fs = &
+            m_transform_auxvars(ghosted_id)%il_aux%fs = &
               material_transform%illitization%illitization_function%fs0
           endif
         else
           ! illitization - save permeability tensor before it is replaced with
           !   restart values
-          if (associated(MT_auxvars(ghosted_id)%il_aux)) then
+          if (associated(m_transform_auxvars(ghosted_id)%il_aux)) then
             ps = size(material_auxvars(ghosted_id)%permeability)
             do i = 1, ps
-              MT_auxvars(ghosted_id)%il_aux%perm0(i) = &
+              m_transform_auxvars(ghosted_id)%il_aux%perm0(i) = &
                 material_auxvars(ghosted_id)%permeability(i)
             enddo
-            MT_auxvars(ghosted_id)%il_aux%qperm0 = PETSC_TRUE
+            m_transform_auxvars(ghosted_id)%il_aux%qperm0 = PETSC_TRUE
           endif
         endif
 
       endif
     endif
   enddo
-  patch%aux%MT%auxvars => MT_auxvars
-  patch%aux%MT%num_aux = grid%ngmax
+  patch%aux%MTransform%auxvars => m_transform_auxvars
+  patch%aux%MTransform%num_aux = grid%ngmax
 
 end subroutine PMMaterialTransformSetup
 
@@ -383,7 +387,7 @@ subroutine PMMaterialTransformReadPMBlock(this,input)
         if (associated(prev_material_transform)) then
           prev_material_transform%next => material_transform
         else
-          this%mtl => material_transform
+          this%material_transform_list => material_transform
         endif
         prev_material_transform => material_transform
         
@@ -401,7 +405,7 @@ end subroutine PMMaterialTransformReadPMBlock
 
 ! ************************************************************************** !
 
-recursive subroutine PMMaterialTransformInitializeRun(this)
+recursive subroutine PMMTransformInitializeRun(this)
   !
   ! Initializes the time stepping
   !
@@ -426,7 +430,7 @@ recursive subroutine PMMaterialTransformInitializeRun(this)
   ! ================
   ! --------------------------------
 
-end subroutine PMMaterialTransformInitializeRun
+end subroutine PMMTransformInitializeRun
 
 ! ************************************************************************** !
 
@@ -499,7 +503,7 @@ end subroutine PMMaterialTransformFinalizeRun
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformUpdateSolution(this)
+subroutine PMMTransformUpdateSolution(this)
   !
   ! Updates data in process model after a successful time step
   !
@@ -515,11 +519,11 @@ subroutine PMMaterialTransformUpdateSolution(this)
   class(pm_material_transform_type) :: this
   ! ---------------------------------
 
-end subroutine PMMaterialTransformUpdateSolution
+end subroutine PMMTransformUpdateSolution
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformUpdateAuxVars(this)
+subroutine PMMTransformUpdateAuxVars(this)
   !
   ! Updates the auxiliary variables associated with the process model
   !
@@ -535,7 +539,7 @@ subroutine PMMaterialTransformUpdateAuxVars(this)
   class(pm_material_transform_type) :: this
   ! ----------------------------------
 
-end subroutine PMMaterialTransformUpdateAuxVars
+end subroutine PMMTransformUpdateAuxVars
 
 ! ************************************************************************** !
 
@@ -596,8 +600,10 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
   ! material aux: pointer to material auxiliary variable object in list
   ! global_auxvars: pointer to array of global auxiliary variables
   ! global aux: pointer to global auxiliary variable object in list
-  ! MT_auxvars: pointer to array of material transform auxiliary variables
-  ! MT_aux: pointer to material transform auxiliary variable object in list
+  ! m_transform_auxvars: pointer to auxiliary variables for material transform,
+  !   which are indexed by the ghosted grid cell id
+  ! m_transform_aux: pointer to material transform auxiliary variable object in
+  !   list
   ! local_id: grid cell id number
   ! ghosted_id: ghosted grid cell id number
   ! material_id: id number of material
@@ -610,8 +616,8 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
   type(material_auxvar_type), pointer :: material_aux
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_aux
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
-  type(material_transform_auxvar_type), pointer :: MT_aux
+  type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
+  type(material_transform_auxvar_type), pointer :: m_transform_aux
   PetscInt :: local_id, ghosted_id, material_id
   ! ----------------------------------
 
@@ -621,7 +627,7 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
 
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  MT_auxvars => patch%aux%MT%auxvars
+  m_transform_auxvars => patch%aux%MTransform%auxvars
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -630,7 +636,7 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
 
     global_aux => global_auxvars(ghosted_id)
     material_aux => material_auxvars(ghosted_id)
-    MT_aux => MT_auxvars(ghosted_id)
+    m_transform_aux => m_transform_auxvars(ghosted_id)
 
     if (Initialized(patch%mtf_id(ghosted_id))) then
       ! pointer to material transform in patch ghosted id
@@ -640,15 +646,15 @@ subroutine PMMaterialTransformSolve(this, time, ierr)
       if (associated(material_transform)) then
         if (associated(material_transform%illitization)) then
           call material_transform%illitization%illitization_function% &
-            CalculateILT(MT_aux%il_aux%fs, &
+            CalculateILT(m_transform_aux%il_aux%fs, &
                          global_aux%temp, &
                          option%dt, &
-                         MT_aux%il_aux%fi, &
-                         MT_aux%il_aux%scale, &
+                         m_transform_aux%il_aux%fi, &
+                         m_transform_aux%il_aux%scale, &
                          option)
           call material_transform%illitization%illitization_function% &
             ShiftPerm(material_aux, &
-                      MT_aux%il_aux, &
+                      m_transform_aux%il_aux, &
                       option)
         endif
         ! if (associated(material_transform%buffer_erosion)) then
@@ -664,7 +670,7 @@ end subroutine PMMaterialTransformSolve
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
+subroutine PMMTransformCheckpointHDF5(this, pm_grp_id)
   ! 
   ! Checkpoints data associated with the material transform process model
   !
@@ -708,7 +714,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
   ! indices: indices of the local material transform vector
   ! int_array: keeps track of the material transform number
   ! check_vars: array of checkpointed values
-  ! cur_mt: material transform object
+  ! cur_m_transform: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
   ! global_vec: global discretization PETSc vector 
   ! natural_vec: local discretization PETSc vector 
@@ -735,7 +741,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
   PetscInt, allocatable :: indices(:)
   PetscInt, allocatable :: int_array(:)
   PetscReal, allocatable :: check_vars(:)
-  class(material_transform_type), pointer :: cur_mt
+  class(material_transform_type), pointer :: cur_m_transform
   character(len=MAXSTRINGLENGTH) :: dataset_name
   Vec :: global_vec
   Vec :: natural_vec
@@ -759,12 +765,12 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
   !   (1) num_aux
   n_check_vars = 1 !number of scalar checkpoint variables
   
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do 
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
     if (local_stride_tmp > local_stride) then
       local_stride = local_stride_tmp
     endif
@@ -772,13 +778,13 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
   enddo
 
   allocate(int_array(n_mt_local))
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   i = 1
   do
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
     int_array(i) = i - 1
     i = i + 1
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
   enddo
 
   ! gather relevant information from all processes
@@ -800,11 +806,11 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
 
   ! collect data for checkpointing
   j = 1
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
 
-    check_vars(1) = cur_mt%num_aux ! checkpoint #1
+    check_vars(1) = cur_m_transform%num_aux ! checkpoint #1
 
     i = n_check_vars + 1
     do
@@ -821,7 +827,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
     call VecSetValues(local_mt_vec, stride, indices, check_vars, &
                      INSERT_VALUES, ierr); CHKERRQ(ierr)
 
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
 
   enddo
 
@@ -847,16 +853,16 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
   ! checkpoint the auxiliary variables
   check_il = PETSC_FALSE
   check_be = PETSC_FALSE
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
-    if (associated(cur_mt%illitization)) then
+    if (.not. associated(cur_m_transform)) exit
+    if (associated(cur_m_transform%illitization)) then
       check_il = PETSC_TRUE
     endif
-    if (associated(cur_mt%buffer_erosion)) then
+    if (associated(cur_m_transform%buffer_erosion)) then
       check_be = PETSC_TRUE
     endif
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
   enddo
 
   if (check_il) then
@@ -865,9 +871,9 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
                                     global_vec, GLOBAL, option)
     call DiscretizationCreateVector(this%realization%discretization, ONEDOF, &
                                     natural_vec, NATURAL, option)
-    call MaterialTransformGetAuxVarVecLoc(this%realization%patch%aux%MT, &
-                                          field%work_loc, SMECTITE, &
-                                          ZERO_INTEGER)
+    call MTransformGetAuxVarVecLoc(this%realization%patch%aux%MTransform, &
+                                   field%work_loc, SMECTITE, &
+                                   ZERO_INTEGER)
     call DiscretizationLocalToGlobal(discretization, field%work_loc, &
                                      global_vec, ONEDOF)
     call DiscretizationGlobalToNatural(discretization, global_vec, &
@@ -881,7 +887,7 @@ subroutine PMMaterialTransformCheckpointHDF5(this, pm_grp_id)
   ! if (check_be) then
   ! endif
 
-end subroutine PMMaterialTransformCheckpointHDF5
+end subroutine PMMTransformCheckpointHDF5
 
 ! ************************************************************************** !
 
@@ -930,7 +936,7 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   ! int_array: keeps track of the material transform number
   ! check_vars: array of checkpointed values
   ! local_mt_array: data converted into a Fortran array
-  ! cur_mt: material transform object
+  ! cur_m_transform: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
   ! global_vec: global discretization PETSc vector 
   ! natural_vec: local discretization PETSc vector 
@@ -958,7 +964,7 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   PetscInt, allocatable :: int_array(:)
   PetscReal, allocatable :: check_vars(:)
   PetscReal, pointer :: local_mt_array(:)
-  class(material_transform_type), pointer :: cur_mt
+  class(material_transform_type), pointer :: cur_m_transform
   character(len=MAXSTRINGLENGTH) :: dataset_name
   Vec :: global_vec
   Vec :: natural_vec
@@ -982,12 +988,12 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   !   (1) num_aux
   n_check_vars = 1 !number of scalar checkpoint variables
 
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do 
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
     if (local_stride_tmp > local_stride) then
       local_stride = local_stride_tmp
     endif
@@ -996,12 +1002,12 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
 
   allocate(int_array(n_mt_local))
   i = 1
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
     int_array(i) = i - 1
     i = i + 1
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
   enddo
 
   ! gather relevant information from all processes
@@ -1041,13 +1047,13 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
 
   ! assign checkpointed material transform information
   i = 1
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
 
-    cur_mt%num_aux = local_mt_array(i) ! checkpoint #1
+    cur_m_transform%num_aux = local_mt_array(i) ! checkpoint #1
 
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
     i = i + stride
   enddo
 
@@ -1060,16 +1066,16 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
   ! retrieve the auxiliary variables
   check_il = PETSC_FALSE
   check_be = PETSC_FALSE
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
-    if (associated(cur_mt%illitization)) then
+    if (.not. associated(cur_m_transform)) exit
+    if (associated(cur_m_transform%illitization)) then
       check_il = PETSC_TRUE
     endif
-    if (associated(cur_mt%buffer_erosion)) then
+    if (associated(cur_m_transform%buffer_erosion)) then
       check_be = PETSC_TRUE
     endif
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
   enddo
 
   if (check_il) then
@@ -1085,9 +1091,9 @@ subroutine PMMaterialTransformRestartHDF5(this, pm_grp_id)
                                        global_vec, ONEDOF)
     call DiscretizationGlobalToLocal(discretization, global_vec, &
                                      field%work_loc, ONEDOF)
-    call MaterialTransformSetAuxVarVecLoc(this%realization%patch%aux%MT, &
-                                          field%work_loc, SMECTITE, &
-                                          ZERO_INTEGER)
+    call MTransformSetAuxVarVecLoc(this%realization%patch%aux%MTransform, &
+                                   field%work_loc, SMECTITE, &
+                                   ZERO_INTEGER)
     call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
     call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
   endif
@@ -1098,7 +1104,7 @@ end subroutine PMMaterialTransformRestartHDF5
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformCheckpointBinary(this, viewer)
+subroutine PMMTransformCheckpointBinary(this, viewer)
   ! 
   ! Checkpoints data associated with the material transform process model
   !
@@ -1141,7 +1147,7 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
   ! indices: indices of the local material transform vector
   ! int_array: keeps track of the material transform number
   ! check_vars: array of checkpointed values
-  ! cur_mt: material transform object
+  ! cur_m_transform: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
   ! global_vec: global discretization PETSc vector 
   ! natural_vec: local discretization PETSc vector 
@@ -1168,7 +1174,7 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
   PetscInt, allocatable :: indices(:)
   PetscInt, allocatable :: int_array(:)
   PetscReal, allocatable :: check_vars(:)
-  class(material_transform_type), pointer :: cur_mt
+  class(material_transform_type), pointer :: cur_m_transform
   character(len=MAXSTRINGLENGTH) :: dataset_name
   Vec :: global_vec
   Vec :: natural_vec
@@ -1192,12 +1198,12 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
   !   (1) num_aux
   n_check_vars = 1 !number of scalar checkpoint variables
   
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do 
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
     if (local_stride_tmp > local_stride) then
       local_stride = local_stride_tmp
     endif
@@ -1205,13 +1211,13 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
   enddo
 
   allocate(int_array(n_mt_local))
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   i = 1
   do
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
     int_array(i) = i - 1
     i = i + 1
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
   enddo
 
   ! gather relevant information from all processes
@@ -1233,11 +1239,11 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
 
   ! collect data for checkpointing
   j = 1
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
 
-    check_vars(1) = cur_mt%num_aux ! checkpoint #1
+    check_vars(1) = cur_m_transform%num_aux ! checkpoint #1
 
     i = n_check_vars + 1
     do
@@ -1254,7 +1260,7 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
     call VecSetValues(local_mt_vec, stride, indices, check_vars, &
                      INSERT_VALUES, ierr); CHKERRQ(ierr)
 
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
 
   enddo
 
@@ -1279,25 +1285,25 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
   ! checkpoint the auxiliary variables
   check_il = PETSC_FALSE
   check_be = PETSC_FALSE
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
-    if (associated(cur_mt%illitization)) then
+    if (.not. associated(cur_m_transform)) exit
+    if (associated(cur_m_transform%illitization)) then
       check_il = PETSC_TRUE
     endif
-    if (associated(cur_mt%buffer_erosion)) then
+    if (associated(cur_m_transform%buffer_erosion)) then
       check_be = PETSC_TRUE
     endif
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
   enddo
 
   if (check_il) then
     global_vec = PETSC_NULL_VEC
     call DiscretizationCreateVector(this%realization%discretization, ONEDOF, &
                                     global_vec, GLOBAL, option)
-    call MaterialTransformGetAuxVarVecLoc(this%realization%patch%aux%MT, &
-                                          field%work_loc, SMECTITE, &
-                                          ZERO_INTEGER)
+    call MTransformGetAuxVarVecLoc(this%realization%patch%aux%MTransform, &
+                                   field%work_loc, SMECTITE, &
+                                   ZERO_INTEGER)
     call DiscretizationLocalToGlobal(discretization, field%work_loc, &
                                      global_vec, ONEDOF)
     call VecView(global_vec, viewer, ierr); CHKERRQ(ierr)
@@ -1306,11 +1312,11 @@ subroutine PMMaterialTransformCheckpointBinary(this, viewer)
   ! if (check_be) then
   ! endif
 
-end subroutine PMMaterialTransformCheckpointBinary
+end subroutine PMMTransformCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine PMMaterialTransformRestartBinary(this, viewer)
+subroutine PMMTransformRestartBinary(this, viewer)
   !
   ! Restarts data associated with material transform process model
   ! 
@@ -1351,7 +1357,7 @@ subroutine PMMaterialTransformRestartBinary(this, viewer)
   ! int_array: keeps track of the material transform number
   ! check_vars: array of checkpointed values
   ! local_mt_array: data converted into a Fortran array
-  ! cur_mt: material transform object
+  ! cur_m_transform: material transform object
   ! dataset_name: descriptor of the material transform checkpoint data
   ! global_vec: global discretization PETSc vector 
   ! natural_vec: local discretization PETSc vector 
@@ -1379,7 +1385,7 @@ subroutine PMMaterialTransformRestartBinary(this, viewer)
   PetscInt, allocatable :: int_array(:)
   PetscReal, allocatable :: check_vars(:)
   PetscReal, pointer :: local_mt_array(:)
-  class(material_transform_type), pointer :: cur_mt
+  class(material_transform_type), pointer :: cur_m_transform
   character(len=MAXSTRINGLENGTH) :: dataset_name
   Vec :: global_vec
   Vec :: natural_vec
@@ -1403,12 +1409,12 @@ subroutine PMMaterialTransformRestartBinary(this, viewer)
   !   (1) num_aux
   n_check_vars = 1 !number of scalar checkpoint variables
 
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do 
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
     n_mt_local = n_mt_local + 1
     local_stride_tmp = local_stride_tmp + n_check_vars
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
     if (local_stride_tmp > local_stride) then
       local_stride = local_stride_tmp
     endif
@@ -1417,12 +1423,12 @@ subroutine PMMaterialTransformRestartBinary(this, viewer)
 
   allocate(int_array(n_mt_local))
   i = 1
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
     int_array(i) = i - 1
     i = i + 1
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
   enddo
 
   ! gather relevant information from all processes
@@ -1460,13 +1466,13 @@ subroutine PMMaterialTransformRestartBinary(this, viewer)
 
   ! assign checkpointed material transform information
   i = 1
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
+    if (.not. associated(cur_m_transform)) exit
 
-    cur_mt%num_aux = local_mt_array(i) ! checkpoint #1
+    cur_m_transform%num_aux = local_mt_array(i) ! checkpoint #1
 
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
     i = i + stride
   enddo
 
@@ -1479,16 +1485,16 @@ subroutine PMMaterialTransformRestartBinary(this, viewer)
   ! retrieve the auxiliary variables
   check_il = PETSC_FALSE
   check_be = PETSC_FALSE
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
-    if (associated(cur_mt%illitization)) then
+    if (.not. associated(cur_m_transform)) exit
+    if (associated(cur_m_transform%illitization)) then
       check_il = PETSC_TRUE
     endif
-    if (associated(cur_mt%buffer_erosion)) then
+    if (associated(cur_m_transform%buffer_erosion)) then
       check_be = PETSC_TRUE
     endif
-    cur_mt => cur_mt%next
+    cur_m_transform => cur_m_transform%next
   enddo
 
   if (check_il) then
@@ -1498,15 +1504,15 @@ subroutine PMMaterialTransformRestartBinary(this, viewer)
     call VecLoad(global_vec, viewer, ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization, global_vec, &
                                      field%work_loc, ONEDOF)
-    call MaterialTransformSetAuxVarVecLoc(this%realization%patch%aux%MT, &
-                                          field%work_loc, SMECTITE, &
-                                          ZERO_INTEGER)
+    call MTransformSetAuxVarVecLoc(this%realization%patch%aux%MTransform, &
+                                   field%work_loc, SMECTITE, &
+                                   ZERO_INTEGER)
     call VecDestroy(global_vec, ierr); CHKERRQ(ierr)
   endif
   ! if (check_be) then
   ! endif
 
-end subroutine PMMaterialTransformRestartBinary
+end subroutine PMMTransformRestartBinary
 
 ! ************************************************************************** !
 
@@ -1538,9 +1544,9 @@ subroutine PMMaterialTransformInputRecord(this)
   write(id,'(a29)',advance='no') 'pm: '
   write(id,'(a)') this%name
 
-  if (associated(this%mtl)) then
+  if (associated(this%material_transform_list)) then
     ! print material transform model information
-    call MaterialTransformInputRecord(this%mtl)
+    call MaterialTransformInputRecord(this%material_transform_list)
   endif
 
 end subroutine PMMaterialTransformInputRecord
@@ -1564,22 +1570,22 @@ subroutine PMMaterialTransformStrip(this)
   ! --------------------------------
   ! LOCAL VARIABLES:
   ! ================
-  ! cur_mt: pointer to current material transform object
-  ! prev_mt: pointer to previous material transform object
+  ! cur_m_transform: pointer to current material transform object
+  ! prev_m_transform: pointer to previous material transform object
   ! --------------------------------
-  type(material_transform_type), pointer :: cur_mt, prev_mt
+  type(material_transform_type), pointer :: cur_m_transform, prev_m_transform
   ! --------------------------------
 
   nullify(this%realization)
-  cur_mt => this%mtl
+  cur_m_transform => this%material_transform_list
   do
-    if (.not. associated(cur_mt)) exit
-    prev_mt => cur_mt
-    cur_mt => cur_mt%next
-    call MaterialTransformDestroy(prev_mt)
+    if (.not. associated(cur_m_transform)) exit
+    prev_m_transform => cur_m_transform
+    cur_m_transform => cur_m_transform%next
+    call MaterialTransformDestroy(prev_m_transform)
   enddo
-  deallocate(this%mtl)
-  nullify(this%mtl)
+  deallocate(this%material_transform_list)
+  nullify(this%material_transform_list)
 
 end subroutine PMMaterialTransformStrip
 

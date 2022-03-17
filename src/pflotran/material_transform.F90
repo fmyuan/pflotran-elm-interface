@@ -120,13 +120,13 @@ module Material_Transform_module
   public :: MaterialTransformCreate, &
             MaterialTransformGetID, &
             MaterialTransformAddToList, &
-            MaterialTransformConvertListToArray, &
             MaterialTransformDestroy, &
             MaterialTransformInputRecord, &
             MaterialTransformRead, &
             MaterialTransformAuxVarInit, &
-            MaterialTransformGetAuxVarVecLoc, &
-            MaterialTransformSetAuxVarVecLoc, &
+            MTransformConvertListToArray, &
+            MTransformGetAuxVarVecLoc, &
+            MTransformSetAuxVarVecLoc, &
             IllitizationAuxVarInit, &
             BufferErosionAuxVarInit
 
@@ -1817,7 +1817,7 @@ end subroutine MaterialTransformAddToList
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformConvertListToArray(list, array, option)
+subroutine MTransformConvertListToArray(list, array, option)
   !
   ! Populates the material transform pointer type
   !
@@ -1875,7 +1875,7 @@ subroutine MaterialTransformConvertListToArray(list, array, option)
     cur_material_transform => cur_material_transform%next
   enddo
 
-end subroutine MaterialTransformConvertListToArray
+end subroutine MTransformConvertListToArray
 
 ! ************************************************************************** !
 
@@ -1934,7 +1934,7 @@ end function MaterialTransformGetID
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
+subroutine MTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
                                             isubvar)
   !
   ! Assigns vector location of material transform auxvar data for checkpoint.
@@ -1947,26 +1947,26 @@ subroutine MaterialTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
 
   implicit none
   ! ----------------------------------
-  type(material_transform_type) :: material_transform ! from realization%patch%aux%MT
+  type(material_transform_type) :: material_transform ! from realization%patch%aux%MTransform
   Vec :: vec_loc
   PetscInt :: ivar
   PetscInt :: isubvar
   ! ----------------------------------
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   PetscErrorCode :: ierr
   ! ----------------------------------
 
-  MT_auxvars => material_transform%auxvars
+  m_transform_auxvars => material_transform%auxvars
   call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
 
   select case(ivar)
   !-----------------------------
     case(SMECTITE)
       do ghosted_id = 1, material_transform%num_aux
-        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
-          vec_loc_p(ghosted_id) = MT_auxvars(ghosted_id)%il_aux%fs
+        if (associated(m_transform_auxvars(ghosted_id)%il_aux)) then
+          vec_loc_p(ghosted_id) = m_transform_auxvars(ghosted_id)%il_aux%fs
         else
           vec_loc_p(ghosted_id) = UNINITIALIZED_DOUBLE
         endif
@@ -1975,11 +1975,11 @@ subroutine MaterialTransformGetAuxVarVecLoc(material_transform, vec_loc, ivar, &
 
   call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
 
-end subroutine MaterialTransformGetAuxVarVecLoc
+end subroutine MTransformGetAuxVarVecLoc
 
 ! ************************************************************************** !
 
-subroutine MaterialTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
+subroutine MTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
                                             isubvar)
   !
   ! Retrieves material transform auxvar data using a vector for restart.
@@ -1992,33 +1992,33 @@ subroutine MaterialTransformSetAuxVarVecLoc(material_transform, vec_loc, ivar, &
 
   implicit none
   ! ----------------------------------
-  type(material_transform_type) :: material_transform ! from realization%patch%aux%MT
+  type(material_transform_type) :: material_transform ! from realization%patch%aux%MTransform
   Vec :: vec_loc
   PetscInt :: ivar
   PetscInt :: isubvar
   ! ----------------------------------
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
-  type(material_transform_auxvar_type), pointer :: MT_auxvars(:)
+  type(material_transform_auxvar_type), pointer :: m_transform_auxvars(:)
   PetscErrorCode :: ierr
   ! ----------------------------------
 
-  MT_auxvars => material_transform%auxvars
+  m_transform_auxvars => material_transform%auxvars
   call VecGetArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
 
   select case(ivar)
   !-----------------------------
     case(SMECTITE)
       do ghosted_id = 1, material_transform%num_aux
-        if (associated(MT_auxvars(ghosted_id)%il_aux)) then
-          MT_auxvars(ghosted_id)%il_aux%fs = vec_loc_p(ghosted_id)
+        if (associated(m_transform_auxvars(ghosted_id)%il_aux)) then
+          m_transform_auxvars(ghosted_id)%il_aux%fs = vec_loc_p(ghosted_id)
         endif
       enddo
   end select
 
   call VecRestoreArrayReadF90(vec_loc, vec_loc_p, ierr); CHKERRQ(ierr)
 
-end subroutine MaterialTransformSetAuxVarVecLoc
+end subroutine MTransformSetAuxVarVecLoc
 
 ! ************************************************************************** !
 
@@ -2155,8 +2155,8 @@ subroutine MaterialTransformInputRecord(material_transform_list)
         illitization_function)) then
       write(id,'(a29)') '--------------: '
       write(id,'(a29)',advance='no') 'illitization model: '
-      select type (illitization_function => cur_material_transform%illitization% &
-        illitization_function)
+      select type (illitization_function => cur_material_transform% &
+        illitization%illitization_function)
         !---------------------------------
         class is (ILT_default_type)
           write(id,'(a)') 'Huang et al., 1993'
