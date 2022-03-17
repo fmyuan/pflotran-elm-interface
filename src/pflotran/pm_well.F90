@@ -529,6 +529,8 @@ subroutine PMWellSetup(this)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
+  PetscReal :: top_of_reservoir, top_of_hole
+  PetscReal :: bottom_of_reservoir, bottom_of_hole
   PetscReal :: temp_real
   PetscInt :: local_id, ghosted_id
   PetscInt :: nsegments
@@ -550,6 +552,37 @@ subroutine PMWellSetup(this)
   this%grid%strata_id(:) = UNINITIALIZED_INTEGER
 
   this%grid%nconnections = this%grid%nsegments - 1
+
+  top_of_reservoir = res_grid%z_max_global
+  top_of_hole = this%grid%tophole(3)
+  bottom_of_reservoir = res_grid%z_min_global
+  bottom_of_hole = this%grid%bottomhole(3)
+  if (top_of_reservoir < top_of_hole) then
+    option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates extend &
+                       &beyond the top of the reservoir domain. &
+                       &You must fix the TOP_OF_HOLE coordinates to align &
+                       &with the top face of the reservoir grid cell that &
+                       &it occupies.'
+    call PrintErrMsg(option)
+  endif
+  if (top_of_reservoir > top_of_hole) then
+    option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates do not &
+                       &reach the top of the reservoir domain. &
+                       &You must fix the TOP_OF_HOLE coordinates to align &
+                       &with the top face of the reservoir grid cell that &
+                       &it occupies.'
+    call PrintErrMsg(option)
+  endif
+  if (bottom_of_reservoir > bottom_of_hole) then
+    option%io_buffer = 'The WELLBORE_MODEL BOTTOM_OF_HOLE coordinates extend &
+                       &beyond the bottom of the reservoir domain. &
+                       &You must fix the BOTTOM_OF_HOLE coordinates so that &
+                       &the bottom of the well is aligned with the bottom &
+                       &face of the reservoir, or is above the bottom &
+                       &face of the reservoir in the vertical column that the &
+                       &well occupies.'
+    call PrintErrMsg(option)
+  endif
 
   diff_x = this%grid%tophole(1)-this%grid%bottomhole(1)
   diff_y = this%grid%tophole(2)-this%grid%bottomhole(2)
