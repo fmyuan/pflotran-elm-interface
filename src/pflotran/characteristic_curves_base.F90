@@ -565,7 +565,7 @@ subroutine SFBaseCalcVaporPressure(this,Pc,T,Psat,Pv)
   ! vis-a-vis the Young-Laplace equation where
   ! Kelvin Eqn: ln(P/P_sat) = 2*sigma*Vm/(rRT)
   ! Y-L Eqn: Pc = 2*sigma*cos(theta)/r
-  ! cos(theta) -> 0
+  ! cos(theta) -> 1
   !
   ! Author: Michael Nole
   ! Date: 02/04/22
