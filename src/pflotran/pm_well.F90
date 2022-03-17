@@ -2982,7 +2982,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ss_check_s(:,1) = this%well%gas%s(:)
   steady_state = PETSC_FALSE
   ss_step_count = 0
-  steps_to_declare_ss = 3
+  steps_to_declare_ss = 10
 
   ! update the well src/sink Q vector
   call PMWellUpdateWellQ(this%well,this%reservoir)
