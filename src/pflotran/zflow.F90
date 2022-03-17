@@ -87,7 +87,11 @@ subroutine ZFlowSetup(realization)
       if (Initialized(minval(patch%material_property_array(imat)%ptr% &
                                       tensorial_rel_perm_exponent))) then
         zflow_parameter%tensorial_rel_perm_exponent(:,imat) = &
-          patch%material_property_array(imat)%ptr%tensorial_rel_perm_exponent
+          patch%material_property_array(imat)%ptr% &
+            ! the tortuosity parameter in hardwired to 0.5 in characteristic
+            ! curves. we subtract the default to allow the tensorial value
+            ! to override the hardwired default
+            tensorial_rel_perm_exponent - 0.5d0
       else
         option%io_buffer = 'A tensorial relative permeability exponent &
           &is not define for material "' // &

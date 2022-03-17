@@ -351,7 +351,7 @@ subroutine THSetupPatch(realization)
       call SecondaryContinuumSetProperties( &
         TH_sec_heat_vars(local_id)%sec_continuum, &
         patch%material_property_array(1)%ptr%multicontinuum%name, &
-        patch%material_property_array(1)%ptr%multicontinuum%length, &
+        patch%aux%Material%auxvars(ghosted_id)%soil_properties(matrix_length_index), &
         patch%material_property_array(1)%ptr% &
           multicontinuum%matrix_block_size, &
         patch%material_property_array(1)%ptr% &
@@ -366,7 +366,7 @@ subroutine THSetupPatch(realization)
       TH_sec_heat_vars(local_id)%aperture = &
         patch%material_property_array(1)%ptr%multicontinuum%aperture
       TH_sec_heat_vars(local_id)%epsilon = &
-        patch%aux%Material%auxvars(ghosted_id)%epsilon
+        patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index)
       TH_sec_heat_vars(local_id)%log_spacing = &
         patch%material_property_array(1)%ptr%multicontinuum%log_spacing
       TH_sec_heat_vars(local_id)%outer_spacing = &
