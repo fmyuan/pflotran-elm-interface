@@ -1880,7 +1880,7 @@ subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
   !
   !  Marching along y direction on the yz plane defined earlier, find
   !    intermediate interpolated data values using four points of the yz plane
-  !    -- this forms a line collinear with the z axis.
+  !    -- this forms a line parallel with the z axis.
   !
   !  Marching along the z line defined earlier, find final interpolated data
   !    value.
