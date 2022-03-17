@@ -523,8 +523,9 @@ subroutine PMWellSetup(this)
   type(coupler_type), pointer :: source_sink
   type(input_type) :: input_dummy
   class(dataset_ascii_type), pointer :: dataset_ascii
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  type(point3d_type) :: dummy_h
   type(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
+  character(len=MAXSTRINGLENGTH) :: string, string2
   PetscInt, pointer :: h_ghosted_id_unique(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
@@ -533,10 +534,12 @@ subroutine PMWellSetup(this)
   PetscReal :: bottom_of_reservoir, bottom_of_hole
   PetscReal :: temp_real
   PetscInt :: local_id, ghosted_id
+  PetscInt :: ghosted_id_well, ghosted_id_res
   PetscInt :: nsegments
   PetscInt :: max_val, min_val
   PetscInt :: k, count1, count2
   PetscBool :: well_grid_res_is_OK = PETSC_FALSE
+  PetscBool :: res_grid_cell_within_well_z
 
   option => this%option
   res_grid => this%realization%patch%grid
@@ -650,16 +653,44 @@ subroutine PMWellSetup(this)
   ! count1 is the number of unique reservoir grid cells that the well has
   ! a connection to 
 
-  ! Next, sum up how many grid cells the well passes thru
+  ! Next, sum up how many grid cells the well passes thru.
+  ! Note: This count assumes that the well is vertical and the top and
+  !       bottom surfaces do not slope or undulate. 
   count2 = 0
   do k = 1,size(res_grid%z)
+    res_grid_cell_within_well_z = PETSC_FALSE
     if ( (res_grid%z(k) >= this%grid%bottomhole(3)) .and. &
          (res_grid%z(k) <= this%grid%tophole(3)) ) then
-      count2 = count2 + 1
+      res_grid_cell_within_well_z = PETSC_TRUE
+    endif
+    if (res_grid_cell_within_well_z) then
+      ! What should the ghosted_id of the reservoir cell at this z-level
+      ! along the well be?
+      dummy_h%z = res_grid%z(k)
+      dummy_h%y = this%grid%tophole(2)
+      dummy_h%x = this%grid%tophole(1)
+      call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+      ghosted_id_well = res_grid%nL2G(local_id)
+      ! What is the ghosted_id of the actual reservoir cell at this z-level?
+      dummy_h%z = res_grid%z(k)
+      dummy_h%y = res_grid%y(k)
+      dummy_h%x = res_grid%x(k)
+      call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+      ghosted_id_res = res_grid%nL2G(local_id)
+      ! Does the well occupy this grid cell? If a reservoir cell was skipped
+      ! by the well, then the count will never be incremented, and count2
+      ! will not equal count1. count2 will be larger than count1.
+      if (ghosted_id_res == ghosted_id_well) then
+        count2 = count2 + 1
+      endif
     endif
   enddo
   write(string,'(I0.5)') count2 
 
+  ! The only way we can ensure that the well discretization did not skip a
+  ! reservoir cell, is if the number of unique ghosted_id's that the well
+  ! is connected to (count1) matches the number of reservoir grid cells that
+  ! the well occupies (count2):
   if (count1 == count2) well_grid_res_is_OK = PETSC_TRUE
 
   if (.not.well_grid_res_is_OK) then
