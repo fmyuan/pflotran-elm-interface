@@ -1334,7 +1334,8 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
       endif
 
       if ((Initialized(this%well%bh_p).or.Initialized(this%well%bh_sg)) .and. &
-          .not.(Initialized(this%well%bh_p).and.Initialized(this%well%bh_sg))) &
+          .not.((this%well%bh_p_set_by_reservoir .or. &
+          Initialized(this%well%bh_p)).and.Initialized(this%well%bh_sg))) &
           then
         option%io_buffer ='WIPP_DARCY well model needs both Dirichlet &
            &LIQUID_PRESSURE and GAS_SATURATION set in the ' &
@@ -2046,6 +2047,10 @@ subroutine PMWellInitializeTimestep(this)
     call PMWellInitializeWell(this)
   endif
 
+  if (this%well%bh_p_set_by_reservoir) then
+    this%well%bh_p = this%reservoir%p_l(1)
+  endif
+
   call PMWellUpdatePropertiesFlow(this,this%well,&
                         this%realization%patch%characteristic_curves_array,&
                         this%realization%option)
@@ -2222,9 +2227,6 @@ subroutine PMWellUpdateReservoir(this)
             this%reservoir%volume(k) * this%reservoir%s_l(k)
     endif
 
-    if ((k == 1) .and. this%well%bh_p_set_by_reservoir) then
-      this%well%bh_p = this%reservoir%p_l(k)
-    endif
   enddo
 
 end subroutine PMWellUpdateReservoir
