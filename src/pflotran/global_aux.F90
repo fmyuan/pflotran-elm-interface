@@ -200,7 +200,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
       nullify(auxvar%m_nacl)
       nullify(auxvar%reaction_rate)
       nullify(auxvar%reaction_rate_store)  
-    case (G_MODE)
+    case (G_MODE,H_MODE)
       if (option%ntrandof > 0) then
         allocate(auxvar%pres_store(nphase,TWO_INTEGER))
         auxvar%pres_store = 0.d0

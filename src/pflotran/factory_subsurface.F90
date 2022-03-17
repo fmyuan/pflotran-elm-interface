@@ -235,6 +235,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
   use PM_UFD_Biosphere_class
   use PM_Auxiliary_class
   use PM_Material_Transform_class
+  use PM_WIPP_Flow_class
   use Realization_Subsurface_class
   use Option_module
   use Input_Aux_module
@@ -295,6 +296,13 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
                                  'PMC3MaterialTransform',realization,input, &
                                  option)
 
+  if (associated(pm_flow)) then
+    select type(pm_flow)
+      class is (pm_wippflo_type)
+        call AddPMWippSrcSink(realization,pm_flow,input)
+    end select
+  endif
+ 
   call InputDestroy(input)
 
 end subroutine SetupPMCLinkages
@@ -888,6 +896,37 @@ end subroutine AddPMCMaterialTransform
 
 ! ************************************************************************** !
 
+subroutine AddPMWippSrcSink(realization,pm_wippflo,input)
+
+  use Input_Aux_module
+  use Option_module
+  use Realization_Subsurface_class
+  use WIPP_Flow_Aux_module
+  use PM_WIPP_Flow_class
+  use PM_WIPP_SrcSink_class
+
+  implicit none
+
+  class(realization_subsurface_type), pointer :: realization
+  class(pm_wippflo_type) :: pm_wippflo
+  type(option_type), pointer :: option
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: block_string
+
+  option => realization%option
+
+  block_string = 'WIPP_SOURCE_SINK'
+  call InputFindStringInFile(input,option,block_string)
+  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
+    pm_wippflo%pmwss_ptr => PMWSSCreate()
+    pm_wippflo%pmwss_ptr%option => option
+    call pm_wippflo%pmwss_ptr%ReadPMBlock(input)
+    call PMWSSSetRealization(pm_wippflo%pmwss_ptr,realization)
+  endif
+
+end subroutine AddPMWippSrcSink
+! ************************************************************************** !
+  
 subroutine SubsurfInitCommandLineSettings(option)
   !
   ! Initializes PFLTORAN subsurface output

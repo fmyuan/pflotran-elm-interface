@@ -83,6 +83,8 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowTimeCutPostInit, &
             PMSubsurfaceFlowCheckpointBinary, &
             PMSubsurfaceFlowRestartBinary, &
+            PMSubsurfaceFlowCheckpointHDF5, &
+            PMSubsurfaceFlowRestartHDF5, &
             PMSubsurfFlowReadSimOptionsSC, &
             PMSubsurfaceFlowReadTSSelectCase, &
             PMSubsurfaceFlowReadNewtonSelectCase, &

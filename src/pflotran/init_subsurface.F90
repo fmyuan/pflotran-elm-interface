@@ -258,7 +258,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY, &
-                               EPSILON, ELECTRICAL_CONDUCTIVITY
+                               EPSILON, ELECTRICAL_CONDUCTIVITY, &
+                               MATRIX_LENGTH
 
   use HDF5_module
   use Utility_module, only : DeallocateArray
@@ -270,6 +271,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: por0_p(:)
   PetscReal, pointer :: tor0_p(:)
   PetscReal, pointer :: eps0_p(:)
+  PetscReal, pointer :: length0_p(:)
   PetscReal, pointer :: perm_xx_p(:)
   PetscReal, pointer :: perm_yy_p(:)
   PetscReal, pointer :: perm_zz_p(:)
@@ -280,7 +282,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: compress_p(:)
   PetscReal, pointer :: cond_p(:)
 
-  Vec :: epsilon0
+  Vec :: epsilon0,matrixlength0
 
   character(len=MAXSTRINGLENGTH) :: string
   type(material_property_type), pointer :: material_property
@@ -319,10 +321,17 @@ subroutine InitSubsurfAssignMatProperties(realization)
   call VecGetArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
 
-  call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
-                                     epsilon0);
-  call VecGetArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
-
+  if (epsilon_index > 0) then
+    call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
+                                       epsilon0);
+    call VecGetArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
+  endif
+  if (matrix_length_index > 0) then
+    call DiscretizationDuplicateVector(discretization,field%tortuosity0,&
+                                       matrixlength0);
+    call VecGetArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
+  endif
+ 
   ! geophysics
   if (option%ngeopdof > 0) then
     call VecGetArrayF90(field%electrical_conductivity,cond_p, &
@@ -431,8 +440,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
-    if (associated(material_property%multicontinuum)) then
+    if (epsilon_index > 0) then
       eps0_p(local_id) = material_property%multicontinuum%epsilon
+    endif
+    if (matrix_length_index > 0) then
+      length0_p(local_id) = material_property%multicontinuum%length
     endif
 
     if (option%ngeopdof > 0) then
@@ -458,8 +470,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
   endif
   call VecRestoreArrayF90(field%porosity0,por0_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%tortuosity0,tor0_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
-
+  if (epsilon_index > 0) then
+    call VecRestoreArrayF90(epsilon0,eps0_p,ierr);CHKERRQ(ierr)
+  endif
+  if (matrix_length_index > 0) then
+    call VecRestoreArrayF90(matrixlength0,length0_p,ierr);CHKERRQ(ierr)
+  endif
+ 
   if (option%ngeopdof > 0) then
     call VecRestoreArrayF90(field%electrical_conductivity,cond_p, &
       ierr);CHKERRQ(ierr)
@@ -516,6 +533,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
           call SubsurfReadDatasetToVecWithMask(realization, &
                  material_property%multicontinuum%epsilon_dataset, &
                  material_property%internal_id,PETSC_FALSE,epsilon0)
+        endif
+        if (associated(material_property%multicontinuum%length_dataset)) then
+          call SubsurfReadDatasetToVecWithMask(realization, &
+                 material_property%multicontinuum%length_dataset, &
+                 material_property%internal_id,PETSC_FALSE,matrixlength0)
         endif
       endif
     endif
@@ -577,13 +599,20 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                     field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                TORTUOSITY,ZERO_INTEGER)
-  if (associated(material_property%multicontinuum)) then
+  if (epsilon_index > 0) then
     call DiscretizationGlobalToLocal(discretization,epsilon0, &
                                      field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  EPSILON,ZERO_INTEGER)
+    call VecDestroy(epsilon0,ierr);CHKERRQ(ierr);
   endif
-  call VecDestroy(epsilon0,ierr);CHKERRQ(ierr);
+  if (matrix_length_index > 0) then
+    call DiscretizationGlobalToLocal(discretization,matrixlength0, &
+                                     field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 MATRIX_LENGTH,ZERO_INTEGER)
+    call VecDestroy(matrixlength0,ierr);CHKERRQ(ierr);
+  endif  
 
   if (option%ngeopdof > 0) then
      call DiscretizationGlobalToLocal(discretization, &
