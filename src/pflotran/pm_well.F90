@@ -531,28 +531,28 @@ subroutine PMWellSetup(this)
   type(coupler_type), pointer :: source_sink
   type(input_type) :: input_dummy
   class(dataset_ascii_type), pointer :: dataset_ascii
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  type(point3d_type) :: dummy_h
   type(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
-  PetscReal, pointer :: res_grid_z_list(:)
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  PetscInt, pointer :: h_ghosted_id_unique(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
+  PetscReal :: top_of_reservoir, top_of_hole
+  PetscReal :: bottom_of_reservoir, bottom_of_hole
   PetscReal :: temp_real
-  PetscInt :: local_id
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: ghosted_id_well, ghosted_id_res
   PetscInt :: nsegments
-  PetscInt :: k, count
+  PetscInt :: max_val, min_val
+  PetscInt :: k, count1, count2
+  PetscBool :: well_grid_res_is_OK = PETSC_FALSE
+  PetscBool :: res_grid_cell_within_well_z
 
   option => this%option
   res_grid => this%realization%patch%grid
   nsegments = this%grid%nsegments
   write(string2,'(I0.5)') nsegments
-
-  if (.not.res_grid%ctype == 'STRUCTURED') then
-    option%io_buffer = 'WELLBORE_MODEL is only compatible with a structured &
-                        &reservoir grid. Unstructured reservoir grid capability &
-                        &is in development.'
-    call PrintErrMsg(option)
-  endif
 
   allocate(this%grid%dh(nsegments))
   allocate(this%grid%h(nsegments))
@@ -564,9 +564,49 @@ subroutine PMWellSetup(this)
 
   this%grid%nconnections = this%grid%nsegments - 1
 
+  top_of_reservoir = res_grid%z_max_global
+  top_of_hole = this%grid%tophole(3)
+  bottom_of_reservoir = res_grid%z_min_global
+  bottom_of_hole = this%grid%bottomhole(3)
+  if (top_of_reservoir < top_of_hole) then
+    option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates extend &
+                       &beyond the top of the reservoir domain. &
+                       &You must fix the TOP_OF_HOLE coordinates to align &
+                       &with the top face of the reservoir grid cell that &
+                       &it occupies.'
+    call PrintErrMsg(option)
+  endif
+  if (top_of_reservoir > top_of_hole) then
+    option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates do not &
+                       &reach the top of the reservoir domain. &
+                       &You must fix the TOP_OF_HOLE coordinates to align &
+                       &with the top face of the reservoir grid cell that &
+                       &it occupies.'
+    call PrintErrMsg(option)
+  endif
+  if (bottom_of_reservoir > bottom_of_hole) then
+    option%io_buffer = 'The WELLBORE_MODEL BOTTOM_OF_HOLE coordinates extend &
+                       &beyond the bottom of the reservoir domain. &
+                       &You must fix the BOTTOM_OF_HOLE coordinates so that &
+                       &the bottom of the well is aligned with the bottom &
+                       &face of the reservoir, or is above the bottom &
+                       &face of the reservoir in the vertical column that the &
+                       &well occupies.'
+    call PrintErrMsg(option)
+  endif
+
   diff_x = this%grid%tophole(1)-this%grid%bottomhole(1)
   diff_y = this%grid%tophole(2)-this%grid%bottomhole(2)
   diff_z = this%grid%tophole(3)-this%grid%bottomhole(3)
+
+  if ((diff_y >= 1.d-10) .or. (diff_x >= 1.d-10)) then
+    option%io_buffer = 'WELLBORE_MODEL does not support a tilted &
+                        &well geometry. Please ensure that the well is &
+                        &perfectly vertical, and the vertical direction is &
+                        &set to the z-axis. Tilted well geometry is &
+                        &still in development.'
+    call PrintErrMsg(option)
+  endif
 
   dh_x = diff_x/nsegments
   dh_y = diff_y/nsegments
@@ -596,21 +636,72 @@ subroutine PMWellSetup(this)
     this%grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
   enddo
 
-  ! Check that no reservoir grid cells were skipped
-  ! I fear this will fail in parallel
-  count = 0
-  do k = 1,size(res_grid%z)
-    if ( (res_grid%z(k) >= this%grid%bottomhole(3)) .and. &
-         (res_grid%z(k) <= this%grid%tophole(3)) ) then
-      count = count + 1
+  ! Check that no reservoir grid cells were skipped.
+  ! I fear this will fail in parallel!!!
+  ! Count how many of the h_ghosted_id's are unique.
+  ! This sum must be = to the number of reservoir cells that the 
+  !   well passes through.
+  k = 0
+  allocate(h_ghosted_id_unique(nsegments))
+  h_ghosted_id_unique(:) = -999
+  min_val = minval(this%grid%h_ghosted_id)-1
+  max_val = maxval(this%grid%h_ghosted_id)
+  do while (min_val < max_val)
+    k = k + 1
+    min_val = minval(this%grid%h_ghosted_id, &
+                     mask=this%grid%h_ghosted_id > min_val)
+    h_ghosted_id_unique(k) = min_val
+  enddo
+  count1 = 0
+  do k = 1,nsegments
+    if (h_ghosted_id_unique(k) > -999) then
+      count1 = count1 + 1
     endif
   enddo
-  write(string,'(I0.5)') count
+  ! count1 is the number of unique reservoir grid cells that the well has
+  ! a connection to 
 
-  ! warning: this is an incomplete check on skipped grid cells!
-  ! nsegments >= count is necessary, but not sufficient
-  ! still need to add more checking here
-  if (nsegments < count) then
+  ! Next, sum up how many grid cells the well passes thru.
+  ! Note: This count assumes that the well is vertical and the top and
+  !       bottom surfaces do not slope or undulate. 
+  count2 = 0
+  do k = 1,size(res_grid%z)
+    res_grid_cell_within_well_z = PETSC_FALSE
+    if ( (res_grid%z(k) >= this%grid%bottomhole(3)) .and. &
+         (res_grid%z(k) <= this%grid%tophole(3)) ) then
+      res_grid_cell_within_well_z = PETSC_TRUE
+    endif
+    if (res_grid_cell_within_well_z) then
+      ! What should the ghosted_id of the reservoir cell at this z-level
+      ! along the well be?
+      dummy_h%z = res_grid%z(k)
+      dummy_h%y = this%grid%tophole(2)
+      dummy_h%x = this%grid%tophole(1)
+      call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+      ghosted_id_well = res_grid%nL2G(local_id)
+      ! What is the ghosted_id of the actual reservoir cell at this z-level?
+      dummy_h%z = res_grid%z(k)
+      dummy_h%y = res_grid%y(k)
+      dummy_h%x = res_grid%x(k)
+      call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
+      ghosted_id_res = res_grid%nL2G(local_id)
+      ! Does the well occupy this grid cell? If a reservoir cell was skipped
+      ! by the well, then the count will never be incremented, and count2
+      ! will not equal count1. count2 will be larger than count1.
+      if (ghosted_id_res == ghosted_id_well) then
+        count2 = count2 + 1
+      endif
+    endif
+  enddo
+  write(string,'(I0.5)') count2 
+
+  ! The only way we can ensure that the well discretization did not skip a
+  ! reservoir cell, is if the number of unique ghosted_id's that the well
+  ! is connected to (count1) matches the number of reservoir grid cells that
+  ! the well occupies (count2):
+  if (count1 == count2) well_grid_res_is_OK = PETSC_TRUE
+
+  if (.not.well_grid_res_is_OK) then
     option%io_buffer = 'WELLBORE_MODEL --------->  &
       &The number of well segments (' // trim(string2) // ') is smaller &
       &than the number of reservoir grid cells it occupies (' // &
@@ -618,6 +709,8 @@ subroutine PMWellSetup(this)
       &have been skipped and have no connection to the well. You must &
       &increase the resolution of the WELLBORE_MODEL grid.'
     call PrintErrMsg(option)
+  else
+
   endif
 
   if (size(this%well%diameter) /= nsegments) then
