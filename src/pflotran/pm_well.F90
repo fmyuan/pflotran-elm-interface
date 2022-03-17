@@ -128,6 +128,10 @@ module PM_Well_class
     PetscReal :: bh_p 
     ! well top of hole pressure BC [Pa]
     PetscReal :: th_p
+    ! well bottom of hole saturation BC [Pa]
+    PetscReal :: bh_sg
+    ! well top of hole saturation BC [Pa]
+    PetscReal :: th_sg
     ! well bottom of hole rate BC [kg/s]
     PetscReal :: bh_ql
     PetscReal :: bh_qg
@@ -326,6 +330,8 @@ function PMWellCreate()
   PMWellCreate%well%bh_p_set_by_reservoir = PETSC_FALSE
   PMWellCreate%well%bh_p = UNINITIALIZED_DOUBLE
   PMWellCreate%well%th_p = UNINITIALIZED_DOUBLE
+  PMWellCreate%well%bh_sg = UNINITIALIZED_DOUBLE
+  PMWellCreate%well%th_sg = UNINITIALIZED_DOUBLE
   PMWellCreate%well%bh_ql = UNINITIALIZED_DOUBLE
   PMWellCreate%well%bh_qg = UNINITIALIZED_DOUBLE
   PMWellCreate%well%th_ql = UNINITIALIZED_DOUBLE
@@ -370,6 +376,8 @@ function PMWellCreate()
   PMWellCreate%well_pert(:)%bh_p_set_by_reservoir = PETSC_FALSE
   PMWellCreate%well_pert(:)%bh_p = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(:)%th_p = UNINITIALIZED_DOUBLE
+  PMWellCreate%well_pert(:)%bh_sg = UNINITIALIZED_DOUBLE
+  PMWellCreate%well_pert(:)%th_sg = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(:)%bh_ql = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(:)%bh_qg = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(:)%th_ql = UNINITIALIZED_DOUBLE
@@ -1140,11 +1148,15 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                 call StringToUpper(word)
                 select case(trim(word))
                   !-----------------------------
-                    case('PRESSURE')
+                    case('LIQUID_PRESSURE')
                       call InputReadDouble(input,option,this%well%bh_p)
                       call InputReadAndConvertUnits(input,this%well%bh_p, &
                            'Pa','WELL_BOUNDARY_CONDITIONS,BOTTOM_OF_HOLE,&
-                           &PRESSURE',option)
+                           &LIQUID_PRESSURE',option)
+                      if (InputError(input)) exit
+                  !-----------------------------
+                    case('GAS_SATURATION')
+                      call InputReadDouble(input,option,this%well%bh_sg)
                       if (InputError(input)) exit
                   !-----------------------------
                     case('PRESSURE_SET_BY_RESERVOIR')
@@ -1181,11 +1193,15 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                 call StringToUpper(word)
                 select case(trim(word))
                   !-----------------------------
-                    case('PRESSURE')
+                    case('LIQUID_PRESSURE')
                       call InputReadDouble(input,option,this%well%th_p)
                       call InputReadAndConvertUnits(input,this%well%th_p, &
                            'Pa','WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE,&
-                           &PRESSURE',option)
+                           &LIQUID_PRESSURE',option)
+                      if (InputError(input)) exit
+                  !-----------------------------
+                    case('GAS_SATURATION')
+                      call InputReadDouble(input,option,this%well%th_sg)
                       if (InputError(input)) exit
                   !-----------------------------
                     case('LIQUID_RATE')
@@ -1223,6 +1239,25 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
           // trim(error_string) // ' block, but NOT BOTH.'
         call PrintErrMsg(option)
       endif
+
+      if ((Initialized(this%well%bh_p).or.Initialized(this%well%bh_sg)) .and. &
+          .not.(Initialized(this%well%bh_p).and.Initialized(this%well%bh_sg))) &
+          then
+        option%io_buffer ='WIPP_DARCY well model needs both Dirichlet &
+           &LIQUID_PRESSURE and GAS_SATURATION set in the ' &
+           // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
+      endif
+
+      if ((Initialized(this%well%th_p).or.Initialized(this%well%th_sg)) .and. &
+          .not.(Initialized(this%well%th_p).and.Initialized(this%well%th_sg))) &
+          then
+        option%io_buffer ='WIPP_DARCY well model needs both Dirichlet &
+           &LIQUID_PRESSURE and GAS_SATURATION set in the ' &
+           // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
+      endif
+
       !
       ! The following error checks are too restrictive:
       !
@@ -1921,7 +1956,6 @@ subroutine PMWellInitializeTimestep(this)
   call PMWellUpdatePropertiesFlow(this,this%well,&
                         this%realization%patch%characteristic_curves_array,&
                         this%realization%option)
-  !MAN: need to add adaptive timestepping
   this%dt_flow = this%realization%option%flow_dt
 
   if (this%transport) then
@@ -2855,9 +2889,15 @@ subroutine PMWellSolveFlow(this,time,ierr)
   ss_check_s(:,1) = this%well%gas%s(:)
   steady_state = PETSC_FALSE
   ss_step_count = 0
-  steps_to_declare_ss = 10 !3
+  steps_to_declare_ss = 3
+
+  ! update the well src/sink Q vector
+  call PMWellUpdateWellQ(this%well,this%reservoir)
 
   do while (this%cumulative_dt_flow < this%realization%option%flow_dt) 
+
+    ! update the well src/sink Q vector
+    !call PMWellUpdateWellQ(this%well,this%reservoir)
 
     call PMWellPreSolveFlow(this)
 
@@ -2900,6 +2940,10 @@ subroutine PMWellSolveFlow(this,time,ierr)
       call PMWellNewtonFlow(this)
 
       call PMWellCheckConvergenceFlow(this,n_iter,res_fixed)
+
+      ! update the well src/sink Q vector
+!      call PMWellUpdateWellQ(this%well,this%reservoir)
+
     enddo
 
     if (easy_converge_count > 10 ) then
@@ -2927,6 +2971,14 @@ subroutine PMWellSolveFlow(this,time,ierr)
       ss_step_count = 0
     endif
 
+    if (this%ss_check) then
+      if (ss_step_count >= steps_to_declare_ss) then
+        steady_state = PETSC_TRUE
+        this%cumulative_dt_flow = this%realization%option%flow_dt
+      endif
+    endif
+
+    ! Other way:
     !if (this%ss_check .and. flow_soln%converged) then
     !  ss_check_p(:,2) = this%well%pl(:)
     !  ss_check_s(:,2) = this%well%gas%s(:)
@@ -2934,8 +2986,8 @@ subroutine PMWellSolveFlow(this,time,ierr)
     !  dpdt = (ss_check_p(:,2) - ss_check_p(:,1)) / this%dt_flow
     !  dsdt = (ss_check_s(:,2) - ss_check_s(:,1)) / this%dt_flow
 
-    !  if (maxval(dpdt) < eps_p) then
-    !    if (maxval(dsdt) < eps_s) then
+    !  if (maxval(abs(dpdt)) < eps_p) then
+    !    if (maxval(abs(dsdt)) < eps_s) then
     !      ss_step_count = ss_step_count + 1
     !      if (ss_step_count > steps_to_declare_ss) steady_state = PETSC_TRUE
     !    else
@@ -2948,13 +3000,6 @@ subroutine PMWellSolveFlow(this,time,ierr)
     !  ss_check_p(:,1) = this%well%pl(:)
     !  ss_check_s(:,1) = this%well%gas%s(:)
     !endif
-
-    if (this%ss_check) then
-      if (ss_step_count >= steps_to_declare_ss) then
-        steady_state = PETSC_TRUE
-        this%cumulative_dt_flow = this%realization%option%flow_dt
-      endif
-    endif
 
   enddo
 
@@ -3581,6 +3626,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
   type(well_fluid_type), pointer :: liq
   type(well_fluid_type), pointer :: gas
 
+  PetscReal :: threshold_p = 0.d0 !1.d-3
   PetscInt :: i, nsegments
 
   liq => well%liq
@@ -3603,11 +3649,16 @@ subroutine PMWellUpdateWellQ(well,reservoir)
     !------------------------------------------------------------------------
     case default 
       do i = 1,nsegments
-        ! Flowrate in kmol/s
-        liq%Q(i) = liq%rho(i)*liq%kr(i)/liq%visc(i)*well%WI(i)* &
-                   (reservoir%p_l(i)-well%pl(i)) 
-        gas%Q(i) = gas%rho(i)*gas%kr(i)/gas%visc(i)*well%WI(i)* &
-                   (reservoir%p_g(i)-well%pg(i)) 
+        if ((reservoir%p_l(i)-well%pl(i))/well%pl(i) > threshold_p) then
+          ! Flowrate in kmol/s
+          liq%Q(i) = liq%rho(i)*liq%kr(i)/liq%visc(i)*well%WI(i)* &
+                     (reservoir%p_l(i)-well%pl(i)) 
+          gas%Q(i) = gas%rho(i)*gas%kr(i)/gas%visc(i)*well%WI(i)* &
+                     (reservoir%p_g(i)-well%pg(i)) 
+        else
+          liq%Q(i) = 0.d0
+          gas%Q(i) = 0.d0
+        endif
       enddo
     !------------------------------------------------------------------------
   end select
@@ -4007,7 +4058,6 @@ subroutine PMWellFlux(pm_well,well_up,well_dn,iup,idn,Res)
     case('WIPP_DARCY')
       ! This is good for either: single-phase liquid, or two-phase liquid/gas.
       ! Vertical well, no Klinkenberg, no capillary pressure, constant mobility.
-        !MAN: need to check that this is the correct up/dn orientation
 
         perm_up = well_up%permeability(iup)
         perm_dn = well_dn%permeability(idn)
@@ -4168,14 +4218,23 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   ! Date: 12/24/2021
   !
 
+  use EOS_Water_module
+  use EOS_Gas_module
+  use Characteristic_Curves_module
+  use Characteristic_Curves_Base_module
+  use Characteristic_Curves_WIPP_module
+
   implicit none
 
   type(pm_well_type) :: pm_well
   type(well_type) :: well
   PetscReal :: Res(2*pm_well%nphase)
 
+  type(option_type), pointer :: option
   type(well_grid_type), pointer :: grid
   type(well_reservoir_type), pointer :: reservoir
+  class(characteristic_curves_type), allocatable :: characteristic_curves
+  class(sat_func_base_type), allocatable :: saturation_function
 
   PetscInt :: iup
   PetscReal :: pres_up, pres_dn
@@ -4185,15 +4244,22 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   PetscReal :: perm_up, perm_dn
   PetscReal :: gravity_term, delta_pressure
   PetscReal :: density_ave, tot_mole_flux
-  PetscReal :: boundary_pressure, viscosity
-  PetscReal :: v_darcy,q
+  PetscReal :: boundary_pressure, viscosity, boundary_rho
+  PetscReal :: boundary_pg, boundary_krg, dn_scale
+  PetscReal :: t,dw,dg,dwmol,dwp,dwt,Psat,visl,visg
+  PetscReal :: Pc,dpc_dsatl,krl,dkrl_dsatl,krg,dkrg_dsatl
+  PetscReal :: v_darcy,q,rel_perm
   PetscBool :: upwind
   PetscInt :: itop
+  PetscErrorCode :: ierr
 
   PetscReal, parameter :: eps = 1.d-8
+  option => pm_well%option
 
   grid => pm_well%grid
   reservoir => pm_well%reservoir
+
+  t = 25.d0 !Constant temperature
 
   Res(:) = 0.d0
 
@@ -4206,35 +4272,87 @@ subroutine PMWellBCFlux(pm_well,well,Res)
       itop = pm_well%grid%nsegments
       if (pm_well%flow_soln%bh_p) then
         !Dirichlet pressure and saturation at the bottom
+
+        characteristic_curves = pm_well%realization%patch% &
+                                characteristic_curves_array(well%ccid(1))%ptr
+        saturation_function = characteristic_curves%saturation_function
+
+        ! Water Residual
+
         perm_ave_over_dist = well%permeability(1) / (grid%dh(1)/2.d0)
         boundary_pressure = well%bh_p
         gravity_term = well%liq%rho(1) * gravity * &
                        grid%dh(1)/2.d0
         delta_pressure = boundary_pressure - well%pl(1) + gravity_term
 
-        !upwind = delta_pressure > 0.d0
-        !if (upwind) then
-        !  rel_perm = well%liq%kr(1)
-        !else
-        !  dn_scale = 1.d0
-        !  rel_perm = well%liq%kr(1)
-        !endif
+        call EOSWaterSaturationPressure(t,Psat,ierr)
+        call EOSWaterDensityBRAGFLO(t,boundary_pressure,PETSC_FALSE, &
+                                boundary_rho,dwmol,dwp,dwt,ierr)
+
+        upwind = delta_pressure > 0.d0
+        if (upwind) then
+          call characteristic_curves%liq_rel_perm_function% &
+               RelativePermeability(1.d0-well%bh_sg,rel_perm,dkrl_dsatl,option)
+          call EOSWaterViscosity(t,boundary_pressure,Psat,visl,ierr)          
+        else
+          dn_scale = 1.d0
+          rel_perm = well%liq%kr(1)
+          visl = well%liq%visc(1)
+        endif
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        v_darcy = perm_ave_over_dist * well%liq%kr(1)/well%liq%visc(1) * &
+        v_darcy = perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
-        density_ave = well%liq%rho(1) / fmw_comp(ONE_INTEGER)
+        density_ave = (well%liq%rho(1)+boundary_rho) / &
+                      (2.d0 * fmw_comp(ONE_INTEGER))
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(1) = Res(1) + tot_mole_flux
 
+        ! Gas Residual
+
+        ! Capillary Pressure
+        select type(sat_func => saturation_function)
+          class is (sat_func_KRP3_type)
+            if (.not. option%flow%pct_updated) then
+              option%flow%pct_updated = PETSC_TRUE
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            else
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+            endif
+          class default
+            call sat_func% &
+               CapillaryPressure(1.d0-well%bh_sg,Pc,dpc_dsatl,option)
+        end select
+        boundary_pg = boundary_pressure + Pc
+        
+        call characteristic_curves%gas_rel_perm_function% &
+               RelativePermeability(1.d0-well%bh_sg,boundary_krg, &
+               dkrg_dsatl,option)
+
         gravity_term = well%gas%rho(1) * gravity * &
                        grid%dh(1)/2.d0
-        delta_pressure = boundary_pressure - well%pl(1) + gravity_term
-        v_darcy = perm_ave_over_dist * well%gas%kr(1)/well%gas%visc(1) * &
+        delta_pressure = boundary_pg - well%pg(1) + gravity_term
+
+        call EOSGasDensity(t,boundary_pg,boundary_rho,ierr)
+
+        upwind = delta_pressure > 0.d0
+        if (upwind) then
+          call characteristic_curves%gas_rel_perm_function% &
+               RelativePermeability(1.d0-well%bh_sg,rel_perm,dkrl_dsatl,option)
+          call EOSGasViscosity(t,boundary_pg,boundary_pg,boundary_rho,visg,ierr)
+        else
+          dn_scale = 1.d0
+          rel_perm = well%gas%kr(1)
+          visg = well%gas%visc(1)
+        endif
+
+        v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
-        density_ave = well%gas%rho(1) / fmw_comp(TWO_INTEGER)
+        density_ave = (well%gas%rho(1)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(1)
         tot_mole_flux = q * density_ave
         Res(2) = Res(2) + tot_mole_flux
@@ -4266,35 +4384,86 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
       if (pm_well%flow_soln%th_p) then
         !Dirichlet pressure and saturation at the top
-        perm_ave_over_dist = well%permeability(itop) / &
-                             (grid%dh(itop)/2.d0)
+        characteristic_curves = pm_well%realization%patch% &
+                                characteristic_curves_array(well%ccid(itop))%ptr
+        saturation_function = characteristic_curves%saturation_function
+
+        ! Water Residual
+
+        perm_ave_over_dist = well%permeability(itop) / (grid%dh(itop)/2.d0)
         boundary_pressure = well%th_p
         gravity_term = well%liq%rho(itop) * gravity * &
                        grid%dh(itop)/2.d0
         delta_pressure = boundary_pressure - well%pl(itop) + gravity_term
 
-        !upwind = delta_pressure > 0.d0
-        !if (upwind) then
-        !  rel_perm = well%liq%kr(1)
-        !else
-        !  dn_scale = 1.d0
-        !  rel_perm = well%liq%kr(1)
-        !endif
+        call EOSWaterSaturationPressure(t,Psat,ierr)
+        call EOSWaterDensityBRAGFLO(t,boundary_pressure,PETSC_FALSE, &
+                                boundary_rho,dwmol,dwp,dwt,ierr)
+
+        upwind = delta_pressure > 0.d0
+        if (upwind) then
+          call characteristic_curves%liq_rel_perm_function% &
+               RelativePermeability(1.d0-well%th_sg,rel_perm,dkrl_dsatl,option)
+          call EOSWaterViscosity(t,boundary_pressure,Psat,visl,ierr)
+        else
+          dn_scale = 1.d0
+          rel_perm = well%liq%kr(itop)
+          visl = well%liq%visc(itop)
+        endif
 
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
-        v_darcy = perm_ave_over_dist * well%liq%kr(itop)/well%liq%visc(itop) * &
+        v_darcy = perm_ave_over_dist * rel_perm / visl * &
                   delta_pressure
-        density_ave = well%liq%rho(itop) / fmw_comp(ONE_INTEGER)
+        density_ave = (well%liq%rho(itop)+boundary_rho) / &
+                      (2.d0 * fmw_comp(ONE_INTEGER))
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         Res(3) = Res(3) + tot_mole_flux
 
+        ! Gas Residual
+
+        ! Capillary Pressure
+        select type(sat_func => saturation_function)
+          class is (sat_func_KRP3_type)
+            if (.not. option%flow%pct_updated) then
+              option%flow%pct_updated = PETSC_TRUE
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%th_sg,Pc,dpc_dsatl,option)
+            else
+              call sat_func% &
+                   CapillaryPressure(1.d0-well%th_sg,Pc,dpc_dsatl,option)
+            endif
+          class default
+            call sat_func% &
+               CapillaryPressure(1.d0-well%th_sg,Pc,dpc_dsatl,option)
+        end select
+        boundary_pg = boundary_pressure + Pc
+
+        call characteristic_curves%gas_rel_perm_function% &
+               RelativePermeability(1.d0-well%th_sg,boundary_krg, &
+               dkrg_dsatl,option)
+
         gravity_term = well%gas%rho(itop) * gravity * &
                        grid%dh(itop)/2.d0
-        v_darcy = perm_ave_over_dist * well%gas%kr(itop)/well%gas%visc(itop) * &
+        delta_pressure = boundary_pg - well%pg(itop) + gravity_term
+
+        call EOSGasDensity(t,boundary_pg,boundary_rho,ierr)
+
+        upwind = delta_pressure > 0.d0
+        if (upwind) then
+          call characteristic_curves%gas_rel_perm_function% &
+               RelativePermeability(1.d0-well%th_sg,rel_perm,dkrl_dsatl,option)
+          call EOSGasViscosity(t,boundary_pg,boundary_pg,boundary_rho,visg,ierr)
+        else
+          dn_scale = 1.d0
+          rel_perm = well%gas%kr(itop)
+          visg = well%gas%visc(itop)
+        endif
+
+        v_darcy = perm_ave_over_dist * rel_perm/visg * &
                   delta_pressure
-        density_ave = well%gas%rho(itop) / fmw_comp(TWO_INTEGER)
+        density_ave = (well%gas%rho(itop)+boundary_rho) / (2.d0 *fmw_comp(TWO_INTEGER))
         q = v_darcy * well%area(itop)
         tot_mole_flux = q * density_ave
         Res(4) = Res(4) + tot_mole_flux
@@ -4578,6 +4747,8 @@ subroutine PMWellCopyWell(well,well_copy)
   well_copy%volume(:) = well%volume(:)
   well_copy%bh_p = well%bh_p
   well_copy%th_p = well%th_p
+  well_copy%bh_sg = well%bh_sg
+  well_copy%th_sg = well%th_sg
   well_copy%bh_ql = well%bh_ql
   well_copy%bh_qg = well%bh_qg
   well_copy%th_ql = well%th_ql
