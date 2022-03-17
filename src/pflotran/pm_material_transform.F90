@@ -237,14 +237,10 @@ subroutine PMMaterialTransformSetup(this)
       endif
     endif
 
-    if (option%nflowdof > 0) then
-      if (associated(patch%mtf_id)) then
-        patch%mtf_id(ghosted_id) = &  
-          cur_material_property%material_transform_id
-
-        call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
-
-      endif
+    if (associated(patch%mtf_id)) then
+      patch%mtf_id(ghosted_id) = &  
+        cur_material_property%material_transform_id
+      call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
     endif
 
   enddo

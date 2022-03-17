@@ -1127,13 +1127,19 @@ subroutine ILTBaseVerify(this, name, option)
   endif
   if (associated(this%shift_kd_list) .and. option%itranmode == NULL_MODE) then
     option%io_buffer = 'Parameters for modifying sorption in function "' &
-      //trim(name)//'" will have no effect without transport mode active.'
+      //trim(name)//'" will have no effect without transport mode active.' &
+      //' The feature will be ignored.'
     call PrintWrnMsg(option)
+    deallocate(this%shift_kd_list)
+    nullify(this%shift_kd_list)
   endif
   if (associated(this%shift_perm) .and. option%iflowmode == NULL_MODE) then
     option%io_buffer = 'Parameters for modifying permeability in function "' &
-      //trim(name)//'" will have no effect without flow mode active.'
+      //trim(name)//'" will have no effect without flow mode active.' &
+      //' The feature will be ignored.'
     call PrintWrnMsg(option)
+    deallocate(this%shift_perm)
+    nullify(this%shift_perm)
   endif
 
 end subroutine ILTBaseVerify
@@ -1525,6 +1531,9 @@ subroutine ILTShiftSorption(this, kd0, ele, auxvar, option)
 
   if (.not. associated(this%shift_kd_list)) return
 
+  ! Check whether scale parameter has been initialized
+  if (UnInitialized(auxvar%scale)) return
+
   ! Find element and functional properties
   j = 0
   kdl => this%shift_kd_list
@@ -1713,6 +1722,9 @@ subroutine ILTShiftPerm(this, material_auxvar, auxvar, option)
 
   ! Check whether illitization and permeability modification are active
   if (.not. associated(this%shift_perm)) return
+
+  ! Check whether scale parameter has been initialized
+  if (UnInitialized(auxvar%scale)) return
 
   ! Assess whether original permeability was saved in the auxvar
   ps = size(material_auxvar%permeability)

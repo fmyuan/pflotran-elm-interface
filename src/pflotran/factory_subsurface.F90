@@ -868,23 +868,20 @@ subroutine AddPMCMaterialTransform(simulation, pm_material_transform, pmc_name,&
   string = 'MATERIAL_TRANSFORM_GENERAL'
   call LoggingCreateStage(string,pmc_material_transform%stage)
 
-  if (.not. associated(simulation%flow_process_model_coupler)) then
-    option%io_buffer = 'The current implementation of '// trim(pmc_name) &
-                     //' for '// trim(pm_material_transform%header) &
-                     // ' "' // trim(pm_material_transform%name) &
-                     //'" requires an active flow mode.'
-    call PrintErrMsg(option)
-  endif
-
   ! Material transform is child of flow and peer of transport
-  if (associated(simulation%tran_process_model_coupler)) then
+  if (associated(simulation%tran_process_model_coupler) .and. &
+      associated(simulation%flow_process_model_coupler)) then
     call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_material_transform), &
            PM_CHILD,PMCCastToBase(simulation%flow_process_model_coupler), &
            PMCCastToBase(simulation%tran_process_model_coupler),PM_INSERT)
-  else
+  elseif(associated(simulation%flow_process_model_coupler)) then
     call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_material_transform), &
            PM_CHILD,PMCCastToBase(simulation%flow_process_model_coupler), &
            pmc_dummy,PM_INSERT)
+  elseif(associated(simulation%tran_process_model_coupler)) then
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_material_transform), &
+           PM_PEER,PMCCastToBase(simulation%tran_process_model_coupler), &
+           pmc_dummy,PM_APPEND)
   endif
 
 end subroutine AddPMCMaterialTransform
