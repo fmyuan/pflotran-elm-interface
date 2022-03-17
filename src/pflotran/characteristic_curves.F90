@@ -1815,6 +1815,7 @@ subroutine CharCurvesConvertListToArray(list,array,option)
 
   class(characteristic_curves_type), pointer :: cur_characteristic_curves
   PetscInt :: count
+  PetscInt :: i, ii
 
   count = 0
   cur_characteristic_curves => list
@@ -1842,6 +1843,16 @@ subroutine CharCurvesConvertListToArray(list,array,option)
       call OptionCheckNonBlockingError(option)
     endif
     cur_characteristic_curves => cur_characteristic_curves%next
+  enddo
+
+  do ii = 1, size(array)
+    do i = ii+1, size(array)
+      if (StringCompare(array(ii)%ptr%name,array(i)%ptr%name)) then
+        option%io_buffer = 'Duplicate characteristic curves named "' // &
+          trim(array(ii)%ptr%name) // '".'
+        call PrintErrMsg(option)
+      endif
+    enddo
   enddo
 
 end subroutine CharCurvesConvertListToArray

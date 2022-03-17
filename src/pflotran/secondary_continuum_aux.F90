@@ -188,6 +188,8 @@ subroutine SecondaryAuxVarRTDestroy(auxvar)
   call DeallocateArray(auxvar%cxp)
   call DeallocateArray(auxvar%cdl)
   call DeallocateArray(auxvar%r)
+  call DeallocateArray(auxvar%updated_conc)
+  call DeallocateArray(auxvar%sec_continuum%distance)
   
 end subroutine SecondaryAuxVarRTDestroy
 
@@ -212,6 +214,8 @@ subroutine SecondaryAuxRTDestroy(aux)
   do iaux = 1, size(aux%sec_transport_vars)
     call SecondaryAuxVarRTDestroy(aux%sec_transport_vars(iaux))
   enddo
+  deallocate(aux%sec_transport_vars)
+  nullify(aux%sec_transport_vars)
   
   deallocate(aux)
   nullify(aux)  

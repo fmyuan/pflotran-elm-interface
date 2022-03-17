@@ -223,6 +223,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
   use PM_UFD_Decay_class
   use PM_UFD_Biosphere_class
   use PM_Auxiliary_class
+  use PM_WIPP_Flow_class
   use Realization_Subsurface_class
   use Option_module
   use Input_Aux_module
@@ -277,6 +278,13 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
   if (associated(pm_auxiliary)) &
     call AddPMCAuxiliary(simulation,pm_auxiliary,'SALINITY',realization,option)
 
+  if (associated(pm_flow)) then
+    select type(pm_flow)
+      class is (pm_wippflo_type)
+        call AddPMWippSrcSink(realization,pm_flow,input)
+    end select
+  endif
+ 
   call InputDestroy(input)
 
 end subroutine SetupPMCLinkages
@@ -798,6 +806,37 @@ end subroutine AddPMCAuxiliary
 
 ! ************************************************************************** !
 
+subroutine AddPMWippSrcSink(realization,pm_wippflo,input)
+
+  use Input_Aux_module
+  use Option_module
+  use Realization_Subsurface_class
+  use WIPP_Flow_Aux_module
+  use PM_WIPP_Flow_class
+  use PM_WIPP_SrcSink_class
+
+  implicit none
+
+  class(realization_subsurface_type), pointer :: realization
+  class(pm_wippflo_type) :: pm_wippflo
+  type(option_type), pointer :: option
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: block_string
+
+  option => realization%option
+
+  block_string = 'WIPP_SOURCE_SINK'
+  call InputFindStringInFile(input,option,block_string)
+  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
+    pm_wippflo%pmwss_ptr => PMWSSCreate()
+    pm_wippflo%pmwss_ptr%option => option
+    call pm_wippflo%pmwss_ptr%ReadPMBlock(input)
+    call PMWSSSetRealization(pm_wippflo%pmwss_ptr,realization)
+  endif
+
+end subroutine AddPMWippSrcSink
+! ************************************************************************** !
+  
 subroutine SubsurfInitCommandLineSettings(option)
   !
   ! Initializes PFLTORAN subsurface output
@@ -842,6 +881,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_Richards_TS_class
   use PM_TH_TS_class
   use PM_ZFlow_class
+  use ZFlow_Aux_module
   use PM_PNF_class
   use General_Aux_module
 
@@ -904,9 +944,26 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
     class is (pm_zflow_type)
       option%iflowmode = ZFLOW_MODE
       option%nphase = 1
-      option%nflowdof = 1
-      option%nflowspec = 1
-      option%use_isothermal = PETSC_TRUE
+      option%nflowdof = 0
+      option%nflowspec = 0
+      if (Initialized(zflow_liq_flow_eq)) then
+        option%nflowdof = option%nflowdof + 1
+        option%nflowspec = option%nflowspec + 1
+      endif
+      if (Initialized(zflow_heat_tran_eq)) then
+        option%nflowdof = option%nflowdof + 1
+      else
+        option%use_isothermal = PETSC_TRUE
+      endif
+      if (Initialized(zflow_sol_tran_eq)) then
+        option%nflowdof = option%nflowdof + 1
+        option%nflowspec = 1
+      endif
+      if (option%nflowdof == 0) then
+        option%io_buffer=  'A process must be specified under ZFLOW,&
+          &OPTIONS,PROCESSES.'
+        call PrintErrMsg(option)
+      endif
     class is (pm_pnf_type)
       option%iflowmode = PNF_MODE
       option%nphase = 1
@@ -938,6 +995,19 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       call PrintErrMsg(option)
 
   end select
+
+  if (option%nflowdof == 0) then
+    option%io_buffer = 'Number of flow degrees of freedom is zero.'
+    call PrintErrMsg(option)
+  endif
+  if (option%nphase == 0) then
+    option%io_buffer = 'Number of flow phases is zero.'
+    call PrintErrMsg(option)
+  endif
+  if (option%nflowspec == 0) then
+    option%io_buffer = 'Number of flow species is zero.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine SubsurfaceSetFlowMode
 
@@ -3026,7 +3096,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         internal_units = 'sec'
         units_conversion = UnitsConvertToInternal(word,internal_units,option)
         ! convert from hrs to seconds and add to start_time
-        option%wallclock_stop_time = option%start_time + &
+        option%wallclock_stop_time = option%comm%start_time + &
                                      option%wallclock_stop_time* &
                                      units_conversion
 
@@ -3075,6 +3145,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                                       output_option%aveg_output_variable_list)
             case('UNFILTER_NON_STATE_VARIABLES')
               output_option%filter_non_state_variables = PETSC_FALSE
+            case('NO_SYNCHRONIZED_OUTPUT')
+              output_option%force_synchronized_output = PETSC_FALSE
 
 
         !----------------------------------------------------------------------

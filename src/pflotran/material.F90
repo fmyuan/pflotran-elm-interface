@@ -49,6 +49,7 @@ module Material_module
     PetscReal :: thermal_conductivity_dry
     PetscReal :: thermal_conductivity_wet
     PetscReal :: alpha    ! conductivity saturation relation exponent
+    PetscReal :: tensorial_rel_perm_exponent(3)
 
     ! Geophysics properties
     PetscReal :: electrical_conductivity
@@ -95,6 +96,7 @@ module Material_module
   type, public :: multicontinuum_property_type
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: length
+    class(dataset_base_type), pointer :: length_dataset
     PetscReal :: matrix_block_size
     PetscReal :: fracture_spacing
     PetscReal :: radius
@@ -113,7 +115,7 @@ module Material_module
     PetscReal :: outer_spacing
     PetscReal :: area_scaling
   end type multicontinuum_property_type
-  
+
   type, public :: material_property_ptr_type
     type(material_property_type), pointer :: ptr
   end type material_property_ptr_type
@@ -154,7 +156,7 @@ function MaterialPropertyCreate(option)
   ! Date: 11/02/07
   !
   use Option_module
-  
+
   implicit none
 
   type(material_property_type), pointer :: MaterialPropertyCreate
@@ -202,6 +204,7 @@ function MaterialPropertyCreate(option)
   material_property%thermal_conductivity_dry = UNINITIALIZED_DOUBLE
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
+  material_property%tensorial_rel_perm_exponent = UNINITIALIZED_DOUBLE
   material_property%electrical_conductivity = UNINITIALIZED_DOUBLE
   nullify(material_property%electrical_conductivity_dataset)
 
@@ -228,7 +231,7 @@ function MaterialPropertyCreate(option)
   material_property%max_pressure = 1.d6
   material_property%max_permfactor = 1.d0
   nullify(material_property%multicontinuum)
-  
+
   if (option%use_mc) then
     allocate(material_property%multicontinuum)
     material_property%multicontinuum%name = ''
@@ -251,8 +254,9 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%outer_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%area_scaling = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
+    nullify(material_property%multicontinuum%length_dataset)
   endif
- 
+
   nullify(material_property%next)
   MaterialPropertyCreate => material_property
 
@@ -737,6 +741,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
           'per mineral basis under the MINERAL_KINETICS card.  See ' // &
           'reaction_aux.F90.'
           call PrintErrMsg(option)
+      case('TENSORIAL_REL_PERM_EXPONENT')
+        call InputReadNDoubles(input,option, &
+                               material_property%tensorial_rel_perm_exponent, &
+                               THREE_INTEGER)
+        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
       case('SECONDARY_CONTINUUM')
         call InputPushBlock(input,option)
         call InputReadPflotranString(input,option)
@@ -807,10 +816,10 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                     &only supported for SLAB.'
                 call PrintErrMsg(option)
               endif
-              call InputReadDouble(input,option, &
-                                   material_property%multicontinuum%length)
-              call InputErrorMsg(input,option,'length', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call DatasetReadDoubleorDataset(input, &
+                material_property%multicontinuum%length, &
+                material_property%multicontinuum%length_dataset, &
+                'length', 'MATERIAL_PROPERTY',option)
             case('AREA')
               if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
                 option%io_buffer = 'AREA is &
@@ -883,16 +892,17 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%multicontinuum%mnrl_area)
               call InputErrorMsg(input,option,'secondary cont. mnrl area', &
                            'MATERIAL_PROPERTY')
-            case('LOG_GRID_SPACING') 
-              option%io_buffer = 'LOG_GRID_SPACING is &
-                                  &temporarily disabled for multiple &
-                                  continuum model.'
-              call PrintErrMsg(option)
-           !  call InputReadDouble(input,option, &
-           !                   material_property%multicontinuum%outer_spacing)
-           !   call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
-           !                  'MATERIAL_PROPERTY')
-           !   material_property%multicontinuum%log_spacing = PETSC_TRUE
+            case('LOG_GRID_SPACING')
+              if (StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
+                option%io_buffer = 'LOG_GRID_SPACING is &
+                                    &not supported for NESTED_SPHERES.'
+                call PrintErrMsg(option)
+              endif
+              call InputReadDouble(input,option, &
+                              material_property%multicontinuum%outer_spacing)
+              call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
+                             'MATERIAL_PROPERTY')
+              material_property%multicontinuum%log_spacing = PETSC_TRUE
             case('AREA_SCALING_FACTOR')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%area_scaling)
@@ -1010,6 +1020,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
         trim(material_property%name) // '".'
       call PrintErrMsg(option)
     endif
+  endif
+
+  if (Initialized(maxval(material_property%tensorial_rel_perm_exponent))) then
+    select case(option%iflowmode)
+      case(ZFLOW_MODE)
+      case default
+        option%io_buffer = 'Tensorial relative permeability not supported &
+          &for the requested flow mode.'
+        call PrintErrMsg(option)
+    end select
   endif
 
   ! material id must be > 0
@@ -1517,7 +1537,9 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
   max_material_index = 0
-
+  epsilon_index = 0
+  matrix_length_index = 0
+  
   num_material_properties = size(material_property_ptrs)
   ! must be nullified here to avoid an error message on subsequent calls
   ! on stochastic simulations
@@ -1576,6 +1598,16 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
         soil_reference_pressure_index = icount
       endif
       num_soil_ref_press = num_soil_ref_press + 1
+    endif
+    if (associated(material_property_ptrs(i)%ptr%multicontinuum)) then
+      if (epsilon_index == 0) then
+        icount = icount + 1
+        epsilon_index = icount
+      endif
+      if (matrix_length_index == 0) then
+        icount = icount + 1
+        matrix_length_index = icount
+      endif
     endif
 !    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
 !        soil_heat_capacity_index == 0) then
@@ -1728,7 +1760,11 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       enddo
     case(EPSILON)
       do i=1, Material%num_aux
-        material_auxvars(i)%epsilon = value
+        material_auxvars(i)%soil_properties(epsilon_index) = value
+      enddo
+    case(MATRIX_LENGTH)
+      do i=1, Material%num_aux
+        material_auxvars(i)%soil_properties(matrix_length_index) = value
       enddo
     case(PERMEABILITY)
       do i=1, Material%num_aux
@@ -1825,15 +1861,21 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
         case default
           print *, 'Error indexing porosity in MaterialSetAuxVarVecLoc()'
           stop
-      end select      
+      end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%tortuosity = vec_loc_p(ghosted_id)
       enddo
     case(EPSILON)
       do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)%epsilon = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%&
+          soil_properties(epsilon_index) = vec_loc_p(ghosted_id)
       enddo
+    case(MATRIX_LENGTH)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)%&
+          soil_properties(matrix_length_index) = vec_loc_p(ghosted_id)
+      enddo 
     case(PERMEABILITY)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)
@@ -2366,6 +2408,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   !
+  use Dataset_module
 
   implicit none
 
@@ -2388,6 +2431,13 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%electrical_conductivity_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)
+
+  if (associated(material_property%multicontinuum)) then
+    nullify(material_property%multicontinuum%length_dataset)
+    nullify(material_property%multicontinuum%epsilon_dataset)
+    deallocate(material_property%multicontinuum)
+    nullify(material_property%multicontinuum)
+  endif
 
   deallocate(material_property)
   nullify(material_property)

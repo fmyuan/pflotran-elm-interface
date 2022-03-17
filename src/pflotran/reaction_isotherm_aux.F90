@@ -128,28 +128,47 @@ end subroutine IsothermRxnCreate
 
 ! ************************************************************************** !
 
-subroutine IsothermRxnDestroy(rxn)
-
+subroutine IsothermRxnLinkDestroy(link)
   ! 
   ! Deallocates an isotherm reaction
   ! 
+  implicit none
 
+  type(isotherm_link_type), pointer :: link
+
+  if (.not.associated(link)) return
+
+  deallocate(link)  
+  nullify(link)
+
+end subroutine IsothermRxnLinkDestroy
+
+! ************************************************************************** !
+
+subroutine IsothermRxnDestroy(isotherm_rxn)
+  ! 
+  ! Deallocates an isotherm reaction
+  ! 
+  use Utility_module, only: DeallocateArray
 
   implicit none
 
-  type(isotherm_link_type), pointer :: rxn
+  type(isotherm_rxn_type), pointer :: isotherm_rxn
 
-  if (.not.associated(rxn)) return
+  if (.not.associated(isotherm_rxn)) return
 
-  deallocate(rxn)  
-  nullify(rxn)
+  call DeallocateArray(isotherm_rxn%eqisothermcoeff)
+  call DeallocateArray(isotherm_rxn%eqisothermlangmuirb)
+  call DeallocateArray(isotherm_rxn%eqisothermfreundlichn)
+
+  deallocate(isotherm_rxn)  
+  nullify(isotherm_rxn)
 
 end subroutine IsothermRxnDestroy
 
 ! ************************************************************************** !
 
 subroutine IsothermDestroy(isotherm,option)
-
   ! 
   ! Deallocates an isotherm object
   ! 
@@ -159,51 +178,41 @@ subroutine IsothermDestroy(isotherm,option)
   
   implicit none
 
-  type(isotherm_type) :: isotherm
+  type(isotherm_type), pointer :: isotherm
   type(option_type) :: option
-  type(isotherm_link_type), pointer :: isotherm_rxn, prev_isotherm_rxn
+  type(isotherm_link_type), pointer :: isotherm_rxn_link, prev_isotherm_rxn_link
 
-  isotherm_rxn => isotherm%isotherm_list
+  isotherm_rxn_link => isotherm%isotherm_list
 
   do
-    if (.not.associated(isotherm_rxn)) exit
-    prev_isotherm_rxn => isotherm_rxn
-    isotherm_rxn => isotherm_rxn%next
-    call IsothermRxnDestroy(prev_isotherm_rxn)
+    if (.not.associated(isotherm_rxn_link)) exit
+    prev_isotherm_rxn_link => isotherm_rxn_link
+    isotherm_rxn_link => isotherm_rxn_link%next
+    call IsothermRxnLinkDestroy(prev_isotherm_rxn_link)
   enddo
   nullify(isotherm%isotherm_list)
 
   ! secondary continuum
   if (option%use_mc) then
-    isotherm_rxn => isotherm%multicontinuum_isotherm_list
+    isotherm_rxn_link => isotherm%multicontinuum_isotherm_list
     do
-      if (.not.associated(isotherm_rxn)) exit
-      prev_isotherm_rxn => isotherm_rxn
-      isotherm_rxn => isotherm_rxn%next
-      call IsothermRxnDestroy(prev_isotherm_rxn)
+      if (.not.associated(isotherm_rxn_link)) exit
+      prev_isotherm_rxn_link => isotherm_rxn_link
+      isotherm_rxn_link => isotherm_rxn_link%next
+      call IsothermRxnLinkDestroy(prev_isotherm_rxn_link)
     enddo
     nullify(isotherm%multicontinuum_isotherm_list)
   endif
  
-  if (associated(isotherm%isotherm_rxn)) then
-    call DeallocateArray(isotherm%isotherm_rxn%eqisothermcoeff)
-    call DeallocateArray(isotherm%isotherm_rxn%eqisothermlangmuirb)
-    call DeallocateArray(isotherm%isotherm_rxn%eqisothermfreundlichn)
-  endif
-
-  nullify(isotherm%isotherm_rxn)
-
-  if (associated(isotherm%multicontinuum_isotherm_rxn)) then
-    call DeallocateArray(isotherm%multicontinuum_isotherm_rxn%eqisothermcoeff)
-    call DeallocateArray(isotherm%multicontinuum_isotherm_rxn%eqisothermlangmuirb)
-    call DeallocateArray(isotherm%multicontinuum_isotherm_rxn%eqisothermfreundlichn)
-  endif
-
-  nullify(isotherm%multicontinuum_isotherm_rxn)
+  call IsothermRxnDestroy(isotherm%isotherm_rxn)
+  call IsothermRxnDestroy(isotherm%multicontinuum_isotherm_rxn)
 
   call DeallocateArray(isotherm%eqisothermtype)
   call DeallocateArray(isotherm%eqkdspecid)
   call DeallocateArray(isotherm%eqkdmineral)
+
+  deallocate(isotherm)
+  nullify(isotherm)
   
 end subroutine IsothermDestroy
 

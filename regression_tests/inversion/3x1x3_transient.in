@@ -6,6 +6,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE ZFLOW
       OPTIONS
+        EXTERNAL_FILE zflow_standard_options.txt
       /
     /
   /

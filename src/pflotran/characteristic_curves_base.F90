@@ -34,6 +34,7 @@ module Characteristic_Curves_Base_module
     procedure, public :: SetupPolynomials => SFBaseSetupPolynomials
     procedure, public :: CapillaryPressure => SFBaseCapillaryPressure
     procedure, public :: Saturation => SFBaseSaturation
+    procedure, public :: EffectiveSaturation => SFBaseEffectiveSaturation
     procedure, public :: D2SatDP2 => SFBaseD2SatDP2
     procedure, public :: CalcInterfacialTension => SFBaseSurfaceTension
     procedure, public :: CalcVaporPressure => SFBaseCalcVaporPressure
@@ -53,6 +54,10 @@ module Characteristic_Curves_Base_module
     procedure, public :: Test => RPFBaseTest
     procedure, public :: SetupPolynomials => RPFBaseSetupPolynomials
     procedure, public :: RelativePermeability => RPFBaseRelPerm
+    procedure, public :: EffectiveSaturation => &
+                           RPFBaseLiqEffectiveSaturation
+    procedure, public :: EffectiveGasSaturation => &
+                           RPFBaseGasEffectiveSaturation
   end type rel_perm_func_base_type
 
   public :: PolynomialCreate, &
@@ -255,6 +260,26 @@ end subroutine SFBaseSaturation
 
 ! ************************************************************************** !
 
+subroutine SFBaseEffectiveSaturation(this,liquid_saturation, &
+                                     effective_saturation,deffsat_dsat, &
+                                     option)
+  use Option_module
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: effective_saturation
+  PetscReal, intent(out) :: deffsat_dsat
+  type(option_type), intent(inout) :: option
+
+  deffsat_dsat = 1.d0 / (1.d0 - this%Sr)
+  effective_saturation = (liquid_saturation - this%Sr) * deffsat_dsat
+
+end subroutine SFBaseEffectiveSaturation
+
+! ************************************************************************** !
+
 subroutine SFBaseD2SatDP2(this,pc,d2s_dp2,option)
 
   use Option_module
@@ -388,6 +413,49 @@ subroutine RPFBaseRelPerm(this,liquid_saturation,relative_permeability, &
   call PrintErrMsg(option)
 
 end subroutine RPFBaseRelPerm
+
+! ************************************************************************** !
+
+subroutine RPFBaseLiqEffectiveSaturation(this,liquid_saturation, &
+                                         effective_saturation,deffsat_dsat, &
+                                         option)
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: effective_saturation
+  PetscReal, intent(out) :: deffsat_dsat
+  type(option_type), intent(inout) :: option
+
+  deffsat_dsat = 1.d0 / (1.d0 - this%Sr)
+  effective_saturation = (liquid_saturation - this%Sr) * deffsat_dsat
+
+end subroutine RPFBaseLiqEffectiveSaturation
+
+! ************************************************************************** !
+
+subroutine RPFBaseGasEffectiveSaturation(this,liquid_saturation, &
+                                         effective_saturation,deffsat_dsat, &
+                                         option)
+  use Option_module
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: effective_saturation
+  PetscReal, intent(out) :: deffsat_dsat
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: tempreal
+
+  option%io_buffer = 'RPFBaseGasEffectiveSaturation must be extended for the &
+                     &current relative permeability function.'
+  call PrintErrMsg(option)
+
+end subroutine RPFBaseGasEffectiveSaturation
 
 ! ************************************************************************** !
 

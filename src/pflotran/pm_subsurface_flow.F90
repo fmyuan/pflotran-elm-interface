@@ -83,6 +83,8 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowTimeCutPostInit, &
             PMSubsurfaceFlowCheckpointBinary, &
             PMSubsurfaceFlowRestartBinary, &
+            PMSubsurfaceFlowCheckpointHDF5, &
+            PMSubsurfaceFlowRestartHDF5, &
             PMSubsurfFlowReadSimOptionsSC, &
             PMSubsurfaceFlowReadTSSelectCase, &
             PMSubsurfaceFlowReadNewtonSelectCase, &
@@ -136,7 +138,7 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
                                          error_string,option)
   ! 
   ! Reads input file parameters associated with the subsurface flow process 
-  !       model
+  ! model. SC stands for "select case"
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/05/16

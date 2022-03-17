@@ -1165,6 +1165,11 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
       name = 'Electrical Potential Dipole'
       category = OUTPUT_GENERIC
       id = ELECTRICAL_POTENTIAL_DIPOLE
+    case ('SOLUTE_CONCENTRATION')
+      units = 'M'
+      name = 'Solute Concentration'
+      category = OUTPUT_GENERIC
+      id = SOLUTE_CONCENTRATION
   end select
 
 end subroutine OutputVariableToID
