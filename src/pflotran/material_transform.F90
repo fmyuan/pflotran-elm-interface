@@ -75,7 +75,6 @@ module Material_Transform_module
     PetscReal :: fs0    ! initial fraction of smectite in material
     PetscReal :: fs     ! fraction of smectite in material
     PetscReal :: fi     ! fraction of illite in material
-    PetscReal :: ts     ! track time of last change in smectite
     PetscBool :: qperm0 ! logical for saving the initial permeability
     PetscReal :: scale  ! scale factor
     PetscReal, allocatable :: perm0(:) ! intiial permeability
@@ -345,7 +344,6 @@ function IllitizationAuxVarInit(option)
   auxvar%fs0    = 1.0d+0               ! initial fraction of smectite in material
   auxvar%fs     = UNINITIALIZED_DOUBLE ! fraction of smectite in material
   auxvar%fi     = UNINITIALIZED_DOUBLE ! fraction of illite in material
-  auxvar%ts     = UNINITIALIZED_DOUBLE ! track time of last change in smectite
   auxvar%scale  = UNINITIALIZED_DOUBLE ! scale factor
   auxvar%qperm0 = PETSC_FALSE          ! save initial permeability
 
@@ -1784,9 +1782,6 @@ subroutine ILTShiftPerm(this, material_auxvar, auxvar, option)
   enddo
 
   if (allocated(fperm)) deallocate(fperm)
-
-  ! Save time of permeability modification
-  auxvar%ts = option%time
 
 end subroutine ILTShiftPerm
 
