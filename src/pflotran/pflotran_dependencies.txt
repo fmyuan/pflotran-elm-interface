@@ -343,8 +343,8 @@ inlinesurface_aux.o : global_aux.o option.o utility.o
 input_aux.o : option.o pflotran_constants.o string.o units.o
 integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
                   string.o utility.o
-inversion_aux.o : inversion_measurement_aux.o inversion_ts_aux.o \
-                  pflotran_constants.o utility.o
+inversion_aux.o : inversion_measurement_aux.o inversion_parameter.o \
+                  inversion_ts_aux.o pflotran_constants.o utility.o
 inversion_base.o : driver.o input_aux.o option.o option_inversion.o \
                    pflotran_constants.o string.o timer.o
 inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
@@ -353,8 +353,10 @@ inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
                   material.o material_aux.o option.o patch.o \
                   pflotran_constants.o string.o survey.o timer.o utility.o \
                   variables.o
-inversion_measurement_aux.o : geometry.o input_aux.o option.o \
-                              pflotran_constants.o string.o units.o utility.o
+inversion_measurement_aux.o : input_aux.o option.o pflotran_constants.o \
+                              string.o units.o utility.o
+inversion_parameter.o : input_aux.o option.o pflotran_constants.o string.o \
+                        units.o
 inversion_perturbation.o : debug.o discretization.o driver.o factory_forward.o \
                            input_aux.o inversion_base.o inversion_subsurface.o \
                            inversion_ts_aux.o material.o option.o \
@@ -363,12 +365,13 @@ inversion_perturbation.o : debug.o discretization.o driver.o factory_forward.o \
 inversion_subsurface.o : connection.o coupler.o debug.o discretization.o \
                          driver.o factory_forward.o grid.o hdf5.o input_aux.o \
                          inversion_aux.o inversion_base.o \
-                         inversion_measurement_aux.o inversion_ts_aux.o \
-                         material.o material_aux.o option.o output_hdf5.o \
-                         patch.o pflotran_constants.o pm_base.o pm_zflow.o \
-                         realization_base.o realization_subsurface.o \
-                         simulation_subsurface.o solver.o string.o timer.o \
-                         units.o utility.o variables.o zflow_aux.o
+                         inversion_measurement_aux.o inversion_parameter.o \
+                         inversion_ts_aux.o material.o material_aux.o option.o \
+                         output_hdf5.o patch.o pflotran_constants.o pm_base.o \
+                         pm_zflow.o realization_base.o \
+                         realization_subsurface.o simulation_subsurface.o \
+                         solver.o string.o timer.o units.o utility.o \
+                         variables.o zflow_aux.o
 inversion_tao.o : driver.o factory_forward.o input_aux.o inversion_base.o \
                   inversion_subsurface.o option.o pflotran_constants.o \
                   string.o

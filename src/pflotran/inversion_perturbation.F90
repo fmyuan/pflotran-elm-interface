@@ -18,6 +18,7 @@ module Inversion_Perturbation_class
     PetscInt :: ndof
     PetscInt :: idof_pert
     PetscReal :: pert
+    PetscReal :: base_value
     PetscReal :: perturbation_tolerance
     PetscInt, pointer :: select_cells(:)
   contains
@@ -79,6 +80,7 @@ subroutine InversionPerturbationInit(this,driver)
   this%ndof = 0
   this%idof_pert = 0
   this%pert = 0.d0
+  this%base_value = 0.d0
   this%perturbation_tolerance = 1.d-6
   nullify(this%select_cells)
 
@@ -160,29 +162,35 @@ subroutine InversionPerturbationInitialize(this)
   this%inversion_aux%inversion_forward_aux%store_adjoint = PETSC_FALSE
 
   if (this%idof_pert == 0) then
-    if (associated(this%select_cells)) then
-      this%ndof = size(this%select_cells)
-      if (this%ndof > this%realization%patch%grid%nmax) then
-        call this%driver%PrintErrMsg('Number of SELECT_CELLS is larger than &
-                                     &the problem size: '// &
-                                     trim(StringWrite(this%ndof))//' '// &
-                  trim(StringWrite(this%realization%patch%grid%nmax)))
+    if (this%qoi_is_full_vector) then
+      if (associated(this%select_cells)) then
+        this%ndof = size(this%select_cells)
+        if (this%ndof > this%realization%patch%grid%nmax) then
+          call this%driver%PrintErrMsg('Number of SELECT_CELLS is larger than &
+                                      &the problem size: '// &
+                                      trim(StringWrite(this%ndof))//' '// &
+                    trim(StringWrite(this%realization%patch%grid%nmax)))
+        endif
+      else
+        this%ndof = this%realization%patch%grid%nmax
       endif
     else
-      this%ndof = this%realization%patch%grid%nmax
+      this%ndof = size(this%parameters)
     endif
     call VecDuplicate(this%measurement_vec,this%base_measurement_vec, &
                       ierr);CHKERRQ(ierr)
   else
-    if (this%idof_pert > this%realization%patch%grid%nmax) then
-      call this%driver%PrintErrMsg('SELECT_CELLS ID is larger than &
-                                   &the problem size: '// &
-                          trim(StringWrite(this%idof_pert))//' '// &
-                    trim(StringWrite(this%realization%patch%grid%nmax)))
+    if (this%qoi_is_full_vector) then
+      if (this%idof_pert > this%realization%patch%grid%nmax) then
+        call this%driver%PrintErrMsg('SELECT_CELLS ID is larger than &
+                                    &the problem size: '// &
+                            trim(StringWrite(this%idof_pert))//' '// &
+                      trim(StringWrite(this%realization%patch%grid%nmax)))
+      endif
     endif
   endif
 
-  if (Uninitialized(this%iqoi(1))) then
+  if (Uninitialized(this%iqoi(1)) .and. this%qoi_is_full_vector) then
     call this%driver%PrintErrMsg('Quantity of interest not specified in &
       &InversionPerturbationInitialize.')
   endif
@@ -258,7 +266,11 @@ subroutine InvPerturbationConnectForwardRun(this)
   ! Date: 09/24/21
   !
   use Discretization_module
+  use Init_Subsurface_module
   use Material_module
+  use Region_module
+  use Strata_module
+  use String_module
 
   class(inversion_perturbation_type) :: this
 
@@ -267,6 +279,10 @@ subroutine InvPerturbationConnectForwardRun(this)
   Vec :: natural_vec
   PetscReal, pointer :: vec_ptr(:)
   PetscReal :: rmin, rmax
+  PetscInt :: i
+  type(strata_type), pointer :: strata
+  type(material_property_type), pointer :: material_property
+  type(region_type), pointer :: region
   PetscErrorCode :: ierr
 
   call InvSubsurfConnectToForwardRun(this)
@@ -280,41 +296,78 @@ subroutine InvPerturbationConnectForwardRun(this)
     call VecCopy(this%quantity_of_interest,this%quantity_of_interest_base, &
                                      ierr);CHKERRQ(ierr)
   else
-    discretization => this%realization%discretization
-    work = this%realization%field%work
-    call DiscretizationCreateVector(discretization, &
-                                    ONEDOF,natural_vec, &
-                                    NATURAL,this%realization%option)
-    call VecCopy(this%quantity_of_interest_base,this%quantity_of_interest, &
-                 ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(this%quantity_of_interest,vec_ptr, &
+    if (this%qoi_is_full_vector) then
+      discretization => this%realization%discretization
+      work = this%realization%field%work
+      call DiscretizationCreateVector(discretization, &
+                                      ONEDOF,natural_vec, &
+                                      NATURAL,this%realization%option)
+      call VecCopy(this%quantity_of_interest_base,this%quantity_of_interest, &
+                  ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(this%quantity_of_interest,vec_ptr, &
+                          ierr);CHKERRQ(ierr)
+      call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
+      if (this%driver%comm%myrank == 0) then
+        call VecSetValue(natural_vec,this%idof_pert-1, &
+                        this%perturbation_tolerance,INSERT_VALUES, &
                         ierr);CHKERRQ(ierr)
-    call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
-    if (this%driver%comm%myrank == 0) then
-      call VecSetValue(natural_vec,this%idof_pert-1, &
-                       this%perturbation_tolerance,INSERT_VALUES, &
-                       ierr);CHKERRQ(ierr)
-    endif
-    call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
-    call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
-    call DiscretizationNaturalToGlobal(discretization,natural_vec, &
-                                       work,ONEDOF)
-    call VecPointwiseMult(work,work,this%quantity_of_interest,ierr);CHKERRQ(ierr)
-    call VecMax(work,PETSC_NULL_INTEGER,rmax,ierr);CHKERRQ(ierr)
-    call VecMin(work,PETSC_NULL_INTEGER,rmin,ierr);CHKERRQ(ierr)
-    if (rmax > 0.d0) then
-      this%pert = rmax
+      endif
+      call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+      call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+      call DiscretizationNaturalToGlobal(discretization,natural_vec, &
+                                        work,ONEDOF)
+      call VecPointwiseMult(work,work,this%quantity_of_interest,ierr);CHKERRQ(ierr)
+      call VecMax(work,PETSC_NULL_INTEGER,rmax,ierr);CHKERRQ(ierr)
+      call VecMin(work,PETSC_NULL_INTEGER,rmin,ierr);CHKERRQ(ierr)
+      if (rmax > 0.d0) then
+        this%pert = rmax
+      else
+        this%pert = rmin
+      endif
+      call VecAXPY(this%quantity_of_interest,1.d0,work,ierr);CHKERRQ(ierr)
+      call DiscretizationGlobalToLocal(this%realization%discretization, &
+                                      this%quantity_of_interest, &
+                                      this%realization%field%work_loc,ONEDOF)
+      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                  this%realization%field%work_loc, &
+                                  this%iqoi(1),this%iqoi(2))
+      call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
     else
-      this%pert = rmin
+      this%base_value = this%parameters(this%idof_pert)%value
+      this%pert = this%base_value*this%perturbation_tolerance
+      this%parameters(this%idof_pert)%value = this%base_value + this%pert
+      do i = 1, size(this%parameters)
+        strata => this%realization%patch%strata_list%first
+        do
+          if (.not.associated(strata)) exit
+          if (StringCompareIgnoreCase(this%parameters(i)%strata_name, &
+                                      strata%region_name)) then
+            exit
+          endif
+          strata => strata%next
+        enddo
+        if (associated(strata)) then
+          material_property => &
+            MaterialPropGetPtrFromArray(strata%material_property_name, &
+                              this%realization%patch%material_property_array)
+          region => RegionGetPtrFromList(strata%region_name, &
+                                        this%realization%patch%region_list)
+          if (this%first_iteration) then
+            this%parameters(i)%imat = abs(material_property%internal_id)
+            this%parameters(i)%value = material_property%permeability(1,1)
+          else
+            material_property%permeability(1,1) = this%parameters(i)%value
+            material_property%permeability(2,2) = this%parameters(i)%value
+            material_property%permeability(3,3) = this%parameters(i)%value
+          endif
+        else
+          call this%driver%PrintErrMsg('No region associated with strata in &
+                                      &InvSubsurfConnectToForwardRun.')
+        endif
+      enddo
+      call InitSubsurfAssignMatIDsToRegns(this%realization)
+      call InitSubsurfAssignMatProperties(this%realization)
     endif
-    call VecAXPY(this%quantity_of_interest,1.d0,work,ierr);CHKERRQ(ierr)
-    call DiscretizationGlobalToLocal(this%realization%discretization, &
-                                     this%quantity_of_interest, &
-                                     this%realization%field%work_loc,ONEDOF)
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc, &
-                                 this%iqoi(1),this%iqoi(2))
-    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine InvPerturbationConnectForwardRun
@@ -382,6 +435,11 @@ subroutine InversionPerturbationFillRow(this,iteration)
                           ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
                         ierr);CHKERRQ(ierr)
+  endif
+
+  if (.not.this%qoi_is_full_vector) then
+    ! revert back to base value
+    this%parameters(this%idof_pert)%value = this%base_value
   endif
 
 end subroutine InversionPerturbationFillRow
