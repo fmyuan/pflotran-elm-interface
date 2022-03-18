@@ -124,6 +124,8 @@ module PM_Well_class
     PetscReal, pointer :: aqueous_mass(:,:)
     ! well bottom of hole pressure BC flag
     PetscBool :: bh_p_set_by_reservoir
+    ! well bottom of hole Sg BC flag
+    PetscBool :: bh_sg_set_by_reservoir
     ! well bottom of hole pressure BC [Pa]
     PetscReal :: bh_p 
     ! well top of hole pressure BC [Pa]
@@ -328,6 +330,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well%permeability)
   nullify(PMWellCreate%well%phi)
   PMWellCreate%well%bh_p_set_by_reservoir = PETSC_FALSE
+  PMWellCreate%well%bh_sg_set_by_reservoir = PETSC_FALSE
   PMWellCreate%well%bh_p = UNINITIALIZED_DOUBLE
   PMWellCreate%well%th_p = UNINITIALIZED_DOUBLE
   PMWellCreate%well%bh_sg = UNINITIALIZED_DOUBLE
@@ -374,6 +377,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%permeability)
   nullify(PMWellCreate%well_pert(TWO_INTEGER)%phi)
   PMWellCreate%well_pert(:)%bh_p_set_by_reservoir = PETSC_FALSE
+  PMWellCreate%well_pert(:)%bh_sg_set_by_reservoir = PETSC_FALSE
   PMWellCreate%well_pert(:)%bh_p = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(:)%th_p = UNINITIALIZED_DOUBLE
   PMWellCreate%well_pert(:)%bh_sg = UNINITIALIZED_DOUBLE
@@ -1255,6 +1259,9 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                     case('PRESSURE_SET_BY_RESERVOIR')
                       this%well%bh_p_set_by_reservoir = PETSC_TRUE
                   !-----------------------------
+                    case('SATURATION_SET_BY_RESERVOIR')
+                      this%well%bh_sg_set_by_reservoir = PETSC_TRUE
+                  !-----------------------------
                     case('LIQUID_RATE')
                       call InputReadDouble(input,option,this%well%bh_ql)
                       call InputReadAndConvertUnits(input,this%well%bh_ql, &
@@ -1333,15 +1340,17 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
         call PrintErrMsg(option)
       endif
 
-      if ((Initialized(this%well%bh_p).or.Initialized(this%well%bh_sg)) .and. &
-          .not.((this%well%bh_p_set_by_reservoir .or. &
-          Initialized(this%well%bh_p)).and.Initialized(this%well%bh_sg))) &
-          then
+      if ( .not. ((Initialized(this%well%bh_p) .or. &
+                   this%well%bh_p_set_by_reservoir) .and. &
+                  (Initialized(this%well%bh_sg) .or. &
+                   this%well%bh_sg_set_by_reservoir))) then
+
         option%io_buffer ='WIPP_DARCY well model needs both Dirichlet &
            &LIQUID_PRESSURE and GAS_SATURATION set in the ' &
            // trim(error_string) // ' block.'
         call PrintErrMsg(option)
-      endif
+
+      endif 
 
       if ((Initialized(this%well%th_p).or.Initialized(this%well%th_sg)) .and. &
           .not.(Initialized(this%well%th_p).and.Initialized(this%well%th_sg))) &
@@ -2049,6 +2058,9 @@ subroutine PMWellInitializeTimestep(this)
 
   if (this%well%bh_p_set_by_reservoir) then
     this%well%bh_p = this%reservoir%p_l(1)
+  endif
+  if (this%well%bh_sg_set_by_reservoir) then
+    this%well%bh_sg = this%reservoir%s_g(1)
   endif
 
   call PMWellUpdatePropertiesFlow(this,this%well,&
