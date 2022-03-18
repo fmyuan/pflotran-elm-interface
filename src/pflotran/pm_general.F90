@@ -260,8 +260,6 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         general_phase_chng_epsilon = tempreal
       case('RESTRICT_STATE_CHANGE')
         general_restrict_state_chng = PETSC_TRUE
-      case('HALITE_SATURATED_BRINE')
-        general_halite_saturated_brine = PETSC_TRUE
       case('TWO_PHASE_ENERGY_DOF')
         call InputKeywordDeprecated('TWO_PHASE_ENERGY_DOF', &
                                     'TWO_PHASE_STATE_ENERGY_DOF',option)

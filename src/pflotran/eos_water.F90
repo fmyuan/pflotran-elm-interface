@@ -479,6 +479,7 @@ subroutine EOSWaterSetDensity(keyword,aux)
       if (halite_saturated_brine) then
         if (.not. hsb_compute_salinity) then
            aux(1) = hsb_salinity(1)
+           EOSWaterDensityPtr => EOSWaterDensityBatzleAndWang
         endif
       endif
       EOSWaterDensityPtr => EOSWaterDensityBatzleAndWang
@@ -850,9 +851,13 @@ subroutine EOSWaterViscosityNoDerive(T, P, PS, VW, ierr, table_idxs)
   
   ierr = 0
   dPS_dT = 0.d0
-  call EOSWaterViscosityPtr(T, P, PS, dPS_dT, PETSC_FALSE, VW, &
-                            dum1, dum2, ierr, table_idxs)
-  
+  if (halite_saturated_brine) then
+    call EOSWaterViscosityExtPtr(T, P, PS, dPS_dT, hsb_salinity(1), PETSC_FALSE, VW, &
+                              dum1, dum2, ierr)
+  else
+    call EOSWaterViscosityPtr(T, P, PS, dPS_dT, PETSC_FALSE, VW, &
+                              dum1, dum2, ierr, table_idxs)
+  endif
 end subroutine EOSWaterViscosityNoDerive
 
 ! ************************************************************************** !
@@ -868,11 +873,17 @@ subroutine EOSWaterViscosityDerive(T, P, PS, dPS_dT, VW, dVW_dT, &
   PetscReal, intent(out) :: dVW_dT, dVW_dP ! derivatives
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+  PetscReal :: hsb_salinity(1)
   
   ierr = 0
-  call EOSWaterViscosityPtr(T, P, PS, dPS_dT, PETSC_TRUE, VW, &
+  if (halite_saturated_brine) then
+    call EOSWaterViscosityExtPtr(T, P, PS, dPS_dT,hsb_salinity(1), PETSC_TRUE, VW, &
+                              dVW_dT, dVW_dP, ierr)
+  else
+    call EOSWaterViscosityPtr(T, P, PS, dPS_dT, PETSC_TRUE, VW, &
                             dVW_dT, dVW_dP, ierr, table_idxs)
-  
+  endif
+
 end subroutine EOSWaterViscosityDerive
 
 ! ************************************************************************** !
@@ -884,12 +895,17 @@ subroutine EOSWaterSatPresNoDerive(T, PS, ierr)
   PetscReal, intent(in) :: T ! temperature
   PetscReal, intent(out) :: PS ! Saturation pres. and derivative
   PetscErrorCode, intent(out) :: ierr
+  PetscReal :: hsb_salinity(1)
   
   PetscReal :: dummy
   
   ierr = 0
-  call EOSWaterSaturationPressurePtr(T, PETSC_FALSE, PS, dummy, ierr)
-  
+  if (halite_saturated_brine) then
+    call EOSWaterSaturationPressureExtPtr(T, hsb_salinity(1),PETSC_FALSE, PS, dummy, ierr)
+  else
+    call EOSWaterSaturationPressurePtr(T, PETSC_FALSE, PS, dummy, ierr)
+  endif
+
 end subroutine EOSWaterSatPresNoDerive
 
 ! ************************************************************************** !
@@ -901,10 +917,15 @@ subroutine EOSWaterSatPresDerive(T, PS, dPS_dT, ierr)
   PetscReal, intent(in) :: T ! temperature
   PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
   PetscErrorCode, intent(out) :: ierr
+  PetscReal :: hsb_salinity(1)
   
   ierr = 0
-  call EOSWaterSaturationPressurePtr(T, PETSC_TRUE, PS, dPS_dT, ierr)
-  
+  if (halite_saturated_brine) then
+     call EOSWaterSaturationPressureExtPtr(T,hsb_salinity(1),PETSC_TRUE, PS, dPS_dT, ierr)
+  else
+    call EOSWaterSaturationPressurePtr(T, PETSC_TRUE, PS, dPS_dT, ierr)
+  endif
+
 end subroutine EOSWaterSatPresDerive
 
 ! ************************************************************************** !
@@ -952,11 +973,16 @@ subroutine EOSWaterDensityNoDerive(t,p,dw,dwmol,ierr,table_idxs)
   PetscReal, intent(out) :: dw,dwmol
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+  PetscReal :: hsb_salinity(1)
   
   PetscReal :: dum1, dum2
   
   ierr = 0
-  call EOSWaterDensityPtr(t,p,PETSC_FALSE,dw,dwmol,dum1,dum2,ierr,table_idxs)
+  if (halite_saturated_brine) then
+    call EOSWaterDensityExtPtr(t,p,hsb_salinity(1),PETSC_FALSE,dw,dwmol,dum1,dum2,ierr)
+  else
+    call EOSWaterDensityPtr(t,p,PETSC_FALSE,dw,dwmol,dum1,dum2,ierr,table_idxs)
+  endif
   
 end subroutine EOSWaterDensityNoDerive
 
@@ -971,10 +997,17 @@ subroutine EOSWaterDensityDerive(t,p,dw,dwmol,dwp,dwt,ierr,table_idxs)
   PetscReal, intent(out) :: dw,dwmol,dwp,dwt
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
-  
+  PetscReal :: hsb_salinity(1)
+
   ierr = 0
-  call EOSWaterDensityPtr(t,p,PETSC_TRUE,dw,dwmol,dwp,dwt,ierr,table_idxs)
-  
+  if (hsb_compute_salinity) then
+  !DF: This allows the ext. subroutines to be called from general_aux when
+  !    salinity is computed within eos_water.
+    call EOSWaterDensityExtPtr(t,p,hsb_salinity(1),PETSC_FALSE,dw,dwmol,dwp,dwt,ierr)
+  else
+    call EOSWaterDensityPtr(t,p,PETSC_TRUE,dw,dwmol,dwp,dwt,ierr,table_idxs)
+  endif
+
 end subroutine EOSWaterDensityDerive
 
 ! ************************************************************************** !
@@ -987,11 +1020,16 @@ subroutine EOSWaterEnthalpyNoDerive(t,p,hw,ierr)
   PetscReal, intent(in) :: p
   PetscReal, intent(out) :: hw
   PetscErrorCode, intent(out) :: ierr
+  PetscReal :: hsb_salinity(1)
   
   PetscReal :: dum1, dum2
   
   ierr = 0
-  call EOSWaterEnthalpyPtr(t,p,PETSC_FALSE,hw,dum1,dum2,ierr)
+  if (halite_saturated_brine) then
+    call EOSWaterEnthalpyExtPtr(t,p,hsb_salinity(1),PETSC_FALSE,hw,dum1,dum2,ierr)
+  else
+    call EOSWaterEnthalpyPtr(t,p,PETSC_FALSE,hw,dum1,dum2,ierr)
+  endif
   
 end subroutine EOSWaterEnthalpyNoDerive
 
@@ -1004,9 +1042,14 @@ subroutine EOSWaterEnthalpyDerive(t,p,hw,hwp,hwt,ierr)
   PetscReal, intent(in) :: p
   PetscReal, intent(out) :: hw,hwp,hwt
   PetscErrorCode, intent(out) :: ierr
+  PetscReal :: hsb_salinity(1)
   
   ierr = 0
-  call EOSWaterEnthalpyPtr(t,p,PETSC_TRUE,hw,hwp,hwt,ierr)
+  if (halite_saturated_brine) then
+     call EOSWaterEnthalpyExtPtr(t,p,hsb_salinity(1),PETSC_TRUE,hw,hwp,hwt,ierr)
+  else
+     call EOSWaterEnthalpyPtr(t,p,PETSC_TRUE,hw,hwp,hwt,ierr)
+  endif
   
 end subroutine EOSWaterEnthalpyDerive
 
@@ -1351,6 +1394,7 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
 
   PetscReal :: ln_p !bars
   PetscReal :: T0, Tx, x
+  PetscReal :: dT0_dT,da_dT,db_dT,dm_dT,dln_T0_dT
   PetscReal :: ln_T0, p
   PetscReal :: a, b, m
   PetscReal :: w, y, z
@@ -1402,6 +1446,20 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
   ! fourth term instead of multiplying.
   ln_p = e0+e1/z+e2*w/z*(1.d1**(e3*w**2)-1.d0)+e4*1.d1**(e5*y**1.25d0)
   PS = exp(ln_p)*1.d5
+
+  if (calculate_derivatives) then
+    da_dT = 0.d0
+    db_dT = 0.d0
+    dm_dT = -(b)/(a+b*Tx)**2
+    dln_T0_dT = m/Tx+dm_dT*log(Tx)
+    dT0_dT = exp(ln_T0)*dln_T0_dT
+    dz_dT = dT0_dT
+    dy_dT = -dT0_dT
+    dw_dT = 2*z*dZ_dT
+    dln_p_dT = -e1*z**-2*dz_dT+(e2*1.d1**(e3*w**2-1)*(z*dw_dT*e3*log(100)*w**2+1)-w*dz_dT)/(z**2)+&
+         e2*w/z*(e3*5**(3*w**2-1)*8**(w**2)*dw_dT*log(10.d0))+2.87823d0*1.d1**(e5*y**1.25d0)*e4*e5*y**0.25d0*dy_dT
+    dPS_dT = 1.d5*exp(ln_p)*dln_p_dT
+  endif
 
 end subroutine EOSWaterSaturationPressureHaas
 ! ************************************************************************** !
@@ -2029,6 +2087,8 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
   PetscReal :: T_h, p_bar, t_c
   PetscReal :: q1,q2, q1x1, q2x1
   PetscReal :: q10,q11,q12,q20,q21,q22,q23
+  PetscReal :: dq1_dp,dq2_dp,dq1x1_dp,dq2x1_dp
+  PetscReal :: dq10_dp,dq11_dp,dq12_dp,dq20_dp,dq21_dp,dq22_dp,dq23_dp,dT_h_dp
   PetscReal :: molal,s,x
 
   t_c = T
@@ -2067,6 +2127,30 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
 
   call EOSWaterEnthalpyIF97(T_h,P,calculate_derivatives,hw,hwp,hwt,ierr)
 
+  if (calculate_derivatives) then
+    dq11_dp = 0.0621255d0
+    dq21_dp = -4.52781d-4 - 2.d0 * 6.04279d-8  * p_bar
+    dq22_dp = 1.88082d-5
+
+    dq1x1_dp = -9.36994d-3 + 2.d0*6.51059d-6 * p_bar
+    dq2x1_dp = 3.45087d-5 -2.d0 * 4.28356d-9 * p_bar
+
+    dq12_dp = -dq11_dp - dq1x1_dp
+    dq10_dp = dq1x1_dp
+
+    dq20_dp = -q21 * dq22_dp/(2.d0*sqrt(q22)) - dq21_dp
+    dq23_dp = dq2x1_dp - dq20_dp - dq21_dp - q21*dq22_dp/(2.d0*sqrt(q22)) - dq21_dp*sqrt(q22)
+
+    dq1_dp = dq10_dp + dq11_dp * (1.d0 - x) + dq12_dp * (1.d0 - x)**2
+    dq2_dp = dq20_dp + dq21_dp * sqrt(x + q22) + q21 * (dq22_dp)/(2.d0*sqrt(x+q22)) + dq23_dp * x
+    dT_h_dp = dq1_dp + dq2_dp * t_c
+    ! d(h_if97)/dT*dT/dP+d(h_if97)/dP
+    hwp = hwt*dT_h_dp+hwp
+    ! d(h_if97/dP*dP/dT+d(h_if97)/dT
+    hwt = hwp/dT_h_dp+hwt
+
+    !now what... ?
+  endif
 end subroutine EOSWaterEnthalpyDriesnerExt
 
 ! ************************************************************************** !
@@ -2192,6 +2276,13 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
   hw = A+T*(B+T*(C+T*(D+T*E))) !kJ/kg
 
   hw = hw*kJ_to_J/((molal+55.508435d0)*mol_to_kmol) !J/kmol
+  if (calculate_derivatives) then
+    hwt = (B+T*(C+T*(D+T*E)))*kJ_to_J/((molal+55.508435d0)*mol_to_kmol)
+    hwp = 0.d0
+  else
+    hwt = UNINITIALIZED_DOUBLE
+    hwp = UNINITIALIZED_DOUBLE
+  endif
 
 end subroutine EOSWaterEnthalpySparrowExt
 
@@ -4022,6 +4113,10 @@ subroutine EOSWaterSatPressSparrow(T,aux,calculate_derivatives, &
 
   PS = A+T*(B+T*(C+T*(D+T*E)))
   PS = PS*MPa_to_Pa
+
+  if (calculate_derivatives) then
+    dPS_dT = B+T*(C+T*(D+T*E)) * MPa_to_Pa
+  endif
 
 end subroutine EOSWaterSatPressSparrow
 

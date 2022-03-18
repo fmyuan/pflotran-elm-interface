@@ -15,7 +15,6 @@ module General_Aux_module
   PetscBool, public :: general_immiscible = PETSC_FALSE
   PetscBool, public :: general_non_darcy_flow = PETSC_FALSE
   PetscReal, public :: general_phase_chng_epsilon = 1.d-6
-  PetscBool, public :: general_halite_saturated_brine = PETSC_FALSE
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
@@ -660,10 +659,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(lid) = 1.d0
       gen_auxvar%sat(gid) = 0.d0
 
-      if (general_halite_saturated_brine) then
-        call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux, &
-                                           gen_auxvar%pres(spid), ierr)
-      elseif (associated(gen_auxvar%d)) then
+      if (associated(gen_auxvar%d)) then
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid), &
                                         gen_auxvar%d%psat_T,ierr)
@@ -735,10 +731,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       ! water saturated with air in order to accommodate air diffusion between
       ! GAS_STATE cell and TWO_PHASE/LIQUID_STATE cells as air should still
       ! diffuse through the liquid phase.
-      if (general_halite_saturated_brine) then
-        call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux, &
-                                           gen_auxvar%pres(spid), ierr)
-      elseif (associated(gen_auxvar%d)) then
+      if (associated(gen_auxvar%d)) then
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid), &
                                         gen_auxvar%d%psat_T,ierr)
@@ -807,12 +800,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
         gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-        if (general_halite_saturated_brine) then
-          call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux, &
-                                             gen_auxvar%pres(spid), ierr)
-          call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
-                           eos_henry_ierr)
-        elseif (associated(gen_auxvar%d)) then
+        if (associated(gen_auxvar%d)) then
           call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid), &
                                           gen_auxvar%d%psat_T,ierr)
@@ -843,14 +831,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
         gen_auxvar%pres(spid) = gen_auxvar%pres(vpid)
         guess = gen_auxvar%temp
-        if (general_halite_saturated_brine) then
-          call EOSWaterSaturationPressureExt(gen_auxvar%temp, aux, &
-                                             gen_auxvar%pres(spid), ierr)
-        else
-          call EOSWaterSaturationTemperature(gen_auxvar%temp, &
-                                             gen_auxvar%pres(spid),dummy, &
-                                             guess,ierr)
-        endif
+        call EOSWaterSaturationTemperature(gen_auxvar%temp, &
+                                           gen_auxvar%pres(spid),dummy, &
+                                           guess,ierr)
       endif
 
       gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
@@ -983,10 +966,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   ! Liquid phase thermodynamic properties
   ! must use cell_pressure as the pressure, not %pres(lid)
-  if (general_halite_saturated_brine) then
-    call EOSWaterDensityExt(gen_auxvar%temp,cell_pressure,aux, &
-                            gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-  elseif (.not.option%flow%density_depends_on_salinity) then
+  if (.not.option%flow%density_depends_on_salinity) then
     if (associated(gen_auxvar%d)) then
       call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
                            gen_auxvar%den_kg(lid),gen_auxvar%den(lid), &
@@ -1014,9 +994,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                               gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
     endif
   endif
-  if (general_halite_saturated_brine) then
-    call EOSWaterEnthalpyExt(gen_auxvar%temp,cell_pressure,aux,hw,ierr)
-  elseif (associated(gen_auxvar%d)) then
+  if (associated(gen_auxvar%d)) then
     call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,hw,hw_dp,hw_dT,ierr)
     one_over_dw = 1.d0/gen_auxvar%den(lid)
     !TODO(geh): merge the common terms in dUl_pl and dUl_T equations
@@ -1212,10 +1190,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     ! variable is gas pressure.  therefore, negate
     dkrl_dsatg = -1.d0 * dkrl_dsatl
     ! use cell_pressure; cell_pressure - psat calculated internally
-    if (general_halite_saturated_brine) then
-      call EOSWaterViscosityExt(gen_auxvar%temp,cell_pressure, &
-                                gen_auxvar%pres(spid),aux,visl,ierr)
-    elseif (.not.option%flow%density_depends_on_salinity) then
+    if (.not.option%flow%density_depends_on_salinity) then
       if (associated(gen_auxvar%d)) then
         call EOSWaterViscosity(gen_auxvar%temp,cell_pressure, &
                                gen_auxvar%pres(spid), &
@@ -2645,6 +2620,7 @@ subroutine GeneralAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%xmol)  
   call DeallocateArray(auxvar%H)  
   call DeallocateArray(auxvar%U)  
+  call DeallocateArray(auxvar%kr)  
   call DeallocateArray(auxvar%mobility)  
   if (associated(auxvar%d)) then
     deallocate(auxvar%d)

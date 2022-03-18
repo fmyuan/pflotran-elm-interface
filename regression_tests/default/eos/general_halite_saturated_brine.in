@@ -5,9 +5,6 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE GENERAL
-        OPTIONS
-          HALITE_SATURATED_BRINE	
-        /
       /
   /
 END

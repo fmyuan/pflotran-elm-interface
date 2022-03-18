@@ -14,10 +14,10 @@
      Mean:   0.0000000000000E+00
         1:   0.0000000000000E+00
 -- PRESSURE: Vapor Pressure --
-      Max:   1.5000000000000E+05
-      Min:   1.5000000000000E+05
-     Mean:   1.5000000000000E+05
-        1:   1.5000000000000E+05
+      Max:   1.4965228003362E+05
+      Min:   1.4965228003362E+05
+     Mean:   1.4965228003362E+05
+        1:   1.4965228003362E+05
 -- PRESSURE: Saturation Pressure --
       Max:   5.5919904259570E+04
       Min:   5.5919904259570E+04
@@ -54,7 +54,7 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Flow --
-   Time (seconds):   2.7365684509277E-03
+   Time (seconds):   3.8206577301025E-03
    Time Steps:           22
    Newton Iterations:           22
    Linear Solver Iterations:            0
