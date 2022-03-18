@@ -7500,6 +7500,11 @@ subroutine CritInventoryRead(this,filename,option)
     call PrintErrMsg(option)
   endif
 
+  if (Uninitialized(this%total_points) .and. &
+      Uninitialized(this%num_real_times)) then
+    this%total_points = size(tmpaxis3)
+  endif
+
   if (Initialized(this%total_points)) then
     arr_size = this%total_points
   else
