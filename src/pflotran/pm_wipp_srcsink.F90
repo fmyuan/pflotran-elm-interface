@@ -484,7 +484,6 @@ module PM_WIPP_SrcSink_class
     type(radiolysis_parameter_type) :: radiolysis_parameters
     class(realization_subsurface_type), pointer :: realization
   contains
-    procedure, public :: PMWSSSetRealization
     procedure, public :: Setup => PMWSSSetup
     procedure, public :: ReadPMBlock => PMWSSReadPMBlock
     procedure, public :: InitializeRun => PMWSSInitializeRun
