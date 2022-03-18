@@ -124,7 +124,8 @@ subroutine MphaseSetupPatch(realization)
   use Grid_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
- 
+  use Material_Aux_module
+  
   implicit none
   
   class(realization_subsurface_type) :: realization
@@ -203,7 +204,7 @@ subroutine MphaseSetupPatch(realization)
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
         patch%material_property_array(1)%ptr%multicontinuum%name, &
-        patch%material_property_array(1)%ptr%multicontinuum%length, &
+        patch%aux%Material%auxvars(ghosted_id)%soil_properties(matrix_length_index), &
         patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
         patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
         patch%material_property_array(1)%ptr%multicontinuum%radius, &
@@ -216,7 +217,7 @@ subroutine MphaseSetupPatch(realization)
       mphase_sec_heat_vars(local_id)%aperture = &
         patch%material_property_array(1)%ptr%multicontinuum%aperture
       mphase_sec_heat_vars(local_id)%epsilon = &
-        patch%aux%Material%auxvars(ghosted_id)%epsilon
+        patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index)
       mphase_sec_heat_vars(local_id)%log_spacing = &
         patch%material_property_array(1)%ptr%multicontinuum%log_spacing
       mphase_sec_heat_vars(local_id)%outer_spacing = &

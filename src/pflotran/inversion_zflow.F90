@@ -40,6 +40,7 @@ module Inversion_ZFlow_class
     PetscInt :: num_constraints_total    ! Total number of constraints
     PetscInt, pointer :: rblock(:,:)     ! array stores info about reg.
     PetscReal, pointer :: Wm(:)          ! Regularization matrix
+    Vec :: natural_vec
 
     type(constrained_block_type), pointer :: constrained_block
 
@@ -162,6 +163,8 @@ subroutine InversionZFlowInit(this,driver)
   this%phi_total = UNINITIALIZED_DOUBLE
   this%phi_data = UNINITIALIZED_DOUBLE
   this%phi_model = UNINITIALIZED_DOUBLE
+
+  this%natural_vec = PETSC_NULL_VEC
 
   nullify(this%b)
   nullify(this%p)
@@ -660,6 +663,7 @@ subroutine InversionZFlowInitialize(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 01/06/22
   !
+  use Discretization_module
   use Inversion_TS_Aux_module
   use Option_module
   use Variables_module, only : PERMEABILITY
@@ -674,6 +678,12 @@ subroutine InversionZFlowInitialize(this)
   PetscErrorCode :: ierr
 
   call InversionSubsurfInitialize(this)
+
+  if (this%natural_vec == PETSC_NULL_VEC) then
+    call DiscretizationCreateVector(this%realization%discretization, &
+                                    ONEDOF,this%natural_vec,NATURAL, &
+                                    this%realization%option)
+  endif
 
   if (Uninitialized(this%iqoi(1))) then
     call this%driver%PrintErrMsg('Quantity of interest not specified in &
@@ -736,7 +746,7 @@ subroutine InversionZFlowStep(this)
   if (.not.this%converg_flag) then
     call this%CalculateSensitivity()
     call this%ScaleSensitivity()
-    !call this%OutputSensitivity('')
+    call this%OutputSensitivity('')
     call this%CalculateUpdate()
     call this%UpdateParameters()
     call this%UpdateRegularizParameters()
@@ -792,7 +802,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
 
-  PetscInt :: icell
   PetscInt :: idata,num_measurement
   PetscInt :: iconst,num_constraints
   PetscInt :: irb,ghosted_id,ghosted_id_nb
@@ -813,12 +822,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
 
   num_measurement = size(this%measurements)
 
-  call RealizationGetVariable(this%realization, &
-                              this%realization%field%work, &
-                              this%iobsfunc,ZERO_INTEGER)
-
-  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
-
   ! Data part
   this%phi_data = 0.d0
   do idata=1,num_measurement
@@ -826,14 +829,13 @@ subroutine InvZFlowEvaluateCostFunction(this)
     wd = 0.05 * this%measurements(idata)%value
     wd = 1/wd
 
-    icell = this%measurements(idata)%CELL_ID
-    tempreal = wd * (this%measurements(idata)%value - vec_ptr(icell))
+    tempreal = wd * (this%measurements(idata)%value - &
+                     this%measurements(idata)%simulated_value)
     this%phi_data = this%phi_data + tempreal * tempreal
-!print*,icell,vec_ptr(icell),this%measurement(idata)
+
   enddo
+
   this%current_chi2 = this%phi_data / num_measurement
-  call VecRestoreArrayF90(this%realization%field%work,vec_ptr, &
-                          ierr);CHKERRQ(ierr)
 
   ! model cost function
   this%phi_model = 0.d0
@@ -982,7 +984,7 @@ subroutine InversionZFlowCalculateUpdate(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 10/13/21
   !
-
+  use Discretization_module
   use Patch_module
   use Grid_module
 
@@ -995,6 +997,7 @@ subroutine InversionZFlowCalculateUpdate(this)
 
   PetscInt :: local_id,ghosted_id
   PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec2_ptr(:)
   PetscErrorCode :: ierr
 
   patch => this%realization%patch
@@ -1007,17 +1010,27 @@ subroutine InversionZFlowCalculateUpdate(this)
     ! get inversion%del_perm
     call InversionZFlowCGLSSolve(this)
 
+    call VecGetArrayF90(this%natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    vec_ptr(:) = this%del_perm(:)
+    call VecRestoreArrayF90(this%natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call DiscretizationNaturalToGlobal(this%realization%discretization, &
+                                       this%natural_vec, &
+                                       this%realization%field%work,ONEDOF)
+
     ! Get updated permeability as m_new = m_old + del_m (where m = log(perm))
     call VecGetArrayF90(this%quantity_of_interest,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%realization%field%work,vec2_ptr,ierr);CHKERRQ(ierr)
     do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-      vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + this%del_perm(local_id))
+      vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + vec2_ptr(local_id))
       if (vec_ptr(local_id) > this%maxperm) vec_ptr(local_id) = this%maxperm
       if (vec_ptr(local_id) < this%minperm) vec_ptr(local_id) = this%minperm
     enddo
     call VecRestoreArrayF90(this%quantity_of_interest,vec_ptr, &
-                                                          ierr);CHKERRQ(ierr)
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(this%realization%field%work,vec2_ptr, &
+                            ierr);CHKERRQ(ierr)
     call InversionZFlowDeallocateWorkArrays(this)
 
   endif
@@ -1051,6 +1064,7 @@ subroutine InversionZFlowCGLSSolve(this)
   PetscReal :: norms0,norms,normx,xmax
   PetscReal :: resNE,resNE_old
   PetscBool :: exit_info,indefinite
+  PetscBool :: lprint, l2print
   PetscErrorCode :: ierr
 
   PetscReal, parameter :: delta_initer = 1e-23
@@ -1173,7 +1187,6 @@ subroutine InversionZFlowCGLSRhs(this)
   type(patch_type), pointer :: patch
   type(constrained_block_type), pointer :: constrained_block
 
-  PetscInt :: icell
   PetscInt :: idata,iconst,irb,num_measurement
   PetscInt, pointer :: rblock(:,:)
   PetscReal :: perm_ce,perm_nb,x     ! cell's and neighbor's
@@ -1193,23 +1206,15 @@ subroutine InversionZFlowCGLSRhs(this)
 
   num_measurement = size(this%measurements)
 
-  call RealizationGetVariable(this%realization, &
-                              this%realization%field%work, &
-                              this%iobsfunc,ZERO_INTEGER)
-  call VecGetArrayF90(this%realization%field%work,vec_ptr,ierr);CHKERRQ(ierr)
-
   ! Data part
   do idata=1,num_measurement
 
     wd = 0.05 * this%measurements(idata)%value
     wd = 1/wd
 
-    icell = this%measurements(idata)%cell_id
-    this%b(idata) = wd * (this%measurements(idata)%value - vec_ptr(icell))
+    this%b(idata) = wd * (this%measurements(idata)%value - &
+                          this%measurements(idata)%simulated_value)
   enddo
-
-  call VecRestoreArrayF90(this%realization%field%work,vec_ptr, &
-                          ierr);CHKERRQ(ierr)
 
   ! Model part
   beta = this%beta
@@ -1607,6 +1612,7 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
 
   Vec :: p1
   Vec :: q1
+  Vec :: q1_dist
 
   option => this%realization%option
   field => this%realization%field
@@ -1623,24 +1629,35 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   num_measurement = size(this%measurements)
 
   ! Data part
-  call VecDuplicate(field%work,p1,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(this%driver%comm%mycomm,num_measurement,num_measurement, &
-                    q1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%natural_vec,p1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%dist_measurement_vec,q1_dist,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%measurement_vec,q1,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(p1,pvec_ptr,ierr);CHKERRQ(ierr)
   pvec_ptr = this%p
   call VecRestoreArrayF90(p1,pvec_ptr,ierr);CHKERRQ(ierr)
 
   ! q = Jp -> data part
-  call MatMultTranspose(inversion_aux%JsensitivityT,p1,q1,ierr);CHKERRQ(ierr)
+  call MatMultTranspose(inversion_aux%JsensitivityT,p1,q1_dist, &
+                        ierr);CHKERRQ(ierr)
 
+  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+                       q1_dist,q1, &
+                       INSERT_VALUES,SCATTER_REVERSE, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+                     q1_dist,q1, &
+                     INSERT_VALUES,SCATTER_REVERSE, &
+                     ierr);CHKERRQ(ierr)
   call VecGetArrayF90(q1,q1vec_ptr,ierr);CHKERRQ(ierr)
   this%q(1:num_measurement) = q1vec_ptr
   call VecRestoreArrayF90(q1,q1vec_ptr,ierr);CHKERRQ(ierr)
 
   ! Model part -> q2
   ! Get local this%p to ghosted in pvec_ptr
-  call DiscretizationGlobalToLocal(discretization,p1, &
+  call DiscretizationNaturalToGlobal(discretization,p1, &
+                                     field%work,ONEDOF)
+  call DiscretizationGlobalToLocal(discretization,field%work, &
                                    field%work_loc,ONEDOF)
   call VecGetArrayF90(field%work_loc,pvec_ptr,ierr);CHKERRQ(ierr)
 
@@ -1670,6 +1687,7 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
 
   call VecDestroy(p1,ierr);CHKERRQ(ierr)
   call VecDestroy(q1,ierr);CHKERRQ(ierr)
+  call VecDestroy(q1_dist,ierr);CHKERRQ(ierr)
 
 end subroutine InversionZFlowComputeMatVecProductJp
 
@@ -1759,24 +1777,37 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
   call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
   call DiscretizationLocalToGlobalAdd(discretization,field%work_loc, &
                                       field%work,ONEDOF)
+  call DiscretizationGlobalToNatural(discretization,field%work, &
+                                     this%natural_vec,ONEDOF)
 
   ! Data part
-  call VecCreateMPI(this%driver%comm%mycomm,num_measurement,num_measurement, &
-                    r1,ierr);CHKERRQ(ierr)
-  call VecDuplicate(field%work,s1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%measurement_vec,r1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%natural_vec,s1,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
   r1vec_ptr = this%r(1:num_measurement)
   call VecRestoreArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+                       r1,this%dist_measurement_vec, &
+                       INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+                     r1,this%dist_measurement_vec, &
+                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                     ierr);CHKERRQ(ierr)
+
+  call VecGetArrayF90(this%dist_measurement_vec,r1vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%dist_measurement_vec,r1vec_ptr,ierr);CHKERRQ(ierr)
 
   ! s = J^T*r -> data part
-  call MatMult(inversion_aux%JsensitivityT,r1,s1,ierr);CHKERRQ(ierr)
+  call MatMult(inversion_aux%JsensitivityT,this%dist_measurement_vec, &
+               s1,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(s1,s1vec_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%work,s2vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(this%natural_vec,s2vec_ptr,ierr);CHKERRQ(ierr)
   this%s = s1vec_ptr + s2vec_ptr
   call VecRestoreArrayF90(s1,s1vec_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%work,s2vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%natural_vec,s2vec_ptr,ierr);CHKERRQ(ierr)
 
   call VecDestroy(r1,ierr);CHKERRQ(ierr)
   call VecDestroy(s1,ierr);CHKERRQ(ierr)
@@ -1899,6 +1930,7 @@ subroutine InversionZFlowScaleSensitivity(this)
   ! Author: Piyoosh Jaysaval
   ! Date: 02/11/22
   !
+  use Discretization_module
   use Realization_Base_class
   use Variables_module, only : PERMEABILITY
 
@@ -1913,10 +1945,12 @@ subroutine InversionZFlowScaleSensitivity(this)
   call RealizationGetVariable(this%realization, &
                               this%realization%field%work, &
                               PERMEABILITY,ZERO_INTEGER)
+  call DiscretizationGlobalToNatural(this%realization%discretization, &
+                                     this%realization%field%work, &
+                                     this%natural_vec,ONEDOF)
 
   num_measurement = size(this%measurements)
-  call VecCreateMPI(this%driver%comm%mycomm,num_measurement,num_measurement, &
-                    wd_vec,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%measurement_vec,wd_vec,ierr);CHKERRQ(ierr)
   call VecZeroEntries(wd_vec,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
   do idata = 1, num_measurement
@@ -1925,18 +1959,25 @@ subroutine InversionZFlowScaleSensitivity(this)
     wdvec_ptr(idata) = wd
   enddo
   call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+                       wd_vec,this%dist_measurement_vec, &
+                       INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+                     wd_vec,this%dist_measurement_vec, &
+                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                     ierr);CHKERRQ(ierr)
 
   ! Column Scale with wd
   call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
                         PETSC_NULL_VEC, & ! scales rows
-                        wd_vec, &  ! scales columns
+                        this%dist_measurement_vec, &  ! scales columns
                         ierr);CHKERRQ(ierr)
   ! Row scale with perm
   call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
-                        this%realization%field%work, & ! scales rows
+                        this%natural_vec, & ! scales rows
                         PETSC_NULL_VEC, &  ! scales columns
                         ierr);CHKERRQ(ierr)
-
   call VecDestroy(wd_vec,ierr);CHKERRQ(ierr)
 
 end subroutine InversionZFlowScaleSensitivity
@@ -2064,6 +2105,8 @@ subroutine InversionZFlowDestroy(inversion)
 
   class(inversion_zflow_type), pointer :: inversion
 
+  PetscErrorCode :: ierr
+
   if (.not.associated(inversion)) return
 
   call DeallocateArray(inversion%b)
@@ -2074,6 +2117,10 @@ subroutine InversionZFlowDestroy(inversion)
   call DeallocateArray(inversion%del_perm)
   call DeallocateArray(inversion%Wm)
   call DeallocateArray(inversion%rblock)
+
+  if (inversion%natural_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(inversion%natural_vec,ierr);CHKERRQ(ierr)
+  endif
 
   call ConstrainedBlockDestroy(inversion%constrained_block)
 

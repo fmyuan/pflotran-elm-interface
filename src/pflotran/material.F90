@@ -96,6 +96,7 @@ module Material_module
   type, public :: multicontinuum_property_type
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: length
+    class(dataset_base_type), pointer :: length_dataset
     PetscReal :: matrix_block_size
     PetscReal :: fracture_spacing
     PetscReal :: radius
@@ -253,6 +254,7 @@ function MaterialPropertyCreate(option)
     material_property%multicontinuum%outer_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%area_scaling = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
+    nullify(material_property%multicontinuum%length_dataset)
   endif
 
   nullify(material_property%next)
@@ -295,6 +297,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   PetscInt, parameter :: TMP_BULK_COMPRESSIBILITY = 2
   PetscInt, parameter :: TMP_POROSITY_COMPRESSIBILITY = 3
   PetscInt :: soil_or_bulk_compressibility
+  PetscBool :: perm_iso_read
 
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
@@ -481,6 +484,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'creep closure table name', &
                            'MATERIAL_PROPERTY')
       case('PERMEABILITY')
+        ! if PERM_ISO is read, we cannot assign anisotropy
+        perm_iso_read = PETSC_FALSE
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -573,6 +578,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                  'MATERIAL_PROPERTY,PERMEABILITY')
               material_property%permeability(2,3) = 10.d0**tempreal
             case('PERM_ISO_LOG10')
+              perm_iso_read = PETSC_TRUE
               call InputReadDouble(input,option, tempreal)
               call InputErrorMsg(input,option,'log10 isotropic permeability', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
@@ -580,6 +586,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               material_property%permeability(2,2) = 10.d0**tempreal
               material_property%permeability(3,3) = 10.d0**tempreal
             case('PERM_ISO')
+              perm_iso_read = PETSC_TRUE
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,1))
               call InputErrorMsg(input,option,'isotropic permeability', &
@@ -608,6 +615,13 @@ subroutine MaterialPropertyRead(material_property,input,option)
           end select
         enddo
         call InputPopBlock(input,option)
+        if (perm_iso_read .and. &
+            .not.material_property%isotropic_permeability) then
+          option%io_buffer = 'PERM_ISO cannot be used in conjunction with &
+            &anisotropic permeability options in MATERIAL_PROPERTY "' // &
+            trim(material_property%name) // '".'
+          call PrintErrMsg(option)
+        endif
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
             dabs(material_property%permeability(1,1) - &
@@ -814,10 +828,10 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                     &only supported for SLAB.'
                 call PrintErrMsg(option)
               endif
-              call InputReadDouble(input,option, &
-                                   material_property%multicontinuum%length)
-              call InputErrorMsg(input,option,'length', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              call DatasetReadDoubleorDataset(input, &
+                material_property%multicontinuum%length, &
+                material_property%multicontinuum%length_dataset, &
+                'length', 'MATERIAL_PROPERTY',option)
             case('AREA')
               if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
                 option%io_buffer = 'AREA is &
@@ -1535,6 +1549,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
   max_material_index = 0
+  epsilon_index = 0
+  matrix_length_index = 0
 
   num_material_properties = size(material_property_ptrs)
   ! must be nullified here to avoid an error message on subsequent calls
@@ -1594,6 +1610,16 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
         soil_reference_pressure_index = icount
       endif
       num_soil_ref_press = num_soil_ref_press + 1
+    endif
+    if (associated(material_property_ptrs(i)%ptr%multicontinuum)) then
+      if (epsilon_index == 0) then
+        icount = icount + 1
+        epsilon_index = icount
+      endif
+      if (matrix_length_index == 0) then
+        icount = icount + 1
+        matrix_length_index = icount
+      endif
     endif
 !    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
 !        soil_heat_capacity_index == 0) then
@@ -1746,7 +1772,11 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
       enddo
     case(EPSILON)
       do i=1, Material%num_aux
-        material_auxvars(i)%epsilon = value
+        material_auxvars(i)%soil_properties(epsilon_index) = value
+      enddo
+    case(MATRIX_LENGTH)
+      do i=1, Material%num_aux
+        material_auxvars(i)%soil_properties(matrix_length_index) = value
       enddo
     case(PERMEABILITY)
       do i=1, Material%num_aux
@@ -1850,7 +1880,13 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       enddo
     case(EPSILON)
       do ghosted_id=1, Material%num_aux
-        material_auxvars(ghosted_id)%epsilon = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%&
+          soil_properties(epsilon_index) = vec_loc_p(ghosted_id)
+      enddo
+    case(MATRIX_LENGTH)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)%&
+          soil_properties(matrix_length_index) = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY)
       do ghosted_id=1, Material%num_aux
@@ -2409,7 +2445,8 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%soil_reference_pressure_dataset)
 
   if (associated(material_property%multicontinuum)) then
-    call DatasetDestroy(material_property%multicontinuum%epsilon_dataset)
+    nullify(material_property%multicontinuum%length_dataset)
+    nullify(material_property%multicontinuum%epsilon_dataset)
     deallocate(material_property%multicontinuum)
     nullify(material_property%multicontinuum)
   endif

@@ -58,18 +58,20 @@ for irow in range(num_rows2):
         else:
             array2[irow][icol] = words[icol]
     row_count += 1
+f.close()
 
 if not row_count == num_rows2:
     if transpose:
         sys.exit("ERROR: Number of rows in second matrix does not match the number of columns in the first ({} vs {})".format(row_count,num_rows2))
     else:
         sys.exit("ERROR: Number of rows in second matrix does not match the number of rows in the first ({} vs {})".format(row_count,num_rows2))
-f.close()
 
 max_abs_val = max(np.absolute(array1).max(),np.absolute(array2).max())
+min_abs_val = min(np.absolute(array1).min(),np.absolute(array2).min())
 max_rel_diff = 0.
-max_row = -999
-max_col = -999
+tpl = (0.,0.,0.,0.,0,0)
+num_max = 10
+max_tpl = [tpl]*num_max
 for irow in range(num_rows):
     for icol in range(num_cols):
         value1 = array1[irow][icol]
@@ -82,9 +84,13 @@ for irow in range(num_rows):
         elif abs(value2) > 0.:
             print('Both values are not zero.')
         print('{} {} {:.8e} {:.8e} {:.5f} {:.3e}'.format(irow+1,icol+1,value1,value2,rel_diff,diff/max_abs_val))
-        if abs(rel_diff) > max_rel_diff:
-            max_row = irow+1
-            max_col = icol+1
-            max_rel_diff = abs(rel_diff)
+        for i in range(num_max):
+            if abs(rel_diff) > abs(max_tpl[i][0]):
+                 max_tpl[i] = (rel_diff,value1,value2,irow+1,icol+1)
+                 break
             
-print('Maximum relative difference: {} at {} {}'.format(max_rel_diff,max_row,max_col))
+for i in range(num_max):
+    tpl = max_tpl[i]
+    print('{} Maximum relative difference: {:.3e} (values = {:.8e}, {:.8e}) at {} {}'.format(i,tpl[0],tpl[1],tpl[2],tpl[3],tpl[4]))
+print('Maximum absolute value: {:.8e}'.format(max_abs_val))
+print('Minimum absolute value: {:.8e}'.format(min_abs_val))
