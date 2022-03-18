@@ -7481,9 +7481,9 @@ subroutine CritInventoryRead(this,filename,option)
   if (Uninitialized(this%num_start_times)) then
     this%num_start_times = size(tmpaxis1)
   elseif (this%num_start_times /= size(tmpaxis1)) then
-    write(str3,*) size(tmpaxis1)
+    write(str1,*) size(tmpaxis1)
     option%io_buffer = 'Number of start times listed in START_TIME ('&
-                     // trim(adjustl(str3)) &
+                     // trim(adjustl(str1)) &
                      //') does not match NUM_START_TIMES in "' &
                      // trim(filename) // '".'
     call PrintErrMsg(option)
@@ -7492,9 +7492,9 @@ subroutine CritInventoryRead(this,filename,option)
   if (Uninitialized(this%num_powers)) then
     this%num_powers = size(tmpaxis2)
   elseif (this%num_powers /= size(tmpaxis2)) then
-    write(str3,*) size(tmpaxis2)
+    write(str1,*) size(tmpaxis2)
     option%io_buffer = 'Number of powers listed in POWER ('&
-                     // trim(adjustl(str3)) &
+                     // trim(adjustl(str1)) &
                      //') does not match NUM_POWERS in "' &
                      // trim(filename) // '".'
     call PrintErrMsg(option)
@@ -7519,16 +7519,16 @@ subroutine CritInventoryRead(this,filename,option)
   endif
 
   if (size(tmpaxis3) /= arr_size) then
-    write(str3,*) size(tmpaxis3)
+    write(str1,*) size(tmpaxis3)
     if (Initialized(this%total_points)) then
       option%io_buffer = 'Number of points listed for REAL_TIME ('&
-                       // trim(adjustl(str3)) &
+                       // trim(adjustl(str1)) &
                        //') does not match TOTAL_POINTS in "' &
                        // trim(filename) // '".'
                        call PrintErrMsg(option)
     else
       option%io_buffer = 'Number of points listed for REAL_TIME ('&
-                       // trim(adjustl(str3)) &
+                       // trim(adjustl(str1)) &
                        //') does not match ' &
                        //'NUM_START_TIMES * NUM_POWERS * NUM_REAL_TIMES in "' &
                        // trim(filename) // '".'
@@ -7600,12 +7600,24 @@ subroutine CritInventoryRead(this,filename,option)
 
     call CritInventoryCheckDuplicates(this%nuclide(i)%lookup,filename,option)
 
+    if (size(tmpdata2(i)%data) /= arr_size) then
+      write(str1,*) i
+      write(str2,*) size(tmpdata2(i)%data)
+      write(str3,*) arr_size
+      option%io_buffer = 'Number of inventories listed for nuclide #' &
+                       // trim(adjustl(str1)) // ' (' &
+                       // trim(adjustl(str2)) // ') ' &
+                       //'does not match length of REAL_TIME array (' &
+                       // trim(adjustl(str3)) //') in "'// trim(filename) //'".'
+      call PrintErrMsg(option)
+    endif
+
     this%nuclide(i)%lookup%data = tmpdata2(i)%data * data_units_conversion
 
     if (Initialized(this%total_points)) then
-      write(str3,*) i
+      write(str1,*) i
       error_string = trim(filename) //' for nuclide #' &
-        // trim(adjustl(str3))
+        // trim(adjustl(str1))
       call CritInventoryDataSections(this%nuclide(i)%lookup,error_string,option)
     endif
 
