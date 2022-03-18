@@ -3003,6 +3003,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
   do while (this%cumulative_dt_flow < this%realization%option%flow_dt) 
 
+    ! Tighter coupling
     ! update the well src/sink Q vector
     !call PMWellUpdateWellQ(this%well,this%reservoir)
 
@@ -3048,8 +3049,9 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
       call PMWellCheckConvergenceFlow(this,n_iter,res_fixed)
 
+      ! Tighter coupling:
       ! update the well src/sink Q vector
-!      call PMWellUpdateWellQ(this%well,this%reservoir)
+      !call PMWellUpdateWellQ(this%well,this%reservoir)
 
     enddo
 
@@ -3733,7 +3735,9 @@ subroutine PMWellUpdateWellQ(well,reservoir)
   type(well_fluid_type), pointer :: liq
   type(well_fluid_type), pointer :: gas
 
-  PetscReal :: threshold_p = 0.d0 !1.d-3
+  PetscReal, parameter :: threshold_p = 0.d0 !1.d-3
+  PetscReal :: mobility, den_ave
+  PetscBool :: upwind
   PetscInt :: i, nsegments
 
   liq => well%liq
@@ -3757,10 +3761,27 @@ subroutine PMWellUpdateWellQ(well,reservoir)
     case default 
       do i = 1,nsegments
         if ((reservoir%p_l(i)-well%pl(i))/well%pl(i) > threshold_p) then
+          upwind = reservoir%p_l(i) > well%pl(i)
+          if (upwind) then
+            mobility = reservoir%kr_l(i)/reservoir%visc_l(i)
+          else
+            mobility = liq%kr(i)/liq%visc(i)
+          endif
+          den_ave = 0.5d0 * (liq%rho(i) + reservoir%rho_l(i))
           ! Flowrate in kmol/s
-          liq%Q(i) = liq%rho(i)*liq%kr(i)/liq%visc(i)*well%WI(i)* &
-                     (reservoir%p_l(i)-well%pl(i)) 
-          gas%Q(i) = gas%rho(i)*gas%kr(i)/gas%visc(i)*well%WI(i)* &
+          liq%Q(i) = den_ave*mobility*well%WI(i)* &
+                     (reservoir%p_l(i)-well%pl(i))
+
+          upwind = reservoir%p_g(i) > well%pg(i)
+          if (upwind) then
+            mobility = reservoir%kr_g(i)/reservoir%visc_g(i)
+          else
+            mobility = gas%kr(i)/gas%visc(i)
+          endif 
+          den_ave = 0.5d0 * (gas%rho(i) + reservoir%rho_g(i))
+
+          ! Flowrate in kmol/s
+          gas%Q(i) = den_ave*mobility*well%WI(i)* &
                      (reservoir%p_g(i)-well%pg(i)) 
         else
           liq%Q(i) = 0.d0
