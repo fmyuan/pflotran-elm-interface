@@ -116,7 +116,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -129,7 +129,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: volume                 ! m^3 bulk volume
@@ -196,9 +196,10 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
 
   !----------------------------------------------------------------------------
   ! zero-order (A -> C)
-  ! This rate constant is calculated to deplete all mass in 1 m^3 of water at 
-  ! 1.d-3 mol/liter in 25 years. Increasing the rate will cause simulation 
-  ! failure unless the run time is reduced.
+  ! This rate constant is calculated to deplete a concentration of 1.d-3
+  ! mol/liter in 25 years. The reaction must be run in batch mode (i.e. no
+  ! transport). Increasing the rate constant will result in simulation failure
+  ! unless the run time is reduced.
   !uncomment: k = 1.26839d-12  ! [mol/L water-sec]
   !uncomment: stoichA = -1.d0
   !uncomment: stoichC = 1.d0
@@ -208,8 +209,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   
   !----------------------------------------------------------------------------
   ! first-order (A -> C)
-  ! At time zero, the effective rate matches ZERO_ORDER.
-  !uncomment: k = 1.26839d-9  ! [1/sec]
+  !uncomment: k = 1.d-9  ! [1/sec]
   !uncomment: stoichA = -1.d0
   !uncomment: stoichC = 1.d0
   !uncomment: Rate = k * Aaq * L_water  ! [mol/sec]
@@ -218,8 +218,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   
   !----------------------------------------------------------------------------
   ! second-order (A + B -> C)
-  ! At time zero, the effective rate matches ZERO_ORDER.
-  !uncomment: k = 2.53678d-6  ! [L water/mol-sec]
+  !uncomment: k = 1.d-6  ! [L water/mol-sec]
   !uncomment: stoichA = -1.d0
   !uncomment: stoichB = -1.d0
   !uncomment: stoichC = 1.d0
@@ -230,8 +229,7 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   
   !----------------------------------------------------------------------------
   ! Monod (A -> C)
-  ! At time zero, the effective rate matches ZERO_ORDER.
-  !uncomment: k = 1.39523d-12  ! [mol/L water-sec] K_Aaq = 1.d-4
+  !uncomment: k = 1.d-12  ! [mol/L water-sec]
   !uncomment: K_Aaq = 1.d-4  ! [mol/L water]
   !uncomment: stoichA = -1.d0
   !uncomment: stoichC = 1.d0
@@ -240,10 +238,8 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !uncomment: RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
-  ! multiplicative Monod w/biomass
-  ! A + 2B -> C
-  ! At time zero, the effective rate matches ZERO_ORDER.
-  !uncomment: k = 1.53475d-8  ! [mol /mol biomass-sec]
+  ! multiplicative Monod w/biomass (A + 2B -> C)
+  !uncomment: k = 1.d-6  ! [mol /mol biomass-sec]
   !uncomment: K_Aaq = 1.d-4  ! [mol/L water]
   !uncomment: K_Baq = 5.d-5  ! [mol/L water]
   !uncomment: stoichA = -1.d0
@@ -256,12 +252,11 @@ subroutine SimpleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !uncomment: RateC = stoichC * Rate
   
   !----------------------------------------------------------------------------
-  ! decay and ingrowth
-  ! A -> B -> C
+  ! decay and ingrowth (A -> B -> C)
   ! first-order rate constants
-  !uncomment: k = 1.26839d-9  ! [1/sec]
+  !uncomment: k = 1.d-9  ! [1/sec]
   !uncomment: k1 = 2.d-9   ! [1/sec]
-  !uncomment: k2 = 1.26839d-9  ! [1/sec]
+  !uncomment: k2 = 1.d-9  ! [1/sec]
   ! stoichiometries are moles of products generated from a mole of reactant
   !uncomment: stoichB = 3.d0
   !uncomment: stoichC = 1.d0

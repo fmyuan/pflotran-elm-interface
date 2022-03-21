@@ -1,18 +1,18 @@
 module Timestepper_Base_class
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use Waypoint_module 
+  use Waypoint_module
   use Solver_module
- 
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-  
- 
+
+
   PetscInt, parameter, public :: TS_CONTINUE = 0
   PetscInt, parameter, public :: TS_STOP_END_SIMULATION = 1
   PetscInt, parameter, public :: TS_STOP_MAX_TIME_STEP = 2
@@ -23,7 +23,7 @@ module Timestepper_Base_class
   PetscReal, parameter :: default_dt_min = 1.d-20 ! ten zeptoseconds
 
   type, public :: timestepper_base_type
-  
+
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: steps         ! The number of time steps taken by the code.
     PetscInt :: num_constant_time_steps   ! number of contiguous time_steps of constant size
@@ -34,9 +34,9 @@ module Timestepper_Base_class
     PetscReal :: time_step_max_growth_factor ! Maximum scaling factor by which timestep is increasd.
     PetscInt :: constant_time_step_threshold ! Steps needed after cutting to increase time step
 
-    PetscInt :: cumulative_time_step_cuts    ! Total number of cuts in the timestep taken.    
+    PetscInt :: cumulative_time_step_cuts    ! Total number of cuts in the timestep taken.
     PetscReal :: cumulative_solver_time
-    
+
     PetscReal :: dt
     PetscReal :: prev_dt
     PetscReal :: dt_init
@@ -45,16 +45,16 @@ module Timestepper_Base_class
     PetscBool :: revert_dt
     PetscInt :: num_contig_revert_due_to_sync
     PetscInt :: max_num_contig_revert
-    
+
     PetscBool :: init_to_steady_state
     PetscBool :: run_as_steady_state
-    
+
     PetscBool :: time_step_cut_flag  ! flag toggled if timestep is cut
 
-    PetscLogDouble :: start_time    
+    PetscLogDouble :: start_time
     PetscInt :: start_time_step ! the first time step of a given run
     PetscReal :: time_step_tolerance ! scalar used in determining time step size
-    PetscReal :: target_time    ! time at end of "synchronized" time step 
+    PetscReal :: target_time    ! time at end of "synchronized" time step
     PetscBool :: print_ekg
 
     type(waypoint_list_type), pointer :: local_waypoint_list
@@ -64,7 +64,7 @@ module Timestepper_Base_class
     type(solver_type), pointer :: solver  ! solely a pointer
 
   contains
-    
+
     procedure, public :: ReadInput => TimestepperBaseRead
     procedure, public :: ReadSelectCase => TimestepperBaseReadSelectCase
     procedure, public :: Init => TimestepperBaseInit
@@ -72,6 +72,7 @@ module Timestepper_Base_class
     procedure, public :: InitializeRun => TimestepperBaseInitializeRun
     procedure, public :: SetTargetTime => TimestepperBaseSetTargetTime
     procedure, public :: StepDT => TimestepperBaseStepDT
+    procedure, public :: CutDT => TimestepperBaseCutDT
     procedure, public :: UpdateDT => TimestepperBaseUpdateDT
     procedure, public :: CheckpointBinary => TimestepperBaseCheckpointBinary
     procedure, public :: CheckpointHDF5 => TimestepperBaseCheckpointHDF5
@@ -84,9 +85,9 @@ module Timestepper_Base_class
     procedure, public :: FinalizeRun => TimestepperBaseFinalizeRun
     procedure, public :: Strip => TimestepperBaseStrip
     procedure, public :: Destroy => TimestepperBaseDestroy
-    
+
   end type timestepper_base_type
-  
+
   type, public :: stepper_base_header_type
     PetscReal :: time
     PetscReal :: dt
@@ -97,7 +98,7 @@ module Timestepper_Base_class
     PetscInt :: num_contig_revert_due_to_sync
     PetscInt :: revert_dt
   end type stepper_base_header_type
-  
+
   public :: TimestepperBaseCreate, &
             TimestepperBaseReadSelectCase, &
             TimestepperBaseStrip, &
@@ -114,40 +115,40 @@ contains
 ! ************************************************************************** !
 
 function TimestepperBaseCreate()
-  ! 
+  !
   ! Allocates and initializes a new Timestepper object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/25/07
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_base_type), pointer :: TimestepperBaseCreate
-  
+
   class(timestepper_base_type), pointer :: this
-  
+
   allocate(this)
   call this%Init()
-  
+
   TimestepperBaseCreate => this
-  
+
 end function TimestepperBaseCreate
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseInit(this)
-  ! 
+  !
   ! Allocates and initializes a new Timestepper object
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/01/13
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_base_type) :: this
-  
+
   this%name = ''
   this%steps = 0
   this%num_constant_time_steps = 0
@@ -158,25 +159,25 @@ subroutine TimestepperBaseInit(this)
   this%time_step_max_growth_factor = 2.d0
   this%constant_time_step_threshold = 5
 
-  this%cumulative_time_step_cuts = 0    
+  this%cumulative_time_step_cuts = 0
   this%cumulative_solver_time = 0.d0
 
-  this%start_time = 0.d0  
+  this%start_time = 0.d0
   this%start_time_step = 0
   this%time_step_tolerance = 0.1d0
   this%target_time = 0.d0
-  
+
   this%prev_dt = 0.d0
   this%dt = UNINITIALIZED_DOUBLE
   this%dt_init = UNINITIALIZED_DOUBLE
   this%dt_min = UNINITIALIZED_DOUBLE
   this%dt_max = UNINITIALIZED_DOUBLE
-  
+
   this%time_step_cut_flag = PETSC_FALSE
-  
+
   this%init_to_steady_state = PETSC_FALSE
   this%run_as_steady_state = PETSC_FALSE
-  
+
   nullify(this%local_waypoint_list)
   nullify(this%cur_waypoint)
   nullify(this%prev_waypoint)
@@ -185,18 +186,18 @@ subroutine TimestepperBaseInit(this)
   this%num_contig_revert_due_to_sync = 0
   this%max_num_contig_revert = 2
   this%print_ekg = PETSC_FALSE
-  
+
 end subroutine TimestepperBaseInit
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseRead(this,input,option)
-  ! 
+  !
   ! Reads parameters associated with time stepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/16/20
-  ! 
+  !
   use Option_module
   use String_module
   use Input_Aux_module
@@ -230,7 +231,7 @@ subroutine TimestepperBaseRead(this,input,option)
     if (.not.found) then
       call InputKeywordUnrecognized(input,keyword,error_string,option)
     endif
-  
+
   enddo
   call InputPopBlock(input,option)
 
@@ -240,20 +241,20 @@ end subroutine TimestepperBaseRead
 
 subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
                                          error_string,option)
-  ! 
+  !
   ! Updates time step
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/20/13
-  ! 
+  !
 
   use Option_module
   use String_module
   use Input_Aux_module
   use Units_module
-  
+
   implicit none
-  
+
   class(timestepper_base_type) :: this
   type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
@@ -357,16 +358,16 @@ end subroutine TimestepperBaseReadSelectCase
 
 subroutine TimestepperBaseSetWaypointPtr(this,outer_waypoint_list, &
                                          pmc_is_master,option)
-  ! 
+  !
   ! Initializes the timestepper for the simulation.  This is more than just
   ! initializing parameters.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/21/14
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
 
   class(timestepper_base_type) :: this
@@ -380,7 +381,7 @@ subroutine TimestepperBaseSetWaypointPtr(this,outer_waypoint_list, &
     ! same list
     this%cur_waypoint => outer_waypoint_list%first
     ! to avoid destroying twice
-    nullify(this%local_waypoint_list) 
+    nullify(this%local_waypoint_list)
   else if (associated(this%local_waypoint_list)) then
     if (pmc_is_master) then
       option%io_buffer = 'Something went wrong within PMCBaseSetWaypointPtr. &
@@ -409,37 +410,37 @@ subroutine TimestepperBaseSetWaypointPtr(this,outer_waypoint_list, &
   else
     this%cur_waypoint => outer_waypoint_list%first
   endif
-  
+
 end subroutine TimestepperBaseSetWaypointPtr
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseInitializeRun(this,option)
-  ! 
+  !
   ! Initializes the timestepper for the simulation.  This is more than just
   ! initializing parameters.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/21/14
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
 
   class(timestepper_base_type) :: this
   type(option_type) :: option
-  
+
   if (Uninitialized(this%dt_min)) this%dt_min = default_dt_min
   if (Uninitialized(this%dt_init)) this%dt_init = default_dt_init
   if (Uninitialized(this%dt)) this%dt = this%dt_init
   call this%PrintInfo(option)
   option%time = this%target_time
-  ! cur_waypoint may be null due to restart of a simulation that reached 
+  ! cur_waypoint may be null due to restart of a simulation that reached
   ! its final time
-  if (associated(this%cur_waypoint)) then 
-    ! For the case where the second waypoint is a printout after the 
-    ! first time step, we must increment the waypoint beyond the first 
+  if (associated(this%cur_waypoint)) then
+    ! For the case where the second waypoint is a printout after the
+    ! first time step, we must increment the waypoint beyond the first
     ! (time=0.) waypoint. ! Otherwise the second time step will be zero. - geh
     if (this%cur_waypoint%time < 1.d-40) then
       this%cur_waypoint => this%cur_waypoint%next
@@ -451,22 +452,22 @@ end subroutine TimestepperBaseInitializeRun
 ! ************************************************************************** !
 
 subroutine TimestepperBaseUpdateDT(this,process_model)
-  ! 
+  !
   ! Updates time step
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/20/13
-  ! 
+  !
 
   use PM_Base_class
   use Option_module
-  
+
   implicit none
 
   class(timestepper_base_type) :: this
   class(pm_base_type) :: process_model
-  
-  process_model%option%io_buffer = 'TimestepperBaseStepDT must be extended.'
+
+  process_model%option%io_buffer = 'TimestepperBaseUpdateDT must be extended.'
   call PrintErrMsg(process_model%option)
 
 end subroutine TimestepperBaseUpdateDT
@@ -477,15 +478,15 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
                                         snapshot_plot_flag, &
                                         observation_plot_flag, &
                                         massbal_plot_flag,checkpoint_flag)
-  ! 
+  !
   ! Sets target time for timestepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/20/13
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
 
   class(timestepper_base_type) :: this
@@ -496,7 +497,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   PetscBool :: observation_plot_flag
   PetscBool :: massbal_plot_flag
   PetscBool :: checkpoint_flag
-  
+
   PetscReal :: target_time
   PetscReal :: dt
   PetscReal :: dt_max
@@ -518,7 +519,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   option%io_buffer = 'TimestepperBaseSetTargetTime()'
   call PrintMsg(option)
 #endif
-  
+
   if (this%time_step_cut_flag) then
     this%time_step_cut_flag = PETSC_FALSE
     !geh: pointing the cur_waypoint back may cause problems in the checkpoint
@@ -530,8 +531,8 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
     this%cur_waypoint => this%prev_waypoint
   else
     ! If the maximum time step size decreased in the past step, need to set
-    ! the time step size to the minimum of the this%prev_dt and 
-    ! this%dt_max.  However, if we have to revert "max_num_contig_revert" 
+    ! the time step size to the minimum of the this%prev_dt and
+    ! this%dt_max.  However, if we have to revert "max_num_contig_revert"
     ! times in a row, throw away the old time step and move on.
     if (this%revert_dt) then
       if (this%num_contig_revert_due_to_sync < this%max_num_contig_revert) then
@@ -542,7 +543,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   this%revert_dt = PETSC_FALSE ! reset back to false
   revert_due_to_waypoint = PETSC_FALSE
   revert_due_to_sync_time = PETSC_FALSE
-  
+
   dt = this%dt
   this%prev_dt = dt
   cur_waypoint => this%cur_waypoint
@@ -557,11 +558,11 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   do ! we cycle just in case the next waypoint is beyond the target_time
     dt_max = cur_waypoint%dt_max
     dt = min(dt,dt_max)
-    ! ensure that the time step does not overstep the next waypoint time + 
+    ! ensure that the time step does not overstep the next waypoint time +
     ! dtmax combination.
     target_time = this%target_time + dt
 
-!---! This section of code ensures that no time step over steps the next 
+!---! This section of code ensures that no time step over steps the next
     ! maximum time step (dt_max) if a waypoint is surpassed.
     force_to_match_waypoint = PETSC_FALSE
     if (associated(cur_waypoint%next)) then
@@ -570,7 +571,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
           target_time > cur_waypoint%time) then
         if (this%target_time + cur_waypoint%next%dt_max < &
             cur_waypoint%time) then
-          force_to_match_waypoint = PETSC_TRUE 
+          force_to_match_waypoint = PETSC_TRUE
         else
           dt = cur_waypoint%next%dt_max
           target_time = this%target_time + dt
@@ -602,13 +603,13 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
       dt = max_time - target_time
       if (dt > dt_max .and. &
                                    ! 1 sec tolerance to avoid cancellation
-          dabs(dt-dt_max) > 1.d0) then 
+          dabs(dt-dt_max) > 1.d0) then
         dt = dt_max         ! error from waypoint%time - time
         target_time = target_time + dt
       else
         target_time = max_time
         if (equal_to_or_exceeds_waypoint) then
-          ! Since the time step was cut to match the waypoint, we want to set 
+          ! Since the time step was cut to match the waypoint, we want to set
           ! the time step back to its prior value after the waypoint is met.
           ! %revert_dt is a flag that does so above.
           if (force_to_match_waypoint) revert_due_to_waypoint = PETSC_TRUE
@@ -623,7 +624,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
           ! is close to its full previous value, this constraint is unnecessary
           ! and limits the ability of process model couplers "below" to catch up
           ! with those above.  Thus the conditional (dt <= .5 prev_dt) below.
-          !-Also note that if this timestepper is at a depth in the process 
+          !-Also note that if this timestepper is at a depth in the process
           ! model coupler greater than 1 (not the top process model coupler)
           ! the timestepper will constantly be reverting to sync due to the
           ! tolerance applied above without the underlying conditional.
@@ -631,7 +632,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
           if (dt <= 0.5d0 * this%prev_dt) then
             revert_due_to_sync_time = PETSC_TRUE
           endif
-        endif        
+        endif
         if (max_time >= cur_waypoint%time) then
           cur_waypoint => cur_waypoint%next
         endif
@@ -656,7 +657,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
     this%num_contig_revert_due_to_sync = 0
   endif
 
-  
+
   if (cumulative_time_steps >= max_time_step-1) then
     nullify(cur_waypoint)
     stop_flag = TS_STOP_MAX_TIME_STEP
@@ -668,7 +669,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   else if (stop_flag /= TS_STOP_MAX_TIME_STEP) then
     stop_flag = TS_STOP_END_SIMULATION ! stop after end of time step
   endif
-  
+
   this%dt = dt
   this%dt_max = dt_max
   this%target_time = target_time
@@ -679,47 +680,118 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
 ! ************************************************************************** !
 
 subroutine TimestepperBaseStepDT(this,process_model,stop_flag)
-  ! 
+  !
   ! Steps forward one step in time
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/20/13
-  ! 
+  !
 
   use PM_Base_class
   use Option_module
   use Output_module, only : Output
-  
+
   implicit none
 
   class(timestepper_base_type) :: this
   class(pm_base_type) :: process_model
   PetscInt :: stop_flag
-  
+
   type(option_type), pointer :: option
 
   option => process_model%option
-  
+
   option%io_buffer = 'TimestepperBaseStepDT must be extended.'
   call PrintErrMsg(option)
-  
+
 end subroutine TimestepperBaseStepDT
 
 ! ************************************************************************** !
 
+subroutine TimestepperBaseCutDT(this,process_model,icut,stop_flag,option)
+  !
+  ! Cuts the timestep when the linear or Newton solver fails to converge
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/03/21
+
+  use Realization_Base_class
+  use PM_Base_class
+  use Option_module
+  use Output_module
+  use String_module
+
+  implicit none
+
+  class(timestepper_base_type) :: this
+  class(pm_base_type) :: process_model
+  PetscInt :: icut
+  PetscInt :: stop_flag
+  type(option_type) :: option
+
+  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
+
+  icut = icut + 1
+  this%time_step_cut_flag = PETSC_TRUE
+  ! if a cut occurs on the last time step, the stop_flag will have been
+  ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
+  ! premature ending of simulation.
+  if (stop_flag /= TS_STOP_MAX_TIME_STEP) stop_flag = TS_CONTINUE
+
+  if (icut > this%max_time_step_cuts .or. this%dt < this%dt_min) then
+
+    if (icut > this%max_time_step_cuts) then
+      option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
+      call PrintMsg(option)
+      write(option%io_buffer, &
+            '("    icut =",i3,", max_time_step_cuts=",i3)') &
+            icut,this%max_time_step_cuts
+      call PrintMsg(option)
+    endif
+    if (this%dt < this%dt_min) then
+      option%io_buffer = ' Stopping: Time step size is less than the &
+                        &minimum allowable time step.'
+      call PrintMsg(option)
+      write(option%io_buffer, &
+            '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
+          this%dt/process_model%output_option%tconv, &
+          this%dt_min/process_model%output_option%tconv, &
+          trim(process_model%output_option%tunit)
+      call PrintMsg(option)
+    endif
+
+    process_model%output_option%plot_name = trim(process_model%name)// &
+      '_cut_to_failure'
+    snapshot_plot_flag = PETSC_TRUE
+    observation_plot_flag = PETSC_FALSE
+    massbal_plot_flag = PETSC_FALSE
+    call Output(process_model%realization_base,snapshot_plot_flag, &
+                observation_plot_flag,massbal_plot_flag)
+    stop_flag = TS_STOP_FAILURE
+    return
+  endif
+
+  this%target_time = this%target_time - this%dt
+
+  this%dt = this%time_step_reduction_factor * this%dt
+
+end subroutine TimestepperBaseCutDT
+
+! ************************************************************************** !
+
 subroutine TimestepperBasePrintInfo(this,option)
-  ! 
+  !
   ! Prints information about time stepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/23/08
-  ! 
+  !
 
   use Option_module
   use String_module
-  
+
   implicit none
-  
+
   class(timestepper_base_type) :: this
   type(option_type) :: option
 
@@ -746,15 +818,15 @@ end subroutine TimestepperBasePrintInfo
 ! ************************************************************************** !
 
 subroutine TimestepperBaseInputRecord(this)
-  ! 
+  !
   ! Prints information about the time stepper to the input record.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/17/2016
-  ! 
-  
+  !
+
   implicit none
-  
+
   class(timestepper_base_type) :: this
 
 #ifdef DEBUG
@@ -770,13 +842,13 @@ end subroutine TimestepperBaseInputRecord
 ! ************************************************************************** !
 
 subroutine TimestepperBaseCheckpointBinary(this,viewer,option)
-  ! 
+  !
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/25/13
-  ! 
+  !
 
   use Option_module
 
@@ -787,26 +859,26 @@ subroutine TimestepperBaseCheckpointBinary(this,viewer,option)
   class(timestepper_base_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
-  
+
   option%io_buffer = 'TimestepperBaseCheckpointBinary must be extended.'
   call PrintErrMsg(option)
-    
+
 end subroutine TimestepperBaseCheckpointBinary
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseCheckpointHDF5(this, h5_chk_grp_id, option)
-  ! 
+  !
   ! Checkpoints parameters/variables associated with a time stepper to a HDF5.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 07/30/15
-  ! 
+  !
   use Option_module
   use hdf5
 
   implicit none
-  
+
   class(timestepper_base_type) :: this
   integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
@@ -819,12 +891,12 @@ end subroutine TimestepperBaseCheckpointHDF5
 ! ************************************************************************** !
 
 subroutine TimestepperBaseRestartHDF5(this, h5_chk_grp_id, option)
-  ! 
+  !
   ! Restart parameters/variables associated with a time stepper to a HDF5.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 08/16/15
-  ! 
+  !
   use Option_module
   use hdf5
 
@@ -842,23 +914,23 @@ end subroutine TimestepperBaseRestartHDF5
 ! ************************************************************************** !
 
 subroutine TimestepperBaseRegisterHeader(this,bag,header)
-  ! 
+  !
   ! Register header entries.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/30/13
-  ! 
+  !
   use Option_module
 
   implicit none
-  
+
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
   PetscBag :: bag
-  
+
   PetscErrorCode :: ierr
-  
+
   ! bagsize = 8 * 8 bytes = 64 bytes
   call PetscBagRegisterReal(bag,header%time,0,"time","",ierr);CHKERRQ(ierr)
   call PetscBagRegisterReal(bag,header%dt,0,"dt","",ierr);CHKERRQ(ierr)
@@ -875,28 +947,28 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
                            ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%revert_dt,0, &
                            "revert_dt","",ierr);CHKERRQ(ierr)
-    
+
 end subroutine TimestepperBaseRegisterHeader
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseSetHeader(this,bag,header)
-  ! 
+  !
   ! Sets values in checkpoint header.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/25/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
   PetscBag :: bag
-  
+
   PetscErrorCode :: ierr
 
   header%time = this%target_time
@@ -910,19 +982,19 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
   if (this%revert_dt) then
     header%revert_dt = ONE_INTEGER
   endif
-    
+
 end subroutine TimestepperBaseSetHeader
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseRestartBinary(this,viewer,option)
-  ! 
+  !
   ! Restarts parameters/variables associated with
   ! a time stepper.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/25/13
-  ! 
+  !
 
   use Option_module
 
@@ -931,30 +1003,30 @@ subroutine TimestepperBaseRestartBinary(this,viewer,option)
   class(timestepper_base_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
-  
+
   option%io_buffer = 'TimestepperBaseRestartBinary must be extended.'
   call PrintErrMsg(option)
-    
+
 end subroutine TimestepperBaseRestartBinary
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseGetHeader(this,header)
-  ! 
+  !
   ! Gets values in checkpoint header.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/25/13
-  ! 
+  !
 
   use Option_module
 
   implicit none
-  
+
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
-  
+
   this%target_time = header%time
   this%dt = header%dt
   this%prev_dt = header%prev_dt
@@ -963,24 +1035,24 @@ subroutine TimestepperBaseGetHeader(this,header)
   this%num_constant_time_steps = header%num_constant_time_steps
   this%num_contig_revert_due_to_sync = header%num_contig_revert_due_to_sync
   this%revert_dt = (header%revert_dt == ONE_INTEGER)
-    
+
 end subroutine TimestepperBaseGetHeader
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseReset(this)
-  ! 
+  !
   ! Zeros timestepper object members.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 01/20/14
-  ! 
+  !
 
   implicit none
-  
+
 
   class(timestepper_base_type) :: this
-  
+
   this%target_time = 0.d0
   this%dt = this%dt_init
   this%prev_dt = 0.d0
@@ -989,87 +1061,87 @@ subroutine TimestepperBaseReset(this)
   this%num_constant_time_steps = 0
   this%num_contig_revert_due_to_sync = 0
   this%revert_dt = PETSC_FALSE
-    
+
 end subroutine TimestepperBaseReset
 
 ! ************************************************************************** !
 
 function TimestepperBaseWallClockStop(this,option)
-  ! 
+  !
   ! Stops time stepping when a prescribed wall clock time has been exceeded.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 08/08/14
-  ! 
+  !
   use Option_module
 
   implicit none
 
   class(timestepper_base_type) :: this
   type(option_type) :: option
-  
+
   PetscBool :: TimestepperBaseWallclockStop
   PetscLogDouble :: current_time, average_step_time
   PetscErrorCode :: ierr
-  
+
   ! if a simulation wallclock duration time is set, check to see that the
   ! next time step will not exceed that value.  If it does, print the
   ! checkpoint and exit
   TimestepperBaseWallclockStop = PETSC_FALSE
   if (option%wallclock_stop_flag) then
     call PetscTime(current_time, ierr)
-    average_step_time = (current_time-option%start_time)/ &
+    average_step_time = (current_time-option%comm%start_time)/ &
                         dble(this%steps-this%start_time_step+1) &
                         *2.d0  ! just to be safe, double it
     if (average_step_time + current_time > option%wallclock_stop_time) then
       TimestepperBaseWallclockStop = PETSC_TRUE
     endif
   endif
-  
+
 end function TimestepperBaseWallClockStop
 
 
 ! ************************************************************************** !
 
 subroutine TimestepperBasePrintEKG(this)
-  ! 
+  !
   ! Deallocates members of a time stepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/22/13
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_base_type) :: this
-  
-  
-  
+
+
+
 end subroutine TimestepperBasePrintEKG
 
 ! ************************************************************************** !
 
 recursive subroutine TimestepperBaseFinalizeRun(this,option)
-  ! 
+  !
   ! Finalizes the time stepping
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/22/13
-  ! 
+  !
 
   use Option_module
-  
+
   implicit none
-  
+
   class(timestepper_base_type) :: this
   type(option_type) :: option
-  
+
   character(len=MAXSTRINGLENGTH) :: string
-  
+
 #ifdef DEBUG
   call PrintMsg(option,'TimestepperBaseFinalizeRun()')
 #endif
-  
+
   if (OptionPrintToScreen(option)) then
     write(*,'(/,a," TS Base"," steps = ",i6," cuts = ",i6)') &
             trim(this%name), &
@@ -1079,46 +1151,46 @@ recursive subroutine TimestepperBaseFinalizeRun(this,option)
     write(*,'(a)') trim(this%name) // ' TS Base solver time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
-  
+
 end subroutine TimestepperBaseFinalizeRun
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseStrip(this)
-  ! 
+  !
   ! Deallocates members of a time stepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 07/22/13
-  ! 
+  !
   implicit none
-  
+
   class(timestepper_base_type) :: this
 
   call WaypointListDestroy(this%local_waypoint_list)
   nullify(this%solver)
-  
+
 end subroutine TimestepperBaseStrip
 
 ! ************************************************************************** !
 
 subroutine TimestepperBaseDestroy(this)
-  ! 
+  !
   ! Deallocates a time stepper
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/01/07
-  ! 
+  !
 
   implicit none
-  
+
   class(timestepper_base_type) :: this
-  
+
   call TimestepperBaseStrip(this)
-    
+
 !  deallocate(this)
 !  nullify(this)
-  
+
 end subroutine TimestepperBaseDestroy
 
 end module Timestepper_Base_class

@@ -78,7 +78,7 @@ subroutine BaseEvaluate(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -90,7 +90,7 @@ subroutine BaseEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
   option%io_buffer = 'Subroutine BaseEvaluate must be extended by child &
@@ -107,14 +107,14 @@ subroutine BaseUpdateKineticState(this,rt_auxvar,global_auxvar, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   class(reaction_sandbox_base_type) :: this
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
     

@@ -736,7 +736,9 @@ subroutine FlowConditionRead(condition,input,option)
   use String_module
   use Logging_module
   use Time_Storage_module
+  use ZFlow_Aux_module
   use Dataset_module
+  use Utility_module
 
   implicit none
 
@@ -886,7 +888,7 @@ subroutine FlowConditionRead(condition,input,option)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(trim(word))
-            case('PRESSURE')
+            case('LIQUID_PRESSURE','PRESSURE')
               sub_condition_ptr => pressure
             case('RATE')
               sub_condition_ptr => rate
@@ -894,11 +896,11 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => energy_rate
             case('WELL')
               sub_condition_ptr => well
-            case('FLUX')
+            case('LIQUID_FLUX','FLUX')
               sub_condition_ptr => flux
             case('ENERGY_FLUX')
               sub_condition_ptr => energy_flux
-            case('SATURATION')
+            case('LIQUID_SATURATION','SATURATION')
               sub_condition_ptr => saturation
             case('TEMPERATURE')
               sub_condition_ptr => temperature
@@ -906,6 +908,9 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => concentration
             case('ENTHALPY')
               sub_condition_ptr => enthalpy
+! uncomment after release of v4.0
+!            case('PRESSURE','SATURATION','FLUX')
+!              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
             case default
               call InputKeywordUnrecognized(input,word,'condition,type',option)
           end select
@@ -1017,7 +1022,8 @@ subroutine FlowConditionRead(condition,input,option)
             case('SURFACE_SPILLOVER')
               sub_condition_ptr%itype = SURFACE_SPILLOVER
             case default
-              call InputKeywordUnrecognized(input,word,'condition bc type',option)
+              call InputKeywordUnrecognized(input,word,'condition bc type', &
+                                            option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -1047,7 +1053,7 @@ subroutine FlowConditionRead(condition,input,option)
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           select case(trim(word))
-            case('PRES','PRESS','PRESSURE')
+            case('LIQUID_PRESSURE','PRESSURE')
               sub_condition_ptr => pressure
               internal_units = 'Pa/meter'
             case('RATE')
@@ -1059,21 +1065,24 @@ subroutine FlowConditionRead(condition,input,option)
             case('WELL')
               sub_condition_ptr => well
               internal_units = 'Pa/meter'
-            case('FLUX')
+            case('LIQUID_FLUX','FLUX')
               sub_condition_ptr => flux
               internal_units = 'm/sec-m|unitless/sec'
-            case('SATURATION')
+            case('LIQUID_SATURATION','SATURATION')
               sub_condition_ptr => saturation
               internal_units = 'unitless/meter'
-            case('TEMP','TEMPERATURE')
+            case('TEMPERATURE')
               sub_condition_ptr => temperature
               internal_units = 'temperature/m'
-            case('CONC','CONCENTRATION')
+            case('CONCENTRATION')
               sub_condition_ptr => concentration
               internal_units = 'unitless'
-            case('H','ENTHALPY')
+            case('ENTHALPY')
               sub_condition_ptr => enthalpy
               internal_units = 'kJ/mol-meter'
+! uncomment after release of v4.0
+!            case('PRESSURE','SATURATION','FLUX')
+!              call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
             case default
               call InputKeywordUnrecognized(input,word, &
                      'FLOW CONDITION,GRADIENT,TYPE',option)
@@ -1090,17 +1099,17 @@ subroutine FlowConditionRead(condition,input,option)
           nullify(sub_condition_ptr)
         enddo
         call InputPopBlock(input,option)
-      case('TEMPERATURE','TEMP')
+      case('TEMPERATURE')
         internal_units = 'C'
         call ConditionReadValues(input,option,word, &
                                  temperature%dataset, &
                                  temperature%units,internal_units)
-      case('ENTHALPY','H')
+      case('ENTHALPY')
         internal_units = 'kJ/mol'
         call ConditionReadValues(input,option,word, &
                                  enthalpy%dataset, &
                                  enthalpy%units,internal_units)
-      case('PRESSURE','PRES','PRESS')
+      case('LIQUID_PRESSURE','PRESSURE')
         internal_units = 'Pa'
         call ConditionReadValues(input,option,word, &
                                  pressure%dataset, &
@@ -1130,17 +1139,17 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  well%dataset, &
                                  well%units,internal_units)
-      case('FLUX','VELOCITY','VEL')
+      case('LIQUID_FLUX','FLUX')
         internal_units = 'meter/sec'
         call ConditionReadValues(input,option,word, &
                                  pressure%dataset, &
                                  pressure%units,internal_units)
-      case('CONC','CONCENTRATION')
+      case('CONCENTRATION')
         internal_units = 'unitless'
         call ConditionReadValues(input,option,word, &
                                  concentration%dataset, &
                                  concentration%units,internal_units)
-      case('SAT','SATURATION')
+      case('LIQUID_SATURATION','SATURATION')
         internal_units = 'unitless'
         call ConditionReadValues(input,option,word, &
                                  saturation%dataset, &
@@ -1148,6 +1157,9 @@ subroutine FlowConditionRead(condition,input,option)
       case('CONDUCTANCE')
         call InputReadDouble(input,option,pressure%aux_real(1))
         call InputErrorMsg(input,option,'CONDUCTANCE','CONDITION')
+! uncomment after release of v4.0
+!      case('PRESSURE','SATURATION','FLUX')
+!        call InputKeywordDeprecated(word,'LIQUID_'//trim(word),option)
       case default
         call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
@@ -1162,18 +1174,56 @@ subroutine FlowConditionRead(condition,input,option)
     condition%iphase = default_iphase
   endif
 
+  if (pressure%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(pressure)
+  endif
+  if (rate%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(rate)
+  endif
+  if (energy_rate%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(energy_rate)
+  endif
+  if (energy_flux%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(energy_flux)
+  endif
+  if (well%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(well)
+  endif
+  if (saturation%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(saturation)
+  endif
+  if (temperature%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(temperature)
+  endif
+  if (concentration%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(concentration)
+  endif
+  if (enthalpy%itype == NULL_CONDITION) then
+    call FlowSubConditionDestroy(enthalpy)
+  endif
+
   !geh: simple check to ensure that DIRICHLET_SEEPAGE and
   !     DIRICHLET_CONDUCTANCE_BC are only used in TH and RICHARDS
-  select case(option%iflowmode)
-    case(RICHARDS_MODE,TH_MODE)
-    case default
-      if (pressure%itype == DIRICHLET_SEEPAGE_BC .or. &
-          pressure%itype == DIRICHLET_CONDUCTANCE_BC) then
-        option%io_buffer = 'DIRICHLET_SEEPAGE_BC and DIRICHLET_CONDUCTANCE_BC &
-          &only supported for RICHARDS and TH.'
-        call PrintErrMsg(option)
-      endif
-  end select
+  if (associated(pressure)) then
+    select case(option%iflowmode)
+      case(RICHARDS_MODE,TH_MODE,ZFLOW_MODE)
+      case(PNF_MODE)
+        if (.not.(pressure%itype == DIRICHLET_BC .or. &
+                  pressure%itype == NEUMANN_BC)) then
+          option%io_buffer = 'Pressure FLOW_CONDITION type ' // &
+            trim(StringWrite(pressure%itype)) // ' not supported by PNF_MODE.'
+          call PrintErrMsg(option)
+        endif
+      case default
+        if (pressure%itype == DIRICHLET_SEEPAGE_BC .or. &
+            pressure%itype == DIRICHLET_CONDUCTANCE_BC) then
+          option%io_buffer = 'DIRICHLET_SEEPAGE_BC and &
+            &DIRICHLET_CONDUCTANCE_BC only supported for RICHARDS, TH &
+            &and ZFLOW.'
+          call PrintErrMsg(option)
+        endif
+    end select
+  endif
 
   ! datum is not required
   string = trim(condition%name) // '/' // 'Datum'
@@ -1319,14 +1369,16 @@ subroutine FlowConditionRead(condition,input,option)
       enddo
 
       ! must be in this order, which matches the dofs i problem
-      if (associated(pressure)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
+      if (associated(pressure)) &
+        condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
       if (associated(rate)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => rate
       if (associated(well)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => well
-      if (associated(saturation)) condition%sub_condition_ptr(ONE_INTEGER)%ptr &
-                                  => saturation
+      if (associated(saturation)) &
+        condition%sub_condition_ptr(ONE_INTEGER)%ptr => saturation
       condition%sub_condition_ptr(TWO_INTEGER)%ptr => temperature
       condition%sub_condition_ptr(THREE_INTEGER)%ptr => concentration
-      if (associated(enthalpy)) condition%sub_condition_ptr(FOUR_INTEGER)%ptr => enthalpy
+      if (associated(enthalpy)) &
+        condition%sub_condition_ptr(FOUR_INTEGER)%ptr => enthalpy
       if (associated(energy_rate)) &
         condition%sub_condition_ptr(FOUR_INTEGER)%ptr => energy_rate
 
@@ -1339,8 +1391,10 @@ subroutine FlowConditionRead(condition,input,option)
                                     saturation%itype
       condition%itype(TWO_INTEGER) = temperature%itype
       condition%itype(THREE_INTEGER) = concentration%itype
-      if (associated(enthalpy)) condition%itype(FOUR_INTEGER) = concentration%itype
-      if (associated(energy_rate)) condition%itype(FOUR_INTEGER) = energy_rate%itype
+      if (associated(enthalpy)) &
+        condition%itype(FOUR_INTEGER) = concentration%itype
+      if (associated(energy_rate)) &
+        condition%itype(FOUR_INTEGER) = energy_rate%itype
 
     case(TH_MODE,TH_TS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
@@ -1392,15 +1446,18 @@ subroutine FlowConditionRead(condition,input,option)
       enddo
 
       ! must be in this order, which matches the dofs i problem
-      if (associated(pressure)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
+      if (associated(pressure)) &
+        condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
       if (associated(rate)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => rate
       if (associated(well)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => well
-      if (associated(saturation)) condition%sub_condition_ptr(ONE_INTEGER)%ptr &
-                                  => saturation
+      if (associated(saturation)) &
+        condition%sub_condition_ptr(ONE_INTEGER)%ptr => saturation
       if ( associated(temperature)) &
         condition%sub_condition_ptr(TWO_INTEGER)%ptr => temperature
-      if (associated(energy_flux)) condition%sub_condition_ptr(TWO_INTEGER)%ptr => energy_flux
-      if (associated(energy_rate)) condition%sub_condition_ptr(TWO_INTEGER)%ptr => energy_rate
+      if (associated(energy_flux)) &
+        condition%sub_condition_ptr(TWO_INTEGER)%ptr => energy_flux
+      if (associated(energy_rate)) &
+        condition%sub_condition_ptr(TWO_INTEGER)%ptr => energy_rate
 
       allocate(condition%itype(TWO_INTEGER))
       condition%itype = 0
@@ -1409,9 +1466,12 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(well)) condition%itype(ONE_INTEGER) = well%itype
       if (associated(saturation)) condition%itype(ONE_INTEGER) = &
                                     saturation%itype
-      if (associated(temperature)) condition%itype(TWO_INTEGER) = temperature%itype
-      if (associated(energy_flux)) condition%itype(TWO_INTEGER) = energy_flux%itype
-      if (associated(energy_rate)) condition%itype(TWO_INTEGER) = energy_rate%itype
+      if (associated(temperature)) &
+        condition%itype(TWO_INTEGER) = temperature%itype
+      if (associated(energy_flux)) &
+        condition%itype(TWO_INTEGER) = energy_flux%itype
+      if (associated(energy_rate)) &
+        condition%itype(TWO_INTEGER) = energy_rate%itype
 
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate) .and. &
@@ -1458,6 +1518,114 @@ subroutine FlowConditionRead(condition,input,option)
       endif
 
       ! these are not used with richards
+      if (associated(temperature)) call FlowSubConditionDestroy(temperature)
+      if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
+
+    case(ZFLOW_MODE)
+
+      condition%num_sub_conditions = 0
+      ! deallocate, if allocated, as we will not use itype
+      call DeallocateArray(condition%itype)
+
+      ! IMPORTANT - at this point zflow_liq_flow_eq, zflow_heat_tran_eq and
+      ! zflow_sol_tran_eq are solely flags set to 0 or 1. They cannot 
+      ! index any arrays
+
+      if (zflow_liq_flow_eq > 0) then
+        condition%num_sub_conditions = condition%num_sub_conditions + 1
+        if (.not.associated(pressure) .and. .not.associated(rate)) then
+          option%io_buffer = 'pressure and rate null in &
+                             &condition: ' // trim(condition%name)
+          call PrintErrMsg(option)
+        endif
+      endif
+
+      if (zflow_heat_tran_eq > 0) then
+        condition%num_sub_conditions = condition%num_sub_conditions + 1
+        if (.not.associated(temperature) .and. .not.associated(enthalpy)) then
+          option%io_buffer = 'temperature and enthalpy null in &
+                             &condition: ' // trim(condition%name)
+          call PrintErrMsg(option)
+        endif
+      endif
+
+      if (zflow_sol_tran_eq > 0) then
+        condition%num_sub_conditions = condition%num_sub_conditions + 1
+        if (.not.associated(concentration)) then
+          option%io_buffer = 'concentration null in condition: ' // &
+            trim(condition%name)
+          call PrintErrMsg(option)
+        endif
+      endif
+
+      allocate(condition%sub_condition_ptr(condition%num_sub_conditions))
+      do idof = 1, condition%num_sub_conditions
+        nullify(condition%sub_condition_ptr(idof)%ptr)
+      enddo
+
+      idof = 0
+      if (zflow_liq_flow_eq > 0) then
+        idof = idof + 1
+        if (associated(pressure)) then
+          condition%pressure => pressure
+          condition%sub_condition_ptr(idof)%ptr => pressure
+        elseif (associated(rate)) then
+          condition%rate => rate
+          condition%sub_condition_ptr(idof)%ptr => rate
+        endif
+      endif
+
+      if (zflow_heat_tran_eq > 0) then
+        idof = idof + 1
+        if (associated(temperature)) then
+          condition%temperature => temperature
+          condition%sub_condition_ptr(idof)%ptr => temperature
+        elseif (associated(enthalpy)) then
+          condition%enthalpy => enthalpy
+          condition%sub_condition_ptr(idof)%ptr => enthalpy
+        endif
+      endif
+
+      if (zflow_sol_tran_eq > 0) then
+        idof = idof + 1
+        if (associated(concentration)) then
+          condition%concentration => concentration
+          condition%sub_condition_ptr(idof)%ptr => concentration
+        endif
+      endif
+
+    case(PNF_MODE)
+      if (.not.associated(pressure) .and. .not.associated(rate)) then
+        option%io_buffer = 'pressure and rate null in &
+                           &condition: ' // trim(condition%name)
+        call PrintErrMsg(option)
+      endif
+
+      if (associated(pressure)) then
+        condition%pressure => pressure
+      endif
+      if (associated(rate)) then
+        condition%rate => rate
+      endif
+
+      condition%num_sub_conditions = 1
+      allocate(condition%sub_condition_ptr(condition%num_sub_conditions))
+      if (associated(pressure)) then
+        condition%sub_condition_ptr(ONE_INTEGER)%ptr => pressure
+      elseif (associated(rate)) then
+        condition%sub_condition_ptr(ONE_INTEGER)%ptr => rate
+      endif
+
+      allocate(condition%itype(ONE_INTEGER))
+      if (associated(pressure)) then
+        condition%itype(ONE_INTEGER) = pressure%itype
+      else if (associated(rate)) then
+        condition%itype(ONE_INTEGER) = rate%itype
+      endif
+
+      ! these are not used with PNF
+      if (associated(well)) call FlowSubConditionDestroy(well)
+      if (associated(saturation)) call FlowSubConditionDestroy(saturation)
       if (associated(temperature)) call FlowSubConditionDestroy(temperature)
       if (associated(enthalpy)) call FlowSubConditionDestroy(enthalpy)
 
@@ -2942,7 +3110,7 @@ subroutine GeopConditionRead(condition,input,option)
             case('DIRICHLET')
               condition%itype = DIRICHLET_BC
             case('ZERO_GRADIENT')
-              condition%itype = ZERO_GRADIENT_BC  
+              condition%itype = ZERO_GRADIENT_BC
             case default ! only Dirichlet/Zero Flux implemented for now!
               call InputKeywordUnrecognized(input,word, &
                                             'geophysics condition type', &

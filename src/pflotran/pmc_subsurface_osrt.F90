@@ -114,15 +114,14 @@ subroutine PMCSubsurfaceOSRTSetupSolvers(this)
   call KSPSetOptionsPrefix(solver%ksp, "tran_",ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
 
-  solver%J_mat_type = MATAIJ
-  solver%Jpre_mat_type = MATAIJ
-  !TODO(geh): solver%J -> solver%M and XXXCreateJacobian -> XXXCreateMatrix
-  call DiscretizationCreateJacobian(pm_rt%realization%discretization, &
-                                    ONEDOF, &
-                                    solver%Jpre_mat_type, &
-                                    solver%Jpre,option)
-  call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
-  solver%J = solver%Jpre
+  solver%M_mat_type = MATAIJ
+  solver%Mpre_mat_type = MATAIJ
+  call DiscretizationCreateMatrix(pm_rt%realization%discretization, &
+                                  ONEDOF, &
+                                  solver%Mpre_mat_type, &
+                                  solver%Mpre,option)
+  call MatSetOptionsPrefix(solver%Mpre,"tran_",ierr);CHKERRQ(ierr)
+  solver%M = solver%Mpre
 
   ! Have PETSc do a KSP_View() at the end of each solve if 
   ! verbosity > 0.
@@ -152,7 +151,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   use Reactive_Transport_Aux_module
   use Reactive_Transport_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Reaction_Aux_module
   use Reaction_module
   use PM_RT_class
@@ -177,7 +176,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   class(timestepper_KSP_type), pointer :: timestepper
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   PetscInt, parameter :: iphase = 1
@@ -315,8 +314,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
         &currently configured to handle species-dependent diffusion.'
       call PrintErrMsg(option)
     endif
-    call RTCalculateTransportMatrix(realization,solver%J)
-    call KSPSetOperators(solver%ksp,solver%J,solver%Jpre,ierr);CHKERRQ(ierr)
+    call RTCalculateTransportMatrix(realization,solver%M)
+    call KSPSetOperators(solver%ksp,solver%M,solver%Mpre,ierr);CHKERRQ(ierr)
 
     ! loop over chemical component and transport
     do idof = 1, rt_parameter%naqcomp

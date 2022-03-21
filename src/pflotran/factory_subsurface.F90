@@ -109,8 +109,6 @@ subroutine FactorySubsurfaceInitPostPetsc(simulation)
   simulation%realization => realization
   realization%output_option => simulation%output_option
 
-  simulation%waypoint_list_subsurface => WaypointListCreate()
-
   ! Setup linkages between PMCs
   call SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
                         pm_ufd_decay,pm_ufd_biosphere,pm_geop, &
@@ -225,6 +223,7 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
   use PM_UFD_Decay_class
   use PM_UFD_Biosphere_class
   use PM_Auxiliary_class
+  use PM_WIPP_Flow_class
   use Realization_Subsurface_class
   use Option_module
   use Input_Aux_module
@@ -279,6 +278,13 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_tran,pm_waste_form,&
   if (associated(pm_auxiliary)) &
     call AddPMCAuxiliary(simulation,pm_auxiliary,'SALINITY',realization,option)
 
+  if (associated(pm_flow)) then
+    select type(pm_flow)
+      class is (pm_wippflo_type)
+        call AddPMWippSrcSink(realization,pm_flow,input)
+    end select
+  endif
+ 
   call InputDestroy(input)
 
 end subroutine SetupPMCLinkages
@@ -296,11 +302,14 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
 
   use PM_Subsurface_Flow_class
   use PMC_Subsurface_class
+  use PMC_Linear_class
   use Timestepper_TS_class
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
+  use Timestepper_KSP_class
   use Timestepper_Steady_class
   use PM_TH_TS_class
   use PM_Richards_TS_class
+  use PM_PNF_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -316,7 +325,12 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   class(pmc_subsurface_type), pointer :: pmc_subsurface
   character(len=MAXSTRINGLENGTH) :: string
 
-  pmc_subsurface => PMCSubsurfaceCreate()
+  select type(pm_flow)
+    class is(pm_pnf_type)
+      pmc_subsurface => PMCLinearCreate()
+    class default
+      pmc_subsurface => PMCSubsurfaceCreate()
+  end select
 
   call pmc_subsurface%SetName(pmc_name)
   call pmc_subsurface%SetOption(option)
@@ -337,8 +351,10 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
         pmc_subsurface%timestepper => TimestepperTSCreate()
       class is(pm_th_ts_type)
         pmc_subsurface%timestepper => TimestepperTSCreate()
+      class is(pm_pnf_type)
+        pmc_subsurface%timestepper => TimestepperKSPCreate()
       class default
-        pmc_subsurface%timestepper => TimestepperBECreate()
+        pmc_subsurface%timestepper => TimestepperSNESCreate()
     end select
   endif
   pmc_subsurface%timestepper%name = 'FLOW'
@@ -352,7 +368,8 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   string = trim(pm_flow%name)
   call LoggingCreateStage(string,pmc_subsurface%stage)
   simulation%flow_process_model_coupler => pmc_subsurface
-  simulation%process_model_coupler_list => simulation%flow_process_model_coupler
+  simulation%process_model_coupler_list => &
+    simulation%flow_process_model_coupler
 
 end subroutine AddPMCSubsurfaceFlow
 
@@ -373,7 +390,7 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   use PM_NWT_class
   use PMC_Subsurface_class
   use PMC_Subsurface_OSRT_class
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
   use Timestepper_KSP_class
   use Timestepper_Steady_class
   use Realization_Subsurface_class
@@ -422,10 +439,10 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
         if (pm%operator_split) then
           pmc_subsurface%timestepper => TimestepperKSPCreate()
         else
-          pmc_subsurface%timestepper => TimestepperBECreate()
+          pmc_subsurface%timestepper => TimestepperSNESCreate()
         endif
       class is(pm_nwt_type)
-        pmc_subsurface%timestepper => TimestepperBECreate()
+        pmc_subsurface%timestepper => TimestepperSNESCreate()
     end select
   endif
   pmc_subsurface%timestepper%name = 'TRAN'
@@ -767,15 +784,12 @@ subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
 
   nullify(pmc_dummy)
 
+  pm_auxiliary%realization => realization
+
   string = 'salinity'
   if (StringCompareIgnoreCase(pm_auxiliary%ctype,string)) then
     if (option%itranmode == RT_MODE) then
-      pmc_auxiliary => PMCAuxiliaryCreate()
-      call pmc_auxiliary%SetName(pmc_name)
-      call pmc_auxiliary%SetOption(option)
-      pm_auxiliary%realization => realization
-      pmc_auxiliary%pm_list => pm_auxiliary
-      pmc_auxiliary%pm_aux => pm_auxiliary
+      pmc_auxiliary => PMCAuxiliaryCreate(pmc_name,pm_auxiliary)
       call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
              PMCCastToBase(simulation%tran_process_model_coupler), &
              pmc_dummy,PM_APPEND)
@@ -792,6 +806,37 @@ end subroutine AddPMCAuxiliary
 
 ! ************************************************************************** !
 
+subroutine AddPMWippSrcSink(realization,pm_wippflo,input)
+
+  use Input_Aux_module
+  use Option_module
+  use Realization_Subsurface_class
+  use WIPP_Flow_Aux_module
+  use PM_WIPP_Flow_class
+  use PM_WIPP_SrcSink_class
+
+  implicit none
+
+  class(realization_subsurface_type), pointer :: realization
+  class(pm_wippflo_type) :: pm_wippflo
+  type(option_type), pointer :: option
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: block_string
+
+  option => realization%option
+
+  block_string = 'WIPP_SOURCE_SINK'
+  call InputFindStringInFile(input,option,block_string)
+  if (input%ierr == 0 .and. wippflo_use_gas_generation) then
+    pm_wippflo%pmwss_ptr => PMWSSCreate()
+    pm_wippflo%pmwss_ptr%option => option
+    call pm_wippflo%pmwss_ptr%ReadPMBlock(input)
+    call PMWSSSetRealization(pm_wippflo%pmwss_ptr,realization)
+  endif
+
+end subroutine AddPMWippSrcSink
+! ************************************************************************** !
+  
 subroutine SubsurfInitCommandLineSettings(option)
   !
   ! Initializes PFLTORAN subsurface output
@@ -835,6 +880,9 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TH_class
   use PM_Richards_TS_class
   use PM_TH_TS_class
+  use PM_ZFlow_class
+  use ZFlow_Aux_module
+  use PM_PNF_class
   use General_Aux_module
 
   implicit none
@@ -893,6 +941,35 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowdof = 1
       option%nflowspec = 1
       option%use_isothermal = PETSC_TRUE
+    class is (pm_zflow_type)
+      option%iflowmode = ZFLOW_MODE
+      option%nphase = 1
+      option%nflowdof = 0
+      option%nflowspec = 0
+      if (Initialized(zflow_liq_flow_eq)) then
+        option%nflowdof = option%nflowdof + 1
+        option%nflowspec = option%nflowspec + 1
+      endif
+      if (Initialized(zflow_heat_tran_eq)) then
+        option%nflowdof = option%nflowdof + 1
+      else
+        option%use_isothermal = PETSC_TRUE
+      endif
+      if (Initialized(zflow_sol_tran_eq)) then
+        option%nflowdof = option%nflowdof + 1
+        option%nflowspec = 1
+      endif
+      if (option%nflowdof == 0) then
+        option%io_buffer=  'A process must be specified under ZFLOW,&
+          &OPTIONS,PROCESSES.'
+        call PrintErrMsg(option)
+      endif
+    class is (pm_pnf_type)
+      option%iflowmode = PNF_MODE
+      option%nphase = 1
+      option%nflowdof = 1
+      option%nflowspec = 1
+      option%use_isothermal = PETSC_TRUE
     class is (pm_th_type)
       option%iflowmode = TH_MODE
       option%nphase = 1
@@ -918,6 +995,19 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       call PrintErrMsg(option)
 
   end select
+
+  if (option%nflowdof == 0) then
+    option%io_buffer = 'Number of flow degrees of freedom is zero.'
+    call PrintErrMsg(option)
+  endif
+  if (option%nphase == 0) then
+    option%io_buffer = 'Number of flow phases is zero.'
+    call PrintErrMsg(option)
+  endif
+  if (option%nflowspec == 0) then
+    option%io_buffer = 'Number of flow species is zero.'
+    call PrintErrMsg(option)
+  endif
 
 end subroutine SubsurfaceSetFlowMode
 
@@ -977,6 +1067,8 @@ subroutine FactorySubsurfaceReadFlowPM(input,option,pm)
   use PM_TH_class
   use PM_Richards_TS_class
   use PM_TH_TS_class
+  use PM_ZFlow_class
+  use PM_PNF_class
   use Init_Common_module
   use General_module
 
@@ -1034,6 +1126,10 @@ subroutine FactorySubsurfaceReadFlowPM(input,option,pm)
             pm => PMRichardsTSCreate()
           case ('TH_TS')
             pm => PMTHTSCreate()
+          case ('ZFLOW')
+            pm => PMZFlowCreate()
+          case ('PORE_FLOW')
+            pm => PMPNFCreate()
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -1437,29 +1533,22 @@ subroutine SubsurfaceInitSimulation(simulation)
   use PM_Base_Pointer_module
   use PM_Subsurface_Flow_class
   use PM_Auxiliary_class
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
   use Waypoint_module
 
   implicit none
 
   class(simulation_subsurface_type) :: simulation
 
-  class(pmc_subsurface_type), pointer :: flow_process_model_coupler
-  class(pmc_subsurface_type), pointer :: tran_process_model_coupler
-  class(pmc_auxiliary_type), pointer :: auxiliary_process_model_coupler
-  class(pmc_base_type), pointer :: cur_process_model_coupler
+  class(pmc_auxiliary_type), pointer :: pmc_auxiliary
   class(pmc_base_type), pointer :: cur_process_model_coupler_top
-  class(pm_base_type), pointer :: cur_process_model
+  class(pmc_base_type), pointer :: pmc_dummy
   class(pm_auxiliary_type), pointer :: pm_aux
 
   class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
-  type(waypoint_list_type), pointer :: sync_waypoint_list
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: ndof
   PetscBool, allocatable :: dof_is_active(:)
-  PetscBool :: failure
-  PetscErrorCode :: ierr
 
   realization => simulation%realization
   option => realization%option
@@ -1507,13 +1596,28 @@ subroutine SubsurfaceInitSimulation(simulation)
     pm_aux%realization => realization
     pm_aux%option => option
 
-    auxiliary_process_model_coupler => PMCAuxiliaryCreate()
-    auxiliary_process_model_coupler%pm_list => pm_aux
-    auxiliary_process_model_coupler%pm_aux => pm_aux
-    auxiliary_process_model_coupler%option => option
+    pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
     ! place the material process model as %peer for the top pmc
-    simulation%process_model_coupler_list%peer => &
-      auxiliary_process_model_coupler
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_PEER, &
+           PMCCastToBase(simulation%process_model_coupler_list), &
+           pmc_dummy,PM_APPEND)
+    nullify(pm_aux)
+  endif
+
+  if (associated(option%inversion)) then
+    allocate(pm_aux)
+    call PMAuxiliaryInit(pm_aux)
+    string = 'INVERSION'
+    call PMAuxiliarySetFunctionPointer(pm_aux,string)
+    pm_aux%realization => realization
+    pm_aux%option => option
+
+    pmc_auxiliary => PMCAuxiliaryCreate('',pm_aux)
+    ! place the material process model as %peer for the top pmc
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_auxiliary),PM_CHILD, &
+           PMCCastToBase(simulation%process_model_coupler_list), &
+           pmc_dummy,PM_APPEND)
+    nullify(pm_aux)
   endif
 
   ! For each ProcessModel, set:
@@ -2149,7 +2253,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use PM_NWT_class
   use Timestepper_Base_class
   use Timestepper_KSP_class
-  use Timestepper_BE_class
+  use Timestepper_SNES_class
   use Timestepper_Steady_class
   use Timestepper_TS_class
   use PM_Hydrate_class
@@ -2819,13 +2923,15 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('SATURATION_FUNCTION')
-        if (option%iflowmode == RICHARDS_MODE .or. &
-            option%iflowmode == G_MODE .or. &
-            option%iflowmode == H_MODE .or. &
-            (option%iflowmode == TH_MODE .and. &
-             .not. option%flow%th_freezing) .or. &
-            option%iflowmode == TH_TS_MODE .or. &
-            option%iflowmode == WF_MODE) then
+        flag1 = 0
+        select case(option%iflowmode)
+          case(TH_MODE)
+            if (.not.option%flow%th_freezing) flag1 = 1
+          case(MPH_MODE)
+          case default
+            flag1 = 1
+        end select
+        if (flag1 == 1) then
           option%io_buffer = &
             'Must compile with legacy_saturation_function=1 to use the &
             &SATURATION_FUNCTION keyword.  Otherwise, use &
@@ -2845,20 +2951,22 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('CHARACTERISTIC_CURVES')
-        if (.not.(option%iflowmode == NULL_MODE .or. &
-                  option%iflowmode == RICHARDS_MODE .or. &
-                  option%iflowmode == RICHARDS_TS_MODE .or. &
-                  option%iflowmode == G_MODE .or. &
-                  option%iflowmode == H_MODE .or. &
-                  option%iflowmode == TH_TS_MODE .or. &
-                  (option%iflowmode == TH_MODE .and. &
-                    .not. option%flow%th_freezing) .or. &
-                  option%iflowmode == WF_MODE)) then
-          option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
-            &modes other than RICHARDS, RICHARDS_TS, WIPP_FLOW, TH, or GENERAL. &
-            &Use SATURATION_FUNCTION.'
-          call PrintErrMsg(option)
-        endif
+        select case(option%iflowmode)
+          case(TH_MODE)
+            if (option%flow%th_freezing) then
+              option%io_buffer = 'CHARACTERISTIC_CURVES not supported in &
+                    &flow mode TH with freezing. Use SATURATION_FUNCTION.'
+              call PrintErrMsg(option)
+            endif
+          case(MPH_MODE)
+              option%io_buffer = 'CHARACTERISTIC_CURVES not supported in &
+                    &flow mode MPH. Use SATURATION_FUNCTION.'
+              call PrintErrMsg(option)
+          case(PNF_MODE)
+            option%io_buffer = 'Variably-saturated flow not supported &
+              &in PORE mode.'
+            call PrintErrMsg(option)
+        end select
         characteristic_curves => CharacteristicCurvesCreate()
         call InputReadWord(input,option,characteristic_curves%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','CHARACTERISTIC_CURVES')
@@ -2988,7 +3096,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         internal_units = 'sec'
         units_conversion = UnitsConvertToInternal(word,internal_units,option)
         ! convert from hrs to seconds and add to start_time
-        option%wallclock_stop_time = option%start_time + &
+        option%wallclock_stop_time = option%comm%start_time + &
                                      option%wallclock_stop_time* &
                                      units_conversion
 
@@ -3037,6 +3145,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                                       output_option%aveg_output_variable_list)
             case('UNFILTER_NON_STATE_VARIABLES')
               output_option%filter_non_state_variables = PETSC_FALSE
+            case('NO_SYNCHRONIZED_OUTPUT')
+              output_option%force_synchronized_output = PETSC_FALSE
 
 
         !----------------------------------------------------------------------
@@ -3770,7 +3880,8 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   if (associated(simulation%flow_process_model_coupler)) then
     select case(option%iflowmode)
-      case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE,H_MODE)
+      case(MPH_MODE,G_MODE,TH_MODE,WF_MODE,RICHARDS_TS_MODE,TH_TS_MODE, &
+           H_MODE)
         if (option%flow%steady_state) then
           option%io_buffer = 'Steady state solution is not supported with &
             &the current flow mode.'

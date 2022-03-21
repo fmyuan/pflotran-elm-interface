@@ -290,7 +290,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 !#ifndef SERIAL_HDF5
 !    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 !#endif
-    call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
+    call HDF5OpenFileReadOnly(filename,file_id,prop_id,'',option)
     h5fopen_err = hdf5_err
     call h5pclose_f(prop_id,hdf5_err)
 

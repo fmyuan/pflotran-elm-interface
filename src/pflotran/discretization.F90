@@ -47,7 +47,7 @@ module Discretization_module
             DiscretizationRead, &
             DiscretizationCreateVector, &
             DiscretizationDuplicateVector, &         
-            DiscretizationCreateJacobian, &
+            DiscretizationCreateMatrix, &
             DiscretizationCreateInterpolation, &
             DiscretizationCreateColoring, &
             DiscretizationGlobalToLocal, &
@@ -135,7 +135,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -331,7 +331,7 @@ subroutine DiscretizationRead(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -892,9 +892,10 @@ end function DiscretizationGetDMCPtrFromIndex
 
 ! ************************************************************************** !
 
-subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobian,option)
+subroutine DiscretizationCreateMatrix(discretization,dm_index,mat_type, &
+                                      Matrix,option)
   ! 
-  ! Creates Jacobian matrix associated with discretization
+  ! Creates a matrix associated with discretization
   ! 
   ! Author: Glenn Hammond
   ! Date: 10/24/07
@@ -907,7 +908,7 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
   PetscInt :: dm_index
   PetscErrorCode :: ierr
   MatType :: mat_type
-  Mat :: Jacobian
+  Mat :: Matrix
   type(option_type) :: option
   PetscInt :: ndof, stencilsize
   PetscInt, pointer :: indices(:)
@@ -923,18 +924,18 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
   select case(discretization%itype)
     case(STRUCTURED_GRID)
       call DMSetMatType(dm_ptr%dm,mat_type,ierr);CHKERRQ(ierr)
-      call DMCreateMatrix(dm_ptr%dm,Jacobian,ierr);CHKERRQ(ierr)
+      call DMCreateMatrix(dm_ptr%dm,Matrix,ierr);CHKERRQ(ierr)
     case(UNSTRUCTURED_GRID)
-      call UGridDMCreateJacobian(discretization%grid%unstructured_grid, &
-                                 dm_ptr%ugdm,mat_type,Jacobian,option)
+      call UGridDMCreateMatrix(discretization%grid%unstructured_grid, &
+                                 dm_ptr%ugdm,mat_type,Matrix,option)
   end select
-  call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE, &
+  call MatSetOption(Matrix,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE, &
                     ierr);CHKERRQ(ierr)
-  call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr);CHKERRQ(ierr)
-  call MatSetOption(Jacobian,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE, &
+  call MatSetOption(Matrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr);CHKERRQ(ierr)
+  call MatSetOption(Matrix,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE, &
                     ierr);CHKERRQ(ierr)
 
-end subroutine DiscretizationCreateJacobian
+end subroutine DiscretizationCreateMatrix
 
 ! ************************************************************************** !
 
@@ -1049,7 +1050,7 @@ subroutine DiscretizationCreateColoring(discretization,dm_index,option,coloring)
       ! I have set the above to use matrix type MATBAIJ, as that is what we 
       ! usually want (note: for DAs with 1 degree of freedom per grid cell, 
       ! the MATAIJ and MATBAIJ colorings should be equivalent).  What we should 
-      ! eventually do here is query the type of the Jacobian matrix, but I'm 
+      ! eventually do here is query the type of matrix, but I'm 
       ! not sure of the best way to do this, as this is currently stashed in 
       ! the 'solver' object. --RTM
     case(UNSTRUCTURED_GRID)

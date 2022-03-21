@@ -254,7 +254,7 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -265,7 +265,7 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   
   PetscInt :: icomp, irxn, immobile_id
   PetscReal :: rate_constant, rate, volume

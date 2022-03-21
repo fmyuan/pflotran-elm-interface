@@ -4,7 +4,6 @@ module Simulation_Inverse_class
   use petscsys
   use PFLOTRAN_Constants_module
   use Simulation_Base_class
-  use Simulation_Subsurface_class
   use Inversion_Base_class
 
   implicit none
@@ -13,9 +12,7 @@ module Simulation_Inverse_class
 
   type, public, extends(simulation_base_type) :: &
                                       simulation_inverse_type
-    class(simulation_subsurface_type), pointer :: forward_simulation
     class(inversion_base_type), pointer :: inversion
-    character(len=MAXSTRINGLENGTH) :: forward_simulation_filename
   contains
     procedure, public :: Init => SimulationInverseInit
     procedure, public :: InitializeRun => SimulationInverseInitializeRun
@@ -68,9 +65,7 @@ subroutine SimulationInverseInit(this,driver)
   class(driver_type), pointer :: driver
 
   call SimulationBaseInit(this,driver)
-  nullify(this%forward_simulation)
   nullify(this%inversion)
-  this%forward_simulation_filename = ''
 
 end subroutine SimulationInverseInit
 
@@ -88,7 +83,10 @@ subroutine SimulationInverseRead(this,option)
   use String_module
   use Utility_module
   use Inversion_ERT_class
-  use Inversion_ERT_class
+  use Inversion_Perturbation_class
+  use Inversion_Subsurface_class
+  use Inversion_Tao_class
+  use Inversion_ZFlow_class
 
   class(simulation_inverse_type) :: this
   type(option_type), pointer :: option
@@ -125,13 +123,18 @@ subroutine SimulationInverseRead(this,option)
         select case(word)
           case('ERT')
             this%inversion => InversionERTCreate(this%driver)
+          case('TAO')
+            this%inversion => InversionTaoCreate(this%driver)
+          case('PERTURBATION')
+            this%inversion => InversionPerturbationCreate(this%driver)
+          case('TEST')
+            this%inversion => InversionSubsurfaceCreate(this%driver)
+          case('ZFLOW')
+            this%inversion => InversionZFlowCreate(this%driver)
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         end select
         call this%inversion%ReadBlock(input,option)
-      case('FORWARD_SIMULATION_FILENAME')
-        call InputReadFilename(input,option,this%forward_simulation_filename)
-        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -158,21 +161,10 @@ subroutine SimulationInverseInitializeRun(this)
   class(simulation_inverse_type) :: this
 
   type(option_type), pointer :: option
-  PetscInt :: i
-  PetscInt :: offset, delta, remainder
-  PetscInt :: realization_id
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: option_found
-  PetscInt, pointer :: realization_ids_from_file(:)
-  character(len=MAXSTRINGLENGTH) :: filename
-  type(input_type), pointer :: input
-  PetscErrorCode :: ierr
 
   option => OptionCreate()
   call OptionSetDriver(option,this%driver)
-
   call SimulationBaseInitializeRun(this)
-
   call OptionDestroy(option)
 
 end subroutine SimulationInverseInitializeRun
@@ -186,44 +178,13 @@ subroutine SimulationInverseExecuteRun(this)
   ! Author: Glenn Hammond
   ! Date: 05/27/21
 
-  use Option_module
-  use Factory_Forward_module
-  use Simulation_Subsurface_class
-  use Inversion_ERT_class
-
   class(simulation_inverse_type) :: this
 
-  type(option_type), pointer :: option
-
-  PetscInt :: iteration
-
-  iteration = this%inversion%SetIterationNumber()
+  call this%inversion%InitializeIterationNumber()
   do
     if (this%inversion%converg_flag) exit
-    option => OptionCreate()
-    write(option%group_prefix,'(i6)') iteration+1
-    option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
-    call OptionSetDriver(option,this%driver)
-    call FactoryForwardInitialize(this%forward_simulation, &
-                                  this%forward_simulation_filename,option)
-    select type(i=>this%inversion)
-      class is(inversion_ert_type)
-      i%realization => this%forward_simulation%realization
-    end select
-    call this%inversion%UpdateParameters()
-    call this%forward_simulation%InitializeRun()
-    if (option%status == PROCEED) then
-      call this%forward_simulation%ExecuteRun()
-    endif
-    call this%inversion%CheckConvergence()
-    call this%inversion%CalculateUpdate()
-    call this%inversion%WriteIterationInfo()
-    call this%inversion%UpdateRegularizationParameters()
-    call this%forward_simulation%FinalizeRun()
-    call this%forward_simulation%Strip()
-    deallocate(this%forward_simulation)
-    nullify(this%forward_simulation)
-    iteration = iteration + 1
+    call this%inversion%Step()
+    call this%inversion%IncrementIteration()
   enddo
 
 end subroutine SimulationInverseExecuteRun
@@ -259,12 +220,6 @@ subroutine SimulationInverseStrip(this)
   class(simulation_inverse_type) :: this
 
   call SimulationBaseStrip(this)
-  if (associated(this%forward_simulation)) then
-    print *, 'Why is forward simulation still associated in &
-             &SimulationInverseStrip?'
-    stop
-  endif
-  nullify(this%forward_simulation)
   call this%inversion%Strip()
   deallocate(this%inversion)
   nullify(this%inversion)

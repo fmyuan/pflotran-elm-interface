@@ -86,8 +86,8 @@ end subroutine BioHillSetup
 ! ************************************************************************** !
 
 subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
-                           rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                           option)
+                           rt_auxvar,global_auxvar,material_auxvar, &
+                           reaction,option)
   ! 
   ! Evaluates biodegradation reaction storing residual but no Jacobian
   ! 
@@ -95,7 +95,7 @@ subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -107,7 +107,7 @@ subroutine BioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: volume               ! [m^3 bulk volume]

@@ -8,7 +8,7 @@ module General_Derivative_module
   use General_Aux_module
   use General_Common_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -44,7 +44,7 @@ subroutine GeneralDerivativeDriver(option)
   PetscReal :: pert(3)
   type(general_auxvar_type), pointer :: general_auxvar(:)
   type(global_auxvar_type), pointer :: global_auxvar(:), global_auxvar_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(material_auxvar_type), pointer :: material_auxvar(:)
 
   PetscInt :: istate2
   PetscReal :: xx2(3)
@@ -52,7 +52,7 @@ subroutine GeneralDerivativeDriver(option)
   PetscReal :: scale2
   type(general_auxvar_type), pointer :: general_auxvar2(:)
   type(global_auxvar_type), pointer :: global_auxvar2(:)
-  class(material_auxvar_type), pointer :: material_auxvar2(:)
+  type(material_auxvar_type), pointer :: material_auxvar2(:)
   
   PetscInt :: ibndtype(3)
   PetscInt :: auxvar_mapping(GENERAL_MAX_INDEX)
@@ -239,7 +239,7 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_Common_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   
   implicit none
@@ -318,7 +318,7 @@ subroutine GeneralDerivativeSetupAuxVar(istate,xx,pert,general_auxvar, &
   PetscReal :: pert(3)
   type(general_auxvar_type), pointer :: general_auxvar(:)
   type(global_auxvar_type), pointer :: global_auxvar(:)
-  class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(material_auxvar_type), pointer :: material_auxvar(:)
   class(characteristic_curves_type) :: characteristic_curves
   type(option_type), pointer :: option
 
@@ -446,7 +446,7 @@ subroutine GeneralDerivativeAuxVar(pert,general_auxvar,global_auxvar, &
   PetscReal :: pert(3)
   type(general_auxvar_type) :: general_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:)
-  class(material_auxvar_type) :: material_auxvar(0:)
+  type(material_auxvar_type) :: material_auxvar(0:)
   type(option_type), pointer :: option
 
   PetscInt :: natural_id = 1
@@ -484,7 +484,7 @@ end subroutine GeneralDerivativeAuxVar
 subroutine GeneralDerivativeAccum(pert,general_auxvar,global_auxvar, &
                                   material_auxvar,material_parameter, &
                                   option)
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   
   implicit none
@@ -492,7 +492,7 @@ subroutine GeneralDerivativeAccum(pert,general_auxvar,global_auxvar, &
   PetscReal :: pert(3)
   type(general_auxvar_type) :: general_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:)
-  class(material_auxvar_type) :: material_auxvar(0:)
+  type(material_auxvar_type) :: material_auxvar(0:)
   type(material_parameter_type) :: material_parameter
   type(option_type), pointer :: option
 
@@ -549,21 +549,21 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
   use Option_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   PetscReal :: pert(3)
   type(general_auxvar_type) :: general_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar(0:)
-  class(material_auxvar_type) :: material_auxvar(0:)
+  type(material_auxvar_type) :: material_auxvar(0:)
   class(characteristic_curves_type) :: characteristic_curves
   class(cc_thermal_type) :: characteristic_curves_thermal
   type(material_parameter_type) :: material_parameter
   PetscReal :: pert2(3)
   type(general_auxvar_type) :: general_auxvar2(0:)
   type(global_auxvar_type) :: global_auxvar2(0:)
-  class(material_auxvar_type) :: material_auxvar2(0:)
+  type(material_auxvar_type) :: material_auxvar2(0:)
   class(characteristic_curves_type) :: characteristic_curves2
   class(cc_thermal_type) :: characteristic_curves_thermal2
   type(material_parameter_type) :: material_parameter2
@@ -674,7 +674,7 @@ subroutine GeneralDerivativeFluxBC(pert, &
   use Option_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -687,7 +687,7 @@ subroutine GeneralDerivativeFluxBC(pert, &
   type(global_auxvar_type) :: global_auxvar_bc
   type(general_auxvar_type) :: general_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_dn(0:)
-  class(material_auxvar_type) :: material_auxvar_dn(0:)
+  type(material_auxvar_type) :: material_auxvar_dn(0:)
   class(characteristic_curves_type) :: characteristic_curves_dn
   class(cc_thermal_type) :: characteristic_curves_thermal_dn
   type(material_parameter_type) :: material_parameter_dn
@@ -761,7 +761,7 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   use Option_module
   use Coupler_module
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
@@ -873,7 +873,7 @@ subroutine GeneralDerivativeDestroyAuxVar(general_auxvar,global_auxvar, &
 
   type(general_auxvar_type), pointer :: general_auxvar(:)
   type(global_auxvar_type), pointer :: global_auxvar(:)
-  class(material_auxvar_type), pointer :: material_auxvar(:)
+  type(material_auxvar_type), pointer :: material_auxvar(:)
   type(option_type), pointer :: option
   
   PetscInt :: i
@@ -897,7 +897,7 @@ subroutine GeneralDerivativeDestroy(general_parameter, &
   use General_Aux_module
   use Characteristic_Curves_module
   use Characteristic_Curves_Thermal_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   
   implicit none

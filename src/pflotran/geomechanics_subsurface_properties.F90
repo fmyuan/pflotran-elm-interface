@@ -95,15 +95,17 @@ subroutine GeomechanicsSubsurfacePropsAuxvarInit( &
   ! Author: Satish Karra
   ! Date: 07/29/16
   !
-
-  use Material_Aux_class
+  use Material_Aux_module
+  use Utility_module
   
   implicit none
   
   class(geomechanics_subsurface_properties_type), pointer :: &
     this 
-  class(material_auxvar_type), intent(inout) :: auxvar    
+  type(material_auxvar_type), intent(inout) :: auxvar    
    
+  ! deallocate in case already allocated due to evolving strata
+  call DeallocateArray(auxvar%geomechanics_subsurface_prop)
   allocate(auxvar%geomechanics_subsurface_prop(7))
   auxvar%geomechanics_subsurface_prop = 0.d0
 
@@ -117,13 +119,13 @@ subroutine GeomechanicsSubsurfacePropsPropertytoAux(auxvar,this)
   ! Date: 07/29/16
   !
 
-  use Material_Aux_class
+  use Material_Aux_module
   use String_module
   use Option_module
   
   implicit none
 
-  class(material_auxvar_type), intent(inout) :: auxvar
+  type(material_auxvar_type), intent(inout) :: auxvar
   class(geomechanics_subsurface_properties_type), pointer :: &
     this 
  
@@ -247,7 +249,7 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
   !
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
 
   
@@ -255,7 +257,7 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
   
   type(option_type) :: option
   
-  class(material_auxvar_type), intent(inout) :: auxvar
+  type(material_auxvar_type), intent(inout) :: auxvar
   type(grid_type), pointer, intent(inout) :: grid
   PetscReal, intent(in) :: porosity_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure
@@ -409,7 +411,7 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
   !
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
 
   
@@ -417,7 +419,7 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
   
   type(option_type) :: option
   
-  class(material_auxvar_type), intent(inout) :: auxvar
+  type(material_auxvar_type), intent(inout) :: auxvar
   type(grid_type), pointer, intent(inout) :: grid
   PetscReal, intent(in) :: permeability_before
   PetscReal, intent(in) :: local_stress(6), local_strain(6), local_pressure

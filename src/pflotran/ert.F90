@@ -4,7 +4,7 @@ module ERT_module
   use petscksp
 
   use ERT_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   use PFLOTRAN_Constants_module
 
@@ -38,14 +38,14 @@ subroutine ERTSetup(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(survey_type), pointer :: survey
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
   PetscInt :: flag(1)
@@ -120,11 +120,11 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   Mat :: M
   PetscBool :: compute_delM
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -204,7 +204,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
       if (compute_delM) then
         ! For dM/dcond matrix
         ! dcond_avg_* = dcond_avg/dcond_*
-        ! NB: dcond_avg_* is acutally dcond_avg_*/dist_0 
+        ! NB: dcond_avg_* is acutally dcond_avg_*/dist_0
         factor2 = factor * factor
         dcond_avg_up = (dist_up*cond_dn*cond_dn) / factor2
         dcond_avg_dn = (dist_dn*cond_up*cond_up) / factor2
@@ -235,12 +235,12 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
           ineighbor = FindLocNeighbor(grid%cell_neighbors_local_ghosted      &
                                       (1:num_neighbors_up,local_id_up),      &
                                       num_neighbors_up,ghosted_id_dn)
-        
+
           if (.not.associated(ert_auxvars(ghosted_id_up)%delM)) then
             allocate(ert_auxvars(ghosted_id_up)%delM(num_neighbors_up + 1))
             ert_auxvars(ghosted_id_up)%delM = 0.d0
           endif
-        
+
           ! Fill values to dM/dcond_up matrix for up cell
           call FillValuesToDelM(dcoef_up,dcoef_dn,num_neighbors_up,          &
                                 ineighbor,ert_auxvars(ghosted_id_up)%delM)
@@ -262,13 +262,13 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
         call MatSetValuesLocal(M,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
 
-        if (compute_delM) then                      
+        if (compute_delM) then
           ! For dM/dcond_dn matrix
           num_neighbors_dn = grid%cell_neighbors_local_ghosted(0,local_id_dn)
           ineighbor = FindLocNeighbor(grid%cell_neighbors_local_ghosted      &
                                       (1:num_neighbors_dn,local_id_dn),      &
                                       num_neighbors_dn,ghosted_id_up)
-        
+
           if (.not.associated(ert_auxvars(ghosted_id_dn)%delM)) then
             allocate(ert_auxvars(ghosted_id_dn)%delM(num_neighbors_dn + 1))
             ert_auxvars(ghosted_id_dn)%delM = 0.d0
@@ -289,7 +289,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do
-    if (.not.associated(boundary_condition)) exit    
+    if (.not.associated(boundary_condition)) exit
     if (boundary_condition%geop_condition%itype == DIRICHLET_BC) then
       cur_connection_set => boundary_condition%connection_set
 
@@ -326,15 +326,25 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
                                ADD_VALUES,ierr);CHKERRQ(ierr)
 
       enddo
-    endif      
+    endif
     boundary_condition => boundary_condition%next
   enddo
 
   call MatAssemblyBegin(M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(M,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
+    ! zero out inactive cells
+  if (patch%aux%ERT%inactive_cells_exist) then
+    coef_up = 1.d0 ! solely a temporary variable in this conditional
+    call MatZeroRowsLocal(M,patch%aux%ERT%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%ERT%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
+                          coef_up,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+  endif
+
   if (realization%debug%matview_Matrix) then
-    string = 'Mmatrix'
+    string = 'ERTmatrix'
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(M,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
@@ -343,7 +353,7 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
 contains
   subroutine FillValuesToDelM(dcoef_self,dcoef_neighbor,num_neighbors, &
                               ineighbor,delM)
-    ! 
+    !
     ! Fills out upper traingle part of the dM/dcond matrix for each cell
     !   Storing only first rows as other rows can easily be retrieved
     !   from off-diagonal elements of the first row.
@@ -386,16 +396,16 @@ contains
       option%io_buffer = 'ERTCalculateMatrix: There is something wrong ' // &
         'in finding neighbor location. '
       call PrintErrMsg(option)
-    endif    
+    endif
 
   end function FindLocNeighbor
-  
+
 end subroutine ERTCalculateMatrix
 
 ! ************************************************************************** !
 
-subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
-                                           cond)
+subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
+                                           cond_c,empirical_law,cond)
   !
   ! Calculates conductivity using petrophysical empirical relations
   ! using Archie's law or Waxman-Smits equation
@@ -408,24 +418,34 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
 
   PetscReal :: por, sat  ! porosity and saturation
 
+  PetscInt :: empirical_law
+
   ! Archie's law parameters
   PetscReal :: a        ! Tortuosity factor constant
   PetscReal :: m        ! Cementation exponent
   PetscReal :: n        ! Saturation exponent
   PetscReal :: cond_w   ! Water conductivity
+  PetscReal :: cond_s   ! surface conductivity
 
   ! Waxman-Smits additional paramters
   PetscReal :: cond_c   ! Clay conductivity
-  PetscReal :: Vc       ! Clay/Shale volume 
-  
+  PetscReal :: Vc       ! Clay/Shale volume
+
   ! calculated bulk conductivity
   PetscReal :: cond
 
   ! Archie's law
   cond = cond_w * (por**m) * (sat**n) / a
+  ! Modify by adding surface conductivity
+  cond = cond + cond_s
 
-  ! Waxmax-Smits equations/Dual-Water model 
-  cond = cond + cond_c * Vc * (1-por) * sat**(n-1)
+  select case(empirical_law)
+    case(ARCHIE)
+      ! do nothing
+    case(WAXMAN_SMITS)
+      ! Waxmax-Smits equations/Dual-Water model
+      cond = cond + cond_c * Vc * (1-por) * sat**(n-1)
+  end select
 
 end subroutine ERTConductivityFromEmpiricalEqs
 
@@ -447,7 +467,7 @@ subroutine ERTCalculateAnalyticPotential(realization,ielec,average_conductivity)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: ielec
   PetscReal, optional :: average_conductivity
 
@@ -519,13 +539,13 @@ subroutine ERTCalculateAverageConductivity(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(survey_type), pointer :: survey
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id

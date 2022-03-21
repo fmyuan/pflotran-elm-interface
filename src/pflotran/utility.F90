@@ -13,11 +13,11 @@ module Utility_module
     module procedure DotProduct2
     module procedure DotProduct3
   end interface
-  
+
   interface CrossProduct
     module procedure CrossProduct1
   end interface
-  
+
   interface ReallocateArray
     module procedure ReallocateIntArray1
     module procedure ReallocateIntArray2
@@ -29,7 +29,7 @@ module Utility_module
     module procedure ReallocateRealArray4
     module procedure ReallocateBoolArray1
   end interface
-  
+
   interface UtilityReadArray
     module procedure UtilityReadIntArray
     module procedure UtilityReadRealArray
@@ -50,12 +50,12 @@ module Utility_module
     module procedure DeallocateArray1DString
     module procedure DeallocateArray2DString
   end interface
-  
+
   interface InterfaceApprox
     module procedure InterfaceApproxWithDeriv
     module procedure InterfaceApproxWithoutDeriv
   end interface
-  
+
   interface CalcParallelSUM
     module procedure CalcParallelSUM1
     module procedure CalcParallelSUM2
@@ -65,7 +65,7 @@ module Utility_module
     module procedure LUDecomposition1
     module procedure LUDecomposition2
   end interface
-  
+
   public :: GetRndNumFromNormalDist, &
             DotProduct, &
             CrossProduct, &
@@ -100,8 +100,10 @@ module Utility_module
             CalcParallelSum, &
             MatCompare, &
             ArrayIsSMonotonicInc, &
-            expm1
-            
+            expm1, &
+            PrintHeader, &
+            UtilityTensorToScalar
+
 contains
 
 ! ************************************************************************** !
@@ -117,15 +119,15 @@ function rnd()
   iseed = iseed - (iseed/2796203) * 2796203
   rnd   = iseed/2796203.0
   return
-  
+
 end function rnd
 
 ! ************************************************************************** !
 
 function ran1(idum)
-      
+
   implicit none
-      
+
   save
 
 !-----returns a random number in the range (0,1). Set idum to neg.
@@ -171,17 +173,17 @@ function ran1(idum)
 
   ran1=r(j)
   r(j)=(float(ix1)+float(ix2)*RM2)*RM1
-      
+
   return
 end function ran1
 
 ! ************************************************************************** !
 
 function ran2(idum)
-      
+
   implicit none
 
-!-----Minimal random number generator of Park and Miller 
+!-----Minimal random number generator of Park and Miller
 !     in the range (0,1)
 
   PetscReal :: ran2, AM, EPS, RNMX, temp
@@ -203,7 +205,7 @@ function ran2(idum)
   if (idum.le.0 .or. iy.eq.0) then
     if (-idum .lt. 1) then
       idum = 1
-    else 
+    else
       idum = -idum
     endif
     do j = NTAB+7,0,-1
@@ -223,7 +225,7 @@ function ran2(idum)
   temp = AM*iy
   if (temp .gt. RNMX) then
     ran2 = RNMX
-  else 
+  else
     ran2 = temp
   endif
 
@@ -233,19 +235,19 @@ end function ran2
 ! ************************************************************************** !
 
 subroutine GetRndNumFromNormalDist(mean,st_dev,number,seed)
-  ! 
+  !
   ! Generates a random number that is normally distributed, as defined by the
   ! mean and standard deviation given. This subroutine uses the Box-Muller
   ! transform.
   ! G. E. P. Box and M. E. Muller (1958), A note on the generation of random
   ! normal deviates, The Annals of Mathematical Statistics, Vol. 29, No. 2,
   ! pp. 610-611.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 2/12/2016
 
   implicit none
-  
+
   PetscReal :: mean, st_dev, number
   PetscInt :: seed, f
 
@@ -264,14 +266,14 @@ subroutine GetRndNumFromNormalDist(mean,st_dev,number,seed)
       u1 = rnd()
       u2 = rnd()
     enddo
-    
+
     z0 = sqrt(-2.0*log(u1)) * cos(TWO_PI*u2)
-    z1 = sqrt(-2.0*log(u1)) * sin(TWO_PI*u2) 
-    
+    z1 = sqrt(-2.0*log(u1)) * sin(TWO_PI*u2)
+
     number = z0*st_dev + mean
 
   else
-    
+
     number = z1*st_dev + mean
 
   endif
@@ -283,20 +285,20 @@ subroutine Natural2LocalIndex(ir, nl, llist, llength)
   implicit none
   PetscInt :: nl, ir,na, l_search, itt, llength
   PetscInt :: llist(*)
-  
+
   PetscInt ::  nori0, nori1, nori
-  
-  
+
+
   nl=-1
   l_search = llength
-  
-  na = ir!-1 
+
+  na = ir!-1
   itt=0
   nori0 =1
   nori1 = llength
   if (na>=llist(1) .and. na <= llist(llength))then
   do while(l_search > 1 .and.itt<=50)
-  
+
     itt=itt+1
     if (na == llist(nori0))then
       nl = nori0
@@ -304,8 +306,8 @@ subroutine Natural2LocalIndex(ir, nl, llist, llength)
     elseif (na == llist(nori1))then
        nl = nori1
       exit
-    endif   
-     
+    endif
+
      ! nori = int((real(nori0 + nori1))/ 2.) + mod ( nori0 + nori1,2 )
     nori =  int(floor(real(nori0+nori1)/2D0 + .75D0))
     if ( na > llist(nori)) then
@@ -318,32 +320,32 @@ subroutine Natural2LocalIndex(ir, nl, llist, llength)
         exit
       else
         print *, 'wrong index', na, nori, llist(nori); stop
-      endif  
+      endif
     endif
     l_search = nori1-nori0
     if (itt>=40)then
       print *, na, nori0,nori1,nori, llist(nori0), llist(nori1)
       if (itt>=50) stop
     endif
-  enddo  
- endif         
-          
+  enddo
+ endif
+
 end subroutine Natural2LocalIndex
 
 ! ************************************************************************** !
 
 subroutine ReallocateIntArray1(array)
-  ! 
+  !
   ! Reallocates an integer array to a larger size and copies
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07, 01/31/18
-  ! 
+  !
 
   implicit none
 
   PetscInt, pointer :: array(:)
-  
+
   PetscInt :: i
 
   i = size(array)
@@ -354,20 +356,20 @@ end subroutine ReallocateIntArray1
 ! ************************************************************************** !
 
 subroutine ReallocateIntArray2(array,size)
-  ! 
+  !
   ! Reallocates an integer array to a larger size and copies
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07, 01/31/18
-  ! 
+  !
 
   implicit none
 
   PetscInt, pointer :: array(:)
   PetscInt :: size
-  
+
   PetscInt, allocatable :: array2(:)
-  
+
   allocate(array2(size))
   array2(1:size) = array(1:size)
   deallocate(array)
@@ -382,13 +384,13 @@ end subroutine ReallocateIntArray2
 ! ************************************************************************** !
 
 subroutine ReallocateIntArray3(array)
-  ! 
+  !
   ! Reallocates a 2D integer array to a larger size in last
   ! dimension and copies values over.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13, 01/31/18
-  ! 
+  !
 
   implicit none
 
@@ -398,27 +400,27 @@ subroutine ReallocateIntArray3(array)
 
   i = size(array,2)
   call ReallocateArray(array,i)
-  
+
 end subroutine ReallocateIntArray3
 
 ! ************************************************************************** !
 
 subroutine ReallocateIntArray4(array,rank2_size)
-  ! 
+  !
   ! Reallocates a 2D integer array to a larger size in last
   ! dimension and copies values over.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13, 01/31/18
-  ! 
+  !
 
   implicit none
 
   PetscInt, pointer :: array(:,:)
   PetscInt :: rank1_size, rank2_size
-  
+
   PetscInt, allocatable :: array2(:,:)
-  
+
   rank1_size = size(array,1)
   allocate(array2(rank1_size,rank2_size))
   array2(:,1:rank2_size) = array(:,1:rank2_size)
@@ -434,13 +436,13 @@ end subroutine ReallocateIntArray4
 ! ************************************************************************** !
 
 subroutine ReallocateRealArray1(array)
-  ! 
+  !
   ! ReallocateRealArray2D: Reallocates a 2D real array to a larger size and
   ! copies values over.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07, 10/03/13, 01/31/18
-  ! 
+  !
 
   implicit none
 
@@ -450,27 +452,27 @@ subroutine ReallocateRealArray1(array)
 
   i = size(array)
   call ReallocateArray(array,i)
-  
+
 end subroutine ReallocateRealArray1
 
 ! ************************************************************************** !
 
 subroutine ReallocateRealArray2(array,rank1_size)
-  ! 
+  !
   ! ReallocateRealArray2D: Reallocates a 2D real array to a larger size and
   ! copies values over.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/29/07, 10/03/13, 01/31/18
-  ! 
+  !
 
   implicit none
 
   PetscReal, pointer :: array(:)
   PetscInt :: rank1_size
-  
+
   PetscReal, allocatable :: array2(:)
-  
+
   allocate(array2(rank1_size))
   array2(1:rank1_size) = array(1:rank1_size)
   deallocate(array)
@@ -485,13 +487,13 @@ end subroutine ReallocateRealArray2
 ! ************************************************************************** !
 
 subroutine ReallocateRealArray3(array)
-  ! 
+  !
   ! Reallocates a 2D real array to a larger size in last
   ! dimension and copies values over.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13, 01/31/18
-  ! 
+  !
 
   implicit none
 
@@ -501,27 +503,27 @@ subroutine ReallocateRealArray3(array)
 
   i = size(array,2)
   call ReallocateArray(array,i)
-  
+
 end subroutine ReallocateRealArray3
 
 ! ************************************************************************** !
 
 subroutine ReallocateRealArray4(array,rank2_size)
-  ! 
+  !
   ! Reallocates a 2D real array to a larger size in last
   ! dimension and copies values over.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/03/13, 01/31/18
-  ! 
+  !
 
   implicit none
 
   PetscReal, pointer :: array(:,:)
   PetscInt :: rank1_size, rank2_size
-  
+
   PetscReal, allocatable :: array2(:,:)
-  
+
   rank1_size = size(array,1)
   allocate(array2(rank1_size,rank2_size))
   array2(:,1:rank2_size) = array(:,1:rank2_size)
@@ -575,7 +577,7 @@ subroutine LUDecomposition2(A,N,INDX,D)
   PetscInt :: INDX(N)
   PetscInt :: D
 
-  PetscInt :: idum 
+  PetscInt :: idum
 
   call LUDecomposition(A,N,INDX,D,PETSC_TRUE,idum)
 
@@ -584,15 +586,15 @@ end subroutine LUDecomposition2
 ! ************************************************************************** !
 
 subroutine LUDecomposition1(A,N,INDX,D,stop_on_error,ierror)
-  ! 
+  !
   ! Given an NxN matrix A, with physical dimension NP, this routine replaces it
   ! by the LU decomposition of a rowwise permutation of itself.
   ! A and N are input. A is output; INDX is output vector which records the
   ! row permutation effected by the partial pivoting; D id output as +1 or -1
   ! depending on whether the number of row interchanges was odd or even,
-  ! respectively. This routine is used in combination with LUBackSubstitution 
+  ! respectively. This routine is used in combination with LUBackSubstitution
   ! to solve linear equations or invert a matrix.
-  ! 
+  !
 
   implicit none
 
@@ -679,12 +681,12 @@ end subroutine LUDecomposition1
 ! ************************************************************************** !
 
 subroutine LUBackSubstitution(A,N,INDX,B)
-  ! 
+  !
   ! Solves the set of N linear equations A.X=D. Here A is input, not as a matrix
   ! A but rather as its LU decomposition. INDX is the input as the permutation
-  ! vector returned by LUDecomposition. B is input as the right-hand side 
+  ! vector returned by LUDecomposition. B is input as the right-hand side
   ! vector B, and returns with the solution vector X.
-  ! 
+  !
 
   implicit none
 
@@ -726,15 +728,15 @@ end subroutine LUBackSubstitution
 ! ************************************************************************** !
 
 subroutine LUDecomposition_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
-  ! 
+  !
   ! Given an NxN matrix A, with physical dimension NP, this routine replaces it
   ! by the LU decomposition of a rowwise permutation of itself.
   ! A and N are input. A is output; INDX is output vector which records the
   ! row permutation effected by the partial pivoting; D id output as +1 or -1
   ! depending on whether the number of row interchanges was odd or even,
-  ! respectively. This routine is used in combination with LUBackSubstitution 
+  ! respectively. This routine is used in combination with LUBackSubstitution
   ! to solve linear equations or invert a matrix.
-  ! 
+  !
 
   implicit none
 
@@ -751,7 +753,7 @@ subroutine LUDecomposition_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
   PetscReal :: aamax, sum, dum
   PetscMPIInt ::  rank
   PetscErrorCode :: ierr
-  
+
   PetscInt :: ichunk
 
   do ichunk = 1, chunk_size
@@ -810,9 +812,9 @@ subroutine LUDecomposition_chunk(A,N,INDX,D,chunk_size,ithread,num_threads)
       enddo
     endif
   enddo
-  
+
   enddo ! chunk loop
-  
+
   return
 
 end subroutine LUDecomposition_chunk
@@ -820,12 +822,12 @@ end subroutine LUDecomposition_chunk
 ! ************************************************************************** !
 
 subroutine LUBackSubstitution_chunk(A,N,INDX,B,chunk_size,ithread,num_threads)
-  ! 
+  !
   ! Solves the set of N linear equations A.X=D. Here A is input, not as a matrix
   ! A but rather as its LU decomposition. INDX is the input as the permutation
-  ! vector returned bu LUDecomposition. B is input as the right-hand side 
+  ! vector returned bu LUDecomposition. B is input as the right-hand side
   ! vector B, and returns with the solution vector X.
-  ! 
+  !
 
   implicit none
 
@@ -842,7 +844,7 @@ subroutine LUBackSubstitution_chunk(A,N,INDX,B,chunk_size,ithread,num_threads)
   PetscInt :: ichunk
 
   do ichunk = 1, chunk_size
-  
+
   ii=0
   do i=1,N
     ll=INDX(ichunk,ithread,i)
@@ -866,9 +868,9 @@ subroutine LUBackSubstitution_chunk(A,N,INDX,B,chunk_size,ithread,num_threads)
     endif
     B(ichunk,ithread,i)=sum/A(ichunk,ithread,i,i)
   enddo
-  
+
   enddo ! chunk loop
-  
+
   return
 
 end subroutine LUBackSubstitution_chunk
@@ -876,21 +878,21 @@ end subroutine LUBackSubstitution_chunk
 ! ************************************************************************** !
 
 subroutine Interpolate(x_high,x_low,x,y_high,y_low,y)
-  ! 
+  !
   ! Interpolates values between two reference values
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 02/09/09
-  ! 
+  !
 
   implicit none
 
   PetscReal :: x_high, x_low, x
   PetscReal :: y_high, y_low, y
-  
+
   PetscReal :: weight
   PetscReal :: x_diff
-  
+
   x_diff = x_high-x_low
   if (dabs(x_diff) < 1.d-10) then
     y = y_low
@@ -904,21 +906,21 @@ end subroutine Interpolate
 ! ************************************************************************** !
 
 subroutine GradientLinear(x_high,x_low,y_high,y_low,dy_dx)
-  ! 
+  !
   ! Computes linear gradient given two reference values
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 05/12/18
-  ! 
+  !
 
   implicit none
 
   PetscReal, intent(in) :: x_high, x_low
   PetscReal, intent(in) :: y_high, y_low
   PetscReal, intent(out) :: dy_dx
-  
+
   PetscReal :: x_diff
-  
+
   x_diff = x_high-x_low
   if (dabs(x_diff) < 1.d-10) then
     dy_dx = 0.0
@@ -931,27 +933,27 @@ end subroutine GradientLinear
 ! ************************************************************************** !
 
 function InterpolateBilinear(x,y,x1,x2,y1,y2,z1,z2,z3,z4)
-  ! 
+  !
   ! Interpolates values between four reference values in 2D
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/26/11
-  ! 
+  !
 
   implicit none
 
   PetscReal :: x,y,x1,x2,y1,y2,z1,z2,z3,z4
   PetscReal :: InterpolateBilinear
-  
-  
+
+
   !  x1,y2,z3 ------ x2,y2,z4
   !     |               |
   !     |               |
   !     |   x,y         |
   !     |               |
   !  x1,y1,z1 ------ x2,y1,z2
-  
-  
+
+
   InterpolateBilinear = (z1*(x2-x)*(y2-y)+z2*(x-x1)*(y2-y)+ &
                          z3*(x2-x)*(y-y1)+z4*(x-x1)*(y-y1))/ &
                         ((x2-x1)*(y2-y1))
@@ -961,19 +963,19 @@ end function InterpolateBilinear
 ! ************************************************************************** !
 
 function DotProduct1(v1,v2)
-  ! 
+  !
   ! Computes the dot product between two 3d vectors
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/28/07
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: v1(3), v2(3)
-  
+
   PetscReal :: DotProduct1
-  
+
   DotProduct1 = v1(1)*v2(1)+v1(2)*v2(2)+v1(3)*v2(3)
 
 end function DotProduct1
@@ -981,19 +983,19 @@ end function DotProduct1
 ! ************************************************************************** !
 
 function DotProduct2(v1,v2x,v2y,v2z)
-  ! 
+  !
   ! Computes the dot product between two 3d vectors
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/28/07
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: v1(3), v2x, v2y, v2z
-  
+
   PetscReal :: DotProduct2
-  
+
   DotProduct2 = v1(1)*v2x+v1(2)*v2y+v1(3)*v2z
 
 end function DotProduct2
@@ -1001,20 +1003,20 @@ end function DotProduct2
 ! ************************************************************************** !
 
 function DotProduct3(v1x,v1y,v1z,v2x,v2y,v2z)
-  ! 
+  !
   ! Computes the dot product between components of two 3d
   ! vectors
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/28/07
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: v1x, v1y, v1z, v2x, v2y, v2z
-  
+
   PetscReal :: DotProduct3
-  
+
   DotProduct3 = v1x*v2x+v1y*v2y+v1z*v2z
 
 end function DotProduct3
@@ -1022,19 +1024,19 @@ end function DotProduct3
 ! ************************************************************************** !
 
 function CrossProduct1(v1,v2)
-  ! 
+  !
   ! Computes the cross product between two 3d vectors
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/30/09
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: v1(3), v2(3)
-  
+
   PetscReal :: CrossProduct1(3)
-  
+
   CrossProduct1(1) = v1(2)*v2(3)-v1(3)*v2(2)
   CrossProduct1(2) = v1(3)*v2(1)-v1(1)*v2(3)
   CrossProduct1(3) = v1(1)*v2(2)-v1(2)*v2(1)
@@ -1044,25 +1046,25 @@ end function CrossProduct1
 ! ************************************************************************** !
 
 function Erf_(x)
-  ! 
+  !
   ! Computes an approximate to erf(x)
   ! from: http://jin.ece.uiuc.edu/routines/merror.for
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/20/09
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: x
-  
+
   PetscReal :: Erf_
 
   PetscReal, parameter :: EPS = 1.d-15
   PetscReal, parameter :: PI=3.141592653589793d0
   PetscReal :: x2, er, r, co
   PetscInt :: k
-  
+
   x2=x*x
   if (dabs(x) < 3.5d0) then
     er=1.d0
@@ -1113,13 +1115,13 @@ subroutine InverseNorm(p,invnormdist,calculate_derivative,dinvnormdist_dp)
   ! # Time-stamp:  2000-07-19 18:26:14
   ! # E-mail:      pjacklam@online.no
   ! # WWW URL:     http://home.online.no/~pjacklam
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/20/09
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal, intent(in) :: p
   PetscReal, intent(out) :: invnormdist
   PetscBool, intent(in) :: calculate_derivative
@@ -1130,7 +1132,7 @@ subroutine InverseNorm(p,invnormdist,calculate_derivative,dinvnormdist_dp)
   PetscReal :: dX_dr, dZ_dr
   PetscReal :: dr_dq
   PetscReal :: dq_dp
-  
+
  ! Coefficients in rational approximations.
   PetscReal, parameter :: A(6) = (/-3.969683028665376d+1,2.209460984245205d+2, &
                                   -2.759285104469687d+2,1.383577518672690d+2, &
@@ -1198,25 +1200,25 @@ end subroutine InverseNorm
 ! ************************************************************************** !
 
 subroutine UtilityReadIntArray(array,array_size,comment,input,option)
-  ! 
+  !
   ! Reads an array of integers from an input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/30/11
-  ! 
+  !
 
   use Input_Aux_module
   use String_module
   use Option_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: comment
   PetscInt :: array_size
   PetscInt, pointer :: array(:)
-  
+
   PetscInt :: i, num_values, icount
   type(input_type), pointer :: input2
   character(len=MAXSTRINGLENGTH) :: string2
@@ -1231,14 +1233,14 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
   err_string = trim(comment) // ',UtilityReadIntArray'
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
-  
+
   temp_array_size = 1000
   if (array_size > 0) then
     temp_array_size = array_size
   endif
   allocate(temp_array(temp_array_size))
   temp_array = 0
-  
+
   input%ierr = 0
   if (len_trim(input%buf) > 0) then
     string2 = trim(input%buf)
@@ -1259,12 +1261,14 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
   else
     input2 => input
   endif
-  
+
   if (.not. len_trim(input2%buf) > 1) then
     call InputReadPflotranString(input2,option)
     call InputReadStringErrorMsg(input2,option,comment)
   endif
-  
+
+  call UtilityEnforceUseOfContinuation(input2,option,comment)
+
   icount = 0
   do
 
@@ -1272,7 +1276,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
     if (index(input2%buf,backslash) > 0) &
       continuation_flag = PETSC_TRUE
 
-    do 
+    do
       call InputReadWord(input2,option,word,PETSC_TRUE)
       if (InputError(input2) .or. &
           StringCompare(word,backslash,ONE_INTEGER)) exit
@@ -1289,7 +1293,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
         call InputErrorMsg(input2,option,'value',err_string)
         do while (icount+num_values > temp_array_size)
           ! careful.  ReallocateArray double temp_array_size every time.
-          call ReallocateArray(temp_array,temp_array_size) 
+          call ReallocateArray(temp_array,temp_array_size)
         enddo
         do i=1, num_values
           icount = icount + 1
@@ -1302,7 +1306,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
         icount = icount + 1
         if (icount > temp_array_size) then
           ! careful.  ReallocateArray double temp_array_size every time.
-          call ReallocateArray(temp_array,temp_array_size) 
+          call ReallocateArray(temp_array,temp_array_size)
         endif
         temp_array(icount) = value
       endif
@@ -1344,12 +1348,12 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
       endif
     endif
   enddo
-  
+
   if (array_size > 0) icount = array_size
-  
+
   if (.not.associated(input2,input)) call InputDestroy(input2)
   nullify(input2)
-  
+
   if (associated(array)) deallocate(array)
   allocate(array(icount))
   array(1:icount) = temp_array(1:icount)
@@ -1361,26 +1365,26 @@ end subroutine UtilityReadIntArray
 ! ************************************************************************** !
 
 subroutine UtilityReadRealArray(array,array_size,comment,input,option)
-  ! 
+  !
   ! Reads an array of double precision numbers from the
   ! input file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 05/21/09
-  ! 
+  !
 
   use Input_Aux_module
   use String_module
   use Option_module
-  
+
   implicit none
-  
+
   type(option_type) :: option
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: comment
   PetscInt :: array_size
   PetscReal, pointer :: array(:)
-  
+
   PetscInt :: i, num_values, icount
   type(input_type), pointer :: input2
   character(len=MAXSTRINGLENGTH) :: string2
@@ -1395,14 +1399,14 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
   err_string = trim(comment) // ',UtilityReadRealArray'
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
-  
+
   temp_array_size = 1000
   if (array_size > 0) then
     temp_array_size = array_size
   endif
   allocate(temp_array(temp_array_size))
   temp_array = 0.d0
-  
+
   input%ierr = 0
   if (len_trim(input%buf) > 0) then
     string2 = trim(input%buf)
@@ -1423,11 +1427,13 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
   else
     input2 => input
   endif
-  
+
   if (.not. len_trim(input2%buf) > 1) then
     call InputReadPflotranString(input2,option)
     call InputReadStringErrorMsg(input2,option,comment)
   endif
+
+  call UtilityEnforceUseOfContinuation(input2,option,comment)
 
   icount = 0
   do
@@ -1436,7 +1442,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
     if (index(input2%buf,backslash) > 0) &
       continuation_flag = PETSC_TRUE
 
-    do 
+    do
       call InputReadWord(input2,option,word,PETSC_TRUE)
       if (InputError(input2) .or. &
           StringCompare(word,backslash,ONE_INTEGER)) exit
@@ -1453,7 +1459,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
         call InputErrorMsg(input2,option,'value',err_string)
         do while (icount+num_values > temp_array_size)
           ! careful.  ReallocateArray double temp_array_size every time.
-          call ReallocateArray(temp_array,temp_array_size) 
+          call ReallocateArray(temp_array,temp_array_size)
         enddo
         do i=1, num_values
           icount = icount + 1
@@ -1466,7 +1472,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
         icount = icount + 1
         if (icount > temp_array_size) then
           ! careful.  ReallocateArray double temp_array_size every time.
-          call ReallocateArray(temp_array,temp_array_size) 
+          call ReallocateArray(temp_array,temp_array_size)
         endif
         temp_array(icount) = value
       endif
@@ -1508,12 +1514,12 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
       endif
     endif
   enddo
-  
+
   if (array_size > 0) icount = array_size
-  
+
   if (.not.associated(input2,input)) call InputDestroy(input2)
   nullify(input2)
-  
+
   if (associated(array)) deallocate(array)
   allocate(array(icount))
   array(1:icount) = temp_array(1:icount)
@@ -1524,18 +1530,58 @@ end subroutine UtilityReadRealArray
 
 ! ************************************************************************** !
 
-function SearchOrderedArray(array,array_length,int_value)
-  ! 
-  ! Locates an integer value in an ordered array and
-  ! returned the index
-  ! 
+subroutine UtilityEnforceUseOfContinuation(input,option,comment)
+  !
+  ! Checks for excessively long strings being read by UtilityReadArray
+  ! and forces user to use continuation ('\')
+  !
   ! Author: Glenn Hammond
-  ! Date: 10/21/09
-  ! 
+  ! Date: 10/27/21
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
 
   implicit none
 
-  PetscInt :: array_length 
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: comment
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt, parameter :: max_char_in_line = 480
+
+  if (len_trim(input%buf) > max_char_in_line) then
+    word = StringWrite(max_char_in_line)
+    option%io_buffer = 'The number of characters in the input buffer in &
+      &UtilityReadIntArray() exceeds ' // trim(word)
+    if (len_trim(comment) > 0) then
+      option%io_buffer = trim(option%io_buffer) // &
+      ' for "' // trim(comment) // '"'
+    endif
+    option%io_buffer = trim(option%io_buffer) // &
+      '. Please shorten input file lines to less than ' // trim(word) // &
+      ' characters and append a backslash ("\") for continuation. Search &
+      &on "backslash" in the PFLOTRAN documentation for more info.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine
+
+! ************************************************************************** !
+
+function SearchOrderedArray(array,array_length,int_value)
+  !
+  ! Locates an integer value in an ordered array and
+  ! returned the index
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/21/09
+  !
+
+  implicit none
+
+  PetscInt :: array_length
   PetscInt :: array(array_length)
   PetscInt :: int_value
 
@@ -1552,16 +1598,16 @@ function SearchOrderedArray(array,array_length,int_value)
   i = array_length/2
   if (i == 0) i = 1
 
-  do 
+  do
     array_value = array(i)
     if (array_value == int_value) then
       SearchOrderedArray = i
       return
     endif
     if (array_value > int_value) then
-      upper_bound = i 
+      upper_bound = i
     else
-      lower_bound = i 
+      lower_bound = i
     endif
     i = lower_bound + (upper_bound-lower_bound) / 2
     if (i == lower_bound) then
@@ -1576,19 +1622,19 @@ end function SearchOrderedArray
 ! ************************************************************************** !
 
 function FileExists(filename)
-  ! 
+  !
   ! Returns PETSC_TRUE if file exists
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/27/11
-  ! 
+  !
 
   implicit none
-  
+
   PetscBool :: FileExists
 
   character(len=*) :: filename
-  
+
   inquire(file=filename,exist=FileExists)
 
 end function FileExists
@@ -1596,24 +1642,24 @@ end function FileExists
 ! ************************************************************************** !
 
 function Equal(value1, value2)
-  ! 
+  !
   ! Returns PETSC_TRUE if values are equal
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/27/11
-  ! 
+  !
 
   implicit none
-  
+
   PetscBool :: Equal
 
   PetscReal :: value1, value2
 
   Equal = PETSC_FALSE
 
-  ! using "abs(x) < spacing(y)/2.0" consistently gives same response as 
-  ! "x == y" for reals using both gfortran and intel compilers for y 
-  ! around 0.0 and 1.0 this is setup assuming the "correct value" is on 
+  ! using "abs(x) < spacing(y)/2.0" consistently gives same response as
+  ! "x == y" for reals using both gfortran and intel compilers for y
+  ! around 0.0 and 1.0 this is setup assuming the "correct value" is on
   ! the RHS (second arg)
 
 !  if (dabs(value1 - value2) < spacing(value2)/2.d0) Equal = PETSC_TRUE
@@ -1625,7 +1671,7 @@ function Equal(value1, value2)
   !     of dabs() by 2.d0
 
   if (2.d0*dabs(value1 - value2) < spacing(value2)) Equal = PETSC_TRUE
-  
+
 end function Equal
 
 ! ************************************************************************** !
@@ -1639,7 +1685,7 @@ function InitToNan()
   ! Date  : Jun 2018
   !----------------------------------------------------------------------------
   implicit none
- 
+
   PetscReal :: InitToNan
   InitToNan = 0.0
   InitToNan = 1.0/InitToNan
@@ -1652,15 +1698,15 @@ end function InitToNan
 ! ************************************************************************** !
 
 function BestFloat(float,upper_bound,lower_bound)
-  ! 
+  !
   ! Returns the best format for a floating point number
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/21/11
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: float
   PetscReal :: upper_bound
   PetscReal :: lower_bound
@@ -1668,7 +1714,7 @@ function BestFloat(float,upper_bound,lower_bound)
   character(len=MAXWORDLENGTH) :: BestFloat
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: i
-  
+
 100 format(f12.3)
 101 format(es12.2)
 102 format(es12.4)
@@ -1688,21 +1734,21 @@ function BestFloat(float,upper_bound,lower_bound)
   else
     write(word,102) float
   endif
-  
+
   BestFloat = adjustl(word)
-  
+
 end function BestFloat
 
 ! ************************************************************************** !
 
 subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
                                     derivative_at_1)
-  ! 
+  !
   ! Sets up a quadratic polynomial for smoothing discontinuous functions
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 04/25/14
-  ! 
+  !
 
   implicit none
 
@@ -1710,7 +1756,7 @@ subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
   PetscReal :: value_2
   PetscReal :: coefficients(3)
   PetscBool :: derivative_at_1
-  
+
   PetscReal :: A(3,3)
   PetscInt :: indx(3)
   PetscInt :: d
@@ -1718,11 +1764,11 @@ subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
   A(1,1) = 1.d0
   A(2,1) = 1.d0
   A(3,1) = 0.d0
-  
+
   A(1,2) = value_1
   A(2,2) = value_2
   A(3,2) = 1.d0
-  
+
   A(1,3) = value_1**2.d0
   A(2,3) = value_2**2.d0
   if (derivative_at_1) then
@@ -1730,11 +1776,11 @@ subroutine QuadraticPolynomialSetup(value_1,value_2,coefficients, &
   else
     A(3,3) = 2.d0*value_2
   endif
-  
+
   ! coefficients(1): value at 1
   ! coefficients(2): value at 2
   ! coefficients(3): derivative at 1 or 2
-  
+
   call LUDecomposition(A,THREE_INTEGER,indx,d)
   call LUBackSubstitution(A,THREE_INTEGER,indx,coefficients)
 
@@ -1743,12 +1789,12 @@ end subroutine QuadraticPolynomialSetup
 ! ************************************************************************** !
 
 subroutine QuadraticPolynomialEvaluate(coefficients,x,f,df_dx)
-  ! 
+  !
   ! Evaluates value in quadratic polynomial
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/12/12
-  ! 
+  !
 
   implicit none
 
@@ -1760,18 +1806,18 @@ subroutine QuadraticPolynomialEvaluate(coefficients,x,f,df_dx)
   f = coefficients(1) + &
       coefficients(2)*x + &
       coefficients(3)*x*x
-  
+
   df_dx = coefficients(2) + &
           coefficients(3)*2.d0*x
-  
+
 end subroutine QuadraticPolynomialEvaluate
 
 ! ************************************************************************** !
 
 subroutine CubicPolynomialSetup(value_1,value_2,coefficients)
-  ! 
+  !
   ! Sets up a cubic polynomial for smoothing discontinuous functions
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/12/12
 
@@ -1780,7 +1826,7 @@ subroutine CubicPolynomialSetup(value_1,value_2,coefficients)
   PetscReal :: value_1
   PetscReal :: value_2
   PetscReal :: coefficients(4)
-  
+
   PetscReal :: A(4,4)
   PetscInt :: indx(4)
   PetscInt :: d
@@ -1789,27 +1835,27 @@ subroutine CubicPolynomialSetup(value_1,value_2,coefficients)
   A(2,1) = 1.d0
   A(3,1) = 0.d0
   A(4,1) = 0.d0
-  
+
   A(1,2) = value_1
   A(2,2) = value_2
   A(3,2) = 1.d0
   A(4,2) = 1.d0
-  
+
   A(1,3) = value_1**2.d0
   A(2,3) = value_2**2.d0
   A(3,3) = 2.d0*value_1
   A(4,3) = 2.d0*value_2
-  
+
   A(1,4) = value_1**3.d0
   A(2,4) = value_2**3.d0
   A(3,4) = 3.d0*value_1**2.d0
   A(4,4) = 3.d0*value_2**2.d0
-  
+
   ! coefficients(1): value at 1
   ! coefficients(2): value at 2
   ! coefficients(3): derivative at 1
   ! coefficients(4): derivative at 2
-  
+
   call LUDecomposition(A,FOUR_INTEGER,indx,d)
   call LUBackSubstitution(A,FOUR_INTEGER,indx,coefficients)
 
@@ -1818,12 +1864,12 @@ end subroutine CubicPolynomialSetup
 ! ************************************************************************** !
 
 subroutine CubicPolynomialEvaluate(coefficients,x,f,df_dx)
-  ! 
+  !
   ! Evaluates value in cubic polynomial
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/12/12
-  ! 
+  !
 
   implicit none
 
@@ -1833,34 +1879,34 @@ subroutine CubicPolynomialEvaluate(coefficients,x,f,df_dx)
   PetscReal :: df_dx
 
   PetscReal :: x_squared
-  
+
   x_squared = x*x
-  
+
   f = coefficients(1) + &
       coefficients(2)*x + &
       coefficients(3)*x_squared + &
       coefficients(4)*x_squared*x
-  
+
   df_dx = coefficients(2) + &
           coefficients(3)*2.d0*x + &
           coefficients(4)*3.d0*x_squared
-  
+
 end subroutine CubicPolynomialEvaluate
 
 ! ************************************************************************** !
 
 subroutine DeallocateArray1DInteger(array)
-  ! 
+  !
   ! Deallocates a 1D integer array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt, pointer :: array(:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -1869,17 +1915,17 @@ end subroutine DeallocateArray1DInteger
 ! ************************************************************************** !
 
 subroutine DeallocateArray2DInteger(array)
-  ! 
+  !
   ! Deallocates a 2D integer array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt, pointer :: array(:,:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -1888,17 +1934,17 @@ end subroutine DeallocateArray2DInteger
 ! ************************************************************************** !
 
 subroutine DeallocateArray3DInteger(array)
-  ! 
+  !
   ! Deallocates a 3D integer array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscInt, pointer :: array(:,:,:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -1907,17 +1953,17 @@ end subroutine DeallocateArray3DInteger
 ! ************************************************************************** !
 
 subroutine DeallocateArray1DReal(array)
-  ! 
+  !
   ! Deallocates a 1D real array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal, pointer :: array(:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -1926,17 +1972,17 @@ end subroutine DeallocateArray1DReal
 ! ************************************************************************** !
 
 subroutine DeallocateArray2DReal(array)
-  ! 
+  !
   ! Deallocates a 2D real array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal, pointer :: array(:,:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -1945,17 +1991,17 @@ end subroutine DeallocateArray2DReal
 ! ************************************************************************** !
 
 subroutine DeallocateArray3DReal(array)
-  ! 
+  !
   ! Deallocates a 3D real array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal, pointer :: array(:,:,:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -1983,17 +2029,17 @@ end subroutine DeallocateArray4DReal
 ! ************************************************************************** !
 
 subroutine DeallocateArray1DLogical(array)
-  ! 
+  !
   ! Deallocates a 1D logical array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscBool, pointer :: array(:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -2002,17 +2048,17 @@ end subroutine DeallocateArray1DLogical
 ! ************************************************************************** !
 
 subroutine DeallocateArray2DLogical(array)
-  ! 
+  !
   ! Deallocates a 2D logical array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscBool, pointer :: array(:,:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -2021,17 +2067,17 @@ end subroutine DeallocateArray2DLogical
 ! ************************************************************************** !
 
 subroutine DeallocateArray3DLogical(array)
-  ! 
+  !
   ! Deallocates a 3D logical array
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   PetscBool, pointer :: array(:,:,:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -2040,17 +2086,17 @@ end subroutine DeallocateArray3DLogical
 ! ************************************************************************** !
 
 subroutine DeallocateArray1DString(array)
-  ! 
+  !
   ! Deallocates a 1D array of character strings
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/13/12
-  ! 
+  !
 
   implicit none
-  
+
   character(len=MAXWORDLENGTH), pointer :: array(:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -2059,17 +2105,17 @@ end subroutine DeallocateArray1DString
 ! ************************************************************************** !
 
 subroutine DeallocateArray2DString(array)
-  ! 
+  !
   ! Deallocates a 2D array of character strings
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 10/30/12
-  ! 
+  !
 
   implicit none
-  
+
   character(len=MAXWORDLENGTH), pointer :: array(:,:)
-  
+
   if (associated(array)) deallocate(array)
   nullify(array)
 
@@ -2078,7 +2124,7 @@ end subroutine DeallocateArray2DString
 ! ************************************************************************** !
 
 subroutine ConvertMatrixToVector(A,vecA)
-  ! 
+  !
   ! Converts a given matrix A to a vec
   ! This vec is different from PETSc Vec
   ! A = [a1 a2 a3 .... am], where ai, i = 1, m are the columns
@@ -2088,20 +2134,20 @@ subroutine ConvertMatrixToVector(A,vecA)
   ! .
   ! .
   ! am]
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 6/19/2013
-  ! 
+  !
 
   PetscReal :: A(:,:)
   PetscReal, allocatable :: vecA(:,:)
   PetscInt :: m, n
-  
+
   m = size(A,1)
   n = size(A,2)
-  
+
   allocate(vecA(m*n,ONE_INTEGER))
-  
+
   vecA = reshape(A,(/m*n,ONE_INTEGER/))
 
 end subroutine ConvertMatrixToVector
@@ -2109,28 +2155,28 @@ end subroutine ConvertMatrixToVector
 ! ************************************************************************** !
 
 subroutine Kron(A,B,K)
-  ! 
+  !
   ! Returns the Kronecker product of two matrices A, B
   ! Reference: The ubiquitous Kronecker product, by Charles F.Van Loan
   ! for basics of Kronecker product
   ! Also see wikipedia page: http://en.wikipedia.org/wiki/Kronecker_product
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 6/19/2013
-  ! 
+  !
 
   PetscReal :: A(:,:),B(:,:)
   PetscReal, allocatable :: K(:,:)
   PetscInt :: mA,nA,mB,nB
   PetscInt :: iA,jA,iB,jB,iK,jK
-  
+
   mA = size(A,1)
   nA = size(A,2)
   mB = size(B,1)
   nB = size(B,2)
-  
+
   allocate(K(mA*mB,nA*nB))
-  
+
   do iB = 1, mB
     do jB = 1, nB
       do iA = 1, mA
@@ -2142,28 +2188,28 @@ subroutine Kron(A,B,K)
       enddo
     enddo
   enddo
-  
+
 end subroutine Kron
 
 ! ************************************************************************** !
 
 subroutine Transposer(m,n,T)
-  ! 
+  !
   ! Transposer Converts vec of a matrix to vec of its transpose
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 6/19/2013
-  ! 
+  !
 
   PetscReal, allocatable :: T(:,:)
   PetscInt :: m,n
   PetscInt :: i,j
   PetscReal :: A(m,n)
   PetscReal, allocatable :: vecA(:,:)
-  
+
   allocate(T(m*n,m*n))
   T = 0.d0
-  
+
   do i = 1,m
     do j = 1,n
       A = 0.d0
@@ -2173,26 +2219,26 @@ subroutine Transposer(m,n,T)
       deallocate(vecA)
     enddo
   enddo
-  
+
 end subroutine Transposer
 
 ! ************************************************************************** !
 
 subroutine Determinant(A,detA)
-  ! 
+  !
   ! Determinant of a 3x3 matrix
-  ! 
+  !
   ! Author: Satish Karra, LANL
   ! Date: 6/24/2013
-  ! 
+  !
 
   PetscReal :: A(3,3)
-  PetscReal :: detA  
- 
+  PetscReal :: detA
+
   detA = A(1,1)*(A(2,2)*A(3,3) - A(3,2)*A(2,3)) &
        + A(1,2)*(A(3,1)*A(2,3) - A(2,1)*A(3,3))  &
        + A(1,3)*(A(2,1)*A(3,2) - A(3,1)*A(2,2))
-  
+
 
 end subroutine Determinant
 
@@ -2200,16 +2246,16 @@ end subroutine Determinant
 subroutine InterfaceApproxWithDeriv(v_up, v_dn, dv_up, dv_dn, dv_up2dn, &
                                     approx_type, v_interf, &
                                     dv_interf_dv_up, dv_interf_dv_dn)
-  ! 
+  !
   ! Approximates interface value and it's derivative from values specified
   ! up and down of a face based on the approximation type
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 05/05/2014
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal, intent(in) :: v_up, v_dn
   PetscReal, intent(in) :: dv_up, dv_dn
   PetscReal, intent(in) :: dv_up2dn
@@ -2263,16 +2309,16 @@ end subroutine InterfaceApproxWithDeriv
 
 subroutine InterfaceApproxWithoutDeriv(v_up, v_dn, dv_up2dn, &
                                        approx_type, v_interf)
-  ! 
+  !
   ! Approximates interface value from values specified
   ! up and down of a face based on the approximation type
-  ! 
+  !
   ! Author: Gautam Bisht, LBL
   ! Date: 05/05/2014
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal, intent(in) :: v_up, v_dn
   PetscReal, intent(in) :: dv_up2dn
   PetscInt, intent(in) :: approx_type
@@ -2291,17 +2337,17 @@ end subroutine InterfaceApproxWithoutDeriv
 ! ************************************************************************** !
 
 subroutine PrintProgressBarInt(max_value,increment,current)
-  ! 
+  !
   ! Prints a piece of a progress bar to the screen based on the maximum
   ! value, the increment of progress (must be given in percent), and the
   ! current value.
-  ! 
+  !
   ! Author: Jenn Frederick, SNL
   ! Date: 03/16/2016
-  ! 
+  !
 
   implicit none
-  
+
   PetscReal :: max_value
   PetscInt :: increment
   PetscInt :: current
@@ -2328,7 +2374,7 @@ subroutine PrintProgressBarInt(max_value,increment,current)
         write(*,'(a4)',advance='no') trim(adjustl(percent_num)) // '%-'
         if (g == 100) write(*,*) '  Done.'
       endif
-    enddo   
+    enddo
   endif
 
 end subroutine PrintProgressBarInt
@@ -2338,16 +2384,16 @@ end subroutine PrintProgressBarInt
 function DigitsOfAccuracy(num1,num2)
 
   implicit none
-  
+
   PetscReal :: num1
   PetscReal :: num2
-  
+
   character(len=2) :: DigitsOfAccuracy
-  
+
   PetscReal :: tempreal
   PetscReal :: relative_difference
   PetscInt :: tempint
-  
+
   DigitsOfAccuracy = ' 0'
   if (dabs(num1) > 0.d0 .and. dabs(num2) > 0.d0) then
     relative_difference = dabs((num1-num2)/num2)
@@ -2372,39 +2418,39 @@ function DigitsOfAccuracy(num1,num2)
     ! double zeros.
     DigitsOfAccuracy = '  '
   endif
-    
+
 end function DigitsOfAccuracy
 
 ! ************************************************************************** !
 
 subroutine CalcParallelSUM1(option,rank_list,local_val,global_sum)
-  ! 
+  !
   ! Calculates global sum for a MPI_DOUBLE_PRECISION number (local_val).
-  ! This function uses only MPI_Send and MPI_Recv functions and does not need 
-  ! a communicator object other than option%mycomm. It reduces communication 
+  ! This function uses only MPI_Send and MPI_Recv functions and does not need
+  ! a communicator object other than option%mycomm. It reduces communication
   ! to the processes that are included in the rank_list array rather than using
   ! a call to MPI_Allreduce.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 07/05/2017
-  
+
   use Option_module
-  
+
   implicit none
-  
+
   type(option_type), pointer :: option
   PetscInt :: rank_list(:)
   PetscReal :: local_val
   PetscReal :: global_sum
-  
+
   PetscReal :: passed_local_val(1)
   PetscReal :: passed_global_val(1)
-  
+
   passed_local_val(1) = local_val
   passed_global_val(1) = 0.d0
-  
+
   call CalcParallelSUM2(option,rank_list,passed_local_val,passed_global_val)
-  
+
   global_sum = passed_global_val(1)
 
 end subroutine CalcParallelSUM1
@@ -2412,20 +2458,20 @@ end subroutine CalcParallelSUM1
 ! ************************************************************************** !
 
 subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
-  ! 
+  !
   ! Calculates global sum for a MPI_DOUBLE_PRECISION number (local_val).
-  ! This function uses only MPI_Send and MPI_Recv functions and does not need 
-  ! a communicator object other than option%mycomm. It reduces communication 
+  ! This function uses only MPI_Send and MPI_Recv functions and does not need
+  ! a communicator object other than option%mycomm. It reduces communication
   ! to the processes that are included in the rank_list array rather than using
   ! a call to MPI_Allreduce.
-  ! 
+  !
   ! Author: Jenn Frederick
   ! Date: 03/23/17, 07/05/2017
-  
+
   use Option_module
-  
+
   implicit none
-  
+
   type(option_type), pointer :: option
   PetscInt :: rank_list(:)
   PetscReal :: local_val(:)
@@ -2436,17 +2482,17 @@ subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
   PetscInt :: m, j
   PetscInt :: TAG
   PetscErrorCode :: ierr
-  
+
   num_ranks = size(rank_list)
   val_size = size(local_val)
   allocate(temp_array(num_ranks))
   TAG = 0
-  
+
   if (num_ranks > 1) then
   !------------------------------------------
     temp_array = 0.d0
     do j = 1,val_size
-  
+
       if (option%myrank .ne. rank_list(1)) then
         call MPI_Send(local_val(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                       rank_list(1),TAG,option%mycomm,ierr)
@@ -2467,14 +2513,14 @@ subroutine CalcParallelSUM2(option,rank_list,local_val,global_sum)
       else
         call MPI_Recv(global_sum(j),ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                       rank_list(1),TAG,option%mycomm,MPI_STATUS_IGNORE,ierr)
-      endif             
-    
+      endif
+
     enddo
-  !------------------------------------------        
-  else 
+  !------------------------------------------
+  else
     global_sum = local_val
   endif
-  
+
   deallocate(temp_array)
 
 end subroutine CalcParallelSUM2
@@ -2494,7 +2540,7 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
   PetscReal, dimension(1:n, 1:m) :: a1, a2
   PetscReal :: tol,reltol
   PetscBool :: flagged_err
-  !PetscBool :: do_rel_err 
+  !PetscBool :: do_rel_err
 
   PetscInt :: i, j
   PetscReal :: dff,reldff
@@ -2504,7 +2550,7 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
 
   do i = 1,n
     do j = 1,m
-      dff = abs(a1(i,j) - a2(i,j)) 
+      dff = abs(a1(i,j) - a2(i,j))
       reldff = dff/abs(a1(i,j))
 
 
@@ -2523,7 +2569,7 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
 
 
     end do
-  end do 
+  end do
 
 end subroutine MatCompare
 
@@ -2553,7 +2599,7 @@ end function ArrayIsSMonotonicInc
 ! ************************************************************************** !
 
 function expm1(x)
-  
+
   !a fortran version of expm1 from Math stack exchange, called "William Kahan's trick"
 
   implicit none
@@ -2574,5 +2620,53 @@ function expm1(x)
 
 end function expm1
 
-  
+! ************************************************************************** !
+
+subroutine PrintHeader(header,option)
+  !
+  ! Prints a header to screen and/or file output
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/19/21
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  character(len=*) :: header
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (len_trim(header) == 0) then
+    option%io_buffer = 'Empty headers in utility.F90:PrintHeader().'
+    call PrintErrMsg(option)
+  endif
+  string = '(2("=")," ' // trim(header) // ' ",' // &
+           trim(StringWrite(80-len_trim(header)-4)) // '("="))'
+  write(string,string)
+  call OptionPrint('',option)
+  call OptionPrint(string,option)
+
+end subroutine PrintHeader
+
+
+! ************************************************************************** !
+
+function UtilityTensorToScalar(dist,v)
+
+  implicit none
+
+  PetscReal :: UtilityTensorToScalar
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal :: v(3)
+
+  PetscReal :: d(3)
+
+  d = dist(1:3)**2
+  UtilityTensorToScalar = dot_product(v,d)
+
+end function UtilityTensorToScalar
+
 end module Utility_module

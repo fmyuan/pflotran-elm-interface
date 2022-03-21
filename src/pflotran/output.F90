@@ -913,6 +913,22 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 0 ! double
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         call OutputVariableAddToList(output_variable_list,output_variable)
+      case('ELECTRICAL_POTENTIAL_DIPOLE')
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        call InputReadInt(input,option,subvar)
+        call InputErrorMsg(input,option,'Electrical Potential #1', &
+                           'VARIABLES,ELECTRICAL_DIPOLE')
+        call InputReadInt(input,option,subsubvar)
+        call InputErrorMsg(input,option,'Electrical Potential #2', &
+                           'VARIABLES,ELECTRICAL_DIPOLE')
+        output_variable => OutputVariableCreate(name,category,units,id)
+        output_variable%iformat = 0 ! double
+        output_variable%plot_only = PETSC_TRUE
+        name = trim(name) // '_' // trim(adjustl(StringWrite(subvar))) // &
+               '_' // trim(adjustl(StringWrite(subsubvar)))
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     category,units,id,subvar,subsubvar)
       case('ELECTRICAL_POTENTIAL','ELECTRICAL_JACOBIAN')
         icount = 0
         do
@@ -1770,7 +1786,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
@@ -1930,7 +1946,7 @@ subroutine OutputPrintCouplersH5(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
@@ -2439,7 +2455,7 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
   ! Date: 03/02/17
   !
   use Option_module
-  use Material_Aux_class, only : soil_compressibility_index, &
+  use Material_Aux_module, only : soil_compressibility_index, &
                                  soil_reference_pressure_index
   use Variables_module
 

@@ -81,13 +81,14 @@ CHEMISTRY
 #      Kdeg  0.d0
 #      F_act 0.126d0
 #      F_act 1.d0
+      MOBILE_BIOMASS
       REFERENCE_TEMPERATURE 25.d0 ! degrees C
       ACTIVATION_ENERGY 89.d0 kJ/mol
       STORE_CONSUMPTION_PRODUCTION
       CARBON_CONSUMPTION_SPECIES C_consumption
     /
   /
-  DATABASE ./cybernetic.dat
+  DATABASE ../../../database/cybernetic.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   TRUNCATE_CONCENTRATION 1.d-40

@@ -1325,7 +1325,7 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
 
   call GeomechForceJacobianPatch(snes,xx,J,J,geomech_realization,ierr)
 
-  if (geomech_realization%geomech_debug%matview_Jacobian) then
+  if (geomech_realization%geomech_debug%matview_Matrix) then
     call PetscViewerASCIIOpen(geomech_realization%option%mycomm, &
                               'Geomech_jacobian.out', &
                               viewer,ierr);CHKERRQ(ierr)
@@ -1333,7 +1333,7 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-  if (geomech_realization%geomech_debug%norm_Jacobian) then
+  if (geomech_realization%geomech_debug%norm_Matrix) then
     option => geomech_realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm

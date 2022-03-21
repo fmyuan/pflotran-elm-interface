@@ -6,7 +6,7 @@ module Reaction_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module  
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   use Reaction_Surface_Complexation_module
   use Reaction_Mineral_module
@@ -1372,7 +1372,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   use Utility_module
   use Transport_Constraint_RT_module
   use EOS_Water_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   ! CO2-specific
   use co2eos_module, only: Henry_duan_sun
@@ -1382,7 +1382,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type), pointer :: reaction
   class(tran_constraint_rt_type) :: constraint
   PetscInt :: num_iterations
@@ -1447,7 +1447,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! CO2-specific
   PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,&
                yco2,pco2,sat_pressure,lngamco2
-  PetscInt :: iflag
+  PetscInt :: iflag, ierror
   PetscErrorCode :: ierr
 
   surface_complexation => reaction%surface_complexation
@@ -1962,9 +1962,20 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       use_log_formulation = PETSC_FALSE
     endif
 
-    ! iflag is a dummy error flag since stop_on_error = PETSC_TRUE
+    ! ierror is a dummy error flag since stop_on_error = PETSC_TRUE
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
-                use_log_formulation,PETSC_TRUE,iflag)
+                use_log_formulation,PETSC_FALSE,ierror)
+
+    if (ierror /= 0) then
+      option%io_buffer = 'A singular value was encountered while &
+        &decomposing the Jacobian within ReactionEquilibrateConstraint->&
+        &RSolve->LUDecomposition for CONSTRAINT "' // &
+        trim(constraint%name) // &
+        '". This is likely an indicator that the constraint is incorrect &
+        &or there are errors in the reaction DATABASE. Please consider &
+        &simplifying the constraint to better isolate and resolve the issue.'
+      call PrintErrMsgByRank(option)
+    endif
 
     prev_molal = rt_auxvar%pri_molal
 
@@ -2007,7 +2018,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           call PrintMsgByRank(option)
         endif
       enddo
-      option%io_buffer = 'Free ion concentations RESULTING from &
+      option%io_buffer = 'Free ion concentrations RESULTING from &
         &constraint concentrations must be positive.'
       call PrintErrMsgByRank(option)
     endif
@@ -2239,10 +2250,10 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         option%flow%reference_density(option%liquid_phase)
       global_auxvar%temp = option%flow%reference_temperature
       global_auxvar%sat(iphase) = option%flow%reference_saturation
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,PNF_MODE)
       global_auxvar%temp = option%flow%reference_temperature
   end select
-        
+
   bulk_vol_to_fluid_vol = option%flow%reference_porosity* &
                           global_auxvar%sat(iphase)*1000.d0
 
@@ -2254,7 +2265,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         sum_molality = sum_molality + rt_auxvar%pri_molal(icomp)
       endif
     enddo
-    if (reaction%neqcplx > 0) then    
+    if (reaction%neqcplx > 0) then
       do i = 1, reaction%neqcplx
         sum_molality = sum_molality + rt_auxvar%sec_molal(i)
       enddo
@@ -3379,7 +3390,7 @@ subroutine RJumpStartKineticSorption(rt_auxvar,global_auxvar, &
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
   PetscInt :: irate
@@ -3425,7 +3436,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: tran_xx(reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: num_iterations_
   PetscInt :: natural_id
   type(option_type) :: option
@@ -3657,7 +3668,7 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscBool :: derivative
   PetscReal :: Res(reaction%ncomp)
@@ -3731,7 +3742,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(reactive_transport_auxvar_type) :: rt_auxvar_pert
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -4204,7 +4215,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
@@ -4360,9 +4371,9 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
-  type(isotherm_rxn_type) :: isotherm_rxn
+  type(isotherm_rxn_type), pointer :: isotherm_rxn
   type(option_type) :: option
   
   call RZeroSorb(rt_auxvar)
@@ -4382,8 +4393,8 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   endif
   
   if (reaction%isotherm%neqkdrxn > 0) then
-      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction%isotherm, &
-                        isotherm_rxn,option)
+      call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar, &
+                        reaction%isotherm,isotherm_rxn,option)
   endif
   
 end subroutine RTotalSorb
@@ -4406,7 +4417,7 @@ subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(isotherm_rxn_type) :: isotherm_rxn
   type(option_type) :: option
@@ -4713,7 +4724,7 @@ subroutine RAccumulationSorb(rt_auxvar,global_auxvar,material_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
@@ -4746,7 +4757,7 @@ subroutine RAccumulationSorbDerivative(rt_auxvar,global_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
@@ -4787,7 +4798,7 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   
   PetscInt :: i, icomp, jcomp, irxn, ncomp
   PetscReal :: tempreal, sum, rate
@@ -4890,7 +4901,7 @@ subroutine RGeneral(Res,Jac,compute_derivative,rt_auxvar,global_auxvar, &
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   
   PetscReal :: ln_conc(reaction%naqcomp)
   PetscReal :: ln_act(reaction%naqcomp)
@@ -5054,10 +5065,13 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation, &
     enddo
   endif
 
+  ierror = 0
   call LUDecomposition(Jac,ncomp,indices,icomp,stop_on_error,ierror)
-  call LUBackSubstitution(Jac,ncomp,indices,rhs)
+  if (ierror == 0) then
+    call LUBackSubstitution(Jac,ncomp,indices,rhs)
+    update = rhs
+  endif
   
-  update = rhs
 
 end subroutine RSolve
 
@@ -5080,7 +5094,7 @@ subroutine ReactionComputeKd(icomp,retardation,rt_auxvar,global_auxvar, &
   PetscReal :: retardation
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
@@ -5126,7 +5140,7 @@ subroutine RAge(rt_auxvar,global_auxvar,material_auxvar,option,reaction,Res)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar 
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
@@ -5166,7 +5180,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   
 #if 0  
@@ -5263,7 +5277,7 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
@@ -5346,7 +5360,7 @@ subroutine RTAccumulationDerivative(rt_auxvar,global_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar  
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
@@ -5443,7 +5457,7 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   PetscReal :: residual(reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   
   PetscInt :: i, jj
@@ -5522,7 +5536,7 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar  
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
@@ -5722,7 +5736,7 @@ subroutine RTPrintAuxVar(file_unit,rt_auxvar,global_auxvar,material_auxvar,&
   ! Date: 05/18/11, 07/18/20
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
@@ -5731,7 +5745,7 @@ subroutine RTPrintAuxVar(file_unit,rt_auxvar,global_auxvar,material_auxvar,&
   class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: header_string
   type(option_type) :: option

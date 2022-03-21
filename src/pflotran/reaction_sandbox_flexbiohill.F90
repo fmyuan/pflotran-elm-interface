@@ -204,7 +204,7 @@ subroutine FlexBioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -216,7 +216,7 @@ subroutine FlexBioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp) ! [kg water / sec]
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: volume               ! [m^3 bulk volume]
@@ -251,7 +251,7 @@ subroutine FlexBioHillEvaluate(this,Residual,Jacobian,compute_derivative, &
   do icomp = 1, reaction%ncomp
     Residual(icomp) = Residual(icomp) - this%stoich(icomp) * I
   enddo
-  ! add due to negative stoichiometry for decay
+  ! Add due to negative stoichiometry for decay
   Residual(Xim_offset) = Residual(Xim_offset) + this%k_decay * Xim * volume
 
   if (compute_derivative) then

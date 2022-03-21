@@ -1,0 +1,32 @@
+#Description: 3D groundwater flow and solute transport
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        EXTERNAL_FILE zflow_standard_options.txt
+      /
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.d0
+    NUMERICAL_JACOBIAN
+  /
+
+END
+
+EXTERNAL_FILE ./reg_doublet.txt
+
+END_SUBSURFACE

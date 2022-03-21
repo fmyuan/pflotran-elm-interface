@@ -46,13 +46,13 @@ subroutine GeneralSetup(realization)
   use Connection_module
   use Grid_module
   use Fluid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Output_Aux_module
   use Matrix_Zeroing_module
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -70,7 +70,7 @@ subroutine GeneralSetup(realization)
   type(general_auxvar_type), pointer :: gen_auxvars(:,:)
   type(general_auxvar_type), pointer :: gen_auxvars_bc(:)
   type(general_auxvar_type), pointer :: gen_auxvars_ss(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
@@ -249,7 +249,7 @@ subroutine GeneralInitializeTimestep(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   if (general_restrict_state_chng) then
     realization%patch%aux%General%auxvars(:,:)%istatechng = PETSC_FALSE
@@ -284,7 +284,7 @@ subroutine GeneralUpdateSolution(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -336,7 +336,7 @@ subroutine GeneralTimeCut(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -383,7 +383,7 @@ subroutine GeneralNumericalJacobianTest(xx,realization,B)
   implicit none
 
   Vec :: xx
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   Mat :: B
 
   Vec :: xx_pert
@@ -501,11 +501,11 @@ subroutine GeneralComputeMassBalance(realization,mass_balance)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nflowspec, &
                             realization%option%nphase)
 
@@ -514,7 +514,7 @@ subroutine GeneralComputeMassBalance(realization,mass_balance)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(general_auxvar_type), pointer :: general_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id
@@ -571,7 +571,7 @@ subroutine GeneralZeroMassBalanceDelta(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -612,7 +612,7 @@ subroutine GeneralUpdateMassBalance(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -665,13 +665,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   use Coupler_module
   use Connection_module
   use Material_module
-  use Material_Aux_class
+  use Material_Aux_module
   use EOS_Water_module
   use Saturation_Function_module
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscBool :: update_state
   PetscBool :: update_state_bc
   
@@ -686,7 +686,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   type(global_auxvar_type), pointer :: global_auxvars(:), &
                                        global_auxvars_bc(:), global_auxvars_ss(:)
   
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end, i
@@ -1048,11 +1048,11 @@ subroutine GeneralUpdateFixedAccum(realization)
   use Option_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1060,7 +1060,7 @@ subroutine GeneralUpdateFixedAccum(realization)
   type(field_type), pointer :: field
   type(general_auxvar_type), pointer :: gen_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
 
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
@@ -1139,7 +1139,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Coupler_module  
   use Debug_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
   
 !#define DEBUG_WITH_TECPLOT
@@ -1152,7 +1152,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -1171,7 +1171,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -1270,7 +1270,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     call GeneralZeroMassBalanceDelta(realization)
   endif
 
-  option%iflag = 1
+  option%iflag = GENERAL_UPDATE_FOR_ACCUM
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 
@@ -1575,7 +1575,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
 
   implicit none
@@ -1583,7 +1583,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
   Mat :: J
@@ -1621,7 +1621,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                                         gen_auxvars_ss(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:), &
                                        global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -1692,7 +1692,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Gjacobian_accum','', &
@@ -1756,7 +1756,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Gjacobian_flux','', &
@@ -1812,7 +1812,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     boundary_condition => boundary_condition%next
   enddo
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Gjacobian_bcflux','', &
@@ -1866,7 +1866,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   call GeneralSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                         gen_auxvars,option)
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call DebugWriteFilename(realization%debug,string,'Gjacobian_srcsink','', &
@@ -1916,7 +1916,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                           PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
   endif
   
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     call DebugWriteFilename(realization%debug,string,'Gjacobian','', &
                             general_ts_count,general_ts_cut_count, &
                             general_ni_count)
@@ -1924,7 +1924,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call DebugViewerDestroy(realization%debug,viewer)
   endif
-  if (realization%debug%norm_Jacobian) then
+  if (realization%debug%norm_Matrix) then
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
@@ -1969,7 +1969,7 @@ function GeneralGetTecplotHeader(realization,icolumn)
   implicit none
   
   character(len=MAXSTRINGLENGTH) :: GeneralGetTecplotHeader
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -2094,7 +2094,7 @@ subroutine GeneralSetPlotVariables(realization,list)
     
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(output_variable_list_type), pointer :: list
 
   character(len=MAXWORDLENGTH) :: name, units
@@ -2254,7 +2254,7 @@ subroutine GeneralSSSandbox(residual,Jacobian,compute_derivative, &
   use petscmat
   use Option_module
   use Grid_module
-  use Material_Aux_class, only: material_auxvar_type
+  use Material_Aux_module, only: material_auxvar_type
   use SrcSink_Sandbox_module
   use SrcSink_Sandbox_Base_class
   
@@ -2263,7 +2263,7 @@ subroutine GeneralSSSandbox(residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(general_auxvar_type), pointer :: general_auxvars(:,:)
   
   type(grid_type) :: grid
@@ -2399,7 +2399,7 @@ subroutine GeneralMapBCAuxVarsToGlobal(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -2451,7 +2451,7 @@ subroutine GeneralDestroy(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.

@@ -10,18 +10,18 @@ module Init_Subsurface_Flow_module
   private
 
   public :: InitSubsurfFlowSetupRealization
-  
+
 contains
 
 ! ************************************************************************** !
 
 subroutine InitSubsurfFlowSetupRealization(simulation)
-  ! 
+  !
   ! Initializes material property data structres and assign them to the domain.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 12/04/14
-  ! 
+  !
   use Simulation_Subsurface_class
   use PM_Base_class
   use Realization_Subsurface_class
@@ -29,69 +29,83 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
   use Option_module
   use Init_Common_module
   use Material_module
-  
+
   use Mphase_module
+  use PM_Richards_class
   use PM_Richards_TS_class
+  use PM_TH_class
   use PM_TH_TS_class
+  use PM_ZFlow_class
+  use PM_PNF_class
+  use PM_Mphase_class
+  use PM_General_class
+  use PM_Hydrate_class
+  use PM_WIPP_Flow_class
   use Richards_module
   use TH_module
   use General_module
   use Hydrate_module
   use WIPP_Flow_module
+  use ZFlow_module
+  use PNF_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
-  use PM_Hydrate_class 
- 
+
   implicit none
 
-  class(simulation_subsurface_type) :: simulation  
+  class(simulation_subsurface_type) :: simulation
 
   class(realization_subsurface_type), pointer :: realization
 
-  class(pm_base_type), pointer :: pm 
- 
+  class(pm_base_type), pointer :: pm_list
+
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   PetscErrorCode :: ierr
-  
+
   realization => simulation%realization
   option => realization%option
   patch => realization%patch
-  
+
   ! initialize FLOW
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,ZFLOW_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
                            realization%option)
     end select
-    select case(option%iflowmode)
-      case(TH_MODE,TH_TS_MODE)
-        call THSetup(realization)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+    pm_list => simulation%flow_process_model_coupler%pm_list
+    if (associated(pm_list%next)) then
+      option%io_buffer = 'Select type block in InitSubsurfFlowSetup &
+        &Realization needs to be refactored since there is more than one &
+        &process model in simulation%flow_process_model_coupler%pm_list.'
+      call PrintErrMsg(option)
+    endif
+    ! using a select type to avoid casting the pm for a few calls below
+    select type(pm => pm_list)
+      class is(pm_richards_type)
         call RichardsSetup(realization)
-      case(MPH_MODE)
-        call init_span_wagner(option)      
+      class is(pm_th_type)
+        call THSetup(realization)
+      class is(pm_zflow_type)
+        call ZFlowSetup(realization)
+      class is(pm_pnf_type)
+        call PNFSetup(realization)
+      class is(pm_mphase_type)
+        call init_span_wagner(option)
         call MphaseSetup(realization)
-      case(WF_MODE)
+      class is(pm_wippflo_type)
         call WIPPFloSetup(realization)
-      case(G_MODE)
+        if (associated(pm%pmwss_ptr)) call pm%pmwss_ptr%Setup()
+      class is(pm_general_type)
         call GeneralSetup(realization)
-      case(H_MODE)
+      class is(pm_hydrate_type)
         call HydrateSetup(realization)
-        pm => simulation%flow_process_model_coupler%pm_list
-        do
-          if (.not. associated(pm)) exit
-          select type (pm)
-            class is (pm_hydrate_type)
-              call PMHydrateAssignParameters(realization,pm)
-          end select
-          pm => pm%next
-        enddo
-      case default
+        call PMHydrateAssignParameters(realization,pm)
+      class default
         option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
         call PrintErrMsg(option)
     end select
@@ -104,16 +118,20 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
       call InitSubsurfFlowReadInitCond(realization, &
                                        option%initialize_flow_filename)
     endif
-  
+
     select case(option%iflowmode)
       case(TH_MODE)
-        call THUpdateAuxVars(realization)      
+        call THUpdateAuxVars(realization)
       case(TH_TS_MODE)
         call PMTHTSUpdateAuxVarsPatch(realization)
       case(RICHARDS_MODE)
         call RichardsUpdateAuxVars(realization)
       case(RICHARDS_TS_MODE)
         call PMRichardsTSUpdateAuxVarsPatch(realization)
+      case(ZFLOW_MODE)
+        call ZFlowUpdateAuxVars(realization)
+      case(PNF_MODE)
+        call PNFUpdateAuxVars(realization)
       case(MPH_MODE)
         call MphaseUpdateAuxVars(realization)
       case(G_MODE)
@@ -133,19 +151,19 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
       call InitCommonReadVelocityField(realization)
     endif
-  endif  
+  endif
 
 end subroutine InitSubsurfFlowSetupRealization
 
 ! ************************************************************************** !
 
 subroutine InitSubsurfFlowReadInitCond(realization,filename)
-  ! 
+  !
   ! Assigns flow initial condition from HDF5 file
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/05/10, 12/04/14
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -156,21 +174,21 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   use Patch_module
   use Discretization_module
   use HDF5_module
-  
+
   implicit none
-  
+
   class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
-  
+
   PetscInt :: local_id, idx, offset
   PetscReal, pointer :: xx_p(:)
   character(len=MAXSTRINGLENGTH) :: group_name
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscReal, pointer :: vec_p(:)  
+  PetscReal, pointer :: vec_p(:)
   PetscErrorCode :: ierr
-  
+
   type(option_type), pointer :: option
-  type(field_type), pointer :: field  
+  type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -181,14 +199,13 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= RICHARDS_MODE .and. & 
+  if (option%iflowmode /= RICHARDS_MODE .and. &
       option%iflowmode /= RICHARDS_TS_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &
-
                        trim(option%flowmode)
-  endif      
+  endif
 
   cur_patch => realization%patch_list%first
   do
@@ -199,7 +216,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
       ! assign initial conditions values to domain
     call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
 
-    ! Pressure for all modes 
+    ! Pressure for all modes
     offset = 1
     group_name = ''
     dataset_name = 'Pressure'
@@ -219,13 +236,13 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
 
     call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-        
+
     cur_patch => cur_patch%next
   enddo
-   
+
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
-                                   field%flow_xx_loc,NFLOWDOF)  
+                                   field%flow_xx_loc,NFLOWDOF)
   call VecCopy(field%flow_xx, field%flow_yy, ierr);CHKERRQ(ierr)
 
 end subroutine InitSubsurfFlowReadInitCond

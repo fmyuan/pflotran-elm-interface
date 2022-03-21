@@ -125,7 +125,7 @@ subroutine PMCGeomechanicsSetupSolvers(this)
 
   call PrintMsg(option,"  Beginning setup of GEOMECH SNES ")
 
-  if (solver%J_mat_type == MATAIJ) then
+  if (solver%M_mat_type == MATAIJ) then
     option%io_buffer = 'AIJ matrix not supported for geomechanics.'
     call PrintErrMsg(option)
   endif
@@ -135,28 +135,28 @@ subroutine PMCGeomechanicsSetupSolvers(this)
                             ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
 
-  if (Uninitialized(solver%Jpre_mat_type) .and. &
-      Uninitialized(solver%J_mat_type)) then
+  if (Uninitialized(solver%Mpre_mat_type) .and. &
+      Uninitialized(solver%M_mat_type)) then
     ! Matrix types not specified, so set to default.
-    solver%Jpre_mat_type = MATBAIJ
-    solver%J_mat_type = solver%Jpre_mat_type
-  else if (Uninitialized(solver%Jpre_mat_type)) then
-    if (solver%J_mat_type == MATMFFD) then
-      solver%Jpre_mat_type = MATBAIJ
+    solver%Mpre_mat_type = MATBAIJ
+    solver%M_mat_type = solver%Mpre_mat_type
+  else if (Uninitialized(solver%Mpre_mat_type)) then
+    if (solver%M_mat_type == MATMFFD) then
+      solver%Mpre_mat_type = MATBAIJ
     else
-      solver%Jpre_mat_type = solver%J_mat_type
+      solver%Mpre_mat_type = solver%M_mat_type
     endif
-  else if (Uninitialized(solver%J_mat_type)) then
-    solver%J_mat_type = solver%Jpre_mat_type
+  else if (Uninitialized(solver%M_mat_type)) then
+    solver%M_mat_type = solver%Mpre_mat_type
   endif
 
-  call GeomechDiscretizationCreateJacobian(geomech_realization% &
-                                           geomech_discretization,NGEODOF, &
-                                           solver%Jpre_mat_type, &
-                                           solver%Jpre,option)
+  call GeomechDiscretizationCreateMatrix(geomech_realization% &
+                                         geomech_discretization,NGEODOF, &
+                                         solver%Mpre_mat_type, &
+                                         solver%Mpre,option)
 
-  solver%J = solver%Jpre
-  call MatSetOptionsPrefix(solver%Jpre,"geomech_", &
+  solver%M = solver%Mpre
+  call MatSetOptionsPrefix(solver%Mpre,"geomech_", &
                             ierr);CHKERRQ(ierr)
 
   ! by default turn off line search
@@ -187,8 +187,8 @@ subroutine PMCGeomechanicsSetupSolvers(this)
                        this%pm_ptr, &
                        ierr);CHKERRQ(ierr)
   call SNESSetJacobian(solver%snes, &
-                       solver%J, &
-                       solver%Jpre, &
+                       solver%M, &
+                       solver%Mpre, &
                        PMJacobianPtr, &
                        this%pm_ptr, &
                        ierr);CHKERRQ(ierr)

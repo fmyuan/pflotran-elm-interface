@@ -25,6 +25,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
 
   use Communicator_Aux_module
   use Driver_module
+  use EOS_module
   use HDF5_Aux_module
   use Input_Aux_module
   use Option_module
@@ -75,6 +76,7 @@ subroutine FactoryPFLOTRANInitialize(driver,simulation)
   driver%global_prefix = driver%input_prefix
 
   call HDF5Init()
+  call EOSInit() ! must be called only once from this location
   call LoggingCreate()
   call OptionDestroy(option)
 

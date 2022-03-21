@@ -5,7 +5,7 @@ module Material_module
   use Dataset_Base_class
 
   use PFLOTRAN_Constants_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Fracture_module
   use Geomechanics_Subsurface_Properties_module
   use Utility_module, only : Equal
@@ -49,6 +49,7 @@ module Material_module
     PetscReal :: thermal_conductivity_dry
     PetscReal :: thermal_conductivity_wet
     PetscReal :: alpha    ! conductivity saturation relation exponent
+    PetscReal :: tensorial_rel_perm_exponent(3)
 
     ! Geophysics properties
     PetscReal :: electrical_conductivity
@@ -95,6 +96,7 @@ module Material_module
   type, public :: multicontinuum_property_type
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: length
+    class(dataset_base_type), pointer :: length_dataset
     PetscReal :: matrix_block_size
     PetscReal :: fracture_spacing
     PetscReal :: radius
@@ -106,14 +108,14 @@ module Material_module
     PetscReal :: init_temp
     PetscReal :: init_conc
     PetscReal :: porosity
-    PetscReal :: diff_coeff
+    PetscReal :: diff_coeff(2)
     PetscReal :: mnrl_volfrac
-    PetscReal :: mnrl_area 
+    PetscReal :: mnrl_area
     PetscBool :: log_spacing
     PetscReal :: outer_spacing
     PetscReal :: area_scaling
   end type multicontinuum_property_type
-  
+
   type, public :: material_property_ptr_type
     type(material_property_type), pointer :: ptr
   end type material_property_ptr_type
@@ -154,7 +156,7 @@ function MaterialPropertyCreate(option)
   ! Date: 11/02/07
   !
   use Option_module
-  
+
   implicit none
 
   type(material_property_type), pointer :: MaterialPropertyCreate
@@ -202,6 +204,7 @@ function MaterialPropertyCreate(option)
   material_property%thermal_conductivity_dry = UNINITIALIZED_DOUBLE
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
+  material_property%tensorial_rel_perm_exponent = UNINITIALIZED_DOUBLE
   material_property%electrical_conductivity = UNINITIALIZED_DOUBLE
   nullify(material_property%electrical_conductivity_dataset)
 
@@ -228,30 +231,32 @@ function MaterialPropertyCreate(option)
   material_property%max_pressure = 1.d6
   material_property%max_permfactor = 1.d0
   nullify(material_property%multicontinuum)
-  
+
   if (option%use_mc) then
     allocate(material_property%multicontinuum)
     material_property%multicontinuum%name = ''
-    material_property%multicontinuum%length = 0.d0
-    material_property%multicontinuum%matrix_block_size = 0.d0
-    material_property%multicontinuum%fracture_spacing = 0.d0
-    material_property%multicontinuum%radius = 0.d0
-    material_property%multicontinuum%area = 0.d0
-    material_property%multicontinuum%epsilon = 1.d0
-    material_property%multicontinuum%aperture = 0.d0
+    material_property%multicontinuum%length = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%matrix_block_size = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%fracture_spacing = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%radius = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%area = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%epsilon = UNINITIALIZED_DOUBLE
+    material_property%multicontinuum%aperture = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%init_temp = 100.d0
     material_property%multicontinuum%init_conc = 0.d0
-    material_property%multicontinuum%porosity = 0.5d0
-    material_property%multicontinuum%diff_coeff = 1.d-9
+    material_property%multicontinuum%diff_coeff(1) = 1.d-9
+    material_property%multicontinuum%diff_coeff(2) = 1.d-9
+    material_property%multicontinuum%porosity = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%mnrl_volfrac = 0.d0
     material_property%multicontinuum%mnrl_area = 0.d0
-    material_property%multicontinuum%ncells = 0
+    material_property%multicontinuum%ncells = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%log_spacing = PETSC_FALSE
-    material_property%multicontinuum%outer_spacing = 1.d-3
+    material_property%multicontinuum%outer_spacing = UNINITIALIZED_DOUBLE
     material_property%multicontinuum%area_scaling = 1.d0
     nullify(material_property%multicontinuum%epsilon_dataset)
+    nullify(material_property%multicontinuum%length_dataset)
   endif
- 
+
   nullify(material_property%next)
   MaterialPropertyCreate => material_property
 
@@ -292,6 +297,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   PetscInt, parameter :: TMP_BULK_COMPRESSIBILITY = 2
   PetscInt, parameter :: TMP_POROSITY_COMPRESSIBILITY = 3
   PetscInt :: soil_or_bulk_compressibility
+  PetscBool :: perm_iso_read
 
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
@@ -478,6 +484,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'creep closure table name', &
                            'MATERIAL_PROPERTY')
       case('PERMEABILITY')
+        ! if PERM_ISO is read, we cannot assign anisotropy
+        perm_iso_read = PETSC_FALSE
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -570,6 +578,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                  'MATERIAL_PROPERTY,PERMEABILITY')
               material_property%permeability(2,3) = 10.d0**tempreal
             case('PERM_ISO_LOG10')
+              perm_iso_read = PETSC_TRUE
               call InputReadDouble(input,option, tempreal)
               call InputErrorMsg(input,option,'log10 isotropic permeability', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
@@ -577,6 +586,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               material_property%permeability(2,2) = 10.d0**tempreal
               material_property%permeability(3,3) = 10.d0**tempreal
             case('PERM_ISO')
+              perm_iso_read = PETSC_TRUE
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,1))
               call InputErrorMsg(input,option,'isotropic permeability', &
@@ -605,6 +615,13 @@ subroutine MaterialPropertyRead(material_property,input,option)
           end select
         enddo
         call InputPopBlock(input,option)
+        if (perm_iso_read .and. &
+            .not.material_property%isotropic_permeability) then
+          option%io_buffer = 'PERM_ISO cannot be used in conjunction with &
+            &anisotropic permeability options in MATERIAL_PROPERTY "' // &
+            trim(material_property%name) // '".'
+          call PrintErrMsg(option)
+        endif
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
             dabs(material_property%permeability(1,1) - &
@@ -736,47 +753,91 @@ subroutine MaterialPropertyRead(material_property,input,option)
           'per mineral basis under the MINERAL_KINETICS card.  See ' // &
           'reaction_aux.F90.'
           call PrintErrMsg(option)
+      case('TENSORIAL_REL_PERM_EXPONENT')
+        call InputReadNDoubles(input,option, &
+                               material_property%tensorial_rel_perm_exponent, &
+                               THREE_INTEGER)
+        call InputErrorMsg(input,option,keyword,'MATERIAL_PROPERTY')
       case('SECONDARY_CONTINUUM')
         call InputPushBlock(input,option)
+        call InputReadPflotranString(input,option)
+        call InputReadStringErrorMsg(input,option, &
+                                    'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
+
+        if (InputCheckExit(input,option)) exit
+        if (InputError(input)) exit
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword', &
+                           'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
+        select case(trim(word))
+          case('TYPE')
+              call InputReadNChars(input,option, &
+                                   material_property%multicontinuum%name,&
+                                   MAXWORDLENGTH,PETSC_TRUE)
+              call InputErrorMsg(input,option,'type', &
+                   'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+          case default
+                option%io_buffer = 'TYPE must be specified first in &
+                                    &MATERIAL_PROPERTY, SECONDARY_CONTINUUM'
+                call PrintErrMsg(option)
+        endselect
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
                                        'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
 
           if (InputCheckExit(input,option)) exit
-
           if (InputError(input)) exit
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')
           select case(trim(word))
-            case('TYPE')
-              call InputReadNChars(input,option, &
-                                   material_property%multicontinuum%name,&
-                                   MAXWORDLENGTH,PETSC_TRUE)
-              call InputErrorMsg(input,option,'type', &
-                                'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('MATRIX_BLOCK_SIZE')
+              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_CUBES")) then
+                option%io_buffer = 'MATRIX_BLOCK_SIZE is &
+                                    &only supported for NESTED_CUBES.'
+                call PrintErrMsg(option)
+              endif
               call InputReadDouble(input,option, &
                         material_property%multicontinuum%matrix_block_size)
               call InputErrorMsg(input,option,'matrix_block_size', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('FRACTURE_SPACING')
+              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_CUBES")) then
+                option%io_buffer = 'FRACTURE_SPACING is &
+                                    &only supported for NESTED_CUBES.'
+                call PrintErrMsg(option)
+              endif
               call InputReadDouble(input,option, &
                         material_property%multicontinuum%fracture_spacing)
               call InputErrorMsg(input,option,'fracture_spacing', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('RADIUS')
+              if (.not.StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
+                option%io_buffer = 'RADIUS is &
+                                    &only supported for NESTED_SPHERES.'
+                call PrintErrMsg(option)
+              endif
               call InputReadDouble(input,option, &
                                    material_property%multicontinuum%radius)
               call InputErrorMsg(input,option,'radius', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('LENGTH')
-              call InputReadDouble(input,option, &
-                                   material_property%multicontinuum%length)
-              call InputErrorMsg(input,option,'length', &
-                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
+              if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
+                option%io_buffer = 'LENGTH is &
+                                    &only supported for SLAB.'
+                call PrintErrMsg(option)
+              endif
+              call DatasetReadDoubleorDataset(input, &
+                material_property%multicontinuum%length, &
+                material_property%multicontinuum%length_dataset, &
+                'length', 'MATERIAL_PROPERTY',option)
             case('AREA')
+              if (.not.StringCompare(material_property%multicontinuum%name,"SLAB")) then
+                option%io_buffer = 'AREA is &
+                                    &only supported for SLAB.'
+                call PrintErrMsg(option)
+              endif
               call InputReadDouble(input,option, &
                                    material_property%multicontinuum%area)
               call InputErrorMsg(input,option,'area', &
@@ -792,6 +853,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 material_property%multicontinuum%epsilon_dataset, &
                 'epsilon', 'MATERIAL_PROPERTY',option)
             case('APERTURE')
+              if (StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
+                option%io_buffer = 'APERTURE is &
+                                    &only supported for SLAB and NESTED_CUBES.'
+                call PrintErrMsg(option)
+              endif
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%aperture)
               call InputErrorMsg(input,option,'aperture', &
@@ -812,12 +878,22 @@ subroutine MaterialPropertyRead(material_property,input,option)
                              material_property%multicontinuum%porosity)
               call InputErrorMsg(input,option,'secondary continuum porosity', &
                            'MATERIAL_PROPERTY')
-            case('DIFFUSION_COEFFICIENT')
+            case('LIQUID_DIFFUSION_COEFFICIENT')
               call InputReadDouble(input,option, &
-                             material_property%multicontinuum%diff_coeff)
+                             material_property%multicontinuum%diff_coeff(1))
               call InputErrorMsg(input,option, &
                                  'secondary continuum diff coeff', &
                                  'MATERIAL_PROPERTY')
+            case('GAS_DIFFUSION_COEFFICIENT')
+              call InputReadDouble(input,option, &
+                             material_property%multicontinuum%diff_coeff(2))
+              call InputErrorMsg(input,option, &
+                                 'secondary continuum gas diff coeff', &
+                                 'MATERIAL_PROPERTY')
+            case('DIFFUSION_COEFFICIENT')
+              call PrintErrMsg(option,'DIFFUSION_COEFFICIENT has been renamed &
+                               &in multiple continuum model. Please use &
+                               &LIQUID_DIFFUSION_COEFFICIENT')
             case('MINERAL_VOLFRAC')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%mnrl_volfrac)
@@ -829,12 +905,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'secondary cont. mnrl area', &
                            'MATERIAL_PROPERTY')
             case('LOG_GRID_SPACING')
-              material_property%multicontinuum%log_spacing = PETSC_TRUE
-            case('OUTER_SPACING')
+              if (StringCompare(material_property%multicontinuum%name,"NESTED_SPHERES")) then
+                option%io_buffer = 'LOG_GRID_SPACING is &
+                                    &not supported for NESTED_SPHERES.'
+                call PrintErrMsg(option)
+              endif
               call InputReadDouble(input,option, &
-                             material_property%multicontinuum%outer_spacing)
-              call InputErrorMsg(input,option,'secondary cont. outer spacing', &
-                           'MATERIAL_PROPERTY')
+                              material_property%multicontinuum%outer_spacing)
+              call InputErrorMsg(input,option,'secondary cont. log grid spacing', &
+                             'MATERIAL_PROPERTY')
+              material_property%multicontinuum%log_spacing = PETSC_TRUE
             case('AREA_SCALING_FACTOR')
               call InputReadDouble(input,option, &
                              material_property%multicontinuum%area_scaling)
@@ -952,6 +1032,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
         trim(material_property%name) // '".'
       call PrintErrMsg(option)
     endif
+  endif
+
+  if (Initialized(maxval(material_property%tensorial_rel_perm_exponent))) then
+    select case(option%iflowmode)
+      case(ZFLOW_MODE)
+      case default
+        option%io_buffer = 'Tensorial relative permeability not supported &
+          &for the requested flow mode.'
+        call PrintErrMsg(option)
+    end select
   endif
 
   ! material id must be > 0
@@ -1286,24 +1376,28 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
   num_mat_prop = size(material_property_array)
   num_characteristic_curves = size(characteristic_curves_array)
 
-  if (option%iflowmode /= RICHARDS_MODE .and. &
-      option%iflowmode /= RICHARDS_TS_MODE) then
-    allocate(material_parameter%soil_heat_capacity(num_mat_prop))
-    allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
-    material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
-    material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
-    do i = 1, num_mat_prop
-      if (associated(material_property_array(i)%ptr)) then
-        ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
-        material_parameter%soil_heat_capacity(i) = &
-          material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
-        material_parameter%soil_thermal_conductivity(1,i) = &
-          material_property_array(i)%ptr%thermal_conductivity_dry
-        material_parameter%soil_thermal_conductivity(2,i) = &
-          material_property_array(i)%ptr%thermal_conductivity_wet
-      endif
-    enddo
-  endif
+  select case(option%iflowmode)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE,WF_MODE)
+    case(PNF_MODE)
+      option%io_buffer = 'MaterialSetup() should not be used in PNF mode'
+      call PrintErrMsg(option)
+    case default
+      allocate(material_parameter%soil_heat_capacity(num_mat_prop))
+      allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
+      material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
+      material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
+      do i = 1, num_mat_prop
+        if (associated(material_property_array(i)%ptr)) then
+          ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
+          material_parameter%soil_heat_capacity(i) = &
+            material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
+          material_parameter%soil_thermal_conductivity(1,i) = &
+            material_property_array(i)%ptr%thermal_conductivity_dry
+          material_parameter%soil_thermal_conductivity(2,i) = &
+            material_property_array(i)%ptr%thermal_conductivity_wet
+        endif
+      enddo
+  end select
 
 end subroutine MaterialSetup
 
@@ -1427,7 +1521,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   !
-  use Material_Aux_class
+  use Material_Aux_module
   use String_module
   use Option_module
 
@@ -1455,6 +1549,8 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   soil_compressibility_index = 0
   soil_reference_pressure_index = 0
   max_material_index = 0
+  epsilon_index = 0
+  matrix_length_index = 0
 
   num_material_properties = size(material_property_ptrs)
   ! must be nullified here to avoid an error message on subsequent calls
@@ -1515,6 +1611,16 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       endif
       num_soil_ref_press = num_soil_ref_press + 1
     endif
+    if (associated(material_property_ptrs(i)%ptr%multicontinuum)) then
+      if (epsilon_index == 0) then
+        icount = icount + 1
+        epsilon_index = icount
+      endif
+      if (matrix_length_index == 0) then
+        icount = icount + 1
+        matrix_length_index = icount
+      endif
+    endif
 !    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
 !        soil_heat_capacity_index == 0) then
 !      icount = icount + 1
@@ -1570,13 +1676,13 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   !
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   use Fracture_module
 
   implicit none
 
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(material_property_type) :: material_property
   type(option_type) :: option
 
@@ -1636,71 +1742,73 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
   PetscInt :: isubvar
 
   PetscInt :: i
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
-!  material_auxvars => Material%auxvars
-!geh: can't use this pointer as gfortran does not like it.  Must use
-!     Material%auxvars%....
+  material_auxvars => Material%auxvars
 
   select case(ivar)
     case(VOLUME)
       do i=1, Material%num_aux
-        Material%auxvars(i)%volume = value
+        material_auxvars(i)%volume = value
       enddo
     case(POROSITY)
       select case(isubvar)
         case(POROSITY_CURRENT)
           do i=1, Material%num_aux
-            Material%auxvars(i)%porosity = value
+            material_auxvars(i)%porosity = value
           enddo
         case(POROSITY_BASE)
           do i=1, Material%num_aux
-            Material%auxvars(i)%porosity_base = value
+            material_auxvars(i)%porosity_base = value
           enddo
         case(POROSITY_INITIAL)
           do i=1, Material%num_aux
-            Material%auxvars(i)%porosity_0 = value
+            material_auxvars(i)%porosity_0 = value
           enddo
       end select
     case(TORTUOSITY)
       do i=1, Material%num_aux
-        Material%auxvars(i)%tortuosity = value
+        material_auxvars(i)%tortuosity = value
       enddo
     case(EPSILON)
       do i=1, Material%num_aux
-        Material%auxvars(i)%epsilon = value
+        material_auxvars(i)%soil_properties(epsilon_index) = value
+      enddo
+    case(MATRIX_LENGTH)
+      do i=1, Material%num_aux
+        material_auxvars(i)%soil_properties(matrix_length_index) = value
       enddo
     case(PERMEABILITY)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(:) = value
+        material_auxvars(i)%permeability(:) = value
       enddo
     case(PERMEABILITY_X)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_xx_index) = value
+        material_auxvars(i)%permeability(perm_xx_index) = value
       enddo
     case(PERMEABILITY_Y)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_yy_index) = value
+        material_auxvars(i)%permeability(perm_yy_index) = value
       enddo
     case(PERMEABILITY_Z)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_zz_index) = value
+        material_auxvars(i)%permeability(perm_zz_index) = value
       enddo
     case(PERMEABILITY_XY)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_xy_index) = value
+        material_auxvars(i)%permeability(perm_xy_index) = value
       enddo
     case(PERMEABILITY_YZ)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_yz_index) = value
+        material_auxvars(i)%permeability(perm_yz_index) = value
       enddo
     case(PERMEABILITY_XZ)
       do i=1, Material%num_aux
-        Material%auxvars(i)%permeability(perm_xz_index) = value
+        material_auxvars(i)%permeability(perm_xz_index) = value
       enddo
     case(ELECTRICAL_CONDUCTIVITY)
       do i=1, Material%num_aux
-        Material%auxvars(i)%electrical_conductivity(1) = value
+        material_auxvars(i)%electrical_conductivity(1) = value
       enddo
   end select
 
@@ -1727,92 +1835,96 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
 
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscErrorCode :: ierr
 
-!  material_auxvars => Material%auxvars
-!geh: can't use this pointer as gfortran does not like it.  Must use
-!     Material%auxvars%....
+  material_auxvars => Material%auxvars
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(SOIL_COMPRESSIBILITY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)% &
+        material_auxvars(ghosted_id)% &
           soil_properties(soil_compressibility_index) = vec_loc_p(ghosted_id)
       enddo
     case(SOIL_REFERENCE_PRESSURE)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)% &
+        material_auxvars(ghosted_id)% &
           soil_properties(soil_reference_pressure_index) = vec_loc_p(ghosted_id)
       enddo
     case(VOLUME)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%volume = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%volume = vec_loc_p(ghosted_id)
       enddo
     case(POROSITY)
       select case(isubvar)
         case(POROSITY_CURRENT)
           do ghosted_id=1, Material%num_aux
-            Material%auxvars(ghosted_id)%porosity = vec_loc_p(ghosted_id)
+            material_auxvars(ghosted_id)%porosity = vec_loc_p(ghosted_id)
           enddo
         case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
-            Material%auxvars(ghosted_id)%porosity_base = vec_loc_p(ghosted_id)
+            material_auxvars(ghosted_id)%porosity_base = vec_loc_p(ghosted_id)
           enddo
         case(POROSITY_INITIAL)
           do ghosted_id=1, Material%num_aux
-            Material%auxvars(ghosted_id)%porosity_0 = vec_loc_p(ghosted_id)
+            material_auxvars(ghosted_id)%porosity_0 = vec_loc_p(ghosted_id)
           enddo
         case default
           print *, 'Error indexing porosity in MaterialSetAuxVarVecLoc()'
           stop
-      end select      
+      end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%tortuosity = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%tortuosity = vec_loc_p(ghosted_id)
       enddo
     case(EPSILON)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%epsilon = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%&
+          soil_properties(epsilon_index) = vec_loc_p(ghosted_id)
+      enddo
+    case(MATRIX_LENGTH)
+      do ghosted_id=1, Material%num_aux
+        material_auxvars(ghosted_id)%&
+          soil_properties(matrix_length_index) = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)
+        material_auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_X)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_xx_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_Y)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_yy_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_Z)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_zz_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_XY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_xy_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_xy_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_YZ)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_yz_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_yz_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(PERMEABILITY_XZ)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%permeability(perm_xz_index) = &
+        material_auxvars(ghosted_id)%permeability(perm_xz_index) = &
           vec_loc_p(ghosted_id)
       enddo
     case(ELECTRICAL_CONDUCTIVITY)
       do ghosted_id=1, Material%num_aux
-        Material%auxvars(ghosted_id)%electrical_conductivity(1) = &
+        material_auxvars(ghosted_id)%electrical_conductivity(1) = &
           vec_loc_p(ghosted_id)
       enddo
   end select
@@ -1841,19 +1953,17 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
 
   PetscInt :: ghosted_id
   PetscReal, pointer :: vec_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscErrorCode :: ierr
 
-!  material_auxvars => Material%auxvars
-!geh: can't use this pointer as gfortran does not like it.  Must use
-!     Material%auxvars%....
+  material_auxvars => Material%auxvars
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
   select case(ivar)
     case(SOIL_COMPRESSIBILITY)
       if (soil_compressibility_index > 0) then
         do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)% &
+          vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)% &
                                      soil_properties(soil_compressibility_index)
         enddo
       else
@@ -1862,7 +1972,7 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
     case(SOIL_REFERENCE_PRESSURE)
       if (soil_reference_pressure_index > 0) then
         do ghosted_id=1, Material%num_aux
-          vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)% &
+          vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)% &
                                   soil_properties(soil_reference_pressure_index)
         enddo
       else
@@ -1870,22 +1980,22 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       endif
     case(VOLUME)
       do ghosted_id=1, Material%num_aux
-        vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%volume
+        vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%volume
       enddo
     case(POROSITY)
       select case(isubvar)
         case(POROSITY_CURRENT)
           do ghosted_id=1, Material%num_aux
             vec_loc_p(ghosted_id) = &
-              Material%auxvars(ghosted_id)%porosity
+              material_auxvars(ghosted_id)%porosity
           enddo
         case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
-            vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_base
+            vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%porosity_base
           enddo
         case(POROSITY_INITIAL)
           do ghosted_id=1, Material%num_aux
-            vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_0
+            vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%porosity_0
           enddo
         case default
           print *, 'Error indexing porosity in MaterialGetAuxVarVecLoc()'
@@ -1893,42 +2003,42 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
-        vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%tortuosity
+        vec_loc_p(ghosted_id) = material_auxvars(ghosted_id)%tortuosity
       enddo
     case(PERMEABILITY_X,PERMEABILITY)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_xx_index)
+          material_auxvars(ghosted_id)%permeability(perm_xx_index)
       enddo
     case(PERMEABILITY_Y)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_yy_index)
+          material_auxvars(ghosted_id)%permeability(perm_yy_index)
       enddo
     case(PERMEABILITY_Z)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_zz_index)
+          material_auxvars(ghosted_id)%permeability(perm_zz_index)
       enddo
     case(PERMEABILITY_XY)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_xy_index)
+          material_auxvars(ghosted_id)%permeability(perm_xy_index)
       enddo
     case(PERMEABILITY_YZ)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_yz_index)
+          material_auxvars(ghosted_id)%permeability(perm_yz_index)
       enddo
     case(PERMEABILITY_XZ)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%permeability(perm_xz_index)
+          material_auxvars(ghosted_id)%permeability(perm_xz_index)
       enddo
     case(ELECTRICAL_CONDUCTIVITY)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = &
-          Material%auxvars(ghosted_id)%electrical_conductivity(1)
+          material_auxvars(ghosted_id)%electrical_conductivity(1)
       enddo
   end select
 
@@ -1960,9 +2070,6 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
 
   PetscErrorCode :: ierr
 
-!  material_auxvars => Material%auxvars
-!geh: can't use this pointer as gfortran does not like it.  Must use
-!     Material%auxvars%....
   call VecCopy(field%porosity_t,field%work,ierr)
   call VecAXPBY(field%work,weight,1.d0-weight, &
                 field%porosity_tpdt,ierr);CHKERRQ(ierr)
@@ -2086,7 +2193,7 @@ subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
   Vec :: porosity_loc
 
   PetscReal, pointer :: porosity_loc_p(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id
   PetscReal :: compressed_porosity
   PetscReal :: dcompressed_porosity_dp
@@ -2313,6 +2420,7 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   !
+  use Dataset_module
 
   implicit none
 
@@ -2335,6 +2443,13 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   nullify(material_property%electrical_conductivity_dataset)
   nullify(material_property%compressibility_dataset)
   nullify(material_property%soil_reference_pressure_dataset)
+
+  if (associated(material_property%multicontinuum)) then
+    nullify(material_property%multicontinuum%length_dataset)
+    nullify(material_property%multicontinuum%epsilon_dataset)
+    deallocate(material_property%multicontinuum)
+    nullify(material_property%multicontinuum)
+  endif
 
   deallocate(material_property)
   nullify(material_property)

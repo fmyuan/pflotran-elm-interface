@@ -39,6 +39,7 @@ module PM_Base_class
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
+    procedure, public :: SetupLinearSystem => PMBaseSetupLinearSystem
     procedure, public :: UpdateTimestep => PMBaseUpdateTimestep
     procedure, public :: InitializeTimestep => PMBaseThisOnly
     procedure, public :: SetupSolvers => PMBaseThisOnly
@@ -65,11 +66,11 @@ module PM_Base_class
     procedure, public :: RestartHDF5 => PMBaseCheckpointHDF5
     procedure, public :: PrintErrMsg => PMBasePrintErrMsg
   end type pm_base_type
-  
+
   type, public :: pm_base_header_type
     PetscInt :: ndof
   end type pm_base_header_type
-    
+
   public :: PMBaseInit, &
             PMBaseInputRecord, &
             PMBaseInitializeSolver, &
@@ -79,7 +80,7 @@ module PM_Base_class
             PMBaseJacobian, &
             PMBaseRHSFunction, &
             PMBaseDestroy
-  
+
 contains
 
 ! ************************************************************************** !
@@ -87,8 +88,8 @@ contains
 subroutine PMBaseInit(this)
 
   implicit none
-  
-  class(pm_base_type) :: this  
+
+  class(pm_base_type) :: this
 
   ! Cannot allocate here.  Allocation takes place in daughter class
   this%name = ''
@@ -103,7 +104,7 @@ subroutine PMBaseInit(this)
   this%steady_state = PETSC_FALSE
   this%skip_restart = PETSC_FALSE
   nullify(this%next)
-  
+
 end subroutine PMBaseInit
 
 ! ************************************************************************** !
@@ -148,7 +149,7 @@ subroutine PMBaseReadSimOptionsBlock(this,input)
 
   enddo
   call InputPopBlock(input,option)
-  
+
 end subroutine PMBaseReadSimOptionsBlock
 
 ! ************************************************************************** !
@@ -247,6 +248,18 @@ subroutine PMBaseJacobian(this,snes,xx,A,B,ierr)
   PetscErrorCode :: ierr
   call this%PrintErrMsg('PMBaseJacobian')
 end subroutine PMBaseJacobian
+
+! ************************************************************************** !
+
+subroutine PMBaseSetupLinearSystem(this,A,solution,right_hand_side,ierr)
+  implicit none
+  class(pm_base_type) :: this
+  Vec :: right_hand_side
+  Vec :: solution
+  Mat :: A
+  PetscErrorCode :: ierr
+  call this%PrintErrMsg('PMBaseSetupLinearSystem')
+end subroutine PMBaseSetupLinearSystem
 
 ! ************************************************************************** !
 
@@ -360,7 +373,7 @@ end subroutine PMBaseComputeMassBalance
 ! ************************************************************************** !
 
 subroutine PMBaseInitializeSolver(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/15/17
 
@@ -418,7 +431,7 @@ end subroutine PMBaseIJacobian
 
 subroutine PMBaseCheckpointBinary(this,viewer)
   implicit none
-#include "petsc/finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"
   class(pm_base_type) :: this
   PetscViewer :: viewer
 !  call this%PrintErrMsg('PMBaseCheckpointBinary')
@@ -447,25 +460,13 @@ subroutine PMBasePrintHeader(this)
   ! Author: Glenn Hammond
   ! Date: 08/06/18
   !
-  use Option_module
-  use String_module
+  use Utility_module
 
   implicit none
 
   class(pm_base_type) :: this
 
-  character(len=MAXSTRINGLENGTH) :: string
-
-  if (len_trim(this%header) == 0) then
-    this%option%io_buffer = &
-      'header name needs to be set for PMBaseInitializeTimestep'
-    call PrintErrMsg(this%option)
-  endif
-  string = '(2("=")," ' // trim(this%header) // ' ",' // &
-           trim(StringWrite(80-len_trim(this%header)-4)) // '("="))'
-  write(string,string)
-  call OptionPrint('',this%option)
-  call OptionPrint(string,this%option)
+  call PrintHeader(this%header,this%option)
 
 end subroutine PMBasePrintHeader
 

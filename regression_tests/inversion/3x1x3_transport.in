@@ -1,0 +1,20 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+          SOLUTE_TRANSPORT
+        /
+      /
+    /
+  /
+END
+
+SUBSURFACE
+  EXTERNAL_FILE 3x1x3_transport.txt
+END_SUBSURFACE

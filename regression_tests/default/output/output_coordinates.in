@@ -82,9 +82,9 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
+    LIQUID_PRESSURE DIRICHLET
   /
-  PRESSURE 1.d6
+  LIQUID_PRESSURE 1.d6
 END
 
 #=========================== condition couplers ===============================

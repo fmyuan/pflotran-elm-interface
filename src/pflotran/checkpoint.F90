@@ -336,7 +336,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -371,10 +371,12 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that indicates what phases are present, as well as the 'var' vector 
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
+      case(PNF_MODE)
+        option%io_buffer = 'Checkpointing must be implemented for PNF mode'
+        call PrintErrMsg(option)
       case default
-        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
-                                   STATE,ZERO_INTEGER)
+        call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                          global_vec,ONEDOF)
         call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
@@ -429,7 +431,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -462,7 +464,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,ZFLOW_MODE)
       case default
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
@@ -565,6 +567,7 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
+  PetscMPIInt, parameter :: ON=1, OFF=0
   PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
@@ -575,12 +578,8 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
 #endif
-  call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, hdf5_err, prop_id)
-  if (hdf5_err < 0) then
-    option%io_buffer = 'HDF5 restart file "' // trim(filename) // &
-                       '" not found.'
-    call PrintErrMsg(option)
-  endif
+  string = 'HDF5 restart file "' // trim(filename) // '" not found.'
+  call HDF5OpenFileReadOnly(filename,file_id,prop_id,string,option)
   call h5pclose_f(prop_id, hdf5_err)
 
   string = "Checkpoint"
@@ -1031,7 +1030,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
@@ -1079,10 +1078,9 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,ZFLOW_MODE)
       case default
-        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
-                                   STATE,ZERO_INTEGER)
+        call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                          global_vec,ONEDOF)
         call DiscretizationGlobalToNatural(discretization, global_vec, &
@@ -1157,7 +1155,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
@@ -1210,7 +1208,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     ! that holds variables derived from the primary ones via the translator.
     dataset_name = "State" // CHAR(0)
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,ZFLOW_MODE)
       case default
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)

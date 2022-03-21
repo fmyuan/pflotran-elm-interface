@@ -5,21 +5,14 @@ module Inversion_ERT_class
 
   use PFLOTRAN_Constants_module
   use Inversion_Base_class
-  use Realization_Subsurface_class
+  use Inversion_Subsurface_class
 
   implicit none
 
   private
 
-  type, public, extends(inversion_base_type) :: inversion_ert_type
-    class(realization_subsurface_type), pointer :: realization
-    Vec :: quantity_of_interest
-    PetscInt :: iqoi
-    Vec :: ref_quantity_of_interest
-    character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
-
+  type, public, extends(inversion_subsurface_type) :: inversion_ert_type
     PetscInt :: start_iteration          ! Starting iteration number
-    PetscInt :: maximum_iteration        ! Maximum iteration number
     PetscInt :: miniter,maxiter          ! min/max CGLS iterations
 
     PetscReal :: beta                    ! regularization parameter
@@ -59,13 +52,13 @@ module Inversion_ERT_class
     procedure, public :: Init => InversionERTInit
     procedure, public :: Initialize => InversionERTInitialize
     procedure, public :: ReadBlock => InversionERTReadBlock
+    procedure, public :: Step => InversionERTStep
     procedure, public :: UpdateParameters => InversionERTUpdateParameters
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
     procedure, public :: EvaluateCostFunction => InvERTEvaluateCostFunction
-    procedure, public :: UpdateRegularizeParameters => &
+    procedure, public :: UpdateRegularizParameters => &
                            InvERTUpdateRegularizParams
-    procedure, public :: SetIterationNum => InversionERTSetIterationNum
     procedure, public :: WriteIterationInfo => InversionERTWriteIterationInfo
     procedure, public :: Finalize => InversionERTFinalize
     procedure, public :: Strip => InversionERTStrip
@@ -146,10 +139,9 @@ subroutine InversionERTInit(this,driver)
   class(inversion_ert_type) :: this
   class(driver_type), pointer :: driver
 
-  this%quantity_of_interest = PETSC_NULL_VEC
-  this%iqoi = ELECTRICAL_CONDUCTIVITY
-  this%ref_quantity_of_interest = PETSC_NULL_VEC
-  this%ref_qoi_dataset_name = ''
+  call InversionSubsurfaceInit(this,driver)
+  ! override default set in InversionSubsurfaceInit
+  this%iqoi(1) = ELECTRICAL_CONDUCTIVITY
 
   ! Default inversion parameters
   this%miniter = 10
@@ -191,7 +183,6 @@ subroutine InversionERTInit(this,driver)
   this%constrained_block => ConstrainedBlockCreate()
 
   nullify(this%realization)
-  call InversionBaseInit(this,driver)
 
 end subroutine InversionERTInit
 
@@ -483,27 +474,11 @@ subroutine InversionERTReadBlock(this,input,option)
     call StringToUpper(keyword)
 
     found = PETSC_FALSE
-    call InversionBaseReadSelectCase(this,input,keyword,found, &
-                                     error_string,option)
+    call InversionSubsurfReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)
     if (found) cycle
 
     select case(trim(keyword))
-      case('QUANTITY_OF_INTEREST')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('ELECTRICAL_CONDUCTIVITY')
-            this%iqoi = ELECTRICAL_CONDUCTIVITY
-          case default
-            call InputKeywordUnrecognized(input,word,trim(error_string)// &
-                                        & ',QUANTITY_OF_INTEREST',option)
-        end select
-      case('REFERENCE_QUANTITY_OF_INTEREST')
-        call InputReadNChars(input,option,this%ref_qoi_dataset_name, &
-                             MAXWORDLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'DATASET NAME', &
-                           keyword)
       case('MIN_ELECTRICAL_CONDUCTIVITY')
         call InputReadDouble(input,option,this%mincond)
         call InputErrorMsg(input,option,'MIN_ELECTRICAL_CONDUCTIVITY', &
@@ -550,10 +525,6 @@ subroutine InversionERTReadBlock(this,input,option)
         call InputErrorMsg(input,option,'START_INVERSION_ITERATION', &
                            error_string)
         this%iteration = this%start_iteration
-      case('MAX_INVERSION_ITERATION')
-        call InputReadInt(input,option,this%maximum_iteration)
-        call InputErrorMsg(input,option,'MAX_INVERSION_ITERATION', &
-                           error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -736,7 +707,7 @@ subroutine InversionERTInitialize(this)
 
   ! theck to ensure that quantity of interest exists
   exists = PETSC_FALSE
-  select case(this%iqoi)
+  select case(this%iqoi(1))
     case(ELECTRICAL_CONDUCTIVITY)
       if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
       word = 'ELECTRICAL_CONDUCTIVITY'
@@ -759,7 +730,7 @@ subroutine InversionERTInitialize(this)
                                      this%realization%field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 this%iqoi,ZERO_INTEGER)
+                                 this%iqoi(1),this%iqoi(2))
   else
     ! non-ghosted Vec
     call VecDuplicate(this%realization%field%work, &
@@ -767,7 +738,7 @@ subroutine InversionERTInitialize(this)
     ! ghosted Vec
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 this%iqoi,ZERO_INTEGER)
+                                 this%iqoi(1),this%iqoi(2))
     call DiscretizationLocalToGlobal(this%realization%discretization, &
                                      this%realization%field%work_loc, &
                                      this%quantity_of_interest,ONEDOF)
@@ -791,6 +762,45 @@ subroutine InversionERTInitialize(this)
   endif
 
 end subroutine InversionERTInitialize
+
+! ************************************************************************** !
+
+subroutine InversionERTStep(this)
+  !
+  ! Execute a simulation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 05/27/21
+
+  use Option_module
+  use Factory_Forward_module
+
+  class(inversion_ert_type) :: this
+
+  type(option_type), pointer :: option
+
+  option => OptionCreate()
+  write(option%group_prefix,'(i6)') this%iteration
+  option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
+  call OptionSetDriver(option,this%driver)
+  call FactoryForwardInitialize(this%forward_simulation, &
+                                this%forward_simulation_filename,option)
+  this%realization => this%forward_simulation%realization
+  call this%UpdateParameters()
+  call this%forward_simulation%InitializeRun()
+  if (option%status == PROCEED) then
+    call this%forward_simulation%ExecuteRun()
+  endif
+  call this%CheckConvergence()
+  call this%CalculateUpdate()
+  call this%WriteIterationInfo()
+  call this%UpdateRegularizParameters()
+  call this%forward_simulation%FinalizeRun()
+  call this%forward_simulation%Strip()
+  deallocate(this%forward_simulation)
+  nullify(this%forward_simulation)
+
+end subroutine InversionERTStep
 
 ! ************************************************************************** !
 
@@ -829,14 +839,14 @@ subroutine InvERTEvaluateCostFunction(this)
 
   use Option_module
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Survey_module
 
   implicit none
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(survey_type), pointer :: survey
@@ -901,6 +911,8 @@ subroutine InvERTEvaluateCostFunction(this)
     ! get cond & block of the ith constrained eq.
     ghosted_id = rblock(iconst,1)
     ghosted_id_nb = rblock(iconst,2)
+    if ((patch%imat(ghosted_id) <= 0) .or. &
+        (patch%imat(ghosted_id_nb) <= 0)) cycle
     irb = rblock(iconst,3)
     cond_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
     x = 0.d0
@@ -975,9 +987,10 @@ subroutine InvERTUpdateRegularizParams(this)
   class(inversion_ert_type) :: this
 
   ! update iteration number
-  this%iteration = this%iteration + 1
+!  this%iteration = this%iteration + 1
 
-  if (this%iteration - 1 == this%start_iteration) return
+!  if (this%iteration - 1 == this%start_iteration) return
+  if (this%iteration == this%start_iteration) return
 
   if ( (this%phi_total_0 - this%phi_total)/this%phi_total_0 <= &
                                                       this%min_phi_red ) then
@@ -991,21 +1004,6 @@ subroutine InvERTUpdateRegularizParams(this)
   this%phi_total_0 = this%phi_total
 
 end subroutine InvERTUpdateRegularizParams
-
-! ************************************************************************** !
-
-PetscInt function InversionERTSetIterationNum(this)
-  !
-  ! Sets starting iteration number
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 07/09/21
-
-  class(inversion_ert_type) :: this
-
-  InversionERTSetIterationNum = this%start_iteration - 1
-
-end function InversionERTSetIterationNum
 
 ! ************************************************************************** !
 
@@ -1040,7 +1038,7 @@ subroutine InversionERTUpdateParameters(this)
                                      this%quantity_of_interest, &
                                      field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 field%work_loc,this%iqoi,ZERO_INTEGER)
+                                 field%work_loc,this%iqoi(1),this%iqoi(2))
   endif
 
   ! Build Wm matrix
@@ -1069,7 +1067,7 @@ subroutine InversionERTCalculateUpdate(this)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
 
-  PetscInt :: local_id
+  PetscInt :: local_id,ghosted_id
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
 
@@ -1086,6 +1084,8 @@ subroutine InversionERTCalculateUpdate(this)
     ! Get updated conductivity as m_new = m_old + del_m (where m = log(sigma))
     call VecGetArrayF90(this%quantity_of_interest,vec_ptr,ierr);CHKERRQ(ierr)
     do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
       vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + this%del_cond(local_id))
       if (vec_ptr(local_id) > this%maxcond) vec_ptr(local_id) = this%maxcond
       if (vec_ptr(local_id) < this%mincond) vec_ptr(local_id) = this%mincond
@@ -1235,7 +1235,7 @@ subroutine InversionERTCGLSRhs(this)
   !
 
   use Patch_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   use Survey_module
 
@@ -1243,7 +1243,7 @@ subroutine InversionERTCGLSRhs(this)
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(survey_type), pointer :: survey
@@ -1338,14 +1338,14 @@ subroutine InversionERTBuildWm(this)
 
   use Patch_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   class(inversion_ert_type) :: this
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1392,6 +1392,9 @@ contains
     ! get cond & block of the ith constrained eq.
     ghosted_id = rblock(iconst,1)
     ghosted_id_nb = rblock(iconst,2)
+    if (patch%imat(ghosted_id) <= 0 .or.   &
+        patch%imat(ghosted_id_nb) <=0 ) return
+
     irb = rblock(iconst,3)
     cond_ce = material_auxvars(ghosted_id)%electrical_conductivity(1)
     x = 0.d0
@@ -1535,6 +1538,7 @@ subroutine InversionERTAllocateWm(this)
   num_constraints = 0
   do local_id=1,grid%nlmax
     ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
     do iconblock=1,constrained_block%num_constrained_block
       if (constrained_block%structure_metric(iconblock) > 0) then
         if (constrained_block%material_id(iconblock) == &
@@ -1547,6 +1551,7 @@ subroutine InversionERTAllocateWm(this)
             do inbr=1,num_neighbor
               ghosted_id_nbr = abs( &
                             grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) <= 0) cycle
               if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
                 do ilink=1,constrained_block%block_link(iconblock,1)
                   if (constrained_block%block_link(iconblock,ilink+1) == &
@@ -1579,6 +1584,7 @@ subroutine InversionERTAllocateWm(this)
   num_constraints = 0
   do local_id=1,grid%nlmax
     ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
     do iconblock=1,constrained_block%num_constrained_block
       if (constrained_block%structure_metric(iconblock) > 0) then
         if (constrained_block%material_id(iconblock) == &
@@ -1593,6 +1599,7 @@ subroutine InversionERTAllocateWm(this)
             do inbr=1,num_neighbor
               ghosted_id_nbr = abs( &
                             grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) <= 0) cycle
               if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
                 do ilink=1,constrained_block%block_link(iconblock,1)
                   if (constrained_block%block_link(iconblock,ilink+1) == &
@@ -1708,13 +1715,14 @@ subroutine InversionERTComputeMatVecProductJp(this)
     wm = this%Wm(iconst)
     irb = rblock(iconst,3)
     ghosted_id = rblock(iconst,1)
-
+    if (patch%imat(ghosted_id) <= 0) cycle
     if (constrained_block%structure_metric(irb) == 3 .or. &
         constrained_block%structure_metric(irb) == 4) then
       this%q(num_measurement + iconst) = &
         sqrt(beta) * wm * pvec_ptr(ghosted_id)
     else
       ghosted_id_nb = rblock(iconst,2)
+      if (patch%imat(ghosted_id_nb) <= 0) cycle
       this%q(num_measurement + iconst) = &
           sqrt(beta) * wm * (pvec_ptr(ghosted_id) - pvec_ptr(ghosted_id_nb))
     endif
@@ -1786,13 +1794,14 @@ subroutine InversionERTComputeMatVecProductJtr(this)
     wm = this%Wm(iconst)
     irb = rblock(iconst,3)
     ghosted_id = rblock(iconst,1)
-
+    if (patch%imat(ghosted_id) <= 0) cycle
     if (constrained_block%structure_metric(irb) == 3 .or. &
         constrained_block%structure_metric(irb) == 4) then
       svec_ptr(ghosted_id) = svec_ptr(ghosted_id) + &
         sqrt(beta) * wm * this%r(num_measurement + iconst)
     else
       ghosted_id_nb = rblock(iconst,2)
+      if (patch%imat(ghosted_id_nb) <= 0) cycle
       svec_ptr(ghosted_id) = svec_ptr(ghosted_id) + &
               sqrt(beta) * wm * this%r(num_measurement + iconst)
       svec_ptr(ghosted_id_nb) = svec_ptr(ghosted_id_nb) - &
@@ -1950,7 +1959,7 @@ subroutine InversionERTStrip(this)
 
   PetscErrorCode :: ierr
 
-  call InversionBaseStrip(this)
+  call InversionSubsurfaceStrip(this)
 
   nullify(this%realization)
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then

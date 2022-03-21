@@ -1,0 +1,18 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        STEADY_STATE
+        EXTERNAL_FILE zflow_standard_options.txt
+      /
+    /
+  /
+END
+
+SUBSURFACE
+  EXTERNAL_FILE 3x3x3.txt
+END_SUBSURFACE

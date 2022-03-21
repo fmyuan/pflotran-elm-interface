@@ -19,7 +19,7 @@ module Reaction_Sandbox_Example_class
   
 ! 2. Add module variables here.  Note that one must use the PETSc data types 
 !    PetscInt, PetscReal, PetscBool to declare variables of type integer
-!    float/real*8, and logical respectively.  E.g.
+!    float/real*8, and logical respectively.  E.g.,
 !
 ! PetscReal, parameter :: formula_weight_of_water = 18.01534d0
   
@@ -54,8 +54,8 @@ function ExampleCreate()
   
   class(reaction_sandbox_example_type), pointer :: ExampleCreate
 
-! 4. Add code to allocate object and initialized all variables to zero and
-!    nullify all pointers. E.g.
+! 4. Add code to allocate the object, initialize all variables to zero and
+!    nullify all pointers. E.g.,
   allocate(ExampleCreate)
   ExampleCreate%species_name = ''
   ExampleCreate%species_id = 0
@@ -105,32 +105,34 @@ subroutine ExampleRead(this,input,option)
       ! CHEMISTRY
       !   ...
       !   REACTION_SANDBOX
-      !   : begin user-defined input
+      !     # begin user-defined input
       !     EXAMPLE
       !       EXAMPLE_INTEGER 1
       !       EXAMPLE_INTEGER_ARRAY 2 3 4
       !     END
-      !   : end user defined input
+      !     # end user defined input
       !   END
       !   ...
       ! END
 
-! 5. Add case statement for reading variables.
+! 5. Add a case statement for reading variables.
       case('SPECIES_NAME')
-! 6. Read the variable
+! 6. Read the variable.
         ! Read the character string indicating which of the primary species
         ! is being decayed.
         call InputReadWord(input,option,this%species_name,PETSC_TRUE)  
 ! 7. Inform the user of any errors if not read correctly.
-        call InputErrorMsg(input,option,'species_name', &
+        call InputErrorMsg(input,option,'SPECIES_NAME', &
                            'CHEMISTRY,REACTION_SANDBOX,EXAMPLE')    
-! 8. Repeat for other variables
+! 8. Repeat for other variables.
       case('RATE_CONSTANT')
-        ! Read the double precision rate constant
+        ! Read the double precision rate constant.
         call InputReadDouble(input,option,this%rate_constant)
-        call InputErrorMsg(input,option,'rate_constant', &
+        ! Note the use of character variable 'word' instead of 'RATE_CONSTANT'
+        ! in the error message, as they are identical.
+        call InputErrorMsg(input,option,word, &
                            'CHEMISTRY,REACTION_SANDBOX,EXAMPLE')
-        ! Read the units
+        ! Read the units.
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (InputError(input)) then
           ! If units do not exist, assume default units of 1/s which are the
@@ -138,7 +140,7 @@ subroutine ExampleRead(this,input,option)
           input%err_buf = 'REACTION_SANDBOX,EXAMPLE,RATE CONSTANT UNITS'
           call InputDefaultMsg(input,option)
         else              
-          ! If units exist, convert to internal units of 1/s
+          ! If units exist, convert to internal units of 1/s.
           internal_units = 'unitless/sec'
           this%rate_constant = this%rate_constant * &
             UnitsConvertToInternal(word,internal_units,option)
@@ -156,13 +158,12 @@ end subroutine ExampleRead
 
 subroutine ExampleSetup(this,reaction,option)
   ! 
-  ! Sets up the example reaction either with parameters either
-  ! read from the input deck or hardwired.
+  ! Sets up the example reaction with parameters either read from the 
+  ! input deck or hardwired.
   ! 
   ! Author: John Doe
   ! Date: 00/00/00
   ! 
-
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
 
@@ -172,7 +173,7 @@ subroutine ExampleSetup(this,reaction,option)
   class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
-! 9. Add code to initialize 
+! 9. Add code to initialize.
   this%species_id = &
     GetPrimarySpeciesIDFromName(this%species_name,reaction,option)
       
@@ -181,18 +182,17 @@ end subroutine ExampleSetup
 ! ************************************************************************** !
 
 subroutine ExampleEvaluate(this,Residual,Jacobian,compute_derivative, &
-                           rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                           option)
+                           rt_auxvar,global_auxvar,material_auxvar, &
+                           reaction,option)
   ! 
-  ! Evaluates reaction storing residual and/or Jacobian
+  ! Evaluates the reaction storing the Residual and/or Jacobian
   ! 
   ! Author: John Doe
   ! Date: 00/00/00
   ! 
-
   use Option_module
   use Reaction_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -205,30 +205,34 @@ subroutine ExampleEvaluate(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: L_water
   
   ! Description of subroutine arguments:
 
-  ! Residual - 1D array storing residual entries in units mol/sec
-  ! Jacobian - 2D array storing Jacobian entires in units kg water/sec
+  ! Residual - 1D array storing Residual entries in units mol/sec
+  ! Jacobian - 2D array storing Jacobian entries in units kg water/sec
   !
   !  Jacobian [kg water/sec] * dc [mol/kg water] = -Res [mol/sec]
   !
-  ! compute_derivative - Flag indicating whether analtical derivative should
+  ! compute_derivative - Flag indicating whether analytical derivatives will
   !   be calculated.  The user must provide either the analytical derivatives 
   !   or a numerical approximation unless always running with 
-  !   NUMERICAL_JACOBIAN_RXN defined in input deck.  If the use of 
-  !   NUMERICAL_JACOBIAN_RXN is assumed, the user should provide an error 
-  !   message when compute_derivative is true.  E.g.
+  !   NUMERICAL_JACOBIAN defined within the NUMERICAL_METHODS TRANSPORT, 
+  !   NEWTON_SOLVER block of the input deck.  If the use of 
+  !   NUMERICAL_JACOBIAN is assumed, the user should provide an error 
+  !   message when compute_derivative is true.  E.g.,
   !
-  !   option%io_buffer = 'NUMERICAL_JACOBIAN_RXN must always be used ' // &
-  !                      'due to assumptions in Example'
-  !   call PrintErrMsg(option)
+  !   if (compute_derivative) then
+  !     option%io_buffer = 'NUMERICAL_JACOBIAN must be specified within &
+  !       &the NEWTON_SOLVER block of NUMERICAL_METHODS TRANSPORT due to &
+  !       &assumptions made in ExampleEvaluate.'
+  !     call PrintErrMsg(option)
+  !   endif
   !
-  ! rt_auxvar - Object holding chemistry information (e.g. concentrations,
+  ! rt_auxvar - Object holding chemistry information (e.g., concentrations,
   !   activity coefficients, mineral volume fractions, etc.).  See
   !   reactive_transport_aux.F90.  
   !
@@ -240,18 +244,18 @@ subroutine ExampleEvaluate(this,Residual,Jacobian,compute_derivative, &
   !     rt_auxvar%aqueous%dtotal(:,iphase) - derivative of total component
   !                 concentration with respect to free ion [kg water/L water]
   !
-  ! global_auxvar - Object holding information on flow (e.g. saturation,
+  ! global_auxvar - Object holding information on flow (e.g., saturation,
   !   density, viscosity, temperature, etc)
   !
   !   Useful variables:
-  !     global_auxvar%den(iphase) - fluid density [mol/m^3] 
-  !     global_auxvar%den_kg(iphase) - fluid density [kg/m^3] 
-  !     global_auxvar%sat(iphase) - saturation 
+  !     global_auxvar%den(iphase) - liquid density [mol/m^3] 
+  !     global_auxvar%den_kg(iphase) - liquid density [kg/m^3] 
+  !     global_auxvar%sat(iphase) - liquid saturation [m^3 water/m^3 pore]
   !     global_auxvar%temp - temperature [C]
   !
   ! porosity - effective porosity of grid cell [m^3 pore/m^3 bulk]                     
   ! volume - volume of grid cell [m^3]
-  ! reaction - Provides access to variable describing chemistry.  E.g.
+  ! reaction - Provides access to variable describing chemistry.  E.g.,
   !   reaction%ncomp - # chemical degrees of freedom (mobile and immobile)
   !   reaction%naqcomp - # chemical degrees of freedom on water
   !   reaction%primary_species_names(:) - names of primary species
@@ -259,39 +263,34 @@ subroutine ExampleEvaluate(this,Residual,Jacobian,compute_derivative, &
   ! option - Provides handle for controlling simulation, catching and
   !          reporting errors.
   
-! 10. Add code for residual evaluation
+! 10. Add code for the Residual evaluation.
 
-  ! Unit of the residual must be in moles/second
-  ! global_auxvar%sat(iphase) = saturation of cell
+  ! Units of the Residual must be in moles/second.
   ! 1.d3 converts m^3 water -> L water
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             material_auxvar%volume*1.d3
-  ! always subtract contribution from residual
+  ! Always "subtract" the contribution from the Residual.
   Residual(this%species_id) = Residual(this%species_id) - &
     (-1.d0) * & ! negative stoichiometry
     this%rate_constant * &  ! 1/sec
     L_water * & ! L water
-    ! rt_auxvar%total(this%species_id,iphase) = species total component 
-    !   concentration
     rt_auxvar%total(this%species_id,iphase) ! mol/L water
-    
-  
   
   if (compute_derivative) then
 
-! 11. If using an analytical Jacobian, add code for Jacobian evaluation
+! 11. If using an analytical Jacobian, add code for the Jacobian evaluation.
 
-    ! always add contribution to Jacobian
-    ! units = (mol/sec)*(kg water/mol) = kg water/sec
+    ! Always "add" the contribution to the Jacobian.
+    ! Units = (mol/sec)*(kg water/mol) = kg water/sec
     Jacobian(this%species_id,this%species_id) = &
     Jacobian(this%species_id,this%species_id) - &
       (-1.d0) * & ! negative stoichiometry
       this%rate_constant * & ! 1/sec
       L_water * & ! L water
-                  ! kg water/L water
       ! rt_auxvar%aqueous%dtotal(this%species_id,this%species_id,iphase) = 
       !   derivative of total component concentration with respect to the
-      !   free ion concentration of the same species.
+      !   free ion concentration of the same species.  
+      ! kg water/L water
       rt_auxvar%aqueous%dtotal(this%species_id,this%species_id,iphase) 
 
   endif
@@ -302,18 +301,16 @@ end subroutine ExampleEvaluate
 
 subroutine ExampleDestroy(this)
   ! 
-  ! Destroys allocatable or pointer objects created in this
-  ! module
+  ! Destroys allocatable or pointer objects created in this module
   ! 
   ! Author: John Doe
   ! Date: 00/00/00
   ! 
-
   implicit none
   
   class(reaction_sandbox_example_type) :: this  
 
-! 12. Add code to deallocate contents of the example object
+! 12. Add code to deallocate dynamic members of reaction_sandbox_example_type.
 
 end subroutine ExampleDestroy
 

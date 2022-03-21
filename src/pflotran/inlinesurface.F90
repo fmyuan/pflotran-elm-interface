@@ -4,7 +4,7 @@ module InlineSurface_module
   use petscsys
   use InlineSurface_Aux_module
   use Global_Aux_module
-  use Material_Aux_class, only : material_auxvar_type
+  use Material_Aux_module, only : material_auxvar_type
   use Option_module
 
   implicit none

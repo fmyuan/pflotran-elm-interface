@@ -171,7 +171,7 @@ module Grid_Unstructured_Aux_module
             UGridExplicitCreate, &
             UGridPolyhedraCreate, &
             UGridMapIndices, &
-            UGridDMCreateJacobian, &
+            UGridDMCreateMatrix, &
             UGridDMCreateVector, &
             UGridDestroy, &
             UGridCreateUGDM, &
@@ -771,7 +771,7 @@ subroutine UGridCreateUGDMShell(unstructured_grid,da,ugdm,ndof,option)
   call VecDestroy(local_vec,ierr);CHKERRQ(ierr)
 
   ! GB: Can mat_type passed as an argument to this subroutine?
-  !call UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,jac,option)
+  !call UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,jac,option)
   !call DMShellSetMatrix(J,ierr);CHKERRQ(ierr)
   !call MatDestroy(J,ierr);CHKERRQ(ierr)
 
@@ -779,9 +779,9 @@ end subroutine UGridCreateUGDMShell
 
 ! ************************************************************************** !
 
-subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
+subroutine UGridDMCreateMatrix(unstructured_grid,ugdm,mat_type,J,option)
   ! 
-  ! Creates a Jacobian matrix based on the unstructured
+  ! Creates a matrix based on the unstructured
   ! grid dual
   ! 
   ! Author: Glenn Hammond
@@ -910,7 +910,7 @@ subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
   call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-end subroutine UGridDMCreateJacobian
+end subroutine UGridDMCreateMatrix
 
 ! ************************************************************************** !
 
@@ -1652,8 +1652,8 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       if (dual_id < 1) exit
       count = count + 1
       ! flag ghosted cells in dual as negative
-      !geh: these negative dual ids are used later in UGridDMCreateJacobian() 
-      !     to specify off processor connectity in the Jacobian
+      !geh: these negative dual ids are used later in UGridDMCreateMatrix() 
+      !     to specify off processor connectity in the matrix
       if (dual_id > ugrid%nlmax) dual_id = -dual_id
       ugrid%cell_neighbors_local_ghosted(idual,local_id) = dual_id
     enddo

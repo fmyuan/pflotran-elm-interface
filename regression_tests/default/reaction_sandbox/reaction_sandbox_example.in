@@ -13,8 +13,6 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
-      OPTIONS
-      /
     /
   /
 END
@@ -39,16 +37,16 @@ END
 #=========================== regression =======================================
 REGRESSION
   CELL_IDS
-1
+    1
     2
-3
-4
+    3
+    4
     5
-6
-7
-8
+    6
+    7
+    8
     9
-10
+    10
   /
 END
 
@@ -209,6 +207,5 @@ STRATA
   REGION all
   MATERIAL soil1
 END
-
 
 END_SUBSURFACE

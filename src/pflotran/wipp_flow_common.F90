@@ -34,11 +34,11 @@ module WIPP_Flow_Common_module
       use WIPP_Flow_Aux_module
       use Global_Aux_module
       use Option_module
-      use Material_Aux_class
+      use Material_Aux_module
       implicit none
       type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-      class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+      type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
       type(option_type) :: option
       PetscReal :: v_darcy(option%nphase)
       PetscReal :: area
@@ -65,7 +65,7 @@ module WIPP_Flow_Common_module
       use WIPP_Flow_Aux_module
       use Global_Aux_module
       use Option_module
-      use Material_Aux_class
+      use Material_Aux_module
       implicit none
       type(option_type) :: option
       PetscInt :: ibndtype(1:option%nflowdof)
@@ -73,7 +73,7 @@ module WIPP_Flow_Common_module
       PetscReal :: auxvars(:) ! from aux_real_var array
       type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-      class(material_auxvar_type) :: material_auxvar_dn
+      type(material_auxvar_type) :: material_auxvar_dn
       PetscReal :: area
       PetscReal :: dist(-1:3)
       PetscInt :: upwind_direction_(option%nphase)
@@ -107,7 +107,7 @@ contains
 ! ************************************************************************** !
 
 subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
-                               soil_heat_capacity,option,Res,debug_cell)
+                               option,Res,debug_cell)
   ! 
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -117,14 +117,13 @@ subroutine WIPPFloAccumulation(wippflo_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  PetscReal :: soil_heat_capacity
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof) 
   PetscBool :: debug_cell
@@ -178,7 +177,7 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
   ! Date: 07/11/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Connection_module
   use Upwind_Direction_module
   
@@ -186,7 +185,7 @@ subroutine WIPPFloFluxHarmonicPermOnly(wippflo_auxvar_up,global_auxvar_up, &
   
   type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
@@ -402,14 +401,14 @@ subroutine WIPPFloFluxLumpedHarmonic(wippflo_auxvar_up,global_auxvar_up, &
   ! Date: 07/11/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
   
   implicit none
   
   type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area   ! area here is really area / alpha
@@ -643,7 +642,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   ! Date: 07/11/17
   ! 
   use Option_module                              
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
   
   implicit none
@@ -654,7 +653,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
@@ -959,7 +958,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   ! Date: 07/11/17
   ! 
   use Option_module                              
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module
   
   implicit none
@@ -970,7 +969,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area ! this is the actual area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
@@ -1245,7 +1244,7 @@ subroutine WIPPFloSrcSink(option,qsrc,flow_src_sink_type, &
   ! Date: 07/11/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use EOS_Water_module
   use EOS_Gas_module
 
@@ -1324,7 +1323,7 @@ end subroutine WIPPFloSrcSink
 ! ************************************************************************** !
 
 subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
-                                  material_auxvar, soil_heat_capacity, &
+                                  material_auxvar, &
                                   option,J)
   ! 
   ! Computes derivatives of the accumulation
@@ -1335,15 +1334,14 @@ subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
   ! 
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   type(wippflo_auxvar_type) :: wippflo_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
@@ -1351,13 +1349,13 @@ subroutine WIPPFloAccumDerivative(wippflo_auxvar,global_auxvar, &
 
   call WIPPFloAccumulation(wippflo_auxvar(ZERO_INTEGER), &
                            global_auxvar, &
-                           material_auxvar,soil_heat_capacity,option, &
+                           material_auxvar,option, &
                            res,PETSC_FALSE)
                            
   do idof = 1, option%nflowdof
     call WIPPFloAccumulation(wippflo_auxvar(idof), &
                              global_auxvar, &
-                             material_auxvar,soil_heat_capacity, &
+                             material_auxvar, &
                              option,res_pert,PETSC_FALSE)
     do irow = 1, option%nflowdof
       J(irow,idof) = (res_pert(irow)-res(irow))/wippflo_auxvar(idof)%pert
@@ -1384,14 +1382,14 @@ subroutine XXFluxDerivative(wippflo_auxvar_up,global_auxvar_up, &
   ! Date: 07/11/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module, only : count_upwind_direction_flip
   
   implicit none
   
   type(wippflo_auxvar_type) :: wippflo_auxvar_up(0:), wippflo_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -1499,7 +1497,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   ! 
 
   use Option_module 
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module, only : count_upwind_direction_flip
   
   implicit none
@@ -1510,7 +1508,7 @@ subroutine XXBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(wippflo_auxvar_type) :: wippflo_auxvar_up, wippflo_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
@@ -1569,7 +1567,7 @@ subroutine WIPPFloSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   ! Date: 07/11/17
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 

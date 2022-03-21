@@ -6,6 +6,7 @@ module Inversion_Base_class
   use PFLOTRAN_Constants_module
   use Driver_module
   use Timer_class
+  use Option_Inversion_module
 
   implicit none
 
@@ -14,26 +15,35 @@ module Inversion_Base_class
   type, public :: inversion_base_type
     class(driver_type), pointer :: driver
     class(timer_type), pointer :: timer
+    type(inversion_option_type), pointer :: inversion_option
     PetscInt :: iteration                ! iteration number
+    PetscInt :: maximum_iteration        ! Maximum iteration number
     PetscBool :: converg_flag            ! convergence flag
   contains
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseInitialize
     procedure, public :: ReadBlock => InversionBaseReadBlock
-    procedure, public :: SetIterationNumber => InversionBaseSetIterationNum
-    procedure, public :: UpdateParameters => InversionBaseUpdateParameters
-    procedure, public :: CalculateUpdate => InversionBaseCalculateUpdate
-    procedure, public :: CheckConvergence => InversionBaseCheckConvergence
-    procedure, public :: EvaluateCostFunction => InvBaseEvaluateCostFunction
-    procedure, public :: UpdateRegularizationParameters => &
-                           InvBaseUpdateRegularizParams
-    procedure, public :: WriteIterationInfo => InversionBaseWriteIterationInfo
+    procedure, public :: Step => InversionBaseThisOnly
+    procedure, public :: ConnectToFowardRun => InversionBaseThisOnly
+    procedure, public :: InitializeIterationNumber => &
+                           InversionBaseInitIterationNum
+    procedure, public :: IncrementIteration => InversionBaseIncrementIteration
+    procedure, public :: UpdateParameters => InversionBaseThisOnly
+    procedure, public :: CalculateUpdate => InversionBaseThisOnly
+    procedure, public :: CalculateSensitivity => InversionBaseThisOnly
+    procedure, public :: OutputSensitivity => InversionBaseOutputSensitivity
+    procedure, public :: Invert => InversionBaseThisOnly
+    procedure, public :: CheckConvergence => InversionBaseThisOnly
+    procedure, public :: EvaluateCostFunction => InversionBaseThisOnly
+    procedure, public :: UpdateRegularizParameters => InversionBaseThisOnly
+    procedure, public :: WriteIterationInfo => InversionBaseThisOnly
     procedure, public :: Finalize => InversionBaseFinalize
     procedure, public :: Strip => InversionBaseStrip
   end type inversion_base_type
 
   public :: InversionBaseInit, &
             InversionBaseReadSelectCase, &
+            InversionBaseInitialize, &
             InversionBaseFinalize, &
             InversionBaseStrip, &
             InversionBaseDestroy
@@ -55,8 +65,10 @@ subroutine InversionBaseInit(this,driver)
   this%driver => driver
   this%timer => TimerCreate()
   call this%timer%Start()
+  this%inversion_option => OptionInversionCreate()
 
-  this%iteration = 1
+  this%iteration = 0
+  this%maximum_iteration = UNINITIALIZED_INTEGER
   this%converg_flag = PETSC_FALSE
 
 end subroutine InversionBaseInit
@@ -73,36 +85,7 @@ subroutine InversionBaseReadBlock(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
-  PetscBool :: found
-
-  error_string = 'Base Inversion'
-
-  input%ierr = 0
-  call InputPushBlock(input,option)
-  do
-
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)
-
-    found = PETSC_TRUE
-    call InversionBaseReadSelectCase(this,input,keyword,found, &
-                                     error_string,option)
-    if (found) cycle
-
-    select case(trim(keyword))
-      case default
-        call InputKeywordUnrecognized(input,keyword,error_string,option)
-    end select
-
-  enddo
-  call InputPopBlock(input,option)
+  call this%driver%PrintErrMsg('InversionBaseReadBlock must be extended.')
 
 end subroutine InversionBaseReadBlock
 
@@ -124,6 +107,10 @@ subroutine InversionBaseReadSelectCase(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
+    case('MAX_INVERSION_ITERATION','MAXIMUM_NUMBER_OF_ITERATIONS')
+      call InputReadInt(input,option,this%maximum_iteration)
+      call InputErrorMsg(input,option,'MAXIMUM_NUMBER_OF_ITERATIONS', &
+                         error_string)
     case default
       found = PETSC_FALSE
   end select
@@ -143,10 +130,20 @@ subroutine InversionBaseInitialize(this)
 
 end subroutine InversionBaseInitialize
 
+! ************************************************************************** !
+
+subroutine InversionBaseThisOnly(this)
+
+  class(inversion_base_type) :: this
+
+  call this%driver%PrintErrMsg('An inversion routine that passes only "this" &
+    &must be extended from the Base implementation.')
+
+end subroutine InversionBaseThisOnly
 
 ! ************************************************************************** !
 
-PetscInt function InversionBaseSetIterationNum(this)
+subroutine InversionBaseInitIterationNum(this)
   !
   ! Sets starting iteration number
   !
@@ -155,87 +152,36 @@ PetscInt function InversionBaseSetIterationNum(this)
 
   class(inversion_base_type) :: this
 
-  InversionBaseSetIterationNum = 0
+  this%iteration = 1
 
-end function InversionBaseSetIterationNum
-
-! ************************************************************************** !
-
-subroutine InversionBaseUpdateParameters(this)
-  !
-  ! Initializes inversion
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/04/21
-  !
-  class(inversion_base_type) :: this
-
-end subroutine InversionBaseUpdateParameters
+end subroutine InversionBaseInitIterationNum
 
 ! ************************************************************************** !
 
-subroutine InversionBaseCalculateUpdate(this)
+subroutine InversionBaseIncrementIteration(this)
   !
-  ! Initializes inversion
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/04/21
-  !
-  class(inversion_base_type) :: this
-
-end subroutine InversionBaseCalculateUpdate
-
-! ************************************************************************** !
-
-subroutine InversionBaseCheckConvergence(this)
-  !
-  ! Check inversion convergence
+  ! Sets starting iteration number
   !
   ! Author: Piyoosh Jaysaval
-  ! Date: 06/14/21
-  !
+  ! Date: 07/09/21
+
   class(inversion_base_type) :: this
 
-end subroutine InversionBaseCheckConvergence
+  this%iteration = this%iteration + 1
+
+end subroutine InversionBaseIncrementIteration
 
 ! ************************************************************************** !
 
-subroutine InvBaseEvaluateCostFunction(this)
-  !
-  ! Computes cost functions
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 06/14/21
-  !
+subroutine InversionBaseOutputSensitivity(this,suffix)
+
   class(inversion_base_type) :: this
+  character(len=*) :: suffix
 
-end subroutine InvBaseEvaluateCostFunction
+  call this%driver%PrintErrMsg('InversionBaseOutputSensitivity &
+    &must be extended from the Base implementation.')
 
-! ************************************************************************** !
-
-subroutine InvBaseUpdateRegularizParams(this)
-  !
-  ! Computes cost functions
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 06/18/21
-  !
-  class(inversion_base_type) :: this
-
-end subroutine InvBaseUpdateRegularizParams
-
-! ************************************************************************** !
-
-subroutine InversionBaseWriteIterationInfo(this)
-  !
-  ! Writes inversion run info
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 07/01/21
-  !
-  class(inversion_base_type) :: this
-
-end subroutine InversionBaseWriteIterationInfo
+end subroutine InversionBaseOutputSensitivity
 
 ! ************************************************************************** !
 
@@ -268,6 +214,7 @@ subroutine InversionBaseStrip(this)
 
   nullify(this%driver)
   call TimerDestroy(this%timer)
+  call OptionInversionDestroy(this%inversion_option)
 
 end subroutine InversionBaseStrip
 

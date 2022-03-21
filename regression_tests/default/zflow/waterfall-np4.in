@@ -1,0 +1,270 @@
+#Description: 1D variably saturated flow problem
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE ZFLOW
+      OPTIONS
+        PROCESSES
+          LIQUID_FLOW
+          SOLUTE_TRANSPORT
+        /
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    CFL_GOVERNOR 1.
+  /
+
+  NEWTON_SOLVER
+    MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.d0
+    #NUMERICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    3
+    26
+    53
+    56
+    77
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 10 1 10
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 10.d0
+  /
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+MATERIAL_PROPERTY soil2
+  ID 2
+  POROSITY 0.3
+  PERMEABILITY
+    PERM_ISO 1.d-14
+  /
+  CHARACTERISTIC_CURVES cc2
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+CHARACTERISTIC_CURVES cc2
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 5.d-4
+    M 0.25d0
+    LIQUID_RESIDUAL_SATURATION 0.2d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.25d0
+    LIQUID_RESIDUAL_SATURATION 0.2d0
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  TIMES y 0.01 0.1 1.0
+  #FORMAT HDF5
+  VARIABLES
+    LIQUID_PRESSURE
+    LIQUID_SATURATION
+    SOLUTE_CONCENTRATION
+  /
+  #VELOCITY_AT_CENTER
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 10.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-1 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 10.d0
+    10.d0 1.d0 10.d0
+  /
+END
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 0.d0
+  /
+END
+
+REGION pond
+  FACE TOP
+  COORDINATES
+    5.d0 0.d0 10.d0
+    6.d0 1.d0 10.d0
+  /
+END
+
+REGION side
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 5.d0
+    0.d0 1.d0 6.d0
+  /
+END
+
+REGION anomalous_block
+  COORDINATES
+    5.d0 0.d0 4.d0
+    8.d0 1.d0 6.d0
+  /
+END
+
+REGION injection_well
+  COORDINATES
+    5.5d0 0.d0 5.d0
+    5.5d0 1.d0 7.d0
+  /
+END
+
+REGION extraction_well
+  COORDINATE 1.5d0 0.5d0 1.5d0
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    CONCENTRATION DIRICHLET
+  /
+  DATUM 0.d0 0.d0 1.d0
+  LIQUID_PRESSURE 101325.d0
+  CONCENTRATION 1.d-10
+END
+
+FLOW_CONDITION waterfall
+  TYPE
+    LIQUID_PRESSURE DIRICHLET_CONDUCTANCE
+    CONCENTRATION DIRICHLET
+  /
+  CONDUCTANCE 1.d-18
+  LIQUID_PRESSURE 101325.1d0
+  CONCENTRATION 1.d-4
+END
+
+FLOW_CONDITION recharge
+  TYPE
+    LIQUID_FLUX NEUMANN
+    CONCENTRATION DIRICHLET
+  /
+  LIQUID_FLUX 4.d0 cm/y
+  CONCENTRATION 1.d-3
+END
+
+FLOW_CONDITION injection_well
+  TYPE
+    RATE SCALED_VOLUMETRIC_RATE PERM
+    CONCENTRATION DIRICHLET
+  /
+  RATE 0.1 m^3/y
+  CONCENTRATION 1.d-5
+END
+
+FLOW_CONDITION extraction_well
+  TYPE
+    RATE VOLUMETRIC_RATE
+    CONCENTRATION DIRICHLET
+  /
+  RATE -0.01d0 m^3/y
+  CONCENTRATION 1.d-10
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION initial
+  REGION bottom
+END
+
+BOUNDARY_CONDITION recharge
+  FLOW_CONDITION recharge
+  REGION pond
+END
+
+BOUNDARY_CONDITION waterfall
+  FLOW_CONDITION waterfall
+  REGION side
+END
+
+SOURCE_SINK injection_well
+  FLOW_CONDITION injection_well
+  REGION injection_well
+END
+
+SOURCE_SINK extraction_well
+  FLOW_CONDITION extraction_well
+  REGION extraction_well
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+STRATA
+  REGION anomalous_block
+  MATERIAL soil2
+END
+
+END_SUBSURFACE

@@ -26,16 +26,20 @@ module PM_ERT_class
     PetscLogDouble :: ksp_time
     Vec :: rhs
     ! EMPIRICAL Archie and Waxman-Smits options
+    PetscInt :: conductivity_mapping_law
     PetscReal :: tortuosity_constant   ! a
     PetscReal :: cementation_exponent  ! m
     PetscReal :: saturation_exponent   ! n
     PetscReal :: water_conductivity
+    PetscReal :: surface_conductivity
     PetscReal :: tracer_conductivity
     PetscReal :: clay_conductivity
     PetscReal :: clay_volume_factor
     PetscReal :: max_tracer_conc
     PetscReal, pointer :: species_conductivity_coef(:)
     character(len=MAXSTRINGLENGTH) :: mobility_database
+    ! Starting sulution/potential
+    PetscBool :: analytical_potential
   contains
     procedure, public :: Setup => PMERTSetup
     procedure, public :: ReadSimulationOptionsBlock => PMERTReadSimOptionsBlock
@@ -106,14 +110,18 @@ subroutine PMERTInit(pm_ert)
   pm_ert%rhs = PETSC_NULL_VEC
 
   ! Archie and Waxman-Smits default values
+  pm_ert%conductivity_mapping_law = ARCHIE
   pm_ert%tortuosity_constant = 1.d0
   pm_ert%cementation_exponent = 1.9d0
   pm_ert%saturation_exponent = 2.d0
   pm_ert%water_conductivity = 0.01d0
+  pm_ert%surface_conductivity = 0.d0 ! to modifie Archie's equation
   pm_ert%tracer_conductivity = 0.d0
   pm_ert%clay_conductivity = 0.03d0
   pm_ert%clay_volume_factor = 0.0d0  ! No clay -> clean sand
   pm_ert%max_tracer_conc = UNINITIALIZED_DOUBLE
+
+  pm_ert%analytical_potential = PETSC_TRUE
 
   nullify(pm_ert%species_conductivity_coef)
   pm_ert%mobility_database = ''
@@ -178,6 +186,22 @@ subroutine PMERTReadSimOptionsBlock(this,input)
       ! Add various options for ERT if needed here
       case('COMPUTE_JACOBIAN')
         option%geophysics%compute_jacobian = PETSC_TRUE
+      case('NO_ANALYTICAL_POTENTIAL')
+        this%analytical_potential = PETSC_FALSE
+      case('CONDUCTIVITY_MAPPING_LAW')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call StringToUpper(word)
+        select case(trim(word))
+          case('ARCHIE')
+            this%conductivity_mapping_law = ARCHIE
+          case('WAXMAN_SMITS')
+            this%conductivity_mapping_law = WAXMAN_SMITS
+          case default
+            option%io_buffer  = 'CONDUCTIVITY_MAPPING_LAW: ' &
+                                      // trim(word) // ' unknown.'
+            call PrintErrMsg(option)
+        end select
       case('TORTUOSITY_CONSTANT')
         call InputReadDouble(input,option,this%tortuosity_constant)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -189,6 +213,9 @@ subroutine PMERTReadSimOptionsBlock(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
       case('WATER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%water_conductivity)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('SURFACE_CONDUCTIVITY')
+        call InputReadDouble(input,option,this%surface_conductivity)
         call InputErrorMsg(input,option,keyword,error_string)
       case('TRACER_CONDUCTIVITY')
         call InputReadDouble(input,option,this%tracer_conductivity)
@@ -297,6 +324,7 @@ recursive subroutine PMERTInitializeRun(this)
   use Patch_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
+  use String_module
   use Transport_Constraint_RT_module
 
   implicit none
@@ -324,6 +352,7 @@ recursive subroutine PMERTInitializeRun(this)
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: iconn, sum_connection
   PetscInt :: local_id, ghosted_id
+  PetscInt :: i
   PetscErrorCode :: ierr
 
 
@@ -421,6 +450,26 @@ recursive subroutine PMERTInitializeRun(this)
     enddo
   endif
 
+  ! ensure that electrodes are not placed in inactive cells
+  flag = PETSC_FALSE
+  do i = 1, size(this%survey%ipos_electrode)
+    local_id = this%survey%ipos_electrode(i)
+    if (local_id <= 0) cycle ! not on process
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) then
+      option%io_buffer = 'Electrode in inactive grid cell: ' // &
+        trim(StringWrite(grid%nG2A(ghosted_id)))
+      call PrintErrMsgNoStopByRank(option)
+      flag = PETSC_TRUE
+    endif
+  enddo
+  call MPI_Allreduce(MPI_IN_PLACE,flag,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
+  if (flag) then
+    option%io_buffer = 'Electrodes in inactive cells (see above).'
+    call PrintErrMsg(option)
+  endif
+
 end subroutine PMERTInitializeRun
 
 ! ************************************************************************** !
@@ -471,11 +520,10 @@ subroutine PMERTSetupSolvers(this)
 
   solver%M_mat_type = MATAIJ
   solver%Mpre_mat_type = MATAIJ
-  !TODO(geh): XXXCreateJacobian -> XXXCreateMatrix
-  call DiscretizationCreateJacobian(this%realization%discretization, &
-                                    ONEDOF, &
-                                    solver%Mpre_mat_type, &
-                                    solver%Mpre,option)
+  call DiscretizationCreateMatrix(this%realization%discretization, &
+                                  ONEDOF, &
+                                  solver%Mpre_mat_type, &
+                                  solver%Mpre,option)
 
   call MatSetOptionsPrefix(solver%Mpre,"geop_",ierr);CHKERRQ(ierr)
   solver%M = solver%Mpre
@@ -513,7 +561,7 @@ subroutine PMERTPreSolve(this)
   use Field_module
   use Global_Aux_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
   use Patch_module
   use Reaction_Aux_module
@@ -531,11 +579,12 @@ subroutine PMERTPreSolve(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(reaction_rt_type), pointer :: reaction
   PetscInt :: ghosted_id
   PetscInt :: species_id
-  PetscReal :: a,m,n,cond_w,cond_c,Vc,cond  ! variables for Archie's law
+  PetscInt :: empirical_law
+  PetscReal :: a,m,n,cond_w,cond_s,cond_c,Vc,cond  ! variables for Archie's law
   PetscReal :: por,sat
   PetscReal :: cond_sp,cond_w0
   PetscReal :: tracer_scale
@@ -548,11 +597,13 @@ subroutine PMERTPreSolve(this)
   grid => patch%grid
   reaction => patch%reaction
 
+  empirical_law = this%conductivity_mapping_law
   a = this%tortuosity_constant
   m = this%cementation_exponent
   n = this%saturation_exponent
   Vc = this%clay_volume_factor
   cond_w = this%water_conductivity
+  cond_s = this%surface_conductivity
   cond_c = this%clay_conductivity
   cond_w0 = cond_w
 
@@ -567,6 +618,7 @@ subroutine PMERTPreSolve(this)
 
   material_auxvars => patch%aux%Material%auxvars
   do ghosted_id = 1, grid%ngmax
+    if (patch%imat(ghosted_id) <= 0) cycle
     por = material_auxvars(ghosted_id)%porosity
     sat = global_auxvars(ghosted_id)%sat(1)
     if (associated(rt_auxvars)) then
@@ -588,7 +640,8 @@ subroutine PMERTPreSolve(this)
       endif
     endif
     ! compute conductivity
-    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c,cond)
+    call ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
+                                         cond_c,empirical_law,cond)
     material_auxvars(ghosted_id)%electrical_conductivity(1) = cond
   enddo
 
@@ -604,6 +657,7 @@ subroutine PMERTSolve(this,time,ierr)
   ! Date: 01/27/21
   !
   use Patch_module
+  use Debug_module
   use Grid_module
   use Solver_module
   use Field_module
@@ -634,7 +688,9 @@ subroutine PMERTSolve(this,time,ierr)
   PetscReal :: val
   PetscReal :: average_cond
   PetscReal, pointer :: vec_ptr(:)
+  character(len=MAXSTRINGLENGTH) :: string
 
+  PetscViewer :: viewer
   !PetscLogDouble :: log_start_time
   PetscLogDouble :: log_ksp_start_time
   PetscLogDouble :: log_start_time
@@ -677,16 +733,19 @@ subroutine PMERTSolve(this,time,ierr)
       write(*,'(x,a)',advance='no') trim(StringWrite(ielec))
     endif
 
-    ! Initial Solution -> analytic sol for a half-space
-    ! Get Analytical potential for a half-space
-    call ERTCalculateAnalyticPotential(realization,ielec,average_cond)
-    ! assign analytic potential as initial solution
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      vec_ptr(local_id) = ert_auxvars(ghosted_id)%potential(ielec)
-    enddo
+    if (this%analytical_potential) then
+      ! Initial Solution -> analytic sol for a half-space
+      ! Get Analytical potential for a half-space
+      call ERTCalculateAnalyticPotential(realization,ielec,average_cond)
+      ! assign analytic potential as initial solution
+      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      do local_id=1,grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) cycle
+        vec_ptr(local_id) = ert_auxvars(ghosted_id)%potential(ielec)
+      enddo
+    endif
+
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
     call KSPSetInitialGuessNonzero(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
@@ -710,14 +769,26 @@ subroutine PMERTSolve(this,time,ierr)
       vec_ptr(elec_id) = val
     endif
     call VecRestoreArrayF90(this%rhs,vec_ptr,ierr);CHKERRQ(ierr)
-    !call VecView(this%rhs,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
+
+    if (realization%debug%vecview_residual) then
+      string = 'ERTrhs_' // trim(adjustl(StringWrite(elec_id)))
+      call DebugCreateViewer(realization%debug,string,this%option,viewer)
+      call VecView(this%rhs,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
 
     ! Solve system
     call PetscTime(log_ksp_start_time,ierr); CHKERRQ(ierr)
     call KSPSolve(solver%ksp,this%rhs,field%work,ierr);CHKERRQ(ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     this%ksp_time = this%ksp_time + (log_end_time - log_ksp_start_time)
-    !call VecView(field%work,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr)
+
+    if (realization%debug%vecview_solution) then
+      string = 'ERTsolution_' // trim(adjustl(StringWrite(elec_id)))
+      call DebugCreateViewer(realization%debug,string,this%option,viewer)
+      call VecView(field%work,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
 
     call DiscretizationGlobalToLocal(discretization,field%work, &
                                      field%work_loc,ONEDOF)
@@ -846,7 +917,7 @@ subroutine PMERTBuildJacobian(this)
 
   use Patch_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Timer_class
   use String_module
 
@@ -859,7 +930,7 @@ subroutine PMERTBuildJacobian(this)
   type(option_type), pointer :: option
   type(survey_type), pointer :: survey
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   class(timer_type), pointer ::timer
 
   PetscInt, pointer :: cell_neighbors(:,:)

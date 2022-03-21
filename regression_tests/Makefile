@@ -58,74 +58,72 @@ endif
 STANDARD_CFG = \
 	ascem/batch/batch.cfg \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
-	default/input_format/input_format.cfg \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
+	default/batch/batch.cfg \
 	default/column/column.cfg \
 	default/constraint/constraint.cfg \
-	default/reaction_sandbox/reaction_sandbox.cfg \
-	default/batch/batch.cfg \
-	default/debug/debug.cfg \
-	default/eos/eos.cfg \
-	default/dispersion/dispersion.cfg \
-	default/materials/materials.cfg \
-	default/materials/soil_compressibility/soil_compressibility.cfg \
-	default/materials/mineral_volume/mineral_volume.cfg \
-	default/materials/full_tensor/full_tensor.cfg \
-	default/infiltrometer/infiltrometer.cfg \
-	default/infiltration1d/infiltration1d.cfg \
-	default/numerical/numerical.cfg \
-	default/output/output.cfg \
-	default/output/compare/compare.cfg \
-	default/restart/restart.cfg \
-	default/restart/skip/skip.cfg \
-	default/steady/steady.cfg \
 	default/condition/condition.cfg \
 	default/condition/dataset/dataset.cfg \
+	default/debug/debug.cfg \
+	default/discretization/discretization.cfg \
+	default/dispersion/dispersion.cfg \
+	default/eos/eos.cfg \
+	default/infiltrometer/infiltrometer.cfg \
+	default/infiltration1d/infiltration1d.cfg \
+	default/input_format/input_format.cfg \
+	default/integral_flux/integral_flux.cfg \
+	default/materials/full_tensor/full_tensor.cfg \
+	default/materials/materials.cfg \
+	default/materials/mineral_volume/mineral_volume.cfg \
+	default/materials/soil_compressibility/soil_compressibility.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	default/scco2/mphase/mphase.cfg \
-	default/regions/regions.cfg \
+	default/numerical/numerical.cfg \
+	default/output/compare/compare.cfg \
+	default/output/output.cfg \
+	default/restart/restart.cfg \
+	default/restart/skip/skip.cfg \
+	default/reaction_sandbox/reaction_sandbox.cfg \
 	default/regions/cell_mapping/cell_mapping.cfg \
+	default/regions/regions.cfg \
 	default/salinity/salinity.cfg \
+	default/scco2/mphase/mphase.cfg \
+	default/steady/steady.cfg \
 	default/tcond/T_dep_tcond.cfg \
 	default/timestepping/timestepping.cfg \
 	default/velocity/velocity.cfg \
-	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
+	default/zflow/zflow.cfg \
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
-	ngee/ngee.cfg \
-	shortcourse/1D_Calcite/calcite.cfg \
-	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
-	shortcourse/regional_doublet/regional_doublet.cfg \
-	shortcourse/copper_leaching/cu_leaching.cfg \
-	ufd/ufd.cfg \
-	wipp/wipp_flow/condition/condition.cfg \
-	wipp/wipp_flow/input_format/input_format.cfg \
-	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-	wipp/nuts/nuts.cfg \
-	wipp/transport/batch/wipp_batch.cfg \
-	wipp/transport/wipp_regular.cfg \
-	default/integral_flux/integral_flux.cfg \
-	geophys/ert/ert.cfg
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
-
-ifneq ($(strip $(HYPRE_LIB)),)
-STANDARD_CFG += \
-	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
-endif
-
-ifneq ($(strip $(PARMETIS_LIB)),)
-STANDARD_CFG += \
-	default/discretization/discretization.cfg \
-	default/materials/materials_ug.cfg \
-	default/output/output_ug.cfg \
-	default/regions/regions_ug.cfg \
-	default/regions/cell_mapping/cell_mapping_ug.cfg \
+	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
 	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
 	geomech/terzaghi/terzaghi.cfg \
-	surfaceflow/inlinesurface/inlinesurface.cfg
+	geomech/uniaxial_loading/uniaxial_loading.cfg \
+	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
+	geomech/terzaghi/terzaghi.cfg \
+	geophys/ert/ert.cfg \
+	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
+	inversion/inversion.cfg \
+	ngee/ngee.cfg \
+	pnf/unit_cube/unit_cube.cfg \
+	shortcourse/1D_Calcite/calcite.cfg \
+	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
+	shortcourse/copper_leaching/cu_leaching.cfg \
+	shortcourse/regional_doublet/regional_doublet.cfg \
+	surfaceflow/inlinesurface/inlinesurface.cfg \
+	ufd/ufd.cfg \
+	wipp/nuts/nuts.cfg \
+	wipp/transport/batch/wipp_batch.cfg \
+	wipp/transport/wipp_regular.cfg \
+	wipp/wipp_flow/condition/condition.cfg \
+	wipp/wipp_flow/gas_generation/gas_generation.cfg \
+	wipp/wipp_flow/input_format/input_format.cfg 
+
+ifneq ($(strip $(HYPRE_LIB)),)
+STANDARD_CFG += \
+	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
 #
@@ -135,10 +133,10 @@ GEOCHEMISTRY_CFG = \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
 	ascem/batch/batch.cfg \
 	default/543/543.cfg \
-	default/anisothermal/anisothermal.cfg \
-	default/column/column.cfg \
-	default/constraint/constraint.cfg \
 	default/batch/batch.cfg \
+	default/anisothermal/anisothermal.cfg \
+	default/constraint/constraint.cfg \
+	default/column/column.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	ngee/ngee.cfg \
@@ -148,23 +146,24 @@ GEOCHEMISTRY_CFG = \
 	wipp/nuts/nuts.cfg
 
 GEOMECHANICS_CFG = \
-	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
 	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
+	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/terzaghi/terzaghi.cfg
 
 FLOW_CFG = \
 	default/543/543.cfg \
 	default/condition/condition.cfg \
 	default/eos/eos.cfg \
-	default/infiltrometer/infiltrometer.cfg \
 	default/infiltration1d/infiltration1d.cfg \
+	default/infiltrometer/infiltrometer.cfg \
 	default/steady/steady.cfg \
 	default/scco2/mphase/mphase.cfg \
+	default/zflow/zflow.cfg \
 	general/general.cfg \
+	pnf/unit_cube/unit_cube.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg
 
 TRANSPORT_CFG = \
 	default/543/543.cfg \
@@ -179,34 +178,14 @@ TRANSPORT_CFG = \
 GEOPHYSICS_CFG = \
 	geophys/ert/ert.cfg
 
+INVERSE_CFG = \
+	inversion/inversion.cfg
+
 MESH_CFG = \
 	default/discretization/discretization.cfg
 
-MFD_CFG = \
-	mfd/mfd.cfg
-
 CHECK_CFG = \
 	ascem/1d/1d-calcite/1d-calcite.cfg
-
-NOHDF5_CFG = \
-	default/column/column.cfg \
-	geothermal_hpt/1D_Calcite/calcite_hpt.cfg \
-	default/materials/soil_compressibility/soil_compressibility.cfg \
-	wipp/nuts/nuts.cfg \
-	default/multicontinuum/multicontinuum.cfg \
-	ufd/ufd.cfg \
-	ascem/1d/1d-calcite/1d-calcite.cfg \
-	default/materials/mineral_volume/mineral_volume.cfg \
-	default/batch/batch.cfg \
-	shortcourse/1D_Calcite/calcite.cfg \
-	ascem/batch/batch.cfg \
-	default/scco2/mphase/mphase.cfg \
-	default/input_format/input_format.cfg \
-	shortcourse/copper_leaching/cu_leaching.cfg \
-	default/eos/eos.cfg \
-	default/regions/regions.cfg \
-	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 TCOND_CFG = \
     default/tcond/T_dep_tcond.cfg
@@ -215,8 +194,6 @@ WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/transport/batch/wipp_batch.cfg 
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
-
 
 test : standard
 
@@ -226,11 +203,14 @@ ifeq ($(strip $(PARMETIS_LIB)),)
 	@echo "  PFLOTRAN does not appear to be compiled with Parmetis."
 	@echo "  Skipping unstructured mesh tests."
 	@echo "********************************************************"
-endif
-	$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--suite standard standard_parallel \
 		--config-files $(STANDARD_CFG)
-
+else
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--suite standard standard_parallel unstructured unstructured_parallel \
+		--config-files $(STANDARD_CFG)
+endif
 
 standard_parallel :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
@@ -241,6 +221,14 @@ check :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--suite standard standard_parallel \
 		--config-files $(CHECK_CFG)
+
+unstructured :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(STANDARD_CFG) --suite unstructured 
+
+unstructured_parallel :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(STANDARD_CFG) --suite unstructured_parallel
 
 geochemistry :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
@@ -268,6 +256,9 @@ transport :
 geophysics :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(GEOPHYSICS_CFG) --suite geophysics
+inverse :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(INVERSE_CFG) --suite inverse
 
 mesh :
 ifneq ($(strip $(PARMETIS_LIB)),)
@@ -288,11 +279,6 @@ test_mimetic :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(MFD_CFG)
 
-nonhdf5_test :
-	$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
-		--suite standard standard_parallel \
-		--config-files $(NOHDF5_CFG)
-
 tcond_test :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(TCOND_CFG)
@@ -309,35 +295,55 @@ wipp_test :
 # between them. Manually add rm commands for each file that needs to be
 # removed.
 #
+# skip gold files
+CLEAN_COMMAND = ! -name '*.gold'
+# print full filename followed by null character
+CLEAN_COMMAND += -print0
+# pipe through xargs (-0 = string is terminated with a null character)
+CLEAN_COMMAND += | xargs -0
+PLATFORM := $(shell uname)
+# This is a workaround for Mac OS which does not accept the '-r' for xargs.
+# GNU-based xargs requires '-r' to avoid a failure when the string is empty
+# (e.g. no files exists with that suffix).
+ifneq ($(PLATFORM),Darwin)
+  CLEAN_COMMAND += -r
+endif
+CLEAN_COMMAND += rm
 clean-tests :
-	-find . -type f -name '*.testlog' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.out' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.tec' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.pft' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.xmf' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.vtk' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.bio' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.wf' -print0 | xargs -0 -r rm
-	-find . -type f -name '-int.dat' -print0 | xargs -0 -r rm
-	-find . -type f -name '-mas.dat' -print0 | xargs -0 -r rm
-	-find . -type f -name '-obs*.tec' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.pnl' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.regression' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.stdout' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.old' -print0 | xargs -0 -r rm
-	-find . -type f -name '*~' -print0 | xargs -0 -r rm
-	-find . -type f -name 'tmp-restart-*' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.chk' -print0 | xargs -0 -r rm
-	-find . -type f -name '*.pyc' -print0 | xargs -0 -r rm
-	-find . -type f -name 'sigma*.txt' -print0 | xargs -0 -r rm 
-	-find . -type f -name '*.dpd' -print0 | xargs -0 -r rm
-	-find . -type f -name 'e4d*.log' -print0 | xargs -0 -r rm
-	-find . -type d -name '__pycache__' -print0 | xargs -0 -r rm 
+	-find . -type f -name '*.testlog' $(CLEAN_COMMAND)
+	-find . -type f -name '*.out' $(CLEAN_COMMAND)
+	-find . -type f -name '*.tec' $(CLEAN_COMMAND)
+	-find . -type f -name '*.pft' $(CLEAN_COMMAND)
+	-find . -type f -name '*.ekg' $(CLEAN_COMMAND)
+	-find . -type f -name '*-ert-*' $(CLEAN_COMMAND)
+	-find . -type f -name '*.mat' $(CLEAN_COMMAND)
+	-find . -type f -name '*.bin' $(CLEAN_COMMAND)
+	-find . -type f -name '*.rec' $(CLEAN_COMMAND)
+	-find . -type f -name '*.xmf' $(CLEAN_COMMAND)
+	-find . -type f -name '*.vtk' $(CLEAN_COMMAND)
+	-find . -type f -name '*.bio' $(CLEAN_COMMAND)
+	-find . -type f -name '*.wf' $(CLEAN_COMMAND)
+	-find . -type f -name '*-int.dat' $(CLEAN_COMMAND)
+	-find . -type f -name '*-mas.dat' $(CLEAN_COMMAND)
+	-find . -type f -name '*.pnl' $(CLEAN_COMMAND)
+	-find . -type f -name '*.regression' $(CLEAN_COMMAND)
+	-find . -type f -name '*.stdout' $(CLEAN_COMMAND)
+	-find . -type f -name '*.old' $(CLEAN_COMMAND)
+	-find . -type f -name '*~' $(CLEAN_COMMAND)
+	-find . -type f -name 'tmp-restart-*' $(CLEAN_COMMAND)
+	-find . -type f -name '*.chk' $(CLEAN_COMMAND)
+	-find . -type f -name '*-restart.h5' $(CLEAN_COMMAND)
+	-find . -type f -name '*_Jsense*' $(CLEAN_COMMAND)
+	-find . -type f -name '*.pyc' $(CLEAN_COMMAND)
+	-find . -type f -regex '.*Run[0-9]*.*' $(CLEAN_COMMAND)
+	-find . -type d -name '__pycache__' $(CLEAN_COMMAND)
 	-rm -f mfd/mfd.h5
 	-rm -f default/543/543_flow_and_tracer-np8.h5
 	-rm -f default/543/543_flow_and_tracer.h5
 	-rm -f default/discretization/mixed_implicit-np4.h5
 	-rm -f default/discretization/mixed_implicit.h5
+	-rm -f default/eos/*.txt
+	-rm -f default/eos/*.dat
 	-rm -f general/calcite_flow_and_tran_general.h5
 	-rm -f general/ictest1D.h5
 	-rm -f general/ictest2D.h5
@@ -370,4 +376,4 @@ clean-tests :
 	-rm -f default/timestepping/20x20_xz.h5
 	-rm -f geophys/ert/*.h5
 	-rm -f geophys/ert/*.dat
-	-rm -f geophys/ert/*-ert-*
+	-rm -f inversion/*.h5

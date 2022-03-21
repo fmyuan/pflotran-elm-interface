@@ -426,7 +426,7 @@ recursive subroutine PMRTInitializeRun(this)
   use Reactive_Transport_module, only : RTUpdateAuxVars, &
                                         RTClearActivityCoefficients
   use Variables_module, only : POROSITY
-  use Material_Aux_class, only : POROSITY_BASE 
+  use Material_Aux_module, only : POROSITY_BASE 
   use Material_module, only : MaterialGetAuxVarVecLoc
   use String_module, only : StringWrite
   use Utility_module, only : Equal
@@ -646,7 +646,7 @@ subroutine PMRTFinalizeTimestep(this)
   use Reactive_Transport_module, only : RTMaxChange
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
-  use Material_Aux_class, only : POROSITY_BASE 
+  use Material_Aux_module, only : POROSITY_BASE 
   use Global_module
 
   implicit none
@@ -1264,7 +1264,8 @@ subroutine PMRTComputeMassBalance(this,mass_balance_array)
   PetscReal :: mass_balance_array(:)
 
 #ifndef SIMPLIFY 
-  call RTComputeMassBalance(this%realization,-999,mass_balance_array)
+  call RTComputeMassBalance(this%realization, &
+       this%realization_base%patch%grid%nlmax,-999,mass_balance_array)
 #endif
 
 end subroutine PMRTComputeMassBalance

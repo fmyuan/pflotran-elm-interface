@@ -26,8 +26,8 @@ private
 ! Hydraulic ! Conductivity of Unsaturated Soils", Soil Sci Soc Am J
 ! 44(5):892-898. doi: 10.2136/sssaj1980.03615995004400050002x
 !
-! Note: As the VG capillary pressure function has an infinite derivative 
-! approaching saturation, derivatives above Sl_max are approximated using a 
+! Note: As the VG capillary pressure function has an infinite derivative
+! approaching saturation, derivatives above Sl_max are approximated using a
 ! backwards finite difference method using machine epsilon.
 !
 ! **************************************************************************** !
@@ -55,7 +55,7 @@ PetscReal, private, parameter :: Sl_max = 1d0 - epsilon(Sl_max) ! Saturated limi
 ! sf_VG_type       => SF_VG_ctor(unsat_ext,alpha,m,Sr,rpf,Pcmax,Sj)
 !
 ! Warning, Pcmax and Sr are unprotected as Fortran will not extend private
-! scope to child classed in separate modules. 
+! scope to child classed in separate modules.
 !
 ! **************************************************************************** !
 ! VG Saturation Function constructors
@@ -236,7 +236,7 @@ end interface
 ! scope to child classed in separate modules. The rel_perm_base_type would
 ! need to be modified.
 !
-! Due to Fortran scoping rules, the loop-invariant types do not extend the 
+! Due to Fortran scoping rules, the loop-invariant types do not extend the
 ! loop-variant types. Should loop-invariant replace the original types, the
 ! classis() statements throughout the code must be updated.
 !
@@ -407,7 +407,7 @@ subroutine SFVGCapillaryPressure(this, liquid_saturation, &
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
-  
+
   call this%Pc(liquid_saturation, capillary_pressure, dPc_dSatl)
 end subroutine SFVGCapillaryPressure
 
@@ -574,7 +574,7 @@ pure function SFVGSlInflection(this) result (Sl)
 end function SFVGSlInflection
 
 ! **************************************************************************** !
-! Van Genuchten 
+! Van Genuchten
 ! **************************************************************************** !
 
 function SFVGNEVGCtor(alpha,m,Sr,rpf) result (new)
@@ -1282,7 +1282,7 @@ function SFVGquadSetSj(this, Sj) result (error)
 
   error = this%SetQuad(this%Pcmax, this%Sj)
 end function SFVGquadSetSj
-  
+
 ! **************************************************************************** !
 
 function SFVGquadSetQuad(this, Pcmax, Sj) result (error)

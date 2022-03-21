@@ -611,7 +611,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   use EOS_Water_module
   use EOS_Gas_module
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -620,7 +620,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: x(option%nflowdof)
   type(hydrate_auxvar_type) :: hyd_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
 
   PetscInt :: gid, lid, acid, wid, eid, hid, iid
@@ -1462,7 +1462,15 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
                            hyd_auxvar%den_kg(lid),hyd_auxvar%den(lid),ierr)
     endif
   else
-    aux(1) = global_auxvar%m_nacl(1)
+    if (option%iflag == HYDRATE_UPDATE_FOR_FIXED_ACCUM) then
+      ! For the computation of fixed accumulation term use NaCl
+      ! value, m_nacl(2), from the previous time step.
+      aux(1) = global_auxvar%m_nacl(2)
+    else
+      ! Use NaCl value for the current time step, m_nacl(1), for computing
+      ! the accumulation term
+      aux(1) = global_auxvar%m_nacl(1)
+    endif
     call EOSWaterDensityExt(hyd_auxvar%temp,cell_pressure,aux, &
                               hyd_auxvar%den_kg(lid),hyd_auxvar%den(lid),ierr)
   endif
@@ -1629,7 +1637,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   use Global_Aux_module
   use EOS_Water_module
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -1638,7 +1646,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   class(characteristic_curves_type) :: characteristic_curves
   type(hydrate_auxvar_type) :: hyd_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscReal, parameter :: epsilon = 0.d0
   PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
@@ -2415,7 +2423,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
   use Option_module
   use Characteristic_Curves_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -2423,7 +2431,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
   PetscInt :: natural_id
   type(hydrate_auxvar_type) :: hyd_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   class(characteristic_curves_type) :: characteristic_curves
 
   PetscReal :: x(option%nflowdof), x_pert_plus(option%nflowdof), &
@@ -2832,14 +2840,14 @@ subroutine HydratePrintAuxVars(hydrate_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   type(hydrate_auxvar_type) :: hydrate_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: string
   type(option_type) :: option
@@ -2946,14 +2954,14 @@ subroutine HydrateOutputAuxVars1(hydrate_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Option_module
 
   implicit none
 
   type(hydrate_auxvar_type) :: hydrate_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
   character(len=*) :: string
   PetscBool :: append
@@ -3542,7 +3550,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
 
   use Characteristic_Curves_module
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -3552,7 +3560,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   PetscReal, intent(out) :: dP
 
   class(characteristic_curves_type) :: characteristic_curves
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
 
   PetscReal :: T_temp, dTf, dTfs, xmol
@@ -3792,7 +3800,7 @@ subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,&
 
   use Characteristic_Curves_module
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -3802,7 +3810,7 @@ subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,&
   PetscReal, intent(in) :: Tb
   type(option_type) :: option
   class(characteristic_curves_type) :: characteristic_curves
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal, intent(out) :: dTf
 
   PetscReal :: Pc,sat_temp,dpc_dsatl,sigma,theta
@@ -3905,7 +3913,7 @@ subroutine HydrateSalinityOffset(xmol,dTd)
   !
 
   use Characteristic_Curves_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 

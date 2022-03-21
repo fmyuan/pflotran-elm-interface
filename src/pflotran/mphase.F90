@@ -50,7 +50,7 @@ subroutine MphaseTimeCut(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   
@@ -86,7 +86,7 @@ subroutine MphaseSetup(realization)
   use Patch_module
   use Output_Aux_module
    
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   type(output_variable_list_type), pointer :: list
@@ -124,10 +124,11 @@ subroutine MphaseSetupPatch(realization)
   use Grid_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
- 
+  use Material_Aux_module
+  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -203,11 +204,12 @@ subroutine MphaseSetupPatch(realization)
       call SecondaryContinuumSetProperties( &
         mphase_sec_heat_vars(local_id)%sec_continuum, &
         patch%material_property_array(1)%ptr%multicontinuum%name, &
-        patch%material_property_array(1)%ptr%multicontinuum%length, &
+        patch%aux%Material%auxvars(ghosted_id)%soil_properties(matrix_length_index), &
         patch%material_property_array(1)%ptr%multicontinuum%matrix_block_size, &
         patch%material_property_array(1)%ptr%multicontinuum%fracture_spacing, &
         patch%material_property_array(1)%ptr%multicontinuum%radius, &
         patch%material_property_array(1)%ptr%multicontinuum%area, &
+        patch%material_property_array(1)%ptr%multicontinuum%porosity, &
         option)
         
       mphase_sec_heat_vars(local_id)%ncells = &
@@ -215,7 +217,7 @@ subroutine MphaseSetupPatch(realization)
       mphase_sec_heat_vars(local_id)%aperture = &
         patch%material_property_array(1)%ptr%multicontinuum%aperture
       mphase_sec_heat_vars(local_id)%epsilon = &
-        patch%aux%Material%auxvars(ghosted_id)%epsilon
+        patch%aux%Material%auxvars(ghosted_id)%soil_properties(epsilon_index)
       mphase_sec_heat_vars(local_id)%log_spacing = &
         patch%material_property_array(1)%ptr%multicontinuum%log_spacing
       mphase_sec_heat_vars(local_id)%outer_spacing = &
@@ -332,7 +334,7 @@ subroutine MphaseComputeMassBalance(realization,mass_balance,mass_trapped)
   use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nflowspec,realization%option%nphase)
   PetscReal :: mass_trapped(realization%option%nphase)
 
@@ -366,13 +368,13 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   use Patch_module
   use Field_module
   use Grid_module
-  use Material_Aux_class
+  use Material_Aux_module
 ! use Saturation_Function_module
 ! use Mphase_pckr_module
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 ! type(saturation_function_type) :: saturation_function_type
 
   PetscReal :: mass_balance(realization%option%nflowspec,realization%option%nphase)
@@ -383,7 +385,7 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(mphase_auxvar_type), pointer :: mphase_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id
@@ -462,7 +464,7 @@ subroutine MphaseZeroMassBalDeltaPatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -516,7 +518,7 @@ subroutine MphaseUpdateMassBalancePatch(realization)
  
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -575,7 +577,7 @@ function MphaseInitGuessCheck(realization)
   use Option_module
   
   PetscInt ::  MphaseInitGuessCheck
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
   type(patch_type), pointer :: cur_patch
   PetscInt :: ipass, ipass0
@@ -618,7 +620,7 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
   implicit none
  
   PetscInt, intent(out) :: reason
-  type(realization_subsurface_type) :: realization  
+  class(realization_subsurface_type) :: realization  
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -731,7 +733,7 @@ subroutine MPhaseUpdateReason(reason, realization)
   use Patch_module
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   PetscInt :: reason
@@ -782,7 +784,7 @@ end subroutine MPhaseUpdateReason
     implicit none
     
     PetscInt :: MphaseInitGuessCheckPatch 
-    type(realization_subsurface_type) :: realization
+    class(realization_subsurface_type) :: realization
     type(grid_type), pointer :: grid
     type(patch_type), pointer :: patch
     type(option_type), pointer :: option
@@ -843,7 +845,7 @@ subroutine MphaseUpdateAuxVars(realization)
   use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -879,7 +881,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1091,7 +1093,7 @@ subroutine MphaseInitializeTimestep(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   call MphaseUpdateFixedAccumulation(realization)
 
@@ -1114,7 +1116,7 @@ subroutine MphaseUpdateSolution(realization)
   
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
@@ -1170,7 +1172,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
     
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -1245,7 +1247,7 @@ subroutine MphaseUpdateFixedAccumulation(realization)
   use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -1276,11 +1278,11 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   use Field_module
   use Grid_module
   use Secondary_Continuum_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1290,7 +1292,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   type(mphase_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)  
+  type(material_auxvar_type), pointer :: material_auxvars(:)  
   
   PetscInt :: ghosted_id, local_id, istart, iend !, iphase
   PetscReal, pointer :: xx_p(:)
@@ -2065,7 +2067,7 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   type(discretization_type), pointer :: discretization
@@ -2157,7 +2159,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   Vec, intent(in) :: xx
   PetscInt :: icri,ichange 
@@ -2480,14 +2482,14 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
   Vec, intent(inout) :: r
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, jn
@@ -2526,7 +2528,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)  
+  type(material_auxvar_type), pointer :: material_auxvars(:)  
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(connection_set_list_type), pointer :: connection_set_list
@@ -2857,7 +2859,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       D_dn = mphase_parameter%ckwet(icct_dn)
 
       ! for now, just assume diagonal tensor
-      call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id), &
                             cur_connection_set%dist(:,iconn),perm_dn)
       ! dist(0,iconn) = scalar - magnitude of distance
       ! gravity = vector(3)
@@ -2990,10 +2992,10 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       upweight = dd_dn/(dd_up+dd_dn)
         
       ! for now, just assume diagonal tensor
-      call material_auxvars(ghosted_id_up)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_up)
-      call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_dn)
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id_up), &
+                                      cur_connection_set%dist(:,iconn),perm_up)
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id_dn), &
+                                      cur_connection_set%dist(:,iconn),perm_dn)
 
       icct_up = patch%cct_id(ghosted_id_up)
       icct_dn = patch%cct_id(ghosted_id_dn)
@@ -3126,7 +3128,7 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   Mat :: J
@@ -3157,13 +3159,13 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
     cur_patch => cur_patch%next
   enddo
 
-  if (realization%debug%matview_Jacobian) then
+  if (realization%debug%matview_Matrix) then
     string = 'MPHjacobian'
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-  if (realization%debug%norm_Jacobian) then
+  if (realization%debug%norm_Matrix) then
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
@@ -3197,14 +3199,14 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -3254,7 +3256,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   type(mphase_parameter_type), pointer :: mphase_parameter
   type(mphase_auxvar_type), pointer :: auxvars(:), auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   
   type(sec_heat_type), pointer :: sec_heat_vars(:)
   
@@ -3442,8 +3444,8 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       
  
       ! for now, just assume diagonal tensor
-      call material_auxvars(ghosted_id)%PermeabilityTensorToScalar( &
-                            cur_connection_set%dist(:,iconn),perm_dn)
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id), &
+                                      cur_connection_set%dist(:,iconn),perm_dn)
       ! dist(0,iconn) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3,iconn) = vector(3) - unit vector
@@ -3564,7 +3566,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
                                   ierr);CHKERRQ(ierr)
   end do
 
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     string = 'jacobian_srcsink'
@@ -3612,9 +3614,9 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
       upweight = dd_dn/(dd_up+dd_dn)
     
       ! for now, just assume diagonal tensor
-      call material_auxvars(ghosted_id_up)%PermeabilityTensorToScalar( &
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id_up), &
                             cur_connection_set%dist(:,iconn),perm_up)
-      call material_auxvars(ghosted_id_dn)%PermeabilityTensorToScalar( &
+      call PermeabilityTensorToScalar(material_auxvars(ghosted_id_dn), &
                             cur_connection_set%dist(:,iconn),perm_dn)
     
       iphas_up = global_auxvars(ghosted_id_up)%istate
@@ -3701,7 +3703,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
 #endif
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
  ! print *,'end inter flux'
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -3711,7 +3713,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 #if 0
-  if (realization%debug%matview_Jacobian_detailed) then
+  if (realization%debug%matview_Matrix_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call PetscViewerASCIIOpen(option%mycomm,'jacobian_bcflux.out',viewer, &
@@ -3784,7 +3786,7 @@ subroutine MphaseMaxChange(realization,dpmax,dtmpmax,dsmax,dcmax)
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -3826,7 +3828,7 @@ subroutine MphaseMaxChangePatch(realization,  max_c, max_s)
   use Option_module
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscReal :: max_s, max_c 
 
 
@@ -3897,7 +3899,7 @@ function MphaseGetTecplotHeader(realization,icolumn)
   implicit none
   
   character(len=MAXSTRINGLENGTH) :: MphaseGetTecplotHeader
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -4364,7 +4366,7 @@ subroutine MphaseDestroy(realization)
 
   implicit none
   
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   ! need to free array in aux vars
   !call MphaseAuxDestroy(patch%aux%mphase)

@@ -4,6 +4,7 @@ module ERT_Aux_module
   use petscsys
 
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
 
@@ -20,11 +21,17 @@ module ERT_Aux_module
     PetscInt :: num_aux
     ! ert auxvars for local and ghosted cells
     type(ert_auxvar_type), pointer :: auxvars(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type ert_type
 
   public :: ERTAuxCreate, ERTAuxDestroy, &
             ERTAuxVarCompute, ERTAuxVarInit, &
+            ERTAuxCheckElectrodeBounds, &
             ERTAuxVarCopy
+
+  ! conductivity mapping types
+  PetscInt, parameter, public :: ARCHIE = 1
+  PetscInt, parameter, public :: WAXMAN_SMITS = 2
 
 contains
 
@@ -51,6 +58,7 @@ function ERTAuxCreate()
   aux%num_aux = 0
 
   nullify(aux%auxvars)
+  nullify(aux%matrix_zeroing)
 
   ERTAuxCreate => aux
 
@@ -118,11 +126,10 @@ subroutine ERTAuxVarCompute(x,ert_auxvar,global_auxvar,rt_auxvar, &
   ! Author: Piyoosh Jaysaval
   ! Date: 01/11/21
   !
-
   use Option_module
   use Global_Aux_module
   use Reactive_Transport_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
@@ -131,12 +138,41 @@ subroutine ERTAuxVarCompute(x,ert_auxvar,global_auxvar,rt_auxvar, &
   type(ert_auxvar_type) :: ert_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
 
   ! calculate bulk_conductivity = f(global,rt,material-auxars)
 
 end subroutine ERTAuxVarCompute
+
+! ************************************************************************** !
+
+subroutine ERTAuxCheckElectrodeBounds(num_electrodes,id,id2,option)
+  !
+  ! Checks to ensure that electrode requests (ivar, ivar2) are valid
+  ! electrode IDs.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/09/21
+  !
+  use Option_module
+  use String_module
+
+  type(option_type) :: option
+  PetscInt :: num_electrodes
+  PetscInt :: id, id2
+
+  PetscInt :: imax
+
+  imax = max(id,id2)
+  if (imax > num_electrodes) then
+    option%io_buffer = 'Electrode ID (' // trim(StringWrite(imax)) // &
+      ') specified for output is greater than the maximum electrode ID (' // &
+      trim(StringWrite(num_electrodes)) // ').'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine ERTAuxCheckElectrodeBounds
 
 ! ************************************************************************** !
 
@@ -183,6 +219,8 @@ subroutine ERTAuxDestroy(aux)
     deallocate(aux%auxvars)
   endif
   nullify(aux%auxvars)
+
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   deallocate(aux)
   nullify(aux)
