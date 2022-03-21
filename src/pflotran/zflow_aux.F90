@@ -44,7 +44,7 @@ module ZFlow_Aux_module
   PetscInt, parameter, public :: ZFLOW_COND_WATER_INDEX = 1
   PetscInt, parameter, public :: ZFLOW_COND_ENERGY_INDEX = 2
   PetscInt, parameter, public :: ZFLOW_COND_SOLUTE_INDEX = 3
-  PetscInt, parameter, public :: ZFLOW_COND_CONDUCTANCE_INDEX = 4
+  PetscInt, parameter, public :: ZFLOW_COND_WATER_AUX_INDEX = 4
   PetscInt, parameter, public :: ZFLOW_MAX_INDEX = 4
 
   PetscInt, parameter, public :: ZFLOW_UPDATE_FOR_DERIVATIVE = -1
@@ -442,15 +442,18 @@ subroutine ZFlowAuxTensorialRelPerm(auxvar,tensorial_rel_perm_exponent, &
   PetscReal :: drel_perm_dp
   type(option_type) :: option
 
-  PetscReal :: exponent
+  PetscReal :: exponent_
   PetscReal :: tensorial_scale
 
-  exponent = UtilityTensorToScalar(dist,tensorial_rel_perm_exponent)
+  exponent_ = UtilityTensorToScalar(dist,tensorial_rel_perm_exponent)
 
-  tensorial_scale = auxvar%effective_saturation**exponent
+  ! remember that the default 0.5 was subtracted from the tensorial value
+  ! in ZFlowSetup. If 0.5 is specified for the tensorial exponent in the
+  ! input file, this value will be 0. 
+  tensorial_scale = auxvar%effective_saturation**exponent_
   rel_perm = auxvar%kr * tensorial_scale
   drel_perm_dp = auxvar%dkr_dp * tensorial_scale + &
-                 exponent * rel_perm / &
+                 exponent_ * rel_perm / &
                  auxvar%effective_saturation * &
                  auxvar%deffsat_dp
 
@@ -550,7 +553,7 @@ end subroutine ZFlowOutputAuxVars1
 
 ! ************************************************************************** !
 
-function ZFlowAuxMapConditionIndices(include_conductance)
+function ZFlowAuxMapConditionIndices(include_water_aux)
   !
   ! Maps indexing of conditions
   !
@@ -562,7 +565,7 @@ function ZFlowAuxMapConditionIndices(include_conductance)
 
   implicit none
 
-  PetscBool :: include_conductance
+  PetscBool :: include_water_aux
 
   PetscInt, pointer :: ZFlowAuxMapConditionIndices(:)
 
@@ -577,9 +580,9 @@ function ZFlowAuxMapConditionIndices(include_conductance)
   if (zflow_liq_flow_eq > 0) then
     temp_int = temp_int + 1
     mapping(ZFLOW_COND_WATER_INDEX) = temp_int
-    if (include_conductance) then
+    if (include_water_aux) then
       temp_int = temp_int + 1
-      mapping(ZFLOW_COND_CONDUCTANCE_INDEX) = temp_int
+      mapping(ZFLOW_COND_WATER_AUX_INDEX) = temp_int
     endif
   endif
   if (zflow_heat_tran_eq > 0) then
@@ -744,6 +747,7 @@ subroutine ZFlowAuxDestroy(aux)
 
   if (associated(aux%zflow_parameter)) then
     call DeallocateArray(aux%zflow_parameter%tensorial_rel_perm_exponent)
+    deallocate(aux%zflow_parameter)
   endif
   nullify(aux%zflow_parameter)
 

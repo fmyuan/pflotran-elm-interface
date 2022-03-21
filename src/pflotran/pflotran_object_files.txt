@@ -136,8 +136,8 @@ chem_obj = \
 	${common_src}reaction_sandbox_flexbiohill.o \
 	${common_src}reaction_sandbox_pnnl_cyber.o \
 	${common_src}reaction_sandbox_gas.o \
-    ${common_src}reaction_sandbox_simple.o \
-    ${common_src}reaction_sandbox_bioTH.o \
+	${common_src}reaction_sandbox_simple.o \
+	${common_src}reaction_sandbox_bioTH.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
@@ -234,10 +234,12 @@ misc_obj = \
 	${common_src}inversion_aux.o \
 	${common_src}inversion_base.o \
 	${common_src}inversion_ert.o \
+	${common_src}inversion_measurement_aux.o \
 	${common_src}inversion_perturbation.o \
 	${common_src}inversion_subsurface.o \
 	${common_src}inversion_tao.o \
 	${common_src}inversion_ts_aux.o \
+	${common_src}inversion_zflow.o \
 	${common_src}matrix_buffer.o \
 	${common_src}observation.o \
 	${common_src}patch.o \

@@ -87,7 +87,11 @@ subroutine ZFlowSetup(realization)
       if (Initialized(minval(patch%material_property_array(imat)%ptr% &
                                       tensorial_rel_perm_exponent))) then
         zflow_parameter%tensorial_rel_perm_exponent(:,imat) = &
-          patch%material_property_array(imat)%ptr%tensorial_rel_perm_exponent
+          patch%material_property_array(imat)%ptr% &
+            ! the tortuosity parameter in hardwired to 0.5 in characteristic
+            ! curves. we subtract the default to allow the tensorial value
+            ! to override the hardwired default
+            tensorial_rel_perm_exponent - 0.5d0
       else
         option%io_buffer = 'A tensorial relative permeability exponent &
           &is not define for material "' // &
@@ -142,6 +146,11 @@ subroutine ZFlowSetup(realization)
     enddo
   else
     allocate(patch%aux%ZFlow%material_auxvars_pert(ZERO_INTEGER,grid%ngmax))
+  endif
+
+  ! ensure mapping of local cell ids to neighboring ghosted ids exits
+  if (associated(option%inversion)) then
+    call GridSetupCellNeighbors(grid,option)
   endif
 
   ! ensure that material properties specific to this module are properly
@@ -554,7 +563,7 @@ subroutine ZFlowUpdateAuxVars(realization)
       if (zflow_liq_flow_eq > 0) then
         select case(boundary_condition%flow_bc_type(water_index))
           case(DIRICHLET_BC, DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
-              HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
+               HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
             xxbc(zflow_liq_flow_eq) = &
               boundary_condition%flow_aux_real_var(water_index,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC, &
@@ -689,7 +698,7 @@ subroutine ZFlowUpdateFixedAccum(realization)
     call PetUtilVecSVBL(accum_p,local_id,Res,ndof,PETSC_TRUE)
     if (zflow_calc_adjoint) then
       ! negative because the value is subtracted in residual
-      patch%aux%inversion_ts_aux%dRes_du_k(:,:,local_id) = &
+      patch%aux%inversion_forward_aux%current%dRes_du_k(:,:,local_id) = &
         -Jdum(1:ndof,1:ndof)
     endif
   enddo
@@ -807,11 +816,13 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
   store_adjoint = PETSC_FALSE
   MatdResdparam = PETSC_NULL_MAT
   call MatZeroEntries(A,ierr);CHKERRQ(ierr)
-  if (associated(patch%aux%inversion_ts_aux)) then
-    MatdResdparam = patch%aux%inversion_ts_aux%dResdparam
-    if (MatdResdparam /= PETSC_NULL_MAT) then
-      store_adjoint = PETSC_TRUE
-      call MatZeroEntries(MatdResdparam,ierr);CHKERRQ(ierr)
+  if (associated(patch%aux%inversion_forward_aux)) then
+    if (patch%aux%inversion_forward_aux%store_adjoint) then
+      MatdResdparam = patch%aux%inversion_forward_aux%current%dResdparam
+      if (MatdResdparam /= PETSC_NULL_MAT) then
+        store_adjoint = PETSC_TRUE
+        call MatZeroEntries(MatdResdparam,ierr);CHKERRQ(ierr)
+      endif
     endif
   endif
 
@@ -1028,21 +1039,15 @@ subroutine ZFlowResidual(snes,xx,r,A,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      if (associated(source_sink%flow_aux_real_var)) then
-        scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
-      else
-        scale = 1.d0
-      endif
-
       call ZFlowSrcSinkDerivative(option, &
-                                  source_sink%flow_condition%rate% &
-                                    dataset%rarray(:), &
-                                  source_sink%flow_condition%rate%itype, &
+                                  source_sink%flow_aux_real_var(:,iconn), &
+                                  source_sink%flow_aux_mapping, &
+                                  source_sink%flow_bc_type, &
                                   zflow_auxvars(:,ghosted_id), &
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id), &
                                   material_auxvars_pert(:,ghosted_id), &
-                                  ss_flow_vol_flux,scale,Res,Jdn, &
+                                  ss_flow_vol_flux,Res,Jdn, &
                                   dResdparamdn)
       if (associated(patch%ss_flow_vol_fluxes)) then
         patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
