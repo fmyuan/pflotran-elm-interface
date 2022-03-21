@@ -23,9 +23,9 @@ module Inversion_Base_class
     procedure, public :: Init => InversionBaseInit
     procedure, public :: Initialize => InversionBaseThisOnly
     procedure, public :: ReadBlock => InversionBaseReadBlock
-    procedure, public :: Step => InversionBaseThisOnly
+    procedure, public :: Step => InversionBaseStep
     procedure, public :: InitializeForwardRun => InversionBaseThisAndOption
-    procedure, public :: ConnectToFowardRun => InversionBaseThisOnly
+    procedure, public :: ConnectToForwardRun => InversionBaseThisOnly
     procedure, public :: ExecuteForwardRun => InversionBaseThisOnly
     procedure, public :: DestroyForwardRun => InversionBaseThisOnly
     procedure, public :: InitializeIterationNumber => &
@@ -118,6 +118,37 @@ subroutine InversionBaseReadSelectCase(this,input,keyword,found, &
   end select
 
 end subroutine InversionBaseReadSelectCase
+
+
+! ************************************************************************** !
+
+subroutine InversionBaseStep(this)
+  !
+  ! Performes a single inversion iteration (forward runs, Jacobians, update)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/21/22
+
+  use Option_module
+
+  class(inversion_base_type) :: this
+
+  type(option_type), pointer :: option
+
+  call this%InitializeForwardRun(option)
+  call this%Initialize()
+  call this%ConnectToForwardRun()
+  call this%ExecuteForwardRun()
+  call this%CalculateSensitivity()
+  call this%OutputSensitivity('')
+  call this%DestroyForwardRun()
+
+  call this%Invert()
+
+  this%converg_flag = PETSC_FALSE
+  if (this%iteration > this%maximum_iteration) this%converg_flag = PETSC_TRUE
+
+end subroutine InversionBaseStep
 
 ! ************************************************************************** !
 

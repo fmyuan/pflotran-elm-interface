@@ -48,7 +48,6 @@ module Inversion_Subsurface_class
     procedure, public :: Init => InversionSubsurfaceInit
     procedure, public :: ReadBlock => InversionSubsurfReadBlock
     procedure, public :: Initialize => InversionSubsurfInitialize
-    procedure, public :: Step => InversionSubsurfaceStep
     procedure, public :: InitializeForwardRun => InvSubsurfInitForwardRun
     procedure, public :: ConnectToForwardRun => InvSubsurfConnectToForwardRun
     procedure, public :: ExecuteForwardRun => InvSubsurfExecuteForwardRun
@@ -651,36 +650,6 @@ subroutine InversionSubsurfInitialize(this)
 #endif
 
 end subroutine InversionSubsurfInitialize
-
-! ************************************************************************** !
-
-subroutine InversionSubsurfaceStep(this)
-  !
-  ! Execute a simulation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 05/27/21
-
-  use Option_module
-
-  class(inversion_subsurface_type) :: this
-
-  type(option_type), pointer :: option
-
-  call this%InitializeForwardRun(option)
-  call this%Initialize()
-  call this%ConnectToForwardRun()
-  call this%ExecuteForwardRun()
-  call this%CalculateSensitivity()
-  call this%OutputSensitivity('')
-  call this%DestroyForwardRun()
-
-  call this%Invert()
-
-  this%converg_flag = PETSC_FALSE
-  if (this%iteration > this%maximum_iteration) this%converg_flag = PETSC_TRUE
-
-end subroutine InversionSubsurfaceStep
 
 ! ************************************************************************** !
 

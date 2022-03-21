@@ -29,7 +29,6 @@ module Inversion_Perturbation_class
     procedure, public :: Init => InversionPerturbationInit
     procedure, public :: ReadBlock => InversionPerturbationReadBlock
     procedure, public :: Initialize => InversionPerturbationInitialize
-    procedure, public :: Step => InversionPerturbationStep
     procedure, public :: ConnectToForwardRun => &
                            InvPerturbationConnectForwardRun
     procedure, public :: CalculateSensitivity => &
@@ -204,37 +203,6 @@ subroutine InversionPerturbationInitialize(this)
   endif
 
 end subroutine InversionPerturbationInitialize
-
-! ************************************************************************** !
-
-subroutine InversionPerturbationStep(this)
-  !
-  ! Execute a simulation
-  !
-  ! Author: Glenn Hammond
-  ! Date: 09/24/21
-
-  use Option_module
-  use Factory_Forward_module
-  use String_module
-
-  class(inversion_perturbation_type) :: this
-
-  type(option_type), pointer :: option
-
-    this%perturbation%idof_pert = 0
-    call this%InitializeForwardRun(option)
-    call this%Initialize()
-    call this%ConnectToForwardRun()
-    call this%ExecuteForwardRun()
-    call this%CalculateSensitivity()
-    call this%OutputSensitivity('')
-    call this%DestroyForwardRun()
-
-  this%converg_flag = PETSC_FALSE
-  if (this%iteration > this%maximum_iteration) this%converg_flag = PETSC_TRUE
-
-end subroutine InversionPerturbationStep
 
 ! ************************************************************************** !
 
