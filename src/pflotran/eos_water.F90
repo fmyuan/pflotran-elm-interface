@@ -1394,7 +1394,8 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
 
   PetscReal :: ln_p !bars
   PetscReal :: T0, Tx, x
-  PetscReal :: dT0_dT,da_dT,db_dT,dm_dT,dln_T0_dT
+  PetscReal :: dT0_dT,da_dT,db_dT,dm_dT,dln_T0_dT,dz_dT,dy_dT,dw_dT
+  PetscReal :: dln_p_dT
   PetscReal :: ln_T0, p
   PetscReal :: a, b, m
   PetscReal :: w, y, z
@@ -1456,8 +1457,8 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, dPS
     dz_dT = dT0_dT
     dy_dT = -dT0_dT
     dw_dT = 2*z*dZ_dT
-    dln_p_dT = -e1*z**-2*dz_dT+(e2*1.d1**(e3*w**2-1)*(z*dw_dT*e3*log(100)*w**2+1)-w*dz_dT)/(z**2)+&
-         e2*w/z*(e3*5**(3*w**2-1)*8**(w**2)*dw_dT*log(10.d0))+2.87823d0*1.d1**(e5*y**1.25d0)*e4*e5*y**0.25d0*dy_dT
+    dln_p_dT = -e1*z**-2.d0*dz_dT+(e2*1.d1**(e3*w**2-1.d0)*(z*dw_dT*e3*log(100.d0)*w**2+1.d0)-w*dz_dT)/(z**2)+&
+         e2*w/z*(e3*5.d0**(3.d0*w**2-1.d0)*8.d0**(w**2.d0)*dw_dT*log(10.d0))+2.87823d0*1.d1**(e5*y**1.25d0)*e4*e5*y**0.25d0*dy_dT
     dPS_dT = 1.d5*exp(ln_p)*dln_p_dT
   endif
 
