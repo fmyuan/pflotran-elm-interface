@@ -959,7 +959,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   bc_type = ibndtype(iphase)
   select case(bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+    case(DIRICHLET_BC,HYDROSTATIC_BC,DIRICHLET_SEEPAGE_BC,HYDROSTATIC_SEEPAGE_BC, &
          HYDROSTATIC_CONDUCTANCE_BC)
       if (hyd_auxvar_up%mobility(iphase) + &
           hyd_auxvar_dn%mobility(iphase) > eps) then
@@ -1002,11 +1002,12 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                           hyd_auxvar_dn%pres(iphase) + &
                           gravity_term
         if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
+            bc_type == DIRICHLET_SEEPAGE_BC .or. &
             bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               hyd_auxvar_up%pres(iphase) - &
-                option%flow%reference_pressure < eps) then
+                hydrate_bc_reference_pressure < eps) then
             delta_pressure = 0.d0
           endif
         endif
@@ -1101,7 +1102,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   xmol_bool = 1.d0
   bc_type = ibndtype(iphase)
   select case(bc_type)
-    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+    case(DIRICHLET_BC,HYDROSTATIC_BC,DIRICHLET_SEEPAGE_BC,HYDROSTATIC_SEEPAGE_BC, &
          HYDROSTATIC_CONDUCTANCE_BC)
       if (hyd_auxvar_up%mobility(iphase) + &
           hyd_auxvar_dn%mobility(iphase) > eps) then
@@ -1144,11 +1145,12 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                           hyd_auxvar_dn%pres(iphase) + &
                           gravity_term
         if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
+            bc_type == DIRICHLET_SEEPAGE_BC .or. &
             bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               hyd_auxvar_up%pres(iphase) - &
-                option%flow%reference_pressure < eps) then
+                hydrate_bc_reference_pressure < eps) then
             delta_pressure = 0.d0
           endif
         endif
@@ -1369,6 +1371,13 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
     tot_mole_flux = dtot_mole_flux_ddeltaX * delta_X_whatever
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
     dtot_mole_flux_ddenave = tot_mole_flux / density_ave
+    if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+        tot_mole_flux > 0.d0) then
+      tot_mole_flux = 0.d0
+    elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+        tot_mole_flux < 0.d0) then
+      tot_mole_flux = 0.d0
+    endif
     Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
   endif
@@ -1454,6 +1463,13 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
     dtot_mole_flux_dstpd = tot_mole_flux / stpd_ave_over_dist
     dtot_mole_flux_ddiffusion_coef = tot_mole_flux / diffusion_scale
     dtot_mole_flux_ddenave = tot_mole_flux / density_ave    
+    if (ibndtype(GAS_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+        tot_mole_flux > 0.d0) then
+      tot_mole_flux = 0.d0
+    elseif (ibndtype(LIQUID_PHASE) == DIRICHLET_SEEPAGE_BC .and. &
+        tot_mole_flux < 0.d0) then
+      tot_mole_flux = 0.d0
+    endif 
     Res(wat_comp_id) = Res(wat_comp_id) - tot_mole_flux
     Res(air_comp_id) = Res(air_comp_id) + tot_mole_flux
   endif
