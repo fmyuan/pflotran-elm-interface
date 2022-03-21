@@ -14,7 +14,7 @@ module Inversion_Parameter_module
     PetscInt :: imat
     PetscReal :: value
     character(len=MAXWORDLENGTH) :: parameter_name
-    character(len=MAXWORDLENGTH) :: strata_name
+    character(len=MAXWORDLENGTH) :: material_name
     type(inversion_parameter_type), pointer :: next
   end type inversion_parameter_type
 
@@ -65,7 +65,7 @@ subroutine InversionParameterInit(inversion_parameter)
   inversion_parameter%imat = UNINITIALIZED_INTEGER
   inversion_parameter%value = UNINITIALIZED_DOUBLE
   inversion_parameter%parameter_name = ''
-  inversion_parameter%strata_name = ''
+  inversion_parameter%material_name = ''
 
   nullify(inversion_parameter%next)
 
@@ -89,7 +89,7 @@ subroutine InversionParameterCopy(inversion_parameter,inversion_parameter2)
   inversion_parameter2%imat = inversion_parameter%imat
   inversion_parameter2%value = inversion_parameter%value
   inversion_parameter2%parameter_name = inversion_parameter%parameter_name
-  inversion_parameter2%strata_name = inversion_parameter%strata_name
+  inversion_parameter2%material_name = inversion_parameter%material_name
 
 end subroutine InversionParameterCopy
 
@@ -158,11 +158,10 @@ function InversionParameterRead(input,error_string,option)
         call InputErrorMsg(input,option,keyword,error_string)
         call StringtoUpper(word)
         new_inversion_parameter%parameter_name = word
-      case('STRATA')
+      case('MATERIAL')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,error_string)
-        call StringtoUpper(word)
-        new_inversion_parameter%strata_name = word
+        new_inversion_parameter%material_name = word
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select

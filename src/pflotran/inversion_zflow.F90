@@ -727,20 +727,10 @@ subroutine InversionZFlowStep(this)
 
   type(option_type), pointer :: option
 
-  option => OptionCreate()
-  write(option%group_prefix,'(i6)') this%iteration
-  option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
-  call OptionSetDriver(option,this%driver)
-  call OptionSetInversionOption(option,this%inversion_option)
-  call FactoryForwardInitialize(this%forward_simulation, &
-                                this%forward_simulation_filename,option)
-  this%realization => this%forward_simulation%realization
+  call this%InitializeForwardRun(option)
   call this%Initialize()
-  call this%forward_simulation%InitializeRun()
   call this%ConnectToForwardRun()
-  if (option%status == PROCEED) then
-    call this%forward_simulation%ExecuteRun()
-  endif
+  call this%ExecuteForwardRun()
   call this%CheckConvergence()
   call this%WriteIterationInfo()
   if (.not.this%converg_flag) then
@@ -751,11 +741,8 @@ subroutine InversionZFlowStep(this)
     call this%UpdateParameters()
     call this%UpdateRegularizParameters()
   endif
-  nullify(this%realization)
-  call this%forward_simulation%FinalizeRun()
-  call this%forward_simulation%Strip()
-  deallocate(this%forward_simulation)
-  nullify(this%forward_simulation)
+  call this%DestroyForwardRun()
+
 
 end subroutine InversionZFlowStep
 

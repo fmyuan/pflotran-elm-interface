@@ -125,8 +125,6 @@ subroutine InversionTaoInitialize(this)
   !
   class(inversion_tao_type) :: this
 
-  call InversionBaseInitialize(this)
-
 end subroutine InversionTaoInitialize
 
 ! ************************************************************************** !
@@ -145,20 +143,10 @@ subroutine InversionTaoStep(this)
 
   type(option_type), pointer :: option
 
-  option => OptionCreate()
-  write(option%group_prefix,'(i6)') this%iteration+1
-  option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
-  call OptionSetDriver(option,this%driver)
-  call FactoryForwardInitialize(this%forward_simulation, &
-                                this%forward_simulation_filename,option)
+  call this%InitializeForwardRun(option)
   call this%forward_simulation%InitializeRun()
-  if (option%status == PROCEED) then
-    call this%forward_simulation%ExecuteRun()
-  endif
-  call this%forward_simulation%FinalizeRun()
-  call this%forward_simulation%Strip()
-  deallocate(this%forward_simulation)
-  nullify(this%forward_simulation)
+  call this%ExecuteForwardRun()
+  call this%DestroyForwardRun()
 
   this%converg_flag = PETSC_FALSE
   if (this%iteration > this%maximum_iteration) this%converg_flag = PETSC_TRUE

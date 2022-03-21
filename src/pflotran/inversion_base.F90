@@ -21,10 +21,13 @@ module Inversion_Base_class
     PetscBool :: converg_flag            ! convergence flag
   contains
     procedure, public :: Init => InversionBaseInit
-    procedure, public :: Initialize => InversionBaseInitialize
+    procedure, public :: Initialize => InversionBaseThisOnly
     procedure, public :: ReadBlock => InversionBaseReadBlock
     procedure, public :: Step => InversionBaseThisOnly
+    procedure, public :: InitializeForwardRun => InversionBaseThisAndOption
     procedure, public :: ConnectToFowardRun => InversionBaseThisOnly
+    procedure, public :: ExecuteForwardRun => InversionBaseThisOnly
+    procedure, public :: DestroyForwardRun => InversionBaseThisOnly
     procedure, public :: InitializeIterationNumber => &
                            InversionBaseInitIterationNum
     procedure, public :: IncrementIteration => InversionBaseIncrementIteration
@@ -43,7 +46,6 @@ module Inversion_Base_class
 
   public :: InversionBaseInit, &
             InversionBaseReadSelectCase, &
-            InversionBaseInitialize, &
             InversionBaseFinalize, &
             InversionBaseStrip, &
             InversionBaseDestroy
@@ -119,16 +121,14 @@ end subroutine InversionBaseReadSelectCase
 
 ! ************************************************************************** !
 
-subroutine InversionBaseInitialize(this)
-  !
-  ! Initializes inversion
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/04/21
-  !
-  class(inversion_base_type) :: this
+subroutine InversionBaseThisAndOption(this,option)
 
-end subroutine InversionBaseInitialize
+  use Option_module
+
+  class(inversion_base_type) :: this
+  type(option_type), pointer :: option
+
+end subroutine InversionBaseThisAndOption
 
 ! ************************************************************************** !
 

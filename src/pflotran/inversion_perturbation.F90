@@ -11,16 +11,20 @@ module Inversion_Perturbation_class
 
   private
 
-  type, public, extends(inversion_subsurface_type) :: &
-                                            inversion_perturbation_type
+  type, public :: inversion_abc_type
     Vec :: quantity_of_interest_base
     Vec :: base_measurement_vec
     PetscInt :: ndof
     PetscInt :: idof_pert
     PetscReal :: pert
     PetscReal :: base_value
-    PetscReal :: perturbation_tolerance
+    PetscReal :: tolerance
     PetscInt, pointer :: select_cells(:)
+  end type inversion_abc_type
+
+  type, public, extends(inversion_subsurface_type) :: &
+                                            inversion_perturbation_type
+    type(inversion_abc_type), pointer :: perturbation
   contains
     procedure, public :: Init => InversionPerturbationInit
     procedure, public :: ReadBlock => InversionPerturbationReadBlock
@@ -74,15 +78,16 @@ subroutine InversionPerturbationInit(this,driver)
 
   call InversionSubsurfaceInit(this,driver)
 
-  this%quantity_of_interest_base = PETSC_NULL_VEC
-  this%base_measurement_vec = PETSC_NULL_VEC
+  allocate(this%perturbation)
+  this%perturbation%quantity_of_interest_base = PETSC_NULL_VEC
+  this%perturbation%base_measurement_vec = PETSC_NULL_VEC
 
-  this%ndof = 0
-  this%idof_pert = 0
-  this%pert = 0.d0
-  this%base_value = 0.d0
-  this%perturbation_tolerance = 1.d-6
-  nullify(this%select_cells)
+  this%perturbation%ndof = 0
+  this%perturbation%idof_pert = 0
+  this%perturbation%pert = 0.d0
+  this%perturbation%base_value = 0.d0
+  this%perturbation%tolerance = 1.d-6
+  nullify(this%perturbation%select_cells)
 
   zflow_calc_adjoint = PETSC_FALSE
 
@@ -126,11 +131,11 @@ subroutine InversionPerturbationReadBlock(this,input,option)
 
     select case(trim(keyword))
       case('PERTURBATION_TOLERANCE')
-        call InputReadDouble(input,option,this%perturbation_tolerance)
+        call InputReadDouble(input,option,this%perturbation%tolerance)
         call InputErrorMsg(input,option,keyword,error_string)
       case('SELECT_CELLS')
-        call UtilityReadArray(this%select_cells,ZERO_INTEGER,error_string, &
-                              input,option)
+        call UtilityReadArray(this%perturbation%select_cells,ZERO_INTEGER, &
+                              error_string,input,option)
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -161,30 +166,31 @@ subroutine InversionPerturbationInitialize(this)
                                 PETSC_FALSE)
   this%inversion_aux%inversion_forward_aux%store_adjoint = PETSC_FALSE
 
-  if (this%idof_pert == 0) then
+  if (this%perturbation%idof_pert == 0) then
     if (this%qoi_is_full_vector) then
-      if (associated(this%select_cells)) then
-        this%ndof = size(this%select_cells)
-        if (this%ndof > this%realization%patch%grid%nmax) then
+      if (associated(this%perturbation%select_cells)) then
+        this%perturbation%ndof = size(this%perturbation%select_cells)
+        if (this%perturbation%ndof > this%realization%patch%grid%nmax) then
           call this%driver%PrintErrMsg('Number of SELECT_CELLS is larger than &
                                       &the problem size: '// &
-                                      trim(StringWrite(this%ndof))//' '// &
+                    trim(StringWrite(this%perturbation%ndof))//' '// &
                     trim(StringWrite(this%realization%patch%grid%nmax)))
         endif
       else
-        this%ndof = this%realization%patch%grid%nmax
+        this%perturbation%ndof = this%realization%patch%grid%nmax
       endif
     else
-      this%ndof = size(this%parameters)
+      this%perturbation%ndof = size(this%parameters)
     endif
-    call VecDuplicate(this%measurement_vec,this%base_measurement_vec, &
+    call VecDuplicate(this%measurement_vec, &
+                      this%perturbation%base_measurement_vec, &
                       ierr);CHKERRQ(ierr)
   else
     if (this%qoi_is_full_vector) then
-      if (this%idof_pert > this%realization%patch%grid%nmax) then
+      if (this%perturbation%idof_pert > this%realization%patch%grid%nmax) then
         call this%driver%PrintErrMsg('SELECT_CELLS ID is larger than &
                                     &the problem size: '// &
-                            trim(StringWrite(this%idof_pert))//' '// &
+                      trim(StringWrite(this%perturbation%idof_pert))//' '// &
                       trim(StringWrite(this%realization%patch%grid%nmax)))
       endif
     endif
@@ -215,40 +221,24 @@ subroutine InversionPerturbationStep(this)
   type(option_type), pointer :: option
   PetscInt :: iteration
 
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
-
   iteration = 0
   do
-    if (associated(this%select_cells) .and. iteration > 0) then
-      this%idof_pert = this%select_cells(iteration)
+    if (associated(this%perturbation%select_cells) .and. iteration > 0) then
+      this%perturbation%idof_pert = this%perturbation%select_cells(iteration)
     else
-      this%idof_pert = iteration
+      this%perturbation%idof_pert = iteration
     endif
-    option => OptionCreate()
-    option%group_prefix = 'Run' // trim(StringWrite(this%iteration)) // &
-                          '_' // StringWrite(iteration)
-    call OptionSetDriver(option,this%driver)
-    call OptionSetInversionOption(option,this%inversion_option)
-    call FactoryForwardInitialize(this%forward_simulation, &
-                                  this%forward_simulation_filename,option)
-    this%realization => this%forward_simulation%realization
+    call this%InitializeForwardRun(option)
     call this%Initialize()
-    call this%forward_simulation%InitializeRun()
     call this%ConnectToForwardRun()
-    if (option%status == PROCEED) then
-      call this%forward_simulation%ExecuteRun()
-    endif
+    call this%ExecuteForwardRun()
     call InversionPerturbationFillRow(this,iteration)
-    if (iteration == this%ndof) then
+    if (iteration == this%perturbation%ndof) then
       call this%OutputSensitivity('')
     endif
-    call this%forward_simulation%FinalizeRun()
-    call this%forward_simulation%Strip()
-    deallocate(this%forward_simulation)
-    nullify(this%forward_simulation)
+    call this%DestroyForwardRun()
     iteration = iteration + 1
-    if (iteration > this%ndof) exit
+    if (iteration > this%perturbation%ndof) exit
   enddo
 
   this%converg_flag = PETSC_FALSE
@@ -280,21 +270,21 @@ subroutine InvPerturbationConnectForwardRun(this)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal :: rmin, rmax
   PetscInt :: i
-  type(strata_type), pointer :: strata
   type(material_property_type), pointer :: material_property
-  type(region_type), pointer :: region
   PetscErrorCode :: ierr
 
   call InvSubsurfConnectToForwardRun(this)
 
   ! on first pass, store and set thereafter
-  if (this%quantity_of_interest_base == PETSC_NULL_VEC) then
+  if (this%perturbation%quantity_of_interest_base == PETSC_NULL_VEC) then
     call VecDuplicate(this%quantity_of_interest, &
-                      this%quantity_of_interest_base,ierr);CHKERRQ(ierr)
+                      this%perturbation%quantity_of_interest_base, &
+                      ierr);CHKERRQ(ierr)
   endif
-  if (this%idof_pert == 0) then
-    call VecCopy(this%quantity_of_interest,this%quantity_of_interest_base, &
-                                     ierr);CHKERRQ(ierr)
+  if (this%perturbation%idof_pert == 0) then
+    call VecCopy(this%quantity_of_interest, &
+                 this%perturbation%quantity_of_interest_base, &
+                 ierr);CHKERRQ(ierr)
   else
     if (this%qoi_is_full_vector) then
       discretization => this%realization%discretization
@@ -302,27 +292,29 @@ subroutine InvPerturbationConnectForwardRun(this)
       call DiscretizationCreateVector(discretization, &
                                       ONEDOF,natural_vec, &
                                       NATURAL,this%realization%option)
-      call VecCopy(this%quantity_of_interest_base,this%quantity_of_interest, &
-                  ierr);CHKERRQ(ierr)
+      call VecCopy(this%perturbation%quantity_of_interest_base, &
+                   this%quantity_of_interest, &
+                   ierr);CHKERRQ(ierr)
       call VecGetArrayF90(this%quantity_of_interest,vec_ptr, &
                           ierr);CHKERRQ(ierr)
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (this%driver%comm%myrank == 0) then
-        call VecSetValue(natural_vec,this%idof_pert-1, &
-                        this%perturbation_tolerance,INSERT_VALUES, &
+        call VecSetValue(natural_vec,this%perturbation%idof_pert-1, &
+                        this%perturbation%tolerance,INSERT_VALUES, &
                         ierr);CHKERRQ(ierr)
       endif
       call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
       call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
       call DiscretizationNaturalToGlobal(discretization,natural_vec, &
                                         work,ONEDOF)
-      call VecPointwiseMult(work,work,this%quantity_of_interest,ierr);CHKERRQ(ierr)
+      call VecPointwiseMult(work,work,this%quantity_of_interest, &
+                            ierr);CHKERRQ(ierr)
       call VecMax(work,PETSC_NULL_INTEGER,rmax,ierr);CHKERRQ(ierr)
       call VecMin(work,PETSC_NULL_INTEGER,rmin,ierr);CHKERRQ(ierr)
       if (rmax > 0.d0) then
-        this%pert = rmax
+        this%perturbation%pert = rmax
       else
-        this%pert = rmin
+        this%perturbation%pert = rmin
       endif
       call VecAXPY(this%quantity_of_interest,1.d0,work,ierr);CHKERRQ(ierr)
       call DiscretizationGlobalToLocal(this%realization%discretization, &
@@ -333,36 +325,23 @@ subroutine InvPerturbationConnectForwardRun(this)
                                   this%iqoi(1),this%iqoi(2))
       call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
     else
-      this%base_value = this%parameters(this%idof_pert)%value
-      this%pert = this%base_value*this%perturbation_tolerance
-      this%parameters(this%idof_pert)%value = this%base_value + this%pert
+      this%perturbation%base_value = &
+        this%parameters(this%perturbation%idof_pert)%value
+      this%perturbation%pert = this%perturbation%base_value* &
+                               this%perturbation%tolerance
+      this%parameters(this%perturbation%idof_pert)%value = &
+        this%perturbation%base_value + this%perturbation%pert
       do i = 1, size(this%parameters)
-        strata => this%realization%patch%strata_list%first
-        do
-          if (.not.associated(strata)) exit
-          if (StringCompareIgnoreCase(this%parameters(i)%strata_name, &
-                                      strata%region_name)) then
-            exit
-          endif
-          strata => strata%next
-        enddo
-        if (associated(strata)) then
-          material_property => &
-            MaterialPropGetPtrFromArray(strata%material_property_name, &
-                              this%realization%patch%material_property_array)
-          region => RegionGetPtrFromList(strata%region_name, &
-                                        this%realization%patch%region_list)
-          if (this%first_iteration) then
-            this%parameters(i)%imat = abs(material_property%internal_id)
-            this%parameters(i)%value = material_property%permeability(1,1)
-          else
-            material_property%permeability(1,1) = this%parameters(i)%value
-            material_property%permeability(2,2) = this%parameters(i)%value
-            material_property%permeability(3,3) = this%parameters(i)%value
-          endif
+        material_property => &
+          MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
+                            this%realization%patch%material_property_array)
+        if (this%first_iteration) then
+          this%parameters(i)%imat = abs(material_property%internal_id)
+          this%parameters(i)%value = material_property%permeability(1,1)
         else
-          call this%driver%PrintErrMsg('No region associated with strata in &
-                                      &InvSubsurfConnectToForwardRun.')
+          material_property%permeability(1,1) = this%parameters(i)%value
+          material_property%permeability(2,2) = this%parameters(i)%value
+          material_property%permeability(3,3) = this%parameters(i)%value
         endif
       enddo
       call InitSubsurfAssignMatIDsToRegns(this%realization)
@@ -401,17 +380,19 @@ subroutine InversionPerturbationFillRow(this,iteration)
   enddo
   call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr)
 
-  if (this%idof_pert == 0) then
-    call VecCopy(this%measurement_vec,this%base_measurement_vec, &
+  if (this%perturbation%idof_pert == 0) then
+    call VecCopy(this%measurement_vec,this%perturbation%base_measurement_vec, &
                  ierr);CHKERRQ(ierr)
     call MatZeroEntries(this%inversion_aux%JsensitivityT,ierr);CHKERRQ(ierr)
   else
-    call VecAXPY(this%measurement_vec,-1.d0,this%base_measurement_vec, &
+    call VecAXPY(this%measurement_vec,-1.d0, &
+                 this%perturbation%base_measurement_vec, &
                  ierr);CHKERRQ(ierr)
-    call VecScale(this%measurement_vec,1.d0/this%pert,ierr);CHKERRQ(ierr)
+    call VecScale(this%measurement_vec,1.d0/this%perturbation%pert, &
+                  ierr);CHKERRQ(ierr)
   endif
 
-  if (this%idof_pert == 0) return
+  if (this%perturbation%idof_pert == 0) return
 
   ! don't need to use the distributed vec, but why not
   call VecScatterBegin(this%scatter_measure_to_dist_measure, &
@@ -424,13 +405,13 @@ subroutine InversionPerturbationFillRow(this,iteration)
                      ierr);CHKERRQ(ierr)
   call VecGetArrayF90(this%dist_measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do i = 1, size(vec_ptr)
-    call MatSetValue(this%inversion_aux%JsensitivityT,this%idof_pert-1, &
+    call MatSetValue(this%inversion_aux%JsensitivityT,this%perturbation%idof_pert-1, &
                      this%dist_measurement_offset+i-1,vec_ptr(i), &
                      INSERT_VALUES,ierr);CHKERRQ(ierr)
   enddo
   call VecRestoreArrayF90(this%dist_measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-  if (iteration == this%ndof) then
+  if (iteration == this%perturbation%ndof) then
     call MatAssemblyBegin(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
                           ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(this%inversion_aux%JsensitivityT,MAT_FINAL_ASSEMBLY, &
@@ -439,7 +420,7 @@ subroutine InversionPerturbationFillRow(this,iteration)
 
   if (.not.this%qoi_is_full_vector) then
     ! revert back to base value
-    this%parameters(this%idof_pert)%value = this%base_value
+    this%parameters(this%perturbation%idof_pert)%value = this%perturbation%base_value
   endif
 
 end subroutine InversionPerturbationFillRow
@@ -461,13 +442,16 @@ subroutine InversionPerturbationStrip(this)
 
   call InversionSubsurfaceStrip(this)
 
-  call DeallocateArray(this%select_cells)
-  if (this%quantity_of_interest_base /= PETSC_NULL_VEC) then
-    call VecDestroy(this%quantity_of_interest_base,ierr);CHKERRQ(ierr)
+  call DeallocateArray(this%perturbation%select_cells)
+  if (this%perturbation%quantity_of_interest_base /= PETSC_NULL_VEC) then
+    call VecDestroy(this%perturbation%quantity_of_interest_base, &
+                    ierr);CHKERRQ(ierr)
   endif
-  if (this%base_measurement_vec /= PETSC_NULL_VEC) then
-    call VecDestroy(this%base_measurement_vec,ierr);CHKERRQ(ierr)
+  if (this%perturbation%base_measurement_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(this%perturbation%base_measurement_vec,ierr);CHKERRQ(ierr)
   endif
+  deallocate(this%perturbation)
+  nullify(this%perturbation)
 
 end subroutine InversionPerturbationStrip
 
