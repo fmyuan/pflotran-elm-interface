@@ -743,7 +743,6 @@ subroutine InversionZFlowStep(this)
   endif
   call this%DestroyForwardRun()
 
-
 end subroutine InversionZFlowStep
 
 ! ************************************************************************** !

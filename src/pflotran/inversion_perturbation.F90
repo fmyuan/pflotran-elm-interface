@@ -32,6 +32,8 @@ module Inversion_Perturbation_class
     procedure, public :: Step => InversionPerturbationStep
     procedure, public :: ConnectToForwardRun => &
                            InvPerturbationConnectForwardRun
+    procedure, public :: CalculateSensitivity => &
+                           InvPerturbationCalculateSensitivity
     procedure, public :: Strip => InversionPerturbationStrip
   end type inversion_perturbation_type
 
@@ -219,27 +221,15 @@ subroutine InversionPerturbationStep(this)
   class(inversion_perturbation_type) :: this
 
   type(option_type), pointer :: option
-  PetscInt :: iteration
 
-  iteration = 0
-  do
-    if (associated(this%perturbation%select_cells) .and. iteration > 0) then
-      this%perturbation%idof_pert = this%perturbation%select_cells(iteration)
-    else
-      this%perturbation%idof_pert = iteration
-    endif
+    this%perturbation%idof_pert = 0
     call this%InitializeForwardRun(option)
     call this%Initialize()
     call this%ConnectToForwardRun()
     call this%ExecuteForwardRun()
-    call InversionPerturbationFillRow(this,iteration)
-    if (iteration == this%perturbation%ndof) then
-      call this%OutputSensitivity('')
-    endif
+    call this%CalculateSensitivity()
+    call this%OutputSensitivity('')
     call this%DestroyForwardRun()
-    iteration = iteration + 1
-    if (iteration > this%perturbation%ndof) exit
-  enddo
 
   this%converg_flag = PETSC_FALSE
   if (this%iteration > this%maximum_iteration) this%converg_flag = PETSC_TRUE
@@ -350,6 +340,48 @@ subroutine InvPerturbationConnectForwardRun(this)
   endif
 
 end subroutine InvPerturbationConnectForwardRun
+
+! ************************************************************************** !
+
+subroutine InvPerturbationCalculateSensitivity(this)
+  !
+  ! Calculates sensitivity matrix Jsensitivity
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/21/22
+  !
+  use Option_module
+
+  class(inversion_perturbation_type) :: this
+
+  type(option_type), pointer :: option
+  PetscInt :: iteration
+
+  ! destroy non-perturbed forward run
+  iteration = 0
+  ! InversionPerturbationFillRow performs setup on iteration 0
+  call InversionPerturbationFillRow(this,iteration)
+  call this%DestroyForwardRun()
+  iteration = 1
+  do
+    if (associated(this%perturbation%select_cells)) then
+      this%perturbation%idof_pert = this%perturbation%select_cells(iteration)
+    else
+      this%perturbation%idof_pert = iteration
+    endif
+    call this%InitializeForwardRun(option)
+    call this%Initialize()
+    call this%ConnectToForwardRun()
+    call this%ExecuteForwardRun()
+    call InversionPerturbationFillRow(this,iteration)
+    iteration = iteration + 1
+    if (iteration > this%perturbation%ndof) exit
+    ! the last forward run will be destroyed after any output of
+    ! sensitivity matrices
+    call this%DestroyForwardRun()
+  enddo
+
+end subroutine InvPerturbationCalculateSensitivity
 
 ! ************************************************************************** !
 
