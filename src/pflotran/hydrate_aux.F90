@@ -649,7 +649,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dden_ice_dT, dden_ice_dP
   character(len=8) :: state_char
   PetscErrorCode :: ierr, eos_henry_ierr
-  PetscReal :: dTf, h_sat_eff, i_sat_eff, liq_sat_eff, gas_sat_eff
+  PetscReal :: dTf,dTfs, h_sat_eff, i_sat_eff, liq_sat_eff, gas_sat_eff
   PetscReal :: solid_sat_eff
   PetscReal :: sigma, dP
 
@@ -1043,8 +1043,14 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       else
         dTf = 0.d0
       endif
-      
-      hyd_auxvar%temp = TQD-dTf
+
+      if (hydrate_xmol_nacl > 0.d0) then
+        call IceSalinityOffset(hydrate_xmol_nacl,dTfs)
+      else
+        dTfs = 0.d0
+      endif      
+
+      hyd_auxvar%temp = TQD-dTf+dTfs
 
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                           hyd_auxvar%pres(spid),ierr)
@@ -1162,7 +1168,15 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
         dTf = 0.d0
       endif
 
-      hyd_auxvar%temp = TQD-dTf
+      if (hydrate_xmol_nacl > 0.d0) then
+        call IceSalinityOffset(hydrate_xmol_nacl,dTfs)
+      else
+        dTfs = 0.d0
+      endif
+
+
+      hyd_auxvar%temp = TQD-dTf+dTfs
+
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP,&
           characteristic_curves, material_auxvar,option)
@@ -1325,7 +1339,13 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       !  endif
       !endif
 
-      hyd_auxvar%temp = TQD - dTf
+      if (hydrate_xmol_nacl > 0.d0) then
+        call IceSalinityOffset(hydrate_xmol_nacl,dTfs)
+      else
+        dTfs = 0.d0
+      endif
+
+      hyd_auxvar%temp = TQD - dTf + dTfs
       call HydratePE(hyd_auxvar%temp,h_sat_eff, PE_hyd, dP, &
           characteristic_curves, material_auxvar, option)
       hyd_auxvar%pres(apid) = PE_hyd
@@ -1678,7 +1698,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   endif
 
   if (hydrate_xmol_nacl > 0.d0) then
-    call HydrateSalinityOffset(hydrate_xmol_nacl,dTfs)
+    call IceSalinityOffset(hydrate_xmol_nacl,dTfs)
   else
     dTfs = 0.d0
   endif
@@ -3858,9 +3878,6 @@ subroutine HydrateSalinityOffset(xmol,dTd)
   ! Date: 5/1/2020
   !
 
-  use Characteristic_Curves_module
-  use Material_Aux_class
-
   implicit none
 
   PetscReal, intent(in) :: xmol
@@ -3872,5 +3889,26 @@ subroutine HydrateSalinityOffset(xmol,dTd)
   dTd = dTr * log(1-xmol)/log(1-xmol_ref)
 
 end subroutine HydrateSalinityOffset
+
+! ************************************************************************** !
+
+subroutine IceSalinityOffset(xmass,dTd)
+
+  !
+  ! Author: Michael Nole
+  ! Date: 03/21/22
+  !
+  ! From Fujino et al., 1974
+
+  implicit none
+
+  PetscReal, intent(in) :: xmass
+  PetscReal, intent(out) :: dTd
+
+  dTd = -0.0575d0*(xmass*1000) + 0.000112d0*(xmass*1000)**2
+
+end subroutine IceSalinityOffset
+
+! ************************************************************************** !
 
 end module Hydrate_Aux_module
