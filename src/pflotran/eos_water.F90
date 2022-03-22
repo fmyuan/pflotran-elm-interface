@@ -2150,7 +2150,6 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
     ! d(h_if97/dP*dP/dT+d(h_if97)/dT
     hwt = hwp/dT_h_dp+hwt
 
-    !now what... ?
   endif
 end subroutine EOSWaterEnthalpyDriesnerExt
 
