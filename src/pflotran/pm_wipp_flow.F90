@@ -2467,7 +2467,9 @@ subroutine PMWIPPFloRestartBinary(this,viewer)
   call PMSubsurfaceFlowRestartBinary(this,viewer)
 
   if (associated(this%pmwss_ptr)) then
-    call PMWSSRestartBinary(this%pmwss_ptr,viewer)
+    if (.not.this%pmwss_ptr%skip_restart) then       
+      call PMWSSRestartBinary(this%pmwss_ptr,viewer)
+    endif
   endif
   
 end subroutine PMWIPPFloRestartBinary
@@ -2493,7 +2495,9 @@ subroutine PMWIPPFloRestartHDF5(this,pm_grp_id)
   call PMSubsurfaceFlowRestartHDF5(this,pm_grp_id)  
   
   if (associated(this%pmwss_ptr)) then
-    call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
+    if (.not.this%pmwss_ptr%skip_restart) then  
+      call PMWSSRestartHDF5(this%pmwss_ptr,pm_grp_id)
+    endif
   endif
 end subroutine PMWIPPFloRestartHDF5
 
