@@ -4,7 +4,7 @@ module ERT_module
   use petscksp
 
   use ERT_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   use PFLOTRAN_Constants_module
 
@@ -38,14 +38,14 @@ subroutine ERTSetup(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(survey_type), pointer :: survey
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
 
   PetscInt :: flag(1)
@@ -120,11 +120,11 @@ subroutine ERTCalculateMatrix(realization,M,compute_delM)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   Mat :: M
   PetscBool :: compute_delM
 
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(ert_auxvar_type), pointer :: ert_auxvars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -404,8 +404,8 @@ end subroutine ERTCalculateMatrix
 
 ! ************************************************************************** !
 
-subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
-                                           empirical_law,cond)
+subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_s, &
+                                           cond_c,empirical_law,cond)
   !
   ! Calculates conductivity using petrophysical empirical relations
   ! using Archie's law or Waxman-Smits equation
@@ -425,6 +425,7 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
   PetscReal :: m        ! Cementation exponent
   PetscReal :: n        ! Saturation exponent
   PetscReal :: cond_w   ! Water conductivity
+  PetscReal :: cond_s   ! surface conductivity
 
   ! Waxman-Smits additional paramters
   PetscReal :: cond_c   ! Clay conductivity
@@ -435,6 +436,8 @@ subroutine ERTConductivityFromEmpiricalEqs(por,sat,a,m,n,Vc,cond_w,cond_c, &
 
   ! Archie's law
   cond = cond_w * (por**m) * (sat**n) / a
+  ! Modify by adding surface conductivity
+  cond = cond + cond_s
 
   select case(empirical_law)
     case(ARCHIE)
@@ -464,7 +467,7 @@ subroutine ERTCalculateAnalyticPotential(realization,ielec,average_conductivity)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: ielec
   PetscReal, optional :: average_conductivity
 
@@ -536,13 +539,13 @@ subroutine ERTCalculateAverageConductivity(realization)
 
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(survey_type), pointer :: survey
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id
   PetscInt :: ghosted_id

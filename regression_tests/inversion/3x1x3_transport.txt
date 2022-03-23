@@ -1,0 +1,177 @@
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    MAX_ALLOW_LIQ_PRES_CHANGE_NI 1.d-2
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 3 1 3
+  BOUNDS
+    0.d0 0.d0 0.d0
+    3.d0 1.d0 3.d0
+  /
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 3
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+MATERIAL_PROPERTY soil2
+  ID 2
+  POROSITY 0.25d0
+  PERMEABILITY
+    PERM_ISO 1.d-18
+  /
+  CHARACTERISTIC_CURVES cc1
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.5d0
+    ALPHA 1.d-4
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== output options ===================================
+OUTPUT
+#  FORMAT TECPLOT POINT
+  FORMAT HDF5
+  PERIODIC TIMESTEP 1
+  PERIODIC_OBSERVATION TIMESTEP 1
+  VARIABLES
+    LIQUID_PRESSURE
+    LIQUID_SATURATION
+    SOLUTE_CONCENTRATION
+    PERMEABILITY
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.25d0 y
+  INITIAL_TIMESTEP_SIZE 0.025d0 y
+  MAXIMUM_TIMESTEP_SIZE 0.05d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+     1.d20  1.d20  1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 -1.d20 -1.d20
+    0.d0  1.d20  1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    3.d0 -1.d20 0.d0
+    3.d0  1.d20 1.d0
+  /
+END
+
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.d0 -1.d20 3.d0
+    1.d0  1.d20 3.d0
+  /
+END
+
+REGION barrier
+  COORDINATES
+    1.d0 -1.d20 0.d0
+    2.d0  1.d20 3.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5d0 0.5d0 0.5d0
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE HYDROSTATIC
+    CONCENTRATION DIRICHLET
+  /
+  DATUM 0.d0 0.d0 0.1d0
+  PRESSURE 101325.d0
+  CONCENTRATION 1.d-10
+END
+
+FLOW_CONDITION top
+  TYPE
+    FLUX NEUMANN
+    CONCENTRATION DIRICHLET
+  /
+  FLUX 0.5 m/y
+  CONCENTRATION 1.d-3
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION east
+END
+
+BOUNDARY_CONDITION top
+  FLOW_CONDITION top
+  REGION top
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+STRATA
+  REGION barrier
+  MATERIAL soil2
+END
+

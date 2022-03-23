@@ -150,15 +150,19 @@ module Variables_module
 
   PetscInt, parameter, public :: K_ORTHOGONALITY_ERROR   = 124
 
-  PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 125
+  PetscInt, parameter, public :: ELECTRICAL_CONDUCTIVITY = 125
+  PetscInt, parameter, public :: ELECTRICAL_POTENTIAL    = 126
+  PetscInt, parameter, public :: ELECTRICAL_JACOBIAN     = 127
+  PetscInt, parameter, public :: ELECTRICAL_POTENTIAL_DIPOLE = 128
 
-  PetscInt, parameter, public :: ELECTRICAL_CONDUCTIVITY = 126
-  PetscInt, parameter, public :: ELECTRICAL_POTENTIAL    = 127
-  PetscInt, parameter, public :: ELECTRICAL_JACOBIAN     = 128
-  PetscInt, parameter, public :: ELECTRICAL_POTENTIAL_DIPOLE = 129
+  PetscInt, parameter, public :: EPSILON                 = 129
+  PetscInt, parameter, public :: DERIVATIVE              = 130
+  PetscInt, parameter, public :: DARCY_VELOCITY          = 131
 
-  PetscInt, parameter, public :: EPSILON                 = 130
-  PetscInt, parameter, public :: DERIVATIVE              = 131
-  PetscInt, parameter, public :: DARCY_VELOCITY          = 132
+  PetscInt, parameter, public :: SECONDARY_CONTINUUM_UPDATED_CONC = 132
+  PetscInt, parameter, public :: SECONDARY_CONCENTRATION_GAS = 133
+
+  PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
+  PetscInt, parameter, public :: MATRIX_LENGTH    = 135
 
 end module Variables_module

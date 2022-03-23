@@ -1,4 +1,4 @@
-module Material_Aux_class
+module Material_Aux_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -43,6 +43,8 @@ module Material_Aux_class
   PetscInt, public :: soil_compressibility_index
   PetscInt, public :: soil_reference_pressure_index
   PetscInt, public :: max_material_index
+  PetscInt, public :: epsilon_index
+  PetscInt, public :: matrix_length_index
 
   type, public :: material_auxvar_type
     PetscInt :: id
@@ -55,20 +57,19 @@ module Material_Aux_class
                           ! function of soil compressibity, etc.
     PetscReal :: dporosity_dp
     PetscReal :: tortuosity
-    PetscReal :: epsilon !Secondary continuum fraction volume fraction
     PetscReal :: soil_particle_density
     PetscReal, pointer :: permeability(:)
     PetscReal, pointer :: sat_func_prop(:)
-    PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
+    PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap., epsilon, matrix length
     PetscReal, pointer :: electrical_conductivity(:) ! Geophysics -> electrical conductivity for ERT/SIP/EM
     type(fracture_auxvar_type), pointer :: fracture
     PetscReal, pointer :: geomechanics_subsurface_prop(:)
     PetscInt :: creep_closure_id
 
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
-  contains
-    procedure, public :: PermeabilityTensorToScalar
-    procedure, public :: PermeabilityTensorToScalarSafe
+!  contains
+!    procedure, public :: PermeabilityTensorToScalar
+!    procedure, public :: PermeabilityTensorToScalarSafe
   end type material_auxvar_type
 
   type, public :: fracture_auxvar_type
@@ -87,7 +88,7 @@ module Material_Aux_class
     PetscReal :: time_t, time_tpdt
     PetscInt :: num_aux
     type(material_parameter_type), pointer :: material_parameter
-    class(material_auxvar_type), pointer :: auxvars(:)
+    type(material_auxvar_type), pointer :: auxvars(:)
   end type material_type
 
   ! procedure pointer declarations
@@ -100,7 +101,7 @@ module Material_Aux_class
                                          dcompressed_porosity_dp)
     import material_auxvar_type
     implicit none
-    class(material_auxvar_type), intent(in) :: auxvar
+    type(material_auxvar_type), intent(in) :: auxvar
     PetscReal, intent(in) :: pressure
     PetscReal, intent(out) :: compressed_porosity
     PetscReal, intent(out) :: dcompressed_porosity_dp
@@ -119,6 +120,8 @@ module Material_Aux_class
             MaterialCompressSoilLeijnse, &
             MaterialCompressSoilLinear, &
             MaterialCompressSoilQuadratic
+
+  public :: PermeabilityTensorToScalar
 
   public :: MaterialAuxCreate, &
             MaterialAuxVarInit, &
@@ -180,7 +183,7 @@ subroutine MaterialAuxVarInit(auxvar,option)
 
   implicit none
 
-  class(material_auxvar_type) :: auxvar
+  type(material_auxvar_type) :: auxvar
   type(option_type) :: option
 
   auxvar%id = UNINITIALIZED_INTEGER
@@ -190,7 +193,6 @@ subroutine MaterialAuxVarInit(auxvar,option)
   auxvar%porosity = UNINITIALIZED_DOUBLE
   auxvar%dporosity_dp = 0.d0
   auxvar%tortuosity = UNINITIALIZED_DOUBLE
-  auxvar%epsilon = UNINITIALIZED_DOUBLE
   auxvar%soil_particle_density = UNINITIALIZED_DOUBLE
   if (option%iflowmode /= NULL_MODE) then
     if (option%flow%full_perm_tensor) then
@@ -242,7 +244,7 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
 
   implicit none
 
-  class(material_auxvar_type) :: auxvar, auxvar2
+  type(material_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
   auxvar2%volume = auxvar%volume
@@ -250,7 +252,6 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%porosity_base = auxvar%porosity_base
   auxvar2%porosity = auxvar%porosity
   auxvar2%tortuosity = auxvar%tortuosity
-  auxvar2%epsilon = auxvar%epsilon
   auxvar2%soil_particle_density = auxvar%soil_particle_density
   if (associated(auxvar%permeability)) then
     auxvar2%permeability = auxvar%permeability
@@ -314,7 +315,7 @@ subroutine PermeabilityTensorToScalar(material_auxvar,dist,scalar_permeability)
 
   implicit none
 
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   ! -1 = fraction upwind
   ! 0 = magnitude
   ! 1 = unit x-dir
@@ -374,7 +375,7 @@ subroutine PermeabilityTensorToScalarSafe(material_auxvar,dist, &
 
   implicit none
 
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
 
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal, intent(out) :: scalar_permeability
@@ -623,7 +624,7 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
 
   implicit none
 
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: ivar
 
   PetscReal :: MaterialAuxVarGetValue
@@ -685,7 +686,7 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
 
   implicit none
 
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscInt :: ivar
   PetscReal :: value
 
@@ -701,7 +702,9 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
     case(TORTUOSITY)
       material_auxvar%tortuosity = value
     case(EPSILON)
-      material_auxvar%epsilon = value
+      material_auxvar%soil_properties(epsilon_index) = value
+    case(MATRIX_LENGTH)
+      material_auxvar%soil_properties(matrix_length_index) = value
     case(PERMEABILITY_X)
       material_auxvar%permeability(perm_xx_index) = value
     case(PERMEABILITY_Y)
@@ -737,7 +740,7 @@ subroutine MaterialAuxVarCompute(auxvar,pressure)
 
   implicit none
 
-  class(material_auxvar_type), intent(inout) :: auxvar
+  type(material_auxvar_type), intent(inout) :: auxvar
   PetscReal, intent(in) :: pressure
 
   auxvar%porosity = auxvar%porosity_base
@@ -763,7 +766,7 @@ subroutine MaterialCompressSoilLeijnse(auxvar,pressure, &
 
   implicit none
 
-  class(material_auxvar_type), intent(in) :: auxvar
+  type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
@@ -796,7 +799,7 @@ subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
 
   implicit none
 
-  class(material_auxvar_type), intent(in) :: auxvar
+  type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
@@ -831,7 +834,7 @@ subroutine MaterialCompressSoilLinear(auxvar,pressure, &
 
   implicit none
 
-  class(material_auxvar_type), intent(in) :: auxvar
+  type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
@@ -859,7 +862,7 @@ subroutine MaterialCompressSoilPoroExp(auxvar,pressure, &
 
   implicit none
 
-  class(material_auxvar_type), intent(in) :: auxvar
+  type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
@@ -889,7 +892,7 @@ subroutine MaterialCompressSoilQuadratic(auxvar,pressure, &
 
   implicit none
 
-  class(material_auxvar_type), intent(in) :: auxvar
+  type(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: pressure
   PetscReal, intent(out) :: compressed_porosity
   PetscReal, intent(out) :: dcompressed_porosity_dp
@@ -930,6 +933,10 @@ function MaterialAuxIndexToPropertyName(i)
     MaterialAuxIndexToPropertyName = 'soil compressibility'
   else if (i == soil_reference_pressure_index) then
     MaterialAuxIndexToPropertyName = 'soil reference pressure'
+  else if (i == epsilon_index) then
+   MaterialAuxIndexToPropertyName = 'multicontinuum epsilon'
+  else if (i == matrix_length_index) then
+    MaterialAuxIndexToPropertyName = 'matrix length'
 !  else if (i == soil_thermal_conductivity_index) then
 !    MaterialAuxIndexToPropertyName = 'soil thermal conductivity'
 !  else if (i == soil_heat_capacity_index) then
@@ -976,7 +983,7 @@ subroutine MaterialAuxVarStrip(auxvar)
 
   implicit none
 
-  class(material_auxvar_type) :: auxvar
+  type(material_auxvar_type) :: auxvar
 
   call DeallocateArray(auxvar%permeability)
   call DeallocateArray(auxvar%sat_func_prop)
@@ -1028,4 +1035,4 @@ subroutine MaterialAuxDestroy(aux)
 
 end subroutine MaterialAuxDestroy
 
-end module Material_Aux_class
+end module Material_Aux_module

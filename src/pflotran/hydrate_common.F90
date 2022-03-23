@@ -58,13 +58,13 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
   !
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(hydrate_auxvar_type) :: hyd_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: z, offset
   type(hydrate_parameter_type), pointer :: hydrate_parameter
   PetscReal :: soil_heat_capacity
@@ -157,7 +157,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   ! Date: 07/23/19
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Connection_module
   use Fracture_module
   use Klinkenberg_module
@@ -167,7 +167,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   
   type(hydrate_auxvar_type) :: hyd_auxvar_up, hyd_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
@@ -268,8 +268,8 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_up,dist,perm_up)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
   
 #if 0
 !TODO(geh): remove for now
@@ -811,7 +811,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! Date: 07/23/19
   ! 
   use Option_module                              
-  use Material_Aux_class
+  use Material_Aux_module
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
@@ -824,7 +824,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(hydrate_auxvar_type) :: hyd_auxvar_up, hyd_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
@@ -930,7 +930,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   J = 0.d0
   v_darcy = 0.d0  
 
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call PermeabilityTensorToScalar(material_auxvar_dn,dist,perm_dn)
 
 #if 0
   ! Fracture permeability change only available for structured grid (Heeho)
@@ -1749,13 +1749,13 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
   ! 
 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
 
   type(hydrate_auxvar_type) :: hyd_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: z,offset
   type(hydrate_parameter_type), pointer :: hydrate_parameter
   type(option_type) :: option
@@ -1831,14 +1831,14 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   ! Date: 07/23/19
   ! 
   use Option_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module, only : count_upwind_direction_flip
   
   implicit none
   
   type(hydrate_auxvar_type) :: hyd_auxvar_up(0:), hyd_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
@@ -2025,7 +2025,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   ! 
 
   use Option_module 
-  use Material_Aux_class
+  use Material_Aux_module
   use Upwind_Direction_module, only : count_upwind_direction_flip
   
   implicit none
@@ -2036,7 +2036,7 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array
   type(hydrate_auxvar_type) :: hyd_auxvar_up, hyd_auxvar_dn(0:)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
-  class(material_auxvar_type) :: material_auxvar_dn
+  type(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -2273,7 +2273,7 @@ subroutine HydrateAuxVarDiff(idof,hydrate_auxvar,global_auxvar, &
 
   use Option_module
   use Global_Aux_module
-  use Material_Aux_class  
+  use Material_Aux_module  
 
   implicit none
   
@@ -2281,7 +2281,7 @@ subroutine HydrateAuxVarDiff(idof,hydrate_auxvar,global_auxvar, &
   PetscInt :: idof
   type(hydrate_auxvar_type) :: hydrate_auxvar, hydrate_auxvar_pert
   type(global_auxvar_type) :: global_auxvar, global_auxvar_pert
-  class(material_auxvar_type) :: material_auxvar, material_auxvar_pert
+  type(material_auxvar_type) :: material_auxvar, material_auxvar_pert
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: compare_analytical_derivative
   PetscReal :: pert

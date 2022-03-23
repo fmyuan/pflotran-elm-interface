@@ -288,7 +288,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   use Option_module, only : option_type
   use Reactive_Transport_Aux_module, only : reactive_transport_auxvar_type
   use Global_Aux_module, only : global_auxvar_type
-  use Material_Aux_class, only : material_auxvar_type
+  use Material_Aux_module, only : material_auxvar_type
   use Reaction_Aux_module, only : reaction_rt_type
   use Reaction_Immobile_Aux_module, only : immobile_type
   
@@ -301,7 +301,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   
   PetscInt, parameter :: iphase = 1
   PetscInt :: irxn, i, ii, icomp, jcomp, ncomp

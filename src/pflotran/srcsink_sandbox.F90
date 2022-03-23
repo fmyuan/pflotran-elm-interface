@@ -238,14 +238,14 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   use petscmat
   use Option_module
   use Grid_module
-  use Material_Aux_class, only: material_auxvar_type
+  use Material_Aux_module, only: material_auxvar_type
   
   implicit none
 
   PetscBool :: compute_derivative
   Vec :: residual
   Mat :: Jacobian
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type) :: grid
   type(option_type) :: option
   

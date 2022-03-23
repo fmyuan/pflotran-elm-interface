@@ -27,7 +27,7 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
   
   use Option_module
   use Global_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Transport_Constraint_NWT_module
   
   implicit none
@@ -36,7 +36,7 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
   class(tran_constraint_nwt_type) :: constraint
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   
   type(species_type), pointer :: cur_species
@@ -209,13 +209,13 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   ! Date: 07/15/2019
   ! 
  
-  use Material_Aux_class
+  use Material_Aux_module
   use Global_Aux_module
   
   implicit none
 
   PetscReal :: solubility       ! [mol/m^3-liq]
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   type(global_auxvar_type) :: global_auxvar
   PetscBool :: dry_out
   PetscReal :: ele_kd            ! [m^3-water/m^3-bulk]

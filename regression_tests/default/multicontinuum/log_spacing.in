@@ -1,0 +1,246 @@
+# Description: 1D tracer constant flow rate
+# P.C.Lichtner/S. Karra
+# 11/5/12
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+        MULTIPLE_CONTINUUM
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    ATOL 1D-15
+    RTOL 1D-10
+    STOL 1D-30
+    MAX_NORM 1D30
+    ITOL 1D-8
+    MAXIMUM_NUMBER_OF_ITERATIONS 100
+    MAXF 100
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 5
+END
+
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.001094d0 0.d0 0.d0 m/d
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    A(aq)
+   /
+
+  MINERALS
+    A(s)
+  /
+
+  MINERAL_KINETICS
+    A(s)
+     RATE_CONSTANT 0.d0
+     ACTIVATION_ENERGY 89.d0 kJ/mol
+   /
+ /
+
+ DATABASE ../../../database/hanford.dat
+  MOLAL
+  OUTPUT
+    ALL
+    TOTAL
+  /
+/
+
+#===================== Discretization =========================
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 10 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    0.04d0 1.d0 1.d0
+  /
+END
+
+#===================== Solver options ========================
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+/
+
+#========================= material properties ===================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1.d0
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2.8E3
+  SPECIFIC_HEAT 1E3
+  THERMAL_CONDUCTIVITY_WET 0.5
+  SECONDARY_CONTINUUM
+    TYPE NESTED_CUBES
+    MATRIX_BLOCK_SIZE 5.88d-1
+    LOG_GRID_SPACING   6.d-4
+    NUM_CELLS 6
+    EPSILON 1.59d-2
+    LIQUID_DIFFUSION_COEFFICIENT 0.8d-9
+    POROSITY 1.0d-2
+   /
+/
+
+#========================= output options =========================
+OUTPUT
+#   TIMES s 2.6042e4 3.9063e4 5.2083e4 1.e6
+#   PERIODIC_OBSERVATION TIMESTEP 1
+#   PRINT_COLUMN_IDS
+#   FORMAT TECPLOT POINT
+/
+
+#======================== times ====================================
+TIME
+# reduced time to quicken regression testing.  Block coverage is actually
+# better with shorter time.
+#  FINAL_TIME 1.d6 s
+  FINAL_TIME 1.d3 s
+  INITIAL_TIMESTEP_SIZE 1.d-6 s
+  MAXIMUM_TIMESTEP_SIZE 10.d0 s
+  MAXIMUM_TIMESTEP_SIZE 1.d2 s at 5.d3 s
+  MAXIMUM_TIMESTEP_SIZE 1.d3 s at 5.e4 s
+/
+
+#=========================== regions ===============================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.04d0 1.d0 1.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    0.04d0 0.d0 0.d0
+    0.04d0 1.d0 1.d0
+  /
+END
+
+REGION obs
+  COORDINATES
+    0.04d0 0.d0 0.d0
+    0.04d0 1.d0 1.d0
+  /
+END
+
+OBSERVATION
+  REGION obs
+  SECONDARY_CONCENTRATION
+  SECONDARY_MINERAL_VOLFRAC
+/
+
+#==== transport conditions=====================================================
+TRANSPORT_CONDITION initial
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+TRANSPORT_CONDITION west
+  TYPE DIRICHLET
+  CONSTRAINT_LIST
+    0.d0 west
+  /
+/
+
+TRANSPORT_CONDITION east
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 east
+  /
+/
+
+#========================== initial and boundary conditions =================
+# initial condition
+INITIAL_CONDITION
+FLOW_CONDITION initial
+TRANSPORT_CONDITION initial
+REGION all
+END
+
+# west boundary condition
+BOUNDARY_CONDITION
+FLOW_CONDITION west
+TRANSPORT_CONDITION west
+REGION west
+END
+
+# east boundary condition
+BOUNDARY_CONDITION
+FLOW_CONDITION east
+TRANSPORT_CONDITION east
+REGION east
+END
+
+#===================== stratigraphy couplers ==============================
+STRATA
+REGION all
+MATERIAL soil1
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial
+CONCENTRATIONS
+A(aq)  0.1  M A(s)
+/
+MINERALS
+#mineral vol. frac. area
+A(s)       1.d5     7.d2
+/
+/
+
+CONSTRAINT west
+CONCENTRATIONS
+A(aq)  1.e-8  T
+/
+/
+
+CONSTRAINT east
+CONCENTRATIONS
+A(aq)  1.E-02  T
+/
+/
+
+#==================== secondary continuum initial constraint ==================
+SECONDARY_CONSTRAINT sec
+CONCENTRATIONS
+A(aq)  0.1  M A(s)
+/
+MINERALS
+#mineral vol. frac. area
+A(s)      0.5d5    17.857d2
+/
+/
+
+END_SUBSURFACE

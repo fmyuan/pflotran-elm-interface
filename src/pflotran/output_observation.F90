@@ -924,10 +924,21 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
               write(string,'(i2)') i
               string = 'C(' // trim(adjustl(string)) // ') ' &
                          // trim(reaction%primary_species_names(j))
-              call OutputWriteToHeader(fid,string,'molal',cell_string, &
+              call OutputWriteToHeader(fid,string,'M',cell_string, &
                                        icolumn)
             enddo
           enddo
+          do j=1,reaction%gas%nactive_gas
+            if (reaction%gas%active_print_me(j)) then
+              do i = 1, option%nsec_cells
+                write(string,'(i2)') i
+                string = 'C(' // trim(adjustl(string)) // ') ' &
+                         // trim(reaction%gas%active_names(j))
+                call OutputWriteToHeader(fid,string,'Bar',cell_string, &
+                                         icolumn)
+              enddo
+            endif
+          enddo  
         endif
       
       ! add secondary mineral volume fractions to header
@@ -1781,7 +1792,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
 
   implicit none
   
-  PetscInt :: fid,i,naqcomp,nkinmnrl
+  PetscInt :: fid,i,naqcomp,nkinmnrl,ngas
   class(realization_base_type) :: realization_base
   PetscInt :: local_id
   PetscInt :: ghosted_id
@@ -1823,9 +1834,20 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
               do i = 1, option%nsec_cells 
                 write(fid,110,advance="no") &
                   RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                             SECONDARY_CONCENTRATION,i,naqcomp)
+                                               SECONDARY_CONCENTRATION, &
+                                               i,naqcomp)
               enddo
-            enddo 
+            enddo
+            do ngas=1,reaction%gas%nactive_gas
+              if (reaction%gas%active_print_me(ngas)) then
+                do i = 1, option%nsec_cells
+                  write(fid,110,advance="no") &
+                    RealizGetVariableValueAtCell(realization_base,ghosted_id, &
+                                                 SECONDARY_CONCENTRATION_GAS, &
+                                                 i,ngas)
+                enddo
+              endif
+            enddo  
           endif
           if (ivar == PRINT_SEC_MIN_VOLFRAC) then
             do nkinmnrl = 1, reaction%mineral%nkinmnrl
@@ -2309,7 +2331,7 @@ subroutine OutputMassBalance(realization_base)
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp
   use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
 

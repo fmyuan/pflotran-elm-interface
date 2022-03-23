@@ -336,7 +336,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -431,7 +431,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -567,6 +567,7 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
+  PetscMPIInt, parameter :: ON=1, OFF=0
   PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
@@ -577,12 +578,8 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
 #endif
-  call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, hdf5_err, prop_id)
-  if (hdf5_err < 0) then
-    option%io_buffer = 'HDF5 restart file "' // trim(filename) // &
-                       '" not found.'
-    call PrintErrMsg(option)
-  endif
+  string = 'HDF5 restart file "' // trim(filename) // '" not found.'
+  call HDF5OpenFileReadOnly(filename,file_id,prop_id,string,option)
   call h5pclose_f(prop_id, hdf5_err)
 
   string = "Checkpoint"
@@ -1033,7 +1030,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
@@ -1158,7 +1155,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
-  use Material_Aux_class, only : POROSITY_BASE
+  use Material_Aux_module, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5

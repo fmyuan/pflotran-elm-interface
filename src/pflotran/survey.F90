@@ -155,7 +155,7 @@ subroutine SurveyReadERT(survey,grid,input,option)
   type(input_type), pointer :: input
   type(option_type), pointer :: option
 
-  PetscInt :: ielec, idata
+  PetscInt :: ielec, idata, iconfig
   PetscInt :: itemp
   PetscReal :: wd
   character(len=MAXWORDLENGTH) :: error_string
@@ -178,6 +178,11 @@ subroutine SurveyReadERT(survey,grid,input,option)
     string_ielec = trim(adjustl(string_ielec))
     call InputReadPflotranString(input,option)
     call InputReadInt(input,option,itemp)
+    if (itemp /= ielec) then
+      option%io_buffer = 'Electrodes not listed in order -- see electrode #' &
+                          & // string_ielec
+      call PrintErrMsg(option)
+    endif
     call InputReadDouble(input,option,survey%pos_electrode(X_DIRECTION,ielec))
     call InputErrorMsg(input,option,'x-position of electrode ' &
                                      //string_ielec,error_string)
@@ -190,6 +195,12 @@ subroutine SurveyReadERT(survey,grid,input,option)
     call InputReadInt(input,option,survey%flag_electrode(ielec))
     call InputErrorMsg(input,option,'flag for electrode ' &
                                      //string_ielec,error_string)
+    if (survey%flag_electrode(ielec) /= 0 .and. &
+        survey%flag_electrode(ielec) /= 1) then
+      option%io_buffer = 'Wrong electrode flag -- see electrode #' &
+                          & // string_ielec
+      call PrintErrMsg(option)
+    endif
   enddo
 
   call InputReadPflotranString(input,option)
@@ -210,6 +221,11 @@ subroutine SurveyReadERT(survey,grid,input,option)
     string_idata = trim(adjustl(string_idata))
     call InputReadPflotranString(input,option)
     call InputReadInt(input,option,itemp)
+    if (itemp /= idata) then
+      option%io_buffer = 'Missing measurement or not listed in order -- &
+                          &see mesurement #' // string_idata
+      call PrintErrMsg(option)
+    endif
     call InputReadInt(input,option,survey%config(ONE_INTEGER,idata))
     call InputErrorMsg(input,option,'A electrode configuration for data ' &
                                     //string_idata,error_string)
@@ -230,6 +246,14 @@ subroutine SurveyReadERT(survey,grid,input,option)
                                     //string_idata,error_string)
     if (wd <= 0) wd = 1.d15
     survey%Wd(idata) = 1 / wd
+    do iconfig=1,4
+      if (survey%config(iconfig,idata) < 0 .or. &
+          survey%config(iconfig,idata) > survey%num_electrode) then
+        option%io_buffer = 'Configuration electrodes not exist -- see &
+                           &measurement #' // string_idata
+        call PrintErrMsg(option)
+      endif
+    enddo
   enddo
 
   ! Get cell ids corrsponding to electrode positions

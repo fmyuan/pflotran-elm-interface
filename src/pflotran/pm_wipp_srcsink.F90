@@ -63,6 +63,16 @@ module PM_WIPP_SrcSink_class
   PetscInt, public, parameter :: LAG_NEWTON_ITERATION = 2
   PetscInt, public, parameter :: NO_LAG = 3
 
+  PetscInt, parameter :: FE_S = 2
+  PetscInt, parameter :: BIODEGS_S = 3
+  PetscInt, parameter :: FEOH2_S = 4
+  PetscInt, parameter :: FES_S = 5
+  PetscInt, parameter :: MGO_S = 6
+  PetscInt, parameter :: MGOH2_S = 7
+  PetscInt, parameter :: MG5CO34OH24H2_S = 8
+  PetscInt, parameter :: MGCO3_S = 9
+  PetscInt, parameter :: RAD_INVENTORY = 10
+
 ! OBJECT chem_species_type:
 ! =========================
 ! ---------------------------------------------------------------------------
@@ -474,7 +484,6 @@ module PM_WIPP_SrcSink_class
     type(radiolysis_parameter_type) :: radiolysis_parameters
     class(realization_subsurface_type), pointer :: realization
   contains
-    procedure, public :: PMWSSSetRealization
     procedure, public :: Setup => PMWSSSetup
     procedure, public :: ReadPMBlock => PMWSSReadPMBlock
     procedure, public :: InitializeRun => PMWSSInitializeRun
@@ -497,7 +506,11 @@ module PM_WIPP_SrcSink_class
             PMWSSSetRealization, &
             PMWSSUpdateRates, &
             PMWSSCalcResidualValues, &
-            PMWSSCalcJacobianValues
+            PMWSSCalcJacobianValues, &
+            PMWSSCheckpointHDF5, &
+            PMWSSCheckpointBinary, &
+            PMWSSRestartBinary, &
+            PMWSSRestartHDF5
 
 contains
 
@@ -1134,7 +1147,7 @@ subroutine PMWSSSetRegionScaling(this,waste_panel)
   ! Date: 2/02/2017
   !
 
-  use Material_Aux_class
+  use Material_Aux_module
   use Grid_module
 
   implicit none
@@ -1160,7 +1173,7 @@ subroutine PMWSSSetRegionScaling(this,waste_panel)
 ! total_volume_global: [m3] total global volume of grid cells in a waste panel
 ! ierr: PETSc error integer
 ! -----------------------------------------------------------
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
   PetscInt :: k
   PetscInt :: local_id
@@ -1329,6 +1342,8 @@ subroutine PMWSSReadPMBlock(this,input)
         call InputReadAndConvertUnits(input,double,'sec',trim(error_string) &
                                       // ',OUTPUT_START_TIME units',option)
         this%output_start_time = double
+      case('SKIP_RESTART')
+        this%skip_restart = PETSC_TRUE 
       case('RATE_UPDATE_FREQUENCY')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
@@ -1637,6 +1652,7 @@ subroutine PMWSSReadPMBlock(this,input)
             call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         enddo
+        call InputPopBlock(input,option)       
       case('INVENTORY')
         error_string = trim(error_string) // ',INVENTORY'
         allocate(new_canister_inventory)
@@ -3147,7 +3163,7 @@ end subroutine PMWSSUpdateChemSpecies
   use Option_module
   use Grid_module
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   use Global_Aux_module
   use EOS_Gas_module
   use EOS_Water_module
@@ -3198,7 +3214,7 @@ end subroutine PMWSSUpdateChemSpecies
   type(grid_type), pointer :: grid
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   type(srcsink_panel_type), pointer :: cwp
   PetscInt :: i, p, k
   PetscInt :: local_id, ghosted_id
@@ -4350,7 +4366,7 @@ subroutine PMWSSCalcResidualValues(this,r_p,ss_flow_vol_flux)
   ! Date: 10/20/2017
   ! 
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -4383,7 +4399,7 @@ subroutine PMWSSCalcResidualValues(this,r_p,ss_flow_vol_flux)
   PetscInt :: wat_comp_id, air_comp_id
   PetscInt :: k
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: pflotran_to_bragflo(2)
   PetscInt :: local_start, local_end
 ! ----------------------------------------------------------
@@ -4447,7 +4463,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
   
   implicit none
   
@@ -4480,7 +4496,7 @@ subroutine PMWSSCalcJacobianValues(this,A,ierr)
   PetscInt :: ghosted_id
   PetscInt :: wat_comp_id, air_comp_id
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: J_block(this%option%nflowdof,this%option%nflowdof)
 ! ---------------------------------------------------------------
 
@@ -4761,13 +4777,13 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
  
   use Option_module
   use WIPP_Flow_Aux_module
-  use Material_Aux_class
+  use Material_Aux_module
 
   implicit none
 
   type(rad_inventory_type), pointer :: rad_inventory
   type(wippflo_auxvar_type) :: wippflo_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar
   PetscReal :: dt
   type(radiolysis_parameter_type) :: radiolysis_parameters
   PetscReal :: salt_wtpercent, h2_produced, brine_consumed
@@ -4997,14 +5013,22 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
           endif
         endif
       endif
-      if (id4 /= 0 .and. dt/rad_inventory%half_life(id4) > &
-          radiolysis_parameters%halfmax) id4 = 0
-      if (id3 /= 0 .and. dt/rad_inventory%half_life(id3) > &
-          radiolysis_parameters%halfmax) id3 = 0
-      if (id2 /= 0 .and. dt/rad_inventory%half_life(id2) > &
-          radiolysis_parameters%halfmax) id2 = 0
-      if (dt/rad_inventory%half_life(id1) > &
-          radiolysis_parameters%halfmax) id1 = 0
+      if (id4 /= 0) then
+        if (dt/rad_inventory%half_life(id4) > &
+            radiolysis_parameters%halfmax) id4 = 0
+      endif
+      if (id3 /= 0) then
+        if (dt/rad_inventory%half_life(id3) > &
+            radiolysis_parameters%halfmax) id3 = 0
+      endif
+      if (id2 /= 0) then
+        if (dt/rad_inventory%half_life(id2) > &
+            radiolysis_parameters%halfmax) id2 = 0
+      endif
+      if (id1 /= 0) then
+        if (dt/rad_inventory%half_life(id1) > &
+            radiolysis_parameters%halfmax) id1 = 0
+      endif
 
       if (id3 == 0) then
         id3 = id4
@@ -5151,5 +5175,864 @@ subroutine Radiolysis(rad_inventory, wippflo_auxvar, material_auxvar, dt, &
 end subroutine Radiolysis
 
 ! *************************************************************************** !
+
+subroutine PMWSSCheckpointHDF5(this,pm_grp_id)
+
+  use hdf5
+  use Option_module
+  use Realization_Subsurface_class
+  use WIPP_Flow_Aux_module
+ 
+  implicit none
+
+  class(pm_wipp_srcsink_type) :: this
+  integer(HID_T) :: pm_grp_id
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wp_vec, local_wp_vec
+  
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wp_local, n_wp_global, &
+              local_stride_tmp, i, stride, stride_rad, &
+              local_stride_rad, local_stride_tmp_rad
+  PetscInt, allocatable :: indices(:), int_array(:)
+
+  class(srcsink_panel_type), pointer :: cwp
+
+  cwp => this%waste_panel_list
+
+  n_wp_local = 0
+  local_stride = 0
+  n_wp_global = 0
+  local_stride_tmp = 0
+  local_stride_tmp_rad = 0
+  local_stride_rad = 0
+  
+  do
+    if (.not.associated(cwp)) exit
+    n_wp_local = n_wp_local + 1
+    local_stride_tmp = local_stride_tmp + cwp%region%num_cells
+    if (wippflo_radiolysis) then
+      local_stride_tmp_rad = local_stride_tmp_rad + cwp%region%num_cells*cwp%rad_inventory%num_species
+    endif  
+    cwp => cwp%next
+    if (local_stride_tmp>local_stride) then
+      local_stride = local_stride_tmp
+    endif
+    if (local_stride_tmp_rad>local_stride_rad) then
+      local_stride_rad = local_stride_tmp_rad
+    endif
+    local_stride_tmp = 0
+    local_stride_tmp_rad = 0
+  enddo
+
+  cwp => this%waste_panel_list
+
+  allocate(int_array(n_wp_local))
+  i=1
+  do
+    if (.not.associated(cwp)) exit
+    int_array(i) = cwp%id-1
+    i=i+1
+    cwp => cwp%next
+  enddo
+ 
+  !Gather relevant information from all processes
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+ 
+  dataset_name = "Fe_s" // CHAR(0)
+  call PMWSSWriteVariableHDF5(this,pm_grp_id,FE_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "BioDegs_s" // CHAR(0)
+  call PMWSSWriteVariableHDF5(this,pm_grp_id,BIODEGS_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "FeOH2_s" // CHAR(0)
+  call PMWSSWriteVariableHDF5(this,pm_grp_id,FEOH2_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "FeS_s" // CHAR(0)
+  call PMWSSWriteVariableHDF5(this,pm_grp_id,FES_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+
+  dataset_name = "MgO_s" // CHAR(0)
+  call PMWSSWriteVariableHDF5(this,pm_grp_id,MGO_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "MgOH2_s" // CHAR(0)
+  call PMWSSWriteVariableHDF5(this,pm_grp_id,MGOH2_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "Mg5CO34OH24H2_s" // CHAR(0)
+  call PMWSSWriteVariableHDF5(this,pm_grp_id,MG5CO34OH24H2_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+
+  dataset_name = "MgCo3_s" // CHAR(0)
+  call PMWSSWriteVariableHDF5(this,pm_grp_id,MGCO3_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+
+  if (wippflo_radiolysis) then
+    call MPI_Allreduce(local_stride_rad,stride_rad,ONE_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+    dataset_name ="rad_inventory"
+    call PMWSSWriteVariableHDF5(this,pm_grp_id,RAD_INVENTORY,stride_rad,n_wp_local,n_wp_global,int_array,dataset_name)
+  endif
+
+end subroutine PMWSSCheckpointHDF5
+
+! *************************************************************************** !
+
+subroutine PMWSSWriteVariableHDF5(this,pm_grp_id,variable,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+
+  use hdf5
+  use Option_module
+  use Realization_Subsurface_class
+  use HDF5_module, only : HDF5WriteDataSetFromVec
+ 
+  implicit none
+
+  class(pm_wipp_srcsink_type) :: this
+  integer(HID_T) :: pm_grp_id
+  PetscInt :: n_wp_local, n_wp_global, stride, variable
+  PetscInt :: int_array(:)
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wp_vec, local_wp_vec
+  
+  PetscErrorCode :: ierr
+  PetscInt :: i, j, k
+  PetscInt, allocatable :: indices(:)
+  PetscReal, allocatable :: check_var(:)
+
+  class(srcsink_panel_type), pointer :: cwp
+  
+  !Create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,&
+                    n_wp_global*stride,& 
+                    global_wp_vec,ierr);CHKERRQ(ierr)
+                    
+  call VecCreateSeq(PETSC_COMM_SELF, n_wp_local*stride,local_wp_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wp_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wp_vec, stride, ierr);CHKERRQ(ierr)
+
+  allocate(check_var(stride))
+  allocate(indices(stride))
+  
+  !collect data
+  j=1
+  k=2
+  cwp => this%waste_panel_list
+  do
+    if (.not.associated(cwp)) exit
+
+    do i =1,cwp%region%num_cells
+      select case(variable)
+        case(FE_S)
+           check_var(i) = cwp%canister_inventory%Fe_s%current_conc_mol(i)
+        case(BIODEGS_S)
+           check_var(i) = cwp%canister_inventory%BioDegs_s%current_conc_mol(i)
+        case(FEOH2_S)
+           check_var(i) = cwp%canister_inventory%FeOH2_s%current_conc_mol(i)
+        case(FES_S)
+           check_var(i) = cwp%canister_inventory%FeS_s%current_conc_mol(i)
+        case(MGO_S)
+           check_var(i) = cwp%canister_inventory%MgO_s%current_conc_mol(i)
+        case(MGOH2_S)
+           check_var(i) = cwp%canister_inventory%MgOH2_s%current_conc_mol(i)
+        case(MG5CO34OH24H2_S)
+           check_var(i) = cwp%canister_inventory%Mg5CO34OH24H2_s%current_conc_mol(i)
+        case(MGCO3_S)
+           check_var(i) = cwp%canister_inventory%MgCO3_s%current_conc_mol(i)
+        case(RAD_INVENTORY)
+           do k=1,cwp%rad_inventory%num_species
+             check_var(cwp%rad_inventory%num_species*(i-1)+k) = cwp%rad_inventory% &
+                                                                current_mass(k,i)
+           enddo
+      endselect
+    enddo
+
+    i = (i-1)*(k-1)+1 
+    do
+      if (i>stride) exit
+      check_var(i)=-9999
+      i=i+1
+    enddo
+
+    do i = 1,stride
+      indices(i)=(j-1)*stride +i-1
+    enddo
+    j=j+1
+    
+    call VecSetValues(local_wp_vec,stride,indices, &
+                      check_var,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    cwp => cwp%next
+  enddo
+
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm,stride,n_wp_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+  
+  call VecScatterCreate(local_wp_vec,PETSC_NULL_IS,global_wp_vec, &
+                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+                        
+  call VecScatterBegin(scatter_ctx, local_wp_vec, global_wp_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, local_wp_vec, global_wp_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+
+  !Write the checkpoint file
+  call HDF5WriteDataSetFromVec(dataset_name, this%option, global_wp_vec,&
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+           
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wp_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wp_vec, ierr);CHKERRQ(ierr)
+
+end subroutine PMWSSWriteVariableHDF5
+
+! *************************************************************************** !
+
+subroutine PMWSSRestartHDF5(this,pm_grp_id)
+  
+  use hdf5
+  use Option_module
+  use Realization_Subsurface_class
+  use WIPP_Flow_Aux_module
+ 
+  implicit none
+
+  class(pm_wipp_srcsink_type) :: this
+  integer(HID_T) :: pm_grp_id
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wp_vec, local_wp_vec
+  
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wp_local, n_wp_global,  &
+              local_stride_tmp, i, stride, stride_rad, &
+              local_stride_rad, local_stride_tmp_rad
+  PetscInt, allocatable :: indices(:), int_array(:)
+
+  class(srcsink_panel_type), pointer :: cwp
+
+  cwp => this%waste_panel_list
+
+  n_wp_local = 0
+  local_stride = 0
+  n_wp_global = 0
+  local_stride_tmp = 0
+  local_stride_rad = 0
+  local_stride_tmp_rad = 0
+  
+  do
+    if (.not.associated(cwp)) exit
+    n_wp_local = n_wp_local + 1
+    local_stride_tmp = local_stride_tmp + cwp%region%num_cells
+    if (wippflo_radiolysis) then
+      local_stride_tmp_rad = local_stride_tmp_rad + cwp%region%num_cells*cwp%rad_inventory%num_species
+    endif
+    cwp => cwp%next
+    if (local_stride_tmp>local_stride) then
+      local_stride = local_stride_tmp
+    endif
+    if (local_stride_tmp_rad>local_stride_rad) then
+       local_stride_rad = local_stride_tmp_rad
+    endif
+    local_stride_tmp = 0
+    local_stride_tmp_rad = 0
+  enddo
+
+  cwp => this%waste_panel_list
+
+  allocate(int_array(n_wp_local))
+  i=1
+  do
+    if (.not.associated(cwp)) exit
+    int_array(i) = cwp%id-1
+    i=i+1
+    cwp => cwp%next
+  enddo
+ 
+  !Gather relevant information from all processes
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
+                 MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+
+  dataset_name = "Fe_s" // CHAR(0)
+  call PMWSSReadVariableHDF5(this,pm_grp_id,FE_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "BioDegs_s" // CHAR(0)
+  call PMWSSReadVariableHDF5(this,pm_grp_id,BIODEGS_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "FeOH2_s" // CHAR(0)
+  call PMWSSReadVariableHDF5(this,pm_grp_id,FEOH2_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "FeS_s" // CHAR(0)
+  call PMWSSReadVariableHDF5(this,pm_grp_id,FES_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+
+  dataset_name = "MgO_s" // CHAR(0)
+  call PMWSSReadVariableHDF5(this,pm_grp_id,MGO_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "MgOH2_s" // CHAR(0)
+  call PMWSSReadVariableHDF5(this,pm_grp_id,MGOH2_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+  
+  dataset_name = "Mg5CO34OH24H2_s" // CHAR(0)
+  call PMWSSReadVariableHDF5(this,pm_grp_id,MG5CO34OH24H2_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+
+  dataset_name = "MgCo3_s" // CHAR(0)
+  call PMWSSReadVariableHDF5(this,pm_grp_id,MGCO3_S,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+
+  if (wippflo_radiolysis) then
+    call MPI_Allreduce(local_stride_rad,stride_rad,ONE_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+    dataset_name ="rad_inventory"
+    call PMWSSReadVariableHDF5(this,pm_grp_id,RAD_INVENTORY,stride_rad,n_wp_local,n_wp_global,int_array,dataset_name)
+  endif
+  
+end subroutine PMWSSRestartHDF5
+
+! *************************************************************************** !
+
+subroutine PMWSSReadVariableHDF5(this,pm_grp_id,variable,stride,n_wp_local,n_wp_global,int_array,dataset_name)
+
+  use hdf5
+  use Option_module
+  use Realization_Subsurface_class
+  use HDF5_module, only : HDF5ReadDataSetInVec
+ 
+  implicit none
+
+  class(pm_wipp_srcsink_type) :: this
+  integer(HID_T) :: pm_grp_id
+  PetscInt :: n_wp_local, n_wp_global, stride,variable
+  PetscInt :: int_array(:)
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wp_vec, local_wp_vec
+  
+  PetscErrorCode :: ierr
+  PetscInt :: i, j, k
+  PetscReal, pointer :: local_wp_array(:)
+
+  class(srcsink_panel_type), pointer :: cwp
+
+  !Create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,&
+                    n_wp_global*stride,& 
+                    global_wp_vec,ierr);CHKERRQ(ierr)
+                    
+  call VecCreateSeq(PETSC_COMM_SELF, n_wp_local*stride,local_wp_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wp_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wp_vec, stride, ierr);CHKERRQ(ierr)
+
+  call HDF5ReadDataSetInVec(dataset_name, this%option, global_wp_vec, &
+                            pm_grp_id, H5T_NATIVE_DOUBLE)
+
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm,stride,n_wp_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+  
+  call VecScatterCreate(global_wp_vec,PETSC_NULL_IS,local_wp_vec, &
+                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+                        
+  call VecScatterBegin(scatter_ctx, global_wp_vec, local_wp_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, global_wp_vec, local_wp_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+
+  !Convert the data to a Fortran array
+  call VecGetArrayF90(local_wp_vec, local_wp_array, ierr); CHKERRQ(ierr)
+
+  cwp => this%waste_panel_list
+  j = 0 
+  do
+    if (.not.associated(cwp)) exit
+    do i =1,cwp%region%num_cells
+      select case(variable)
+        case(FE_S)
+           cwp%canister_inventory%Fe_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%Fe_s%current_conc_kg(i) = cwp%canister_inventory%Fe_s%current_conc_mol(i) * &
+                                                            cwp%canister_inventory%Fe_s%molar_mass 
+        case(BIODEGS_S)
+           cwp%canister_inventory%BioDegs_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%BioDegs_s%current_conc_kg(i) = cwp%canister_inventory%BioDegs_s%current_conc_mol(i) * &
+                                                                 cwp%canister_inventory%BioDegs_s%molar_mass
+        case(FEOH2_S)
+           cwp%canister_inventory%FeOH2_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%FeOH2_s%current_conc_kg(i) = cwp%canister_inventory%FeOH2_s%current_conc_mol(i) * &
+                                                               cwp%canister_inventory%FeOH2_s%molar_mass 
+        case(FES_S)
+           cwp%canister_inventory%FeS_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%FeS_s%current_conc_kg(i) = cwp%canister_inventory%FeS_s%current_conc_mol(i) * &
+                                                             cwp%canister_inventory%FeS_s%molar_mass
+        case(MGO_S)
+           cwp%canister_inventory%MgO_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%MgO_s%current_conc_kg(i) = cwp%canister_inventory%MgO_s%current_conc_mol(i) * &
+                                                             cwp%canister_inventory%MgO_s%molar_mass
+        case(MGOH2_S)
+           cwp%canister_inventory%MgOH2_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%MgOH2_s%current_conc_kg(i) = cwp%canister_inventory%MgOH2_s%current_conc_mol(i) * &
+                                                               cwp%canister_inventory%MgOH2_s%molar_mass
+        case(MG5CO34OH24H2_S)
+           cwp%canister_inventory%Mg5CO34OH24H2_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%Mg5CO34OH24H2_s%current_conc_kg(i) = &
+                                  cwp%canister_inventory%Mg5CO34OH24H2_s%current_conc_mol(i) * &
+                                  cwp%canister_inventory%Mg5CO34OH24H2_s%molar_mass  
+        case(MGCO3_S)
+           cwp%canister_inventory%MgCO3_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%MgCO3_s%current_conc_kg(i) = cwp%canister_inventory%MgCO3_s%current_conc_mol(i) * &
+                                                               cwp%canister_inventory%MgCO3_s%molar_mass
+        case(RAD_INVENTORY)
+           do k=1,cwp%rad_inventory%num_species
+              cwp%rad_inventory%current_mass(k,i) = local_wp_array(cwp%rad_inventory%num_species*(i-1)+k+j)
+           enddo
+      endselect
+    enddo
+
+    j = j + stride
+    cwp => cwp%next
+  enddo
+
+  call VecRestoreArrayF90(local_wp_vec, local_wp_array, ierr); CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wp_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wp_vec, ierr);CHKERRQ(ierr)
+
+end subroutine PMWSSReadVariableHDF5
+
+! *************************************************************************** !
+subroutine PMWSSCheckpointBinary(this,viewer)
+
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  use WIPP_Flow_Aux_module
+  
+  implicit none
+  
+  !Input Arguments
+  PetscViewer :: viewer
+  class(pm_wipp_srcsink_type) :: this
+
+    ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wp_vec, local_wp_vec
+  
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wp_local, n_wp_global, &
+              local_stride_tmp, i, stride, stride_rad, &
+              local_stride_rad, local_stride_tmp_rad
+  PetscInt, allocatable :: indices(:), int_array(:)
+
+  class(srcsink_panel_type), pointer :: cwp
+
+  cwp => this%waste_panel_list
+
+  n_wp_local = 0
+  local_stride = 0
+  n_wp_global = 0
+  local_stride_tmp = 0
+  local_stride_tmp_rad = 0
+  local_stride_rad = 0
+  
+  do
+    if (.not.associated(cwp)) exit
+    n_wp_local = n_wp_local + 1
+    local_stride_tmp = local_stride_tmp + cwp%region%num_cells
+    if (wippflo_radiolysis) then
+      local_stride_tmp_rad = local_stride_tmp_rad + cwp%region%num_cells*cwp%rad_inventory%num_species
+    endif  
+    cwp => cwp%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    if (local_stride_tmp_rad>local_stride_rad) then
+      local_stride_rad = local_stride_tmp_rad
+    endif
+    local_stride_tmp=0
+    local_stride_tmp_rad = 0
+  enddo
+
+  cwp => this%waste_panel_list
+
+  allocate(int_array(n_wp_local))
+  i=1
+  do
+    if (.not.associated(cwp)) exit
+    int_array(i)=cwp%id-1
+    i=i+1
+    cwp => cwp%next
+  enddo
+ 
+  !Gather relevant information from all processes
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+
+ 
+  call PMWSSWriteVariableBinary(this,viewer,FE_S,stride,n_wp_local,n_wp_global,int_array) 
+  call PMWSSWriteVariableBinary(this,viewer,BIODEGS_S,stride,n_wp_local,n_wp_global,int_array)  
+  call PMWSSWriteVariableBinary(this,viewer,FEOH2_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSWriteVariableBinary(this,viewer,FES_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSWriteVariableBinary(this,viewer,MGO_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSWriteVariableBinary(this,viewer,MGOH2_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSWriteVariableBinary(this,viewer,MG5CO34OH24H2_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSWriteVariableBinary(this,viewer,MGCO3_S,stride,n_wp_local,n_wp_global,int_array)
+
+  if (wippflo_radiolysis) then
+    call MPI_Allreduce(local_stride_rad,stride_rad,ONE_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+    call PMWSSWriteVariableBinary(this,viewer,RAD_INVENTORY,stride_rad,n_wp_local,n_wp_global,int_array)
+  endif
+
+end subroutine PMWSSCheckpointBinary
+! *************************************************************************** !
+
+subroutine PMWSSWriteVariableBinary(this,viewer,variable,stride,n_wp_local,n_wp_global,int_array)
+
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  
+  implicit none
+  
+  !Input Arguments
+  PetscViewer :: viewer
+  class(pm_wipp_srcsink_type) :: this
+  PetscInt :: n_wp_local, n_wp_global, stride,variable
+  PetscInt :: int_array(:)
+  
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wp_vec, local_wp_vec
+  
+  PetscErrorCode :: ierr
+  PetscInt :: i, j, k
+  PetscInt, allocatable :: indices(:)
+  PetscReal, allocatable :: check_var(:)
+
+  class(srcsink_panel_type), pointer :: cwp
+  
+  !Create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,&
+                    n_wp_global*stride,& 
+                    global_wp_vec,ierr);CHKERRQ(ierr)
+                    
+  call VecCreateSeq(PETSC_COMM_SELF, n_wp_local*stride,local_wp_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wp_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wp_vec, stride, ierr);CHKERRQ(ierr)
+
+  allocate(check_var(stride))
+  allocate(indices(stride))
+  
+  !collect data
+  j=1
+  k=2
+  cwp => this%waste_panel_list
+  do
+    if (.not.associated(cwp)) exit
+
+    do i =1,cwp%region%num_cells
+      select case(variable)
+        case(FE_S)
+          check_var(i) = cwp%canister_inventory%Fe_s%current_conc_mol(i)
+        case(BIODEGS_S)
+          check_var(i) = cwp%canister_inventory%BioDegs_s%current_conc_mol(i)
+        case(FEOH2_S)
+          check_var(i) = cwp%canister_inventory%FeOH2_s%current_conc_mol(i)
+        case(FES_S)
+          check_var(i) = cwp%canister_inventory%FeS_s%current_conc_mol(i)
+        case(MGO_S)
+          check_var(i) = cwp%canister_inventory%MgO_s%current_conc_mol(i)
+        case(MGOH2_S)
+          check_var(i) = cwp%canister_inventory%MgOH2_s%current_conc_mol(i)
+        case(MG5CO34OH24H2_S)
+          check_var(i) = cwp%canister_inventory%Mg5CO34OH24H2_s%current_conc_mol(i)
+        case(MGCO3_S)
+          check_var(i) = cwp%canister_inventory%MgCO3_s%current_conc_mol(i)
+        case(RAD_INVENTORY)
+          do k=1,cwp%rad_inventory%num_species
+            check_var(cwp%rad_inventory%num_species*(i-1)+k) = cwp%rad_inventory% &
+                                                               current_mass(k,i)
+          enddo
+      endselect
+    enddo
+
+    i = (i-1) * (k-1) + 1
+    do
+      if (i>stride) exit
+      check_var(i)=-9999
+      i=i+1
+    enddo
+
+    do i = 1,stride
+      indices(i)=(j-1)*stride +i-1
+    enddo
+    j=j+1
+    
+    call VecSetValues(local_wp_vec,stride,indices, &
+                      check_var,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    cwp => cwp%next
+  enddo
+
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm,stride,n_wp_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+  
+  call VecScatterCreate(local_wp_vec,PETSC_NULL_IS,global_wp_vec, &
+                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+                        
+  call VecScatterBegin(scatter_ctx, local_wp_vec, global_wp_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, local_wp_vec, global_wp_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+
+  call VecView(global_wp_vec,viewer,ierr);CHKERRQ(ierr)   
+
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wp_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wp_vec, ierr);CHKERRQ(ierr)
+
+end subroutine PMWSSWriteVariableBinary
+
+! *************************************************************************** !
+
+subroutine PMWSSRestartBinary(this,viewer)
+
+  use Option_module
+  use Realization_Subsurface_class
+  use WIPP_Flow_Aux_module
+
+  implicit none
+  
+  !Input Arguments
+  PetscViewer :: viewer
+  class(pm_wipp_srcsink_type) :: this
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wp_vec, local_wp_vec
+  
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wp_local, n_wp_global, &
+              local_stride_tmp, i, stride, stride_rad, &
+              local_stride_rad, local_stride_tmp_rad
+  PetscInt, allocatable :: int_array(:)
+  PetscReal, pointer :: local_wp_array
+
+  class(srcsink_panel_type), pointer :: cwp
+
+  cwp => this%waste_panel_list
+
+  n_wp_local = 0
+  local_stride = 0
+  n_wp_global = 0
+  local_stride_tmp = 0
+  local_stride_rad = 0
+  local_stride_tmp_rad = 0
+  
+  do
+    if (.not.associated(cwp)) exit
+    n_wp_local = n_wp_local + 1
+    local_stride_tmp = local_stride_tmp + cwp%region%num_cells
+    if (wippflo_radiolysis) then
+      local_stride_tmp_rad = local_stride_tmp_rad + cwp%region%num_cells*cwp%rad_inventory%num_species
+    endif
+    cwp => cwp%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    if (local_stride_tmp_rad>local_stride_rad) then
+      local_stride_rad = local_stride_tmp_rad
+    endif
+    local_stride_tmp=0
+    local_stride_tmp_rad = 0
+  enddo
+
+  cwp => this%waste_panel_list
+
+  allocate(int_array(n_wp_local))
+  i=1
+  do
+    if (.not.associated(cwp)) exit
+    int_array(i)=cwp%id-1
+    i=i+1
+    cwp => cwp%next
+  enddo
+ 
+  !Gather relevant information from all processes
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wp_local,n_wp_global,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+
+  call PMWSSReadVariableBinary(this,viewer,FE_S,stride,n_wp_local,n_wp_global,int_array) 
+  call PMWSSReadVariableBinary(this,viewer,BIODEGS_S,stride,n_wp_local,n_wp_global,int_array)  
+  call PMWSSReadVariableBinary(this,viewer,FEOH2_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSReadVariableBinary(this,viewer,FES_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSReadVariableBinary(this,viewer,MGO_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSReadVariableBinary(this,viewer,MGOH2_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSReadVariableBinary(this,viewer,MG5CO34OH24H2_S,stride,n_wp_local,n_wp_global,int_array)
+  call PMWSSReadVariableBinary(this,viewer,MGCO3_S,stride,n_wp_local,n_wp_global,int_array)
+
+  if (wippflo_radiolysis) then
+    call MPI_Allreduce(local_stride_rad,stride_rad,ONE_INTEGER_MPI, &
+                       MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+    call PMWSSReadVariableBinary(this,viewer,RAD_INVENTORY,stride_rad,n_wp_local,n_wp_global,int_array)
+  endif
+  
+end subroutine PMWSSRestartBinary
+
+! *************************************************************************** !
+
+subroutine PMWSSReadVariableBinary(this,viewer,variable,stride,n_wp_local,n_wp_global,int_array)
+
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  
+  implicit none
+  
+  !Input Arguments
+  PetscViewer :: viewer
+  class(pm_wipp_srcsink_type) :: this
+  PetscInt :: n_wp_local, n_wp_global, stride,variable
+  PetscInt :: int_array(:)
+  
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wp_vec, local_wp_vec
+  PetscReal, pointer :: local_wp_array(:)
+  
+  PetscErrorCode :: ierr
+  PetscInt :: i, j, k
+
+  class(srcsink_panel_type), pointer :: cwp
+  
+  !Create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm,n_wp_local*stride,&
+                    n_wp_global*stride,& 
+                    global_wp_vec,ierr);CHKERRQ(ierr)
+                    
+  call VecCreateSeq(PETSC_COMM_SELF, n_wp_local*stride,local_wp_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wp_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wp_vec, stride, ierr);CHKERRQ(ierr)
+
+  !Read the data
+  call VecLoad(global_wp_vec,viewer, ierr);CHKERRQ(ierr)
+
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm,stride,n_wp_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+  
+  call VecScatterCreate(global_wp_vec,is,local_wp_vec, &
+                        PETSC_NULL_IS,scatter_ctx, ierr);CHKERRQ(ierr)
+                        
+  call VecScatterBegin(scatter_ctx, global_wp_vec, local_wp_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, global_wp_vec, local_wp_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+
+  !Convert the data to a Fortran array
+  call VecGetArrayF90(local_wp_vec, local_wp_array, ierr); CHKERRQ(ierr)
+
+  cwp => this%waste_panel_list
+  j = 0 
+  do
+    if (.not.associated(cwp)) exit
+    do i =1,cwp%region%num_cells
+      select case(variable)
+        case(FE_S)
+           cwp%canister_inventory%Fe_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%Fe_s%current_conc_kg(i) = cwp%canister_inventory%Fe_s%current_conc_mol(i) * &
+                                                            cwp%canister_inventory%Fe_s%molar_mass 
+        case(BIODEGS_S)
+           cwp%canister_inventory%BioDegs_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%BioDegs_s%current_conc_kg(i) = cwp%canister_inventory%BioDegs_s%current_conc_mol(i) * &
+                                                                 cwp%canister_inventory%BioDegs_s%molar_mass
+        case(FEOH2_S)
+           cwp%canister_inventory%FeOH2_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%FeOH2_s%current_conc_kg(i) = cwp%canister_inventory%FeOH2_s%current_conc_mol(i) * &
+                                                               cwp%canister_inventory%FeOH2_s%molar_mass            
+        case(FES_S)
+           cwp%canister_inventory%FeS_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%FeS_s%current_conc_kg(i) = cwp%canister_inventory%FeS_s%current_conc_mol(i) * &
+                                                             cwp%canister_inventory%FeS_s%molar_mass
+        case(MGO_S)
+           cwp%canister_inventory%MgO_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%MgO_s%current_conc_kg(i) = cwp%canister_inventory%MgO_s%current_conc_mol(i) * &
+                                                             cwp%canister_inventory%MgO_s%molar_mass
+        case(MGOH2_S)
+           cwp%canister_inventory%MgOH2_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%MgOH2_s%current_conc_kg(i) = cwp%canister_inventory%MgOH2_s%current_conc_mol(i) * &
+                                                               cwp%canister_inventory%MgOH2_s%molar_mass
+        case(MG5CO34OH24H2_S)
+           cwp%canister_inventory%Mg5CO34OH24H2_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%Mg5CO34OH24H2_s%current_conc_kg(i) = &
+                                  cwp%canister_inventory%Mg5CO34OH24H2_s%current_conc_mol(i) * &
+                                  cwp%canister_inventory%Mg5CO34OH24H2_s%molar_mass 
+        case(MGCO3_S)
+           cwp%canister_inventory%MgCO3_s%current_conc_mol(i) = local_wp_array(i+j)
+           cwp%canister_inventory%MgCO3_s%current_conc_kg(i) = cwp%canister_inventory%MgCO3_s%current_conc_mol(i) * &
+                                                               cwp%canister_inventory%MgCO3_s%molar_mass
+        case(RAD_INVENTORY)
+           do k=1,cwp%rad_inventory%num_species
+              cwp%rad_inventory%current_mass(k,i) = local_wp_array(cwp%rad_inventory%num_species*(i-1)+k+j)
+           enddo
+      endselect
+    enddo
+
+    j = j + stride
+    cwp => cwp%next
+  enddo
+
+  call VecRestoreArrayF90(local_wp_vec, local_wp_array, ierr); CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wp_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wp_vec, ierr);CHKERRQ(ierr)
+  
+end subroutine PMWSSReadVariableBinary
 
 end module PM_WIPP_SrcSink_class
