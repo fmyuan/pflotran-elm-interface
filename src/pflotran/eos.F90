@@ -252,13 +252,13 @@ subroutine EOSRead(input,option)
               case('HAAS','SPARROW')
               case default
                 call InputKeywordUnrecognized(input,word, &
-                       'EOS,WATER,STEAM_DENSITY', &
+                       'EOS,WATER,SATURATION_PRESSURE', &
                        option)
             end select
             call EOSWaterSetSaturationPressure(word,temparray)
           case('SALINITY')
             call InputReadCard(input,option,word)
-            call InputErrorMsg(input,option,'SALINITY','EOS,WATER,HALITE_SATURATED_BRINE')
+            call InputErrorMsg(input,option,'SALINITY','EOS,WATER,SALINITY')
             call StringToUpper(word)
               select case(trim(word))
                 case('CONSTANT')

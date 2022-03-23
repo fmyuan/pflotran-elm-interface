@@ -476,27 +476,11 @@ subroutine EOSWaterSetDensity(keyword,aux)
     case('PAINTER')
       EOSWaterDensityPtr => EOSWaterDensityPainter
     case('BATZLE_AND_WANG')
-      if (halite_saturated_brine) then
-        if (.not. hsb_compute_salinity) then
-           aux(1) = hsb_salinity(1)
-           EOSWaterDensityPtr => EOSWaterDensityBatzleAndWang
-        endif
-      endif
       EOSWaterDensityPtr => EOSWaterDensityBatzleAndWang
       EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
     case('SPARROW')
-      if (halite_saturated_brine) then
-         if (.not. hsb_compute_salinity) then
-            aux(1) = hsb_salinity(1)
-         endif
-      endif
       EOSWaterDensityExtPtr => EOSWaterDensitySparrowExt
    case('DRIESNER')
-      if (halite_saturated_brine) then
-         if (.not. hsb_compute_salinity) then
-            aux(1) = hsb_salinity(1)
-         endif
-      endif
       EOSWaterDensityExtPtr => EOSWaterDensityDriesnerExt
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
