@@ -696,6 +696,10 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   hyd_auxvar%den(hid) = HYDRATE_DENSITY
   hyd_auxvar%den_kg(hid) = HYDRATE_DENSITY_KG
 
+  if (option%flow%density_depends_on_salinity) then
+    hydrate_xmol_nacl = global_auxvar%m_nacl(1)
+  endif
+
   select case(global_auxvar%istate)
     case(L_STATE)
 !     ********* Aqueous State (A) ********************************
@@ -1695,6 +1699,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
                             characteristic_curves,material_auxvar,option)
   else
     dTf = 0.d0
+  endif
+
+  if (option%flow%density_depends_on_salinity) then
+    hydrate_xmol_nacl = global_auxvar%m_nacl(1)
   endif
 
   if (hydrate_xmol_nacl > 0.d0) then
