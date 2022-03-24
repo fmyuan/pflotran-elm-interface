@@ -390,6 +390,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
   Pcmax = 1d9
   Slj = 0d0
   Sr = 0d0
+  Srg = 0d0
   wipp_krp = 0
   wipp_kpc = 0
   wipp_expon = 0d0
@@ -585,6 +586,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP1',option)
@@ -617,6 +622,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP2',option)
@@ -656,6 +665,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP3',option)
@@ -695,6 +708,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP4',option)
@@ -730,6 +747,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP5',option)
@@ -768,6 +789,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP8',option)
@@ -830,6 +855,10 @@ function SaturationFunctionRead(saturation_function,input,option) &
             call InputReadDouble(input,option,sf%alpha)
             alpha = sf%alpha
             call InputErrorMsg(input,option,'ALPHA',error_string)
+          case('LIQUID_JUNCTION_SATURATION')
+            call InputReadDouble(input,option,Slj)
+            call InputErrorMsg(input,option,'liquid junction saturation', &
+                               error_string)
           case default
             call InputKeywordUnrecognized(input,keyword, &
                    'SATURATION_FUNCTION BRAGFLO_KRP12',option)
@@ -884,7 +913,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   if (loop_invariant) then
     ! Use default junction saturation if not specified
-    if (Slj == 0d0) Slj = Sr + 5d-2*(1d0-Sr)
+    if (Slj == 0d0) Slj = Sr + 5d-2*(1d0-Srg-Sr)
     ! Call constructor
     if (wipp_krp /= 0) then ! WIPP invariants flagged by wipp_krp
       if (wipp_krp == 12) then ! wipp_s_min replaces Sr, wipp_s_effmin replaces Slj

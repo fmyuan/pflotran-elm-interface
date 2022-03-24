@@ -344,14 +344,14 @@ subroutine EOSGasSetDensityRKS(use_hydrogen,use_effective_properties, &
 
   implicit none
 
-  PetscBool :: use_hydrogen
-  PetscBool :: use_effective_properties
-  PetscBool :: use_cubic_root_solution
-  PetscReal :: tc
-  PetscReal :: pc
-  PetscReal :: acen
-  PetscReal :: omegaa
-  PetscReal :: omegab
+  PetscBool, intent(in) :: use_hydrogen
+  PetscBool, intent(in) :: use_effective_properties
+  PetscBool, intent(in) :: use_cubic_root_solution
+  PetscReal, intent(in) :: tc
+  PetscReal, intent(in) :: pc
+  PetscReal, intent(in) :: acen
+  PetscReal, intent(in) :: omegaa
+  PetscReal, intent(in) :: omegab
   
   rks_use_hydrogen = use_hydrogen
   rks_use_effect_critical_props = use_effective_properties
@@ -406,7 +406,7 @@ subroutine EOSGasSetFMWConstant(input_fmw_gas)
 
   implicit none
 
-  PetscReal :: input_fmw_gas
+  PetscReal, intent(in) :: input_fmw_gas
   
   fmw_gas = input_fmw_gas
 
@@ -430,7 +430,7 @@ subroutine EOSGasSetSurfaceDensity(input_ref_density_kg)
 
   implicit none
 
-  PetscReal :: input_ref_density_kg
+  PetscReal, intent(in) :: input_ref_density_kg
 
   surface_density_kg = input_ref_density_kg
 
@@ -454,7 +454,7 @@ subroutine EOSGasSetDensityConstant(density)
 
   implicit none
   
-  PetscReal :: density
+  PetscReal, intent(in) :: density
   
   constant_density = density  
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
@@ -468,7 +468,7 @@ subroutine EOSGasSetEnergyConstant(enthalpy)
 
   implicit none
   
-  PetscReal :: enthalpy
+  PetscReal, intent(in) :: enthalpy
   
   constant_enthalpy = enthalpy  
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
@@ -482,7 +482,7 @@ subroutine EOSGasSetViscosityConstant(viscosity)
 
   implicit none
   
-  PetscReal :: viscosity
+  PetscReal, intent(in) :: viscosity
   
   constant_viscosity = viscosity
   EOSGasViscosityPtr => EOSGasViscosityConstant
@@ -505,7 +505,7 @@ subroutine EOSGasSetHenryConstant(henrys_constant)
 
   implicit none
   
-  PetscReal :: henrys_constant
+  PetscReal, intent(in) :: henrys_constant
   
   constant_henry = henrys_constant
   EOSGasHenryPtr => EOSGasHenryConstant
@@ -2081,15 +2081,15 @@ subroutine EOSGasTest(temp_low,temp_high,pres_low,pres_high, &
 
   implicit none
 
-  PetscReal :: temp_low
-  PetscReal :: temp_high
-  PetscReal :: pres_low
-  PetscReal :: pres_high
-  PetscInt :: npres
-  PetscInt :: ntemp
-  PetscBool :: uniform_temp
-  PetscBool :: uniform_pres
-  character(len=MAXWORDLENGTH) :: filename
+  PetscReal, intent(in) :: temp_low
+  PetscReal, intent(in) :: temp_high
+  PetscReal, intent(in) :: pres_low
+  PetscReal, intent(in) :: pres_high
+  PetscInt, intent(in) :: npres
+  PetscInt, intent(in) :: ntemp
+  PetscBool, intent(in) :: uniform_temp
+  PetscBool, intent(in) :: uniform_pres
+  character(len=MAXWORDLENGTH), intent(in) :: filename
 
   PetscReal, allocatable :: temp(:)
   PetscReal, allocatable :: pres(:)
