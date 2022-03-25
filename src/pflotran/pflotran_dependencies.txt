@@ -353,8 +353,8 @@ inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
                   material.o material_aux.o option.o patch.o \
                   pflotran_constants.o string.o survey.o timer.o utility.o \
                   variables.o
-inversion_measurement_aux.o : input_aux.o option.o pflotran_constants.o \
-                              string.o units.o utility.o
+inversion_measurement_aux.o : geometry.o input_aux.o option.o \
+                              pflotran_constants.o string.o units.o utility.o
 inversion_perturbation.o : debug.o discretization.o driver.o factory_forward.o \
                            input_aux.o inversion_base.o inversion_subsurface.o \
                            inversion_ts_aux.o material.o option.o \
