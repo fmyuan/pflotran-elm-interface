@@ -1342,6 +1342,8 @@ subroutine PMWSSReadPMBlock(this,input)
         call InputReadAndConvertUnits(input,double,'sec',trim(error_string) &
                                       // ',OUTPUT_START_TIME units',option)
         this%output_start_time = double
+      case('SKIP_RESTART')
+        this%skip_restart = PETSC_TRUE 
       case('RATE_UPDATE_FREQUENCY')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
