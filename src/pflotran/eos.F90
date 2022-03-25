@@ -60,7 +60,6 @@ subroutine EOSRead(input,option)
   PetscBool :: rks_use_effective_properties = PETSC_TRUE
   PetscBool :: rks_use_cubic_root_solution = PETSC_FALSE
   PetscBool :: hsb_compute_salinity = PETSC_TRUE
-  PetscReal :: hsb_salinity(1) = UNINITIALIZED_DOUBLE
   PetscReal :: temparray(10)
   PetscReal :: test_t_high, test_t_low, test_p_high, test_p_low
   PetscInt :: test_n_temp, test_n_pres
@@ -249,7 +248,7 @@ subroutine EOSRead(input,option)
             call InputErrorMsg(input,option,'SATURATION_PRESSURE','EOS,WATER')
             call StringToUpper(word)
             select case(trim(word))
-              case('HAAS','SPARROW')
+              case('HAAS','SPARROW','IFC67','IF97','WAGNER_AND_PRUSS')
               case default
                 call InputKeywordUnrecognized(input,word, &
                        'EOS,WATER,SATURATION_PRESSURE', &
@@ -260,20 +259,7 @@ subroutine EOSRead(input,option)
             call InputReadCard(input,option,word)
             call InputErrorMsg(input,option,'SALINITY','EOS,WATER,SALINITY')
             call StringToUpper(word)
-              select case(trim(word))
-                case('CONSTANT')
-                  hsb_compute_salinity = PETSC_FALSE
-                  call InputReadDouble(input,option,hsb_salinity(1))
-                  call InputErrorMsg(input,option,&
-                                      'Salinity for halite saturated brine', &
-                                      'EOS WATER, HALITE_SATURATED_BRINE')
-                  call InputReadAndConvertUnits(input,hsb_salinity(1),'g/g',&
-                                      'EOS,WATER,HALITE_SATURATED_BRINE,SALINITY,CONSTANT',&
-                                      option)
-                case('TEMPERATURE_CONTROLLED')
-                  hsb_compute_salinity = PETSC_TRUE
-              end select
-              call EOSWaterSetSalinityProperties(hsb_compute_salinity, hsb_salinity(1))
+            call EOSWaterSetSalinity(input,trim(word),option)
           case('TEST')
             if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
