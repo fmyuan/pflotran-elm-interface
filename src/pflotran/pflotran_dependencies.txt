@@ -357,21 +357,16 @@ inversion_measurement_aux.o : input_aux.o option.o pflotran_constants.o \
                               string.o units.o utility.o
 inversion_parameter.o : input_aux.o option.o pflotran_constants.o string.o \
                         units.o
-inversion_perturbation.o : debug.o discretization.o driver.o factory_forward.o \
-                           input_aux.o inversion_base.o inversion_subsurface.o \
-                           inversion_ts_aux.o material.o option.o \
-                           pflotran_constants.o realization_base.o string.o \
-                           utility.o variables.o zflow_aux.o
 inversion_subsurface.o : connection.o coupler.o debug.o discretization.o \
-                         driver.o factory_forward.o grid.o hdf5.o input_aux.o \
-                         inversion_aux.o inversion_base.o \
-                         inversion_measurement_aux.o inversion_parameter.o \
-                         inversion_ts_aux.o material.o material_aux.o option.o \
-                         output_hdf5.o patch.o pflotran_constants.o pm_base.o \
-                         pm_zflow.o realization_base.o \
-                         realization_subsurface.o simulation_subsurface.o \
-                         solver.o string.o timer.o units.o utility.o \
-                         variables.o zflow_aux.o
+                         driver.o factory_forward.o grid.o hdf5.o \
+                         init_subsurface.o input_aux.o inversion_aux.o \
+                         inversion_base.o inversion_measurement_aux.o \
+                         inversion_parameter.o inversion_ts_aux.o material.o \
+                         material_aux.o option.o output_hdf5.o patch.o \
+                         pflotran_constants.o pm_base.o pm_zflow.o \
+                         realization_base.o realization_subsurface.o \
+                         simulation_subsurface.o solver.o string.o timer.o \
+                         units.o utility.o variables.o zflow_aux.o
 inversion_tao.o : driver.o factory_forward.o input_aux.o inversion_base.o \
                   inversion_subsurface.o option.o pflotran_constants.o \
                   string.o
@@ -897,8 +892,7 @@ simulation_geomechanics.o : driver.o geomechanics_realization.o \
                             simulation_subsurface.o timestepper_base.o \
                             timestepper_steady.o utility.o waypoint.o
 simulation_inverse.o : communicator_aux.o driver.o input_aux.o \
-                       inversion_base.o inversion_ert.o \
-                       inversion_perturbation.o inversion_subsurface.o \
+                       inversion_base.o inversion_ert.o inversion_subsurface.o \
                        inversion_tao.o inversion_zflow.o option.o \
                        pflotran_constants.o simulation_base.o string.o \
                        utility.o

@@ -148,8 +148,8 @@ subroutine InversionTaoStep(this)
   call this%ExecuteForwardRun()
   call this%DestroyForwardRun()
 
-  this%converg_flag = PETSC_FALSE
-  if (this%iteration > this%maximum_iteration) this%converg_flag = PETSC_TRUE
+  this%converged = PETSC_FALSE
+  if (this%iteration > this%maximum_iteration) this%converged = PETSC_TRUE
 
 end subroutine InversionTaoStep
 

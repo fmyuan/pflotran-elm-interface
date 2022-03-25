@@ -48,15 +48,14 @@ module Inversion_ZFlow_class
     procedure, public :: Init => InversionZFlowInit
     procedure, public :: ReadBlock => InversionZFlowReadBlock
     procedure, public :: Initialize => InversionZFlowInitialize
-    procedure, public :: Step => InversionZFlowStep
-    procedure, public :: UpdateParameters => InversionZFlowUpdateParameters
-    procedure, public :: CalculateUpdate => InversionZFlowCalculateUpdate
-    procedure, public :: CheckConvergence => InversionZFlowCheckConvergence
     procedure, public :: EvaluateCostFunction => InvZFlowEvaluateCostFunction
-    procedure, public :: UpdateRegularizParameters => &
-                           InvZFlowUpdateRegularizParams
+    procedure, public :: CheckConvergence => InversionZFlowCheckConvergence
     procedure, public :: WriteIterationInfo => InversionZFlowWriteIterationInfo
     procedure, public :: ScaleSensitivity => InversionZFlowScaleSensitivity
+    procedure, public :: CalculateUpdate => InversionZFlowCalculateUpdate
+    procedure, public :: UpdateParameters => InversionZFlowUpdateParameters
+    procedure, public :: UpdateRegularizationParameters => &
+                           InvZFlowUpdateRegularizParams
     procedure, public :: Finalize => InversionZFlowFinalize
     procedure, public :: Strip => InversionZFlowStrip
   end type inversion_zflow_type
@@ -713,40 +712,6 @@ end subroutine InversionZFlowInitialize
 
 ! ************************************************************************** !
 
-subroutine InversionZFlowStep(this)
-  !
-  ! Execute a simulation
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 01/06/22
-
-  use Option_module
-  use Factory_Forward_module
-
-  class(inversion_zflow_type) :: this
-
-  type(option_type), pointer :: option
-
-  call this%InitializeForwardRun(option)
-  call this%Initialize()
-  call this%ConnectToForwardRun()
-  call this%ExecuteForwardRun()
-  call this%CheckConvergence()
-  call this%WriteIterationInfo()
-  if (.not.this%converg_flag) then
-    call this%CalculateSensitivity()
-    call this%ScaleSensitivity()
-    call this%OutputSensitivity('')
-    call this%CalculateUpdate()
-    call this%UpdateParameters()
-    call this%UpdateRegularizParameters()
-  endif
-  call this%DestroyForwardRun()
-
-end subroutine InversionZFlowStep
-
-! ************************************************************************** !
-
 subroutine InversionZFlowCheckConvergence(this)
   !
   ! Check Inversion convergence
@@ -758,10 +723,10 @@ subroutine InversionZFlowCheckConvergence(this)
 
   class(inversion_zflow_type) :: this
 
-  this%converg_flag = PETSC_FALSE
+  this%converged = PETSC_FALSE
   call this%EvaluateCostFunction()
   if ((this%current_chi2 <= this%target_chi2) .or. &
-      (this%iteration > this%maximum_iteration)) this%converg_flag = PETSC_TRUE
+      (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
 
 end subroutine InversionZFlowCheckConvergence
 

@@ -23,6 +23,7 @@ module Inversion_Subsurface_class
     type(inversion_aux_type), pointer :: inversion_aux
     type(inversion_measurement_aux_type), pointer :: measurements(:)
     type(inversion_parameter_type), pointer :: parameters(:)
+    type(perturbation_type), pointer :: perturbation
     PetscInt :: dist_measurement_offset
     PetscInt :: parameter_offset
     PetscInt :: iqoi(2)
@@ -39,7 +40,6 @@ module Inversion_Subsurface_class
     PetscBool :: debug_adjoint
     PetscInt :: debug_verbosity
     PetscBool :: local_adjoint
-    PetscBool :: use_perturbation
     VecScatter :: scatter_global_to_measurement
     VecScatter :: scatter_measure_to_dist_measure
     PetscBool :: qoi_is_full_vector
@@ -52,12 +52,28 @@ module Inversion_Subsurface_class
     procedure, public :: ConnectToForwardRun => InvSubsurfConnectToForwardRun
     procedure, public :: ExecuteForwardRun => InvSubsurfExecuteForwardRun
     procedure, public :: DestroyForwardRun => InvSubsurfDestroyForwardRun
+    procedure, public :: EvaluateCostFunction => InvSuburfSkipThisOnly
+    procedure, public :: CheckConvergence => InvSuburfSkipThisOnly
+    procedure, public :: WriteIterationInfo => InvSuburfSkipThisOnly
     procedure, public :: CalculateSensitivity => InvSubsurfCalculateSensitivity
-    procedure, public :: ScaleSensitivity => InvSubsurfScaleSensitivity
-    procedure, public :: OutputSensitivity => InvSubsurfOutputSensitivity
-    procedure, public :: Invert => InversionSubsurfaceInvert
+    procedure, public :: ScaleSensitivity => InvSuburfSkipThisOnly
+    procedure, public :: CalculateUpdate => InvSuburfSkipThisOnly
+    procedure, public :: UpdateParameters => InvSuburfSkipThisOnly
+    procedure, public :: UpdateRegularizationParameters => &
+                           InvSuburfSkipThisOnly
     procedure, public :: Strip => InversionSubsurfaceStrip
   end type inversion_subsurface_type
+
+  type perturbation_type
+    Vec :: quantity_of_interest_base
+    Vec :: base_measurement_vec
+    PetscInt :: ndof
+    PetscInt :: idof_pert
+    PetscReal :: pert
+    PetscReal :: base_value
+    PetscReal :: tolerance
+    PetscInt, pointer :: select_cells(:)
+  end type perturbation_type
 
   public :: InversionSubsurfaceCreate, &
             InversionSubsurfaceInit, &
@@ -120,7 +136,6 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%print_sensitivity_jacobian = PETSC_FALSE
   this%debug_adjoint = PETSC_FALSE
   this%local_adjoint = PETSC_FALSE
-  this%use_perturbation = PETSC_FALSE
   this%debug_verbosity = UNINITIALIZED_INTEGER
   this%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
   this%dist_measurement_offset = UNINITIALIZED_INTEGER
@@ -129,6 +144,7 @@ subroutine InversionSubsurfaceInit(this,driver)
 
   nullify(this%measurements)
   nullify(this%parameters)
+  nullify(this%perturbation)
 
   nullify(this%forward_simulation)
   nullify(this%realization)
@@ -137,6 +153,53 @@ subroutine InversionSubsurfaceInit(this,driver)
   zflow_calc_adjoint = PETSC_TRUE
 
 end subroutine InversionSubsurfaceInit
+
+! ************************************************************************** !
+
+function InvSuburfPerturbationCreate()
+  !
+  ! Allocates and initializes a new perturbation object
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/24/21
+  !
+  !TODO(geh): move this flag elsewhere
+  use ZFlow_Aux_module, only : zflow_calc_adjoint
+
+  type(perturbation_type), pointer :: InvSuburfPerturbationCreate
+
+  allocate(InvSuburfPerturbationCreate)
+  InvSuburfPerturbationCreate%quantity_of_interest_base = PETSC_NULL_VEC
+  InvSuburfPerturbationCreate%base_measurement_vec = PETSC_NULL_VEC
+
+  InvSuburfPerturbationCreate%ndof = 0
+  InvSuburfPerturbationCreate%idof_pert = 0
+  InvSuburfPerturbationCreate%pert = 0.d0
+  InvSuburfPerturbationCreate%base_value = 0.d0
+  InvSuburfPerturbationCreate%tolerance = 1.d-6
+  nullify(InvSuburfPerturbationCreate%select_cells)
+
+  zflow_calc_adjoint = PETSC_FALSE
+
+end function InvSuburfPerturbationCreate
+
+! ************************************************************************** !
+
+subroutine InvSuburfSkipThisOnly(this)
+  !
+  ! A dummy subroutine that is skipped
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/25/22
+  !
+  class(inversion_subsurface_type) :: this
+
+  if (this%maximum_iteration /= -1) then
+    call this%driver%PrintErrMsg('All inversion routines must be extended, &
+      &even if by implementing a "skip" routines: InvSuburfSkipThisOnly')
+  endif
+
+end subroutine InvSuburfSkipThisOnly
 
 ! ************************************************************************** !
 
@@ -154,7 +217,10 @@ subroutine InversionSubsurfReadBlock(this,input,option)
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
 
-  error_string = 'Test Inversion'
+  error_string = 'Test Sensitivity Jacobian'
+
+  ! just testing the sensitivity Jacobian
+  this%maximum_iteration = -1
 
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -373,11 +439,10 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       endif
     case('LOCAL_ADJOINT')
       this%local_adjoint = PETSC_TRUE
-#if 0
     case('PERTURBATION')
       string = trim(error_string)//keyword
       input%ierr = 0
-      this%use_perturbation = PETSC_TRUE
+      this%perturbation => InvSuburfPerturbationCreate()
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
@@ -398,7 +463,6 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         end select
       enddo
       call InputPopBlock(input,option)
-#endif
     case default
       found = PETSC_FALSE
   end select
@@ -606,8 +670,8 @@ subroutine InversionSubsurfInitialize(this)
                         inversion_forward_aux%M_ptr, &
                         this%realization%option%nflowdof, &
                         patch%grid%nlmax)
-#if 0
-  if (this%use_perburbation) then
+
+  if (associated(this%perturbation)) then
     call InvForwardAuxDestroyList(this%inversion_aux%inversion_forward_aux, &
                                   PETSC_FALSE)
     this%inversion_aux%inversion_forward_aux%store_adjoint = PETSC_FALSE
@@ -619,7 +683,7 @@ subroutine InversionSubsurfInitialize(this)
           if (this%perturbation%ndof > this%realization%patch%grid%nmax) then
             call this%driver%PrintErrMsg('Number of SELECT_CELLS is larger than &
                                         &the problem size: '// &
-                                        trim(StringWrite(this%perturbation%ndof))//' '// &
+                      trim(StringWrite(this%perturbation%ndof))//' '// &
                       trim(StringWrite(this%realization%patch%grid%nmax)))
           endif
         else
@@ -647,7 +711,6 @@ subroutine InversionSubsurfInitialize(this)
         &InversionPerturbationInitialize.')
     endif
   endif
-#endif
 
 end subroutine InversionSubsurfInitialize
 
@@ -694,6 +757,11 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   class(inversion_subsurface_type) :: this
 
+  type(discretization_type), pointer :: discretization
+  Vec :: work
+  Vec :: natural_vec
+  PetscReal, pointer :: vec_ptr(:)
+  PetscReal :: rmin, rmax
   PetscInt :: i
   type(material_property_type), pointer :: material_property
   PetscErrorCode :: ierr
@@ -748,9 +816,8 @@ subroutine InvSubsurfConnectToForwardRun(this)
     endif
   endif
 
-#if 0
-  if (this%use_perburbation) then
-    ! on first pass, store and set thereafter
+  if (associated(this%perturbation)) then
+  ! on first pass, store and set thereafter
     if (this%perturbation%quantity_of_interest_base == PETSC_NULL_VEC) then
       call VecDuplicate(this%quantity_of_interest, &
                         this%perturbation%quantity_of_interest_base, &
@@ -758,8 +825,8 @@ subroutine InvSubsurfConnectToForwardRun(this)
     endif
     if (this%perturbation%idof_pert == 0) then
       call VecCopy(this%quantity_of_interest, &
-                  this%perturbation%quantity_of_interest_base, &
-                  ierr);CHKERRQ(ierr)
+                   this%perturbation%quantity_of_interest_base, &
+                   ierr);CHKERRQ(ierr)
     else
       if (this%qoi_is_full_vector) then
         discretization => this%realization%discretization
@@ -768,8 +835,8 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                         ONEDOF,natural_vec, &
                                         NATURAL,this%realization%option)
         call VecCopy(this%perturbation%quantity_of_interest_base, &
-                    this%quantity_of_interest, &
-                    ierr);CHKERRQ(ierr)
+                     this%quantity_of_interest, &
+                     ierr);CHKERRQ(ierr)
         call VecGetArrayF90(this%quantity_of_interest,vec_ptr, &
                             ierr);CHKERRQ(ierr)
         call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
@@ -793,9 +860,8 @@ subroutine InvSubsurfConnectToForwardRun(this)
         endif
         call VecAXPY(this%quantity_of_interest,1.d0,work,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(this%realization%discretization, &
-                                         this%quantity_of_interest, &
-                                         this%realization%field%work_loc, &
-                                         ONEDOF)
+                                        this%quantity_of_interest, &
+                                        this%realization%field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                     this%realization%field%work_loc, &
                                     this%iqoi(1),this%iqoi(2))
@@ -804,7 +870,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
         this%perturbation%base_value = &
           this%parameters(this%perturbation%idof_pert)%value
         this%perturbation%pert = this%perturbation%base_value* &
-                                this%perturbation%tolerance
+                                 this%perturbation%tolerance
         this%parameters(this%perturbation%idof_pert)%value = &
           this%perturbation%base_value + this%perturbation%pert
         do i = 1, size(this%parameters)
@@ -825,7 +891,6 @@ subroutine InvSubsurfConnectToForwardRun(this)
       endif
     endif
   endif
-#endif
 
 end subroutine InvSubsurfConnectToForwardRun
 
@@ -849,6 +914,26 @@ end subroutine InvSubsurfExecuteForwardRun
 ! ************************************************************************** !
 
 subroutine InvSubsurfCalculateSensitivity(this)
+  !
+  ! Calculates sensitivity matrix Jsensitivity
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/25/22
+  !
+  class(inversion_subsurface_type) :: this
+
+  if (associated(this%perturbation)) then
+    call InvSubsurfPertCalcSensitivity(this)
+  else
+    call InvSubsurfAdjointCalcSensitivity(this)
+  endif
+  call InvSubsurfOutputSensitivity(this,'')
+
+end subroutine InvSubsurfCalculateSensitivity
+
+! ************************************************************************** !
+
+subroutine InvSubsurfAdjointCalcSensitivity(this)
   !
   ! Calculates sensitivity matrix Jsensitivity
   !
@@ -939,7 +1024,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
     if (OptionPrintToScreen(option)) then
       print *, '  call InvSubsurfCalcLambda: ', cur_inversion_ts_aux%timestep
     endif
-    call InvSubsurfCalcLambda(this,cur_inversion_ts_aux)
+    call InvSubsurfAdjointCalcLambda(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%prev
   enddo
 
@@ -953,7 +1038,7 @@ subroutine InvSubsurfCalculateSensitivity(this)
     if (OptionPrintToScreen(option)) then
       print *, '  call InvSubsurfAddSensitivity: ', cur_inversion_ts_aux%timestep
     endif
-    call InvSubsurfAddSensitivity(this,cur_inversion_ts_aux)
+    call InvSubsurfAdjointAddSensitivity(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%next
   enddo
   call MatAssemblyBegin(inversion_aux%JsensitivityT, &
@@ -971,11 +1056,11 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call PrintMsg(option)
   call TimerDestroy(timer)
 
-end subroutine InvSubsurfCalculateSensitivity
+end subroutine InvSubsurfAdjointCalcSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfCalcLambda(this,inversion_forward_ts_aux)
+subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   !
   ! Calculates sensitivity matrix Jsensitivity
   !
@@ -1163,11 +1248,11 @@ subroutine InvSubsurfCalcLambda(this,inversion_forward_ts_aux)
   call PrintMsg(option)
   call TimerDestroy(timer)
 
-end subroutine InvSubsurfCalcLambda
+end subroutine InvSubsurfAdjointCalcLambda
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfAddSensitivity(this,inversion_forward_ts_aux)
+subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
   !
   ! Calculates sensitivity matrix Jsensitivity
   !
@@ -1318,29 +1403,32 @@ subroutine InvSubsurfAddSensitivity(this,inversion_forward_ts_aux)
   call PrintMsg(option)
   call TimerDestroy(timer)
 
-end subroutine InvSubsurfAddSensitivity
+end subroutine InvSubsurfAdjointAddSensitivity
 
 ! ************************************************************************** !
-#if 0
-subroutine InversionPerturbationStep(this)
+
+subroutine InvSubsurfPertCalcSensitivity(this)
   !
-  ! Execute a simulation
+  ! Calculates sensitivity matrix Jsensitivity using perturbation
   !
   ! Author: Glenn Hammond
-  ! Date: 09/24/21
-
+  ! Date: 03/21/22
+  !
   use Option_module
-  use Factory_Forward_module
-  use String_module
 
-  class(inversion_perturbation_type) :: this
+  class(inversion_subsurface_type) :: this
 
   type(option_type), pointer :: option
   PetscInt :: iteration
 
+  ! destroy non-perturbed forward run
   iteration = 0
+  ! InvSubsurfPerturbationFillRow performs setup on iteration 0
+  call InvSubsurfPerturbationFillRow(this,iteration)
+  call this%DestroyForwardRun()
+  iteration = 1
   do
-    if (associated(this%perturbation%select_cells) .and. iteration > 0) then
+    if (associated(this%perturbation%select_cells)) then
       this%perturbation%idof_pert = this%perturbation%select_cells(iteration)
     else
       this%perturbation%idof_pert = iteration
@@ -1349,25 +1437,22 @@ subroutine InversionPerturbationStep(this)
     call this%Initialize()
     call this%ConnectToForwardRun()
     call this%ExecuteForwardRun()
-    call InversionPerturbationFillRow(this,iteration)
-    if (iteration == this%perturbation%ndof) then
-      call this%OutputSensitivity('')
-    endif
-    call this%DestroyForwardRun()
+    call InvSubsurfPerturbationFillRow(this,iteration)
     iteration = iteration + 1
     if (iteration > this%perturbation%ndof) exit
+    ! the last forward run will be destroyed after any output of
+    ! sensitivity matrices
+    call this%DestroyForwardRun()
   enddo
 
-  this%converg_flag = PETSC_FALSE
-  if (this%iteration > this%maximum_iteration) this%converg_flag = PETSC_TRUE
-
-end subroutine InversionPerturbationStep
+end subroutine InvSubsurfPertCalcSensitivity
 
 ! ************************************************************************** !
 
-subroutine InversionPerturbationFillRow(this,iteration)
+subroutine InvSubsurfPerturbationFillRow(this,iteration)
   !
-  ! Initializes inversion
+  ! Fills a row (actually column since we store the transpose) of the
+  ! Jacobian created through perurbation
   !
   ! Author: Glenn Hammond
   ! Date: 09/24/21
@@ -1377,7 +1462,7 @@ subroutine InversionPerturbationFillRow(this,iteration)
   use Realization_Base_class
   use String_module
 
-  class(inversion_perturbation_type) :: this
+  class(inversion_subsurface_type) :: this
   PetscInt :: iteration
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -1435,8 +1520,8 @@ subroutine InversionPerturbationFillRow(this,iteration)
     this%parameters(this%perturbation%idof_pert)%value = this%perturbation%base_value
   endif
 
-end subroutine InversionPerturbationFillRow
-#endif
+end subroutine InvSubsurfPerturbationFillRow
+
 ! ************************************************************************** !
 
 subroutine InvSubsurfScaleSensitivity(this)
@@ -1605,20 +1690,6 @@ end subroutine InvSubsurfOutputSensitivityHDF5
 
 ! ************************************************************************** !
 
-subroutine InversionSubsurfaceInvert(this)
-  !
-  ! Inverts for a parameter update
-  !
-  ! Author: Glenn Hammond
-  ! Date: 09/20/21
-  !
-
-  class(inversion_subsurface_type) :: this
-
-end subroutine InversionSubsurfaceInvert
-
-! ************************************************************************** !
-
 subroutine InvSubsurfDestroyForwardRun(this)
   !
   ! Destroys the forward simulation
@@ -1638,6 +1709,36 @@ end subroutine InvSubsurfDestroyForwardRun
 
 ! ************************************************************************** !
 
+subroutine InvSubsurfPerturbationStrip(perturbation)
+  !
+  ! Deallocates members of inversion perturbation
+  !
+  ! Author: Glenn Hammond
+  ! Date: 09/24/21
+  !
+  use Utility_module
+
+  type(perturbation_type), pointer :: perturbation
+
+  PetscErrorCode :: ierr
+
+  if (.not.associated(perturbation)) return
+
+  call DeallocateArray(perturbation%select_cells)
+  if (perturbation%quantity_of_interest_base /= PETSC_NULL_VEC) then
+    call VecDestroy(perturbation%quantity_of_interest_base, &
+                    ierr);CHKERRQ(ierr)
+  endif
+  if (perturbation%base_measurement_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(perturbation%base_measurement_vec,ierr);CHKERRQ(ierr)
+  endif
+  deallocate(perturbation)
+  nullify(perturbation)
+
+end subroutine InvSubsurfPerturbationStrip
+
+! ************************************************************************** !
+
 subroutine InversionSubsurfaceStrip(this)
   !
   ! Deallocates members of inversion Subsurface
@@ -1653,6 +1754,7 @@ subroutine InversionSubsurfaceStrip(this)
   PetscErrorCode :: ierr
 
   call InversionBaseStrip(this)
+  call InvSubsurfPerturbationStrip(this%perturbation)
 
   nullify(this%realization)
   call InversionAuxDestroy(this%inversion_aux)

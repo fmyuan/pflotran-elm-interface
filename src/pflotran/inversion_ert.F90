@@ -57,7 +57,7 @@ module Inversion_ERT_class
     procedure, public :: CalculateUpdate => InversionERTCalculateUpdate
     procedure, public :: CheckConvergence => InversionERTCheckConvergence
     procedure, public :: EvaluateCostFunction => InvERTEvaluateCostFunction
-    procedure, public :: UpdateRegularizParameters => &
+    procedure, public :: UpdateRegularizationParameters => &
                            InvERTUpdateRegularizParams
     procedure, public :: WriteIterationInfo => InversionERTWriteIterationInfo
     procedure, public :: Finalize => InversionERTFinalize
@@ -789,7 +789,7 @@ subroutine InversionERTStep(this)
   call this%CheckConvergence()
   call this%CalculateUpdate()
   call this%WriteIterationInfo()
-  call this%UpdateRegularizParameters()
+  call this%UpdateRegularizationParameters()
   call this%DestroyForwardRun()
 
 end subroutine InversionERTStep
@@ -813,10 +813,10 @@ subroutine InversionERTCheckConvergence(this)
 
   survey => this%realization%survey
 
-  this%converg_flag = PETSC_FALSE
+  this%converged = PETSC_FALSE
   call this%EvaluateCostFunction()
   if ((this%current_chi2 <= this%target_chi2) .or. &
-      (this%iteration > this%maximum_iteration)) this%converg_flag = PETSC_TRUE
+      (this%iteration > this%maximum_iteration)) this%converged = PETSC_TRUE
 
 end subroutine InversionERTCheckConvergence
 
