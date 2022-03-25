@@ -1168,9 +1168,32 @@ subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   SNESConvergedReason :: reason
   PetscErrorCode :: ierr
 
-  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
-                       this%realization%patch%grid, &
-                       this%option,this%solver,ierr)
+  !call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+  !                     this%realization%patch%grid, &
+  !                     this%option,this%solver,ierr)
+  
+  ! The default convergence criteria are ignored by commenting out the
+  ! call to ConvergenceTest() above.
+  ierr = 0
+  if (this%option%convergence == CONVERGENCE_OFF) then
+    reason = 0 ! (force newton iteration)
+    this%option%convergence = CONVERGENCE_FORCE_ITERATION
+
+  else if (this%option%convergence == CONVERGENCE_KEEP_ITERATING) then
+    reason = 0 ! (force newton iteration)
+    this%option%convergence = CONVERGENCE_FORCE_ITERATION
+    this%option%converged = PETSC_FALSE
+
+  else if (this%option%convergence == CONVERGENCE_CUT_TIMESTEP) then
+    reason = -88 ! (cut timestep)
+    this%option%convergence = CONVERGENCE_OFF
+    this%option%converged = PETSC_FALSE
+
+  else if (this%option%convergence == CONVERGENCE_CONVERGED) then
+    reason = 999
+    this%option%convergence = CONVERGENCE_OFF
+    this%option%converged = PETSC_FALSE
+  endif
 
 end subroutine PMNWTCheckConvergence
 
@@ -1248,7 +1271,7 @@ subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
       k = 0
       do i = 1, n
         if (C_p(i) <= dC_p(i)) then
-          WRITE(*,*)  ' i =', i, '  C_p(i) =', C_p(i), '  dC_p(i) =', dC_p(i)
+          !WRITE(*,*)  ' i =', i, '  C_p(i) =', C_p(i), '  dC_p(i) =', dC_p(i)
           ratio = abs(C_p(i)/dC_p(i))
           if (ratio < min_ratio) then
             min_ratio = ratio
@@ -1325,7 +1348,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  character(len=MAXSTRINGLENGTH) :: out_string
+  character(len=MAXSTRINGLENGTH) :: out_string, string
   PetscReal, pointer :: C0_p(:)
   PetscReal, pointer :: dC_p(:)
   PetscReal, pointer :: r_p(:)
@@ -1466,8 +1489,9 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
 
   endif
 
-  write(out_string,'("    aR:",es9.2," sR:",es9.2," rUP:" es9.2)') &
-        max_absolute_residual,max_scaled_residual,max_relative_change 
+  write(out_string,'(i3,"   aR:",es10.3," sR:",es10.3," rUP:",es10.3)') &
+        newton_iter_number, max_absolute_residual, max_scaled_residual, &
+        max_relative_change 
   call OptionPrint(out_string,option)
 
   !WRITE(*,*)  ' --------------------------------------------------------------'
@@ -1479,7 +1503,7 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   !WRITE(*,*)  '     max absolute residual = ', max_absolute_residual
   !WRITE(*,*)  '                  location = ', loc_max_abs_residual
   !WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  '   residual converged = ', idof_cnvgd_due_to_residual
+  !WRITE(*,*)  '   residual converged (T/F) = ', idof_cnvgd_due_to_residual
   !WRITE(*,*)  ' --------------------------------------------------------------'
   !WRITE(*,*)  '      max relative update = ', max_relative_change
   !WRITE(*,*)  '                 location = ', loc_max_rel_update
@@ -1487,31 +1511,40 @@ subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   !WRITE(*,*)  '               soln @ max = ', soln_at_max
   !WRITE(*,*)  '                   min C0 = ', min_C0
   !WRITE(*,*)  ' --------------------------------------------------------------'
-  WRITE(*,*)  '   update converged =   ', idof_cnvgd_due_to_update
+  !WRITE(*,*)  '     update converged (T/F) = ', idof_cnvgd_due_to_update
   !WRITE(*,*)  ' --------------------------------------------------------------'
   !WRITE(*,*)  ' --------------------------------------------------------------'
   !WRITE(*,*)  ' ITOL converged_flag = ', converged_flag
   !WRITE(*,*)  ' --------------------------------------------------------------'
 
+  out_string = "   residual converged (T/F) = "
+  do i = 1,option%ntrandof
+    write(string,'(L2)') idof_cnvgd_due_to_residual(i)
+    out_string = trim(out_string) // trim(string)
+  enddo
+  call OptionPrint(out_string,option)
+
+  out_string = "     update converged (T/F) = "
+  do i = 1,option%ntrandof
+    write(string,'(L2)') idof_cnvgd_due_to_update(i)
+    out_string = trim(out_string) // trim(string)
+  enddo
+  call OptionPrint(out_string,option)
   
   ! get global minimum
   call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
                      MPI_MIN,this%realization%option%mycomm,ierr)
   
-  ! this will override all previous convergence criteria to keep iterating
-    if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
-      this%realization%option%converged = PETSC_FALSE
-      !!this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
-      this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
-      if (newton_iter_number >= this%controls%max_newton_iterations) then
-        this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
-      endif
-    else  ! means ITOL_* tolerances were satisfied, but the previous
-          ! criteria were maybe not met
-      ! do nothing = let the instruction proceed based on previous criteria
-      this%realization%option%converged = PETSC_TRUE
-      this%realization%option%convergence = CONVERGENCE_CONVERGED
+  if (temp_int /= 1) then  ! means ITOL_* tolerances were not satisfied:
+    this%realization%option%converged = PETSC_FALSE
+    this%realization%option%convergence = CONVERGENCE_KEEP_ITERATING
+    if (newton_iter_number >= this%controls%max_newton_iterations) then
+      this%realization%option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
+  else  ! means ITOL_* tolerances were satisfied
+    this%realization%option%converged = PETSC_TRUE
+    this%realization%option%convergence = CONVERGENCE_CONVERGED
+  endif
 
   if (this%print_ekg) then
     call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
