@@ -664,6 +664,7 @@ subroutine InversionZFlowInitialize(this)
   !
   use Discretization_module
   use Inversion_TS_Aux_module
+  use Inversion_Parameter_module
   use Option_module
   use Variables_module, only : PERMEABILITY
 
@@ -674,6 +675,7 @@ subroutine InversionZFlowInitialize(this)
   PetscBool :: exists
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: iqoi(2)
   PetscErrorCode :: ierr
 
   call InversionSubsurfInitialize(this)
@@ -684,14 +686,10 @@ subroutine InversionZFlowInitialize(this)
                                     this%realization%option)
   endif
 
-  if (Uninitialized(this%iqoi(1))) then
-    call this%driver%PrintErrMsg('Quantity of interest not specified in &
-      &InversionZFlowInitialize.')
-  endif
-
   ! check to ensure that quantity of interest exists
   exists = PETSC_FALSE
-  select case(this%iqoi(1))
+  iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+  select case(iqoi(1))
     case(PERMEABILITY)
       if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
       word = 'PERMEABILITY'
@@ -904,6 +902,7 @@ subroutine InversionZFlowUpdateParameters(this)
 
   use Material_module
   use Discretization_module
+  use Inversion_Parameter_module
   use Field_module
 
   class(inversion_zflow_type) :: this
@@ -913,15 +912,17 @@ subroutine InversionZFlowUpdateParameters(this)
 
   PetscInt :: local_id,ghosted_id
   PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: iqoi(2)
   PetscErrorCode :: ierr
 
   field => this%realization%field
   discretization => this%realization%discretization
 
+  iqoi = InversionParameterIntToQOIArray(this%parameters(1))
   call DiscretizationGlobalToLocal(discretization,this%quantity_of_interest, &
                                    field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                               field%work_loc,this%iqoi(1),this%iqoi(2))
+                               field%work_loc,iqoi(1),iqoi(2))
 
 end subroutine InversionZFlowUpdateParameters
 

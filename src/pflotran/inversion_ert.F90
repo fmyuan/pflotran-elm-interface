@@ -133,6 +133,7 @@ subroutine InversionERTInit(this,driver)
   ! Author: Piyoosh Jaysaval
   ! Date: 06/14/21
   !
+  use Inversion_Parameter_module
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY
   use Driver_module
 
@@ -141,7 +142,9 @@ subroutine InversionERTInit(this,driver)
 
   call InversionSubsurfaceInit(this,driver)
   ! override default set in InversionSubsurfaceInit
-  this%iqoi(1) = ELECTRICAL_CONDUCTIVITY
+  allocate(this%parameters(1))
+  call InversionParameterInit(this%parameters(1))
+  this%parameters(1)%iparameter = ELECTRICAL_CONDUCTIVITY
 
   ! Default inversion parameters
   this%miniter = 10
@@ -694,6 +697,7 @@ subroutine InversionERTInitialize(this)
   use Discretization_module
   use Init_Subsurface_module
   use Material_module
+  use Inversion_Parameter_module
   use Option_module
   use Variables_module, only : PERMEABILITY, ELECTRICAL_CONDUCTIVITY
 
@@ -703,12 +707,13 @@ subroutine InversionERTInitialize(this)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: string
   class(dataset_base_type), pointer :: dataset
+  PetscInt :: iqoi(2)
   PetscErrorCode :: ierr
 
   if (this%quantity_of_interest == PETSC_NULL_VEC) then
     ! theck to ensure that quantity of interest exists
     exists = PETSC_FALSE
-    select case(this%iqoi(1))
+    select case(this%parameters(1)%iparameter)
       case(ELECTRICAL_CONDUCTIVITY)
         if (this%realization%option%igeopmode /= NULL_MODE) exists = PETSC_TRUE
         word = 'ELECTRICAL_CONDUCTIVITY'
@@ -720,6 +725,7 @@ subroutine InversionERTInitialize(this)
       call PrintErrMsg(this%realization%option)
     endif
 
+    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
     if (this%app_cond_start_model) then
       ! non-ghosted Vec
       call VecDuplicate(this%realization%field%work, &
@@ -731,7 +737,7 @@ subroutine InversionERTInitialize(this)
                                       this%realization%field%work_loc,ONEDOF)
       call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                   this%realization%field%work_loc, &
-                                  this%iqoi(1),this%iqoi(2))
+                                  iqoi(1),iqoi(2))
     else
       ! non-ghosted Vec
       call VecDuplicate(this%realization%field%work, &
@@ -739,7 +745,7 @@ subroutine InversionERTInitialize(this)
       ! ghosted Vec
       call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                   this%realization%field%work_loc, &
-                                  this%iqoi(1),this%iqoi(2))
+                                  iqoi(1),iqoi(2))
       call DiscretizationLocalToGlobal(this%realization%discretization, &
                                       this%realization%field%work_loc, &
                                       this%quantity_of_interest,ONEDOF)
@@ -1009,6 +1015,7 @@ subroutine InversionERTUpdateParameters(this)
 
   use Material_module
   use Discretization_module
+  use Inversion_Parameter_module
   use Field_module
 
   class(inversion_ert_type) :: this
@@ -1018,17 +1025,19 @@ subroutine InversionERTUpdateParameters(this)
 
   PetscInt :: local_id,ghosted_id
   PetscReal, pointer :: vec_ptr(:)
+  PetscInt :: iqoi(2)
   PetscErrorCode :: ierr
 
   field => this%realization%field
   discretization => this%realization%discretization
 
   if (this%quantity_of_interest /= PETSC_NULL_VEC) then
+    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
     call DiscretizationGlobalToLocal(discretization, &
                                      this%quantity_of_interest, &
                                      field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 field%work_loc,this%iqoi(1),this%iqoi(2))
+                                 field%work_loc,iqoi(1),iqoi(2))
   endif
 
   ! Build Wm matrix

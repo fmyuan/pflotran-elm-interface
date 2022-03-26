@@ -22,6 +22,8 @@ module Inversion_Parameter_module
             InversionParameterInit, &
             InversionParameterRead, &
             InversionParameterCopy, &
+            InversionParameterMapNameToInt, &
+            InversionParameterIntToQOIArray, &
             InversionParameterStrip, &
             InversionParameterDestroy
 
@@ -178,6 +180,77 @@ function InversionParameterRead(input,error_string,option)
   InversionParameterRead => new_inversion_parameter
 
 end function InversionParameterRead
+
+! ************************************************************************** !
+
+subroutine InversionParameterMapNametoInt(inversion_parameter,driver)
+  !
+  ! Maps an inverion parameter to subsurface model parameter id
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/25/22
+  !
+  use Driver_module
+  use String_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+                               PERMEABILITY, POROSITY, &
+                               LIQUID_PRESSURE, LIQUID_SATURATION, &
+                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
+
+  type(inversion_parameter_type) :: inversion_parameter
+  type(driver_type) :: driver
+
+  PetscInt :: i
+
+  select case(inversion_parameter%parameter_name)
+    case('ELECTRICAL_CONDUCTIVITY')
+      i = ELECTRICAL_CONDUCTIVITY
+    case('PERMEABILITY')
+      i = PERMEABILITY
+    case('POROSITY')
+      i = POROSITY
+    case('ALPHA')
+      i = VG_ALPHA
+    case('RESIDUAL_SATURATION')
+      i = VG_SR
+    case default
+      call driver%PrintErrMsg('Unrecognized parameter in &
+                              &InversionParameterMap: ' // &
+                              StringWrite(inversion_parameter%parameter_name))
+  end select
+  inversion_parameter%iparameter = i
+
+end subroutine InversionParameterMapNametoInt
+
+! ************************************************************************** !
+
+function InversionParameterIntToQOIArray(inversion_parameter)
+  !
+  ! Maps an inverion parameter to subsurface model parameter id
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/25/22
+  !
+  use String_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
+                               PERMEABILITY, POROSITY, &
+                               LIQUID_PRESSURE, LIQUID_SATURATION, &
+                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
+  use Material_Aux_module, only : POROSITY_BASE
+
+  type(inversion_parameter_type) :: inversion_parameter
+
+  PetscInt :: InversionParameterIntToQOIArray(2)
+
+  InversionParameterIntToQOIArray(1) = inversion_parameter%iparameter
+  select case(inversion_parameter%iparameter)
+    case(POROSITY)
+      InversionParameterIntToQOIArray(2) = POROSITY_BASE
+    case default
+      InversionParameterIntToQOIArray(2) = ZERO_INTEGER
+  end select
+
+end function InversionParameterIntToQOIArray
 
 ! ************************************************************************** !
 

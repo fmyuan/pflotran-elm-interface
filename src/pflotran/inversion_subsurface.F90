@@ -26,7 +26,6 @@ module Inversion_Subsurface_class
     type(perturbation_type), pointer :: perturbation
     PetscInt :: dist_measurement_offset
     PetscInt :: parameter_offset
-    PetscInt :: iqoi(2)
     PetscInt :: iobsfunc
     PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest
@@ -115,7 +114,6 @@ subroutine InversionSubsurfaceInit(this,driver)
   ! Date: 06/14/21
   !
   use Driver_module
-  use ZFlow_Aux_module, only : zflow_calc_adjoint
 
   class(inversion_subsurface_type) :: this
   class(driver_type), pointer :: driver
@@ -123,7 +121,6 @@ subroutine InversionSubsurfaceInit(this,driver)
   call InversionBaseInit(this,driver)
 
   this%quantity_of_interest = PETSC_NULL_VEC
-  this%iqoi = UNINITIALIZED_INTEGER
   this%iobsfunc = UNINITIALIZED_INTEGER
   this%n_qoi_per_cell = UNINITIALIZED_INTEGER
   this%measurement_vec = PETSC_NULL_VEC
@@ -150,8 +147,6 @@ subroutine InversionSubsurfaceInit(this,driver)
   nullify(this%realization)
   nullify(this%inversion_aux)
 
-  zflow_calc_adjoint = PETSC_TRUE
-
 end subroutine InversionSubsurfaceInit
 
 ! ************************************************************************** !
@@ -163,9 +158,6 @@ function InvSuburfPerturbationCreate()
   ! Author: Glenn Hammond
   ! Date: 09/24/21
   !
-  !TODO(geh): move this flag elsewhere
-  use ZFlow_Aux_module, only : zflow_calc_adjoint
-
   type(perturbation_type), pointer :: InvSuburfPerturbationCreate
 
   allocate(InvSuburfPerturbationCreate)
@@ -179,7 +171,7 @@ function InvSuburfPerturbationCreate()
   InvSuburfPerturbationCreate%tolerance = 1.d-6
   nullify(InvSuburfPerturbationCreate%select_cells)
 
-  zflow_calc_adjoint = PETSC_FALSE
+  
 
 end function InvSuburfPerturbationCreate
 
@@ -260,7 +252,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
                                LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION
+                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
   use Material_Aux_module, only : POROSITY_BASE
   use Utility_module
 
@@ -297,27 +289,6 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
     case('FORWARD_SIMULATION_FILENAME')
       call InputReadFilename(input,option,this%forward_simulation_filename)
       call InputErrorMsg(input,option,keyword,error_string)
-    case('QUANTITY_OF_INTEREST')
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,keyword,error_string)
-      call StringToUpper(word)
-      select case(word)
-        case('ELECTRICAL_CONDUCTIVITY')
-          this%iqoi(1) = ELECTRICAL_CONDUCTIVITY
-        case('PERMEABILITY')
-          this%iqoi(1) = PERMEABILITY
-        case('POROSITY')
-          this%iqoi(1) = POROSITY
-          this%iqoi(2) = POROSITY_BASE
-        case default
-          call InputKeywordUnrecognized(input,word,trim(error_string)// &
-                                        & ','//trim(keyword),option)
-      end select
-    case('REFERENCE_QUANTITY_OF_INTEREST')
-      call InputReadNChars(input,option,this%ref_qoi_dataset_name, &
-                           MAXWORDLENGTH,PETSC_TRUE)
-      call InputErrorMsg(input,option,'DATASET NAME', &
-                         keyword)
     case('OBSERVATION_FUNCTION')
       call InputReadWord(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -376,7 +347,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         do
           if (.not.associated(last_measurement)) exit
           call InversionMeasurementAuxCopy(last_measurement, &
-                                           this%measurements(last_measurement%id))
+                                         this%measurements(last_measurement%id))
           last_measurement => last_measurement%next
         enddo
         call InversionMeasureAuxListDestroy(first_measurement)
@@ -442,6 +413,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
     case('PERTURBATION')
       string = trim(error_string)//keyword
       input%ierr = 0
+      this%inversion_option%use_perturbation = PETSC_TRUE
       this%perturbation => InvSuburfPerturbationCreate()
       call InputPushBlock(input,option)
       do
@@ -488,7 +460,7 @@ subroutine InversionSubsurfInitialize(this)
   use Variables_module, only : ELECTRICAL_CONDUCTIVITY, &
                                PERMEABILITY, POROSITY, &
                                LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               SOLUTE_CONCENTRATION
+                               SOLUTE_CONCENTRATION, VG_SR, VG_ALPHA
   use Material_Aux_module, only : POROSITY_BASE
 
   class(inversion_subsurface_type) :: this
@@ -524,6 +496,7 @@ subroutine InversionSubsurfInitialize(this)
     if (associated(this%parameters)) then
       num_parameters = 0
       do i = 1, size(this%parameters)
+        call InversionParameterMapNameToInt(this%parameters(i),this%driver)
         if (len_trim(this%parameters(i)%material_name) > 0) then
           num_parameters = num_parameters + 1
         else
@@ -532,18 +505,6 @@ subroutine InversionSubsurfInitialize(this)
       enddo
       if (num_parameters == patch%grid%nmax) then
         this%qoi_is_full_vector = PETSC_TRUE
-        select case(this%parameters(1)%parameter_name)
-          case('ELECTRICAL_CONDUCTIVITY')
-            this%iqoi(1) = ELECTRICAL_CONDUCTIVITY
-          case('PERMEABILITY')
-            this%iqoi(1) = PERMEABILITY
-          case('POROSITY')
-            this%iqoi(1) = POROSITY
-            this%iqoi(2) = POROSITY_BASE
-          case default
-            call this%driver%PrintErrMsg('Unrecognized parameter in &
-                                         &InversionSubsurfInitialize')
-        end select
         num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
       else
         num_parameters_local = PETSC_DECIDE
@@ -681,8 +642,8 @@ subroutine InversionSubsurfInitialize(this)
         if (associated(this%perturbation%select_cells)) then
           this%perturbation%ndof = size(this%perturbation%select_cells)
           if (this%perturbation%ndof > this%realization%patch%grid%nmax) then
-            call this%driver%PrintErrMsg('Number of SELECT_CELLS is larger than &
-                                        &the problem size: '// &
+            call this%driver%PrintErrMsg('Number of SELECT_CELLS is larger &
+                                         than the problem size: '// &
                       trim(StringWrite(this%perturbation%ndof))//' '// &
                       trim(StringWrite(this%realization%patch%grid%nmax)))
           endif
@@ -706,9 +667,10 @@ subroutine InversionSubsurfInitialize(this)
       endif
     endif
 
-    if (Uninitialized(this%iqoi(1)) .and. this%qoi_is_full_vector) then
+    if (Uninitialized(this%parameters(1)%iparameter) .and. &
+        this%qoi_is_full_vector) then
       call this%driver%PrintErrMsg('Quantity of interest not specified in &
-        &InversionPerturbationInitialize.')
+        &InversionSubsurfInitialize.')
     endif
   endif
 
@@ -750,10 +712,14 @@ subroutine InvSubsurfConnectToForwardRun(this)
   ! Author: Glenn Hammond
   ! Date: 10/18/21
   !
+  use Characteristic_Curves_module
   use Discretization_module
   use Init_Subsurface_module
   use Material_module
   use String_module
+  use Utility_module
+  use Variables_module, only : ELECTRICAL_CONDUCTIVITY, PERMEABILITY, &
+                               POROSITY, VG_ALPHA, VG_SR
 
   class(inversion_subsurface_type) :: this
 
@@ -762,8 +728,12 @@ subroutine InvSubsurfConnectToForwardRun(this)
   Vec :: natural_vec
   PetscReal, pointer :: vec_ptr(:)
   PetscReal :: rmin, rmax
+  PetscReal :: tempreal, tempreal2
   PetscInt :: i
+  PetscInt :: iqoi(2)
   type(material_property_type), pointer :: material_property
+  class(characteristic_curves_type), pointer :: cc
+  character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 
   call this%forward_simulation%InitializeRun()
@@ -774,6 +744,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
 
   if (this%qoi_is_full_vector) then
       ! on first pass, store and set thereafter
+    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
     if (this%quantity_of_interest == PETSC_NULL_VEC) then
       ! can't move VecDuplicate earlier as it will not be null for the
       ! conditional above
@@ -781,7 +752,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
                         this%quantity_of_interest,ierr);CHKERRQ(ierr)
       call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                   this%realization%field%work_loc, &
-                                  this%iqoi(1),this%iqoi(2))
+                                  iqoi(1),iqoi(2))
       call DiscretizationLocalToGlobal(this%realization%discretization, &
                                       this%realization%field%work_loc, &
                                       this%quantity_of_interest,ONEDOF)
@@ -791,7 +762,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
                                      this%realization%field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 this%iqoi(1),this%iqoi(2))
+                                 iqoi(1),iqoi(2))
   else
     if (this%quantity_of_interest == PETSC_NULL_VEC) then
       ! can't move VecDuplicate earlier as it will not be null for the
@@ -862,9 +833,10 @@ subroutine InvSubsurfConnectToForwardRun(this)
         call DiscretizationGlobalToLocal(this%realization%discretization, &
                                         this%quantity_of_interest, &
                                         this%realization%field%work_loc,ONEDOF)
+        iqoi = InversionParameterIntToQOIArray(this%parameters(1))
         call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                     this%realization%field%work_loc, &
-                                    this%iqoi(1),this%iqoi(2))
+                                    iqoi(1),iqoi(2))
         call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
       else
         this%perturbation%base_value = &
@@ -877,13 +849,61 @@ subroutine InvSubsurfConnectToForwardRun(this)
           material_property => &
             MaterialPropGetPtrFromArray(this%parameters(i)%material_name, &
                               this%realization%patch%material_property_array)
+          if (.not.this%first_iteration) then
+            tempreal = this%parameters(i)%value
+          endif
+          select case(this%parameters(i)%iparameter)
+            case(ELECTRICAL_CONDUCTIVITY)
+              if (this%first_iteration) then
+                tempreal = material_property%electrical_conductivity
+              else
+                material_property%electrical_conductivity = tempreal
+              endif
+            case(PERMEABILITY)
+              if (this%first_iteration) then
+                tempreal = material_property%permeability(1,1)
+              else
+                material_property%permeability(1,1) = tempreal
+              endif
+            case(POROSITY)
+              if (this%first_iteration) then
+                tempreal = material_property%porosity
+              else
+                material_property%porosity = tempreal
+              endif
+            case(VG_ALPHA)
+              cc => this%realization%patch%characteristic_curves_array( &
+                      material_property%saturation_function_id)%ptr
+              if (this%first_iteration) then
+                tempreal = cc%saturation_function%GetAlpha_()
+              else
+                call cc%saturation_function%SetAlpha_(tempreal)
+              endif
+            case(VG_SR)
+              cc => this%realization%patch%characteristic_curves_array( &
+                      material_property%saturation_function_id)%ptr
+              if (this%first_iteration) then
+                tempreal = cc%saturation_function%GetResidualSaturation()
+                tempreal2 = cc%liq_rel_perm_function%GetResidualSaturation()
+                if (.not.Equal(tempreal,tempreal2)) then
+                  string = 'Saturation and relative permeability function &
+                    &residual saturations much match in characteristic &
+                    &curve "' // trim(cc%name)
+                  call this%driver%PrintErrMsg(string)
+                endif
+              else
+                call cc%saturation_function%SetResidualSaturation(tempreal)
+                call cc%liq_rel_perm_function%SetResidualSaturation(tempreal)
+              endif
+            case default
+              string = 'Unrecoginized variable in &
+                &InvSubsurfConnectToForwardRun: ' // &
+                trim(StringWrite(this%parameters(i)%iparameter))
+              call this%driver%PrintErrMsg(string)
+          end select
           if (this%first_iteration) then
             this%parameters(i)%imat = abs(material_property%internal_id)
-            this%parameters(i)%value = material_property%permeability(1,1)
-          else
-            material_property%permeability(1,1) = this%parameters(i)%value
-            material_property%permeability(2,2) = this%parameters(i)%value
-            material_property%permeability(3,3) = this%parameters(i)%value
+            this%parameters(i)%value = tempreal
           endif
         enddo
         call InitSubsurfAssignMatIDsToRegns(this%realization)
@@ -1036,7 +1056,8 @@ subroutine InvSubsurfAdjointCalcSensitivity(this)
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
     if (OptionPrintToScreen(option)) then
-      print *, '  call InvSubsurfAddSensitivity: ', cur_inversion_ts_aux%timestep
+      print *, '  call InvSubsurfAddSensitivity: ', &
+               cur_inversion_ts_aux%timestep
     endif
     call InvSubsurfAdjointAddSensitivity(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%next
@@ -1081,9 +1102,6 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   use Utility_module
   use Variables_module
 
-  use PM_Base_class
-  use PM_ZFlow_class
-
   class(inversion_subsurface_type) :: this
   type(inversion_forward_ts_aux_type), pointer :: inversion_forward_ts_aux
 
@@ -1093,7 +1111,6 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(solver_type), pointer :: solver
-  type(zflow_auxvar_type), pointer :: zflow_auxvars(:,:)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscReal :: tempreal
@@ -1124,7 +1141,6 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
   patch => this%realization%patch
   grid => patch%grid
   inversion_aux => this%inversion_aux
-  zflow_auxvars => patch%aux%ZFlow%auxvars
   ndof = option%nflowdof
 
   timer => TimerCreate()
@@ -1151,14 +1167,13 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
                        inversion_forward_ts_aux%dResdu,ierr);CHKERRQ(ierr)
   do imeasurement = 1, size(this%measurements)
     if (Initialized(this%measurements(imeasurement)%time) .and. &
-        inversion_forward_ts_aux%time > this%measurements(imeasurement)%time + tol) then
+        inversion_forward_ts_aux%time > &
+          this%measurements(imeasurement)%time + tol) then
       call VecZeroEntries(inversion_forward_ts_aux%lambda(imeasurement), &
                           ierr);CHKERRQ(ierr)
       cycle
     endif
     if (.not.this%measurements(imeasurement)%first_lambda) then
-!      call InversionMeasurementPrint(this%measurements(imeasurement),option)
-!      print *, inversion_forward_ts_aux%time/(3600.*24.*365.)
       this%measurements(imeasurement)%first_lambda = PETSC_TRUE
       call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
       if (option%myrank == 0) then
@@ -1189,7 +1204,8 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
         option%io_buffer = 'The observed state variable is not being modeled.'
         call PrintErrMsg(option)
       endif
-      call VecStrideScatter(onedof_vec,tempint-1,p,INSERT_VALUES,ierr);CHKERRQ(ierr)
+      call VecStrideScatter(onedof_vec,tempint-1,p,INSERT_VALUES, &
+                            ierr);CHKERRQ(ierr)
       if (this%debug_verbosity > 2) then
         if (OptionPrintToScreen(option)) print *, 'p'
         call VecView(p,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRQ(ierr)
@@ -1208,13 +1224,15 @@ subroutine InvSubsurfAdjointCalcLambda(this,inversion_forward_ts_aux)
           do j = 1, ndof
             tempreal = tempreal + &
               ! this is a transpose block matmult: i,j -> j,i
-              inversion_forward_ts_aux%next%dRes_du_k(j,i,local_id)*vec_ptr2(offset+j)
+              inversion_forward_ts_aux%next%dRes_du_k(j,i,local_id) * &
+              vec_ptr2(offset+j)
           enddo
           vec_ptr(offset+i) = tempreal
         enddo
       enddo
       call VecRestoreArrayF90(dReskp1_duk_lambdak,vec_ptr,ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(inversion_forward_ts_aux%next%lambda(imeasurement), &
+      call VecRestoreArrayF90(inversion_forward_ts_aux%next% &
+                                lambda(imeasurement), &
                               vec_ptr2,ierr);CHKERRQ(ierr)
     endif
     call VecWAXPY(rhs,-1.d0,dReskp1_duk_lambdak,p,ierr);CHKERRQ(ierr)
@@ -1269,9 +1287,6 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
   use String_module
   use Timer_class
 
-  use PM_Base_class
-  use PM_ZFlow_class
-
   class(inversion_subsurface_type) :: this
 
   type(grid_type), pointer :: grid
@@ -1318,7 +1333,8 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
                     dResdKLambda,ierr);CHKERRQ(ierr)
 
   if (this%debug_adjoint) then
-    string = 'dResdK_ts'//trim(StringWrite(inversion_forward_ts_aux%timestep))//'.txt'
+    string = 'dResdK_ts' // &
+             trim(StringWrite(inversion_forward_ts_aux%timestep)) // '.txt'
     call PetscViewerASCIIOpen(option%mycomm,string, &
                               viewer,ierr);CHKERRQ(ierr)
     call MatView(inversion_forward_ts_aux%dResdparam,viewer,ierr);CHKERRQ(ierr)
@@ -1332,10 +1348,11 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
 
   do imeasurement = 1, size(this%measurements)
     if (this%debug_adjoint) then
-      string = 'lambda_ts'//trim(StringWrite(inversion_forward_ts_aux%timestep)) // &
-                '_' // &
-                trim(StringWrite(this%measurements(imeasurement)%cell_id)) // &
-                '.txt'
+      string = 'lambda_ts' // &
+               trim(StringWrite(inversion_forward_ts_aux%timestep)) // &
+               '_' // &
+               trim(StringWrite(this%measurements(imeasurement)%cell_id)) // &
+               '.txt'
       call PetscViewerASCIIOpen(option%mycomm,string, &
                                 viewer,ierr);CHKERRQ(ierr)
       call VecView(inversion_forward_ts_aux%lambda(imeasurement),viewer, &
@@ -1502,7 +1519,8 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
                      ierr);CHKERRQ(ierr)
   call VecGetArrayF90(this%dist_measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do i = 1, size(vec_ptr)
-    call MatSetValue(this%inversion_aux%JsensitivityT,this%perturbation%idof_pert-1, &
+    call MatSetValue(this%inversion_aux%JsensitivityT, &
+                     this%perturbation%idof_pert-1, &
                      this%dist_measurement_offset+i-1,vec_ptr(i), &
                      INSERT_VALUES,ierr);CHKERRQ(ierr)
   enddo
@@ -1517,7 +1535,8 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
 
   if (.not.this%qoi_is_full_vector) then
     ! revert back to base value
-    this%parameters(this%perturbation%idof_pert)%value = this%perturbation%base_value
+    this%parameters(this%perturbation%idof_pert)%value = &
+      this%perturbation%base_value
   endif
 
 end subroutine InvSubsurfPerturbationFillRow
@@ -1561,7 +1580,8 @@ subroutine InvSubsurfOutputSensitivity(this,suffix)
   call InvSubsurfOutputSensitivityASCII(this,this%inversion_aux%JsensitivityT, &
                                         filename_prefix)
   if (this%qoi_is_full_vector) then
-    call InvSubsurfOutputSensitivityHDF5(this,this%inversion_aux%JsensitivityT, &
+    call InvSubsurfOutputSensitivityHDF5(this, &
+                                         this%inversion_aux%JsensitivityT, &
                                          filename_prefix)
   endif
 

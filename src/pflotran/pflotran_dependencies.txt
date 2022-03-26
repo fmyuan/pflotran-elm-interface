@@ -349,31 +349,32 @@ inversion_base.o : driver.o input_aux.o option.o option_inversion.o \
                    pflotran_constants.o string.o timer.o
 inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
                   factory_forward.o field.o grid.o init_subsurface.o \
-                  input_aux.o inversion_base.o inversion_subsurface.o \
-                  material.o material_aux.o option.o patch.o \
-                  pflotran_constants.o string.o survey.o timer.o utility.o \
-                  variables.o
+                  input_aux.o inversion_base.o inversion_parameter.o \
+                  inversion_subsurface.o material.o material_aux.o option.o \
+                  patch.o pflotran_constants.o string.o survey.o timer.o \
+                  utility.o variables.o
 inversion_measurement_aux.o : input_aux.o option.o pflotran_constants.o \
                               string.o units.o utility.o
-inversion_parameter.o : input_aux.o option.o pflotran_constants.o string.o \
-                        units.o
-inversion_subsurface.o : connection.o coupler.o debug.o discretization.o \
-                         driver.o factory_forward.o grid.o hdf5.o \
-                         init_subsurface.o input_aux.o inversion_aux.o \
-                         inversion_base.o inversion_measurement_aux.o \
-                         inversion_parameter.o inversion_ts_aux.o material.o \
-                         material_aux.o option.o output_hdf5.o patch.o \
-                         pflotran_constants.o pm_base.o pm_zflow.o \
-                         realization_base.o realization_subsurface.o \
-                         simulation_subsurface.o solver.o string.o timer.o \
-                         units.o utility.o variables.o zflow_aux.o
+inversion_parameter.o : driver.o input_aux.o material_aux.o option.o \
+                        pflotran_constants.o string.o units.o variables.o
+inversion_subsurface.o : characteristic_curves.o connection.o coupler.o \
+                         debug.o discretization.o driver.o factory_forward.o \
+                         grid.o hdf5.o init_subsurface.o input_aux.o \
+                         inversion_aux.o inversion_base.o \
+                         inversion_measurement_aux.o inversion_parameter.o \
+                         inversion_ts_aux.o material.o material_aux.o option.o \
+                         output_hdf5.o patch.o pflotran_constants.o pm_base.o \
+                         pm_zflow.o realization_base.o \
+                         realization_subsurface.o simulation_subsurface.o \
+                         solver.o string.o timer.o units.o utility.o \
+                         variables.o zflow_aux.o
 inversion_tao.o : driver.o factory_forward.o input_aux.o inversion_base.o \
                   inversion_subsurface.o option.o pflotran_constants.o \
                   string.o
 inversion_ts_aux.o : inversion_measurement_aux.o pflotran_constants.o \
                      utility.o
-inversion_zflow.o : discretization.o driver.o factory_forward.o field.o grid.o \
-                    input_aux.o inversion_aux.o inversion_base.o \
+inversion_zflow.o : discretization.o driver.o field.o grid.o input_aux.o \
+                    inversion_aux.o inversion_base.o inversion_parameter.o \
                     inversion_subsurface.o inversion_ts_aux.o material.o \
                     material_aux.o option.o patch.o pflotran_constants.o \
                     realization_base.o string.o timer.o utility.o variables.o
