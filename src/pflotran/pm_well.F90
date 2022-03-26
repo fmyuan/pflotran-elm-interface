@@ -536,7 +536,7 @@ subroutine PMWellSetup(this)
   type(input_type) :: input_dummy
   class(dataset_ascii_type), pointer :: dataset_ascii
   type(point3d_type) :: dummy_h
-  type(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
+  class(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscInt, pointer :: h_ghosted_id_unique(:)
   PetscReal :: diff_x,diff_y,diff_z
