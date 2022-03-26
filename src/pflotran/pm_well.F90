@@ -4361,8 +4361,8 @@ subroutine PMWellBCFlux(pm_well,well,Res)
   type(option_type), pointer :: option
   type(well_grid_type), pointer :: grid
   type(well_reservoir_type), pointer :: reservoir
-  class(characteristic_curves_type), allocatable :: characteristic_curves
-  class(sat_func_base_type), allocatable :: saturation_function
+  class(characteristic_curves_type), pointer :: characteristic_curves
+  class(sat_func_base_type), pointer :: saturation_function
 
   PetscInt :: iup
   PetscReal :: pres_up, pres_dn
@@ -4401,9 +4401,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
       if (pm_well%flow_soln%bh_p) then
         !Dirichlet pressure and saturation at the bottom
 
-        characteristic_curves = pm_well%realization%patch% &
+        characteristic_curves => pm_well%realization%patch% &
                                 characteristic_curves_array(well%ccid(1))%ptr
-        saturation_function = characteristic_curves%saturation_function
+        saturation_function => characteristic_curves%saturation_function
 
         ! Water Residual
 
@@ -4512,9 +4512,9 @@ subroutine PMWellBCFlux(pm_well,well,Res)
 
       if (pm_well%flow_soln%th_p) then
         !Dirichlet pressure and saturation at the top
-        characteristic_curves = pm_well%realization%patch% &
+        characteristic_curves => pm_well%realization%patch% &
                                 characteristic_curves_array(well%ccid(itop))%ptr
-        saturation_function = characteristic_curves%saturation_function
+        saturation_function => characteristic_curves%saturation_function
 
         ! Water Residual
 
@@ -4749,8 +4749,8 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
   type(characteristic_curves_ptr_type), pointer::characteristic_curves_array(:)
   type(option_type) :: option
 
-  class(characteristic_curves_type), allocatable :: characteristic_curves 
-  class(sat_func_base_type), allocatable :: saturation_function
+  class(characteristic_curves_type), pointer :: characteristic_curves 
+  class(sat_func_base_type), pointer :: saturation_function
   type(strata_type), pointer :: strata
   PetscInt :: i,nsegments
   PetscReal :: t,dw,dg,dwmol,dwp,dwt,Psat,visl,visg
@@ -4779,8 +4779,8 @@ subroutine PMWellUpdatePropertiesFlow(this,well,characteristic_curves_array, &
     well%liq%s(i) = 1.d0 - well%gas%s(i)
 
     ! Capillary Pressure
-    characteristic_curves = characteristic_curves_array(well%ccid(i))%ptr
-    saturation_function = characteristic_curves%saturation_function
+    characteristic_curves => characteristic_curves_array(well%ccid(i))%ptr
+    saturation_function => characteristic_curves%saturation_function
     select type(sat_func => saturation_function)
       class is (sat_func_KRP3_type)
         if (.not. option%flow%pct_updated) then
