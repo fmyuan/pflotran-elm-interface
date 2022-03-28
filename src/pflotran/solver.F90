@@ -65,11 +65,13 @@ module Solver_module
 
     ! PETSc nonlinear solver context
     SNES :: snes
-    KSPType :: ksp_type
-    PCType :: pc_type
     KSP ::  ksp
     PC ::  pc
     TS :: ts
+
+    SNESType :: snes_type
+    KSPType :: ksp_type
+    PCType :: pc_type
 
     PetscBool :: inexact_newton
 
@@ -168,11 +170,13 @@ function SolverCreate()
   nullify(solver%interpolation)
   solver%matfdcoloring = PETSC_NULL_MATFDCOLORING
   solver%snes = PETSC_NULL_SNES
-  solver%ksp_type = KSPBCGS
-  solver%pc_type = ""
   solver%ksp = PETSC_NULL_KSP
   solver%pc = PETSC_NULL_PC
   solver%ts = PETSC_NULL_TS
+
+  solver%snes_type = SNESNEWTONLS
+  solver%ksp_type = KSPBCGS
+  solver%pc_type = ""
 
   solver%inexact_newton = PETSC_FALSE
 
@@ -413,27 +417,45 @@ end subroutine SolverSetupPCShiftAndPivoting
 
 ! ************************************************************************** !
 
-subroutine SolverCreateSNES(solver,comm)
+subroutine SolverCreateSNES(solver,comm,options_prefix,option)
   !
   ! Create PETSc SNES object
   !
   ! Author: Glenn Hammond
   ! Date: 02/12/08
   !
+  use Option_module
 
   implicit none
 
   type(solver_type) :: solver
-
   PetscMPIInt :: comm
+  character(len=*) :: options_prefix
+  type(option_type) :: option
+
   PetscErrorCode :: ierr
 
   call SNESCreate(comm,solver%snes,ierr);CHKERRQ(ierr)
+  call SNESSetType(solver%snes,solver%snes_type,ierr);CHKERRQ(ierr)
+  call SNESSetOptionsPrefix(solver%snes,options_prefix,ierr);CHKERRQ(ierr)
   call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
+  call SNESGetType(solver%snes,solver%snes_type,ierr);CHKERRQ(ierr)
+
+  select case(solver%snes_type)
+    case(SNESNEWTONLS,SNESNEWTONTR)
+#if (PETSC_VERSION_GE(3,17,0) || !PETSC_VERSION_RELEASE)
+    case(SNESNEWTONTRDC)
+#endif
+    case default
+      option%io_buffer = 'Unsupported SNES type: ' // trim(solver%snes_type)
+      call PrintErrMsg(option)
+  end select
 
   ! grab handles for ksp and pc
   call SNESGetKSP(solver%snes,solver%ksp,ierr);CHKERRQ(ierr)
   call KSPGetPC(solver%ksp,solver%pc,ierr);CHKERRQ(ierr)
+
+  call SolverCheckCommandLine(solver)
 
 end subroutine SolverCreateSNES
 
@@ -454,12 +476,7 @@ subroutine SolverSetSNESOptions(solver, option)
   type(option_type) :: option
 
   SNESLineSearch :: linesearch
-  KSP, pointer :: sub_ksps(:)
-  PC :: pc
-  PetscInt :: nsub_ksp
-  PetscInt :: first_sub_ksp
   PetscErrorCode :: ierr
-  PetscInt :: i
 
   ! if ksp_type or pc_type specified in input file, set them here
   call SolverSetupCustomKSP(solver,option)
@@ -486,16 +503,19 @@ subroutine SolverSetSNESOptions(solver, option)
   call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
 
   ! get the ksp_type and pc_type incase of command line override.
+  call SNESGetType(solver%snes,solver%snes_type,ierr);CHKERRQ(ierr)
   call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
   call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
 
   call SolverSetupPCShiftAndPivoting(solver,option)
 
-  call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-  call SNESLineSearchSetTolerances(linesearch, solver%newton_stol,       &
-          PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL, &
-          PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL, &
-          PETSC_DEFAULT_INTEGER, ierr);CHKERRQ(ierr)
+  if (solver%snes_type == SNESNEWTONLS) then
+    call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
+    call SNESLineSearchSetTolerances(linesearch, solver%newton_stol,       &
+            PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL, &
+            PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL, &
+            PETSC_DEFAULT_INTEGER, ierr);CHKERRQ(ierr)
+  endif
 
   call SNESGetTolerances(solver%snes,solver%newton_atol,solver%newton_rtol, &
                          solver%newton_stol,solver%newton_max_iterations, &
@@ -1005,7 +1025,7 @@ subroutine SolverReadNewton(solver,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word, word2
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: found
 
@@ -1059,11 +1079,28 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: word, word2
+  character(len=MAXWORDLENGTH) :: word
   PetscBool :: boolean
 
   found = PETSC_TRUE
   select case(trim(keyword))
+
+    case('SNES_TYPE')
+      call InputReadCard(input,option,word)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call StringToUpper(word)
+      select case(trim(word))
+        case('LINE_SEARCH')
+          solver%snes_type = SNESNEWTONLS
+        case('TRUST_REGION')
+          solver%snes_type = SNESNEWTONTR
+#if (PETSC_VERSION_GE(3,17,0) || !PETSC_VERSION_RELEASE)
+        case('TRUST_REGION_DOGLEG_CAUCHY')
+          solver%snes_type = SNESNEWTONTRDC
+#endif
+        case default
+          call InputKeywordUnrecognized(input,keyword,error_string,option)
+      end select
 
     case ('INEXACT_NEWTON')
       solver%inexact_newton = PETSC_TRUE
