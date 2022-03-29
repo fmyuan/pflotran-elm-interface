@@ -1,3 +1,4 @@
+
 module PM_NWT_class
 
 #include "petsc/finclude/petscsnes.h"
@@ -1750,15 +1751,80 @@ subroutine PMNWTCheckpointBinary(this,viewer)
   ! Date: 05/27/2019
   ! 
 
-  implicit none
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Variables_module, only : NWT_AUXILIARY
   
+  implicit none
+
+  interface PetscBagGetData
+    subroutine PetscBagGetData(bag,header,ierr)
+      import :: pm_base_header_type
+      implicit none
+      PetscBag :: bag
+      class(pm_base_header_type), pointer :: header
+      PetscErrorCode :: ierr
+    end subroutine
+  end interface PetscBagGetData
+ 
   class(pm_nwt_type) :: this
   PetscViewer :: viewer
+  PetscErrorCode :: ierr
+  
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
+  Vec :: global_vec
+  PetscInt :: i
+  
+  class(pm_base_header_type), pointer :: header
+  type(pm_base_header_type) :: dummy_header
+  character(len=1),pointer :: dummy_char(:)
+  PetscBag :: bag
+  PetscSizeT :: bagsize
+  
+  realization => this%realization
+  option => realization%option
+  field => realization%field
+  discretization => realization%discretization
+  
+  global_vec = PETSC_NULL_VEC
 
-  !TODO(jenn)
-  print *, 'PMNWTCheckpointBinary not yet implemented.'
-  stop
+  bagsize = size(transfer(dummy_header,dummy_char))
 
+  call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
+  call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%ndof,0, &
+                           "ndof","",ierr);CHKERRQ(ierr) 
+  header%ndof = option%ntrandof
+  call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
+  call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
+  
+  if (option%ntrandof > 0) then
+    call VecView(field%tran_xx, viewer, ierr);CHKERRQ(ierr)
+
+    if (global_vec == PETSC_NULL_VEC) then
+      call DiscretizationCreateVector(discretization,ONEDOF, &
+                                      global_vec,GLOBAL,option)
+    endif
+    ! auxiliary data for reactions (e.g. cumulative mass)
+    if (realization%reaction_nw%params%nauxiliary > 0) then
+      do i = 1, realization%reaction_nw%params%nauxiliary
+        call RealizationGetVariable(realization,global_vec, &
+                                    NWT_AUXILIARY,i)
+        call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
+      enddo
+    endif
+  endif
+
+  if (global_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  endif
+ 
 end subroutine PMNWTCheckpointBinary
 
 ! ************************************************************************** !
@@ -1770,16 +1836,96 @@ subroutine PMNWTCheckpointHDF5(this,pm_grp_id)
   ! 
 
   use hdf5
-  
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Variables_module, only : NWT_AUXILIARY
+  use Checkpoint_module, only: CheckPointWriteIntDatasetHDF5
+  use HDF5_module, only : HDF5WriteDataSetFromVec
+
   implicit none
   
   class(pm_nwt_type) :: this
   integer(HID_T) :: pm_grp_id
 
-  !TODO(jenn)
-  print *, 'PMNWTCheckpointHDF5 not yet implemented.'
-  stop
+  integer(HSIZE_T), pointer :: dims(:)
+  integer(HSIZE_T), pointer :: start(:)
+  integer(HSIZE_T), pointer :: stride(:)
+  integer(HSIZE_T), pointer :: length(:)
 
+  PetscMPIInt :: dataset_rank
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
+
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
+  Vec :: global_vec
+  Vec :: natural_vec
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  realization => this%realization
+  option => realization%option
+  field => realization%field
+  discretization => realization%discretization
+
+  allocate(start(1))
+  allocate(dims(1))
+  allocate(length(1))
+  allocate(stride(1))
+  allocate(int_array(1))
+
+  dataset_rank = 1
+  dims(1) = ONE_INTEGER
+  start(1) = 0
+  length(1) = ONE_INTEGER
+  stride(1) = ONE_INTEGER
+
+  dataset_name = "NDOF" // CHAR(0)
+  int_array(1) = option%ntrandof
+  call CheckPointWriteIntDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, &
+                                     int_array, option)
+  
+  if (option%ntrandof > 0) then
+    call DiscretizationCreateVector(discretization, NTRANDOF, &
+                                    natural_vec, NATURAL, option)
+    call DiscretizationGlobalToNatural(discretization, &
+                                       field%tran_xx, &
+                                       natural_vec, NTRANDOF)
+    dataset_name = "Primary_Variable" // CHAR(0)
+    call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+                                 pm_grp_id, H5T_NATIVE_DOUBLE)
+    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+
+    ! auxiliary data for reactions (e.g. cumulative mass)
+    if (realization%reaction_nw%params%nauxiliary> 0) then
+      call DiscretizationCreateVector(discretization, ONEDOF, &
+                                      global_vec, GLOBAL, option)
+      call DiscretizationCreateVector(discretization, ONEDOF, &
+                                      natural_vec, NATURAL, option)
+      do i = 1, realization%reaction_nw%params%nauxiliary
+        call RealizationGetVariable(realization,global_vec, &
+                                    NWT_AUXILIARY,i)
+        call DiscretizationGlobalToNatural(discretization, &
+                                           global_vec, natural_vec, ONEDOF)
+        write(dataset_name,*) i
+        dataset_name = 'NWT_auxiliary_' // trim(adjustl(dataset_name))
+        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+                                     pm_grp_id, H5T_NATIVE_DOUBLE)
+      enddo
+      call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+    endif
+  endif
+
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+ 
 end subroutine PMNWTCheckpointHDF5
 
 ! ************************************************************************** !
@@ -1790,15 +1936,87 @@ subroutine PMNWTRestartBinary(this,viewer)
   ! Date: 05/27/2019
   ! 
 
-  implicit none
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  use Patch_module
+  use Variables_module, only : NWT_AUXILIARY
   
+  implicit none
+
+  interface PetscBagGetData
+    subroutine PetscBagGetData(bag,header,ierr)
+      import :: pm_base_header_type
+      implicit none
+      PetscBag :: bag
+      class(pm_base_header_type), pointer :: header
+      PetscErrorCode :: ierr
+    end subroutine
+  end interface PetscBagGetData
+ 
   class(pm_nwt_type) :: this
   PetscViewer :: viewer
+  PetscErrorCode :: ierr
+  
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
+  Vec :: global_vec
+  PetscInt :: i
 
-  !TODO(jenn)
-  print *, 'PMNWTRestartBinary not yet implemented.'
-  stop
+  class(pm_base_header_type), pointer :: header
+  type(pm_base_header_type) :: dummy_header
+  character(len=1),pointer :: dummy_char(:)
+  PetscBag :: bag
+  PetscSizeT :: bagsize
+  
+  realization => this%realization
+  option => realization%option
+  field => realization%field
+  discretization => realization%discretization
+  
+  global_vec = PETSC_NULL_VEC
 
+  bagsize = size(transfer(dummy_header,dummy_char))
+
+  call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
+  call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%ndof,0, &
+                           "ndof","",ierr);CHKERRQ(ierr) 
+  call PetscBagLoad(viewer,bag,ierr);CHKERRQ(ierr)
+  option%ntrandof = header%ndof
+  
+  call VecLoad(field%tran_xx, viewer, ierr);CHKERRQ(ierr)
+  call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
+                                   field%tran_xx_loc,NTRANDOF)
+  call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
+
+  if (global_vec == PETSC_NULL_VEC) then
+    call DiscretizationCreateVector(discretization,ONEDOF, &
+                                    global_vec,GLOBAL,option)
+  endif
+          
+  ! auxiliary data for reactions (e.g. cumulative mass)
+  if (realization%reaction_nw%params%nauxiliary> 0) then
+    do i = 1, realization%reaction_nw%params%nauxiliary
+      call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
+      call RealizationSetVariable(realization,global_vec, &
+                                    GLOBAL,NWT_AUXILIARY,i)
+    enddo
+  endif
+
+  if (global_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  endif
+ 
+  call PetscBagDestroy(bag,ierr);CHKERRQ(ierr) 
+  call NWTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE)
+  call PMNWTUpdateSolution(this)
+  
 end subroutine PMNWTRestartBinary
 
 ! ************************************************************************** !
@@ -1810,15 +2028,111 @@ subroutine PMNWTRestartHDF5(this,pm_grp_id)
   ! 
   
   use hdf5
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Variables_module, only : NWT_AUXILIARY
+  use Checkpoint_module, only: CheckPointReadIntDatasetHDF5
+  use HDF5_module, only : HDF5ReadDataSetInVec
 
   implicit none
   
   class(pm_nwt_type) :: this
   integer(HID_T) :: pm_grp_id
 
-  !TODO(jenn)
-  print *, 'PMNWTRestartHDF5 not yet implemented.'
-  stop
+  integer(HSIZE_T), pointer :: dims(:)
+  integer(HSIZE_T), pointer :: start(:)
+  integer(HSIZE_T), pointer :: stride(:)
+  integer(HSIZE_T), pointer :: length(:)
+
+  PetscMPIInt :: dataset_rank
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
+  ! when PETSc is configured with --with-64-bit-indices=yes.
+  integer, pointer :: int_array(:)
+
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
+  Vec :: global_vec
+  Vec :: natural_vec
+  Vec :: local_vec
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  realization => this%realization
+  option => realization%option
+  field => realization%field
+  discretization => realization%discretization
+
+  allocate(start(1))
+  allocate(dims(1))
+  allocate(length(1))
+  allocate(stride(1))
+  allocate(int_array(1))
+
+  dataset_rank = 1
+  dims(1) = ONE_INTEGER
+  start(1) = 0
+  length(1) = ONE_INTEGER
+  stride(1) = ONE_INTEGER
+
+  dataset_name = "NDOF" // CHAR(0)
+  int_array(1) = option%ntrandof
+  call CheckPointReadIntDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
+                                    dims, start, length, stride, &
+                                    int_array, option)
+  option%ntrandof = int_array(1)
+
+  if (option%ntrandof > 0) then
+    call DiscretizationCreateVector(discretization, NTRANDOF, &
+                                    natural_vec, NATURAL, option)
+    dataset_name = "Primary_Variable" // CHAR(0)
+    call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+                              pm_grp_id, H5T_NATIVE_DOUBLE)
+    call DiscretizationNaturalToGlobal(discretization, &
+                                       natural_vec, &
+                                       field%tran_xx,NTRANDOF)
+    call DiscretizationGlobalToNatural(discretization, &
+                                       field%tran_xx, &
+                                       field%tran_xx_loc, NTRANDOF)
+    call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+
+    call DiscretizationCreateVector(discretization, ONEDOF, &
+                                    global_vec, GLOBAL, option)
+    call DiscretizationCreateVector(discretization, ONEDOF, &
+                                    natural_vec, NATURAL, option)
+    call DiscretizationCreateVector(discretization, ONEDOF, &
+                                    local_vec, LOCAL, option)
+    ! auxiliary data for reactions (e.g. cumulative mass)
+    if (realization%reaction_nw%params%nauxiliary> 0) then
+       do i = 1, realization%reaction_nw%params%nauxiliary
+         write(dataset_name,*) i
+         dataset_name = 'NWT_auxiliary_' // trim(adjustl(dataset_name))
+         call HDF5ReadDataSetInVec(dataset_name,option,natural_vec, &
+                                   pm_grp_id,H5T_NATIVE_DOUBLE)
+         call DiscretizationNaturaltoGlobal(discretization,natural_vec, &
+                                            global_vec,ONEDOF)
+         call DiscretizationGlobaltoLocal(discretization,global_vec, &
+                                          local_vec, ONEDOF)
+         call RealizationSetVariable(realization,local_vec, &
+                                     LOCAL,NWT_AUXILIARY,i)
+      enddo
+    endif
+  endif
+
+  call NWTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE)
+  call PMNWTUpdateSolution(this)
+
+  deallocate(start)
+  deallocate(dims)
+  deallocate(length)
+  deallocate(stride)
+  deallocate(int_array)
 
 end subroutine PMNWTRestartHDF5
 
