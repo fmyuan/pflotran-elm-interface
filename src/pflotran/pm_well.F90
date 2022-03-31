@@ -572,6 +572,11 @@ subroutine PMWellSetup(this)
   grid => this%grid
   nsegments = this%grid%nsegments
 
+  option%io_buffer = ' '
+  call PrintMsg(option)
+  option%io_buffer = 'WELLBORE_MODEL: Creating well grid discretization.... '
+  call PrintMsg(option)
+
   allocate(grid%dh(nsegments))
   allocate(grid%h(nsegments))
   allocate(grid%h_local_id(nsegments))
@@ -696,8 +701,6 @@ subroutine PMWellSetup(this)
   ! Count how many of the h_global_id's are unique.
   ! This sum must be = to the number of reservoir cells that the 
   !   well passes through.
-  option%io_buffer = ' '
-  call PrintMsg(option)
   option%io_buffer = 'WELLBORE_MODEL: Checking well grid resolution.... '
   call PrintMsg(option)
   k = 0
@@ -796,12 +799,11 @@ subroutine PMWellSetup(this)
       &WELLBORE_MODEL,WELL_GRID,XY_SEARCH_MULTIPLIER (default value = 10).'
     call PrintErrMsg(option)
   else
-    option%io_buffer = '\nWELLBORE_MODEL --------->  &
-      &WELLBORE_MODEL grid resolution is adequate. No reservoir grid cell &
+    option%io_buffer = 'WELLBORE_MODEL:  &
+      &Well grid resolution is adequate. No reservoir grid cell &
       &connections have been skipped.'
     call PrintMsg(option)
   endif
-  stop
 
   allocate(this%well%ccid(nsegments))
   allocate(this%well%permeability(nsegments))
