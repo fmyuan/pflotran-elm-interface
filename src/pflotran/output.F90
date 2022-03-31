@@ -391,58 +391,71 @@ subroutine OutputFileRead(input,realization,output_option, &
       case('FORMAT')
         string = 'OUTPUT,' // trim(block_name) // ',FORMAT'
         select case(trim(block_name))
-          case('OBSERVATION_FILE')
-            option%io_buffer = 'FORMAT cannot be specified within &
-                 &the OUTPUT,OBSERVATION_FILE block. Observation output is &
-                 &written in TECPLOT format only.'
-            call PrintErrMsg(option)
+        ! case('OBSERVATION_FILE')
+        !   option%io_buffer = 'FORMAT cannot be specified within &
+        !        &the OUTPUT,OBSERVATION_FILE block. Observation output is &
+        !        &written in TECPLOT format only.'
+        !   call PrintErrMsg(option)
           case('MASS_BALANCE_FILE')
             option%io_buffer = 'FORMAT cannot be specified within &
                  &the OUTPUT,MASS_BALANCE_FILE block. Mass balance output is &
                  &written in TECPLOT format only.'
             call PrintErrMsg(option)
         end select
+
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',string)
         call StringToUpper(word)
+
         select case(trim(word))
         !..............
           case ('HDF5')
-            string = trim(string) // ',HDF5'
-            output_option%print_hdf5 = PETSC_TRUE
-            call InputReadCard(input,option,word)
-            if (input%ierr /= 0) then
-              call InputDefaultMsg(input,option,string)
-              output_option%print_single_h5_file = PETSC_TRUE
-            else
-              call StringToUpper(word)
-              select case(trim(word))
-              !....................
-                case('SINGLE_FILE')
+
+            select case(trim(block_name))
+              case('OBSERVATION_FILE')
+                string = trim(string) // ',HDF5'
+                output_option%print_obs_hdf5 = PETSC_TRUE
+            
+              case default  ! SNAPSHOT 
+                string = trim(string) // ',HDF5'
+                output_option%print_hdf5 = PETSC_TRUE
+                call InputReadCard(input,option,word)
+                if (input%ierr /= 0) then
+                  call InputDefaultMsg(input,option,string)
                   output_option%print_single_h5_file = PETSC_TRUE
-              !.......................
-                case('MULTIPLE_FILES')
-                  string = trim(string) // ',MULTIPLE_FILES'
-                  output_option%print_single_h5_file = PETSC_FALSE
-                  output_option%times_per_h5_file = 1
-                  call InputReadCard(input,option,word)
-                  if (input%ierr == 0) then
-                    select case(trim(word))
-                      case('TIMES_PER_FILE')
-                        string = trim(string) // ',TIMES_PER_FILE'
-                        call InputReadInt(input,option, &
-                             output_option%times_per_h5_file)
-                        call InputErrorMsg(input,option,'timestep increment', &
-                                           string)
-                      case default
-                        call InputKeywordUnrecognized(input,word,string,option)
-                    end select
-                  endif
-              !.............
-                case default
-                  call InputKeywordUnrecognized(input,word,string,option)
-              end select
-            endif
+                else
+                  call StringToUpper(word)
+                  select case(trim(word))
+                  !....................
+                    case('SINGLE_FILE')
+                      output_option%print_single_h5_file = PETSC_TRUE
+                  !.......................
+                    case('MULTIPLE_FILES')
+                      string = trim(string) // ',MULTIPLE_FILES'
+                      output_option%print_single_h5_file = PETSC_FALSE
+                      output_option%times_per_h5_file = 1
+                      call InputReadCard(input,option,word)
+                      if (input%ierr == 0) then
+                        select case(trim(word))
+                          case('TIMES_PER_FILE')
+                            string = trim(string) // ',TIMES_PER_FILE'
+                            call InputReadInt(input,option, &
+                                 output_option%times_per_h5_file)
+                            call InputErrorMsg(input,option, &
+                                               'timestep increment', &
+                                               string)
+                          case default
+                            call InputKeywordUnrecognized(input,word, &
+                                                          string,option)
+                        end select
+                      endif
+                  !.............
+                    case default
+                      call InputKeywordUnrecognized(input,word,string,option)
+                  end select
+                endif
+
+            end select  ! Observation or snapshot file
         !.................
           case ('TECPLOT')
             string = trim(string) // ',TECPLOT'

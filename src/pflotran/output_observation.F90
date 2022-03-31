@@ -64,6 +64,7 @@ subroutine OutputObservationInit(num_steps)
     observation_aggregate_first = PETSC_FALSE
   endif
 
+
   call OutputHDF5ObservationInit(num_steps)
 
 end subroutine OutputObservationInit
@@ -90,7 +91,10 @@ subroutine OutputObservation(realization_base)
     call OutputObservationTecplotColumnTXT(realization_base)
     call OutputAggregateToFile(realization_base)
     call OutputIntegralFlux(realization_base)
-    call OutputHDF5Observation(realization_base)
+
+    if (realization_base%output_option%print_obs_hdf5)   &
+      call OutputHDF5Observation(realization_base)
+
     if (realization_base%option%use_mc) then
       call OutputObservationTecplotSecTXT(realization_base)
     endif
