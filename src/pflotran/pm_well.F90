@@ -949,13 +949,13 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
 
-  error_string = trim(error_string) // ',GRID'
+  error_string = trim(error_string) // ',WELL_GRID'
   found = PETSC_TRUE
   num_errors = 0
 
   select case(trim(keyword))
   !-------------------------------------
-    case('GRID')
+    case('WELL_GRID')
       call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
@@ -1038,7 +1038,8 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
-                       &the WELLBORE_MODEL,GRID block. See above error messages.'
+                       &the WELLBORE_MODEL,WELL_GRID block. See above &
+                       &error messages.'
     call PrintErrMsg(option)
   endif
 
@@ -1727,10 +1728,10 @@ subroutine PMWellReadPass2(input,option)
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
-
+  
     select case(trim(keyword))
       !--------------------
-      case('GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
+      case('WELL_GRID','WELL','WELL_MODEL_TYPE','WELL_FLOW_SOLVER', &
            'WELL_TRANSPORT_SOLVER')
         call InputSkipToEND(input,option,card)
       !--------------------
@@ -1740,10 +1741,9 @@ subroutine PMWellReadPass2(input,option)
         call InputSkipToEND(input,option,card)
       !--------------------
     end select
-
   enddo
   call InputPopBlock(input,option)
-  call InputSkipToEND(input,option,card)
+  !call InputSkipToEND(input,option,card)
 
 end subroutine PMWellReadPass2
 
