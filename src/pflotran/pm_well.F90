@@ -34,6 +34,9 @@ module PM_Well_class
     ! the ghosted id of the reservoir grid cell within which each segment 
     ! center resides 
     PetscInt, pointer :: h_ghosted_id(:)
+    ! the global id of the reservoir grid cell within which each segment 
+    ! center resides 
+    PetscInt, pointer :: h_global_id(:)
     ! the strata id number associated with each well segment
     PetscInt, pointer :: strata_id(:)
     ! coordinate of the top/bottom of the well [m]
@@ -305,6 +308,8 @@ function PMWellCreate()
   nullify(PMWellCreate%grid%h)
   nullify(PMWellCreate%grid%h_local_id)
   nullify(PMWellCreate%grid%h_ghosted_id)
+  nullify(PMWellCreate%grid%h_global_id)
+
   nullify(PMWellCreate%grid%strata_id)
   PMWellCreate%grid%tophole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%bottomhole(:) = UNINITIALIZED_DOUBLE
@@ -532,13 +537,14 @@ subroutine PMWellSetup(this)
   
   type(option_type), pointer :: option
   type(grid_type), pointer :: res_grid
+  type(well_grid_type), pointer :: grid
   type(coupler_type), pointer :: source_sink
   type(input_type) :: input_dummy
   class(dataset_ascii_type), pointer :: dataset_ascii
   type(point3d_type) :: dummy_h
   class(tran_constraint_coupler_nwt_type), pointer :: tran_constraint_coupler_nwt
   character(len=MAXSTRINGLENGTH) :: string, string2
-  PetscInt, pointer :: h_ghosted_id_unique(:)
+  PetscInt, pointer :: h_global_id_unique(:)
   PetscReal :: diff_x,diff_y,diff_z
   PetscReal :: dh_x,dh_y,dh_z
   PetscReal :: total_length
@@ -546,32 +552,37 @@ subroutine PMWellSetup(this)
   PetscReal :: bottom_of_reservoir, bottom_of_hole
   PetscReal :: temp_real
   PetscInt :: local_id, ghosted_id
-  PetscInt :: ghosted_id_well, ghosted_id_res
+  PetscInt :: local_id_well, local_id_res
   PetscInt :: nsegments
   PetscInt :: max_val, min_val
-  PetscInt :: k, count1, count2
+  PetscInt :: k 
+  PetscInt :: count1_local, count2_local
+  PetscInt :: count1_global, count2_global
   PetscBool :: well_grid_res_is_OK = PETSC_FALSE
   PetscBool :: res_grid_cell_within_well_z
+  PetscErrorCode :: ierr
 
   option => this%option
   res_grid => this%realization%patch%grid
+  grid => this%grid
   nsegments = this%grid%nsegments
   write(string2,'(I0.5)') nsegments
 
-  allocate(this%grid%dh(nsegments))
-  allocate(this%grid%h(nsegments))
-  allocate(this%grid%h_local_id(nsegments))
-  allocate(this%grid%h_ghosted_id(nsegments))
-  allocate(this%grid%strata_id(nsegments))
+  allocate(grid%dh(nsegments))
+  allocate(grid%h(nsegments))
+  allocate(grid%h_local_id(nsegments))
+  allocate(grid%h_ghosted_id(nsegments))
+  allocate(grid%h_global_id(nsegments))
+  allocate(grid%strata_id(nsegments))
 
-  this%grid%strata_id(:) = UNINITIALIZED_INTEGER
+  grid%strata_id(:) = UNINITIALIZED_INTEGER
 
-  this%grid%nconnections = this%grid%nsegments - 1
+  grid%nconnections = grid%nsegments - 1
 
   top_of_reservoir = res_grid%z_max_global
-  top_of_hole = this%grid%tophole(3)
+  top_of_hole = grid%tophole(3)
   bottom_of_reservoir = res_grid%z_min_global
-  bottom_of_hole = this%grid%bottomhole(3)
+  bottom_of_hole = grid%bottomhole(3)
   if (top_of_reservoir < top_of_hole) then
     option%io_buffer = 'The WELLBORE_MODEL TOP_OF_HOLE coordinates extend &
                        &beyond the top of the reservoir domain. &
@@ -599,9 +610,9 @@ subroutine PMWellSetup(this)
     call PrintErrMsg(option)
   endif
 
-  diff_x = this%grid%tophole(1)-this%grid%bottomhole(1)
-  diff_y = this%grid%tophole(2)-this%grid%bottomhole(2)
-  diff_z = this%grid%tophole(3)-this%grid%bottomhole(3)
+  diff_x = grid%tophole(1)-grid%bottomhole(1)
+  diff_y = grid%tophole(2)-grid%bottomhole(2)
+  diff_z = grid%tophole(3)-grid%bottomhole(3)
 
   if ((diff_y >= 1.d-10) .or. (diff_x >= 1.d-10)) then
     option%io_buffer = 'WELLBORE_MODEL does not support a tilted &
@@ -622,88 +633,97 @@ subroutine PMWellSetup(this)
 
   total_length = sqrt(diff_x+diff_y+diff_z)
 
-  do k = 1,this%grid%nsegments
-    this%grid%h(k)%id = k
-    this%grid%h(k)%x = this%grid%bottomhole(1)+(dh_x*(k-0.5))
-    this%grid%h(k)%y = this%grid%bottomhole(2)+(dh_y*(k-0.5))
-    this%grid%h(k)%z = this%grid%bottomhole(3)+(dh_z*(k-0.5))
+  do k = 1,grid%nsegments
+    grid%h(k)%id = k
+    grid%h(k)%x = grid%bottomhole(1)+(dh_x*(k-0.5))
+    grid%h(k)%y = grid%bottomhole(2)+(dh_y*(k-0.5))
+    grid%h(k)%z = grid%bottomhole(3)+(dh_z*(k-0.5))
   enddo
 
-  this%grid%dh(:) = total_length/nsegments
+  grid%dh(:) = total_length/nsegments
 
   ! Get the local_id for each well segment center from the reservoir grid
-  this%grid%h_local_id(:) = -1  
-  do k = 1,this%grid%nsegments
-    call GridGetLocalIDFromCoordinate(res_grid,this%grid%h(k), &
+  grid%h_local_id(:) = -1  
+  do k = 1,grid%nsegments
+    call GridGetLocalIDFromCoordinate(res_grid,grid%h(k), &
                                       option,local_id)
-    this%grid%h_local_id(k) = local_id
-    this%grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+    grid%h_local_id(k) = local_id
+    grid%h_ghosted_id(k) = res_grid%nL2G(local_id)
+    grid%h_global_id(k) = res_grid%nG2A(grid%h_ghosted_id(k))
   enddo
 
   ! Check that no reservoir grid cells were skipped.
-  ! I fear this will fail in parallel!!!
-  ! Count how many of the h_ghosted_id's are unique.
+  ! Count how many of the h_global_id's are unique.
   ! This sum must be = to the number of reservoir cells that the 
   !   well passes through.
   k = 0
-  allocate(h_ghosted_id_unique(nsegments))
-  h_ghosted_id_unique(:) = -999
-  min_val = minval(this%grid%h_ghosted_id)-1
-  max_val = maxval(this%grid%h_ghosted_id)
+  allocate(h_global_id_unique(nsegments))
+  h_global_id_unique(:) = -999
+  min_val = minval(grid%h_global_id)-1
+  max_val = maxval(grid%h_global_id)
   do while (min_val < max_val)
     k = k + 1
-    min_val = minval(this%grid%h_ghosted_id, &
-                     mask=this%grid%h_ghosted_id > min_val)
-    h_ghosted_id_unique(k) = min_val
+    min_val = minval(grid%h_global_id, &
+                     mask=grid%h_global_id > min_val)
+    h_global_id_unique(k) = min_val
   enddo
-  count1 = 0
+  count1_local = 0
+  count1_global = 0
   do k = 1,nsegments
-    if (h_ghosted_id_unique(k) > -999) then
-      count1 = count1 + 1
+    if (h_global_id_unique(k) > -999) then
+      count1_local = count1_local + 1
     endif
   enddo
-  ! count1 is the number of unique reservoir grid cells that the well has
-  ! a connection to 
+  ! count1_local is the number of unique reservoir grid cells that the well has
+  ! a connection to per MPI process. Next, all of the MPI processes need to
+  ! sum up their counts and place the total in count1_global.
+  call MPI_Allreduce(count1_local,count1_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
 
   ! Next, sum up how many grid cells the well passes thru.
   ! Note: This count assumes that the well is vertical and the top and
   !       bottom surfaces do not slope or undulate. 
-  count2 = 0
+  count2_local = 0
+  count2_global = 0
   do k = 1,size(res_grid%z)
     res_grid_cell_within_well_z = PETSC_FALSE
-    if ( (res_grid%z(k) >= this%grid%bottomhole(3)) .and. &
-         (res_grid%z(k) <= this%grid%tophole(3)) ) then
+    if ( (res_grid%z(k) >= grid%bottomhole(3)) .and. &
+         (res_grid%z(k) <= grid%tophole(3)) ) then
       res_grid_cell_within_well_z = PETSC_TRUE
     endif
     if (res_grid_cell_within_well_z) then
-      ! What should the ghosted_id of the reservoir cell at this z-level
+      ! What should the local_id of the reservoir cell at this z-level
       ! along the well be?
       dummy_h%z = res_grid%z(k)
-      dummy_h%y = this%grid%tophole(2)
-      dummy_h%x = this%grid%tophole(1)
+      dummy_h%y = grid%tophole(2)
+      dummy_h%x = grid%tophole(1)
       call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
-      ghosted_id_well = res_grid%nL2G(local_id)
+      local_id_well = local_id
       ! What is the ghosted_id of the actual reservoir cell at this z-level?
       dummy_h%z = res_grid%z(k)
       dummy_h%y = res_grid%y(k)
       dummy_h%x = res_grid%x(k)
       call GridGetLocalIDFromCoordinate(res_grid,dummy_h,option,local_id)
-      ghosted_id_res = res_grid%nL2G(local_id)
+      local_id_res = local_id
       ! Does the well occupy this grid cell? If a reservoir cell was skipped
       ! by the well, then the count will never be incremented, and count2
       ! will not equal count1. count2 will be larger than count1.
-      if (ghosted_id_res == ghosted_id_well) then
-        count2 = count2 + 1
+      if (local_id_res == local_id_well) then
+        count2_local = count2_local + 1
       endif
     endif
   enddo
-  write(string,'(I0.5)') count2 
+  ! All of the MPI processes need to sum up their counts and place the 
+  ! total in count2_global.
+  call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI, &
+                    MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+  write(string,'(I0.5)') count2_global 
 
   ! The only way we can ensure that the well discretization did not skip a
-  ! reservoir cell, is if the number of unique ghosted_id's that the well
+  ! reservoir cell, is if the number of unique global_id's that the well
   ! is connected to (count1) matches the number of reservoir grid cells that
   ! the well occupies (count2):
-  if (count1 == count2) well_grid_res_is_OK = PETSC_TRUE
+  if (count1_global == count2_global) well_grid_res_is_OK = PETSC_TRUE
 
   if (.not.well_grid_res_is_OK) then
     option%io_buffer = 'WELLBORE_MODEL --------->  &
@@ -758,7 +778,7 @@ subroutine PMWellSetup(this)
   this%well%area = 3.14159*(this%well%diameter/2.d0)*(this%well%diameter/2.d0)
 
   allocate(this%well%volume(nsegments))
-  this%well%volume = this%well%area*this%grid%dh
+  this%well%volume = this%well%area*grid%dh
 
   allocate(this%well%liq%visc(nsegments))
   allocate(this%well%gas%visc(nsegments))
@@ -772,7 +792,7 @@ subroutine PMWellSetup(this)
   endif
 
   ! add a reservoir src/sink coupler for each well segment
-  do k = 1,this%grid%nsegments
+  do k = 1,grid%nsegments
     write(string,'(I0.4)') k
     source_sink => CouplerCreate(SRC_SINK_COUPLER_TYPE)
     source_sink%name = 'well_segment_' // trim(string)
@@ -808,7 +828,7 @@ subroutine PMWellSetup(this)
     endif
 
     source_sink%connection_set => ConnectionCreate(1,SRC_SINK_CONNECTION_TYPE)
-    source_sink%connection_set%id_dn = this%grid%h_local_id(k)
+    source_sink%connection_set%id_dn = grid%h_local_id(k)
 
     call CouplerAddToList(source_sink,this%realization%patch%source_sink_list)
     nullify(source_sink)
