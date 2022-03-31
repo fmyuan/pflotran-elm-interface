@@ -41,7 +41,9 @@ module PM_Well_class
     PetscInt, pointer :: strata_id(:)
     ! coordinate of the top/bottom of the well [m]
     PetscReal :: tophole(3)
-    PetscReal :: bottomhole(3)     
+    PetscReal :: bottomhole(3)   
+    ! x-y span search distance multipier
+    PetscInt :: xy_span_multiplier 
   end type well_grid_type
 
   type :: well_reservoir_type
@@ -309,10 +311,10 @@ function PMWellCreate()
   nullify(PMWellCreate%grid%h_local_id)
   nullify(PMWellCreate%grid%h_ghosted_id)
   nullify(PMWellCreate%grid%h_global_id)
-
   nullify(PMWellCreate%grid%strata_id)
   PMWellCreate%grid%tophole(:) = UNINITIALIZED_DOUBLE
   PMWellCreate%grid%bottomhole(:) = UNINITIALIZED_DOUBLE
+  PMWellCreate%grid%xy_span_multiplier = 10
 
   ! create the well object:
   allocate(PMWellCreate%well)
@@ -550,6 +552,7 @@ subroutine PMWellSetup(this)
   PetscReal :: total_length
   PetscReal :: top_of_reservoir, top_of_hole
   PetscReal :: bottom_of_reservoir, bottom_of_hole
+  PetscReal :: max_diameter, xy_span
   PetscReal :: temp_real
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_well, local_id_res
@@ -560,13 +563,14 @@ subroutine PMWellSetup(this)
   PetscInt :: count1_global, count2_global
   PetscBool :: well_grid_res_is_OK = PETSC_FALSE
   PetscBool :: res_grid_cell_within_well_z
+  PetscBool :: res_grid_cell_within_well_y
+  PetscBool :: res_grid_cell_within_well_x
   PetscErrorCode :: ierr
 
   option => this%option
   res_grid => this%realization%patch%grid
   grid => this%grid
   nsegments = this%grid%nsegments
-  write(string2,'(I0.5)') nsegments
 
   allocate(grid%dh(nsegments))
   allocate(grid%h(nsegments))
@@ -652,10 +656,50 @@ subroutine PMWellSetup(this)
     grid%h_global_id(k) = res_grid%nG2A(grid%h_ghosted_id(k))
   enddo
 
+  if (size(this%well%diameter) /= nsegments) then
+    if (size(this%well%diameter) == 1) then
+      temp_real = this%well%diameter(1)
+      deallocate(this%well%diameter)
+      allocate(this%well%diameter(nsegments))
+      this%well%diameter(:) = temp_real
+    else
+      option%io_buffer = 'The number of values provided in &
+        &WELLBORE_MODEL,WELL,DIAMETER must match the number &
+        &of well segments provided in &
+        &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
+        &a single value is provided in WELLBORE_MODEL,WELL,DIAMETER, &
+        &it will be applied to all segments of the well.'
+      call PrintErrMsg(option)
+    endif
+  endif
+  max_diameter = maxval(this%well%diameter)
+  xy_span = grid%xy_span_multiplier*max_diameter
+
+  if (size(this%well%WI_base) /= nsegments) then
+    if (size(this%well%WI_base) == 1) then
+      temp_real = this%well%WI_base(1)
+      deallocate(this%well%WI_base)
+      allocate(this%well%WI_base(nsegments))
+      this%well%WI_base(:) = temp_real
+    else
+      option%io_buffer = 'The number of values provided in &
+        &WELLBORE_MODEL,WELL,WELL_INDEX must match the number &
+        &of well segments provided in &
+        &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
+        &a single value is provided in WELLBORE_MODEL,WELL,WELL_INDEX, &
+        &it will be applied to all segments of the well.'
+      call PrintErrMsg(option)
+    endif
+  endif
+
   ! Check that no reservoir grid cells were skipped.
   ! Count how many of the h_global_id's are unique.
   ! This sum must be = to the number of reservoir cells that the 
   !   well passes through.
+  option%io_buffer = ' '
+  call PrintMsg(option)
+  option%io_buffer = 'WELLBORE_MODEL: Checking well grid resolution.... '
+  call PrintMsg(option)
   k = 0
   allocate(h_global_id_unique(nsegments))
   h_global_id_unique(:) = -999
@@ -679,19 +723,31 @@ subroutine PMWellSetup(this)
   ! sum up their counts and place the total in count1_global.
   call MPI_Allreduce(count1_local,count1_global,ONE_INTEGER_MPI, &
                      MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
+  write(string,'(I0.5)') count1_global
 
   ! Next, sum up how many grid cells the well passes thru.
   ! Note: This count assumes that the well is vertical and the top and
   !       bottom surfaces do not slope or undulate. 
   count2_local = 0
   count2_global = 0
-  do k = 1,size(res_grid%z)
+  do k = 1,res_grid%ngmax
     res_grid_cell_within_well_z = PETSC_FALSE
+    res_grid_cell_within_well_y = PETSC_FALSE
+    res_grid_cell_within_well_x = PETSC_FALSE
     if ( (res_grid%z(k) >= grid%bottomhole(3)) .and. &
          (res_grid%z(k) <= grid%tophole(3)) ) then
       res_grid_cell_within_well_z = PETSC_TRUE
     endif
-    if (res_grid_cell_within_well_z) then
+    if ( (res_grid%y(k) >= (grid%tophole(2)-xy_span)) .and. &
+         (res_grid%y(k) <= (grid%tophole(2)+xy_span)) ) then
+      res_grid_cell_within_well_y = PETSC_TRUE
+    endif
+    if ( (res_grid%x(k) >= (grid%tophole(1)-xy_span)) .and. &
+         (res_grid%x(k) <= (grid%tophole(1)+xy_span)) ) then
+      res_grid_cell_within_well_x = PETSC_TRUE
+    endif
+    if (res_grid_cell_within_well_z .and. res_grid_cell_within_well_y &
+        .and. res_grid_cell_within_well_x) then
       ! What should the local_id of the reservoir cell at this z-level
       ! along the well be?
       dummy_h%z = res_grid%z(k)
@@ -716,8 +772,8 @@ subroutine PMWellSetup(this)
   ! All of the MPI processes need to sum up their counts and place the 
   ! total in count2_global.
   call MPI_Allreduce(count2_local,count2_global,ONE_INTEGER_MPI, &
-                    MPI_INTEGER,MPI_SUM,option%mycomm,ierr)
-  write(string,'(I0.5)') count2_global 
+                    MPI_INTEGER,MPI_SUM,option%mycomm,ierr) 
+  write(string2,'(I0.5)') count2_global
 
   ! The only way we can ensure that the well discretization did not skip a
   ! reservoir cell, is if the number of unique global_id's that the well
@@ -726,49 +782,26 @@ subroutine PMWellSetup(this)
   if (count1_global == count2_global) well_grid_res_is_OK = PETSC_TRUE
 
   if (.not.well_grid_res_is_OK) then
-    option%io_buffer = 'WELLBORE_MODEL --------->  &
-      &The number of well segments (' // trim(string2) // ') is smaller &
-      &than the number of reservoir grid cells it occupies (' // &
+    option%io_buffer = 'ERROR:  &
+      &The number of reservoir grid cells that are occupied by the well &
+      &(' // trim(string2) // ') is larger than the number of unique &
+      &reservoir grid cells that have a connection to the well (' // &
       trim(string) // '). Therefore, some of the reservoir grid cells &
       &have been skipped and have no connection to the well. You must &
-      &increase the resolution of the WELLBORE_MODEL grid.'
+      &increase the resolution of the WELLBORE_MODEL grid. '
+    call PrintMsg(option)
+    option%io_buffer = '(see above)   Alternatively, &
+      &if you are sure your well grid resolution is fine enough, try &
+      &increasing the value set for the x-y search parameter &
+      &WELLBORE_MODEL,WELL_GRID,XY_SEARCH_MULTIPLIER (default value = 10).'
     call PrintErrMsg(option)
   else
-
+    option%io_buffer = '\nWELLBORE_MODEL --------->  &
+      &WELLBORE_MODEL grid resolution is adequate. No reservoir grid cell &
+      &connections have been skipped.'
+    call PrintMsg(option)
   endif
-
-  if (size(this%well%diameter) /= nsegments) then
-    if (size(this%well%diameter) == 1) then
-      temp_real = this%well%diameter(1)
-      deallocate(this%well%diameter)
-      allocate(this%well%diameter(nsegments))
-      this%well%diameter(:) = temp_real
-    else
-      option%io_buffer = 'The number of values provided in &
-        &WELLBORE_MODEL,WELL,DIAMETER must match the number &
-        &of well segments provided in &
-        &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
-        &a single value is provided in WELLBORE_MODEL,WELL,DIAMETER, &
-        &it will be applied to all segments of the well.'
-      call PrintErrMsg(option)
-    endif
-  endif
-  if (size(this%well%WI_base) /= nsegments) then
-    if (size(this%well%WI_base) == 1) then
-      temp_real = this%well%WI_base(1)
-      deallocate(this%well%WI_base)
-      allocate(this%well%WI_base(nsegments))
-      this%well%WI_base(:) = temp_real
-    else
-      option%io_buffer = 'The number of values provided in &
-        &WELLBORE_MODEL,WELL,WELL_INDEX must match the number &
-        &of well segments provided in &
-        &WELLBORE_MODEL,GRID,NUMBER_OF_SEGMENTS. Alternatively, if &
-        &a single value is provided in WELLBORE_MODEL,WELL,WELL_INDEX, &
-        &it will be applied to all segments of the well.'
-      call PrintErrMsg(option)
-    endif
-  endif
+  stop
 
   allocate(this%well%ccid(nsegments))
   allocate(this%well%permeability(nsegments))
@@ -1011,6 +1044,10 @@ subroutine PMWellReadGrid(pm_well,input,option,keyword,error_string,found)
             call InputReadDouble(input,option,pm_well%grid%bottomhole(3))
             call InputErrorMsg(input,option,'BOTTOM_OF_HOLE z-coordinate', &
                                error_string)
+        !-----------------------------
+          case('XY_SEARCH_MULTIPLIER')
+            call InputReadInt(input,option,pm_well%grid%xy_span_multiplier)
+            call InputErrorMsg(input,option,'XY_SEARCH_MULTIPLIER',error_string)
         !-----------------------------
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
