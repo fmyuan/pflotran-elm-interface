@@ -919,7 +919,7 @@ subroutine InversionZFlowUpdateParameters(this)
   discretization => this%realization%discretization
 
   iqoi = InversionParameterIntToQOIArray(this%parameters(1))
-  call DiscretizationGlobalToLocal(discretization,this%quantity_of_interest, &
+  call DiscretizationGlobalToLocal(discretization,this%dist_parameter_vec, &
                                    field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                field%work_loc,iqoi(1),iqoi(2))
@@ -955,7 +955,7 @@ subroutine InversionZFlowCalculateUpdate(this)
   patch => this%realization%patch
   grid => patch%grid
 
-  if (this%quantity_of_interest /= PETSC_NULL_VEC) then
+  if (this%dist_parameter_vec /= PETSC_NULL_VEC) then
 
     call InversionZFlowAllocateWorkArrays(this)
 
@@ -970,7 +970,7 @@ subroutine InversionZFlowCalculateUpdate(this)
                                        this%realization%field%work,ONEDOF)
 
     ! Get updated permeability as m_new = m_old + del_m (where m = log(perm))
-    call VecGetArrayF90(this%quantity_of_interest,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%dist_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(this%realization%field%work,vec2_ptr,ierr);CHKERRQ(ierr)
     do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -979,7 +979,7 @@ subroutine InversionZFlowCalculateUpdate(this)
       if (vec_ptr(local_id) > this%maxperm) vec_ptr(local_id) = this%maxperm
       if (vec_ptr(local_id) < this%minperm) vec_ptr(local_id) = this%minperm
     enddo
-    call VecRestoreArrayF90(this%quantity_of_interest,vec_ptr, &
+    call VecRestoreArrayF90(this%dist_parameter_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(this%realization%field%work,vec2_ptr, &
                             ierr);CHKERRQ(ierr)
