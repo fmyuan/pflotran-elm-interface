@@ -91,6 +91,11 @@ module Inversion_Subsurface_class
             InvSubsurfOutputSensitivity, &
             InversionSubsurfaceStrip
 
+  public :: InvSubsurfScatMeasToDistMeas, &
+            InvSubsurfScatDistMeasToMeas, &
+            InvSubsurfScatDistParamToWork, &
+            InvSubsurfScatWorkToDistParam
+
 contains
 
 ! ************************************************************************** !
@@ -801,29 +806,11 @@ subroutine InvSubsurfConnectToForwardRun(this)
       call DiscretizationLocalToGlobal(this%realization%discretization, &
                                       this%realization%field%work_loc, &
                                       this%realization%field%work,ONEDOF)
-      call VecScatterBegin(this%scatter_global_to_dist_param, &
-                           this%realization%field%work, &
-                           this%dist_parameter_vec, &
-                           INSERT_VALUES,SCATTER_FORWARD, &
-                           ierr);CHKERRQ(ierr)
-      call VecScatterEnd(this%scatter_global_to_dist_param, &
-                         this%realization%field%work, &
-                         this%dist_parameter_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD, &
-                         ierr);CHKERRQ(ierr)
+      call InvSubsurfScatWorkToDistParam(this)
     else
       ! on subsequent iterations, overwrite what was read from input file
       ! with latest inverted values
-      call VecScatterBegin(this%scatter_global_to_dist_param, &
-                           this%dist_parameter_vec, &
-                           this%realization%field%work, &
-                           INSERT_VALUES,SCATTER_REVERSE, &
-                           ierr);CHKERRQ(ierr)
-      call VecScatterEnd(this%scatter_global_to_dist_param, &
-                           this%dist_parameter_vec, &
-                           this%realization%field%work, &
-                           INSERT_VALUES,SCATTER_REVERSE, &
-                           ierr);CHKERRQ(ierr)
+      call InvSubsurfScatDistParamToWork(this)
       call DiscretizationGlobalToLocal(this%realization%discretization, &
                                        this%realization%field%work, &
                                        this%realization%field%work_loc,ONEDOF)
@@ -896,16 +883,7 @@ subroutine InvSubsurfConnectToForwardRun(this)
         endif
         call VecAXPY(this%dist_parameter_vec,1.d0, &
                      this%perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
-        call VecScatterBegin(this%scatter_global_to_dist_param, &
-                            this%dist_parameter_vec, &
-                            this%realization%field%work, &
-                            INSERT_VALUES,SCATTER_REVERSE, &
-                            ierr);CHKERRQ(ierr)
-        call VecScatterEnd(this%scatter_global_to_dist_param, &
-                            this%dist_parameter_vec, &
-                            this%realization%field%work, &
-                            INSERT_VALUES,SCATTER_REVERSE, &
-                            ierr);CHKERRQ(ierr)
+        call InvSubsurfScatDistParamToWork(this)
 
         call DiscretizationGlobalToLocal(this%realization%discretization, &
                                         this%realization%field%work, &
@@ -1621,14 +1599,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
   ! reset measurement vectors to the base model
   call VecCopy(this%perturbation%base_measurement_vec, &
                this%measurement_vec,ierr);CHKERRQ(ierr)
-  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
-                       this%measurement_vec,this%dist_measurement_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                       ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
-                     this%measurement_vec,this%dist_measurement_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                     ierr);CHKERRQ(ierr)
+  call InvSubsurfScatMeasToDistMeas(this)
 
   ! reset parameters to base copy
   if (this%qoi_is_full_vector) then
@@ -1636,16 +1607,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     call VecCopy(this%perturbation%base_parameter_vec, &
                  this%dist_parameter_vec, &
                  ierr);CHKERRQ(ierr)
-    call VecScatterBegin(this%scatter_global_to_dist_param, &
-                         this%dist_parameter_vec, &
-                         this%realization%field%work, &
-                         INSERT_VALUES,SCATTER_REVERSE, &
-                         ierr);CHKERRQ(ierr)
-    call VecScatterEnd(this%scatter_global_to_dist_param, &
-                         this%dist_parameter_vec, &
-                         this%realization%field%work, &
-                         INSERT_VALUES,SCATTER_REVERSE, &
-                         ierr);CHKERRQ(ierr)
+    call InvSubsurfScatDistParamToWork(this)
     call DiscretizationGlobalToLocal(this%realization%discretization, &
                                      this%realization%field%work, &
                                      this%realization%field%work_loc,ONEDOF)
@@ -1706,14 +1668,7 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
   if (this%perturbation%idof_pert == 0) return
 
   ! don't need to use the distributed vec, but why not
-  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
-                       this%measurement_vec,this%dist_measurement_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                       ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
-                     this%measurement_vec,this%dist_measurement_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                     ierr);CHKERRQ(ierr)
+  call InvSubsurfScatMeasToDistMeas(this)
   call VecGetArrayF90(this%dist_measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do i = 1, size(vec_ptr)
     call MatSetValue(this%inversion_aux%JsensitivityT, &
@@ -1904,6 +1859,107 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   call OutputHDF5CloseFile(this%realization%option,file_id)
 
 end subroutine InvSubsurfOutputSensitivityHDF5
+
+
+! ************************************************************************** !
+
+subroutine InvSubsurfScatWorkToDistParam(this)
+  !
+  ! Scatters from work to dist_parameter_vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/01/22
+  !
+  class(inversion_subsurface_type) :: this
+
+  PetscErrorCode :: ierr
+
+  call VecScatterBegin(this%scatter_global_to_dist_param, &
+                       this%realization%field%work, &
+                       this%dist_parameter_vec, &
+                       INSERT_VALUES,SCATTER_FORWARD, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_global_to_dist_param, &
+                     this%realization%field%work, &
+                     this%dist_parameter_vec, &
+                     INSERT_VALUES,SCATTER_FORWARD, &
+                     ierr);CHKERRQ(ierr)
+
+end subroutine InvSubsurfScatWorkToDistParam
+
+! ************************************************************************** !
+
+subroutine InvSubsurfScatDistParamToWork(this)
+  !
+  ! Scatters from dist_parameter_vec to work
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/01/22
+  !
+  class(inversion_subsurface_type) :: this
+
+  PetscErrorCode :: ierr
+
+  call VecScatterBegin(this%scatter_global_to_dist_param, &
+                       this%dist_parameter_vec, &
+                       this%realization%field%work, &
+                       INSERT_VALUES,SCATTER_REVERSE, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_global_to_dist_param, &
+                     this%dist_parameter_vec, &
+                     this%realization%field%work, &
+                     INSERT_VALUES,SCATTER_REVERSE, &
+                     ierr);CHKERRQ(ierr)
+
+end subroutine InvSubsurfScatDistParamToWork
+
+! ************************************************************************** !
+
+subroutine InvSubsurfScatMeasToDistMeas(this)
+  !
+  ! Scatters from measurement_vec to dist_measurement_vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/01/22
+  !
+  class(inversion_subsurface_type) :: this
+
+  PetscErrorCode :: ierr
+
+  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+                       this%measurement_vec,this%dist_measurement_vec, &
+                       INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+                     this%measurement_vec,this%dist_measurement_vec, &
+                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                     ierr);CHKERRQ(ierr)
+
+end subroutine InvSubsurfScatMeasToDistMeas
+
+! ************************************************************************** !
+
+subroutine InvSubsurfScatDistMeasToMeas(this)
+  !
+  ! Scatters from measurement_vec to dist_measurement_vec
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/01/22
+  !
+  class(inversion_subsurface_type) :: this
+
+  PetscErrorCode :: ierr
+
+  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+                       this%dist_measurement_vec,this%measurement_vec, &
+                       INSERT_VALUES,SCATTER_REVERSE, &
+                       ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+                     this%dist_measurement_vec,this%measurement_vec, &
+                     INSERT_VALUES,SCATTER_REVERSE, &
+                     ierr);CHKERRQ(ierr)
+
+end subroutine InvSubsurfScatDistMeasToMeas
 
 ! ************************************************************************** !
 
