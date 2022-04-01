@@ -142,7 +142,7 @@ contains
 
     h5_filename = trim(option%global_prefix) // '-obs-region.h5'
 
-    ! Create an hdf5 file access property list
+    ! create an hdf5 file access property list
     call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, h5_err)
 
     call h5pset_fapl_mpio_f(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
@@ -247,7 +247,7 @@ contains
 
     enddo
 
-    ! Loop through possible observation regions
+    ! loop through possible observation regions
     i_region = 0
     region => region_list%first
     do
@@ -267,7 +267,7 @@ contains
                        MPI_INTEGER, MPI_MAX, obs_h5_comm, mpi_err)
 
 
-    ! after the MPI_Allreduce, every MPI process that is part
+    ! after MPI_Allreduce, every MPI process that is part
     ! of the communicator should see the same values for
     ! obs_region_numcells and obs_region_ids
 
@@ -619,7 +619,7 @@ contains
       deallocate(idata)
       deallocate(rdata)
 
-      ! Close time and region groups
+      ! close time and region groups
       call h5gclose_f(tgroup_id, h5_err)
       call h5gclose_f(rgroup_id, h5_err)
 
@@ -742,11 +742,11 @@ contains
 
     character(len=MAXWORDLENGTH) :: v_name
 
-    ! Create data space entire dataset
+    ! create data space entire dataset
     dset_size(1) = obs_region_total_numcells(region_id)
     call h5screate_simple_f(ds_rank, dset_size, space_id, h5_err)
 
-    ! Create the dataset
+    ! create the dataset
     call h5dcreate_f(group_id, dset_name, data_type, space_id, &
              dset_id, h5_err)
 
@@ -797,7 +797,7 @@ contains
     ! open previously created data space
     call h5dopen_f(group_id, dset_name, dset_id, h5_err)
 
-    ! Create the memory data space for each process
+    ! create the memory data space for each process
     call h5screate_simple_f(ds_rank, extent, mspace_id, h5_err)
 
     ! select hyperslab
@@ -808,12 +808,12 @@ contains
     call h5pcreate_f(H5P_DATASET_XFER_F, fapl_id, h5_err)
     call h5pset_dxpl_mpio_f(fapl_id, H5FD_MPIO_INDEPENDENT_F, h5_err)
 
-    ! Write the dataset
+    ! write the dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, v_data, dset_size, &
                       h5_err, file_space_id = space_id, &
                       mem_space_id = mspace_id, xfer_prp = fapl_id)
 
-    ! Close some resources
+    ! close some resources
     call h5pclose_f(fapl_id, h5_err)
     call h5sclose_f(mspace_id, h5_err)
     call h5sclose_f(space_id, h5_err)
@@ -865,7 +865,7 @@ contains
     ! open previously created data space
     call h5dopen_f(group_id, dset_name, dset_id, h5_err)
 
-    ! Create the memory data space for each process
+    ! create the memory data space for each process
     call h5screate_simple_f(ds_rank, extent, mspace_id, h5_err)
 
     ! select hyperslab
@@ -876,12 +876,12 @@ contains
     call h5pcreate_f(H5P_DATASET_XFER_F, fapl_id, h5_err)
     call h5pset_dxpl_mpio_f(fapl_id, H5FD_MPIO_INDEPENDENT_F, h5_err)
 
-    ! Write the dataset
+    ! write the dataset
     call h5dwrite_f(dset_id, H5T_NATIVE_INTEGER, v_data, dset_size, &
                       h5_err, file_space_id = space_id, &
                       mem_space_id = mspace_id, xfer_prp = fapl_id)
 
-    ! Close some resources
+    ! close some resources
     call h5pclose_f(fapl_id, h5_err)
     call h5sclose_f(mspace_id, h5_err)
     call h5sclose_f(space_id, h5_err)

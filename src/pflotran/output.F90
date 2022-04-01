@@ -391,11 +391,6 @@ subroutine OutputFileRead(input,realization,output_option, &
       case('FORMAT')
         string = 'OUTPUT,' // trim(block_name) // ',FORMAT'
         select case(trim(block_name))
-        ! case('OBSERVATION_FILE')
-        !   option%io_buffer = 'FORMAT cannot be specified within &
-        !        &the OUTPUT,OBSERVATION_FILE block. Observation output is &
-        !        &written in TECPLOT format only.'
-        !   call PrintErrMsg(option)
           case('MASS_BALANCE_FILE')
             option%io_buffer = 'FORMAT cannot be specified within &
                  &the OUTPUT,MASS_BALANCE_FILE block. Mass balance output is &

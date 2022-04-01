@@ -155,6 +155,7 @@ OUTPUT
   /
 
   OBSERVATION_FILE
+    FORMAT HDF5
     PERIODIC TIME 2. d between 0. d and 6. d
   /
 
