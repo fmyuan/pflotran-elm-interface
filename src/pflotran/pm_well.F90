@@ -915,6 +915,9 @@ subroutine PMWellReadPMBlock(this,input)
 
     ! Read keywords within WELLBORE_MODEL block:
     select case(trim(word))
+      case('SKIP_RESTART')
+        this%skip_restart = PETSC_TRUE
+        cycle
     !-------------------------------------
       case('SINGLE_PHASE')
         this%nphase = 1
