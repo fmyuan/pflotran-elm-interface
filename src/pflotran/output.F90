@@ -451,8 +451,20 @@ subroutine OutputFileRead(input,realization,output_option, &
                 endif
 
             end select  ! Observation or snapshot file
+
         !.................
           case ('TECPLOT')
+            
+            ! error if in OBSERVATION_FILE block
+            if (trim(block_name) == 'OBSERVATION_FILE') then
+              option%io_buffer = 'TECPLOT is not a FORMAT option for &
+                  &the OUTPUT,OBSERVATION_FILE block. TECPLOT format &
+                  &files are always written. Remove FORMAT TECPLOT &
+                  &specification from the OBSERVATION_FILE block in &
+                  &the input deck.'
+              call PrintErrMsg(option)
+            endif
+
             string = trim(string) // ',TECPLOT'
             output_option%print_tecplot = PETSC_TRUE
             call InputReadCard(input,option,word)
@@ -484,6 +496,16 @@ subroutine OutputFileRead(input,realization,output_option, &
             endif
         !.............
           case ('VTK')
+
+            ! error if in OBSERVATION_FILE block
+            if (trim(block_name) == 'OBSERVATION_FILE') then
+              option%io_buffer = 'VTK is not a FORMAT option for the &
+                  &OUTPUT,OBSERVATION_FILE block. Remove FORMAT VTK &
+                  &specification from the OBSERVATION_FILE block in &
+                  &the input deck.'
+              call PrintErrMsg(option)
+            endif
+
             output_option%print_vtk = PETSC_TRUE
         !.............
           case default
