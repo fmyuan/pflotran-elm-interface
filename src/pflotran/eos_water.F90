@@ -305,7 +305,7 @@ subroutine EOSWaterInit()
   EOSWaterDensityIcePtr => EOSWaterDensityIcePainter
   
   ! extended versions
-  EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaas
+  EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaasExt
   EOSWaterViscosityExtPtr => EOSWaterViscosityKestinExt
   EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
   EOSWaterEnthalpyExtPtr => EOSWaterEnthalpyDriesnerExt
@@ -514,6 +514,7 @@ subroutine EOSWaterSetSalinity(input,word,option)
     case default
       call InputKeywordUnrecognized(input,word,'EOS,WATER,SALINITY',option)
   end select
+  option%flow%density_depends_on_salinity = PETSC_TRUE
 
 end subroutine EOSWaterSetSalinity
 
@@ -600,9 +601,9 @@ subroutine EOSWaterSetSaturationPressure(keyword,aux)
     case('WAGNER_AND_PRUSS')
       EOSWaterSaturationPressurePtr => EOSWaterSatPresWagnerPruss
     case('HAAS')
-      EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaas
+      EOSWaterSaturationPressureExtPtr => EOSWaterSaturationPressureHaasExt
     case('SPARROW')
-      EOSWaterSaturationPressureExtPtr => EOSWaterSatPressSparrow
+      EOSWaterSaturationPressureExtPtr => EOSWaterSatPressSparrowExt
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSaturationPressure().'
@@ -1328,7 +1329,7 @@ end subroutine EOSWaterSaturationPressureIF97
 
 
 ! ************************************************************************** !
-subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, &
+subroutine EOSWaterSaturationPressureHaasExt(T, aux, calculate_derivatives, PS, &
                                           dPS_dT, ierr)
 
   ! Water saturation pressure with dissolved halite
@@ -1417,7 +1418,7 @@ subroutine EOSWaterSaturationPressureHaas(T, aux, calculate_derivatives, PS, &
     dPS_dT = 1.d5*exp(ln_p)*dln_p_dT
   endif
 
-end subroutine EOSWaterSaturationPressureHaas
+end subroutine EOSWaterSaturationPressureHaasExt
 ! ************************************************************************** !
 
 subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
@@ -4021,7 +4022,7 @@ end subroutine EOSWaterViscosityBatzleAndWangExt
 
 ! ************************************************************************** !
 
-subroutine EOSWaterSatPressSparrow(T,aux,calculate_derivatives, &
+subroutine EOSWaterSatPressSparrowExt(T,aux,calculate_derivatives, &
                                    PS, dPS_dT, ierr)
   !
   ! Calculates water saturation pressure based on Sparrow, 2003.
@@ -4073,7 +4074,7 @@ subroutine EOSWaterSatPressSparrow(T,aux,calculate_derivatives, &
     dPS_dT = B+T*(C+T*(D+T*E)) * MPa_to_Pa
   endif
 
-end subroutine EOSWaterSatPressSparrow
+end subroutine EOSWaterSatPressSparrowExt
 
 ! ************************************************************************** !
 
