@@ -331,7 +331,9 @@ subroutine InversionSubsurfInitialize(this)
 
   type(patch_type), pointer :: patch
   type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
+  PetscInt :: local_id
   PetscInt :: num_measurements, num_measurements_local
   PetscInt :: num_parameters_local, num_parameters_global
   PetscInt, allocatable :: int_array(:)
@@ -339,6 +341,7 @@ subroutine InversionSubsurfInitialize(this)
   Vec :: v
   IS :: is_petsc
   IS :: is_measure
+  PetscMPIInt :: mpi_int
   PetscErrorCode :: ierr
 
   nullify(vec_ptr)
@@ -378,8 +381,38 @@ subroutine InversionSubsurfInitialize(this)
     call VecCreateSeq(PETSC_COMM_SELF,num_measurements, &
                       this%measurement_vec,ierr);CHKERRQ(ierr)
 
-    ! map measurement vecs to the solution vector
+    ! map coordinates to cell ids
     allocate(int_array(num_measurements))
+    int_array = -1
+    do i = 1, num_measurements
+      if (Initialized(this%measurements(i)%coordinate%x)) then
+        call GridGetLocalIDFromCoordinate(patch%grid, &
+                                          this%measurements(i)%coordinate, &
+                                          this%realization%option,local_id)
+        if (Initialized(local_id)) then
+          int_array(i) = patch%grid%nG2A(patch%grid%nL2G(local_id))
+        endif
+      endif
+    enddo
+    mpi_int = num_measurements
+    call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
+                       this%driver%comm%mycomm,ierr)
+    do i = 1, num_measurements
+      if (int_array(i) > 0) then
+        this%measurements(i)%cell_id = int_array(i)
+      endif
+      if (Uninitialized(this%measurements(i)%cell_id)) then
+        string = 'Measurement ' // trim(StringWrite(i)) // &
+          ' at coordinate (' // &
+          trim(StringWrite(this%measurements(i)%coordinate%x)) // ',' // &
+          trim(StringWrite(this%measurements(i)%coordinate%y)) // ',' // &
+          trim(StringWrite(this%measurements(i)%coordinate%z)) // &
+          ') not mapped properly.'
+        call this%driver%PrintErrMsg(string)
+      endif
+    enddo
+
+    ! map measurement vecs to the solution vector
     do i = 1, num_measurements
       int_array(i) = this%measurements(i)%cell_id
     enddo
