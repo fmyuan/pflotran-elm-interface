@@ -5044,6 +5044,14 @@ subroutine PMWellOutputHeader(this)
     units_string = '-' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
+    variable_string = 'Q-liq'
+    units_string = 'kg/s' 
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'Q-gas'
+    units_string = 'kg/s' 
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
     if (this%transport) then
       do j = 1,this%nspecies
         variable_string = 'Aqueous Conc. ' // trim(this%well%species_names(j))
@@ -5109,7 +5117,9 @@ subroutine PMWellOutput(this)
                                 this%grid%h(k)%z, &
                                 this%well%pl(k), &
                                 this%well%liq%s(k), &
-                                this%well%gas%s(k) 
+                                this%well%gas%s(k), & 
+                                this%well%liq%Q(k), &
+                                this%well%gas%Q(k)
     if (this%transport) then
       do j = 1,this%nspecies
         write(fid,100,advance="no") this%well%aqueous_conc(j,k), &
