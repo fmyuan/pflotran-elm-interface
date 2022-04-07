@@ -167,7 +167,8 @@ private :: SFWIPPVGPc    , SFWIPPVGSw , &    ! van Genuchten
            SFWIPPKRP11Pc , SFWIPPKRP11Sw
 
 ! Implemented WIPP Permeability Pct procedures
-private :: SFWIPPSetK, SFWIPPIgnoreK
+private :: SFWIPPSetK
+public  :: SFWIPPIgnoreK
 
 ! Implemented WIPP KRP Kr procedures
 private :: RPFWIPPMVGKrw , RPFWIPPMVGKrg,  & ! Mualem - van Genuchten
@@ -306,7 +307,7 @@ function SFWIPPctor(KRP, KPC, Swr, Sgr, expon, Pct_ignore, Pct_alpha, &
     new%m_nrec = -1d0 / new%m
     new%m_comp =  1d0 - new%m
     new%n      =  1d0 / new%m_comp
-    new%k_dSe_dSw = new%m_comp / (new%m * new%Sw_span)
+    new%k_dSe_dSw = -new%m_comp / (new%m * new%Sw_span)
     new%pcm_pct = 2d0**(1d0/new%m-1d0)
   end select
 
