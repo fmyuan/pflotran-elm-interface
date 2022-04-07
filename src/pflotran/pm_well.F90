@@ -166,7 +166,7 @@ module PM_Well_class
     PetscReal, pointer :: visc(:)
     ! fluid saturation
     PetscReal, pointer :: s(:)
-    ! fluid source/sink in/out of well [kg/s]   
+    ! fluid source/sink in/out of well [kmol/s]   
     PetscReal, pointer :: Q(:)
   end type well_fluid_type
 
@@ -2534,13 +2534,12 @@ subroutine PMWellResidualTran(this)
   call PMWellResidualTranAccum(this) 
 
   ! calculate the source/sink terms (in/out of well segments)
+  call PMWellResidualTranSrcSink(this)
 
   ! calculate the rxn terms (decay/ingrowth)
 
   ! calculate the flux terms
   call PMWellResidualTranFlux(this)
-
-  ! calculate the boundary flux terms
 
 end subroutine PMWellResidualTran
 
@@ -2591,6 +2590,67 @@ end subroutine PMWellResidualTranAccum
 
 ! ************************************************************************** !
 
+subroutine PMWellResidualTranSrcSink(this)
+  ! 
+  ! Calculates the source sink terms (Q in/out of well) for the transport 
+  ! residual equation.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/06/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  PetscInt :: ispecies, isegment, k
+  PetscInt :: offset, istart, iend
+  PetscReal :: Res(this%nspecies)
+
+  type(well_type), pointer :: well
+  type(well_reservoir_type), pointer :: resr
+  PetscReal :: coef_Qin, coef_Qout ! into well, out of well
+  PetscReal :: Qin, Qout
+
+  ! Q src/sink is in [kmol-liq/sec]
+  ! FMWH2O is in [kmol-liq/kg-liq] where liq = water
+  ! density is in [kg-liq/m^3-liq] where liq = water
+  ! aqueous conc in [mol-species/m^3-liq]
+  ! residual in [mol-species/sec]
+
+  well => this%well
+  resr => this%reservoir
+
+  do isegment = 1,this%grid%nsegments
+
+    if (well%liq%Q(isegment) > 0.d0) then ! Q into well
+      coef_Qin = well%liq%Q(isegment)
+      coef_Qout = 0.d0
+    else ! Q out of well
+      coef_Qin = 0.d0
+      coef_Qout = well%liq%Q(isegment)
+    endif
+
+    offset = (isegment-1)*this%nspecies
+    istart = offset + 1
+    iend = offset + this%nspecies
+
+    do ispecies = 1,this%nspecies
+      k = ispecies
+      Qin = coef_Qin*resr%aqueous_conc(ispecies,isegment)*FMWH2O / &
+                                            resr%rho_l(isegment)
+      Qout = coef_Qout*well%aqueous_conc(ispecies,isegment)*FMWH2O / &
+                                            well%liq%rho(isegment)
+      Res(k) = Qin + Qout 
+    enddo
+
+    this%tran_soln%residual(istart:iend) = &
+                          this%tran_soln%residual(istart:iend) - Res(:)
+  enddo
+
+end subroutine PMWellResidualTranSrcSink
+
+! ************************************************************************** !
+
 subroutine PMWellResidualTranFlux(this)
   !
   ! Calculates the interior and BC flux terms for the transport residual 
@@ -2613,11 +2673,15 @@ subroutine PMWellResidualTranFlux(this)
   PetscReal :: Res(this%nspecies)
   PetscReal :: Res_up(this%nspecies), Res_dn(this%nspecies)
 
+  ! residual in [mol-species/sec]
+
   ! NOTE: The up direction is towards well top, and the dn direction is
   !       towards the well bottom.
 
   n_dn = +1
   n_up = -1
+
+  diffusion = 0.d0 ! for now, since WIPP has no diffusion
 
   ! ----------------------------------------INTERIOR-FLUXES------------------
 
@@ -2630,8 +2694,6 @@ subroutine PMWellResidualTranFlux(this)
 
     q_up = this%well%ql(isegment)
     q_dn = this%well%ql(isegment-1) 
-
-    diffusion = 0.d0 ! for now, since WIPP has no diffusion
 
     offset = (isegment-1)*this%nspecies
     istart = offset + 1
@@ -2674,7 +2736,6 @@ subroutine PMWellResidualTranFlux(this)
   enddo
 
   ! ----------------------------------------BOUNDARY-FLUXES------------------
-  diffusion = 0.d0 ! for now, since WIPP has no diffusion
 
   ! ----- bottom of well -----
   isegment = 1
@@ -2684,9 +2745,9 @@ subroutine PMWellResidualTranFlux(this)
   area_dn = this%well%area(isegment)
 
   q_up = this%well%ql(isegment)
-  q_dn = this%well%ql_bc(1)
+  q_dn = this%well%ql_bc(1) ! bottom of hole ql
 
-  offset = (isegment-1)*this%nspecies
+  offset = (isegment-1)*this%nspecies ! = 0
   istart = offset + 1
   iend = offset + this%nspecies
 
@@ -2733,7 +2794,7 @@ subroutine PMWellResidualTranFlux(this)
   area_up = this%well%area(isegment) 
   area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
 
-  q_up = this%well%ql_bc(2)
+  q_up = this%well%ql_bc(2) ! top of hole ql
   q_dn = this%well%ql(isegment-1)
 
   offset = (isegment-1)*this%nspecies
@@ -3203,7 +3264,7 @@ subroutine PMWellSolveTran(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 
-  type(well_soln_tran_type), pointer :: tran_soln
+  type(well_soln_tran_type), pointer :: soln
   character(len=MAXSTRINGLENGTH) :: out_string
   PetscLogDouble :: log_start_time, log_end_time
   PetscInt :: n_iter, ts_cut, easy_converge_count
@@ -3211,7 +3272,7 @@ subroutine PMWellSolveTran(this,time,ierr)
   PetscInt :: istart, iend
   PetscInt :: k 
 
-  tran_soln => this%tran_soln
+  soln => this%tran_soln
 
   ierr = 0
   call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
@@ -3220,8 +3281,8 @@ subroutine PMWellSolveTran(this,time,ierr)
   easy_converge_count = 0
 
   this%cumulative_dt_tran = 0.d0
-  tran_soln%converged = PETSC_FALSE
-  tran_soln%not_converged = PETSC_TRUE
+  soln%converged = PETSC_FALSE
+  soln%not_converged = PETSC_TRUE
 
   do while (this%cumulative_dt_tran < this%realization%option%flow_dt) 
 
@@ -3229,9 +3290,9 @@ subroutine PMWellSolveTran(this,time,ierr)
 
     n_iter = 0
 
-    do while (tran_soln%not_converged)
-      if (n_iter > (tran_soln%max_iter-1)) then
-        tran_soln%cut_timestep = PETSC_TRUE
+    do while (soln%not_converged)
+      if (n_iter > (soln%max_iter-1)) then
+        soln%cut_timestep = PETSC_TRUE
         out_string = ' Maximum number of TRAN Newton iterations reached. &
                       &Cutting timestep!'
         call OptionPrint(out_string,this%option); WRITE(*,*) ""
@@ -3241,21 +3302,21 @@ subroutine PMWellSolveTran(this,time,ierr)
         easy_converge_count = 0
         exit
       endif
-      if (ts_cut > tran_soln%max_ts_cut) then
+      if (ts_cut > soln%max_ts_cut) then
         this%realization%option%io_buffer = &
           ' Maximum timestep cuts reached in PM Well TRAN. Solution has not &
            &converged. Exiting.'
         call PrintErrMsg(this%realization%option)
       endif
 
-      tran_soln%residual = 0.d0
+      soln%residual = 0.d0
       ! Get fixed accumulation term (not yet divided by dt)
       do k = 1,this%grid%nsegments
-        istart = tran_soln%ndof*(k-1)+1
-        iend = tran_soln%ndof*k
+        istart = soln%ndof*(k-1)+1
+        iend = soln%ndof*k
         call PMWellAccumulationTran(this,k,res_fixed(istart:iend))
       enddo
-      tran_soln%residual = res_fixed / this%dt_tran 
+      soln%residual = res_fixed / this%dt_tran 
 
       easy_converge_count = easy_converge_count + 1
 
@@ -3270,8 +3331,8 @@ subroutine PMWellSolveTran(this,time,ierr)
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! remove the following two lines once Newton is working:
-      tran_soln%converged = PETSC_TRUE         ! remove me
-      tran_soln%not_converged = PETSC_FALSE    ! remove me
+      soln%converged = PETSC_TRUE         ! remove me
+      soln%not_converged = PETSC_FALSE    ! remove me
 
       
     enddo
@@ -3281,7 +3342,7 @@ subroutine PMWellSolveTran(this,time,ierr)
     this%cumulative_dt_tran = this%realization%option%flow_dt  ! remove me
 
     ts_cut = 0
-    tran_soln%n_steps = tran_soln%n_steps + 1
+    soln%n_steps = soln%n_steps + 1
 
   enddo
 
