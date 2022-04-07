@@ -167,8 +167,7 @@ private :: SFWIPPVGPc    , SFWIPPVGSw , &    ! van Genuchten
            SFWIPPKRP11Pc , SFWIPPKRP11Sw
 
 ! Implemented WIPP Permeability Pct procedures
-private :: SFWIPPSetK
-public  :: SFWIPPIgnoreK
+private :: SFWIPPSetK, SFWIPPIgnoreK
 
 ! Implemented WIPP KRP Kr procedures
 private :: RPFWIPPMVGKrw , RPFWIPPMVGKrg,  & ! Mualem - van Genuchten
