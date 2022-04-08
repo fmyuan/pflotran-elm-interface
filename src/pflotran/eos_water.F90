@@ -252,7 +252,8 @@ module EOS_Water_module
             EOSWaterEnthalpyExt, &
             EOSWaterInputRecord, &
             EOSWaterSetSalinity, &
-            EOSWaterSolubility
+            EOSWaterSolubility, &
+            EOSWaterComputeSalinity
 
   public :: EOSWaterSetDensity, &
             EOSWaterSetEnthalpy, &
@@ -1372,19 +1373,9 @@ subroutine EOSWaterSaturationPressureHaasExt(T, aux, calculate_derivatives, PS, 
   PetscReal, parameter :: e6 = 2.9370d5
 
   Tx = T+273.15d0
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-        ! convert mass % to mol/kg (molality)
-        x = 1.d3*constant_salinity/(58.442d0*(1.d2-constant_salinity))
-     else !compute solubility
-        call EOSWaterSolubility(T,x)
-        ! convert mass % to mol/kg (molality)
-        x = 1.d3*(x*1.d2)/(58.442d0*(1.d2-(x*1.d2)))
-     endif
-  else
-     x = aux(1)
-  endif
 
+  x = aux(1) ! mass fraction
+  x = 1.d3*(x*1.d2)/(58.442d0*(1.d2-(x*1.d2))) !mol/kg
   ! ln(T0) = m*ln(Tx)
   ! Tx: brine temperature
   ! T0: temperature of H2O at 0 molal, at the same pressure as Tx
@@ -2051,17 +2042,7 @@ subroutine EOSWaterEnthalpyDriesnerExt(T,P,aux,calculate_derivatives,hw,hwp,&
   t_c = T
   p_bar = P*Pa_to_bar
 
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-        ! mass fraction salinity [g/g]
-        ! must be converted to mole fraction for Driesner eq.
-        s = constant_salinity
-     else !compute solubility
-        call EOSWaterSolubility(T,s)
-     endif
-  else
-     s = aux(1)
-  endif
+  s = aux(1) !mass fraction
   molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
   x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
 
@@ -2146,19 +2127,9 @@ subroutine EOSWaterDensityDriesnerExt(T,P, aux, &
   t_C = T
   p_bar = P*Pa_to_bar
 
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-        ! mass fraction salinity [g/g]
-        ! must be converted to mole fraction for Driesner eq.
-        s = constant_salinity
-     else !compute solubility
-        call EOSWaterSolubility(T,s)
-     endif
-     molal = (1.d3*s/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
-     x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
-  else
-     x = aux(1)
-  endif
+  x = aux(1) !mass fraction
+  molal = (1.d3*x/(58.442d0*(1.d2 - s)))*1.d2 !mol/kg
+  x = molal/(molal + 55.508435d0) !moles of solute / (mol solute+mol water)
 
   n11 = -54.2958d0 - 45.7623d0 * exp(-9.44785d-4 * p_bar) ! Table 4
   n21 = -2.6142d0 - 0.000239092d0 * p_bar
@@ -2212,17 +2183,7 @@ subroutine EOSWaterEnthalpySparrowExt(T,P,aux,calculate_derivatives,hw,hwp,&
   PetscReal, parameter :: mol_to_kmol = 1.d-3
   PetscReal, parameter :: kJ_to_J = 1.d3
 
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-        ! mass fraction salinity [g/g]
-        s = constant_salinity
-     else !compute solubility
-        call EOSWaterSolubility(T,s)
-     endif
-  else
-     s = aux(1)
-  endif
-
+  s = aux(1)
   ! eq 8
   A = (0.0005d0  +s*(0.0378d0  +s*(-0.3682d0 +s*(-0.6529d0 +s*2.89d0))))*1.d3
   B = 4.145d0    +s*(-4.973d0  +s*(4.482d0   +s*(18.31d0   +s*(-46.41d0))))
@@ -3373,19 +3334,9 @@ subroutine EOSWaterViscosityKestinExt(T, P, PS, dPS_dT, aux, &
 
   !convert pressure to GPa
   p_GPa = P*1.d-9
-  
-  xnacl = aux(1)
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-        ! mass fraction salinity [g/g]
-        mnacl = constant_salinity
-     else !compute solubility
-        call EOSWaterSolubility(T,mnacl)
-     endif
-  else
-    mnacl = xnacl/(1.d0-xnacl)/wnacl
-  endif
 
+  xnacl = aux(1)
+  mnacl = xnacl/(1.d0-xnacl)/wnacl
   tt = 20.d0-t
   ck = (c1 + (c2 + (c3+c4*tt)*tt)*tt)*tt/(96.d0+t)
   ak = (a1 + (a2 + a3*mnacl)*mnacl)*mnacl
@@ -3868,17 +3819,7 @@ subroutine EOSWaterDensityBatzleAndWangExt(tin, pin, aux, &
   t_C = tin
   p_MPa = pin*Pa_to_MPa
 
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-      ! salinity [mass %]
-      s = constant_salinity
-    else !compute solubility
-      call EOSWaterSolubility(tin,s)
-    endif
-  else
-    s = aux(1)
-  endif
-  
+  s = aux(1)
   call EOSWaterDensityPtr(tin, pin, calculate_derivatives, &
                           dw, dwmol, dwp, dwt, ierr)
   
@@ -3992,16 +3933,7 @@ subroutine EOSWaterViscosityBatzleAndWangExt(T, P, PS, dPS_dT, aux, &
   PetscReal :: exponential_term
   PetscReal :: temperature_term
   
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-        ! mass fraction salinity [g/g]
-        s = constant_salinity
-     else !compute solubility
-        call EOSWaterSolubility(T,s)
-     endif
-  else
-     s = aux(1)
-  endif
+  s = aux(1)
   t_C = T
   
   exponential_term = -1.d0*(0.42d0*(s**0.8d0-0.17d0)**2.d0 + 0.045d0)* &
@@ -4042,17 +3974,7 @@ subroutine EOSWaterSatPressSparrowExt(T,aux,calculate_derivatives, &
   PetscReal, parameter :: MPa_to_Pa = 1.d6
   PetscReal :: A,B,C,D,E,s
 
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-        ! mass fraction salinity [g/g]
-        s = constant_salinity
-     else !compute solubility
-        call EOSWaterSolubility(T,s)
-     endif
-  else
-     s = aux(1)
-  endif
-
+  s = aux(1)
   if (T <= 150.d0) then ! eq 6
     A = (0.9083d0  +s*(-0.569d0 +s*(0.1945d0  +s*(-3.736d0 +s*2.82d0))))*1.d-3
     B = (-0.0669d0 +s*(0.0582d0 +s*(-0.1668d0 +s*(0.6761d0 +s*(-2.091d0)))))*1.d-3
@@ -4100,17 +4022,7 @@ subroutine EOSWaterDensitySparrowExt(T,P, aux, &
 
   PetscReal :: A, B, C, D, E, s
 
-  if (Initialized(constant_salinity)) then
-     if (.not. halite_saturated_brine) then
-        ! mass fraction salinity [g/g]
-        s = constant_salinity
-     else !compute solubility
-        call EOSWaterSolubility(T,s)
-     endif
-  else
-     s = aux(1)
-  endif
-
+  s = aux(1)
   ! eq 7 (0 C <= T <= 300 C)
   A = (1.001d0   +s*(0.7666d0 +s*(-0.0149d0 +s*(0.2663d0 +s*0.8845d0))))*1.d3
   B = -0.0214d0  +s*(-3.496d0 +s*(10.02d0   +s*(-6.56d0  +s*(-31.37d0))))
@@ -4147,7 +4059,31 @@ end subroutine EOSWaterSolubility
 
 ! ************************************************************************** !
 
-subroutine TestEOSWaterBatzleAndWang()
+subroutine EOSWaterComputeSalinity(T, x)
+  !
+  ! Computes salinity of NaCl in water based on EOS block inputs
+  !
+  ! Author: David Fukuyama
+  ! Date: 4/6/22
+  !
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(out) :: x
+  
+  if (Initialized(constant_salinity)) then
+     if (.not. halite_saturated_brine) then
+        ! salinity [mass %]
+        x = constant_salinity
+     else !compute solubility
+        call EOSWaterSolubility(T,x)
+     endif
+  endif
+end subroutine EOSWaterComputeSalinity
+
+! ************************************************************************** !
+  subroutine TestEOSWaterBatzleAndWang()
   ! 
   ! From Batlze M. and Z. Wang (1992) Seismic properties of fluids, Geophysics,
   ! Vol. 57, No. 11, Pg. 1396-1408.
