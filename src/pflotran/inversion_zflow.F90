@@ -276,11 +276,11 @@ subroutine InversionZFlowAllocateWorkArrays(this)
   num_constraints = this%num_constraints_local
 
   allocate(this%b(num_measurement + num_constraints))
-  allocate(this%p(grid%nlmax))
+  allocate(this%p(this%num_parameters_local))
   allocate(this%q(num_measurement + num_constraints))
   allocate(this%r(num_measurement + num_constraints))
-  allocate(this%s(grid%nlmax))
-  allocate(this%del_perm(grid%nlmax))
+  allocate(this%s(this%num_parameters_local))
+  allocate(this%del_perm(this%num_parameters_local))
 
   this%b = 0.d0
   this%p = 0.d0
@@ -786,7 +786,8 @@ subroutine InvZFlowEvaluateCostFunction(this)
   ! model cost function
   this%phi_model = 0.d0
   num_constraints = this%num_constraints_local
-  allocate(model_vector(num_constraints))
+  ! allocate to at least size 1 to allow for inner product
+  allocate(model_vector(max(num_constraints,1)))
   model_vector = 0.d0
 
   do iconst=1,num_constraints
@@ -907,7 +908,6 @@ subroutine InversionZFlowUpdateParameters(this)
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
 
-  PetscInt :: local_id,ghosted_id
   PetscReal, pointer :: vec_ptr(:)
   PetscInt :: iqoi(2)
   PetscErrorCode :: ierr
@@ -944,7 +944,7 @@ subroutine InversionZFlowCalculateUpdate(this)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
 
-  PetscInt :: local_id,ghosted_id
+  PetscInt :: iparameter, ghosted_id
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec2_ptr(:)
   PetscErrorCode :: ierr
@@ -969,12 +969,14 @@ subroutine InversionZFlowCalculateUpdate(this)
     ! Get updated permeability as m_new = m_old + del_m (where m = log(perm))
     call VecGetArrayF90(this%dist_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(this%realization%field%work,vec2_ptr,ierr);CHKERRQ(ierr)
-    do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      vec_ptr(local_id) = exp(log(vec_ptr(local_id)) + vec2_ptr(local_id))
-      if (vec_ptr(local_id) > this%maxperm) vec_ptr(local_id) = this%maxperm
-      if (vec_ptr(local_id) < this%minperm) vec_ptr(local_id) = this%minperm
+    do iparameter = 1, this%num_parameters_local
+      if (this%qoi_is_full_vector) then
+        ghosted_id = grid%nL2G(iparameter)
+        if (patch%imat(ghosted_id) <= 0) cycle
+      endif
+      vec_ptr(iparameter) = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
+      if (vec_ptr(iparameter) > this%maxperm) vec_ptr(iparameter) = this%maxperm
+      if (vec_ptr(iparameter) < this%minperm) vec_ptr(iparameter) = this%minperm
     enddo
     call VecRestoreArrayF90(this%dist_parameter_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
@@ -1429,42 +1431,44 @@ subroutine InversionZFlowAllocateWm(this)
 
   constrained_block => this%constrained_block
 
-  num_constraints = 0
-  do local_id=1,grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    do iconblock=1,constrained_block%num_constrained_block
-      if (constrained_block%structure_metric(iconblock) > 0) then
-        if (constrained_block%material_id(iconblock) == &
-            patch%imat(ghosted_id)) then
-          if (constrained_block%structure_metric(iconblock) == 3 .or. &
-              constrained_block%structure_metric(iconblock) == 4) then
-            num_constraints = num_constraints + 1
-          else
-            num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
-            do inbr=1,num_neighbor
-              ghosted_id_nbr = abs( &
-                            grid%cell_neighbors_local_ghosted(inbr,local_id))
-              if (patch%imat(ghosted_id_nbr) <= 0) cycle
-              if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
-                do ilink=1,constrained_block%block_link(iconblock,1)
-                  if (constrained_block%block_link(iconblock,ilink+1) == &
-                      patch%imat(ghosted_id_nbr)) then
+  if (this%qoi_is_full_vector) then
+    num_constraints = 0
+    do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      do iconblock=1,constrained_block%num_constrained_block
+        if (constrained_block%structure_metric(iconblock) > 0) then
+          if (constrained_block%material_id(iconblock) == &
+              patch%imat(ghosted_id)) then
+            if (constrained_block%structure_metric(iconblock) == 3 .or. &
+                constrained_block%structure_metric(iconblock) == 4) then
+              num_constraints = num_constraints + 1
+            else
+              num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
+              do inbr=1,num_neighbor
+                ghosted_id_nbr = abs( &
+                              grid%cell_neighbors_local_ghosted(inbr,local_id))
+                if (patch%imat(ghosted_id_nbr) <= 0) cycle
+                if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
+                  do ilink=1,constrained_block%block_link(iconblock,1)
+                    if (constrained_block%block_link(iconblock,ilink+1) == &
+                        patch%imat(ghosted_id_nbr)) then
+                      num_constraints = num_constraints + 1
+                    endif
+                  enddo
+                else
+                  if (constrained_block%structure_metric(iconblock) < 9 .or. &
+                      constrained_block%structure_metric(iconblock) > 10) then
                     num_constraints = num_constraints + 1
                   endif
-                enddo
-              else
-                if (constrained_block%structure_metric(iconblock) < 9 .or. &
-                    constrained_block%structure_metric(iconblock) > 10) then
-                  num_constraints = num_constraints + 1
                 endif
-              endif
-            enddo
+              enddo
+            endif
           endif
         endif
-      endif
+      enddo
     enddo
-  enddo
+  endif
 
   this%num_constraints_local = num_constraints
   call MPI_Allreduce(num_constraints,this%num_constraints_total, &
@@ -1474,51 +1478,54 @@ subroutine InversionZFlowAllocateWm(this)
   this%Wm = 0.d0
   this%rblock = 0
 
-  ! repeat once num_constraints is known
-  num_constraints = 0
-  do local_id=1,grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    do iconblock=1,constrained_block%num_constrained_block
-      if (constrained_block%structure_metric(iconblock) > 0) then
-        if (constrained_block%material_id(iconblock) == &
-            patch%imat(ghosted_id)) then
-          if (constrained_block%structure_metric(iconblock) == 3 .or. &
-              constrained_block%structure_metric(iconblock) == 4) then
-            num_constraints = num_constraints + 1
-            this%rblock(num_constraints,1) = ghosted_id
-            this%rblock(num_constraints,3) = iconblock
-          else
-            num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
-            do inbr=1,num_neighbor
-              ghosted_id_nbr = abs( &
-                            grid%cell_neighbors_local_ghosted(inbr,local_id))
-              if (patch%imat(ghosted_id_nbr) <= 0) cycle
-              if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
-                do ilink=1,constrained_block%block_link(iconblock,1)
-                  if (constrained_block%block_link(iconblock,ilink+1) == &
-                      patch%imat(ghosted_id_nbr)) then
+  if (this%qoi_is_full_vector) then
+
+    ! repeat once num_constraints is known
+    num_constraints = 0
+    do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      do iconblock=1,constrained_block%num_constrained_block
+        if (constrained_block%structure_metric(iconblock) > 0) then
+          if (constrained_block%material_id(iconblock) == &
+              patch%imat(ghosted_id)) then
+            if (constrained_block%structure_metric(iconblock) == 3 .or. &
+                constrained_block%structure_metric(iconblock) == 4) then
+              num_constraints = num_constraints + 1
+              this%rblock(num_constraints,1) = ghosted_id
+              this%rblock(num_constraints,3) = iconblock
+            else
+              num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
+              do inbr=1,num_neighbor
+                ghosted_id_nbr = abs( &
+                              grid%cell_neighbors_local_ghosted(inbr,local_id))
+                if (patch%imat(ghosted_id_nbr) <= 0) cycle
+                if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
+                  do ilink=1,constrained_block%block_link(iconblock,1)
+                    if (constrained_block%block_link(iconblock,ilink+1) == &
+                        patch%imat(ghosted_id_nbr)) then
+                      num_constraints = num_constraints + 1
+                      this%rblock(num_constraints,1) = ghosted_id
+                      this%rblock(num_constraints,2) = ghosted_id_nbr
+                      this%rblock(num_constraints,3) = iconblock
+                    endif
+                  enddo
+                else
+                  if (constrained_block%structure_metric(iconblock) < 9 .or. &
+                      constrained_block%structure_metric(iconblock) > 10) then
                     num_constraints = num_constraints + 1
                     this%rblock(num_constraints,1) = ghosted_id
                     this%rblock(num_constraints,2) = ghosted_id_nbr
                     this%rblock(num_constraints,3) = iconblock
                   endif
-                enddo
-              else
-                if (constrained_block%structure_metric(iconblock) < 9 .or. &
-                    constrained_block%structure_metric(iconblock) > 10) then
-                  num_constraints = num_constraints + 1
-                  this%rblock(num_constraints,1) = ghosted_id
-                  this%rblock(num_constraints,2) = ghosted_id_nbr
-                  this%rblock(num_constraints,3) = iconblock
                 endif
-              endif
-            enddo
+              enddo
+            endif
           endif
         endif
-      endif
+      enddo
     enddo
-  enddo
+  endif
 
 end subroutine InversionZFlowAllocateWm
 
@@ -1604,8 +1611,7 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
 
   ! Model part -> q2
   ! Get local this%p to ghosted in pvec_ptr
-  call DiscretizationNaturalToGlobal(discretization,p1, &
-                                     field%work,ONEDOF)
+  call InvSubsurfScatDistParamToWork(this,p1)
   call DiscretizationGlobalToLocal(discretization,field%work, &
                                    field%work_loc,ONEDOF)
   call VecGetArrayF90(field%work_loc,pvec_ptr,ierr);CHKERRQ(ierr)

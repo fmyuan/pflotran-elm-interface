@@ -765,6 +765,7 @@ subroutine InvSubsurfInitForwardRun(this,option)
   !
   use Factory_Forward_module
   use Option_module
+  use String_module
 
   class(inversion_subsurface_type) :: this
   type(option_type), pointer :: option
@@ -772,6 +773,12 @@ subroutine InvSubsurfInitForwardRun(this,option)
   option => OptionCreate()
   write(option%group_prefix,'(i6)') this%iteration
   option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
+  if (associated(this%perturbation)) then
+    if (this%perturbation%idof_pert > 0) then
+      option%group_prefix = trim(option%group_prefix) // 'P' // &
+        StringWrite(this%perturbation%idof_pert)
+    endif
+  endif
   call OptionSetDriver(option,this%driver)
   call OptionSetInversionOption(option,this%inversion_option)
   call FactoryForwardInitialize(this%forward_simulation, &
@@ -1616,6 +1623,7 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     ! sensitivity matrices
     call this%DestroyForwardRun()
   enddo
+  this%perturbation%idof_pert = 0
 
   ! reset measurement vectors to the base model
   call VecCopy(this%perturbation%base_measurement_vec, &
