@@ -122,24 +122,24 @@ factory_forward.o : checkpoint.o driver.o factory_geomechanics.o \
                     pm_geomechanics_force.o pmc_base.o \
                     simulation_geomechanics.o simulation_subsurface.o string.o \
                     units.o waypoint.o
-factory_geomechanics.o : condition_control.o convergence.o discretization.o \
-                         factory_subsurface.o geomech_grid.o \
-                         geomech_grid_aux.o geomechanics_condition.o \
-                         geomechanics_coupler.o geomechanics_debug.o \
-                         geomechanics_discretization.o geomechanics_field.o \
-                         geomechanics_force.o geomechanics_global.o \
-                         geomechanics_material.o geomechanics_patch.o \
-                         geomechanics_realization.o geomechanics_region.o \
-                         geomechanics_regression.o geomechanics_strata.o \
-                         grid_unstructured.o grid_unstructured_aux.o \
-                         init_common.o input_aux.o logging.o option.o output.o \
-                         output_aux.o output_geomechanics.o output_tecplot.o \
-                         patch.o pflotran_constants.o pm_base.o \
-                         pm_base_pointer.o pm_geomechanics_force.o pmc_base.o \
-                         pmc_geomechanics.o realization_subsurface.o \
-                         simulation_aux.o simulation_geomechanics.o \
-                         simulation_subsurface.o solver.o string.o \
-                         timestepper_steady.o units.o utility.o waypoint.o
+factory_geomechanics.o : condition_control.o factory_subsurface.o \
+                         geomech_grid.o geomech_grid_aux.o \
+                         geomechanics_condition.o geomechanics_coupler.o \
+                         geomechanics_debug.o geomechanics_discretization.o \
+                         geomechanics_field.o geomechanics_force.o \
+                         geomechanics_global.o geomechanics_material.o \
+                         geomechanics_patch.o geomechanics_realization.o \
+                         geomechanics_region.o geomechanics_regression.o \
+                         geomechanics_strata.o grid_unstructured.o \
+                         grid_unstructured_aux.o init_common.o input_aux.o \
+                         logging.o option.o output.o output_aux.o \
+                         output_geomechanics.o output_tecplot.o patch.o \
+                         pflotran_constants.o pm_base.o pm_base_pointer.o \
+                         pm_geomechanics_force.o pmc_base.o pmc_geomechanics.o \
+                         realization_subsurface.o simulation_aux.o \
+                         simulation_geomechanics.o simulation_subsurface.o \
+                         solver.o string.o timestepper_steady.o units.o \
+                         utility.o waypoint.o
 factory_pflotran.o : communicator_aux.o driver.o eos.o factory_forward.o \
                      hdf5_aux.o input_aux.o logging.o option.o \
                      pflotran_constants.o simulation_base.o \
@@ -353,8 +353,8 @@ inversion_ert.o : dataset.o dataset_base.o discretization.o driver.o ert_aux.o \
                   inversion_subsurface.o material.o material_aux.o option.o \
                   patch.o pflotran_constants.o string.o survey.o timer.o \
                   utility.o variables.o
-inversion_measurement_aux.o : input_aux.o option.o pflotran_constants.o \
-                              string.o units.o utility.o
+inversion_measurement_aux.o : geometry.o input_aux.o option.o \
+                              pflotran_constants.o string.o units.o utility.o
 inversion_parameter.o : driver.o input_aux.o material_aux.o option.o \
                         pflotran_constants.o string.o units.o variables.o
 inversion_subsurface.o : characteristic_curves.o connection.o coupler.o \
@@ -363,11 +363,10 @@ inversion_subsurface.o : characteristic_curves.o connection.o coupler.o \
                          inversion_aux.o inversion_base.o \
                          inversion_measurement_aux.o inversion_parameter.o \
                          inversion_ts_aux.o material.o material_aux.o option.o \
-                         output_hdf5.o patch.o pflotran_constants.o pm_base.o \
-                         pm_zflow.o realization_base.o \
-                         realization_subsurface.o simulation_subsurface.o \
-                         solver.o string.o timer.o units.o utility.o \
-                         variables.o zflow_aux.o
+                         output_hdf5.o patch.o pflotran_constants.o \
+                         realization_base.o realization_subsurface.o \
+                         simulation_subsurface.o solver.o string.o timer.o \
+                         units.o utility.o variables.o zflow_aux.o
 inversion_tao.o : driver.o factory_forward.o input_aux.o inversion_base.o \
                   inversion_subsurface.o option.o pflotran_constants.o \
                   string.o
