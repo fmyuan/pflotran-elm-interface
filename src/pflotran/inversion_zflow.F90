@@ -40,7 +40,7 @@ module Inversion_ZFlow_class
     PetscInt :: num_constraints_total    ! Total number of constraints
     PetscInt, pointer :: rblock(:,:)     ! array stores info about reg.
     PetscReal, pointer :: Wm(:)          ! Regularization matrix
-    Vec :: natural_vec
+    Vec :: dist_parameter_tmp_vec
 
     type(constrained_block_type), pointer :: constrained_block
 
@@ -163,7 +163,7 @@ subroutine InversionZFlowInit(this,driver)
   this%phi_data = UNINITIALIZED_DOUBLE
   this%phi_model = UNINITIALIZED_DOUBLE
 
-  this%natural_vec = PETSC_NULL_VEC
+  this%dist_parameter_tmp_vec = PETSC_NULL_VEC
 
   nullify(this%b)
   nullify(this%p)
@@ -680,11 +680,8 @@ subroutine InversionZFlowInitialize(this)
 
   call InversionSubsurfInitialize(this)
 
-  if (this%natural_vec == PETSC_NULL_VEC) then
-    call DiscretizationCreateVector(this%realization%discretization, &
-                                    ONEDOF,this%natural_vec,NATURAL, &
-                                    this%realization%option)
-  endif
+  call VecDuplicate(this%dist_parameter_vec,this%dist_parameter_tmp_vec, &
+                    ierr);CHKERRQ(ierr)
 
   ! check to ensure that quantity of interest exists
   exists = PETSC_FALSE
@@ -962,12 +959,12 @@ subroutine InversionZFlowCalculateUpdate(this)
     ! get inversion%del_perm
     call InversionZFlowCGLSSolve(this)
 
-    call VecGetArrayF90(this%natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%dist_parameter_tmp_vec,vec_ptr, &
+                        ierr);CHKERRQ(ierr)
     vec_ptr(:) = this%del_perm(:)
-    call VecRestoreArrayF90(this%natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
-    call DiscretizationNaturalToGlobal(this%realization%discretization, &
-                                       this%natural_vec, &
-                                       this%realization%field%work,ONEDOF)
+    call VecRestoreArrayF90(this%dist_parameter_tmp_vec,vec_ptr, &
+                            ierr);CHKERRQ(ierr)
+    call InvSubsurfScatDistParamToWork(this,this%dist_parameter_tmp_vec)
 
     ! Get updated permeability as m_new = m_old + del_m (where m = log(perm))
     call VecGetArrayF90(this%dist_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1226,7 +1223,7 @@ end subroutine InversionZFlowCGLSRhs
 
 ! ************************************************************************** !
 
-subroutine InversionZFLowBuildWm(this)
+subroutine InversionZFlowBuildWm(this)
   !
   ! Builds model regularization matrix: Wm
   !
@@ -1581,7 +1578,7 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   num_measurement = size(this%measurements)
 
   ! Data part
-  call VecDuplicate(this%natural_vec,p1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%dist_parameter_vec,p1,ierr);CHKERRQ(ierr)
   call VecDuplicate(this%dist_measurement_vec,q1_dist,ierr);CHKERRQ(ierr)
   call VecDuplicate(this%measurement_vec,q1,ierr);CHKERRQ(ierr)
 
@@ -1729,12 +1726,11 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
   call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
   call DiscretizationLocalToGlobalAdd(discretization,field%work_loc, &
                                       field%work,ONEDOF)
-  call DiscretizationGlobalToNatural(discretization,field%work, &
-                                     this%natural_vec,ONEDOF)
+  call InvSubsurfScatWorkToDistParam(this,this%dist_parameter_tmp_vec)
 
   ! Data part
   call VecDuplicate(this%measurement_vec,r1,ierr);CHKERRQ(ierr)
-  call VecDuplicate(this%natural_vec,s1,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%dist_parameter_tmp_vec,s1,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
   r1vec_ptr = this%r(1:num_measurement)
@@ -1756,10 +1752,12 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
                s1,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(s1,s1vec_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(this%natural_vec,s2vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(this%dist_parameter_tmp_vec,s2vec_ptr, &
+                      ierr);CHKERRQ(ierr)
   this%s = s1vec_ptr + s2vec_ptr
   call VecRestoreArrayF90(s1,s1vec_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(this%natural_vec,s2vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%dist_parameter_tmp_vec,s2vec_ptr, &
+                          ierr);CHKERRQ(ierr)
 
   call VecDestroy(r1,ierr);CHKERRQ(ierr)
   call VecDestroy(s1,ierr);CHKERRQ(ierr)
@@ -1894,13 +1892,6 @@ subroutine InversionZFlowScaleSensitivity(this)
   PetscReal, pointer :: wdvec_ptr(:)
   PetscErrorCode :: ierr
 
-  call RealizationGetVariable(this%realization, &
-                              this%realization%field%work, &
-                              PERMEABILITY,ZERO_INTEGER)
-  call DiscretizationGlobalToNatural(this%realization%discretization, &
-                                     this%realization%field%work, &
-                                     this%natural_vec,ONEDOF)
-
   num_measurement = size(this%measurements)
   call VecDuplicate(this%measurement_vec,wd_vec,ierr);CHKERRQ(ierr)
   call VecZeroEntries(wd_vec,ierr);CHKERRQ(ierr)
@@ -1927,7 +1918,7 @@ subroutine InversionZFlowScaleSensitivity(this)
                         ierr);CHKERRQ(ierr)
   ! Row scale with perm
   call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
-                        this%natural_vec, & ! scales rows
+                        this%dist_parameter_vec, & ! scales rows
                         PETSC_NULL_VEC, &  ! scales columns
                         ierr);CHKERRQ(ierr)
   call VecDestroy(wd_vec,ierr);CHKERRQ(ierr)
@@ -2043,7 +2034,7 @@ end subroutine ConstrainedBlockDestroy
 
 ! ************************************************************************** !
 
-subroutine InversionZFlowDestroy(inversion)
+subroutine InversionZFlowDestroy(this)
   !
   ! Deallocates a inversion
   !
@@ -2055,30 +2046,30 @@ subroutine InversionZFlowDestroy(inversion)
 
   implicit none
 
-  class(inversion_zflow_type), pointer :: inversion
+  class(inversion_zflow_type), pointer :: this
 
   PetscErrorCode :: ierr
 
-  if (.not.associated(inversion)) return
+  if (.not.associated(this)) return
 
-  call DeallocateArray(inversion%b)
-  call DeallocateArray(inversion%p)
-  call DeallocateArray(inversion%q)
-  call DeallocateArray(inversion%r)
-  call DeallocateArray(inversion%s)
-  call DeallocateArray(inversion%del_perm)
-  call DeallocateArray(inversion%Wm)
-  call DeallocateArray(inversion%rblock)
+  call DeallocateArray(this%b)
+  call DeallocateArray(this%p)
+  call DeallocateArray(this%q)
+  call DeallocateArray(this%r)
+  call DeallocateArray(this%s)
+  call DeallocateArray(this%del_perm)
+  call DeallocateArray(this%Wm)
+  call DeallocateArray(this%rblock)
 
-  if (inversion%natural_vec /= PETSC_NULL_VEC) then
-    call VecDestroy(inversion%natural_vec,ierr);CHKERRQ(ierr)
+  if (this%dist_parameter_tmp_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(this%dist_parameter_tmp_vec,ierr);CHKERRQ(ierr)
   endif
 
-  call ConstrainedBlockDestroy(inversion%constrained_block)
+  call ConstrainedBlockDestroy(this%constrained_block)
 
-  call inversion%Strip()
-  deallocate(inversion)
-  nullify(inversion)
+  call this%Strip()
+  deallocate(this)
+  nullify(this)
 
 end subroutine InversionZFlowDestroy
 
