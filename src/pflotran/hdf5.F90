@@ -664,6 +664,9 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   ! Open the Regions group
   call HDF5GroupOpen(grp_id,region%name,grp_id2,option)
 
+  option%io_buffer = 'Querying definition for Region: ' // trim(region%name)
+  call PrintMsg(option)
+
   ! Querry region definition
   string = "Cell Ids"
   call h5lexists_f(grp_id2, string, cell_ids_exists, hdf5_err)
@@ -676,6 +679,8 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
 
   call h5gclose_f(grp_id2,hdf5_err)
   call h5gclose_f(grp_id,hdf5_err)
+  option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
+  call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
 
 end subroutine HDF5QueryRegionDefinition
