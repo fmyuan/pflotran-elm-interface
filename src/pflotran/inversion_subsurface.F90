@@ -21,6 +21,9 @@ module Inversion_Subsurface_class
   PetscInt, parameter :: COPY_TO_VEC = 3
   PetscInt, parameter :: COPY_FROM_VEC = 4
 
+  PetscInt, parameter, public :: INVSUBSCATFORWARD = 0
+  PetscInt, parameter, public :: INVSUBSCATREVERSE = 1
+
   type, public, extends(inversion_base_type) :: inversion_subsurface_type
     character(len=MAXSTRINGLENGTH) :: forward_simulation_filename
     class(simulation_subsurface_type), pointer :: forward_simulation
@@ -83,16 +86,6 @@ module Inversion_Subsurface_class
     PetscInt, pointer :: select_cells(:)
   end type perturbation_type
 
-  interface InvSubsurfScatDistParamToWork
-    module procedure :: InvSubsurfScatDistParamToWork1
-    module procedure :: InvSubsurfScatDistParamToWork2
-  end interface
-
-  interface InvSubsurfScatWorkToDistParam
-    module procedure :: InvSubsurfScatWorkToDistParam1
-    module procedure :: InvSubsurfScatWorkToDistParam2
-  end interface
-
   public :: InversionSubsurfaceCreate, &
             InversionSubsurfaceInit, &
             InversionSubsurfReadSelectCase, &
@@ -102,11 +95,8 @@ module Inversion_Subsurface_class
             InversionSubsurfaceStrip
 
   public :: InvSubsurfScatMeasToDistMeas, &
-            InvSubsurfScatDistMeasToMeas, &
-            InvSubsurfScatDistParamToParam, &
             InvSubsurfScatParamToDistParam, &
-            InvSubsurfScatDistParamToWork, &
-            InvSubsurfScatWorkToDistParam
+            InvSubsurfScatGlobalToDistParam
 
 contains
 
@@ -828,11 +818,17 @@ subroutine InvSubsurfConnectToForwardRun(this)
       call DiscretizationLocalToGlobal(this%realization%discretization, &
                                       this%realization%field%work_loc, &
                                       this%realization%field%work,ONEDOF)
-      call InvSubsurfScatWorkToDistParam(this)
+      call InvSubsurfScatGlobalToDistParam(this, &
+                                           this%realization%field%work, &
+                                           this%dist_parameter_vec, &
+                                           INVSUBSCATFORWARD)
     else
       ! on subsequent iterations, overwrite what was read from input file
       ! with latest inverted values
-      call InvSubsurfScatDistParamToWork(this)
+      call InvSubsurfScatGlobalToDistParam(this, &
+                                           this%realization%field%work, &
+                                           this%dist_parameter_vec, &
+                                           INVSUBSCATREVERSE)
       call DiscretizationGlobalToLocal(this%realization%discretization, &
                                        this%realization%field%work, &
                                        this%realization%field%work_loc,ONEDOF)
@@ -905,7 +901,10 @@ subroutine InvSubsurfConnectToForwardRun(this)
         endif
         call VecAXPY(this%dist_parameter_vec,1.d0, &
                      this%perturbation%base_parameter_vec,ierr);CHKERRQ(ierr)
-        call InvSubsurfScatDistParamToWork(this)
+        call InvSubsurfScatGlobalToDistParam(this, &
+                                             this%realization%field%work, &
+                                             this%dist_parameter_vec, &
+                                             INVSUBSCATREVERSE)
 
         call DiscretizationGlobalToLocal(this%realization%discretization, &
                                         this%realization%field%work, &
@@ -1102,7 +1101,10 @@ subroutine InvSubsurfCalculateSensitivity(this)
   call InvSubsurfOutputSensitivity(this,'')
 
   if (.not.this%qoi_is_full_vector) then
-    call InvSubsurfScatParamToDistParam(this)
+    call InvSubsurfScatParamToDistParam(this, &
+                                        this%parameter_vec, &
+                                        this%dist_parameter_vec, &
+                                        INVSUBSCATFORWARD)
   endif
 
 end subroutine InvSubsurfCalculateSensitivity
@@ -1628,7 +1630,10 @@ subroutine InvSubsurfPertCalcSensitivity(this)
   ! reset measurement vectors to the base model
   call VecCopy(this%perturbation%base_measurement_vec, &
                this%measurement_vec,ierr);CHKERRQ(ierr)
-  call InvSubsurfScatMeasToDistMeas(this)
+  call InvSubsurfScatMeasToDistMeas(this, &
+                                    this%measurement_vec, &
+                                    this%dist_measurement_vec, &
+                                    INVSUBSCATFORWARD)
 
   ! reset parameters to base copy
   if (this%qoi_is_full_vector) then
@@ -1636,7 +1641,10 @@ subroutine InvSubsurfPertCalcSensitivity(this)
     call VecCopy(this%perturbation%base_parameter_vec, &
                  this%dist_parameter_vec, &
                  ierr);CHKERRQ(ierr)
-    call InvSubsurfScatDistParamToWork(this)
+    call InvSubsurfScatGlobalToDistParam(this, &
+                                         this%realization%field%work, &
+                                         this%dist_parameter_vec, &
+                                         INVSUBSCATREVERSE)
     call DiscretizationGlobalToLocal(this%realization%discretization, &
                                      this%realization%field%work, &
                                      this%realization%field%work_loc,ONEDOF)
@@ -1697,7 +1705,10 @@ subroutine InvSubsurfPerturbationFillRow(this,iteration)
   if (this%perturbation%idof_pert == 0) return
 
   ! don't need to use the distributed vec, but why not
-  call InvSubsurfScatMeasToDistMeas(this)
+  call InvSubsurfScatMeasToDistMeas(this, &
+                                    this%measurement_vec, &
+                                    this%dist_measurement_vec, &
+                                    INVSUBSCATFORWARD)
   call VecGetArrayF90(this%dist_measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do i = 1, size(vec_ptr)
     call MatSetValue(this%inversion_aux%JsensitivityT, &
@@ -1891,7 +1902,8 @@ end subroutine InvSubsurfOutputSensitivityHDF5
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfScatWorkToDistParam1(this)
+subroutine InvSubsurfScatGlobalToDistParam(this,global_,dist_parameter_vec, &
+                                           direction)
   !
   ! Scatters from work to dist_parameter_vec
   !
@@ -1899,87 +1911,42 @@ subroutine InvSubsurfScatWorkToDistParam1(this)
   ! Date: 04/01/22
   !
   class(inversion_subsurface_type) :: this
-
-  PetscErrorCode :: ierr
-
-  call InvSubsurfScatWorkToDistParam(this,this%dist_parameter_vec)
-
-end subroutine InvSubsurfScatWorkToDistParam1
-
-! ************************************************************************** !
-
-subroutine InvSubsurfScatWorkToDistParam2(this,dist_parameter_vec)
-  !
-  ! Scatters from work to dist_parameter_vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 04/01/22
-  !
-  class(inversion_subsurface_type) :: this
+  Vec :: global_
   Vec :: dist_parameter_vec
+  PetscInt :: direction
 
   PetscErrorCode :: ierr
 
-  call VecScatterBegin(this%scatter_global_to_dist_param, &
-                       this%realization%field%work, &
+  if (direction == INVSUBSCATFORWARD) then
+    call VecScatterBegin(this%scatter_global_to_dist_param, &
+                         global_, &
+                         dist_parameter_vec, &
+                         INSERT_VALUES,SCATTER_FORWARD, &
+                         ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%scatter_global_to_dist_param, &
+                       global_, &
                        dist_parameter_vec, &
                        INSERT_VALUES,SCATTER_FORWARD, &
                        ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_global_to_dist_param, &
-                     this%realization%field%work, &
-                     dist_parameter_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD, &
-                     ierr);CHKERRQ(ierr)
-
-end subroutine InvSubsurfScatWorkToDistParam2
-
-! ************************************************************************** !
-
-subroutine InvSubsurfScatDistParamToWork1(this)
-  !
-  ! Scatters from dist_parameter_vec to work
-  !
-  ! Author: Glenn Hammond
-  ! Date: 04/01/22
-  !
-  class(inversion_subsurface_type) :: this
-
-  PetscErrorCode :: ierr
-
-  call InvSubsurfScatDistParamToWork(this,this%dist_parameter_vec)
-
-end subroutine InvSubsurfScatDistParamToWork1
-
-! ************************************************************************** !
-
-subroutine InvSubsurfScatDistParamToWork2(this,dist_parameter_vec)
-  !
-  ! Scatters from dist_parameter_vec to work
-  !
-  ! Author: Glenn Hammond
-  ! Date: 04/01/22
-  !
-  class(inversion_subsurface_type) :: this
-  Vec :: dist_parameter_vec
-
-  PetscErrorCode :: ierr
-
-  call VecScatterBegin(this%scatter_global_to_dist_param, &
+  else ! INVSUBSCATREVERSE
+    call VecScatterBegin(this%scatter_global_to_dist_param, &
+                         dist_parameter_vec, &
+                         global_, &
+                         INSERT_VALUES,SCATTER_REVERSE, &
+                         ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%scatter_global_to_dist_param, &
                        dist_parameter_vec, &
-                       this%realization%field%work, &
+                       global_, &
                        INSERT_VALUES,SCATTER_REVERSE, &
                        ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_global_to_dist_param, &
-                     dist_parameter_vec, &
-                     this%realization%field%work, &
-                     INSERT_VALUES,SCATTER_REVERSE, &
-                     ierr);CHKERRQ(ierr)
+  endif
 
-end subroutine InvSubsurfScatDistParamToWork2
+end subroutine InvSubsurfScatGlobalToDistParam
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfScatParamToDistParam(this)
+subroutine InvSubsurfScatParamToDistParam(this,parameter_vec, &
+                                          dist_parameter_vec,direction)
   !
   ! Scatters from parameter_vec to dist_parameter_vec
   !
@@ -1987,51 +1954,43 @@ subroutine InvSubsurfScatParamToDistParam(this)
   ! Date: 04/11/22
   !
   class(inversion_subsurface_type) :: this
+  Vec :: parameter_vec
+  Vec :: dist_parameter_vec
+  PetscInt :: direction
 
   PetscErrorCode :: ierr
 
-  call VecScatterBegin(this%scatter_param_to_dist_param, &
-                       this%parameter_vec, &
-                       this%dist_parameter_vec, &
+  if (direction == INVSUBSCATFORWARD) then
+    ! the parameter_vec is full on each process
+    call VecScatterBegin(this%scatter_param_to_dist_param, &
+                         parameter_vec, &
+                         dist_parameter_vec, &
+                         INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                         ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%scatter_param_to_dist_param, &
+                       parameter_vec, &
+                       dist_parameter_vec, &
                        INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
                        ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_param_to_dist_param, &
-                     this%parameter_vec, &
-                     this%dist_parameter_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                     ierr);CHKERRQ(ierr)
+  else ! INVSUBSCATREVERSE
+    call VecScatterBegin(this%scatter_param_to_dist_param, &
+                         dist_parameter_vec, &
+                         parameter_vec, &
+                         INSERT_VALUES,SCATTER_REVERSE, &
+                         ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%scatter_param_to_dist_param, &
+                       dist_parameter_vec, &
+                       parameter_vec, &
+                       INSERT_VALUES,SCATTER_REVERSE, &
+                       ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine InvSubsurfScatParamToDistParam
 
 ! ************************************************************************** !
 
-subroutine InvSubsurfScatDistParamToParam(this)
-  !
-  ! Scatters from dist_parameter_vec to parameter_vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 04/11/22
-  !
-  class(inversion_subsurface_type) :: this
-
-  PetscErrorCode :: ierr
-
-  call VecScatterBegin(this%scatter_param_to_dist_param, &
-                       this%dist_parameter_vec, &
-                       this%parameter_vec, &
-                       INSERT_VALUES,SCATTER_REVERSE, &
-                       ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_param_to_dist_param, &
-                     this%dist_parameter_vec, &
-                     this%parameter_vec, &
-                     INSERT_VALUES,SCATTER_REVERSE, &
-                     ierr);CHKERRQ(ierr)
-
-end subroutine InvSubsurfScatDistParamToParam
-
-! ************************************************************************** !
-
-subroutine InvSubsurfScatMeasToDistMeas(this)
+subroutine InvSubsurfScatMeasToDistMeas(this,measurement_vec, &
+                                        dist_measurement_vec,direction)
   !
   ! Scatters from measurement_vec to dist_measurement_vec
   !
@@ -2039,43 +1998,38 @@ subroutine InvSubsurfScatMeasToDistMeas(this)
   ! Date: 04/01/22
   !
   class(inversion_subsurface_type) :: this
+  Vec :: measurement_vec
+  Vec :: dist_measurement_vec
+  PetscInt :: direction
 
   PetscErrorCode :: ierr
 
-  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
-                       this%measurement_vec,this%dist_measurement_vec, &
+  if (direction == INVSUBSCATFORWARD) then
+    ! the measurement_vec is full on each process
+    call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+                         measurement_vec, &
+                         dist_measurement_vec, &
+                         INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
+                         ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+                       measurement_vec, &
+                       dist_measurement_vec, &
                        INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
                        ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
-                     this%measurement_vec,this%dist_measurement_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                     ierr);CHKERRQ(ierr)
-
-end subroutine InvSubsurfScatMeasToDistMeas
-
-! ************************************************************************** !
-
-subroutine InvSubsurfScatDistMeasToMeas(this)
-  !
-  ! Scatters from measurement_vec to dist_measurement_vec
-  !
-  ! Author: Glenn Hammond
-  ! Date: 04/01/22
-  !
-  class(inversion_subsurface_type) :: this
-
-  PetscErrorCode :: ierr
-
-  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
-                       this%dist_measurement_vec,this%measurement_vec, &
+  else ! INVSUBSCATREVERSE
+    call VecScatterBegin(this%scatter_measure_to_dist_measure, &
+                         dist_measurement_vec, &
+                         measurement_vec, &
+                         INSERT_VALUES,SCATTER_REVERSE, &
+                         ierr);CHKERRQ(ierr)
+    call VecScatterEnd(this%scatter_measure_to_dist_measure, &
+                       dist_measurement_vec, &
+                       measurement_vec, &
                        INSERT_VALUES,SCATTER_REVERSE, &
                        ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
-                     this%dist_measurement_vec,this%measurement_vec, &
-                     INSERT_VALUES,SCATTER_REVERSE, &
-                     ierr);CHKERRQ(ierr)
+  endif
 
-end subroutine InvSubsurfScatDistMeasToMeas
+end subroutine InvSubsurfScatMeasToDistMeas
 
 ! ************************************************************************** !
 

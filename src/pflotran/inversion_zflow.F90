@@ -964,7 +964,10 @@ subroutine InversionZFlowCalculateUpdate(this)
     vec_ptr(:) = this%del_perm(:)
     call VecRestoreArrayF90(this%dist_parameter_tmp_vec,vec_ptr, &
                             ierr);CHKERRQ(ierr)
-    call InvSubsurfScatDistParamToWork(this,this%dist_parameter_tmp_vec)
+    call InvSubsurfScatGlobalToDistParam(this, &
+                                         this%realization%field%work, &
+                                         this%dist_parameter_tmp_vec, &
+                                         INVSUBSCATREVERSE)
 
     ! Get updated permeability as m_new = m_old + del_m (where m = log(perm))
     call VecGetArrayF90(this%dist_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1597,21 +1600,21 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
   call MatMultTranspose(inversion_aux%JsensitivityT,p1,q1_dist, &
                         ierr);CHKERRQ(ierr)
 
-  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
-                       q1_dist,q1, &
-                       INSERT_VALUES,SCATTER_REVERSE, &
-                       ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
-                     q1_dist,q1, &
-                     INSERT_VALUES,SCATTER_REVERSE, &
-                     ierr);CHKERRQ(ierr)
+  call InvSubsurfScatMeasToDistMeas(this, &
+                                    q1, &
+                                    q1_dist, &
+                                    INVSUBSCATREVERSE)
+
   call VecGetArrayF90(q1,q1vec_ptr,ierr);CHKERRQ(ierr)
   this%q(1:num_measurement) = q1vec_ptr
   call VecRestoreArrayF90(q1,q1vec_ptr,ierr);CHKERRQ(ierr)
 
   ! Model part -> q2
   ! Get local this%p to ghosted in pvec_ptr
-  call InvSubsurfScatDistParamToWork(this,p1)
+  call InvSubsurfScatGlobalToDistParam(this, &
+                                       this%realization%field%work, &
+                                       p1, &
+                                       INVSUBSCATREVERSE)
   call DiscretizationGlobalToLocal(discretization,field%work, &
                                    field%work_loc,ONEDOF)
   call VecGetArrayF90(field%work_loc,pvec_ptr,ierr);CHKERRQ(ierr)
@@ -1732,7 +1735,10 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
   call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
   call DiscretizationLocalToGlobalAdd(discretization,field%work_loc, &
                                       field%work,ONEDOF)
-  call InvSubsurfScatWorkToDistParam(this,this%dist_parameter_tmp_vec)
+  call InvSubsurfScatGlobalToDistParam(this, &
+                                       this%realization%field%work, &
+                                       this%dist_parameter_tmp_vec, &
+                                       INVSUBSCATFORWARD)
 
   ! Data part
   call VecDuplicate(this%measurement_vec,r1,ierr);CHKERRQ(ierr)
@@ -1741,15 +1747,10 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
   call VecGetArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
   r1vec_ptr = this%r(1:num_measurement)
   call VecRestoreArrayF90(r1,r1vec_ptr,ierr);CHKERRQ(ierr)
-  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
-                       r1,this%dist_measurement_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                       ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
-                     r1,this%dist_measurement_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                     ierr);CHKERRQ(ierr)
-
+  call InvSubsurfScatMeasToDistMeas(this, &
+                                    r1, &
+                                    this%dist_measurement_vec, &
+                                    INVSUBSCATFORWARD)
   call VecGetArrayF90(this%dist_measurement_vec,r1vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%dist_measurement_vec,r1vec_ptr,ierr);CHKERRQ(ierr)
 
@@ -1908,14 +1909,10 @@ subroutine InversionZFlowScaleSensitivity(this)
     wdvec_ptr(idata) = wd
   enddo
   call VecRestoreArrayF90(wd_vec,wdvec_ptr,ierr);CHKERRQ(ierr)
-  call VecScatterBegin(this%scatter_measure_to_dist_measure, &
-                       wd_vec,this%dist_measurement_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                       ierr);CHKERRQ(ierr)
-  call VecScatterEnd(this%scatter_measure_to_dist_measure, &
-                     wd_vec,this%dist_measurement_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD_LOCAL, &
-                     ierr);CHKERRQ(ierr)
+  call InvSubsurfScatMeasToDistMeas(this, &
+                                    wd_vec, &
+                                    this%dist_measurement_vec, &
+                                    INVSUBSCATFORWARD)
 
   ! Column Scale with wd
   call MatDiagonalScale(this%inversion_aux%JsensitivityT, &
