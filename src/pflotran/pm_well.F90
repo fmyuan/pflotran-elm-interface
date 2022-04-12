@@ -2537,6 +2537,7 @@ subroutine PMWellResidualTran(this)
   call PMWellResidualTranSrcSink(this)
 
   ! calculate the rxn terms (decay/ingrowth)
+  call PMWellResidualTranRxn(this)
 
   ! calculate the flux terms
   call PMWellResidualTranFlux(this)
@@ -2648,6 +2649,42 @@ subroutine PMWellResidualTranSrcSink(this)
   enddo
 
 end subroutine PMWellResidualTranSrcSink
+
+! ************************************************************************** !
+
+subroutine PMWellResidualTranRxn(this)
+  ! 
+  ! Calculates the decay/ingrowth of radioactive species for the transport 
+  ! residual equation.
+  !
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/06/2022
+
+  implicit none
+  
+  class(pm_well_type) :: this
+
+  PetscInt :: ispecies, isegment, k
+  PetscInt :: offset, istart, iend
+  PetscReal :: Res(this%nspecies)
+
+  do isegment = 1,this%grid%nsegments
+
+    offset = (isegment-1)*this%nspecies
+    istart = offset + 1
+    iend = offset + this%nspecies
+
+    do ispecies = 1,this%nspecies
+      k = ispecies
+
+      Res(k) = 0.d0
+    enddo
+
+    this%tran_soln%residual(istart:iend) = &
+                          this%tran_soln%residual(istart:iend) - Res(:)
+  enddo
+
+end subroutine PMWellResidualTranRxn
 
 ! ************************************************************************** !
 
