@@ -4073,8 +4073,12 @@ subroutine EOSWaterComputeSalinity(T, x)
   PetscReal, intent(out) :: x
   
   if (.not. halite_saturated_brine) then
-    ! salinity [mass %]
-    x = constant_salinity
+     ! salinity [mass %]
+    if (Initialized(constant_salinity)) then
+      x = constant_salinity
+    else
+      x = 0.d0
+    endif
   else !compute solubility
     call EOSWaterSolubility(T,x)
   endif
