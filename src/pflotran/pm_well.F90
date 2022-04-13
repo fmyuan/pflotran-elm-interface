@@ -11,6 +11,7 @@ module PM_Well_class
   use Realization_Subsurface_class
   use PFLOTRAN_Constants_module
   use WIPP_Flow_Aux_module
+  use NW_Transport_Aux_module
 
   implicit none
 
@@ -123,6 +124,14 @@ module PM_Well_class
     PetscReal, pointer :: qg_bc(:)
     ! well species names
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
+    ! well species parent id number
+    PetscInt, pointer :: species_parent_id(:)
+    ! well species radioactive flag
+    PetscBool, pointer :: species_radioactive(:)
+    ! well species decay rate [1/sec] 
+    PetscReal, pointer :: species_decay_rate(:)
+    ! well species' parent decay rate [1/sec] 
+    PetscReal, pointer :: species_parent_decay_rate(:)
     ! well species aqueous concentration [mol/m3-liq] (idof,conc@segment)
     PetscReal, pointer :: aqueous_conc(:,:)
     ! well species aqueous mass [mol] (idof,mass@segment)
@@ -247,11 +256,12 @@ module PM_Well_class
     PetscReal, pointer :: pert(:,:)
     PetscInt :: nphase 
     PetscInt :: nspecies 
-    PetscReal :: intrusion_time_start
-    PetscReal :: dt_flow, dt_tran
-    PetscReal :: min_dt_flow, min_dt_tran
-    PetscReal :: cumulative_dt_flow
-    PetscReal :: cumulative_dt_tran
+    PetscReal :: intrusion_time_start           ! [sec]
+    PetscReal :: bh_zero_value                  ! [mol/m3-bulk]
+    PetscReal :: dt_flow, dt_tran               ! [sec]
+    PetscReal :: min_dt_flow, min_dt_tran       ! [sec]
+    PetscReal :: cumulative_dt_flow             ! [sec]
+    PetscReal :: cumulative_dt_tran             ! [sec]
     PetscBool :: transport
     PetscBool :: ss_check
   contains
@@ -294,6 +304,7 @@ function PMWellCreate()
   nullify(PMWellCreate%realization)
   PMWellCreate%min_dt_flow = 1.d-15
   PMWellCreate%min_dt_tran = 1.d-15
+  PMWellCreate%bh_zero_value = 1.d-40
   PMWellCreate%intrusion_time_start = UNINITIALIZED_DOUBLE
   PMWellCreate%nphase = 0
   PMWellCreate%nspecies = 0
@@ -331,6 +342,10 @@ function PMWellCreate()
   nullify(PMWellCreate%well%ql_bc)
   nullify(PMWellCreate%well%qg_bc)
   nullify(PMWellCreate%well%species_names)
+  nullify(PMWellCreate%well%species_parent_id)
+  nullify(PMWellCreate%well%species_radioactive)
+  nullify(PMWellCreate%well%species_decay_rate)
+  nullify(PMWellCreate%well%species_parent_decay_rate)
   nullify(PMWellCreate%well%aqueous_conc)
   nullify(PMWellCreate%well%aqueous_mass)
   nullify(PMWellCreate%well%ccid)
@@ -929,13 +944,20 @@ subroutine PMWellReadPMBlock(this,input)
     !-------------------------------------
       case('CHECK_FOR_SS')
         this%ss_check = PETSC_TRUE
-        cycle!-------------------------------------
+        cycle
+    !-------------------------------------
       case('WIPP_INTRUSION_START_TIME')
         call InputReadDouble(input,option,this%intrusion_time_start)
         call InputErrorMsg(input,option,'WIPP_INTRUSION_START_TIME', &
                            error_string)
         call InputReadAndConvertUnits(input,this%intrusion_time_start,'sec', &
                            'WELLBORE_MODEL, WIPP_INTRUSION_START_TIME',option)
+        cycle
+    !-------------------------------------
+      case('WIPP_INTRUSION_ZERO_VALUE')  ! [mol/m3-bulk]
+        call InputReadDouble(input,option,this%bh_zero_value)
+        call InputErrorMsg(input,option,'WIPP_INTRUSION_ZERO_VALUE', &
+                           error_string)
         cycle
     !-------------------------------------
     end select
@@ -1844,6 +1866,8 @@ recursive subroutine PMWellInitializeRun(this)
   class(pm_well_type) :: this
   
   type(strata_type), pointer :: patch_strata, well_strata
+  type(radioactive_decay_rxn_type), pointer :: rad_rxn
+  type(species_type), pointer :: species
   PetscInt :: nsegments, k
   PetscReal :: curr_time
 
@@ -2019,9 +2043,44 @@ recursive subroutine PMWellInitializeRun(this)
 
   if (this%transport) then
     allocate(this%well%species_names(this%nspecies))
-    do k = 1,this%nspecies
-      this%well%species_names(k) =  &
-        this%realization%reaction_nw%species_names(k)
+    allocate(this%well%species_parent_id(this%nspecies))
+    allocate(this%well%species_radioactive(this%nspecies))
+    allocate(this%well%species_decay_rate(this%nspecies))
+    allocate(this%well%species_parent_decay_rate(this%nspecies))
+    this%well%species_decay_rate(:) = 0.d0
+    this%well%species_parent_decay_rate(:) = 0.d0
+    this%well%species_parent_id(:) = 0
+    k = 0
+    species => this%realization%reaction_nw%species_list
+    do
+
+      if (.not.associated(species)) exit
+      k = k + 1
+      this%well%species_names(k) = species%name 
+      this%well%species_radioactive(k) = species%radioactive
+      if (species%radioactive) then
+        ! Find the reaction object associated with this species
+        rad_rxn => this%realization%reaction_nw%rad_decay_rxn_list
+        do
+          if (.not.associated(rad_rxn)) exit
+          if (rad_rxn%species_id == species%id) exit
+          rad_rxn => rad_rxn%next
+        enddo
+        this%well%species_decay_rate(k) = rad_rxn%rate_constant
+        if (rad_rxn%parent_id > 0.d0) then
+          this%well%species_parent_id(k) = rad_rxn%parent_id
+          ! Find the reaction object associated with the parent species
+          rad_rxn => this%realization%reaction_nw%rad_decay_rxn_list
+          do
+            if (.not.associated(rad_rxn)) exit
+            if (rad_rxn%species_id == this%well%species_parent_id(k)) exit
+            rad_rxn => rad_rxn%next
+          enddo
+          this%well%species_parent_decay_rate(k) = rad_rxn%rate_constant
+        endif
+      endif 
+
+      species => species%next
     enddo
   endif
 
@@ -2167,15 +2226,6 @@ subroutine PMWellInitializeWell(this)
   ! update the Darcy fluxes within the well
   call PMWellCalcVelocity(this)
 
-  ! set initial transport parameters to the reservoir transport parameters
-  if (this%transport) then
-    this%well%aqueous_conc = this%reservoir%aqueous_conc
-    do k = 1,this%grid%nsegments
-      this%well%aqueous_mass(:,k) = this%well%aqueous_conc(:,k) * &
-                this%well%phi(k) * this%well%volume(k) * this%well%liq%s(k)
-    enddo
-  endif
-
   this%well_pert(ONE_INTEGER)%pl = this%reservoir%p_l
   this%well_pert(ONE_INTEGER)%pg = this%reservoir%p_g
   this%well_pert(ONE_INTEGER)%liq%s = this%reservoir%s_l
@@ -2196,11 +2246,6 @@ subroutine PMWellInitializeWell(this)
     
   this%flow_soln%prev_soln%pl = this%well%pl
   this%flow_soln%prev_soln%sg = this%well%gas%s
-
-  if (this%transport) then
-    this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
-    this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
-  endif
 
   ! Link well material properties
   do k = 1,this%grid%nsegments
@@ -2225,6 +2270,28 @@ subroutine PMWellInitializeWell(this)
     this%well_pert(k)%ccid(:) = this%well%ccid(:)
     this%well_pert(k)%WI(:) = this%well%WI(:)
   enddo
+
+  ! set initial transport parameters to the reservoir transport parameters
+  if (this%transport) then
+    if (Initialized(this%intrusion_time_start)) then
+      ! set the borehole concentrations to the borehole zero value now
+      do k = 1,this%grid%nsegments
+        this%well%aqueous_mass(:,k) = this%bh_zero_value*this%well%volume(k)       
+        this%well%aqueous_conc(:,k) = &
+          this%well%aqueous_mass(:,k) / &                           ! [mol]
+          (this%well%phi(k)*this%well%volume(k)*this%well%liq%s(k)) ! [m3-liq]
+      enddo
+    else 
+      ! set the wellbore concentrations to the reservoir values
+      this%well%aqueous_conc = this%reservoir%aqueous_conc
+      do k = 1,this%grid%nsegments
+        this%well%aqueous_mass(:,k) = this%well%aqueous_conc(:,k) * &
+                this%well%phi(k) * this%well%volume(k) * this%well%liq%s(k)
+      enddo
+    endif
+    this%tran_soln%prev_soln%aqueous_conc = this%well%aqueous_conc
+    this%tran_soln%prev_soln%aqueous_mass = this%well%aqueous_mass
+  endif
 
   initialize_well = PETSC_FALSE
 
@@ -2670,6 +2737,10 @@ subroutine PMWellResidualTranRxn(this)
   PetscInt :: offset, istart, iend
   PetscReal :: Res(this%nspecies)
 
+  ! decay_rate in [1/sec]
+  ! aqueous mass in [mol-species]
+  ! residual in [mol-species/sec]
+
   do isegment = 1,this%grid%nsegments
 
     offset = (isegment-1)*this%nspecies
@@ -2678,8 +2749,15 @@ subroutine PMWellResidualTranRxn(this)
 
     do ispecies = 1,this%nspecies
       k = ispecies
-
-      Res(k) = 0.d0
+      ! Add in species decay
+      Res(k) = -(this%well%species_decay_rate(k)* &
+                          this%well%aqueous_mass(ispecies,isegment))
+      ! Add in contribution from parent (if exists)
+      if (this%well%species_parent_id(ispecies) > 0) then
+        Res(k) = Res(k) + (this%well%species_parent_decay_rate(k)* &
+                 this%well%aqueous_mass( &
+                             this%well%species_parent_id(ispecies),isegment))
+      endif
     enddo
 
     this%tran_soln%residual(istart:iend) = &
