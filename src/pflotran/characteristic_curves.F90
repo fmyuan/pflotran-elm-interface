@@ -8,6 +8,7 @@ module Characteristic_Curves_module
   use Characteristic_Curves_WIPP_module
   use Characteristic_Curves_loop_invariant_module
   use Characteristic_Curves_WIPP_Invariant_module
+  use Characteristic_Curves_spline_module
 
   implicit none
 
@@ -154,6 +155,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFIGHCC2CompCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
+          case('SPLINE')
+            this%saturation_function => SFSplineCreate()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
                                           option)
@@ -361,12 +364,13 @@ function SaturationFunctionRead(saturation_function,input,option) &
   class(sat_func_base_type) :: saturation_function
   type(input_type), pointer :: input
   type(option_type) :: option
-  class(sat_func_base_type), pointer :: sf_swap
+  class(sat_func_base_type), pointer :: sf_swap, sf_swap2
 
   character(len=MAXWORDLENGTH) :: keyword, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
+  PetscBool :: spline
 
   ! Lexicon of compiled parameters
   character(len=MAXWORDLENGTH) :: unsat_ext
@@ -397,6 +401,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   input%ierr = 0
   smooth = PETSC_FALSE
+  spline = PETSC_FALSE
   error_string = 'CHARACTERISTIC_CURVES,SATURATION_FUNCTION,'
   select type(sf => saturation_function)
     class is(sat_func_constant_type)
@@ -460,6 +465,8 @@ function SaturationFunctionRead(saturation_function,input,option) &
         saturation_function%calc_int_tension = PETSC_TRUE
       case('SMOOTH')
         smooth = PETSC_TRUE
+      case('SPLINE')
+        spline = PETSC_TRUE
       case default
         found = PETSC_FALSE
     end select
@@ -885,7 +892,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
                                       temp_string, internal_units, &
                                       error_string,option)
         end select
-    !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for ' &
                            // trim(error_string) // '.'
@@ -985,6 +991,18 @@ function SaturationFunctionRead(saturation_function,input,option) &
       endif
   !------------------------------------------
   end select
+
+  if (spline) then ! Create cubic approximation for any saturation function
+    if (associated(sf_swap)) then
+      sf_swap2 => SFSplineCtor(sf_swap, 101)
+      deallocate(sf_swap)
+      sf_swap => sf_swap2
+    else
+      sf_swap => SFSplineCtor(saturation_function, 101)
+    end if
+
+    sf_swap%calc_int_tension = tension
+  end if
 
 end function SaturationFunctionRead
 

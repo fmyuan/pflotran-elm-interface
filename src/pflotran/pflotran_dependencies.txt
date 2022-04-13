@@ -8,6 +8,7 @@ block_tridiag.o : pflotran_constants.o utility.o
 characteristic_curves.o : characteristic_curves_base.o \
                           characteristic_curves_common.o \
                           characteristic_curves_loop_invariant.o \
+                          characteristic_curves_spline.o \
                           characteristic_curves_wipp.o \
                           characteristic_curves_wipp_invariant.o \
                           dataset_ascii.o input_aux.o option.o \
@@ -19,6 +20,10 @@ characteristic_curves_common.o : characteristic_curves_base.o dataset_ascii.o \
 characteristic_curves_loop_invariant.o : characteristic_curves_base.o \
                                          characteristic_curves_common.o \
                                          option.o
+characteristic_curves_spline.o : characteristic_curves_base.o \
+                                 option.o \
+                                 spline.o
+
 characteristic_curves_thermal.o : input_aux.o option.o pflotran_constants.o \
                                   string.o
 characteristic_curves_wipp.o : characteristic_curves_base.o \

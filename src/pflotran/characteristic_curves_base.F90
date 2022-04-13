@@ -307,7 +307,7 @@ subroutine SFBaseTest(this,cc_name,option)
   type(option_type), intent(inout) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, parameter :: num_values = 101
+  PetscInt, parameter :: num_values = 1001
   PetscReal :: pc, pc_increment
   PetscReal :: capillary_pressure(num_values)
   PetscReal :: liquid_saturation(num_values)
