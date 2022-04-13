@@ -136,6 +136,8 @@ module PM_Well_class
     PetscReal, pointer :: aqueous_conc(:,:)
     ! well species aqueous mass [mol] (idof,mass@segment)
     PetscReal, pointer :: aqueous_mass(:,:)
+    ! well species aqueous concentration top of hole BC [mol/m3-liq]
+    PetscReal, pointer :: aqueous_conc_th(:)
     ! well bottom of hole pressure BC flag
     PetscBool :: bh_p_set_by_reservoir
     ! well bottom of hole Sg BC flag
@@ -154,6 +156,8 @@ module PM_Well_class
     ! well top of hole rate BC [kg/s]
     PetscReal :: th_ql
     PetscReal :: th_qg
+    ! well transport constraint name
+    character(len=MAXWORDLENGTH) :: tran_condition_name
     ! Link to characteristic curves
     PetscInt, pointer :: ccid(:)
     ! permeability along the well [m2]
@@ -348,6 +352,7 @@ function PMWellCreate()
   nullify(PMWellCreate%well%species_parent_decay_rate)
   nullify(PMWellCreate%well%aqueous_conc)
   nullify(PMWellCreate%well%aqueous_mass)
+  nullify(PMWellCreate%well%aqueous_conc_th)
   nullify(PMWellCreate%well%ccid)
   nullify(PMWellCreate%well%permeability)
   nullify(PMWellCreate%well%phi)
@@ -361,6 +366,7 @@ function PMWellCreate()
   PMWellCreate%well%bh_qg = UNINITIALIZED_DOUBLE
   PMWellCreate%well%th_ql = UNINITIALIZED_DOUBLE
   PMWellCreate%well%th_qg = UNINITIALIZED_DOUBLE
+  PMWellCreate%well%tran_condition_name = ''
 
   ! create the well_pert object:
   allocate(PMWellCreate%well_pert(TWO_INTEGER))
@@ -837,6 +843,11 @@ subroutine PMWellSetup(this)
 
   if (this%option%itranmode /= NULL_MODE) then
     this%transport = PETSC_TRUE
+    if (this%option%itranmode /= NWT_MODE) then
+      option%io_buffer ='The only transport mode allowed with the &
+      &WELLBORE_MODEL is NWT_MODE.'
+      call PrintErrMsg(option)
+    endif
     this%nspecies = this%realization%reaction_nw%params%nspecies
     this%tran_soln%ndof = this%nspecies 
   endif
@@ -1231,11 +1242,11 @@ subroutine PMWellReadWell(pm_well,input,option,keyword,error_string,found)
             endif
             allocate(pm_well%well%WI_base(num_read))
             pm_well%well%WI_base(1:num_read) = temp_well_index(1:num_read)
-
         !-----------------------------
           case('WELL_INDEX_MODEL')
             call InputReadWord(input,option,pm_well%well%WI_model,PETSC_TRUE)
             call InputErrorMsg(input,option,'WELL_INDEX_MODEL',error_string)
+        !-----------------------------
           case default
             call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
@@ -1401,6 +1412,12 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
                            'm/s','WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE,&
                            &GAS_RATE',option)
                   !-----------------------------
+                    case('TRANSPORT_CONDITION')
+                      call InputReadWord(input,option, &
+                                   this%well%tran_condition_name,PETSC_TRUE)
+                      call InputErrorMsg(input,option, &
+                                    'TRANSPORT_CONDITION name',error_string)
+                  !-----------------------------
                     case default
                       call InputKeywordUnrecognized(input,word, &
                                                     error_string,option)
@@ -1448,31 +1465,12 @@ subroutine PMWellReadWellBCs(this,input,option,keyword,error_string,found)
         call PrintErrMsg(option)
       endif
 
-      !
-      ! The following error checks are too restrictive:
-      !
-      !if (Uninitialized(this%well%th_p)) then
-      !  if (Uninitialized(this%well%bh_p) .and. &
-      !      .not.this%well%bh_p_set_by_reservoir)  then
-      !    option%io_buffer = 'Keyword BOTTOM_OF_HOLE,PRESSURE/PRESSURE_SET_&
-      !    &BY_RESERVOIR or keyword TOP_OF_HOLE,PRESSURE must be provided in &
-      !    &the ' // trim(error_string) // ' block.'
-      !    call PrintErrMsg(option) 
-      !  endif
-      !endif
-      !if (Initialized(this%well%bh_p) .and. Initialized(this%well%th_p)) then
-      !  option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE or keyword &
-      !    &TOP_OF_HOLE,PRESSURE must be provided in the ' &
-      !    // trim(error_string) // ' block, but NOT BOTH.'
-      !  call PrintErrMsg(option)
-      !endif
-      !if (this%well%bh_p_set_by_reservoir .and. &
-      !    Initialized(this%well%th_p)) then
-      !  option%io_buffer = 'Either keyword BOTTOM_OF_HOLE,PRESSURE_SET_BY_&
-      !    &RESERVOIR or keyword TOP_OF_HOLE,PRESSURE must be provided in &
-      !    &the ' // trim(error_string) // ' block, but NOT BOTH.'
-      !  call PrintErrMsg(option)
-      !endif
+      if ((this%option%itranmode /= NULL_MODE) .and. &
+          (trim(this%well%tran_condition_name) == '')) then
+        option%io_buffer ='A TRANSPORT_CONDITION was not provided in the &
+          &WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE block.'
+        call PrintErrMsg(option)
+      endif
 
   !-------------------------------------
     case default
@@ -1860,6 +1858,12 @@ recursive subroutine PMWellInitializeRun(this)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
+
+  use Condition_module
+  use Strata_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_NWT_module
+  use Transport_Constraint_module
   
   implicit none
 
@@ -1868,6 +1872,8 @@ recursive subroutine PMWellInitializeRun(this)
   type(strata_type), pointer :: patch_strata, well_strata
   type(radioactive_decay_rxn_type), pointer :: rad_rxn
   type(species_type), pointer :: species
+  type(tran_condition_type), pointer :: tran_condition
+  class(tran_constraint_base_type), pointer :: cur_constraint
   PetscInt :: nsegments, k
   PetscReal :: curr_time
 
@@ -1915,9 +1921,9 @@ recursive subroutine PMWellInitializeRun(this)
       well_strata => well_strata%next
     enddo
     if (Uninitialized(this%grid%strata_id(k))) then
-      this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has not &
-        &been assigned with a REGION and MATERIAL_PROPERTY with the use of the &
-        &STRATA block.'
+      this%option%io_buffer =  'At least one WELLBORE_MODEL grid segment has &
+        &not been assigned with a REGION and MATERIAL_PROPERTY with the use &
+        &of the STRATA block.'
       call PrintErrMsg(this%option)
     endif
   enddo
@@ -1959,6 +1965,7 @@ recursive subroutine PMWellInitializeRun(this)
   if (this%transport) then
     allocate(this%well%aqueous_conc(this%nspecies,nsegments))
     allocate(this%well%aqueous_mass(this%nspecies,nsegments))
+    allocate(this%well%aqueous_conc_th(this%nspecies))
   endif
 
   allocate(this%pert(nsegments,this%nphase))
@@ -2047,13 +2054,13 @@ recursive subroutine PMWellInitializeRun(this)
     allocate(this%well%species_radioactive(this%nspecies))
     allocate(this%well%species_decay_rate(this%nspecies))
     allocate(this%well%species_parent_decay_rate(this%nspecies))
+    this%well%species_names(:) = ''
     this%well%species_decay_rate(:) = 0.d0
     this%well%species_parent_decay_rate(:) = 0.d0
     this%well%species_parent_id(:) = 0
     k = 0
     species => this%realization%reaction_nw%species_list
     do
-
       if (.not.associated(species)) exit
       k = k + 1
       this%well%species_names(k) = species%name 
@@ -2079,9 +2086,37 @@ recursive subroutine PMWellInitializeRun(this)
           this%well%species_parent_decay_rate(k) = rad_rxn%rate_constant
         endif
       endif 
-
       species => species%next
     enddo
+  endif
+
+  if (this%transport) then
+    tran_condition => this%realization%transport_conditions%first
+    do
+      if (.not.associated(tran_condition)) exit
+        if (trim(tran_condition%name) == &
+            trim(this%well%tran_condition_name)) exit
+      tran_condition => tran_condition%next
+    enddo
+    if (.not.associated(tran_condition)) then
+      this%option%io_buffer = 'TRANSPORT_CONDITION ' // &
+        trim(this%well%tran_condition_name) // ' for WELLBORE_MODEL,&
+        &WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE not found.'
+      call PrintErrMsg(this%option)
+    endif
+    cur_constraint => tran_condition%cur_constraint_coupler%constraint 
+    select type(constraint=>cur_constraint)
+      class is (tran_constraint_nwt_type)
+        if (any(constraint%nwt_species%constraint_type /=  &
+            CONSTRAINT_AQ_EQUILIBRIUM)) then
+          this%option%io_buffer = 'TRANSPORT_CONDITION ' // &
+            trim(this%well%tran_condition_name) // ' for WELLBORE_MODEL,&
+            &WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE CONSTRAINT must be of &
+            &type "AQ".'
+          call PrintErrMsg(this%option)
+        endif
+        this%well%aqueous_conc_th = constraint%nwt_species%constraint_conc
+    end select
   endif
 
   call PMWellOutputHeader(this)
@@ -2117,6 +2152,8 @@ subroutine PMWellInitializeTimestep(this)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 08/04/2021
+
+  use Strata_module
   
   implicit none
   
@@ -2192,7 +2229,7 @@ subroutine PMWellInitializeTimestep(this)
   this%dt_flow = this%realization%option%flow_dt
 
   if (this%transport) then
-    call PMWellUpdatePropertiesTran(this%well)
+    call PMWellUpdatePropertiesTran(this)
     this%dt_tran = this%dt_flow
   endif
 
@@ -2928,7 +2965,10 @@ subroutine PMWellResidualTranFlux(this)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
     elseif (q_up < 0.d0) then
       sat = 0.d0 ! top transport BC, injection fluid composition
-      conc = 0.d0 ! top transport BC, injection fluid composition
+      ! how do we actually know this if a RATE is set????
+      ! then, it brings up the question, is ql enough to know? why do I 
+      ! need sat at all????
+      conc = this%well%aqueous_conc_th(ispecies)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
     else ! q_up = 0
       Res_up(k) = (n_up*area_up)*(0.d0 - diffusion)
@@ -3536,20 +3576,20 @@ end subroutine PMWellCutTimestepFlow
 
 ! ************************************************************************** !
 
-subroutine PMWellCutTimestepTran(pm_well)
+subroutine PMWellCutTimestepTran(this)
   ! 
   ! Author: Jennifer M. Frederick
   ! Date: 02/23/2022
 
   implicit none
 
-  class(pm_well_type) :: pm_well
+  class(pm_well_type) :: this
 
-  pm_well%dt_tran = pm_well%dt_tran / pm_well%tran_soln%ts_cut_factor
-  pm_well%dt_tran = max(pm_well%dt_tran,pm_well%min_dt_tran)
-  pm_well%well%aqueous_mass = pm_well%tran_soln%prev_soln%aqueous_mass
-  pm_well%well%aqueous_conc = pm_well%tran_soln%prev_soln%aqueous_conc
-  call PMWellUpdatePropertiesTran(pm_well%well)
+  this%dt_tran = this%dt_tran / this%tran_soln%ts_cut_factor
+  this%dt_tran = max(this%dt_tran,this%min_dt_tran)
+  this%well%aqueous_mass = this%tran_soln%prev_soln%aqueous_mass
+  this%well%aqueous_conc = this%tran_soln%prev_soln%aqueous_conc
+  call PMWellUpdatePropertiesTran(this)
 
 end subroutine PMWellCutTimestepTran
 
@@ -5076,19 +5116,46 @@ end subroutine PMWellUpdatePropertiesFlow
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdatePropertiesTran(well)
+subroutine PMWellUpdatePropertiesTran(this)
   !
-  ! Updates transport related well object properties.
+  ! Updates transport related well object properties for each time step.
   !
   ! Author: Jennifer M. Frederick
-  ! Date: 02/23/2022
-  !
+  ! Date: 04/13/2022
+  
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_NWT_module
+  use Transport_Constraint_module
+  use Condition_module
 
   implicit none
 
-  type(well_type) :: well
+  class(pm_well_type) :: this
 
-  ! placeholder
+  type(tran_condition_type), pointer :: tran_condition
+  class(tran_constraint_base_type), pointer :: cur_constraint
+
+  ! update the top of hole boundary condition with current constraint
+  tran_condition => this%realization%transport_conditions%first
+  do
+    if (.not.associated(tran_condition)) exit
+      if (trim(tran_condition%name) == &
+          trim(this%well%tran_condition_name)) exit
+    tran_condition => tran_condition%next
+  enddo
+  cur_constraint => tran_condition%cur_constraint_coupler%constraint 
+  select type(constraint=>cur_constraint)
+    class is (tran_constraint_nwt_type)
+      if (any(constraint%nwt_species%constraint_type /=  &
+          CONSTRAINT_AQ_EQUILIBRIUM)) then
+        this%option%io_buffer = 'TRANSPORT_CONDITION ' // &
+          trim(this%well%tran_condition_name) // ' for WELLBORE_MODEL,&
+          &WELL_BOUNDARY_CONDITIONS,TOP_OF_HOLE CONSTRAINT must be of &
+          &type "AQ".'
+        call PrintErrMsg(this%option)
+      endif
+      this%well%aqueous_conc_th = constraint%nwt_species%constraint_conc
+  end select
 
 end subroutine PMWellUpdatePropertiesTran
 
