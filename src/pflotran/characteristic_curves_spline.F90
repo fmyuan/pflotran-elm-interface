@@ -133,7 +133,7 @@ subroutine SFSplineCapillaryPressure(this, liquid_saturation, &
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
   PetscInt :: klo,khi
-  PetscReal :: h,a,b,x,y, dy
+  PetscReal :: h,a,b,c,d,x,y,dy
 
 ! Evalute the cubic spline at index I
   
