@@ -155,8 +155,6 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SFIGHCC2CompCreate()
           case('LOOKUP_TABLE')
             this%saturation_function => SFTableCreate()
-          case('SPLINE')
-            this%saturation_function => SFSplineCreate()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
                                           option)
@@ -993,14 +991,14 @@ function SaturationFunctionRead(saturation_function,input,option) &
   end select
 
   if (spline) then ! Create cubic approximation for any saturation function
-    if (associated(sf_swap)) then
+    if (associated(sf_swap)) then ! Splining a loop-invariant replacement
       sf_swap2 => SFSplineCtor(sf_swap, 101)
       deallocate(sf_swap)
       sf_swap => sf_swap2
     else
       sf_swap => SFSplineCtor(saturation_function, 101)
     end if
-
+    ! The calling CCRead will deallocated saturation_function
     sf_swap%calc_int_tension = tension
   end if
 

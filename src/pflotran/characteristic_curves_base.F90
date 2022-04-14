@@ -16,12 +16,17 @@ module Characteristic_Curves_Base_module
     PetscReal :: coefficients(4)
   end type polynomial_type
 
+  type, public :: spline_type
+    PetscReal :: x, y, dy2
+  end type spline_type
+
 !-----------------------------------------------------------------------------
 !-- Saturation Functions -----------------------------------------------------
 !-----------------------------------------------------------------------------
   type, public :: sat_func_base_type
     type(polynomial_type), pointer :: sat_poly
     type(polynomial_type), pointer :: pres_poly
+    type(spline_type), dimension(:), allocatable :: spline
     PetscReal :: Sr
     PetscReal :: pcmax
     PetscBool :: analytical_derivative_available
@@ -307,7 +312,7 @@ subroutine SFBaseTest(this,cc_name,option)
   type(option_type), intent(inout) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, parameter :: num_values = 1001
+  PetscInt, parameter :: num_values = 101
   PetscReal :: pc, pc_increment
   PetscReal :: capillary_pressure(num_values)
   PetscReal :: liquid_saturation(num_values)
@@ -549,6 +554,8 @@ subroutine SaturationFunctionDestroy(sf)
   class(sat_func_base_type), pointer :: sf
 
   if (.not.associated(sf)) return
+
+  if (allocated(sf%spline)) deallocate(sf%spline)
 
   call PolynomialDestroy(sf%sat_poly)
   call PolynomialDestroy(sf%sat_poly)
