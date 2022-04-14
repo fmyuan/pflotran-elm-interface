@@ -289,9 +289,6 @@ grid_unstructured_polyhedra.o : connection.o geometry.o grid_unstructured.o \
                                 grid_unstructured_aux.o \
                                 grid_unstructured_cell.o input_aux.o option.o \
                                 pflotran_constants.o string.o utility.o
-h5_output_observation.o: grid.o logging.o material_aux.o observation.o \
-                         option.o output_aux.o output_common.o patch.o \
-                         realization_base.o region.o
 hdf5.o : discretization.o field.o grid.o grid_unstructured_cell.o hdf5_aux.o \
          logging.o option.o patch.o pflotran_constants.o realization_base.o \
          realization_subsurface.o region.o string.o utility.o
@@ -454,9 +451,12 @@ output_hdf5.o : connection.o coupler.o discretization.o field.o grid.o \
                 output_common.o patch.o pflotran_constants.o \
                 pflotran_provenance.o reaction_aux.o realization_base.o \
                 string.o utility.o variables.o
+output_obs_h5.o: grid.o logging.o material_aux.o observation.o \
+                 option.o output_aux.o output_common.o patch.o \
+                 realization_base.o region.o
 output_observation.o : connection.o coupler.o discretization.o field.o \
                        general.o general_aux.o global_aux.o grid.o \
-                       grid_structured.o h5_output_observation.o \
+                       grid_structured.o output_obs_h5.o \
                        hydrate.o integral_flux.o logging.o \
                        material_aux.o mphase.o nw_transport.o \
                        nw_transport_aux.o observation.o option.o output_aux.o \

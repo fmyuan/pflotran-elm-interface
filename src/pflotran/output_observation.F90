@@ -41,7 +41,7 @@ subroutine OutputObservationInit(num_steps)
   ! 
 
   use Option_module
-  use H5_Output_Observation_module
+  use Output_Obs_H5_module
 
   implicit none
   
@@ -65,7 +65,7 @@ subroutine OutputObservationInit(num_steps)
   endif
 
 
-  call OutputHDF5ObservationInit(num_steps)
+  call OutputObsH5Init(num_steps)
 
 end subroutine OutputObservationInit
 
@@ -81,7 +81,7 @@ subroutine OutputObservation(realization_base)
 
   use Realization_Base_class, only : realization_base_type
   use Option_module
-  use H5_Output_Observation_module
+  use Output_Obs_H5_module
   
   implicit none
   
@@ -93,7 +93,7 @@ subroutine OutputObservation(realization_base)
     call OutputIntegralFlux(realization_base)
 
     if (realization_base%output_option%print_obs_hdf5)   &
-      call OutputHDF5Observation(realization_base)
+      call OutputObsH5(realization_base)
 
     if (realization_base%option%use_mc) then
       call OutputObservationTecplotSecTXT(realization_base)

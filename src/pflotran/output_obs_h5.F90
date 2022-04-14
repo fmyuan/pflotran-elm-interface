@@ -1,4 +1,4 @@
-module H5_Output_Observation_module
+module Output_Obs_H5_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -13,7 +13,9 @@ module H5_Output_Observation_module
 
   private
 
-  ! flags signifying the first time output routine is called
+  PetscMPIInt, private, parameter :: ON=1, OFF=0
+
+  ! flag signifying the first time output routine is called
   PetscBool :: observation_hdf5_first
 
   ! communicator information
@@ -36,18 +38,18 @@ module H5_Output_Observation_module
   PetscInt, pointer :: obs_region_offset(:,:)   ! start in writes
 
   ! generic interface for writing data
-  interface WriteHDF5RegionDataset
-    module procedure WriteHDF5RegionRealDataset, &
-                     WriteHDF5RegionIntegerDataset
-  end interface WriteHDF5RegionDataset
+  interface WriteH5RegionDataset
+    module procedure WriteH5RegionRealDataset, &
+                     WriteH5RegionIntegerDataset
+  end interface WriteH5RegionDataset
 
 
-  public :: OutputHDF5Observation,      &
-            OutputHDF5ObservationInit
+  public :: OutputObsH5,      &
+            OutputObsH5Init
 
 contains
 
-  subroutine OutputHDF5ObservationInit(num_steps)
+  subroutine OutputObsH5Init(num_steps)
     !
     ! Initializes module variables for HDF5 output
     !
@@ -65,10 +67,10 @@ contains
       observation_hdf5_first = PETSC_FALSE
     endif
 
-  end subroutine OutputHDF5ObservationInit
+  end subroutine OutputObsH5Init
 
 
-  subroutine OutputHDF5Observation(realization_base)
+  subroutine OutputObsH5(realization_base)
     !
     ! Output observation variables by region to HDF5 file.
     !
@@ -98,24 +100,24 @@ contains
       call MPI_Comm_rank(obs_h5_comm, comm_rank, mpi_err)
 
       ! create empty hdf5 file for output
-      call CreateHDF5ObservationFile(realization_base)
+      call CreateH5ObservationFile(realization_base)
 
       ! get information required for metadata
-      call GetHDF5ObservationRegionMetadata(realization_base)
+      call GetH5ObservationRegionMetadata(realization_base)
 
       ! set up file structure and write time invariant data
-      call WriteHDF5ObservationRegionDomain(realization_base)
+      call WriteH5ObservationRegionDomain(realization_base)
 
       observation_hdf5_first = PETSC_FALSE
     endif
 
     ! for all time steps
-    call WriteHDF5ObservationRegionVariables(realization_base)
+    call WriteH5ObservationRegionVariables(realization_base)
 
-  end subroutine OutputHDF5Observation
+  end subroutine OutputObsH5
 
 
-  subroutine CreateHDF5ObservationFile(realization_base)
+  subroutine CreateH5ObservationFile(realization_base)
     !
     ! Create an HDF5 file for observation variables by region.
     !
@@ -154,10 +156,10 @@ contains
 
     call h5fclose_f(file_id, h5_err)
 
-  end subroutine CreateHDF5ObservationFile
+  end subroutine CreateH5ObservationFile
 
 
-  subroutine GetHDF5ObservationRegionMetadata(realization_base)
+  subroutine GetH5ObservationRegionMetadata(realization_base)
     !
     ! For requested observation regions, collect and disseminate to
     ! all MPI processes the region ID, the total number of cells
@@ -283,10 +285,10 @@ contains
       obs_region_total_numcells = SUM(obs_region_numcells, dim=1)
     enddo
 
-  end subroutine GetHDF5ObservationRegionMetadata
+  end subroutine GetH5ObservationRegionMetadata
 
 
-  subroutine WriteHDF5ObservationRegionDomain(realization_base)
+  subroutine WriteH5ObservationRegionDomain(realization_base)
     !
     ! Add region domain group and time invariant data
     ! to HDF5 observation file.
@@ -333,30 +335,32 @@ contains
         ! get region name
         group_name = region_names(ireg)
 
-        call h5gcreate_f(file_id, group_name, group_id, h5_err)
+        !call h5gcreate_f(file_id, group_name, group_id, h5_err)
+        call CreateOrOpenH5Group(file_id, group_id, group_name)
 
         ! create Domain group by region for time invariant information
         subgroup_name = 'Domain'
-        call h5gcreate_f(group_id, subgroup_name, subgroup_id, h5_err)
+        !call h5gcreate_f(group_id, subgroup_name, subgroup_id, h5_err)
+        call CreateOrOpenH5Group(group_id, subgroup_id, subgroup_name)
 
         ! create datasets for grid info
         region_id = obs_region_ids(ireg)
         data_type = H5T_NATIVE_DOUBLE
 
         dset_name = "XC"
-        call CreateHDF5RegionDataset(subgroup_id, dset_name,   &
+        call CreateH5RegionDataset(subgroup_id, dset_name,   &
                                      data_type, region_id)
 
         dset_name = "YC"
-        call CreateHDF5RegionDataset(subgroup_id, dset_name,   &
+        call CreateH5RegionDataset(subgroup_id, dset_name,   &
                                      data_type, region_id)
 
         dset_name = "ZC"
-        call CreateHDF5RegionDataset(subgroup_id, dset_name,   &
+        call CreateH5RegionDataset(subgroup_id, dset_name,   &
                                      data_type, region_id)
 
         dset_name = "Volume"
-        call CreateHDF5RegionDataset(subgroup_id, dset_name,   &
+        call CreateH5RegionDataset(subgroup_id, dset_name,   &
                                      data_type, region_id)
 
         call h5gclose_f(subgroup_id, h5_err)
@@ -365,15 +369,15 @@ contains
       endif
     enddo
 
-    call WriteHDF5RegionGridInfo(realization_base, file_id)
+    call WriteH5RegionGridInfo(realization_base, file_id)
 
     call h5fclose_f(file_id, h5_err)
     
 
-  end subroutine WriteHDF5ObservationRegionDomain
+  end subroutine WriteH5ObservationRegionDomain
 
 
-  subroutine WriteHDF5RegionGridInfo(realization_base, file_id)
+  subroutine WriteH5RegionGridInfo(realization_base, file_id)
     !
     ! Add grid info to an HDF5 observation region file.
     !
@@ -446,22 +450,22 @@ contains
 
       ! open previously generated data space and write data
       dset_name = "XC"
-      call WriteHDF5RegionDataset(group_id, x, region%id,   &
+      call WriteH5RegionDataset(group_id, x, region%id,   &
                                   dset_name)
 
       ! open previously generated data space and write data
       dset_name = "YC"
-      call WriteHDF5RegionDataset(group_id, y, region%id,   &
+      call WriteH5RegionDataset(group_id, y, region%id,   &
                                   dset_name)
 
       ! open previously generated data space and write data
       dset_name = "ZC"
-      call WriteHDF5RegionDataset(group_id, z, region%id,   &
+      call WriteH5RegionDataset(group_id, z, region%id,   &
                                   dset_name)
 
       ! open previously generated data space and write data
       dset_name = "Volume"
-      call WriteHDF5RegionDataset(group_id, volume, region%id,   &
+      call WriteH5RegionDataset(group_id, volume, region%id,   &
                                   dset_name)
 
       deallocate(x)
@@ -474,10 +478,10 @@ contains
       observation => observation%next
     enddo
 
-  end subroutine WriteHDF5RegionGridInfo
+  end subroutine WriteH5RegionGridInfo
 
 
-  subroutine WriteHDF5ObservationRegionVariables(realization_base)
+  subroutine WriteH5ObservationRegionVariables(realization_base)
     !
     ! Write observation variable values at current time to an HDF5
     ! observation region file.
@@ -545,7 +549,7 @@ contains
           option%time/output_option%tconv, output_option%tunit
 
     ! create time group and variable data spaces
-    call WriteHDF5ObservationRegionVariableMetadata   &
+    call WriteH5ObservationRegionVariableMetadata   &
                 (realization_base, file_id, t_name)
 
     ! loop over local observations - independent processes
@@ -606,10 +610,10 @@ contains
         v_name = trim(cur_variable%name)
 
         if (cur_variable%iformat == 0) then
-          call WriteHDF5RegionDataset(tgroup_id, rdata,    &
+          call WriteH5RegionDataset(tgroup_id, rdata,    &
                                       region_id, v_name)
         else
-          call WriteHDF5RegionDataset(tgroup_id, idata,    &
+          call WriteH5RegionDataset(tgroup_id, idata,    &
                                       region_id, v_name)
         endif
 
@@ -629,10 +633,10 @@ contains
     ! close file
     call h5fclose_f(file_id, h5_err)
 
-  end subroutine WriteHDF5ObservationRegionVariables
+  end subroutine WriteH5ObservationRegionVariables
 
 
-  subroutine WriteHDF5ObservationRegionVariableMetadata   &
+  subroutine WriteH5ObservationRegionVariableMetadata   &
                     (realization_base, file_id, t_name)
     !
     ! Add time group and variable datasets to region groups
@@ -682,7 +686,8 @@ contains
         call h5gopen_f(file_id, r_name, rgroup_id, h5_err)
 
         ! create time group by region
-        call h5gcreate_f(rgroup_id, t_name, tgroup_id, h5_err)
+        ! call h5gcreate_f(rgroup_id, t_name, tgroup_id, h5_err)
+        call CreateOrOpenH5Group(rgroup_id, tgroup_id, t_name)
 
         ! loop over observation variables and write to file
         cur_variable => output_option%output_obs_variable_list%first
@@ -701,7 +706,7 @@ contains
           endif
 
           dset_name = trim(cur_variable%name)
-          call CreateHDF5RegionDataset(tgroup_id, dset_name,   &
+          call CreateH5RegionDataset(tgroup_id, dset_name,   &
                                        data_type, region_id)
 
           cur_variable => cur_variable%next
@@ -714,10 +719,10 @@ contains
       endif
     enddo
 
-  end subroutine WriteHDF5ObservationRegionVariableMetadata
+  end subroutine WriteH5ObservationRegionVariableMetadata
 
 
-  subroutine CreateHDF5RegionDataset(group_id, dset_name, data_type, region_id)
+  subroutine CreateH5RegionDataset(group_id, dset_name, data_type, region_id)
     !
     ! Create a dataset in the observation region file.
     !
@@ -753,10 +758,10 @@ contains
     call h5sclose_f(space_id, h5_err)
     call h5dclose_f(dset_id, h5_err)
 
-  end subroutine CreateHDF5RegionDataset
+  end subroutine CreateH5RegionDataset
 
 
-  subroutine WriteHDF5RegionRealDataset(group_id,  v_data,     &
+  subroutine WriteH5RegionRealDataset(group_id,  v_data,     &
                                         region_id, dset_name)
     !
     ! Write a dataset to the HDF5 observation region file.
@@ -820,10 +825,10 @@ contains
     call h5dclose_f(dset_id, h5_err)
 
 
-  end subroutine WriteHDF5RegionRealDataset
+  end subroutine WriteH5RegionRealDataset
 
 
-  subroutine WriteHDF5RegionIntegerDataset(group_id, v_data,    &
+  subroutine WriteH5RegionIntegerDataset(group_id, v_data,    &
                                            region_id, dset_name)
     !
     ! Write a dataset to the HDF5 observation region file.
@@ -888,6 +893,34 @@ contains
     call h5dclose_f(dset_id, h5_err)
 
 
-  end subroutine WriteHDF5RegionIntegerDataset
+  end subroutine WriteH5RegionIntegerDataset
 
-end module H5_Output_Observation_module
+  subroutine CreateOrOpenH5Group(main_id, group_id, group_name)
+    !
+    ! In case of restart, the file and group may already exist.
+    ! Check first and then create the group if necessary.
+    !
+    ! Author: R. McKeown
+    ! Date: 02/07/2022
+    !
+
+    implicit none
+
+    character(len=MAXWORDLENGTH) :: group_name
+
+    integer(HID_T) :: main_id
+    integer(HID_T) :: group_id
+    PetscMPIInt :: h5_err
+
+    call h5eset_auto_f(OFF,h5_err)
+    call h5gopen_f(main_id, group_name, group_id, h5_err)
+    if (h5_err /= 0) then
+      call h5gcreate_f(main_id, group_name, group_id,   &
+                       h5_err, OBJECT_NAMELEN_DEFAULT_F)
+    endif
+    call h5eset_auto_f(ON,h5_err)
+
+
+  end subroutine CreateOrOpenH5Group
+
+end module Output_Obs_H5_module
