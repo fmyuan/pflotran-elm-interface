@@ -2923,7 +2923,7 @@ subroutine PMWellResidualTranFlux(this)
 
     ! south surface:
     if (q_dn > 0.d0) then
-      sat = this%reservoir%s_l(isegment)
+      sat = (1.d0 - this%well%bh_sg)
       conc = this%reservoir%aqueous_conc(k,isegment)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
     elseif (q_dn < 0.d0) then
@@ -2964,10 +2964,7 @@ subroutine PMWellResidualTranFlux(this)
       conc = this%well%aqueous_conc(k,isegment)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
     elseif (q_up < 0.d0) then
-      sat = 0.d0 ! top transport BC, injection fluid composition
-      ! how do we actually know this if a RATE is set????
-      ! then, it brings up the question, is ql enough to know? why do I 
-      ! need sat at all????
+      sat = (1.d0 - this%well%th_sg)
       conc = this%well%aqueous_conc_th(ispecies)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
     else ! q_up = 0
@@ -5283,35 +5280,40 @@ subroutine PMWellOutputHeader(this)
     units_string = 'm'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'P'
+    variable_string = 'Well P-liq'
     units_string = 'Pa' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'S-liq'
+    variable_string = 'Res P-liq'
+    units_string = 'Pa' 
+    call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
+                             icolumn)
+    variable_string = 'Well S-liq'
     units_string = '-' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'S-gas'
+    variable_string = 'Well S-gas'
     units_string = '-' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'Q-liq'
+    variable_string = 'Well Q-liq'
     units_string = 'kg/s' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'Q-gas'
+    variable_string = 'Well Q-gas'
     units_string = 'kg/s' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
     if (this%transport) then
       do j = 1,this%nspecies
-        variable_string = 'Aqueous Conc. ' // trim(this%well%species_names(j))
+        variable_string = 'Well Aqueous Conc. ' // &
+                          trim(this%well%species_names(j))
         units_string = 'mol/m^3-liq' 
         call OutputWriteToHeader(fid,variable_string,units_string, &
                                  cell_string,icolumn)
-        variable_string = 'Total Bulk Conc. ' &
+        variable_string = 'Well Aqueous Mass. ' &
                            // trim(this%well%species_names(j))
-        units_string = 'mol/m^3-bulk' 
+        units_string = 'mol' 
         call OutputWriteToHeader(fid,variable_string,units_string, &
                                  cell_string,icolumn)
       enddo
@@ -5367,6 +5369,7 @@ subroutine PMWellOutput(this)
                                 this%grid%h(k)%y, &
                                 this%grid%h(k)%z, &
                                 this%well%pl(k), &
+                                this%reservoir%p_l(k), &
                                 this%well%liq%s(k), &
                                 this%well%gas%s(k), & 
                                 this%well%liq%Q(k), &
