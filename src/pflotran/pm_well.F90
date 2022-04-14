@@ -3130,7 +3130,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
     ! Tighter coupling
     ! update the well src/sink Q vector
-    !call PMWellUpdateWellQ(this%well,this%reservoir)
+    call PMWellUpdateWellQ(this%well,this%reservoir)
 
     call PMWellPreSolveFlow(this)
 
@@ -3176,7 +3176,7 @@ subroutine PMWellSolveFlow(this,time,ierr)
 
       ! Tighter coupling:
       ! update the well src/sink Q vector
-      !call PMWellUpdateWellQ(this%well,this%reservoir)
+      call PMWellUpdateWellQ(this%well,this%reservoir)
 
     enddo
 
@@ -3379,11 +3379,18 @@ subroutine PMWellUpdateSolution(pm_well)
         pm_well%well%pl(i) = pm_well%well%pl(i) +  &
                              pm_well%flow_soln%update(idof+1)
         idof = pm_well%flow_soln%ndof*i
-        pm_well%well%gas%s(i) = pm_well%well%gas%s(i) + &
-                                pm_well%flow_soln%update(idof)
-
-        pm_well%well%gas%s(i) = max(MIN_SAT,pm_well%well%gas%s(i))
-        pm_well%well%gas%s(i) = min(MAX_SAT,pm_well%well%gas%s(i))
+        if (pm_well%well%gas%s(i) + pm_well%flow_soln%update(idof) < &
+            MIN_SAT) then
+          pm_well%flow_soln%update(idof) = MIN_SAT - pm_well%well%gas%s(i)
+          pm_well%well%gas%s(i) = MIN_SAT
+        elseif (pm_well%well%gas%s(i) + pm_well%flow_soln%update(idof) > &
+                MAX_SAT) then
+          pm_well%flow_soln%update(idof) = MAX_SAT - pm_well%well%gas%s(i)
+          pm_well%well%gas%s(i) = MAX_SAT
+        else
+          pm_well%well%gas%s(i) = pm_well%well%gas%s(i) + &
+                                  pm_well%flow_soln%update(idof)
+        endif
 
       enddo
       call PMWellUpdatePropertiesFlow(pm_well,pm_well%well, &
@@ -3454,17 +3461,11 @@ subroutine PMWellNewtonFlow(this)
   PetscReal :: identity(this%nphase*this%grid%nsegments,&
                         this%nphase*this%grid%nsegments)
   PetscReal :: inv_Jac(this%nphase*this%grid%nsegments, &
-                       this%nphase*this%grid%nsegments), &
-               Jac_save(this%nphase*this%grid%nsegments, &
                        this%nphase*this%grid%nsegments)
-  PetscReal :: new_dx(this%nphase*this%grid%nsegments), &
-               res_save(this%nphase*this%grid%nsegments)
+  PetscReal :: new_dx(this%nphase*this%grid%nsegments)
   PetscInt :: indx(this%nphase*this%grid%nsegments)
   PetscInt :: i,j
   PetscInt :: d
-
-  res_save = 0.d0
-  Jac_save = 0.d0 
 
   call PMWellPerturb(this) 
  
@@ -3489,18 +3490,13 @@ subroutine PMWellNewtonFlow(this)
         endif
       enddo
     enddo
-    Jac_save = this%flow_soln%Jacobian
     call LUDecomposition(this%flow_soln%Jacobian,this%nphase*this%grid% &
                          nsegments,indx,d)
-    res_save = this%flow_soln%residual
     call LUBackSubstitution(this%flow_soln%Jacobian, &
                             this%nphase*this%grid%nsegments,&
                             indx,this%flow_soln%residual)
     new_dx = -1.d0 * this%flow_soln%residual
-    this%flow_soln%update(:) = new_dx(:)
-
-    this%flow_soln%residual = res_save
-    this%flow_soln%Jacobian = Jac_save
+    this%flow_soln%update = new_dx
 
     call PMWellUpdateSolution(this)
 
@@ -3646,6 +3642,8 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
   cnvgd_due_to_rel_update_p = PETSC_FALSE
   cnvgd_due_to_rel_update_s = PETSC_FALSE
   cnvgd_due_to_rel_update = PETSC_FALSE
+  update_p = UNINITIALIZED_DOUBLE
+  update_s = UNINITIALIZED_DOUBLE
   rsn_string = ''
 
   ! Update the residual
@@ -3866,7 +3864,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
   type(well_fluid_type), pointer :: liq
   type(well_fluid_type), pointer :: gas
 
-  PetscReal, parameter :: threshold_p = 1.d-3
+  PetscReal, parameter :: threshold_p = 0.d0 !1.d-3
   PetscReal :: mobility, den_ave
   PetscBool :: upwind
   PetscInt :: i, nsegments
@@ -3898,9 +3896,9 @@ subroutine PMWellUpdateWellQ(well,reservoir)
           else
             mobility = liq%kr(i)/liq%visc(i)
           endif
-          den_ave = 0.5d0 * (liq%rho(i) + reservoir%rho_l(i))
+          den_ave = 0.5d0 * (liq%rho(i) + reservoir%rho_l(i)) / FMWH2O
           ! Flowrate in kmol/s
-          liq%Q(i) = den_ave*mobility*well%WI(i)* &
+          liq%Q(i) = -1.d0 *den_ave*mobility*well%WI(i)* &
                      (reservoir%p_l(i)-well%pl(i))
 
           upwind = reservoir%p_g(i) > well%pg(i)
@@ -3909,10 +3907,11 @@ subroutine PMWellUpdateWellQ(well,reservoir)
           else
             mobility = gas%kr(i)/gas%visc(i)
           endif 
-          den_ave = 0.5d0 * (gas%rho(i) + reservoir%rho_g(i))
+          den_ave = 0.5d0 * (gas%rho(i) + reservoir%rho_g(i)) / &
+                             fmw_comp(TWO_INTEGER)
 
           ! Flowrate in kmol/s
-          gas%Q(i) = den_ave*mobility*well%WI(i)* &
+          gas%Q(i) = -1.d0 * den_ave*mobility*well%WI(i)* &
                      (reservoir%p_g(i)-well%pg(i)) 
         else
           liq%Q(i) = 0.d0
