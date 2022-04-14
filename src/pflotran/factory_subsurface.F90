@@ -1316,6 +1316,14 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
               & TYPE GLASS or TYPE FMDM no longer supported.'
             call PrintErrMsg(option)
         end select
+        pm%option => option 
+      case('OPTIONS')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        call pm%ReadSimulationOptionsBlock(input)   
       case default
         option%io_buffer = 'Keyword ' // trim(word) // &
               ' not recognized for the ' // trim(error_string) // ' block.'
