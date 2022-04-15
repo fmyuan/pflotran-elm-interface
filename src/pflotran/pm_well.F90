@@ -3141,11 +3141,11 @@ subroutine PMWellJacobianTran(this)
 
     call PMWellJacTranAccum(this,Jblock,k)
 
-    !call PMWellJacTranSrcSink(this,Jblock)
+    call PMWellJacTranSrcSink(this,Jblock,k)
 
-    !call PMWellJacTranFlux(this,Jblock)
+    !call PMWellJacTranFlux(this,Jblock,k)
 
-    !call PMWellJacTranRxn(this,Jblock)
+    !call PMWellJacTranRxn(this,Jblock,k)
 
     ! place JBlock into full Jac based on isegment
     jstart = (k-1)*nspecies + 1
@@ -3187,6 +3187,47 @@ subroutine PMWellJacTranAccum(this,Jblock,isegment)
   enddo
 
 end subroutine PMWellJacTranAccum
+
+! ************************************************************************** !
+
+subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/15/2022
+  !
+
+  implicit none
+
+  class(pm_well_type) :: this
+  PetscReal :: Jblock(this%nspecies,this%nspecies)
+  PetscInt :: isegment 
+
+  PetscInt :: istart, iend, ispecies
+  PetscReal :: vol, Qin, SS 
+
+  ! units of Jac = [m^3-bulk/sec]
+  ! units of volume = [m^3-bulk]
+  ! units of Qin = [kmol-liq/sec]
+  ! units of SS = [m3-liq/sec]
+
+  vol = this%well%volume(isegment)
+
+  if (this%well%liq%Q(isegment) > 0.d0) then ! Q into well
+      Qin = this%well%liq%Q(isegment)
+  else ! Q out of well
+      Qin = 0.d0
+  endif
+  SS = Qin * FMWH2O / this%well%liq%rho(isegment)
+
+  istart = 1
+  iend = this%nspecies
+  do ispecies = istart,iend
+    Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) - vol*(SS/vol)
+  enddo
+  ! NOTE: There is an inconsistency in the units:
+  !       Jac [m3-bulk/sec] vs SS [m3-liq/sec]
+
+end subroutine PMWellJacTranSrcSink
 
 ! ************************************************************************** !
 
