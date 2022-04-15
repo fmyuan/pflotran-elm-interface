@@ -2994,7 +2994,7 @@ end subroutine PMWellResidualTranFlux
 
 ! ************************************************************************** !
 
-subroutine PMWellJacobian(this)
+subroutine PMWellJacobianFlow(this)
   ! 
   ! Author: Michael Nole
   ! Date: 08/04/2021
@@ -3039,10 +3039,10 @@ subroutine PMWellJacobian(this)
       do local_id = 1,this%grid%nsegments
 
         call PMWellAccumDerivative(this,local_id,Jup)
-        call PMWellFillJac(this,Jac,Jup,local_id,local_id)
+        call PMWellFillJacFlow(this,Jac,Jup,local_id,local_id)
 
         call PMWellSrcSinkDerivative(this,local_id,Jup)
-        call PMWellFillJac(this,Jac,Jup,local_id,local_id)
+        call PMWellFillJacFlow(this,Jac,Jup,local_id,local_id)
 
       enddo
 
@@ -3055,18 +3055,18 @@ subroutine PMWellJacobian(this)
         call PMWellFluxDerivative(this,local_id_up,local_id_dn,Jup,Jdn)
 
         Jtmp = Jup
-        call PMWellFillJac(this,Jac,Jtmp,local_id_up,local_id_up)
+        call PMWellFillJacFlow(this,Jac,Jtmp,local_id_up,local_id_up)
 
         Jtmp = Jdn
-        call PMWellFillJac(this,Jac,Jtmp,local_id_up,local_id_dn)
+        call PMWellFillJacFlow(this,Jac,Jtmp,local_id_up,local_id_dn)
 
         Jup = -Jup
         Jdn = -Jdn
         Jtmp = Jdn
-        call PMWellFillJac(this,Jac,Jtmp,local_id_dn,local_id_dn)
+        call PMWellFillJacFlow(this,Jac,Jtmp,local_id_dn,local_id_dn)
 
         Jtmp = Jup
-        call PMWellFillJac(this,Jac,Jtmp,local_id_dn,local_id_up)
+        call PMWellFillJacFlow(this,Jac,Jtmp,local_id_dn,local_id_up)
 
       enddo
 
@@ -3074,11 +3074,11 @@ subroutine PMWellJacobian(this)
       local_id = 1
       call PMWellBCFluxDerivative(this,Jtop,Jbtm)
       Jbtm = -Jbtm
-      call PMWellFillJac(this,Jac,Jbtm,local_id,local_id)
+      call PMWellFillJacFlow(this,Jac,Jbtm,local_id,local_id)
 
       local_id = this%grid%nsegments
       Jtop = -Jtop
-      call PMWellFillJac(this,Jac,Jtop,local_id,local_id)
+      call PMWellFillJacFlow(this,Jac,Jtop,local_id,local_id)
 
       !pm_well_ni_count = pm_well_ni_count + 1
 
@@ -3088,10 +3088,10 @@ subroutine PMWellJacobian(this)
 
   this%flow_soln%Jacobian = Jac
 
-end subroutine PMWellJacobian
+end subroutine PMWellJacobianFlow
 
 ! ************************************************************************** !
-subroutine PMWellFillJac(pm_well,Jac,Jtmp,id1,id2)
+subroutine PMWellFillJacFlow(pm_well,Jac,Jtmp,id1,id2)
   ! 
   ! Author: Michael Nole
   ! Date: 01/10/2022
@@ -3114,7 +3114,79 @@ subroutine PMWellFillJac(pm_well,Jac,Jtmp,id1,id2)
     enddo
   enddo
 
-end subroutine PMWellFillJac
+end subroutine PMWellFillJacFlow
+
+! ************************************************************************** !
+
+subroutine PMWellJacobianTran(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/14/2022
+  !
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  PetscReal :: Jblock(this%nspecies,this%nspecies)
+  PetscInt :: k, nspecies
+  PetscInt :: jstart, jend
+
+  nspecies = this%nspecies
+  this%tran_soln%Jacobian(:,:) = 0.d0
+
+  do k = 1,this%grid%nsegments
+
+    Jblock(:,:) = 0.d0 
+
+    call PMWellJacTranAccum(this,Jblock,k)
+
+    !call PMWellJacTranSrcSink(this,Jblock)
+
+    !call PMWellJacTranFlux(this,Jblock)
+
+    !call PMWellJacTranRxn(this,Jblock)
+
+    ! place JBlock into full Jac based on isegment
+    jstart = (k-1)*nspecies + 1
+    jend = jstart + nspecies - 1 
+    this%tran_soln%Jacobian(jstart:jend,jstart:jend) = Jblock
+
+  enddo
+
+end subroutine PMWellJacobianTran
+
+! ************************************************************************** !
+
+subroutine PMWellJacTranAccum(this,Jblock,isegment)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/14/2022
+  !
+
+  implicit none
+
+  class(pm_well_type) :: this
+  PetscReal :: Jblock(this%nspecies,this%nspecies)
+  PetscInt :: isegment 
+
+  PetscReal :: vol_dt
+  PetscInt :: istart, iend, ispecies
+
+  ! units of Jac = [m^3-bulk/sec]
+  ! units of volume = [m^3-bulk]
+  ! units of tran_dt = [sec]
+
+  vol_dt = this%well%volume(isegment)/this%dt_tran
+  
+  istart = 1
+  iend = this%nspecies
+
+  do ispecies = istart,iend
+    Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) + vol_dt
+  enddo
+
+end subroutine PMWellJacTranAccum
 
 ! ************************************************************************** !
 
@@ -3623,7 +3695,7 @@ subroutine PMWellNewtonFlow(this)
  
   call PMWellResidualFlow(this)
 
-  call PMWellJacobian(this)
+  call PMWellJacobianFlow(this)
 
   select case (this%well%well_model_type)
   !--------------------------------------
@@ -3675,7 +3747,7 @@ subroutine PMWellNewtonTran(this)
  
   call PMWellResidualTran(this)
 
-  !call PMWellJacobianTran(this)
+  call PMWellJacobianTran(this)
 
   !call PMWellUpdateSolutionTran(this)
 
