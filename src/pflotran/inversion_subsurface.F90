@@ -55,6 +55,7 @@ module Inversion_Subsurface_class
     VecScatter :: scatter_global_to_dist_param
     PetscBool :: qoi_is_full_vector
     PetscBool :: first_inversion_interation
+    PetscBool :: annotate_output
   contains
     procedure, public :: Init => InversionSubsurfaceInit
     procedure, public :: ReadBlock => InversionSubsurfReadBlock
@@ -160,6 +161,7 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%num_parameters_local = UNINITIALIZED_INTEGER
   this%qoi_is_full_vector = PETSC_FALSE
   this%first_inversion_interation = PETSC_TRUE
+  this%annotate_output = PETSC_FALSE
 
   nullify(this%measurements)
   nullify(this%parameters)
@@ -192,8 +194,6 @@ function InvSuburfPerturbationCreate()
   InvSuburfPerturbationCreate%base_value = 0.d0
   InvSuburfPerturbationCreate%tolerance = 1.d-6
   nullify(InvSuburfPerturbationCreate%select_cells)
-
-
 
 end function InvSuburfPerturbationCreate
 
@@ -424,6 +424,8 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
       endif
     case('PRINT_SENSITIVITY_JACOBIAN')
       this%print_sensitivity_jacobian = PETSC_TRUE
+    case('ANNOTATE_PERTURBATION_OUTPUT')
+      this%annotate_output = PETSC_TRUE
     case('DEBUG_ADJOINT')
       this%debug_adjoint = PETSC_TRUE
       call InputReadInt(input,option,i)
@@ -446,7 +448,7 @@ subroutine InversionSubsurfReadSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(keyword)
         select case(trim(keyword))
-          case('PERTURBATION_TOLERANCE')
+        case('PERTURBATION_TOLERANCE')
             call InputReadDouble(input,option,this%perturbation%tolerance)
             call InputErrorMsg(input,option,keyword,error_string)
           case('SELECT_CELLS')
@@ -764,7 +766,7 @@ subroutine InvSubsurfInitForwardRun(this,option)
   write(option%group_prefix,'(i6)') this%iteration
   option%group_prefix = 'Run' // trim(adjustl(option%group_prefix))
   if (associated(this%perturbation)) then
-    if (this%perturbation%idof_pert > 0) then
+    if (this%annotate_output .and. this%perturbation%idof_pert > 0) then
       option%group_prefix = trim(option%group_prefix) // 'P' // &
         StringWrite(this%perturbation%idof_pert)
     endif
@@ -1758,7 +1760,7 @@ subroutine InvSubsurfOutputSensitivity(this,suffix)
   ! Author: Glenn Hammond
   ! Date: 10/11/21
   !
-
+  use String_module
   class(inversion_subsurface_type) :: this
   character(len=*) :: suffix
 
@@ -1767,9 +1769,14 @@ subroutine InvSubsurfOutputSensitivity(this,suffix)
   if (.not.this%print_sensitivity_jacobian) return
 
   filename_prefix = trim(this%driver%global_prefix) // '_Jsense'
-  if (len_trim(suffix) > 0) filename_prefix = trim(filename_prefix) // '_' // &
-                            suffix
-  call InvSubsurfOutputSensitivityASCII(this,this%inversion_aux%JsensitivityT, &
+  if (this%annotate_output) then
+    filename_prefix = trim(filename_prefix) // '_i' // &
+      StringWrite(this%iteration)
+  endif
+  if (len_trim(suffix) > 0) filename_prefix = trim(filename_prefix) // &
+                            '_' // suffix
+  call InvSubsurfOutputSensitivityASCII(this,this%inversion_aux% &
+                                                    JsensitivityT, &
                                         filename_prefix)
   if (this%qoi_is_full_vector) then
     call InvSubsurfOutputSensitivityHDF5(this, &
