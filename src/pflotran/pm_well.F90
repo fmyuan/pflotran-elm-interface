@@ -2828,6 +2828,11 @@ subroutine PMWellResidualTranFlux(this)
   PetscReal :: Res_up(this%nspecies), Res_dn(this%nspecies)
 
   ! residual in [mol-species/sec]
+  ! area in [m2-bulk]
+  ! q in [m3-liq/m2-bulk-sec]
+  ! conc in [mol-species/m3-liq]
+  ! sat in [m2-liq/m2-void] and is not needed according to units
+  !                         this is why sat is set to 1.0 for now
 
   ! NOTE: The up direction is towards well top, and the dn direction is
   !       towards the well bottom.
@@ -2858,11 +2863,11 @@ subroutine PMWellResidualTranFlux(this)
 
       ! north surface:
       if (q_up > 0.d0) then
-        sat = this%well%liq%s(isegment)
+        sat = 1.d0 !this%well%liq%s(isegment)
         conc = this%well%aqueous_conc(k,isegment)
         Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
       elseif (q_up < 0.d0) then
-        sat = this%well%liq%s(isegment+1)
+        sat = 1.d0 !this%well%liq%s(isegment+1)
         conc = this%well%aqueous_conc(k,isegment+1)
         Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
       else ! q_up = 0
@@ -2871,11 +2876,11 @@ subroutine PMWellResidualTranFlux(this)
 
       ! south surface:
       if (q_dn > 0.d0) then
-        sat = this%well%liq%s(isegment-1)
+        sat = 1.d0 !this%well%liq%s(isegment-1)
         conc = this%well%aqueous_conc(k,isegment-1)
         Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
       elseif (q_dn < 0.d0) then
-        sat = this%well%liq%s(isegment)
+        sat = 1.d0 !this%well%liq%s(isegment)
         conc = this%well%aqueous_conc(k,isegment)
         Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
       else ! q_dn = 0
@@ -2910,11 +2915,11 @@ subroutine PMWellResidualTranFlux(this)
 
     ! north surface:
     if (q_up > 0.d0) then
-      sat = this%well%liq%s(isegment)
+      sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
     elseif (q_up < 0.d0) then
-      sat = this%well%liq%s(isegment+1)
+      sat = 1.d0 !this%well%liq%s(isegment+1)
       conc = this%well%aqueous_conc(k,isegment+1)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
     else ! q_up = 0
@@ -2923,11 +2928,11 @@ subroutine PMWellResidualTranFlux(this)
 
     ! south surface:
     if (q_dn > 0.d0) then
-      sat = (1.d0 - this%well%bh_sg)
+      sat = 1.d0 !(1.d0 - this%well%bh_sg)
       conc = this%reservoir%aqueous_conc(k,isegment)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
     elseif (q_dn < 0.d0) then
-      sat = this%well%liq%s(isegment)
+      sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
     else ! q_dn = 0
@@ -2960,11 +2965,11 @@ subroutine PMWellResidualTranFlux(this)
 
     ! north surface:
     if (q_up > 0.d0) then
-      sat = this%well%liq%s(isegment)
+      sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
     elseif (q_up < 0.d0) then
-      sat = (1.d0 - this%well%th_sg)
+      sat = 1.d0 !(1.d0 - this%well%th_sg)
       conc = this%well%aqueous_conc_th(ispecies)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
     else ! q_up = 0
@@ -2973,11 +2978,11 @@ subroutine PMWellResidualTranFlux(this)
 
     ! south surface:
     if (q_dn > 0.d0) then
-      sat = this%well%liq%s(isegment-1)
+      sat = 1.d0 !this%well%liq%s(isegment-1)
       conc = this%well%aqueous_conc(k,isegment-1)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
     elseif (q_dn < 0.d0) then
-      sat = this%well%liq%s(isegment)
+      sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
     else ! q_dn = 0
@@ -3143,7 +3148,7 @@ subroutine PMWellJacobianTran(this)
 
     call PMWellJacTranSrcSink(this,Jblock,k)
 
-    !call PMWellJacTranFlux(this,Jblock,k)
+    call PMWellJacTranFlux(this,Jblock,k)
 
     call PMWellJacTranRxn(this,Jblock,k)
 
@@ -3233,6 +3238,87 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
   !       Jac [m3-bulk/sec] vs SS [m3-liq/sec]
 
 end subroutine PMWellJacTranSrcSink
+
+! ************************************************************************** !
+
+subroutine PMWellJacTranFlux(this,Jblock,isegment)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/15/2022
+  !
+
+  implicit none
+
+  class(pm_well_type) :: this
+  PetscReal :: Jblock(this%nspecies,this%nspecies)
+  PetscInt :: isegment 
+
+  PetscInt :: istart, iend, ispecies
+  PetscInt :: n_up, n_dn 
+  PetscReal :: d_diffusion_dM
+  PetscReal :: J_up, J_dn
+  PetscReal :: area_up, area_dn
+  PetscReal :: q_up, q_dn
+
+  ! units of Jac = [m^3-bulk/sec]
+  ! area in [m2-bulk]
+  ! q in [m3-liq/m2-bulk-sec]
+  ! sat in [m2-liq/m2-void] and is not needed according to units
+
+  ! NOTE: The up direction is towards well top, and the dn direction is
+  !       towards the well bottom.
+
+  n_dn = +1
+  n_up = -1
+
+  d_diffusion_dM = 0.d0 ! for now, since WIPP has no diffusion
+
+  if ((isegment > 1) .and. (isegment < this%grid%nsegments)) then
+  ! ----------------------------------------INTERIOR-FLUXES------------------
+
+    area_up = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment+1))
+    area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
+
+    q_up = this%well%ql(isegment)
+    q_dn = this%well%ql(isegment-1)
+
+  ! ----------------------------------------BOUNDARY-FLUXES------------------
+  else if (isegment == 1) then
+    ! ----- bottom of well -----
+
+    area_up = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment+1))
+    area_dn = this%well%area(isegment)
+
+    q_up = this%well%ql(isegment)
+    q_dn = this%well%ql_bc(1) ! bottom of hole ql
+    
+  else if (isegment == this%grid%nsegments) then
+    ! ----- top of well -----
+
+    area_up = this%well%area(isegment) 
+    area_dn = 0.5d0 * (this%well%area(isegment) + this%well%area(isegment-1))
+
+    q_up = this%well%ql_bc(2) ! top of hole ql
+    q_dn = this%well%ql(isegment-1)
+
+  endif
+
+  ! north surface:
+  J_up = (n_up*area_up)*(q_up - d_diffusion_dM)
+
+  ! south surface:
+  J_dn = (n_dn*area_dn)*(q_dn - d_diffusion_dM)
+
+  istart = 1
+  iend = this%nspecies
+
+  do ispecies = istart,iend
+
+    Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) + (J_up + J_dn)
+
+  enddo
+
+end subroutine PMWellJacTranFlux
 
 ! ************************************************************************** !
 
