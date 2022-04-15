@@ -3723,24 +3723,13 @@ subroutine PMWellSolveTran(this,time,ierr)
 
       call PMWellCheckConvergenceTran(this,n_iter,res_fixed)
 
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Here, Michael added some dt stuff. Check if transport needs
-      ! it too.
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! remove the following two lines once Newton is working:
-      soln%converged = PETSC_TRUE         ! remove me
-      soln%not_converged = PETSC_FALSE    ! remove me
-
-      
     enddo
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! remove the following line once Newton is working:
-    this%cumulative_dt_tran = this%realization%option%flow_dt  ! remove me
-
-    ts_cut = 0
+    if (this%cumulative_dt_tran + this%dt_tran > &
+        this%realization%option%flow_dt) then
+      this%dt_tran = this%realization%option%flow_dt - this%cumulative_dt_tran
+    endif
+    
     soln%n_steps = soln%n_steps + 1
 
   enddo
@@ -3753,7 +3742,7 @@ end subroutine PMWellSolveTran
 
 ! ************************************************************************** !
 
-subroutine PMWellUpdateSolution(pm_well)
+subroutine PMWellUpdateSolutionFlow(pm_well)
   ! 
   ! Author: Michael Nole
   ! Date: 01/21/22
@@ -3794,7 +3783,44 @@ subroutine PMWellUpdateSolution(pm_well)
                      pm_well%realization%patch%characteristic_curves_array, &
                      pm_well%realization%option)
   end select
-end subroutine PMWellUpdateSolution
+end subroutine PMWellUpdateSolutionFlow
+
+! ************************************************************************** !
+
+subroutine PMWellUpdateSolutionTran(this)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/15/22
+
+  implicit none
+
+  class(pm_well_type) :: this
+
+  PetscInt :: ispecies, isegment, k
+  PetscInt :: offset, istart, iend
+  PetscReal :: vol 
+
+  ! update in [mol/m3-bulk]
+  ! volume in [m3-bulk]
+
+  do isegment = 1,this%grid%nsegments
+
+    offset = (isegment-1)*this%nspecies
+    istart = offset + 1
+    iend = offset + this%nspecies
+
+    vol = this%well%volume(isegment)
+
+    this%well%aqueous_mass(istart:iend,isegment) = &              ! [mol]
+                           this%well%aqueous_mass(istart:iend,isegment) + &
+                           (this%tran_soln%update(istart:iend) * vol)
+    this%well%aqueous_conc(istart:iend,isegment) = &
+          this%well%aqueous_mass(istart:iend,isegment) / &        ! [mol]
+          (this%well%phi(isegment)*vol*this%well%liq%s(isegment)) ! [m3-liq]
+
+  enddo
+
+end subroutine PMWellUpdateSolutionTran
 
 ! ************************************************************************** !
 
@@ -3895,7 +3921,7 @@ subroutine PMWellNewtonFlow(this)
     new_dx = -1.d0 * this%flow_soln%residual
     this%flow_soln%update = new_dx
 
-    call PMWellUpdateSolution(this)
+    call PMWellUpdateSolutionFlow(this)
 
   !--------------------------------------
   end select
@@ -3915,6 +3941,11 @@ subroutine PMWellNewtonTran(this)
   
   class(pm_well_type) :: this
 
+  PetscInt :: nm, dummy 
+  PetscInt :: indx(this%nspecies*this%grid%nsegments)
+
+  nm = this%nspecies * this%grid%nsegments
+
   ! at this time, the tran_soln%residual vector has been zero'd out and has
   ! been loaded with the fixed accumulation divided by current dt
  
@@ -3922,7 +3953,18 @@ subroutine PMWellNewtonTran(this)
 
   call PMWellJacobianTran(this)
 
-  !call PMWellUpdateSolutionTran(this)
+  ! J dx = -R     => dx = J^(-1)(-R)
+  ! [m3-bulk/sec] dx = -[mol/sec]
+  ! dx in [mol/m3-bulk]
+
+  call LUDecomposition(this%tran_soln%Jacobian,nm,indx,dummy)
+
+  call LUBackSubstitution(this%flow_soln%Jacobian,nm,indx, &
+                          this%tran_soln%residual)
+
+  this%tran_soln%update = -1.d0 * this%tran_soln%residual ! [mol/m3-bulk]
+
+  call PMWellUpdateSolutionTran(this)
 
 end subroutine PMWellNewtonTran
 
@@ -4154,7 +4196,7 @@ subroutine PMWellCheckConvergenceFlow(this,n_iter,fixed_accum)
     this%cumulative_dt_flow = this%cumulative_dt_flow + this%dt_flow
     this%flow_soln%prev_soln%pl = this%well%pl
     this%flow_soln%prev_soln%sg = this%well%gas%s
-    !call PMWellUpdateSolution(this)
+    !call PMWellUpdateSolutionFlow(this)
   else
     flow_soln%converged = PETSC_FALSE
     flow_soln%not_converged = PETSC_TRUE
@@ -4186,9 +4228,15 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   PetscBool :: cnvgd_due_to_abs_res(this%grid%nsegments*this%tran_soln%ndof)
   PetscBool :: cnvgd_due_to_scaled_res(this%grid%nsegments* &
                                        this%tran_soln%ndof)
+  PetscBool :: cnvgd_due_to_update(this%grid%nsegments*this%tran_soln%ndof)
+  PetscReal :: vol_vec(this%grid%nsegments*this%tran_soln%ndof)
+  PetscReal :: aq_mass_vec(this%grid%nsegments*this%tran_soln%ndof)
   PetscReal :: max_scaled_residual,max_absolute_residual
+  PetscReal :: max_update 
   PetscInt :: loc_max_scaled_residual,loc_max_abs_residual
-  PetscInt :: k 
+  PetscInt :: loc_max_update 
+  PetscInt :: k, n, j 
+  PetscInt :: isegment, ispecies
 
   soln => this%tran_soln
 
@@ -4198,10 +4246,8 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   cnvgd_due_to_residual = PETSC_FALSE
   cnvgd_due_to_abs_res = PETSC_FALSE
   cnvgd_due_to_scaled_res = PETSC_FALSE
+  cnvgd_due_to_update = PETSC_FALSE
   rsn_string = ''
-
-  ! Michael updates the residual here, but I think it should already be set
-  ! at where it's at for transport.
 
   do k = 1,(this%grid%nsegments*soln%ndof)
     ! Absolute Residual
@@ -4209,12 +4255,26 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
     if (temp_real < soln%itol_abs_res) then
       cnvgd_due_to_abs_res(k) = PETSC_TRUE
     endif
- 
     ! Scaled Residual
     temp_real = dabs(soln%residual(k)/(fixed_accum(k)/this%dt_tran))
     if (temp_real < soln%itol_scaled_res) then
       cnvgd_due_to_scaled_res(k) = PETSC_TRUE
     endif
+  enddo
+
+  ! Relative Update
+  do n = 1,this%grid%nsegments 
+    isegment = n
+    do k = 1, soln%ndof
+      ispecies = k 
+      j = ((isegment-1)*soln%ndof) + ispecies
+      vol_vec(j) = this%well%volume(isegment)
+      aq_mass_vec(j) = this%well%aqueous_mass(ispecies,isegment)
+      temp_real = dabs(soln%update(j)*vol_vec(j)/aq_mass_vec(j))
+      if (temp_real < soln%itol_rel_update) then
+        cnvgd_due_to_update(j) = PETSC_TRUE
+      endif
+    enddo
   enddo
 
   max_absolute_residual = maxval(dabs(soln%residual))
@@ -4225,22 +4285,41 @@ subroutine PMWellCheckConvergenceTran(this,n_iter,fixed_accum)
   loc_max_scaled_residual = maxloc(dabs(soln%residual/ &
                                         (fixed_accum/this%dt_tran)),1)
 
+  max_update = maxval(dabs(soln%update*vol_vec/aq_mass_vec))
+  loc_max_update = maxloc(dabs(soln%update*vol_vec/aq_mass_vec),1)
+
   do k = 1,(this%grid%nsegments*soln%ndof)
     if (cnvgd_due_to_scaled_res(k) .or. cnvgd_due_to_abs_res(k)) then
       cnvgd_due_to_residual(k) = PETSC_TRUE
+      rsn_string = trim(rsn_string) // ' R '
     endif
   enddo
-
   if (all(cnvgd_due_to_abs_res)) then
-    rsn_string = trim(rsn_string) // ' R '
+    rsn_string = trim(rsn_string) // ' aR '
   endif
   if (all(cnvgd_due_to_scaled_res)) then
     rsn_string = trim(rsn_string) // ' sR '
   endif
+  if (all(cnvgd_due_to_update)) then
+    rsn_string = trim(rsn_string) // ' rU '
+  endif
 
-  write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2)') &
-        n_iter,max_absolute_residual,max_scaled_residual   
+  write(out_string,'(i2," aR:",es10.2,"  sR:",es10.2,"  rU:",es10.2)') &
+        n_iter,max_absolute_residual,max_scaled_residual,max_update   
   call OptionPrint(out_string,this%option)
+
+  if (all(cnvgd_due_to_residual) .and. all(cnvgd_due_to_update)) then
+    soln%converged = PETSC_TRUE
+    soln%not_converged = PETSC_FALSE
+    out_string = ' TRAN Solution converged!  ---> ' // trim(rsn_string)
+    call OptionPrint(out_string,this%option); WRITE(*,*) ""
+    this%cumulative_dt_tran = this%cumulative_dt_tran + this%dt_tran
+    soln%prev_soln%aqueous_conc = this%well%aqueous_conc
+    soln%prev_soln%aqueous_mass = this%well%aqueous_mass
+  else
+    soln%converged = PETSC_FALSE
+    soln%not_converged = PETSC_TRUE
+  endif
   
 end subroutine PMWellCheckConvergenceTran
 
