@@ -489,6 +489,7 @@ module PM_Waste_Form_class
     PetscBool :: switch_implicit
     PetscBool :: allow_implicit
     PetscBool :: allow_extrap
+    PetscBool :: continue_lookup
     type(crit_inventory_lookup_type), allocatable ::  nuclide(:)
     class(crit_inventory_type), pointer :: next
   contains
@@ -3242,7 +3243,7 @@ subroutine PMWFInitializeTimestep(this)
   PetscBool :: expanded_dataset_solution
   PetscBool :: switch_to_implicit ! warning message for switch to implicit soln
   class(dataset_ascii_type), pointer :: dataset
-  class(crit_inventory_type), pointer :: critinv
+  class(crit_inventory_type), pointer :: crit_inventory
   
   avg_temp_global = UNINITIALIZED_DOUBLE
   avg_sat_global = UNINITIALIZED_DOUBLE
@@ -3466,16 +3467,24 @@ subroutine PMWFInitializeTimestep(this)
     expanded_dataset_solution = PETSC_FALSE
     switch_to_implicit = PETSC_FALSE
     if (associated(cur_waste_form%criticality_mechanism)) then
-      if (associated(cur_waste_form%criticality_mechanism%rad_dataset)) then 
+      cur_criticality => cur_waste_form%criticality_mechanism
+      if (associated(cur_criticality%rad_dataset)) then 
         dataset_solution = PETSC_TRUE
         if (this%implicit_solution) this%implicit_solution = PETSC_FALSE
       endif 
-      if (associated(cur_waste_form%criticality_mechanism% &
-        inventory_dataset)) then 
-        if (cur_waste_form%criticality_mechanism%inventory_dataset% &
-          switch_implicit) then
+      if (associated(cur_criticality%inventory_dataset)) then 
+        crit_inventory => cur_criticality%inventory_dataset
+        if (crit_inventory%switch_implicit) then
+          ! extrapolation detected in the expanded dataset - switch to implicit
           this%implicit_solution = PETSC_TRUE
+        elseif (.not. crit_inventory%continue_lookup .and. &
+                option%time > cur_criticality%crit_event%crit_end) then
+          ! use implicit solution if the criticality end time is exceeded
+          this%implicit_solution = PETSC_TRUE
+          crit_inventory%switch_implicit = PETSC_TRUE ! stop using lookup table
+          switch_to_implicit =  PETSC_TRUE ! give warning message
         else
+          ! use 3D lookup table (expanded dataset) for radionuclide inventories
           expanded_dataset_solution = PETSC_TRUE
           if (this%implicit_solution) this%implicit_solution = PETSC_FALSE
         endif
@@ -3485,19 +3494,19 @@ subroutine PMWFInitializeTimestep(this)
     if (expanded_dataset_solution) then
       ! interpolate radionuclide inventories using lookup tables from external
       !   neutronics calculations
-      cur_criticality => cur_waste_form%criticality_mechanism
-      critinv => cur_criticality%inventory_dataset
-      
+
       ! check number of species
-      if (num_species > critinv%num_species) then
+      if (num_species > crit_inventory%num_species) then
         option%io_buffer = 'Number of species listed in the criticality ' &
-                         //'inventory lookup table "' //trim(critinv%file_name)&
+                         //'inventory lookup table "' &
+                         //trim(crit_inventory%file_name) &
                          //'" is less than the number specified ' &
                          //'in Waste Form Process Model.' 
         call PrintErrMsg(option)
-      elseif (num_species < critinv%num_species) then
+      elseif (num_species < crit_inventory%num_species) then
         option%io_buffer = 'Number of species listed in the criticality ' &
-                         //'inventory lookup table "' //trim(critinv%file_name)&
+                         //'inventory lookup table "' &
+                         //trim(crit_inventory%file_name)&
                          //'" is greater than the number ' &
                          //'specified in Waste Form Process Model.'
         call PrintErrMsg(option)
@@ -3505,23 +3514,23 @@ subroutine PMWFInitializeTimestep(this)
       
       do k = 1,num_species
        cur_waste_form%rad_mass_fraction(k) = &
-         critinv%Evaluate(k, &
-                          cur_criticality%crit_event%crit_start, &
-                          cur_criticality%crit_heat, &
-                          option%time)
+         crit_inventory%Evaluate(k, &
+                                 cur_criticality%crit_event%crit_start, &
+                                 cur_criticality%crit_heat, &
+                                 option%time)
 
-       if (critinv%nuclide(k)%lookup%axis3%extrapolate .and. &
-           .not. critinv%allow_extrap) then
+       if (crit_inventory%nuclide(k)%lookup%axis3%extrapolate .and. &
+           .not. crit_inventory%allow_extrap) then
          ! Fallback options if extrapolation is detected
-         if (critinv%allow_implicit) then
+         if (crit_inventory%allow_implicit) then
            ! Resort to implicit solution
            this%implicit_solution = PETSC_TRUE
-           critinv%switch_implicit = PETSC_TRUE
+           crit_inventory%switch_implicit = PETSC_TRUE
            switch_to_implicit =  PETSC_TRUE
          else
            ! Alert user that extrapolation has been attempted
            option%io_buffer = 'Extrapolation of inventory lookup table "' &
-                            // trim(critinv%file_name) // '" has ' &
+                            // trim(crit_inventory%file_name) // '" has ' &
                             //'been detected. Extrapolation can be enabled ' &
                             //'with keyword USE_LOOKUP_AND_EXTRAPOLATION in ' &
                             //'the OPTION sub-block.'
@@ -3669,9 +3678,9 @@ subroutine PMWFInitializeTimestep(this)
     if (switch_to_implicit) then
       if (associated(cur_waste_form%criticality_mechanism%inventory_dataset)) &
         then
-        critinv => cur_waste_form%criticality_mechanism%inventory_dataset
+        crit_inventory => cur_waste_form%criticality_mechanism%inventory_dataset
         option%io_buffer = 'Switching from inventory lookup table "' &
-                         // trim(critinv%file_name) &
+                         // trim(crit_inventory%file_name) &
                          //'" to implicit solution.'
         call PrintWrnMsg(option)
       endif
@@ -6769,6 +6778,20 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           call PrintErrMsg(option)
                         endif
                     !-----------------------------
+                      case('USE_LOOKUP_AFTER_CRITICALITY')
+                        ! This allows the lookup table to be used after the
+                        !   criticality end time. Otherwise, the implicit
+                        !   solution is used after the criticality event.
+                        if (associated(new_crit_mech%inventory_dataset)) then
+                          new_crit_mech%inventory_dataset%continue_lookup = &
+                            PETSC_TRUE
+                        else
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+                    !-----------------------------
                       case default
                         call InputKeywordUnrecognized(input,word,error_string, &
                                                       option)
@@ -8043,6 +8066,7 @@ function CritInventoryCreate()
   ci%switch_implicit = PETSC_FALSE
   ci%allow_implicit = PETSC_FALSE
   ci%allow_extrap   = PETSC_FALSE
+  ci%continue_lookup = PETSC_FALSE
 
   CritInventoryCreate => ci
 
