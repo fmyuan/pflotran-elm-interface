@@ -2771,7 +2771,7 @@ subroutine PMWellResidualTranRxn(this)
   class(pm_well_type) :: this
 
   PetscInt :: ispecies, isegment, k
-  PetscInt :: offset, istart, iend
+  PetscInt :: offset, istart, iend, parent_id
   PetscReal :: Res(this%nspecies)
 
   ! decay_rate in [1/sec]
@@ -2790,10 +2790,10 @@ subroutine PMWellResidualTranRxn(this)
       Res(k) = -(this%well%species_decay_rate(k)* &
                           this%well%aqueous_mass(ispecies,isegment))
       ! Add in contribution from parent (if exists)
-      if (this%well%species_parent_id(ispecies) > 0) then
+      parent_id = this%well%species_parent_id(ispecies)
+      if (parent_id > 0) then
         Res(k) = Res(k) + (this%well%species_parent_decay_rate(k)* &
-                 this%well%aqueous_mass( &
-                             this%well%species_parent_id(ispecies),isegment))
+                 this%well%aqueous_mass(parent_id,isegment))
       endif
     enddo
 
@@ -3145,7 +3145,7 @@ subroutine PMWellJacobianTran(this)
 
     !call PMWellJacTranFlux(this,Jblock,k)
 
-    !call PMWellJacTranRxn(this,Jblock,k)
+    call PMWellJacTranRxn(this,Jblock,k)
 
     ! place JBlock into full Jac based on isegment
     jstart = (k-1)*nspecies + 1
@@ -3183,7 +3183,9 @@ subroutine PMWellJacTranAccum(this,Jblock,isegment)
   iend = this%nspecies
 
   do ispecies = istart,iend
+
     Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) + vol_dt
+
   enddo
 
 end subroutine PMWellJacTranAccum
@@ -3221,13 +3223,57 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
 
   istart = 1
   iend = this%nspecies
+
   do ispecies = istart,iend
+
     Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) - vol*(SS/vol)
+
   enddo
   ! NOTE: There is an inconsistency in the units:
   !       Jac [m3-bulk/sec] vs SS [m3-liq/sec]
 
 end subroutine PMWellJacTranSrcSink
+
+! ************************************************************************** !
+
+subroutine PMWellJacTranRxn(this,Jblock,isegment)
+  ! 
+  ! Author: Jennifer M. Frederick
+  ! Date: 04/15/2022
+  !
+
+  implicit none
+
+  class(pm_well_type) :: this
+  PetscReal :: Jblock(this%nspecies,this%nspecies)
+  PetscInt :: isegment 
+
+  PetscInt :: istart, iend, ispecies, parent_id 
+  PetscReal :: vol 
+
+  ! units of Jac = [m^3-bulk/sec]
+  ! units of volume = [m^3-bulk]
+  ! decay_rate in [1/sec]
+
+  vol = this%well%volume(isegment)
+
+  istart = 1
+  iend = this%nspecies
+
+  do ispecies = istart,iend
+
+    Jblock(ispecies,ispecies) = Jblock(ispecies,ispecies) + &
+                               (vol*this%well%species_decay_rate(ispecies))
+
+    parent_id = this%well%species_parent_id(ispecies)
+    if (parent_id > 0) then
+      Jblock(ispecies,parent_id) = Jblock(ispecies,parent_id) - &
+                        (vol*this%well%species_parent_decay_rate(ispecies))
+    endif
+    
+  enddo
+
+end subroutine PMWellJacTranRxn
 
 ! ************************************************************************** !
 
