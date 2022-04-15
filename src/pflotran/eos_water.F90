@@ -493,8 +493,8 @@ subroutine EOSWaterSetViscosity(keyword,aux)
 
   implicit none
   
-  character(len=*) :: keyword
-  PetscReal, optional :: aux(*)
+  character(len=*), intent(in) :: keyword
+  PetscReal, intent(in), optional :: aux(*)
   
   select case(keyword)
     case('CONSTANT')
@@ -523,8 +523,8 @@ subroutine EOSWaterSetSaturationPressure(keyword,aux)
 
   implicit none
 
-  character(len=*) :: keyword
-  PetscReal, optional :: aux(*)
+  character(len=*), intent(in) :: keyword
+  PetscReal, intent(in), optional :: aux(*)
 
   select case(keyword)
     case('IFC67')
@@ -547,8 +547,8 @@ subroutine EOSWaterSetSteamDensity(keyword,aux)
 
   implicit none
   
-  character(len=*) :: keyword
-  PetscReal, optional :: aux(*)
+  character(len=*), intent(in) :: keyword
+  PetscReal, intent(in), optional :: aux(*)
   
   select case(keyword)
     case('CONSTANT')
@@ -576,8 +576,8 @@ subroutine EOSWaterSetSteamEnthalpy(keyword,aux)
 
   implicit none
   
-  character(len=*) :: keyword
-  PetscReal, optional :: aux(*)
+  character(len=*), intent(in) :: keyword
+  PetscReal, intent(in), optional :: aux(*)
   
   select case(keyword)
     case('CONSTANT')
@@ -661,7 +661,7 @@ subroutine EOSWaterSetSurfaceDensity(input_ref_density)
 
   implicit none
 
-  PetscReal :: input_ref_density
+  PetscReal, intent(in) :: input_ref_density
 
   surface_density_kg = input_ref_density
 

@@ -1190,7 +1190,13 @@ subroutine NWTAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%sorb_eq_conc)
   call DeallocateArray(auxvar%mnrl_eq_conc)
   call DeallocateArray(auxvar%mnrl_vol_frac)
-  call DeallocateArray(auxvar%auxiliary_data)
+
+  if (associated(auxvar%auxiliary_data)) &
+    call DeallocateArray(auxvar%auxiliary_data)
+  if (associated(auxvar%mass_balance)) &
+    call DeallocateArray(auxvar%mass_balance)
+  if (associated(auxvar%mass_balance_delta)) &
+    call DeallocateArray(auxvar%mass_balance_delta)
   
 end subroutine NWTAuxVarStrip
 

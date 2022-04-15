@@ -31,17 +31,17 @@ contains
 ! ************************************************************************** !
 
 function PMCGeomechanicsCreate()
-  ! 
+  !
   ! This routine allocates and initializes a new object.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
 
   implicit none
-  
+
   class(pmc_geomechanics_type), pointer :: PMCGeomechanicsCreate
-  
+
   class(pmc_geomechanics_type), pointer :: pmc
 
 #ifdef DEBUG
@@ -50,25 +50,25 @@ function PMCGeomechanicsCreate()
 
   allocate(pmc)
   call pmc%Init()
-  
-  PMCGeomechanicsCreate => pmc  
-  
+
+  PMCGeomechanicsCreate => pmc
+
 end function PMCGeomechanicsCreate
 
 ! ************************************************************************** !
 
 subroutine PMCGeomechanicsInit(this)
-  ! 
+  !
   ! This routine initializes a new process model coupler object.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
 
   implicit none
-  
+
   class(pmc_geomechanics_type) :: this
-  
+
 #ifdef DEBUG
   print *, 'PMCGeomechanics%Init()'
 #endif
@@ -82,10 +82,10 @@ end subroutine PMCGeomechanicsInit
 ! ************************************************************************** !
 
 subroutine PMCGeomechanicsSetupSolvers(this)
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 03/18/13
-  ! 
+  !
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
   use Convergence_module
@@ -121,7 +121,7 @@ subroutine PMCGeomechanicsSetupSolvers(this)
     class is (timestepper_steady_type)
       ts_steady => ts
       solver => ts%solver
-  end select 
+  end select
 
   call PrintMsg(option,"  Beginning setup of GEOMECH SNES ")
 
@@ -130,10 +130,12 @@ subroutine PMCGeomechanicsSetupSolvers(this)
     call PrintErrMsg(option)
   endif
 
-  call SolverCreateSNES(solver,option%mycomm)
-  call SNESSetOptionsPrefix(solver%snes, "geomech_", &
-                            ierr);CHKERRQ(ierr)
-  call SolverCheckCommandLine(solver)
+  call SolverCreateSNES(solver,option%mycomm,'geomech_',option)
+
+  if (solver%snes_type /= SNESNEWTONLS) then
+    option%io_buffer = 'Geomechanics only supports the LineSearch SNES_TYPE.'
+    call PrintErrMsg(option)
+  endif
 
   if (Uninitialized(solver%Mpre_mat_type) .and. &
       Uninitialized(solver%M_mat_type)) then
@@ -203,12 +205,12 @@ end subroutine PMCGeomechanicsSetupSolvers
 ! ************************************************************************** !
 
 recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
-  ! 
+  !
   ! This routine runs the geomechanics simulation.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
 
   use Timestepper_Base_class
   use Option_module
@@ -224,8 +226,8 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   PetscBool :: snapshot_plot_flag
   PetscBool :: observation_plot_flag
   PetscBool :: massbal_plot_flag
-  PetscBool :: checkpoint_flag  
-    
+  PetscBool :: checkpoint_flag
+
   class(pm_base_type), pointer :: cur_pm
 
   if (stop_flag == TS_STOP_FAILURE) return
@@ -233,7 +235,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   call this%PrintHeader()
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call PrintVerboseMsg(this%option)
-  
+
   ! Get data of other process-model
   call this%GetAuxData()
 
@@ -249,7 +251,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
                                       observation_plot_flag, &
                                       massbal_plot_flag,checkpoint_flag)
   call this%timestepper%StepDT(this%pm_list,local_stop_flag)
-  
+
   ! Check if it is initial solve
   if (this%timestepper%steps == 1) then
     this%option%geomech_initial = PETSC_TRUE
@@ -264,7 +266,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
     ! have to update option%time for conditions
     this%option%time = this%timestepper%target_time
     call cur_pm%UpdateSolution()
-    ! Geomechanics PM does not have an associate time 
+    ! Geomechanics PM does not have an associate time
     !call this%timestepper%UpdateDT(cur_pm)
     cur_pm => cur_pm%next
   enddo
@@ -275,7 +277,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
     call this%SetAuxData()
     call this%child%RunToTime(this%timestepper%target_time,local_stop_flag)
   endif
-  
+
   if (this%timestepper%time_step_cut_flag) then
     snapshot_plot_flag = PETSC_FALSE
   endif
@@ -293,7 +295,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
           periodic_msbl_output_ts_imod) == 0) then
     massbal_plot_flag = PETSC_TRUE
   endif
-    
+
   call OutputGeomechanics(this%geomech_realization,snapshot_plot_flag, &
                           observation_plot_flag,massbal_plot_flag)
   ! Set data needed by process-model
@@ -311,13 +313,13 @@ end subroutine PMCGeomechanicsRunToTime
 ! ************************************************************************** !
 
 subroutine PMCGeomechanicsSetAuxData(this)
-  ! 
+  !
   ! This routine updates data in simulation_aux that is required by other
   ! process models.
   !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -384,7 +386,7 @@ print *, 'PMCGeomechSetAuxData'
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_vec_adjacency_count.out',viewer,ierr);CHKERRQ(ierr)
   call VecView(subsurf_vec,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
        ! Save strain dataset in sim_aux%subsurf_strain
@@ -401,9 +403,9 @@ print *, 'PMCGeomechSetAuxData'
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_strain_vector_before_averaging.out',viewer,ierr);CHKERRQ(ierr)
   call VecView(pmc%sim_aux%subsurf_strain,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
-                            
+
         ! Save stress dataset in sim_aux%subsurf_stress
         call VecSet(pmc%sim_aux%subsurf_stress,0.d0,ierr);CHKERRQ(ierr)
         call VecScatterBegin(pmc%sim_aux%geomechanics_to_subsurf, &
@@ -418,7 +420,7 @@ print *, 'PMCGeomechSetAuxData'
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_stress_vector_before_averaging.out',viewer,ierr);CHKERRQ(ierr)
   call VecView(pmc%sim_aux%subsurf_stress,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
         ! Calculate the average stress and strain
@@ -429,9 +431,9 @@ print *, 'PMCGeomechSetAuxData'
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_strain_vector_after_averaging.out',viewer,ierr);CHKERRQ(ierr)
   call VecView(pmc%sim_aux%subsurf_strain,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
- 
+
         call VecPointwiseDivide(pmc%sim_aux%subsurf_stress, &
                                 pmc%sim_aux%subsurf_stress, &
                                 subsurf_vec,ierr);CHKERRQ(ierr)
@@ -439,9 +441,9 @@ print *, 'PMCGeomechSetAuxData'
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_stress_vector_after_averaging.out',viewer,ierr);CHKERRQ(ierr)
   call VecView(pmc%sim_aux%subsurf_stress,viewer,ierr);CHKERRQ(ierr)
-  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
- 
+
 
         ! Update porosity dataset in sim_aux%subsurf_por
         call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por0_p,  &
@@ -452,7 +454,7 @@ print *, 'PMCGeomechSetAuxData'
         call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p,  &
                             ierr);CHKERRQ(ierr)
         call VecGetArrayF90(pmc%sim_aux%subsurf_perm,perm_p,  &
-                            ierr);CHKERRQ(ierr)   
+                            ierr);CHKERRQ(ierr)
         ! Strain
         call VecGetArrayF90(pmc%sim_aux%subsurf_strain,strain_p,  &
                             ierr);CHKERRQ(ierr)
@@ -464,7 +466,7 @@ print *, 'PMCGeomechSetAuxData'
                             press_p,ierr);CHKERRQ(ierr)
 
         do local_id = 1, grid%nlmax
-          do i = 1, SIX_INTEGER                
+          do i = 1, SIX_INTEGER
             local_stress(i) = stress_p((local_id - 1)*SIX_INTEGER + i)
             local_strain(i) = strain_p((local_id - 1)*SIX_INTEGER + i)
           enddo
@@ -513,13 +515,13 @@ end subroutine PMCGeomechanicsSetAuxData
 ! ************************************************************************** !
 
 subroutine PMCGeomechanicsGetAuxData(this)
-  ! 
+  !
   ! This routine updates data for geomechanics simulation from other process
   ! models.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
-  ! 
+  !
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -582,9 +584,9 @@ subroutine PMCGeomechanicsStrip(this)
   !
   ! Author: Satish Karra
   ! Date: 06/01/16
-  
+
   implicit none
-  
+
   class(pmc_geomechanics_type) :: this
 
   call PMCBaseStrip(this)
@@ -597,16 +599,16 @@ end subroutine PMCGeomechanicsStrip
 ! ************************************************************************** !
 
 recursive subroutine PMCGeomechanicsDestroy(this)
-  ! 
+  !
   ! Author: Satish Karra
   ! Date: 06/01/16
-  ! 
+  !
   use Option_module
 
   implicit none
-  
+
   class(pmc_geomechanics_type) :: this
-  
+
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCGeomechanics%Destroy()')
 #endif
@@ -616,15 +618,15 @@ recursive subroutine PMCGeomechanicsDestroy(this)
     ! destroy does not currently destroy; it strips
     deallocate(this%child)
     nullify(this%child)
-  endif 
-  
+  endif
+
   if (associated(this%peer)) then
     call this%peer%Destroy()
     ! destroy does not currently destroy; it strips
     deallocate(this%peer)
     nullify(this%peer)
   endif
-  
+
   call PMCGeomechanicsStrip(this)
 
 end subroutine PMCGeomechanicsDestroy
