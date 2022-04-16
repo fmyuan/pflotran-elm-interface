@@ -2724,12 +2724,15 @@ subroutine PMWellResidualTranSrcSink(this)
   ! aqueous conc in [mol-species/m^3-liq]
   ! residual in [mol-species/sec]
 
+  ! + Q goes out of well to reservoir
+  ! - Q goes into well from reservoir
+
   well => this%well
   resr => this%reservoir
 
   do isegment = 1,this%grid%nsegments
 
-    if (well%liq%Q(isegment) > 0.d0) then ! Q into well
+    if (well%liq%Q(isegment) < 0.d0) then ! Q into well
       coef_Qin = well%liq%Q(isegment)
       coef_Qout = 0.d0
     else ! Q out of well
@@ -2836,6 +2839,8 @@ subroutine PMWellResidualTranFlux(this)
 
   ! NOTE: The up direction is towards well top, and the dn direction is
   !       towards the well bottom.
+  !       +q flows down the well
+  !       -q flows up the well
 
   n_dn = +1
   n_up = -1
@@ -2862,11 +2867,11 @@ subroutine PMWellResidualTranFlux(this)
       k = ispecies
 
       ! north surface:
-      if (q_up > 0.d0) then
+      if (q_up < 0.d0) then ! flow is up well
         sat = 1.d0 !this%well%liq%s(isegment)
         conc = this%well%aqueous_conc(k,isegment)
         Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
-      elseif (q_up < 0.d0) then
+      elseif (q_up > 0.d0) then ! flow is down well
         sat = 1.d0 !this%well%liq%s(isegment+1)
         conc = this%well%aqueous_conc(k,isegment+1)
         Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
@@ -2875,11 +2880,11 @@ subroutine PMWellResidualTranFlux(this)
       endif
 
       ! south surface:
-      if (q_dn > 0.d0) then
+      if (q_dn < 0.d0) then ! flow is up well
         sat = 1.d0 !this%well%liq%s(isegment-1)
         conc = this%well%aqueous_conc(k,isegment-1)
         Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
-      elseif (q_dn < 0.d0) then
+      elseif (q_dn > 0.d0) then ! flow is down well
         sat = 1.d0 !this%well%liq%s(isegment)
         conc = this%well%aqueous_conc(k,isegment)
         Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
@@ -2914,11 +2919,11 @@ subroutine PMWellResidualTranFlux(this)
     k = ispecies
 
     ! north surface:
-    if (q_up > 0.d0) then
+    if (q_up < 0.d0) then ! flow is up the well
       sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
-    elseif (q_up < 0.d0) then
+    elseif (q_up > 0.d0) then ! flow is down the well
       sat = 1.d0 !this%well%liq%s(isegment+1)
       conc = this%well%aqueous_conc(k,isegment+1)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
@@ -2927,11 +2932,11 @@ subroutine PMWellResidualTranFlux(this)
     endif
 
     ! south surface:
-    if (q_dn > 0.d0) then
+    if (q_dn < 0.d0) then ! flow is up the well
       sat = 1.d0 !(1.d0 - this%well%bh_sg)
       conc = this%reservoir%aqueous_conc(k,isegment)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
-    elseif (q_dn < 0.d0) then
+    elseif (q_dn > 0.d0) then ! flow is down the well
       sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
@@ -2964,11 +2969,11 @@ subroutine PMWellResidualTranFlux(this)
     k = ispecies
 
     ! north surface:
-    if (q_up > 0.d0) then
+    if (q_up < 0.d0) then ! flow is up the well
       sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
-    elseif (q_up < 0.d0) then
+    elseif (q_up > 0.d0) then ! flow is down the well
       sat = 1.d0 !(1.d0 - this%well%th_sg)
       conc = this%well%aqueous_conc_th(ispecies)
       Res_up(k) = (n_up*area_up)*(q_up*sat*conc - diffusion)
@@ -2977,11 +2982,11 @@ subroutine PMWellResidualTranFlux(this)
     endif
 
     ! south surface:
-    if (q_dn > 0.d0) then
+    if (q_dn < 0.d0) then ! flow is up the well
       sat = 1.d0 !this%well%liq%s(isegment-1)
       conc = this%well%aqueous_conc(k,isegment-1)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
-    elseif (q_dn < 0.d0) then
+    elseif (q_dn > 0.d0) then ! flow is down the well
       sat = 1.d0 !this%well%liq%s(isegment)
       conc = this%well%aqueous_conc(k,isegment)
       Res_dn(k) = (n_dn*area_dn)*(q_dn*sat*conc - diffusion)
@@ -3219,7 +3224,7 @@ subroutine PMWellJacTranSrcSink(this,Jblock,isegment)
 
   vol = this%well%volume(isegment)
 
-  if (this%well%liq%Q(isegment) > 0.d0) then ! Q into well
+  if (this%well%liq%Q(isegment) < 0.d0) then ! Q into well
       Qin = this%well%liq%Q(isegment)
   else ! Q out of well
       Qin = 0.d0
@@ -3267,6 +3272,8 @@ subroutine PMWellJacTranFlux(this,Jblock,isegment)
 
   ! NOTE: The up direction is towards well top, and the dn direction is
   !       towards the well bottom.
+  !       +q flows down the well
+  !       -q flows up the well
 
   n_dn = +1
   n_up = -1
@@ -3962,7 +3969,7 @@ subroutine PMWellNewtonTran(this)
   call LUBackSubstitution(this%flow_soln%Jacobian,nm,indx, &
                           this%tran_soln%residual)
 
-  this%tran_soln%update = -1.d0 * this%tran_soln%residual ! [mol/m3-bulk]
+  this%tran_soln%update = this%tran_soln%residual ! [mol/m3-bulk]
 
   call PMWellUpdateSolutionTran(this)
 
@@ -4349,6 +4356,9 @@ subroutine PMWellUpdateWellQ(well,reservoir)
   gas => well%gas
 
   nsegments = size(well%liq%Q)
+
+  ! + Q goes out of well to reservoir
+  ! - Q goes into well from reservoir
 
   select case (well%well_model_type)
     !------------------------------------------------------------------------
