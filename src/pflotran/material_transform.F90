@@ -455,7 +455,7 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
 
       ! Function type
       call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,'f_perm function type', &
+      call InputErrorMsg(input,option,'SHIFT_PERM function type', &
                          error_string)
       f_perm_mode = word
 
@@ -464,7 +464,7 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
         case ('DEFAULT','LINEAR')
           f_perm_mode_size = 1
           call InputReadDouble(input,option,f_perm(1))
-          call InputErrorMsg(input,option,'f_perm(1), DEFAULT/LINEAR', &
+          call InputErrorMsg(input,option,'parameter #1, DEFAULT/LINEAR', &
                              error_string)
           ! Check user values
           if (f_perm(1) < -1.0d+0) then
@@ -477,9 +477,11 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
         case ('QUADRATIC')
           f_perm_mode_size = 2
           call InputReadDouble(input,option,f_perm(1))
-          call InputErrorMsg(input,option,'f_perm(1), QUADRATIC',error_string)
+          call InputErrorMsg(input,option,'parameter #1, QUADRATIC', &
+                             error_string)
           call InputReadDouble(input,option,f_perm(2))
-          call InputErrorMsg(input,option,'f_perm(2), QUADRATIC',error_string)
+          call InputErrorMsg(input,option,'parameter #2, QUADRATIC', &
+                             error_string)
           ! Check user values
           a = f_perm(1)
           b = f_perm(2)
@@ -519,9 +521,9 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
         case ('POWER')
           f_perm_mode_size = 2
           call InputReadDouble(input,option,f_perm(1))
-          call InputErrorMsg(input,option,'f_perm(1), POWER',error_string)
+          call InputErrorMsg(input,option,'parameter #1, POWER',error_string)
           call InputReadDouble(input,option,f_perm(2))
-          call InputErrorMsg(input,option,'f_perm(2), POWER',error_string)
+          call InputErrorMsg(input,option,'parameter #2, POWER',error_string)
           ! Check user values
           a = f_perm(1)
           b = f_perm(2)
@@ -543,7 +545,8 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
         case ('EXPONENTIAL')
           f_perm_mode_size = 1
           call InputReadDouble(input,option,f_perm(1))
-          call InputErrorMsg(input,option,'f_perm(1), EXPONENTIAL',error_string)
+          call InputErrorMsg(input,option,'parameter #1, EXPONENTIAL', &
+                             error_string)
         case default
           option%io_buffer = 'Permeability modification function "' &
                            // trim(f_perm_mode) &
@@ -585,22 +588,22 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
         if (InputCheckExit(input,option)) exit
         i = i + 1
         if (i > MAX_KD_SIZE) then
-          write(word,*) i-1
-          option%io_buffer = 'f_kd array in ILLITIZATION must be' &
-            //'allocated larger than ' // trim(adjustl(word)) &
-            //' under SHIFT_KD in' // trim(error_string) // '.'
+          write(word,*) MAX_KD_SIZE
+          option%io_buffer = 'The number of sorption distribution' &
+            //' coefficients is limited to ' // trim(adjustl(word)) &
+            //' values for SHIFT_KD in' // trim(error_string) // '.'
           call PrintErrMsg(option)
         endif
 
         ! Element
         call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'f_kd element symbol', &
+        call InputErrorMsg(input,option,'SHIFT_KD element symbol', &
                            error_string)
         f_kd_element(i) = word
 
         ! Function type
         call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'f_kd function type', &
+        call InputErrorMsg(input,option,'SHIFT_KD function type', &
                            error_string)
         f_kd_mode(i) = word
 
@@ -609,7 +612,7 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
           case ('DEFAULT','LINEAR')
             f_kd_mode_size(i) = 1
             call InputReadDouble(input,option,f_kd(i,1))
-            call InputErrorMsg(input,option,'f_kd(*,1), DEFAULT/LINEAR', &
+            call InputErrorMsg(input,option,'parameter #1, DEFAULT/LINEAR', &
                                error_string)
 
             ! Check user values
@@ -625,9 +628,11 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
           case ('QUADRATIC')
             f_kd_mode_size(i) = 2
             call InputReadDouble(input,option,f_kd(i,1))
-            call InputErrorMsg(input,option,'f_kd(*,1), QUADRATIC',error_string)
+            call InputErrorMsg(input,option,'parameter #1, QUADRATIC', &
+                               error_string)
             call InputReadDouble(input,option,f_kd(i,2))
-            call InputErrorMsg(input,option,'f_kd(*,2), QUADRATIC',error_string)
+            call InputErrorMsg(input,option,'parameter #2, QUADRATIC', &
+                               error_string)
             ! Check user values
             a = f_kd(i,1)
             b = f_kd(i,2)
@@ -670,9 +675,9 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
           case ('POWER')
             f_kd_mode_size(i) = 2
             call InputReadDouble(input,option,f_kd(i,1))
-            call InputErrorMsg(input,option,'f_kd(*,1), POWER',error_string)
+            call InputErrorMsg(input,option,'parameter #1, POWER',error_string)
             call InputReadDouble(input,option,f_kd(i,2))
-            call InputErrorMsg(input,option,'f_kd(*,2), POWER',error_string)
+            call InputErrorMsg(input,option,'parameter #2, POWER',error_string)
             ! Check user values
             a = f_kd(i,1)
             b = f_kd(i,2)
@@ -694,7 +699,7 @@ subroutine ILTBaseRead(illitization_function, input, keyword, error_string, &
           case ('EXPONENTIAL')
             f_kd_mode_size(i) = 1
             call InputReadDouble(input,option,f_kd(i,1))
-            call InputErrorMsg(input,option,'f_kd(*,1), EXPONENTIAL', &
+            call InputErrorMsg(input,option,'parameter #1, EXPONENTIAL', &
                                error_string)
           case default
             option%io_buffer = 'Sorption modification function "' &
