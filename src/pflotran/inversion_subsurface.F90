@@ -21,19 +21,21 @@ module Inversion_Subsurface_class
     class(realization_subsurface_type), pointer :: realization
     type(inversion_aux_type), pointer :: inversion_aux
     type(inversion_measurement_aux_type), pointer :: measurements(:)
-    PetscInt :: measurement_offset
+    PetscInt :: dist_measurement_offset
     PetscInt :: iqoi(2)
     PetscInt :: iobsfunc
     PetscInt :: n_qoi_per_cell
     Vec :: quantity_of_interest
     Vec :: ref_quantity_of_interest
     Vec :: measurement_vec
+    Vec :: dist_measurement_vec
     character(len=MAXWORDLENGTH) :: ref_qoi_dataset_name
     PetscBool :: print_sensitivity_jacobian
     PetscBool :: debug_adjoint
     PetscInt :: debug_verbosity
     PetscBool :: local_adjoint
     VecScatter :: scatter_global_to_measurement
+    VecScatter :: scatter_measure_to_dist_measure
   contains
     procedure, public :: Init => InversionSubsurfaceInit
     procedure, public :: ReadBlock => InversionSubsurfReadBlock
@@ -99,6 +101,7 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%iobsfunc = UNINITIALIZED_INTEGER
   this%n_qoi_per_cell = UNINITIALIZED_INTEGER
   this%measurement_vec = PETSC_NULL_VEC
+  this%dist_measurement_vec = PETSC_NULL_VEC
   this%ref_quantity_of_interest = PETSC_NULL_VEC
   this%ref_qoi_dataset_name = ''
   this%forward_simulation_filename = ''
@@ -107,7 +110,7 @@ subroutine InversionSubsurfaceInit(this,driver)
   this%local_adjoint = PETSC_FALSE
   this%debug_verbosity = UNINITIALIZED_INTEGER
   this%scatter_global_to_measurement = PETSC_NULL_VECSCATTER
-  this%measurement_offset = UNINITIALIZED_INTEGER
+  this%dist_measurement_offset = UNINITIALIZED_INTEGER
 
   nullify(this%measurements)
 
@@ -328,16 +331,17 @@ subroutine InversionSubsurfInitialize(this)
 
   type(patch_type), pointer :: patch
   type(inversion_forward_aux_type), pointer :: inversion_forward_aux
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i
-  PetscInt :: sum_connection
+  PetscInt :: local_id
   PetscInt :: num_measurements, num_measurements_local
   PetscInt :: num_parameters_local, num_parameters_global
   PetscInt, allocatable :: int_array(:)
   PetscReal, pointer :: vec_ptr(:)
-  PetscReal :: tempreal
-  PetscInt :: max_cell_id
   Vec :: v
   IS :: is_petsc
+  IS :: is_measure
+  PetscMPIInt :: mpi_int
   PetscErrorCode :: ierr
 
   nullify(vec_ptr)
@@ -365,104 +369,79 @@ subroutine InversionSubsurfInitialize(this)
     ! PETSC_NULL_VEC and MatCreateVecs keys off that input
     call MatCreateVecs(this%inversion_aux%JsensitivityT,v,PETSC_NULL_VEC, &
                        ierr);CHKERRQ(ierr)
-    this%measurement_vec = v
+    this%dist_measurement_vec = v
     call MatGetLocalSize(this%inversion_aux%JsensitivityT, &
                          PETSC_NULL_INTEGER, &
                          num_measurements_local,ierr);CHKERRQ(ierr)
     ! must initialize to zero...must be a bug in MPICh
-    this%measurement_offset = 0
-    call MPI_Exscan(num_measurements_local,this%measurement_offset, &
+    this%dist_measurement_offset = 0
+    call MPI_Exscan(num_measurements_local,this%dist_measurement_offset, &
                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
                     this%driver%comm%mycomm,ierr);CHKERRQ(ierr)
-    !TODO(geh): compress the mappings
-    !call GridMapCellsToConnections(patch%grid, &
-    !                           this%inversion_aux%cell_to_internal_connection)
+    call VecCreateSeq(PETSC_COMM_SELF,num_measurements, &
+                      this%measurement_vec,ierr);CHKERRQ(ierr)
 
-#if 0
-    if (this%local_adjoint) then
-      sum_connection = &
-        ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
-      sum_connection2 = &
-        CouplerGetNumConnectionsInList(patch%boundary_condition_list)
-      ! set up pointer to solution vec
-      inversion_forward_aux%solution_ptr = &
-        this%realization%field%flow_xx
-! the old flux approach
-      call InvTSAuxAllocateFluxCoefArrays(inversion_forward_aux,sum_connection, &
-                                          sum_connection2)
-      allocate(int_array(patch%grid%nlmax))
-      int_array = 0
-      boundary_condition => patch%boundary_condition_list%first
-      sum_connection = 0
-      do
-        if (.not.associated(boundary_condition)) exit
-        cur_connection_set => boundary_condition%connection_set
-        do iconn = 1, cur_connection_set%num_connections
-          sum_connection = sum_connection + 1
-          local_id = cur_connection_set%id_dn(iconn)
-          int_array(local_id) = int_array(local_id) + 1
-        enddo
-        boundary_condition => boundary_condition%next
-      enddo
-      iconn = maxval(int_array)
-      deallocate(int_array)
-      allocate(this%inversion_aux% &
-                cell_to_bc_connection(0:iconn,patch%grid%nlmax))
-      this%inversion_aux%cell_to_bc_connection = 0
-      boundary_condition => patch%boundary_condition_list%first
-      sum_connection = 0
-      do
-        if (.not.associated(boundary_condition)) exit
-        cur_connection_set => boundary_condition%connection_set
-        do iconn = 1, cur_connection_set%num_connections
-          sum_connection = sum_connection + 1
-          local_id = cur_connection_set%id_dn(iconn)
-          this%inversion_aux%cell_to_bc_connection(0,local_id) = &
-            this%inversion_aux%cell_to_bc_connection(0,local_id) + 1
-            this%inversion_aux%cell_to_bc_connection( &
-              this%inversion_aux%cell_to_bc_connection(0,local_id), &
-              local_id) = sum_connection
-        enddo
-        boundary_condition => boundary_condition%next
-      enddo
-    endif
-#endif
-
-    ! map measurement vec to the solution vector
-    if (this%driver%comm%myrank == 0) then
-      max_cell_id = 0
-      do i = 1, num_measurements
-        tempreal = dble(this%measurements(i)%cell_id)
-        call VecSetValue(this%measurement_vec,i-1,tempreal, &
-                         INSERT_VALUES,ierr);CHKERRQ(ierr)
-        max_cell_id = max(max_cell_id,this%measurements(i)%cell_id)
-      enddo
-      if (max_cell_id > patch%grid%nmax) then
-        this%realization%option%io_buffer = 'A measurement cell ID (' // &
-          trim(StringWrite(max_cell_id)) // ') is beyond the maximum cell ID.'
-        call PrintErrMsg(this%realization%option)
+    ! map coordinates to cell ids
+    allocate(int_array(num_measurements))
+    int_array = -1
+    do i = 1, num_measurements
+      if (Initialized(this%measurements(i)%coordinate%x)) then
+        call GridGetLocalIDFromCoordinate(patch%grid, &
+                                          this%measurements(i)%coordinate, &
+                                          this%realization%option,local_id)
+        if (Initialized(local_id)) then
+          int_array(i) = patch%grid%nG2A(patch%grid%nL2G(local_id))
+        endif
       endif
-    endif
-    call VecAssemblyBegin(this%measurement_vec,ierr);CHKERRQ(ierr)
-    call VecAssemblyEnd(this%measurement_vec,ierr);CHKERRQ(ierr)
-    allocate(int_array(num_measurements_local))
-    call VecGetArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
-    do i = 1, num_measurements_local
-      int_array(i) = int(vec_ptr(i)+1.d-5)
     enddo
+    mpi_int = num_measurements
+    call MPI_Allreduce(MPI_IN_PLACE,int_array,mpi_int,MPIU_INTEGER,MPI_MAX, &
+                       this%driver%comm%mycomm,ierr)
+    do i = 1, num_measurements
+      if (int_array(i) > 0) then
+        this%measurements(i)%cell_id = int_array(i)
+      endif
+      if (Uninitialized(this%measurements(i)%cell_id)) then
+        string = 'Measurement ' // trim(StringWrite(i)) // &
+          ' at coordinate (' // &
+          trim(StringWrite(this%measurements(i)%coordinate%x)) // ',' // &
+          trim(StringWrite(this%measurements(i)%coordinate%y)) // ',' // &
+          trim(StringWrite(this%measurements(i)%coordinate%z)) // &
+          ') not mapped properly.'
+        call this%driver%PrintErrMsg(string)
+      endif
+    enddo
+
+    ! map measurement vecs to the solution vector
+    do i = 1, num_measurements
+      int_array(i) = this%measurements(i)%cell_id
+    enddo
+    i = maxval(int_array)
+    if (i > patch%grid%nmax) then
+      this%realization%option%io_buffer = 'A measurement cell ID (' // &
+        trim(StringWrite(i)) // ') is beyond the maximum cell ID.'
+      call PrintErrMsg(this%realization%option)
+    endif
     int_array = int_array - 1
-    call VecRestoreArrayF90(this%measurement_vec,vec_ptr,ierr);CHKERRQ(ierr)
     call DiscretAOApplicationToPetsc(this%realization%discretization, &
                                      int_array)
-    call ISCreateGeneral(this%driver%comm%mycomm,num_measurements_local, &
+    call ISCreateGeneral(this%driver%comm%mycomm,num_measurements, &
                          int_array, &
                          PETSC_COPY_VALUES,is_petsc,ierr);CHKERRQ(ierr)
+    deallocate(int_array)
     call VecScatterCreate(this%realization%field%work,is_petsc, &
                           this%measurement_vec,PETSC_NULL_IS, &
                           this%scatter_global_to_measurement, &
                           ierr);CHKERRQ(ierr)
     call ISDestroy(is_petsc,ierr);
-    deallocate(int_array)
+    call ISCreateStride(this%driver%comm%mycomm,num_measurements, &
+                        ZERO_INTEGER,ONE_INTEGER, &
+                        is_measure,ierr);CHKERRQ(ierr)
+    call VecScatterCreate(this%measurement_vec,is_measure, &
+                          this%dist_measurement_vec,PETSC_NULL_IS, &
+                          this%scatter_measure_to_dist_measure, &
+                          ierr);CHKERRQ(ierr)
+    call ISDestroy(is_petsc,ierr);
 
     this%inversion_aux%scatter_global_to_measurement = &
       this%scatter_global_to_measurement
@@ -672,7 +651,9 @@ subroutine InvSubsurfCalculateSensitivity(this)
   cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%last
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
-    print *, '  call InvSubsurfCalcLambda: ', cur_inversion_ts_aux%timestep
+    if (OptionPrintToScreen(option)) then
+      print *, '  call InvSubsurfCalcLambda: ', cur_inversion_ts_aux%timestep
+    endif
     call InvSubsurfCalcLambda(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%prev
   enddo
@@ -684,7 +665,9 @@ subroutine InvSubsurfCalculateSensitivity(this)
   cur_inversion_ts_aux => inversion_aux%inversion_forward_aux%first
   do
     if (.not.associated(cur_inversion_ts_aux)) exit
-    print *, '  call InvSubsurfAddSensitivity: ', cur_inversion_ts_aux%timestep
+    if (OptionPrintToScreen(option)) then
+      print *, '  call InvSubsurfAddSensitivity: ', cur_inversion_ts_aux%timestep
+    endif
     call InvSubsurfAddSensitivity(this,cur_inversion_ts_aux)
     cur_inversion_ts_aux => cur_inversion_ts_aux%next
   enddo
@@ -930,7 +913,6 @@ subroutine InvSubsurfAddSensitivity(this,inversion_forward_ts_aux)
   type(solver_type), pointer :: solver
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
-  PetscReal :: tempreal
   PetscInt :: iparameter, imeasurement
   PetscInt :: natural_id
   PetscInt :: offset
@@ -1026,102 +1008,6 @@ end subroutine InvSubsurfAddSensitivity
 
 ! ************************************************************************** !
 
-subroutine InvSubsrfBMinusSM(this,local_id,lambda_ptr,solution,value_)
-  !
-  !
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/15/21
-  !
-  use Connection_module
-  use Grid_module
-  use Option_module
-
-  class(inversion_subsurface_type) :: this
-  PetscInt :: local_id
-  PetscReal, pointer :: lambda_ptr(:)
-  PetscReal, pointer :: solution(:)
-  PetscReal :: value_
-
-  type(connection_set_type), pointer :: connection_set
-  type(grid_type), pointer :: grid
-  type(inversion_aux_type), pointer :: inversion_aux
-  type(inversion_forward_aux_type), pointer :: inversion_forward_aux
-  type(inversion_forward_ts_aux_type), pointer :: inversion_forward_ts_aux
-  PetscReal :: Mlambda_up
-  PetscReal :: Mlambda_dn
-  PetscReal :: rhs_up
-  PetscReal :: rhs_dn
-  PetscReal :: Mlambda(this%realization%patch%grid%ngmax)
-  PetscReal :: rhs(this%realization%patch%grid%ngmax)
-  PetscInt :: ghosted_id_up, ghosted_id_dn
-  PetscInt :: ghosted_id
-  PetscInt :: iconn
-  PetscInt :: i
-
-  grid => this%realization%patch%grid
-  connection_set => grid%internal_connection_set_list%first
-  inversion_aux => this%inversion_aux
-  inversion_forward_aux => inversion_aux%inversion_forward_aux
-  inversion_forward_ts_aux => inversion_forward_aux%first
-
-  Mlambda = 0.d0
-  rhs = 0.d0
-  ghosted_id = grid%nL2G(local_id)
-  do i = 1, inversion_aux%cell_to_internal_connection(0,local_id)
-    iconn = inversion_aux%cell_to_internal_connection(i,local_id)
-    ghosted_id_up = connection_set%id_up(iconn)
-    ghosted_id_dn = connection_set%id_dn(iconn)
-    Mlambda_up = 0.d0
-    Mlambda_dn = 0.d0
-    rhs_up = 0.d0
-    rhs_dn = 0.d0
-    if (ghosted_id == ghosted_id_up) then
-      Mlambda_up = Mlambda_up + &
-        inversion_forward_ts_aux%dFluxdIntConn(1,iconn)*lambda_ptr(ghosted_id_up)
-      Mlambda_dn = Mlambda_dn + &
-        inversion_forward_ts_aux%dFluxdIntConn(3,iconn)*lambda_ptr(ghosted_id_up)
-      Mlambda_dn = Mlambda_dn - &
-        inversion_forward_ts_aux%dFluxdIntConn(3,iconn)*lambda_ptr(ghosted_id_dn)
-      Mlambda_up = Mlambda_up - &
-        inversion_forward_ts_aux%dFluxdIntConn(1,iconn)*lambda_ptr(ghosted_id_dn)
-      rhs_up = rhs_up - inversion_forward_ts_aux%dFluxdIntConn(5,iconn)
-      rhs_dn = rhs_dn + inversion_forward_ts_aux%dFluxdIntConn(5,iconn)
-    elseif (ghosted_id == ghosted_id_dn) then
-      Mlambda_up = Mlambda_up + &
-        inversion_forward_ts_aux%dFluxdIntConn(2,iconn)*lambda_ptr(ghosted_id_up)
-      Mlambda_dn = Mlambda_dn + &
-        inversion_forward_ts_aux%dFluxdIntConn(4,iconn)*lambda_ptr(ghosted_id_up)
-      Mlambda_dn = Mlambda_dn - &
-        inversion_forward_ts_aux%dFluxdIntConn(4,iconn)*lambda_ptr(ghosted_id_dn)
-      Mlambda_up = Mlambda_up - &
-        inversion_forward_ts_aux%dFluxdIntConn(2,iconn)*lambda_ptr(ghosted_id_dn)
-      rhs_up = rhs_up - inversion_forward_ts_aux%dFluxdIntConn(6,iconn)
-      rhs_dn = rhs_dn + inversion_forward_ts_aux%dFluxdIntConn(6,iconn)
-    else
-      this%realization%option%io_buffer = 'Incorrect mapping of connection'
-      call PrintErrMsg(this%realization%option)
-    endif
-    Mlambda(ghosted_id_up) = Mlambda(ghosted_id_up) + Mlambda_up
-    Mlambda(ghosted_id_dn) = Mlambda(ghosted_id_dn) + Mlambda_dn
-    rhs(ghosted_id_up) = rhs(ghosted_id_up) + rhs_up
-    rhs(ghosted_id_dn) = rhs(ghosted_id_dn) + rhs_dn
-  enddo
-
-  do i = 1, inversion_aux%cell_to_bc_connection(0,local_id)
-    iconn = inversion_aux%cell_to_bc_connection(i,local_id)
-    Mlambda(ghosted_id) = Mlambda(ghosted_id) + &
-      inversion_forward_ts_aux%dFluxdBCConn(1,iconn)*lambda_ptr(ghosted_id)
-    rhs(ghosted_id) = rhs(ghosted_id) + &
-      inversion_forward_ts_aux%dFluxdBCConn(2,iconn)
-  enddo
-
-  value_ = dot_product(rhs,lambda_ptr) - dot_product(solution,Mlambda)
-
-end subroutine InvSubsrfBMinusSM
-
-! ************************************************************************** !
-
 subroutine InvSubsurfScaleSensitivity(this)
   !
   ! Scales sensitivity Jacobian for ln(K)
@@ -1150,6 +1036,8 @@ subroutine InvSubsurfOutputSensitivity(this,suffix)
   character(len=*) :: suffix
 
   character(len=MAXSTRINGLENGTH) :: filename_prefix
+
+  if (.not.this%print_sensitivity_jacobian) return
 
   filename_prefix = trim(this%driver%global_prefix) // '_Jsense'
   if (len_trim(suffix) > 0) filename_prefix = trim(filename_prefix) // '_' // &
@@ -1258,9 +1146,7 @@ subroutine InvSubsurfOutputSensitivityHDF5(this,JsensitivityT,filename_prefix)
   call h5eset_auto_f(ON,hdf5_err)
 
   num_measurement = size(this%measurements)
-  call VecCreateMPI(this%realization%option%mycomm,PETSC_DECIDE, &
-                    num_measurement, &
-                    row_vec,ierr);CHKERRQ(ierr)
+  call VecDuplicate(this%dist_measurement_vec,row_vec,ierr);CHKERRQ(ierr)
   do imeasurement = 1, num_measurement
     call VecZeroEntries(row_vec,ierr);CHKERRQ(ierr)
     if (this%realization%option%myrank == 0) then
@@ -1333,8 +1219,15 @@ subroutine InversionSubsurfaceStrip(this)
   if (this%measurement_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%measurement_vec,ierr);CHKERRQ(ierr)
   endif
+  if (this%dist_measurement_vec /= PETSC_NULL_VEC) then
+    call VecDestroy(this%dist_measurement_vec,ierr);CHKERRQ(ierr)
+  endif
   if (this%scatter_global_to_measurement /= PETSC_NULL_VECSCATTER) then
     call VecScatterDestroy(this%scatter_global_to_measurement, &
+                           ierr);CHKERRQ(ierr)
+  endif
+  if (this%scatter_measure_to_dist_measure /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(this%scatter_measure_to_dist_measure, &
                            ierr);CHKERRQ(ierr)
   endif
 

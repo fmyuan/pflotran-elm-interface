@@ -301,6 +301,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   PetscInt, parameter :: TMP_BULK_COMPRESSIBILITY = 2
   PetscInt, parameter :: TMP_POROSITY_COMPRESSIBILITY = 3
   PetscInt :: soil_or_bulk_compressibility
+  PetscBool :: perm_iso_read
 
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
@@ -490,6 +491,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'creep closure table name', &
                            'MATERIAL_PROPERTY')
       case('PERMEABILITY')
+        ! if PERM_ISO is read, we cannot assign anisotropy
+        perm_iso_read = PETSC_FALSE
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -582,6 +585,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                  'MATERIAL_PROPERTY,PERMEABILITY')
               material_property%permeability(2,3) = 10.d0**tempreal
             case('PERM_ISO_LOG10')
+              perm_iso_read = PETSC_TRUE
               call InputReadDouble(input,option, tempreal)
               call InputErrorMsg(input,option,'log10 isotropic permeability', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
@@ -589,6 +593,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               material_property%permeability(2,2) = 10.d0**tempreal
               material_property%permeability(3,3) = 10.d0**tempreal
             case('PERM_ISO')
+              perm_iso_read = PETSC_TRUE
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,1))
               call InputErrorMsg(input,option,'isotropic permeability', &
@@ -617,6 +622,13 @@ subroutine MaterialPropertyRead(material_property,input,option)
           end select
         enddo
         call InputPopBlock(input,option)
+        if (perm_iso_read .and. &
+            .not.material_property%isotropic_permeability) then
+          option%io_buffer = 'PERM_ISO cannot be used in conjunction with &
+            &anisotropic permeability options in MATERIAL_PROPERTY "' // &
+            trim(material_property%name) // '".'
+          call PrintErrMsg(option)
+        endif
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
             dabs(material_property%permeability(1,1) - &
@@ -1546,7 +1558,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   max_material_index = 0
   epsilon_index = 0
   matrix_length_index = 0
-  
+
   num_material_properties = size(material_property_ptrs)
   ! must be nullified here to avoid an error message on subsequent calls
   ! on stochastic simulations
@@ -1882,7 +1894,7 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%&
           soil_properties(matrix_length_index) = vec_loc_p(ghosted_id)
-      enddo 
+      enddo
     case(PERMEABILITY)
       do ghosted_id=1, Material%num_aux
         material_auxvars(ghosted_id)%permeability(:) = vec_loc_p(ghosted_id)

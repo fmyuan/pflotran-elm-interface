@@ -271,12 +271,16 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
   ! Author: Glenn Hammond
   ! Date: 02/10/16
 
+  use Condition_module
+  use Coupler_module
+  use Option_module
   use Reaction_Aux_module
 
   implicit none
 
   class(pm_auxiliary_type) :: this
 
+  type(coupler_type), pointer :: boundary_condition
   PetscReal :: time
   PetscInt :: i
   PetscErrorCode :: ierr
@@ -291,6 +295,20 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
 !                        ierr);CHKERRQ(ierr)
     case('INVERSION')
     case('SALINITY')
+      ! check if any boundary conditions are hydrostatic, as hydrostatic are
+      ! currently not supported
+      boundary_condition => &
+        this%realization%patch%boundary_condition_list%first
+      do
+        if (.not.associated(boundary_condition)) exit
+        if (FlowConditionIsHydrostatic(boundary_condition%flow_condition)) then
+          this%option%io_buffer = 'Hydrostatic flow conditions are currently &
+            &not supported by the SALINITY process model.'
+          call PrintErrMsg(this%option)
+        endif
+        boundary_condition => boundary_condition%next
+      enddo
+
       ! set up species names
       do i =1, this%salinity%nspecies
         this%salinity%ispecies(i) = &
@@ -302,6 +320,8 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
             reaction%primary_spec_molar_wt(this%salinity%ispecies(i))
         endif
       enddo
+      ! execute twice to initiaize both m_nacl entries
+      call this%Evaluate(time,ierr)
       call this%Evaluate(time,ierr)
   end select
 

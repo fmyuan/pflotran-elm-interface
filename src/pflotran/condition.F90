@@ -156,6 +156,7 @@ module Condition_module
             TranConditionRead, &
             TranConditionUpdate, &
             FlowConditionIsTransient, &
+            FlowConditionIsHydrostatic, &
             ConditionReadValues, &
             GetSubConditionName, &
             FlowConditionUnknownItype, &
@@ -2308,6 +2309,8 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               sub_condition_ptr%itype = HYDROSTATIC_CONDUCTANCE_BC
             case('SEEPAGE')
               sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
+            case('DIRICHLET_SEEPAGE')
+              sub_condition_ptr%itype = DIRICHLET_SEEPAGE_BC
             case('MASS_RATE')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
@@ -3832,6 +3835,75 @@ function GeopConditionGetPtrFromList(condition_name,condition_list)
   enddo
 
 end function GeopConditionGetPtrFromList
+
+! ************************************************************************** !
+
+function FlowConditionIsHydrostatic(condition)
+  !
+  ! Returns PETSC_TRUE if a flow condition is hydrostatic for pressure
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/29/22
+  !
+  implicit none
+
+  type(flow_condition_type) :: condition
+
+  PetscBool :: FlowConditionIsHydrostatic
+
+  FlowConditionIsHydrostatic = PETSC_FALSE
+
+  if (associated(condition%pressure)) then
+    if (condition%pressure%itype == HYDROSTATIC_BC .or. &
+        condition%pressure%itype == HYDROSTATIC_CONDUCTANCE_BC .or. &
+        condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
+      FlowConditionIsHydrostatic = PETSC_TRUE
+    endif
+  endif
+
+  if (associated(condition%general)) then
+    if (associated(condition%general%liquid_pressure)) then
+      if (condition%general%liquid_pressure%itype == HYDROSTATIC_BC .or. &
+          condition%general%liquid_pressure%itype == &
+            HYDROSTATIC_CONDUCTANCE_BC .or. &
+          condition%general%liquid_pressure%itype == &
+            HYDROSTATIC_SEEPAGE_BC) then
+        FlowConditionIsHydrostatic = PETSC_TRUE
+      endif
+    endif
+    if (associated(condition%general%gas_pressure)) then
+      if (condition%general%gas_pressure%itype == HYDROSTATIC_BC .or. &
+          condition%general%gas_pressure%itype == &
+            HYDROSTATIC_CONDUCTANCE_BC .or. &
+          condition%general%gas_pressure%itype == &
+            HYDROSTATIC_SEEPAGE_BC) then
+        FlowConditionIsHydrostatic = PETSC_TRUE
+      endif
+    endif
+  endif
+
+  if (associated(condition%hydrate)) then
+    if (associated(condition%hydrate%liquid_pressure)) then
+      if (condition%hydrate%liquid_pressure%itype == HYDROSTATIC_BC .or. &
+          condition%hydrate%liquid_pressure%itype == &
+            HYDROSTATIC_CONDUCTANCE_BC .or. &
+          condition%hydrate%liquid_pressure%itype == &
+            HYDROSTATIC_SEEPAGE_BC) then
+        FlowConditionIsHydrostatic = PETSC_TRUE
+      endif
+    endif
+    if (associated(condition%hydrate%gas_pressure)) then
+      if (condition%hydrate%gas_pressure%itype == HYDROSTATIC_BC .or. &
+          condition%hydrate%gas_pressure%itype == &
+            HYDROSTATIC_CONDUCTANCE_BC .or. &
+          condition%hydrate%gas_pressure%itype == &
+            HYDROSTATIC_SEEPAGE_BC) then
+        FlowConditionIsHydrostatic = PETSC_TRUE
+      endif
+    endif
+  endif
+
+end function FlowConditionIsHydrostatic
 
 ! ************************************************************************** !
 

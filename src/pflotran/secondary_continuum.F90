@@ -1656,6 +1656,11 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
       call RTotalGas(sec_transport_vars%sec_rt_auxvar(i),global_auxvars,reaction,option)
     endif
   enddo
+
+  ! although the allocatable material_aux object is automatically deallocated
+  ! upon leaving this routine, its dynamic pointer members are not
+  call MaterialAuxVarStrip(material_auxvar)
+  deallocate(material_auxvar)
  
 end subroutine SecondaryRTUpdateEquilState
 
