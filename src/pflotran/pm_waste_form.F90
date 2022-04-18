@@ -490,7 +490,7 @@ module PM_Waste_Form_class
     PetscBool :: allow_implicit
     PetscBool :: allow_extrap
     PetscBool :: continue_lookup
-    type(crit_inventory_lookup_type), allocatable ::  nuclide(:)
+    type(crit_inventory_lookup_type), allocatable :: radionuclide_table(:)
     class(crit_inventory_type), pointer :: next
   contains
     procedure, public :: Read => CritInventoryRead
@@ -3519,7 +3519,7 @@ subroutine PMWFInitializeTimestep(this)
                                  cur_criticality%crit_heat, &
                                  option%time)
 
-       if (crit_inventory%nuclide(k)%lookup%axis3%extrapolate .and. &
+       if (crit_inventory%radionuclide_table(k)%lookup%axis3%extrapolate .and. &
            .not. crit_inventory%allow_extrap) then
          ! Fallback options if extrapolation is detected
          if (crit_inventory%allow_implicit) then
@@ -7589,39 +7589,43 @@ subroutine CritInventoryRead(this,filename,option)
 
   ! Setup nuclide lookup tables after file read
   num_partitions = (this%num_start_times*this%num_powers)
-  allocate(this%nuclide(this%num_species))
+  allocate(this%radionuclide_table(this%num_species))
   do i = 1, this%num_species
-    this%nuclide(i)%lookup => LookupTableCreateGeneral(THREE_INTEGER) ! 3D interpolation
-    this%nuclide(i)%lookup%dims(1) = this%num_start_times
-    this%nuclide(i)%lookup%dims(2) = this%num_powers
-    this%nuclide(i)%lookup%dims(3) = this%num_real_times
-    this%nuclide(i)%lookup%axis3%num_partitions = num_partitions
+    this%radionuclide_table(i)%lookup => LookupTableCreateGeneral(THREE_INTEGER)
+    this%radionuclide_table(i)%lookup%dims(1) = this%num_start_times
+    this%radionuclide_table(i)%lookup%dims(2) = this%num_powers
+    this%radionuclide_table(i)%lookup%dims(3) = this%num_real_times
+    this%radionuclide_table(i)%lookup%axis3%num_partitions = num_partitions
 
-    allocate(this%nuclide(i)%lookup%axis1%values(this%num_start_times))
-    allocate(this%nuclide(i)%lookup%axis2%values(this%num_powers))
-    allocate(this%nuclide(i)%lookup%axis3%values(arr_size))
-    allocate(this%nuclide(i)%lookup%data(arr_size))
+    allocate(this%radionuclide_table(i)% &
+             lookup%axis1%values(this%num_start_times))
+    allocate(this%radionuclide_table(i)%lookup%axis2%values(this%num_powers))
+    allocate(this%radionuclide_table(i)%lookup%axis3%values(arr_size))
+    allocate(this%radionuclide_table(i)%lookup%data(arr_size))
 
     if (Initialized(this%total_points)) then
-      allocate(this%nuclide(i)%lookup%axis3%bounds(num_partitions))
-      allocate(this%nuclide(i)%lookup%axis3%partition(num_partitions))
+      allocate(this%radionuclide_table(i)%lookup%axis3%bounds(num_partitions))
+      allocate(this%radionuclide_table(i)% &
+               lookup%axis3%partition(num_partitions))
     endif
 
     if (Initialized(mode)) then
-      this%nuclide(i)%lookup%mode = mode
+      this%radionuclide_table(i)%lookup%mode = mode
     endif
 
-    this%nuclide(i)%lookup%axis1%values => tmpaxis1
+    this%radionuclide_table(i)%lookup%axis1%values => tmpaxis1
 
-    this%nuclide(i)%lookup%axis2%values => tmpaxis2
+    this%radionuclide_table(i)%lookup%axis2%values => tmpaxis2
 
-    this%nuclide(i)%lookup%axis3%values => tmpaxis3
+    this%radionuclide_table(i)%lookup%axis3%values => tmpaxis3
 
     if (Initialized(this%total_points)) then
-      call CritInventoryRealTimeSections(this%nuclide(i)%lookup,filename,option)
+      call CritInventoryRealTimeSections(this%radionuclide_table(i)%lookup, &
+                                         filename,option)
     endif
 
-    call CritInventoryCheckDuplicates(this%nuclide(i)%lookup,filename,option)
+    call CritInventoryCheckDuplicates(this%radionuclide_table(i)%lookup, &
+                                      filename,option)
 
     if (size(tmpdata2(i)%data) /= arr_size) then
       write(str1,*) i
@@ -7635,13 +7639,15 @@ subroutine CritInventoryRead(this,filename,option)
       call PrintErrMsg(option)
     endif
 
-    this%nuclide(i)%lookup%data = tmpdata2(i)%data * data_units_conversion
+    this%radionuclide_table(i)%lookup%data = &
+      tmpdata2(i)%data * data_units_conversion
 
     if (Initialized(this%total_points)) then
       write(str1,*) i
       error_string = trim(filename) //' for nuclide #' &
         // trim(adjustl(str1))
-      call CritInventoryDataSections(this%nuclide(i)%lookup,error_string,option)
+      call CritInventoryDataSections(this%radionuclide_table(i)%lookup, &
+                                     error_string,option)
     endif
 
   enddo
@@ -7994,7 +8000,7 @@ function CritInventoryEvaluate(this,index,start_time,power,time)
 
   PetscReal :: CritInventoryEvaluate
 
-  CritInventoryEvaluate = this%nuclide(index)%lookup% &
+  CritInventoryEvaluate = this%radionuclide_table(index)%lookup% &
                             Sample(start_time,power,time)
   
 end function CritInventoryEvaluate
@@ -8045,13 +8051,13 @@ function CritInventoryCreate()
   allocate(ci)
   nullify(ci%next)
   
-  if (allocated(ci%nuclide)) then
-    do i = 1, size(ci%nuclide)
-      if (associated(ci%nuclide(i)%lookup)) then
-        nullify(ci%nuclide(i)%lookup)
+  if (allocated(ci%radionuclide_table)) then
+    do i = 1, size(ci%radionuclide_table)
+      if (associated(ci%radionuclide_table(i)%lookup)) then
+        nullify(ci%radionuclide_table(i)%lookup)
       endif
     enddo
-    deallocate(ci%nuclide)
+    deallocate(ci%radionuclide_table)
   endif
   
   ci%file_name = ''
