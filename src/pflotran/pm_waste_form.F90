@@ -7291,11 +7291,8 @@ subroutine CritInventoryRead(this,filename,option)
   PetscReal, pointer :: tmpaxis2(:)
   PetscReal, pointer :: tmpaxis3(:)
   PetscReal, pointer :: tmpdata(:) ! temp inventory data pointer from input read
-  type tmp_inv_data
-    PetscReal, pointer :: data(:) ! saved inventory data pointer
-  end type tmp_inv_data
-  type(tmp_inv_data), allocatable :: tmpdata1(:) ! saves data pointers - old
-  type(tmp_inv_data), allocatable :: tmpdata2(:) ! saves data pointers - new
+  type(irregular_array_type), allocatable :: tmpdata1(:) ! saves data - old
+  type(irregular_array_type), allocatable :: tmpdata2(:) ! saves data - new
   PetscInt :: tmpdatarank ! rank of array before new inventory is detected
   PetscInt :: mode
   PetscInt, parameter :: mode_lp = 1
@@ -7748,9 +7745,9 @@ subroutine CritInventoryRealTimeSections(this,string,option)
     bnd2 = this%axis3%bounds(i)
     sz = abs(bnd2 - bnd1) + 1
     l = 1
-    allocate(this%axis3%partition(j)%values(sz))
+    allocate(this%axis3%partition(j)%data(sz))
     do k = bnd1, bnd2
-      this%axis3%partition(j)%values(l) = array(k)
+      this%axis3%partition(j)%data(l) = array(k)
       l = l + 1
     enddo
     j = j + 1
@@ -7911,7 +7908,7 @@ subroutine CritInventoryCheckDuplicates(this,string,option)
     if (allocated(this%axis3%partition)) then
       ! ---> axis3 is has defined partitions (non-rectangular)
       do k = 1, size(this%axis3%partition)
-        values => this%axis3%partition(k)%values
+        values => this%axis3%partition(k)%data
         do i = 1, size(values)
           ref1 = values(i)
           do j = 1, size(values)

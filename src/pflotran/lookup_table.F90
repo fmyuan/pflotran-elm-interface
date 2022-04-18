@@ -55,16 +55,17 @@ module Lookup_Table_module
     procedure, public :: AxesAreSMInc => AxesAreSMIncUniform
   end type lookup_table_uniform_type
 
-  type, public :: data_partition_type
+  type, public :: irregular_array_type
+    ! implements an irregular (or jagged) array
     PetscReal, pointer :: data(:)
-  end type data_partition_type
+  end type irregular_array_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
     class(lookup_table_axis2_general_type), pointer :: axis2
     class(lookup_table_axis3_general_type), pointer :: axis3
     PetscInt :: mode ! interpolation mode
     PetscReal, pointer :: data_references(:,:,:) ! reference data values from interpolation indices
-    type(data_partition_type), allocatable :: partition(:) ! data is partitioned
+    type(irregular_array_type), allocatable :: partition(:) ! if allocated, data is partitioned
   contains
     procedure, public :: Sample => LookupTableEvaluateGeneral
     procedure, public :: SampleAndGradient => ValAndGradGeneral
@@ -82,17 +83,13 @@ module Lookup_Table_module
     PetscInt :: saved_index2
   end type lookup_table_axis2_general_type
 
-  type, public :: axis3_partition_type
-    PetscReal, pointer :: values(:)
-  end type axis3_partition_type
-
   type, public, extends(lookup_table_axis_type) :: lookup_table_axis3_general_type
     PetscBool :: extrapolate ! extrapolation from axis3 required
     PetscInt :: num_partitions ! number of axis3 partitions
     PetscInt, allocatable :: bounds(:) ! bounds of axis3 partitions
     PetscInt, allocatable :: saved_index_partition(:,:) ! index of partition per i, j coordinate
     PetscInt, allocatable :: saved_indices3(:,:,:) ! left/right index k per i, j coordinate
-    type(axis3_partition_type), allocatable :: partition(:) ! axis 3 is partitioned
+    type(irregular_array_type), allocatable :: partition(:) ! if allocated, axis 3 is partitioned
   end type lookup_table_axis3_general_type
 
   type, public :: lookup_table_var_type
@@ -821,7 +818,7 @@ subroutine LookupTableIndexAxis3(this,lookup1,lookup2,lookup3)
 
       axis3%saved_index_partition(i, j) = pselect
 
-      v3 => axis3%partition(pselect)%values
+      v3 => axis3%partition(pselect)%data
       lk = size(v3) ! redfine length
 
       ! axis3 indices
@@ -1645,10 +1642,7 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
   PetscReal, pointer :: x(:)  ! lookup1 table
   PetscReal, pointer :: y(:)  ! lookup2 table
   PetscReal, pointer :: z0(:) ! lookup3 table - full
-  type zs
-    PetscReal, pointer :: z(:) ! lookup3 table - partition
-  end type
-  type(zs) :: za(4)  ! axis3 of interest, needed for partitions
+  type(irregular_array_type) :: za(4)  ! axis3 of interest, needed for partitions
   PetscReal :: F(8)  ! reference data
   PetscInt  :: i, j, k, m
   PetscInt  :: i1, i2
@@ -1725,9 +1719,9 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
     ! redefine z-axis as-needed
     if (allocated(this%axis3%partition)) then
       pselect = this%axis3%saved_index_partition(i, j)
-      za(m)%z => this%axis3%partition(pselect)%values
+      za(m)%data => this%axis3%partition(pselect)%data
     else
-      za(m)%z => this%axis3%values
+      za(m)%data => this%axis3%values
     endif
   enddo
 
@@ -1755,14 +1749,14 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
   k23 = this%axis3%saved_indices3(i2, j1, 2) ! k23 -> i2,j1,k2
   k24 = this%axis3%saved_indices3(i2, j2, 2) ! k24 -> i2,j2,k2
 
-  a51 = ( lookup3 - za(1)%z(k21) ) / ( za(1)%z(k11) - za(1)%z(k21) ) ! a51 -> i1,j1,k1
-  a52 = ( lookup3 - za(2)%z(k22) ) / ( za(2)%z(k12) - za(2)%z(k22) ) ! a52 -> i1,j2,k1
-  a53 = ( lookup3 - za(3)%z(k23) ) / ( za(3)%z(k13) - za(3)%z(k23) ) ! a53 -> i2,j1,k1
-  a54 = ( lookup3 - za(4)%z(k24) ) / ( za(4)%z(k14) - za(4)%z(k24) ) ! a54 -> i2,j2,k1
-  a61 = ( lookup3 - za(1)%z(k11) ) / ( za(1)%z(k21) - za(1)%z(k11) ) ! a61 -> i1,j1,k2
-  a62 = ( lookup3 - za(2)%z(k12) ) / ( za(2)%z(k22) - za(2)%z(k12) ) ! a62 -> i1,j2,k2
-  a63 = ( lookup3 - za(3)%z(k13) ) / ( za(3)%z(k23) - za(3)%z(k13) ) ! a63 -> i2,j1,k2
-  a64 = ( lookup3 - za(4)%z(k14) ) / ( za(4)%z(k24) - za(4)%z(k14) ) ! a64 -> i2,j2,k2
+  a51 = (lookup3 - za(1)%data(k21)) / (za(1)%data(k11) - za(1)%data(k21)) ! a51 -> i1,j1,k1
+  a52 = (lookup3 - za(2)%data(k22)) / (za(2)%data(k12) - za(2)%data(k22)) ! a52 -> i1,j2,k1
+  a53 = (lookup3 - za(3)%data(k23)) / (za(3)%data(k13) - za(3)%data(k23)) ! a53 -> i2,j1,k1
+  a54 = (lookup3 - za(4)%data(k24)) / (za(4)%data(k14) - za(4)%data(k24)) ! a54 -> i2,j2,k1
+  a61 = (lookup3 - za(1)%data(k11)) / (za(1)%data(k21) - za(1)%data(k11)) ! a61 -> i1,j1,k2
+  a62 = (lookup3 - za(2)%data(k12)) / (za(2)%data(k22) - za(2)%data(k12)) ! a62 -> i1,j2,k2
+  a63 = (lookup3 - za(3)%data(k13)) / (za(3)%data(k23) - za(3)%data(k13)) ! a63 -> i2,j1,k2
+  a64 = (lookup3 - za(4)%data(k14)) / (za(4)%data(k24) - za(4)%data(k14)) ! a64 -> i2,j2,k2
   
   ! product operator bypasses identical indices --> pick one term to cancel
   if (i1 == i2) then
@@ -1827,10 +1821,7 @@ subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
   PetscReal, pointer :: x(:)  ! lookup1 table
   PetscReal, pointer :: y(:)  ! lookup2 table
   PetscReal, pointer :: z0(:) ! lookup3 table - full
-  type zs
-    PetscReal, pointer :: z(:) ! lookup3 table - partition
-  end type
-  type(zs) :: za(4)  ! axis3 of interest, needed for partitions
+  type(irregular_array_type) :: za(4)  ! axis3 of interest, needed for partitions
   PetscReal :: F(8)  ! reference data
   PetscInt  :: i, j, k, m ! iterators
   PetscInt  :: i1, i2
@@ -1923,12 +1914,12 @@ subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
     ! redefine z-axis as-needed
     if (allocated(this%axis3%partition)) then
       pselect = this%axis3%saved_index_partition(i, j)
-      za(m)%z => this%axis3%partition(pselect)%values
+      za(m)%data => this%axis3%partition(pselect)%data
     else
-      za(m)%z => this%axis3%values
+      za(m)%data => this%axis3%values
     endif
-    zlog(m)   = za(m)%z(k1)
-    zlog(m+4) = za(m)%z(k2)
+    zlog(m)   = za(m)%data(k1)
+    zlog(m+4) = za(m)%data(k2)
   enddo
 
   ! retrieve data
