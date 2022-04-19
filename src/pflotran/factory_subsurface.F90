@@ -1297,11 +1297,6 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
 
-    found = PETSC_FALSE
-    call PMBaseReadSimOptionsSelectCase(pm,input,word,found, &
-                                        error_string,option)
-    if (found) cycle
-
     select case(word)
       case('TYPE')
         call InputReadCard(input,option,word,PETSC_FALSE)
