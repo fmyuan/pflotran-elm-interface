@@ -139,6 +139,7 @@ class RegressionTest(object):
         self._regression_filename_root = None
         self._diff_ascii_output_filenames = None
         self._compare_ascii_output_filenames = None
+        self._compare_hdf5_output_filenames = None
         self._output_files = None
         # assign default tolerances for different classes of variables
         # absolute min and max thresholds for determining whether to
@@ -822,21 +823,39 @@ class RegressionTest(object):
 
         """
 
-        filename="{0}.h5".format(self.name())
-        try:
-            h5_current = h5py.File(filename, 'r')
-        except Exception as e:
-            print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
-            status.error = _MISSING_INFO_ERROR
-            h5_current = None
+        if self._compare_hdf5_output_filenames is not None:
+            filename=self._compare_hdf5_output_filenames.format(self.name())
+            try:
+                h5_current = h5py.File(filename, 'r')
+            except Exception as e:
+                print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+                status.error = _MISSING_INFO_ERROR
+                h5_current = None
+        else:
+            filename="{0}.h5".format(self.name())
+            try:
+                h5_current = h5py.File(filename, 'r')
+            except Exception as e:
+                print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+                status.error = _MISSING_INFO_ERROR
+                h5_current = None
 
-        filename = "{0}.gold".format(filename)
-        try:
-            h5_gold = h5py.File(filename, 'r')
-        except Exception as e:
-            print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
-            status.error = _MISSING_INFO_ERROR
-            h5_gold = None
+        if self._compare_hdf5_output_filenames is not None:
+            filename = self._compare_hdf5_output_filenames+".gold".format(filename)
+            try:
+                h5_gold = h5py.File(filename, 'r')
+            except Exception as e:
+                print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+                status.error = _MISSING_INFO_ERROR
+                h5_gold = None
+        else:
+            filename = "{0}.gold".format(filename)
+            try:
+                h5_gold = h5py.File(filename, 'r')
+            except Exception as e:
+                print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+                status.error = _MISSING_INFO_ERROR
+                h5_gold = None
 
         if h5_gold is not None and h5_current is not None:
             self._compare_hdf5_data(h5_current, h5_gold, status, testlog)
@@ -874,6 +893,20 @@ class RegressionTest(object):
                     group, h5_current[group].keys()), file=testlog)
             else:
                 for dataset in h5_gold[group].keys():
+                    try:
+                        # checking to see if this is double group layer hdf5 file
+                        h5_gold[group][dataset].shape
+                    except Exception as e:
+                        print("multi-layer hdf5 skipping check for shape and dtype", file=testlog)
+                        if len(h5_current[group][dataset].keys()) != len(h5_gold[group][dataset].keys()):
+                            status.error = _POST_PROCESS_ERROR
+                            print("    ERROR: group '{0}' does not have the same "
+                                  "number of datasets in the second groups!".format(dataset), file=testlog)
+                            print("    h5_gold : {0} : {1}".format(
+                                dataset, h5_gold[dataset].keys()), file=testlog)
+                            print("    h5_current : {0} : {1}".format(
+                                dataset, h5_current[dataset].keys()), file=testlog)
+                        continue
                     if not h5_current[group].get(dataset):
                         status.error = _POST_PROCESS_ERROR
                         print("    ERROR: current group '{0}' does not "
@@ -904,6 +937,7 @@ class RegressionTest(object):
 
         if status.fail == _NULL_FAILURE and status.error == _NULL_ERROR:
             print("    Passed hdf5 check.", file=testlog)
+
     def _diff_ascii_output(self, ascii_current, ascii_gold, status, testlog):
         """Diff ascii file output has not changed from the baseline.
         """
@@ -1621,6 +1655,10 @@ class RegressionTest(object):
         if timeout:
             self._timeout = float(timeout[0])
 
+        # compare these hdf5 output files with gold standards
+        self._compare_hdf5_output_filenames = \
+            test_data.pop('compare_hdf5_output',None)
+            
         # compare these ascii output files with gold standards
         self._diff_ascii_output_filenames = \
             test_data.pop('diff_ascii_output',None)
