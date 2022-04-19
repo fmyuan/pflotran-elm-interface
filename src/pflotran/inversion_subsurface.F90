@@ -70,7 +70,6 @@ module Inversion_Subsurface_class
     procedure, public :: CalculateSensitivity => InvSubsurfCalculateSensitivity
     procedure, public :: ScaleSensitivity => InvSuburfSkipThisOnly
     procedure, public :: CalculateUpdate => InvSuburfSkipThisOnly
-    procedure, public :: UpdateParameters => InvSuburfSkipThisOnly
     procedure, public :: UpdateRegularizationParameters => &
                            InvSuburfSkipThisOnly
     procedure, public :: Strip => InversionSubsurfaceStrip

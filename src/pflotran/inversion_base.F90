@@ -144,7 +144,6 @@ subroutine InversionBaseStep(this)
     call this%CalculateSensitivity()
     call this%ScaleSensitivity()
     call this%CalculateUpdate()
-    call this%UpdateParameters()
     call this%UpdateRegularizationParameters()
   endif
   call this%DestroyForwardRun()

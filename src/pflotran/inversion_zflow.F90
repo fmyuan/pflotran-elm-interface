@@ -53,7 +53,6 @@ module Inversion_ZFlow_class
     procedure, public :: WriteIterationInfo => InversionZFlowWriteIterationInfo
     procedure, public :: ScaleSensitivity => InversionZFlowScaleSensitivity
     procedure, public :: CalculateUpdate => InversionZFlowCalculateUpdate
-    procedure, public :: UpdateParameters => InversionZFlowUpdateParameters
     procedure, public :: UpdateRegularizationParameters => &
                            InvZFlowUpdateRegularizParams
     procedure, public :: Finalize => InversionZFlowFinalize
@@ -153,8 +152,8 @@ subroutine InversionZFlowInit(this,driver)
 
   this%start_iteration = 1
   this%maximum_iteration = 20
-  this%num_constraints_local = UNINITIALIZED_INTEGER
-  this%num_constraints_total = UNINITIALIZED_INTEGER
+  this%num_constraints_local = 0
+  this%num_constraints_total = 0
   this%current_chi2 = UNINITIALIZED_DOUBLE
   this%phi_total_0 = UNINITIALIZED_DOUBLE
   this%phi_data_0 = UNINITIALIZED_DOUBLE
@@ -670,7 +669,6 @@ subroutine InversionZFlowInitialize(this)
 
   PetscBool :: exists
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: iqoi(2)
   PetscErrorCode :: ierr
 
@@ -679,30 +677,32 @@ subroutine InversionZFlowInitialize(this)
   call VecDuplicate(this%dist_parameter_vec,this%dist_parameter_tmp_vec, &
                     ierr);CHKERRQ(ierr)
 
+  if (this%qoi_is_full_vector) then
 !begin TODO(piyoosh)
 ! this section assumes PERM and full vector inversion. we need to
 ! refactor to handle other parameters and inversion by material id
 
-  ! check to ensure that quantity of interest exists
-  exists = PETSC_FALSE
-  iqoi = InversionParameterIntToQOIArray(this%parameters(1))
-  select case(iqoi(1))
-    case(PERMEABILITY)
-      if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
-      word = 'PERMEABILITY'
-    case default
-  end select
-  if (.not.exists) then
-    this%realization%option%io_buffer = 'Inversion for ' // trim(word) // &
-      &' cannot be performed with the specified process models.'
-    call PrintErrMsg(this%realization%option)
+    ! check to ensure that quantity of interest exists
+    exists = PETSC_FALSE
+    iqoi = InversionParameterIntToQOIArray(this%parameters(1))
+    select case(iqoi(1))
+      case(PERMEABILITY)
+        if (this%realization%option%iflowmode /= NULL_MODE) exists = PETSC_TRUE
+        word = 'PERMEABILITY'
+      case default
+    end select
+    if (.not.exists) then
+      this%realization%option%io_buffer = 'Inversion for ' // trim(word) // &
+        &' cannot be performed with the specified process models.'
+      call PrintErrMsg(this%realization%option)
+    endif
+  ! end TODO(piyoosh)
+
+    call InversionZFlowConstrainedArraysFromList(this)
+
+    ! Build Wm matrix
+    call InversionZFlowBuildWm(this)
   endif
-! end TODO(piyoosh)
-
-  call InversionZFlowConstrainedArraysFromList(this)
-
-  ! Build Wm matrix
-  call InversionZFlowBuildWm(this)
 
 end subroutine InversionZFlowInitialize
 
@@ -754,7 +754,6 @@ subroutine InvZFlowEvaluateCostFunction(this)
   PetscInt :: irb,ghosted_id,ghosted_id_nb
   PetscInt, pointer :: rblock(:,:)
   PetscReal :: wd,tempreal
-  PetscReal, pointer :: vec_ptr(:)
   PetscReal :: perm_ce,perm_nb              ! cell's and neighbor's
   PetscReal :: wm,x
   PetscReal, allocatable :: model_vector(:)
@@ -786,74 +785,73 @@ subroutine InvZFlowEvaluateCostFunction(this)
 
   ! model cost function
   this%phi_model = 0.d0
-  num_constraints = this%num_constraints_local
-  ! allocate to at least size 1 to allow for inner product
-  allocate(model_vector(max(num_constraints,1)))
-  model_vector = 0.d0
 
-  do iconst=1,num_constraints
-    if (this%Wm(iconst) == 0) cycle
+  if (this%qoi_is_full_vector) then
 
-    wm = this%Wm(iconst)
+    num_constraints = this%num_constraints_local
+    ! allocate to at least size 1 to allow for inner product
+    allocate(model_vector(max(num_constraints,1)))
+    model_vector = 0.d0
 
-  !begin TODO(piyoosh)
-  ! this section assumes PERM and full vector inversion. we need to
-  ! refactor to handle other parameters and inversion by material id
+    do iconst=1,num_constraints
+      if (this%Wm(iconst) == 0) cycle
 
-    ghosted_id = rblock(iconst,1)
-    ghosted_id_nb = rblock(iconst,2)
-    if ((patch%imat(ghosted_id) <= 0) .or. &
-        (patch%imat(ghosted_id_nb) <= 0)) cycle
-    irb = rblock(iconst,3)
-    perm_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
-    x = 0.d0
+      wm = this%Wm(iconst)
 
-    select case(constrained_block%structure_metric(irb))
-      case(1)
-        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-        x = log(perm_ce) - log(perm_nb)
-      case(2)
-        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-        x = abs(log(perm_ce) - log(perm_nb))
-      case(3)
-        x = log(perm_ce) - log(constrained_block%reference_permeability(irb))
-      case(4)
-        x = abs(log(perm_ce) - &
-                log(constrained_block%reference_permeability(irb)))
-      case(5)
-        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-        x = log(perm_ce) - log(perm_nb)
-      case(6)
-        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-        x = abs(log(perm_ce) - log(perm_nb))
-      case(7)
-        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-        x = (log(perm_ce)- log(constrained_block%reference_permeability(irb))) &
-          -(log(perm_nb) - log(constrained_block%reference_permeability(irb)))
-      case(8)
-        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-        x = abs( &
-            (log(perm_ce)- log(constrained_block%reference_permeability(irb))) &
-          -(log(perm_nb) - log(constrained_block%reference_permeability(irb))) )
-      case(9)
-        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-        x = log(perm_ce) - log(perm_nb)
-      case(10)
-        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-        x = abs(log(perm_ce) - log(perm_nb))
-      case default
+      ghosted_id = rblock(iconst,1)
+      ghosted_id_nb = rblock(iconst,2)
+      if ((patch%imat(ghosted_id) <= 0) .or. &
+          (patch%imat(ghosted_id_nb) <= 0)) cycle
+      irb = rblock(iconst,3)
+      perm_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
+      x = 0.d0
 
-    end select
-! end TODO(piyoosh)
+      select case(constrained_block%structure_metric(irb))
+        case(1)
+          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+          x = log(perm_ce) - log(perm_nb)
+        case(2)
+          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+          x = abs(log(perm_ce) - log(perm_nb))
+        case(3)
+          x = log(perm_ce) - log(constrained_block%reference_permeability(irb))
+        case(4)
+          x = abs(log(perm_ce) - &
+                  log(constrained_block%reference_permeability(irb)))
+        case(5)
+          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+          x = log(perm_ce) - log(perm_nb)
+        case(6)
+          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+          x = abs(log(perm_ce) - log(perm_nb))
+        case(7)
+          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+          x = (log(perm_ce)- log(constrained_block%reference_permeability(irb))) &
+            -(log(perm_nb) - log(constrained_block%reference_permeability(irb)))
+        case(8)
+          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+          x = abs( &
+              (log(perm_ce)- log(constrained_block%reference_permeability(irb))) &
+            -(log(perm_nb) - log(constrained_block%reference_permeability(irb))) )
+        case(9)
+          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+          x = log(perm_ce) - log(perm_nb)
+        case(10)
+          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+          x = abs(log(perm_ce) - log(perm_nb))
+        case default
 
-    model_vector(iconst) = wm * x
+      end select
 
-  enddo
+      model_vector(iconst) = wm * x
 
-  this%phi_model = this%beta * dot_product(model_vector,model_vector)
-  call MPI_Allreduce(MPI_IN_PLACE,this%phi_model,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
-  deallocate(model_vector)
+    enddo
+
+    this%phi_model = this%beta * dot_product(model_vector,model_vector)
+    call MPI_Allreduce(MPI_IN_PLACE,this%phi_model,ONE_INTEGER_MPI, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+    deallocate(model_vector)
+  endif
 
   this%phi_total = this%phi_data + this%phi_model
 
@@ -895,46 +893,6 @@ end subroutine InvZFlowUpdateRegularizParams
 
 ! ************************************************************************** !
 
-subroutine InversionZFlowUpdateParameters(this)
-  !
-  ! Updates input parameters
-  !
-  ! Author: Piyoosh Jaysaval
-  ! Date: 10/14/21
-  !
-
-  use Material_module
-  use Discretization_module
-  use Inversion_Parameter_module
-  use Field_module
-
-  class(inversion_zflow_type) :: this
-
-  type(field_type), pointer :: field
-  type(discretization_type), pointer :: discretization
-
-  PetscReal, pointer :: vec_ptr(:)
-  PetscInt :: iqoi(2)
-  PetscErrorCode :: ierr
-
-  field => this%realization%field
-  discretization => this%realization%discretization
-
-!begin TODO(piyoosh): The upper portion of InvSubsurfConnectToForwardRun()
-!                     updates parameters. It handles full vector and
-!                     multiple parameters .
-
-!  iqoi = InversionParameterIntToQOIArray(this%parameters(1))
-!  call DiscretizationGlobalToLocal(discretization,this%dist_parameter_vec, &
-!                                   field%work_loc,ONEDOF)
-!  call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-!                               field%work_loc,iqoi(1),iqoi(2))
-!end TODO(piyoosh)
-
-end subroutine InversionZFlowUpdateParameters
-
-! ************************************************************************** !
-
 subroutine InversionZFlowCalculateUpdate(this)
   !
   ! Calculates updated model parameters
@@ -958,34 +916,32 @@ subroutine InversionZFlowCalculateUpdate(this)
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec2_ptr(:)
   Vec :: work_dup
+  Vec :: del_param_vec
   PetscErrorCode :: ierr
 
   patch => this%realization%patch
   grid => patch%grid
+
+  ! simply setting a local pointer for clarity
+  del_param_vec = this%dist_parameter_tmp_vec
 
   call InversionZFlowAllocateWorkArrays(this)
 
   ! get inversion%del_perm
   call InversionZFlowCGLSSolve(this)
 
-  call VecGetArrayF90(this%dist_parameter_tmp_vec,vec_ptr, &
-                      ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = this%del_perm(:)
-  call VecRestoreArrayF90(this%dist_parameter_tmp_vec,vec_ptr, &
-                          ierr);CHKERRQ(ierr)
-
-!begin TODO(piyoosh)
-! this section assumes PERM and full vector inversion. we need to
-! refactor to handle other parameters and inversion by material id
+  call VecRestoreArrayF90(del_param_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   if (this%qoi_is_full_vector) then
     ! have to copy values to global work vecs in order to loop over
     ! ghosted ids
 
-    ! dist_parameter_tmp_vec holds the update
+    ! del_param_vec holds the update
     call InvSubsurfScatGlobalToDistParam(this, &
                                         this%realization%field%work, &
-                                        this%dist_parameter_tmp_vec, &
+                                        del_param_vec, &
                                         INVSUBSCATREVERSE)
     call VecDuplicate(this%realization%field%work,work_dup,ierr);CHKERRQ(ierr)
     ! dist_parameter_vec holds the original value
@@ -1020,10 +976,19 @@ subroutine InversionZFlowCalculateUpdate(this)
                                         INVSUBSCATFORWARD)
     call VecDestroy(work_dup,ierr);CHKERRQ(ierr)
   else
-    !TODO(piyoosh): add implementation for update by material id
-  endif
+    call VecGetArrayF90(this%dist_parameter_vec,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
+    do iparameter = 1, this%num_parameters_local
+      vec_ptr(iparameter) = exp(log(vec_ptr(iparameter)) + vec2_ptr(iparameter))
+      !TODO(piyoosh): note that these are hardwired to max/min perm
+      if (vec_ptr(iparameter) > this%maxperm) vec_ptr(iparameter) = this%maxperm
+      if (vec_ptr(iparameter) < this%minperm) vec_ptr(iparameter) = this%minperm
+    enddo
+    call VecRestoreArrayF90(this%dist_parameter_vec,vec_ptr, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
 
-!end TODO(piyoosh)
+  endif
 
 end subroutine InversionZFlowCalculateUpdate
 
@@ -1054,7 +1019,6 @@ subroutine InversionZFlowCGLSSolve(this)
   PetscReal :: norms0,norms,normx,xmax
   PetscReal :: resNE,resNE_old
   PetscBool :: exit_info,indefinite
-  PetscBool :: lprint, l2print
   PetscErrorCode :: ierr
 
   PetscReal, parameter :: delta_initer = 1e-23
@@ -1182,8 +1146,6 @@ subroutine InversionZFlowCGLSRhs(this)
   PetscReal :: perm_ce,perm_nb,x     ! cell's and neighbor's
   PetscReal :: wm,beta
   PetscReal :: wd
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
 
   option => this%realization%option
   patch => this%realization%patch
@@ -1206,18 +1168,15 @@ subroutine InversionZFlowCGLSRhs(this)
                           this%measurements(idata)%simulated_value)
   enddo
 
-  ! Model part
-  beta = this%beta
+  if (this%qoi_is_full_vector) then
 
-  do iconst=1,this%num_constraints_local
-    if (this%Wm(iconst) == 0) cycle
+    ! Model part
+    beta = this%beta
 
-    wm = this%Wm(iconst)
+    do iconst=1,this%num_constraints_local
+      if (this%Wm(iconst) == 0) cycle
 
-!begin TODO(piyoosh)
-! this section assumes PERM and full vector inversion. we need to
-! refactor to handle other parameters and inversion by material id
-    if (this%qoi_is_full_vector) then
+      wm = this%Wm(iconst)
 
       perm_ce = material_auxvars(rblock(iconst,1))%permeability(perm_xx_index)
       irb = rblock(iconst,3)
@@ -1261,15 +1220,11 @@ subroutine InversionZFlowCGLSRhs(this)
           call PrintErrMsg(option)
       end select
 
-    else
-      ! implement approach by material id here
-    endif
+      this%b(num_measurement + iconst) = - sqrt(beta) * wm * x
 
-!end TODO(piyoosh)
+    enddo
 
-    this%b(num_measurement + iconst) = - sqrt(beta) * wm * x
-
-  enddo
+  endif
 
 end subroutine InversionZFlowCGLSRhs
 
@@ -1336,82 +1291,71 @@ contains
 
     rblock => this%rblock
 
-!begin TODO(piyoosh)
-! this section assumes PERM and full vector inversion. we need to
-! refactor to handle other parameters and inversion by material id
+    ! get perm & block of the ith constrained eq.
+    ghosted_id = rblock(iconst,1)
+    ghosted_id_nb = rblock(iconst,2)
+    if (patch%imat(ghosted_id) <= 0 .or.   &
+        patch%imat(ghosted_id_nb) <=0 ) return
+    irb = rblock(iconst,3)
+    perm_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
+    x = 0.d0
 
-    if (this%qoi_is_full_vector) then
-      ! get perm & block of the ith constrained eq.
-      ghosted_id = rblock(iconst,1)
-      ghosted_id_nb = rblock(iconst,2)
-      if (patch%imat(ghosted_id) <= 0 .or.   &
-          patch%imat(ghosted_id_nb) <=0 ) return
-      irb = rblock(iconst,3)
-      perm_ce = material_auxvars(ghosted_id)%permeability(perm_xx_index)
-      x = 0.d0
+    select case(constrained_block%structure_metric(irb))
+      case(1)
+        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+        x = log(perm_ce) - log(perm_nb)
+      case(2)
+        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+        x = abs(log(perm_ce) - log(perm_nb))
+      case(3)
+        x = log(perm_ce) - log(constrained_block%reference_permeability(irb))
+      case(4)
+        x = abs(log(perm_ce) - &
+                log(constrained_block%reference_permeability(irb)))
+      case(5)
+        !perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+        !x = log(perm_ce) - log(perm_nb)
 
-      select case(constrained_block%structure_metric(irb))
-        case(1)
-          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-          x = log(perm_ce) - log(perm_nb)
-        case(2)
-          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-          x = abs(log(perm_ce) - log(perm_nb))
-        case(3)
-          x = log(perm_ce) - log(constrained_block%reference_permeability(irb))
-        case(4)
-          x = abs(log(perm_ce) - &
-                  log(constrained_block%reference_permeability(irb)))
-        case(5)
-          !perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-          !x = log(perm_ce) - log(perm_nb)
+        ! compute unit vectors: rx,ry, and rz
+        rx = grid%x(ghosted_id) - grid%x(ghosted_id_nb)
+        ry = grid%y(ghosted_id) - grid%y(ghosted_id_nb)
+        rz = grid%z(ghosted_id) - grid%z(ghosted_id_nb)
+        r = sqrt(rx*rx + ry*ry + rz*rz)
+        rx = rx / r
+        ry = ry / r
+        rz = rz / r
+      case(6)
+        !perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+        !x = abs(log(perm_ce) - log(perm_nb))
 
-          ! compute unit vectors: rx,ry, and rz
-          rx = grid%x(ghosted_id) - grid%x(ghosted_id_nb)
-          ry = grid%y(ghosted_id) - grid%y(ghosted_id_nb)
-          rz = grid%z(ghosted_id) - grid%z(ghosted_id_nb)
-          r = sqrt(rx*rx + ry*ry + rz*rz)
-          rx = rx / r
-          ry = ry / r
-          rz = rz / r
-        case(6)
-          !perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-          !x = abs(log(perm_ce) - log(perm_nb))
-
-          ! compute unit vectors: rx,ry, and rz
-          rx = abs(grid%x(ghosted_id) - grid%x(ghosted_id_nb))
-          ry = abs(grid%y(ghosted_id) - grid%y(ghosted_id_nb))
-          rz = abs(grid%z(ghosted_id) - grid%z(ghosted_id_nb))
-          r = sqrt(rx*rx + ry*ry + rz*rz)
-          rx = rx / r
-          ry = ry / r
-          rz = rz / r
-        case(7)
-          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-          x = (log(perm_ce)- log(constrained_block%reference_permeability(irb))) &
-            -(log(perm_nb) - log(constrained_block%reference_permeability(irb)))
-        case(8)
-          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-          x = abs( &
-              (log(perm_ce)- log(constrained_block%reference_permeability(irb))) &
-            -(log(perm_nb) - log(constrained_block%reference_permeability(irb))) )
-        case(9)
-          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-          x = log(perm_ce) - log(perm_nb)
-        case(10)
-          perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
-          x = abs(log(perm_ce) - log(perm_nb))
-        case default
-          option%io_buffer = 'Supported STRUCTURE_METRIC in INVERSION, &
-                              &CONSTRAINED_BLOCKS is between 1 to 10'
-          call PrintErrMsg(option)
-      end select
-
-    else
-      ! implement approach by material id here
-    endif
-
-!end TODO(piyoosh)
+        ! compute unit vectors: rx,ry, and rz
+        rx = abs(grid%x(ghosted_id) - grid%x(ghosted_id_nb))
+        ry = abs(grid%y(ghosted_id) - grid%y(ghosted_id_nb))
+        rz = abs(grid%z(ghosted_id) - grid%z(ghosted_id_nb))
+        r = sqrt(rx*rx + ry*ry + rz*rz)
+        rx = rx / r
+        ry = ry / r
+        rz = rz / r
+      case(7)
+        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+        x = (log(perm_ce)- log(constrained_block%reference_permeability(irb))) &
+          -(log(perm_nb) - log(constrained_block%reference_permeability(irb)))
+      case(8)
+        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+        x = abs( &
+            (log(perm_ce)- log(constrained_block%reference_permeability(irb))) &
+          -(log(perm_nb) - log(constrained_block%reference_permeability(irb))) )
+      case(9)
+        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+        x = log(perm_ce) - log(perm_nb)
+      case(10)
+        perm_nb = material_auxvars(ghosted_id_nb)%permeability(perm_xx_index)
+        x = abs(log(perm_ce) - log(perm_nb))
+      case default
+        option%io_buffer = 'Supported STRUCTURE_METRIC in INVERSION, &
+                            &CONSTRAINED_BLOCKS is between 1 to 10'
+        call PrintErrMsg(option)
+    end select
 
     mn = constrained_block%wf_mean(irb)
     sd = constrained_block%wf_sdev(irb)
@@ -1427,13 +1371,13 @@ contains
       wm = exp(-((x-mn)*(x-mn)) / (2*sd*sd))
     case(5)
       if ((x-mn) < 0) then
-         wm = 1 / (sd*sd)
+        wm = 1 / (sd*sd)
       else
-         wm = sd*sd / (((x-mn)*(x-mn) + sd*sd)*((x-mn)*(x-mn) + sd*sd))
+        wm = sd*sd / (((x-mn)*(x-mn) + sd*sd)*((x-mn)*(x-mn) + sd*sd))
       end if
     case(6)
       if ((x-mn) > 0) then
-         wm = 1 / (sd*sd)
+        wm = 1 / (sd*sd)
       else
         wm = sd*sd / (((x-mn)*(x-mn) + sd*sd)*((x-mn)*(x-mn) + sd*sd))
       end if
@@ -1492,53 +1436,42 @@ subroutine InversionZFlowAllocateWm(this)
 
   constrained_block => this%constrained_block
 
-!begin TODO(piyoosh)
-! this section assumes PERM and full vector inversion. we need to
-! refactor to handle other parameters and inversion by material id
-
-  if (this%qoi_is_full_vector) then
-    num_constraints = 0
-    do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      do iconblock=1,constrained_block%num_constrained_block
-        if (constrained_block%structure_metric(iconblock) > 0) then
-          if (constrained_block%material_id(iconblock) == &
-              patch%imat(ghosted_id)) then
-            if (constrained_block%structure_metric(iconblock) == 3 .or. &
-                constrained_block%structure_metric(iconblock) == 4) then
-              num_constraints = num_constraints + 1
-            else
-              num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
-              do inbr=1,num_neighbor
-                ghosted_id_nbr = abs( &
-                              grid%cell_neighbors_local_ghosted(inbr,local_id))
-                if (patch%imat(ghosted_id_nbr) <= 0) cycle
-                if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
-                  do ilink=1,constrained_block%block_link(iconblock,1)
-                    if (constrained_block%block_link(iconblock,ilink+1) == &
-                        patch%imat(ghosted_id_nbr)) then
-                      num_constraints = num_constraints + 1
-                    endif
-                  enddo
-                else
-                  if (constrained_block%structure_metric(iconblock) < 9 .or. &
-                      constrained_block%structure_metric(iconblock) > 10) then
+  num_constraints = 0
+  do local_id=1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    do iconblock=1,constrained_block%num_constrained_block
+      if (constrained_block%structure_metric(iconblock) > 0) then
+        if (constrained_block%material_id(iconblock) == &
+            patch%imat(ghosted_id)) then
+          if (constrained_block%structure_metric(iconblock) == 3 .or. &
+              constrained_block%structure_metric(iconblock) == 4) then
+            num_constraints = num_constraints + 1
+          else
+            num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
+            do inbr=1,num_neighbor
+              ghosted_id_nbr = abs( &
+                            grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) <= 0) cycle
+              if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
+                do ilink=1,constrained_block%block_link(iconblock,1)
+                  if (constrained_block%block_link(iconblock,ilink+1) == &
+                      patch%imat(ghosted_id_nbr)) then
                     num_constraints = num_constraints + 1
                   endif
+                enddo
+              else
+                if (constrained_block%structure_metric(iconblock) < 9 .or. &
+                    constrained_block%structure_metric(iconblock) > 10) then
+                  num_constraints = num_constraints + 1
                 endif
-              enddo
-            endif
+              endif
+            enddo
           endif
         endif
-      enddo
+      endif
     enddo
-
-  else
-      ! implement approach by material id here
-  endif
-
-  !end TODO(piyoosh)
+  enddo
 
   this%num_constraints_local = num_constraints
   call MPI_Allreduce(num_constraints,this%num_constraints_total, &
@@ -1548,60 +1481,51 @@ subroutine InversionZFlowAllocateWm(this)
   this%Wm = 0.d0
   this%rblock = 0
 
-!begin TODO(piyoosh)
-! this section assumes PERM and full vector inversion. we need to
-! refactor to handle other parameters and inversion by material id
-  if (this%qoi_is_full_vector) then
-
-    ! repeat once num_constraints is known
-    num_constraints = 0
-    do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      do iconblock=1,constrained_block%num_constrained_block
-        if (constrained_block%structure_metric(iconblock) > 0) then
-          if (constrained_block%material_id(iconblock) == &
-              patch%imat(ghosted_id)) then
-            if (constrained_block%structure_metric(iconblock) == 3 .or. &
-                constrained_block%structure_metric(iconblock) == 4) then
-              num_constraints = num_constraints + 1
-              this%rblock(num_constraints,1) = ghosted_id
-              this%rblock(num_constraints,3) = iconblock
-            else
-              num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
-              do inbr=1,num_neighbor
-                ghosted_id_nbr = abs( &
-                              grid%cell_neighbors_local_ghosted(inbr,local_id))
-                if (patch%imat(ghosted_id_nbr) <= 0) cycle
-                if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
-                  do ilink=1,constrained_block%block_link(iconblock,1)
-                    if (constrained_block%block_link(iconblock,ilink+1) == &
-                        patch%imat(ghosted_id_nbr)) then
-                      num_constraints = num_constraints + 1
-                      this%rblock(num_constraints,1) = ghosted_id
-                      this%rblock(num_constraints,2) = ghosted_id_nbr
-                      this%rblock(num_constraints,3) = iconblock
-                    endif
-                  enddo
-                else
-                  if (constrained_block%structure_metric(iconblock) < 9 .or. &
-                      constrained_block%structure_metric(iconblock) > 10) then
+  ! repeat once num_constraints is known
+  num_constraints = 0
+  do local_id=1,grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    do iconblock=1,constrained_block%num_constrained_block
+      if (constrained_block%structure_metric(iconblock) > 0) then
+        if (constrained_block%material_id(iconblock) == &
+            patch%imat(ghosted_id)) then
+          if (constrained_block%structure_metric(iconblock) == 3 .or. &
+              constrained_block%structure_metric(iconblock) == 4) then
+            num_constraints = num_constraints + 1
+            this%rblock(num_constraints,1) = ghosted_id
+            this%rblock(num_constraints,3) = iconblock
+          else
+            num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
+            do inbr=1,num_neighbor
+              ghosted_id_nbr = abs( &
+                            grid%cell_neighbors_local_ghosted(inbr,local_id))
+              if (patch%imat(ghosted_id_nbr) <= 0) cycle
+              if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
+                do ilink=1,constrained_block%block_link(iconblock,1)
+                  if (constrained_block%block_link(iconblock,ilink+1) == &
+                      patch%imat(ghosted_id_nbr)) then
                     num_constraints = num_constraints + 1
                     this%rblock(num_constraints,1) = ghosted_id
                     this%rblock(num_constraints,2) = ghosted_id_nbr
                     this%rblock(num_constraints,3) = iconblock
                   endif
+                enddo
+              else
+                if (constrained_block%structure_metric(iconblock) < 9 .or. &
+                    constrained_block%structure_metric(iconblock) > 10) then
+                  num_constraints = num_constraints + 1
+                  this%rblock(num_constraints,1) = ghosted_id
+                  this%rblock(num_constraints,2) = ghosted_id_nbr
+                  this%rblock(num_constraints,3) = iconblock
                 endif
-              enddo
-            endif
+              endif
+            enddo
           endif
         endif
-      enddo
+      endif
     enddo
-
-  else
-    ! implement approach by material id here
-  endif
+  enddo
 
 end subroutine InversionZFlowAllocateWm
 
@@ -1684,10 +1608,6 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
 
   ! Model part -> q2
 
-!begin TODO(piyoosh)
-! this section assumes PERM and full vector inversion. we need to
-! refactor to handle other parameters and inversion by material id
-
   if (this%qoi_is_full_vector) then
     ! Get local this%p to ghosted in pvec_ptr
     call InvSubsurfScatGlobalToDistParam(this, &
@@ -1722,8 +1642,6 @@ subroutine InversionZFlowComputeMatVecProductJp(this)
 
     call VecRestoreArrayF90(field%work_loc,pvec_ptr,ierr);CHKERRQ(ierr)
 
-  else
-    ! implement approach by material id here
   endif
 
   call VecDestroy(p1,ierr);CHKERRQ(ierr)
@@ -1784,13 +1702,12 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
 
   num_measurement = size(this%measurements)
 
+  call VecZeroEntries(this%dist_parameter_tmp_vec,ierr);CHKERRQ(ierr)
+
   ! Model part -> s2
 
-!begin TODO(piyoosh)
-! this section assumes PERM and full vector inversion. we need to
-! refactor to handle other parameters and inversion by material id
-
   if (this%qoi_is_full_vector) then
+
     call VecGetArrayF90(field%work_loc,s2vec_ptr,ierr);CHKERRQ(ierr)
     s2vec_ptr = 0.d0
 
@@ -1825,11 +1742,9 @@ subroutine InversionZFlowComputeMatVecProductJtr(this)
     call DiscretizationLocalToGlobalAdd(discretization,field%work_loc, &
                                         field%work,ONEDOF)
     call InvSubsurfScatGlobalToDistParam(this, &
-                                        this%realization%field%work, &
-                                        this%dist_parameter_tmp_vec, &
-                                        INVSUBSCATFORWARD)
-  else
-    ! implement approach by material id here
+                                         this%realization%field%work, &
+                                         this%dist_parameter_tmp_vec, &
+                                         INVSUBSCATFORWARD)
   endif
 
   ! Data part
@@ -1881,7 +1796,6 @@ subroutine InversionZFlowWriteIterationInfo(this)
 
   PetscInt :: fid
   PetscInt, parameter :: zeronum = 0
-  character(len=MAXWORDLENGTH) :: string
 
   if (this%driver%PrintToScreen()) then
     write(*,*)
