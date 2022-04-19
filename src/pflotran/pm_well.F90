@@ -4384,7 +4384,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
           endif
           den_ave = 0.5d0 * (liq%rho(i) + reservoir%rho_l(i)) / FMWH2O
           ! Flowrate in kmol/s
-          liq%Q(i) = -1.d0 *den_ave*mobility*well%WI(i)* &
+          liq%Q(i) = den_ave*mobility*well%WI(i)* &
                      (reservoir%p_l(i)-well%pl(i))
 
           upwind = reservoir%p_g(i) > well%pg(i)
@@ -4397,7 +4397,7 @@ subroutine PMWellUpdateWellQ(well,reservoir)
                              fmw_comp(TWO_INTEGER)
 
           ! Flowrate in kmol/s
-          gas%Q(i) = -1.d0 * den_ave*mobility*well%WI(i)* &
+          gas%Q(i) = den_ave*mobility*well%WI(i)* &
                      (reservoir%p_g(i)-well%pg(i)) 
         else
           liq%Q(i) = 0.d0
