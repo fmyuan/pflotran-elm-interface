@@ -279,6 +279,7 @@ function LookupTableCreateGeneralDim(dim)
     lookup_table%mode = INTERP_3D_LP
     lookup_table%axis3%num_partitions = UNINITIALIZED_INTEGER
     lookup_table%axis3%extrapolate = PETSC_FALSE
+    nullify(lookup_table%data_references)
   endif
   
   LookupTableCreateGeneralDim => lookup_table

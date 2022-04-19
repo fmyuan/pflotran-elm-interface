@@ -473,6 +473,9 @@ module PM_Waste_Form_class
   ! Provide one lookup table per nuclide
   type, public :: crit_inventory_lookup_type
     class(lookup_table_general_type), pointer :: lookup
+    type(crit_inventory_lookup_type), pointer :: next
+  contains
+    procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_lookup_type
 
   ! Stores variables for the criticality inventory lookup table
@@ -490,11 +493,10 @@ module PM_Waste_Form_class
     PetscBool :: allow_implicit
     PetscBool :: allow_extrap
     PetscBool :: continue_lookup
-    type(crit_inventory_lookup_type), allocatable :: radionuclide_table(:)
+    type(crit_inventory_lookup_type), pointer :: radionuclide_table
     class(crit_inventory_type), pointer :: next
   contains
     procedure, public :: Read => CritInventoryRead
-    procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_type
 
 ! -------------------------------------------------------------------
@@ -3244,6 +3246,7 @@ subroutine PMWFInitializeTimestep(this)
   PetscBool :: switch_to_implicit ! warning message for switch to implicit soln
   class(dataset_ascii_type), pointer :: dataset
   class(crit_inventory_type), pointer :: crit_inventory
+  type(crit_inventory_lookup_type), pointer :: inventory_table
   
   avg_temp_global = UNINITIALIZED_DOUBLE
   avg_sat_global = UNINITIALIZED_DOUBLE
@@ -3512,15 +3515,19 @@ subroutine PMWFInitializeTimestep(this)
         call PrintErrMsg(option)
       endif
       
-      do k = 1,num_species
-       cur_waste_form%rad_mass_fraction(k) = &
-         crit_inventory%Evaluate(k, &
-                                 cur_criticality%crit_event%crit_start, &
-                                 cur_criticality%crit_heat, &
-                                 option%time)
+      k = 1 ! index for cur_waste_form%rad_mass_fraction(:)
+      inventory_table => CritInventoryLookupCreate()
+      inventory_table = crit_inventory%radionuclide_table
+      do
+        if (.not. associated (inventory_table)) exit
 
-       if (crit_inventory%radionuclide_table(k)%lookup%axis3%extrapolate .and. &
-           .not. crit_inventory%allow_extrap) then
+        cur_waste_form%rad_mass_fraction(k) = &
+          inventory_table%Evaluate(cur_criticality%crit_event%crit_start, &
+                                   cur_criticality%crit_heat, &
+                                   option%time)
+
+        if (inventory_table%lookup%axis3%extrapolate .and. &
+            .not. crit_inventory%allow_extrap) then
          ! Fallback options if extrapolation is detected
          if (crit_inventory%allow_implicit) then
            ! Resort to implicit solution
@@ -3536,16 +3543,19 @@ subroutine PMWFInitializeTimestep(this)
                             //'the OPTION sub-block.'
            call PrintErrMsg(option)
          endif
-       else
-         ! Modify the radionuclide concentration
-         cur_waste_form%rad_concentration(k) = &
-           cur_waste_form%rad_mass_fraction(k) / &
-           cwfm%rad_species_list(k)%formula_weight
-       endif
+        else
+          ! Modify the radionuclide concentration
+          cur_waste_form%rad_concentration(k) = &
+            cur_waste_form%rad_mass_fraction(k) / &
+            cwfm%rad_species_list(k)%formula_weight
+        endif
+
+        k = k + 1
+        inventory_table => inventory_table%next
 
       enddo
-      
-      
+      nullify(inventory_table)
+
     elseif (dataset_solution) then
       !Import radionuclide inventory from external neutronics code calculations
       dataset => cur_waste_form%criticality_mechanism%rad_dataset
@@ -7297,6 +7307,7 @@ subroutine CritInventoryRead(this,filename,option)
   PetscInt :: mode
   PetscInt, parameter :: mode_lp = 1
   PetscInt, parameter :: mode_tl = 2
+  type(crit_inventory_lookup_type), pointer :: cur_inventory, new_inventory
   ! ----------------------------------
 
   ict = 0
@@ -7586,43 +7597,43 @@ subroutine CritInventoryRead(this,filename,option)
 
   ! Setup nuclide lookup tables after file read
   num_partitions = (this%num_start_times*this%num_powers)
-  allocate(this%radionuclide_table(this%num_species))
-  do i = 1, this%num_species
-    this%radionuclide_table(i)%lookup => LookupTableCreateGeneral(THREE_INTEGER)
-    this%radionuclide_table(i)%lookup%dims(1) = this%num_start_times
-    this%radionuclide_table(i)%lookup%dims(2) = this%num_powers
-    this%radionuclide_table(i)%lookup%dims(3) = this%num_real_times
-    this%radionuclide_table(i)%lookup%axis3%num_partitions = num_partitions
 
-    allocate(this%radionuclide_table(i)% &
-             lookup%axis1%values(this%num_start_times))
-    allocate(this%radionuclide_table(i)%lookup%axis2%values(this%num_powers))
-    allocate(this%radionuclide_table(i)%lookup%axis3%values(arr_size))
-    allocate(this%radionuclide_table(i)%lookup%data(arr_size))
+  cur_inventory => CritInventoryLookupCreate()
+  do i = 1, this%num_species
+
+    new_inventory  => CritInventoryLookupCreate()
+
+    new_inventory%lookup => LookupTableCreateGeneral(THREE_INTEGER)
+    new_inventory%lookup%dims(1) = this%num_start_times
+    new_inventory%lookup%dims(2) = this%num_powers
+    new_inventory%lookup%dims(3) = this%num_real_times
+    new_inventory%lookup%axis3%num_partitions = num_partitions
+
+    allocate(new_inventory%lookup%axis1%values(this%num_start_times))
+    allocate(new_inventory%lookup%axis2%values(this%num_powers))
+    allocate(new_inventory%lookup%axis3%values(arr_size))
+    allocate(new_inventory%lookup%data(arr_size))
 
     if (Initialized(this%total_points)) then
-      allocate(this%radionuclide_table(i)%lookup%axis3%bounds(num_partitions))
-      allocate(this%radionuclide_table(i)% &
-               lookup%axis3%partition(num_partitions))
+      allocate(new_inventory%lookup%axis3%bounds(num_partitions))
+      allocate(new_inventory%lookup%axis3%partition(num_partitions))
     endif
 
     if (Initialized(mode)) then
-      this%radionuclide_table(i)%lookup%mode = mode
+      new_inventory%lookup%mode = mode
     endif
 
-    this%radionuclide_table(i)%lookup%axis1%values => tmpaxis1
+    new_inventory%lookup%axis1%values => tmpaxis1
 
-    this%radionuclide_table(i)%lookup%axis2%values => tmpaxis2
+    new_inventory%lookup%axis2%values => tmpaxis2
 
-    this%radionuclide_table(i)%lookup%axis3%values => tmpaxis3
+    new_inventory%lookup%axis3%values => tmpaxis3
 
     if (Initialized(this%total_points)) then
-      call CritInventoryRealTimeSections(this%radionuclide_table(i)%lookup, &
-                                         filename,option)
+      call CritInventoryRealTimeSections(new_inventory%lookup,filename,option)
     endif
 
-    call CritInventoryCheckDuplicates(this%radionuclide_table(i)%lookup, &
-                                      filename,option)
+    call CritInventoryCheckDuplicates(new_inventory%lookup,filename,option)
 
     if (size(tmpdata2(i)%data) /= arr_size) then
       write(str1,*) i
@@ -7636,19 +7647,33 @@ subroutine CritInventoryRead(this,filename,option)
       call PrintErrMsg(option)
     endif
 
-    this%radionuclide_table(i)%lookup%data = &
-      tmpdata2(i)%data * data_units_conversion
+    new_inventory%lookup%data = tmpdata2(i)%data * data_units_conversion
 
     if (Initialized(this%total_points)) then
       write(str1,*) i
       error_string = trim(filename) //' for nuclide #' &
         // trim(adjustl(str1))
-      call CritInventoryDataSections(this%radionuclide_table(i)%lookup, &
+      call CritInventoryDataSections(new_inventory%lookup, &
                                      error_string,option)
     endif
 
+    ! Add lookup table to linked list
+    if (associated(this%radionuclide_table)) then
+      cur_inventory => this%radionuclide_table
+      do 
+        if (.not. associated(cur_inventory%next)) exit
+        cur_inventory => cur_inventory%next
+      enddo
+      cur_inventory%next => new_inventory
+    else
+      this%radionuclide_table => new_inventory
+    endif
+
+    nullify(new_inventory)
+
   enddo
- 
+  nullify(cur_inventory)
+
   if (associated(tmpaxis1)) nullify(tmpaxis1)
   if (associated(tmpaxis2)) nullify(tmpaxis2)
   if (associated(tmpaxis3)) nullify(tmpaxis3)
@@ -7981,7 +8006,7 @@ end function CritHeatEvaluate
 
 ! ************************************************************************** !
 
-function CritInventoryEvaluate(this,index,start_time,power,time)
+function CritInventoryEvaluate(this,start_time,power,time)
   ! 
   ! Author: Alex Salazar III
   ! Date: 02/21/2022
@@ -7989,17 +8014,15 @@ function CritInventoryEvaluate(this,index,start_time,power,time)
 
   implicit none
 
-  class(crit_inventory_type) :: this
-  PetscInt  :: index ! index of nuclide being evaluated
+  class(crit_inventory_lookup_type) :: this
   PetscReal :: start_time
   PetscReal :: power
   PetscReal :: time
 
   PetscReal :: CritInventoryEvaluate
 
-  CritInventoryEvaluate = this%radionuclide_table(index)%lookup% &
-                            Sample(start_time,power,time)
-  
+  CritInventoryEvaluate = this%lookup%Sample(start_time,power,time)
+
 end function CritInventoryEvaluate
 
 ! ************************************************************************** !
@@ -8047,16 +8070,8 @@ function CritInventoryCreate()
   
   allocate(ci)
   nullify(ci%next)
-  
-  if (allocated(ci%radionuclide_table)) then
-    do i = 1, size(ci%radionuclide_table)
-      if (associated(ci%radionuclide_table(i)%lookup)) then
-        nullify(ci%radionuclide_table(i)%lookup)
-      endif
-    enddo
-    deallocate(ci%radionuclide_table)
-  endif
-  
+  nullify(ci%radionuclide_table)
+
   ci%file_name = ''
   ci%total_points    = UNINITIALIZED_INTEGER
   ci%num_start_times = UNINITIALIZED_INTEGER
@@ -8074,6 +8089,27 @@ function CritInventoryCreate()
   CritInventoryCreate => ci
 
 end function CritInventoryCreate
+
+! ************************************************************************** !
+
+function CritInventoryLookupCreate()
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 04/19/2022
+  ! 
+
+  implicit none
+
+  class(crit_inventory_lookup_type), pointer :: CritInventoryLookupCreate
+  class(crit_inventory_lookup_type), pointer :: cl
+
+  allocate(cl)
+  nullify(cl%next)
+  nullify(cl%lookup)
+
+  CritInventoryLookupCreate => cl
+
+end function CritInventoryLookupCreate
 
 ! ************************************************************************** !
 
