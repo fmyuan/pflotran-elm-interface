@@ -156,19 +156,19 @@ OUTPUT
 
   OBSERVATION_FILE
     FORMAT HDF5
-    PERIODIC TIME 3. d between 0. d and 6. d
+    PERIODIC TIME 1. d between 0. d and 1. d
   /
 
   SNAPSHOT_FILE
     FORMAT HDF5
-    PERIODIC TIME 3. d between 0. d and 6. d
+    PERIODIC TIME 1. d between 0. d and 1. d
    /
 
 END
 #=========================== times ============================================
 TIME
-  FINAL_TIME 6.d0 d
-  INITIAL_TIMESTEP_SIZE 1.d-6 d
+  FINAL_TIME 1.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-3 d
   MAXIMUM_TIMESTEP_SIZE 1.d1 d 
 END
 
