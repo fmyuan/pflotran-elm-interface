@@ -84,12 +84,14 @@ contains
     implicit none
 
     class(realization_base_type) :: realization_base
-    type(option_type)            :: option
+    type(option_type), pointer   :: option
 
     PetscInt :: i_obs
 
     PetscMPIInt :: h5_err
     PetscMPIInt :: mpi_err
+
+    option => realization_base%option
 
     ! first time step only
     if (observation_hdf5_first) then
@@ -146,8 +148,9 @@ contains
 
     ! create an hdf5 file access property list
     call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, h5_err)
-
+#ifndef SERIAL_HDF5
     call h5pset_fapl_mpio_f(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
+#endif
 
     call h5fcreate_f(h5_filename, H5F_ACC_TRUNC_F, file_id, h5_err, &
                      access_prp=fapl_id)
@@ -320,7 +323,9 @@ contains
 
     ! parallel hdf5 property list
     call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, h5_err)
+#ifndef SERIAL_HDF5
     call h5pset_fapl_mpio_f(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
+#endif
 
     ! open HDF5 observation file
     call h5fopen_f(h5_filename, H5F_ACC_RDWR_F, file_id, h5_err, &
@@ -535,7 +540,9 @@ contains
 
     ! parallel hdf5 property list
     call h5pcreate_f(H5P_FILE_ACCESS_F, fapl_id, h5_err)
+#ifndef SERIAL_HDF5
     call h5pset_fapl_mpio_f(fapl_id, obs_h5_comm, MPI_INFO_NULL, h5_err)
+#endif
 
     ! open HDF5 observation file
     call h5fopen_f(h5_filename, H5F_ACC_RDWR_F, file_id, h5_err, &
