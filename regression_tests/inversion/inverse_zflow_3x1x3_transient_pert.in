@@ -1,0 +1,12 @@
+SIMULATION
+  SIMULATION_TYPE INVERSE
+  INVERSION ZFLOW
+    EXTERNAL_FILE inverse_zflow_3x1x3_transient.txt
+    # override maximum number of iterations
+    MAXIMUM_NUMBER_OF_ITERATIONS 2
+    PERTURBATION
+      PERTURBATION_TOLERANCE 1.d-6
+    /
+  /
+END
+

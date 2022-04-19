@@ -41,6 +41,10 @@ module Characteristic_Curves_Common_module
     procedure, public :: CapillaryPressure => SFVGCapillaryPressure
     procedure, public :: Saturation => SFVGSaturation
     procedure, public :: D2SatDP2 => SFVGD2SatDP2
+    procedure, public :: GetAlpha_ => SFVGGetAlpha
+    procedure, public :: GetM_ => SFVGGetM
+    procedure, public :: SetAlpha_ => SFVGSetAlpha
+    procedure, public :: SetM_ => SFVGSetM
   end type sat_func_VG_type
   !---------------------------------------------------------------------------
   type, public, extends(sat_func_base_type) :: sat_func_BC_type
@@ -110,6 +114,8 @@ module Characteristic_Curves_Common_module
     procedure, public :: Verify => RPFMualemVGLiqVerify
     procedure, public :: SetupPolynomials => RPFMualemVGSetupPolynomials
     procedure, public :: RelativePermeability => RPFMualemVGLiqRelPerm
+    procedure, public :: GetM_ => RPFMualemVGGetM
+    procedure, public :: SetM_ => RPFMualemVGSetM
   end type rpf_Mualem_VG_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_VG_gas_type
@@ -905,6 +911,60 @@ subroutine SFVGD2SatDP2(this,pc,d2s_dp2,option)
   endif
 
 end subroutine SFVGD2SatDP2
+
+! ************************************************************************** !
+
+function SFVGGetAlpha(this)
+
+  implicit none
+
+  class(sat_func_VG_type) :: this
+
+  PetscReal :: SFVGGetAlpha
+
+  SFVGGetAlpha = this%alpha
+
+end function SFVGGetAlpha
+
+! ************************************************************************** !
+
+function SFVGGetM(this)
+
+  implicit none
+
+  class(sat_func_VG_type) :: this
+
+  PetscReal :: SFVGGetM
+
+  SFVGGetM = this%m
+
+end function SFVGGetM
+
+! ************************************************************************** !
+
+subroutine SFVGSetAlpha(this,tempreal)
+
+  implicit none
+
+  class(sat_func_VG_type) :: this
+  PetscReal :: tempreal
+
+  this%alpha = tempreal
+
+end subroutine SFVGSetAlpha
+
+! ************************************************************************** !
+
+subroutine SFVGSetM(this,tempreal)
+
+  implicit none
+
+  class(sat_func_VG_type) :: this
+  PetscReal :: tempreal
+
+  this%m = tempreal
+
+end subroutine SFVGSetM
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -2134,6 +2194,33 @@ subroutine RPFMualemVGLiqRelPerm(this,liquid_saturation, &
   dkr_sat = dkr_Se * dSe_sat
 
 end subroutine RPFMualemVGLiqRelPerm
+
+! ************************************************************************** !
+
+function RPFMualemVGGetM(this)
+
+  implicit none
+
+  class(rpf_Mualem_VG_liq_type) :: this
+
+  PetscReal :: RPFMualemVGGetM
+
+  RPFMualemVGGetM = this%m
+
+end function RPFMualemVGGetM
+
+! ************************************************************************** !
+
+subroutine RPFMualemVGSetM(this,tempreal)
+
+  implicit none
+
+  class(rpf_Mualem_VG_liq_type) :: this
+  PetscReal :: tempreal
+
+  this%m = tempreal
+
+end subroutine RPFMualemVGSetM
 
 ! ************************************************************************** !
 ! ************************************************************************** !

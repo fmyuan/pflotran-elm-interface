@@ -11,6 +11,7 @@ module Option_Inversion_module
   private
 
   type, public :: inversion_option_type
+    PetscBool :: use_perturbation
   end type inversion_option_type
 
   public :: OptionInversionCreate, &
@@ -55,6 +56,8 @@ subroutine OptionInversionInit(option)
   implicit none
 
   type(inversion_option_type) :: option
+
+  option%use_perturbation = PETSC_FALSE
 
 end subroutine OptionInversionInit
 

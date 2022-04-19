@@ -150,6 +150,7 @@ subroutine ZFlowSetup(realization)
 
   ! ensure mapping of local cell ids to neighboring ghosted ids exits
   if (associated(option%inversion)) then
+    zflow_calc_adjoint = .not. option%inversion%use_perturbation
     call GridSetupCellNeighbors(grid,option)
   endif
 
