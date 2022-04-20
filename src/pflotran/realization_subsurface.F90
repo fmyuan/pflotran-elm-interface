@@ -844,7 +844,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       endif
       thermal_cc => CharCurvesThermalCreate()
       thermal_cc%name = patch%material_property_array(i)%ptr% &
-                                thermal_conductivity_function_name
+                                thermal_conductivity_func_name
       if (option%iflowmode == TH_MODE .or. option%iflowmode == TH_TS_MODE) then
         thermal_cc%thermal_conductivity_function => TCFFrozenCreate()
         call TCFAssignFrozen(thermal_cc%thermal_conductivity_function,&
@@ -942,13 +942,13 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         cur_material_property%thermal_conductivity_function_id = &
            CharCurvesThermalGetID( &
            patch%char_curves_thermal_array, &
-           cur_material_property%thermal_conductivity_function_name, &
+           cur_material_property%thermal_conductivity_func_name, &
            cur_material_property%name,option)
       endif
     endif
     if (cur_material_property%thermal_conductivity_function_id == 0) then
       option%io_buffer = 'Thermal characteristic curve "' // &
-        trim(cur_material_property%thermal_conductivity_function_name) // &
+        trim(cur_material_property%thermal_conductivity_func_name) // &
         '" not found.'
         call PrintErrMsg(option)
     endif

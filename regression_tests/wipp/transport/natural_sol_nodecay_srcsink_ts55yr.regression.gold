@@ -29,25 +29,25 @@
      Mean:   1.6263941684755E+00
         3:   1.6263941696927E+00
 -- CONCENTRATION: Total Bulk Conc. AM241L --
-      Max:   9.1815489005464E-04
-      Min:   6.8289321492707E-04
-     Mean:   8.3748681797666E-04
-        3:   8.7445947521107E-04
+      Max:   9.1807305156994E-04
+      Min:   6.8082650086815E-04
+     Mean:   8.3667109908131E-04
+        3:   8.7391763393746E-04
 -- CONCENTRATION: Total Bulk Conc. PU239L --
-      Max:   1.7695219393700E-03
-      Min:   1.3161118446893E-03
-     Mean:   1.6140537009552E-03
-        3:   1.6853095738387E-03
+      Max:   1.7693642154437E-03
+      Min:   1.3121287521749E-03
+     Mean:   1.6124815996711E-03
+        3:   1.6842653055658E-03
 -- CONCENTRATION: Aq. Conc. AM241L --
-      Max:   3.0605028496846E-03
-      Min:   2.2763207205379E-03
-     Mean:   2.7916218922952E-03
-        3:   2.9148649173842E-03
+      Max:   3.0602300559345E-03
+      Min:   2.2694316433983E-03
+     Mean:   2.7889028221061E-03
+        3:   2.9130587798056E-03
 -- CONCENTRATION: Aq. Conc. PU239L --
-      Max:   5.8983805419792E-03
-      Min:   4.3870587628135E-03
-     Mean:   5.3801773952846E-03
-        3:   5.6176985794895E-03
+      Max:   5.8978547978689E-03
+      Min:   4.3737817294146E-03
+     Mean:   5.3749370437857E-03
+        3:   5.6142176852465E-03
 -- CONCENTRATION: Mnrl. Conc. AM241L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
@@ -84,7 +84,7 @@
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   3.5779476165771E-03
+   Time (seconds):   3.8412050001853E-03
    Time Steps:           15
    Newton Iterations:           16
    Linear Solver Iterations:           16
@@ -92,10 +92,10 @@
    Solution 2-Norm:   4.4721413395438E+06
    Residual 2-Norm:   2.3455761202442E-16
 -- SOLUTION: Transport --
-   Time (seconds):   4.3179988861084E-03
+   Time (seconds):   3.9882510003508E-03
    Time Steps:           15
    Newton Iterations:           15
    Linear Solver Iterations:           15
    Time Step Cuts:            0
-   Solution 2-Norm:   4.0876495697094E-03
-   Residual 2-Norm:   1.4707601614189E-08
+   Solution 2-Norm:   4.0840743329099E-03
+   Residual 2-Norm:   1.4782889328820E-08

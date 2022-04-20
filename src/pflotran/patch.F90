@@ -2319,7 +2319,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           else
           ! liquid pressure; 1st dof --------------------- !
             select case(hydrate%liquid_pressure%itype)
-              case(DIRICHLET_BC)
+              case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
                 call PatchGetCouplerValueFromDataset(coupler,option, &
                   patch%grid,hydrate%liquid_pressure%dataset,iconn,liq_pressure)
                 coupler%flow_aux_real_var(ONE_INTEGER,iconn) = liq_pressure
@@ -2371,12 +2371,13 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           temperature = UNINITIALIZED_DOUBLE
           ! gas pressure; 1st dof ------------------------ !
           select case(hydrate%gas_pressure%itype)
-            case(DIRICHLET_BC)
+            case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                   patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
               coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
               dof1 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = &
+                      hydrate%gas_pressure%itype !DIRICHLET_BC
             case default
               string = GetSubConditionName(hydrate%gas_pressure%itype)
               option%io_buffer = &
@@ -2568,7 +2569,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
         case(GA_STATE, HG_STATE)
           ! gas pressure; 1st dof ------------------------ !
           select case(hydrate%gas_pressure%itype)
-            case(DIRICHLET_BC)
+            case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                      patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
               coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
