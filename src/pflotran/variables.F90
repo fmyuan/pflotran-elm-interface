@@ -165,6 +165,10 @@ module Variables_module
   PetscInt, parameter, public :: SOLUTE_CONCENTRATION    = 134
   PetscInt, parameter, public :: MATRIX_LENGTH    = 135
 
+  PetscInt, parameter, public :: VG_ALPHA                = 136
+  PetscInt, parameter, public :: VG_M                    = 137
+  PetscInt, parameter, public :: VG_SR                   = 138
+
   PetscInt, parameter, public :: SMECTITE                = 140
 
 end module Variables_module

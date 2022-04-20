@@ -237,7 +237,7 @@ misc_obj = \
 	${common_src}inversion_base.o \
 	${common_src}inversion_ert.o \
 	${common_src}inversion_measurement_aux.o \
-	${common_src}inversion_perturbation.o \
+	${common_src}inversion_parameter.o \
 	${common_src}inversion_subsurface.o \
 	${common_src}inversion_tao.o \
 	${common_src}inversion_ts_aux.o \
