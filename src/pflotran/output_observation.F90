@@ -92,9 +92,10 @@ subroutine OutputObservation(realization_base)
     call OutputAggregateToFile(realization_base)
     call OutputIntegralFlux(realization_base)
 
-    if (realization_base%output_option%print_obs_hdf5)   &
+    if (realization_base%output_option%print_obs_hdf5) then
       call OutputObsH5(realization_base)
-
+    endif
+      
     if (realization_base%option%use_mc) then
       call OutputObservationTecplotSecTXT(realization_base)
     endif
