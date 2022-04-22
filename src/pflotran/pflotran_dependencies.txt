@@ -539,10 +539,11 @@ pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               reaction_aux.o reactive_transport_aux.o realization_subsurface.o \
               solver.o string.o utility.o
-pm_nwt.o : communicator_base.o condition.o convergence.o coupler.o \
-           data_mediator.o field.o global.o grid.o input_aux.o integral_flux.o \
-           material.o material_aux.o nw_transport.o nw_transport_aux.o \
-           option.o output_ekg.o patch.o pflotran_constants.o pm_base.o \
+pm_nwt.o : checkpoint.o communicator_base.o condition.o convergence.o \
+           coupler.o data_mediator.o discretization.o field.o global.o grid.o \
+           hdf5.o input_aux.o integral_flux.o material.o material_aux.o \
+           nw_transport.o nw_transport_aux.o option.o output_ekg.o patch.o \
+           pflotran_constants.o pm_base.o realization_base.o \
            realization_subsurface.o region.o string.o utility.o variables.o
 pm_osrt.o : data_mediator.o discretization.o global.o material.o \
             material_aux.o option.o pflotran_constants.o pm_base.o pm_rt.o \
