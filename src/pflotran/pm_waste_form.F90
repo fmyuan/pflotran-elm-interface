@@ -3508,64 +3508,59 @@ subroutine PMWFInitializeTimestep(this)
                          //'" is less than the number specified ' &
                          //'in Waste Form Process Model.' 
         call PrintErrMsg(option)
-      elseif (num_species < crit_inventory%num_species) then
-        option%io_buffer = 'Number of species listed in the criticality ' &
-                         //'inventory lookup table "' &
-                         //trim(crit_inventory%file_name)&
-                         //'" is greater than the number ' &
-                         //'specified in Waste Form Process Model.'
-        call PrintErrMsg(option)
       endif
       
-      inventory_table => crit_inventory%radionuclide_table
-      do
-        if (.not. associated (inventory_table)) exit
-
-        ! find index for cur_waste_form%rad_mass_fraction(:)
+      rad_species => cwfm%rad_species_list
+      do j = 1, num_species
         k = 0
-        rad_species => cwfm%rad_species_list
-        do j = 1, num_species
-          if (rad_species(j)%name == inventory_table%name) k = j
+        inventory_table => crit_inventory%radionuclide_table
+        do
+          if (.not. associated (inventory_table)) exit
+  
+          ! find index for cur_waste_form%rad_mass_fraction(:)
+          if (rad_species(j)%name == inventory_table%name) then
+            k = j
+
+            cur_waste_form%rad_mass_fraction(k) = &
+              inventory_table%Evaluate(cur_criticality%crit_event%crit_start, &
+                                       cur_criticality%crit_heat, &
+                                       option%time)
+
+            if (inventory_table%lookup%axis3%extrapolate .and. &
+                .not. crit_inventory%allow_extrap) then
+             ! Fallback options if extrapolation is detected
+             if (crit_inventory%allow_implicit) then
+               ! Resort to implicit solution
+               this%implicit_solution = PETSC_TRUE
+               crit_inventory%switch_implicit = PETSC_TRUE
+               switch_to_implicit =  PETSC_TRUE
+             else
+               ! Alert user that extrapolation has been attempted
+               option%io_buffer = 'Extrapolation of inventory lookup table "' &
+                                // trim(crit_inventory%file_name) // '" ' &
+                                //'has been detected. Extrapolation can be ' &
+                                //'enabled with keyword '&
+                                //'USE_LOOKUP_AND_EXTRAPOLATION in the OPTION '&
+                                //'sub-block.'
+               call PrintErrMsg(option)
+             endif
+            else
+              ! Modify the radionuclide concentration
+              cur_waste_form%rad_concentration(k) = &
+                cur_waste_form%rad_mass_fraction(k) / &
+                cwfm%rad_species_list(k)%formula_weight
+            endif
+          endif
+
+          inventory_table => inventory_table%next
         enddo
-        if (k < 1) then
-          option%io_buffer = 'Species "'// trim(inventory_table%name) // '" ' &
+        if (k == 0) then
+          option%io_buffer = 'Radionuclide "'// trim(rad_species(j)%name) &
+                           //'" in the waste form species list was not found ' &
                            //'in criticality inventory lookup table "' &
-                           //trim(crit_inventory%file_name) &
-                           //'" was not found in the waste form species list.'
+                           //trim(crit_inventory%file_name) // '"'
           call PrintErrMsg(option)
         endif
-
-        cur_waste_form%rad_mass_fraction(k) = &
-          inventory_table%Evaluate(cur_criticality%crit_event%crit_start, &
-                                   cur_criticality%crit_heat, &
-                                   option%time)
-
-        if (inventory_table%lookup%axis3%extrapolate .and. &
-            .not. crit_inventory%allow_extrap) then
-         ! Fallback options if extrapolation is detected
-         if (crit_inventory%allow_implicit) then
-           ! Resort to implicit solution
-           this%implicit_solution = PETSC_TRUE
-           crit_inventory%switch_implicit = PETSC_TRUE
-           switch_to_implicit =  PETSC_TRUE
-         else
-           ! Alert user that extrapolation has been attempted
-           option%io_buffer = 'Extrapolation of inventory lookup table "' &
-                            // trim(crit_inventory%file_name) // '" has ' &
-                            //'been detected. Extrapolation can be enabled ' &
-                            //'with keyword USE_LOOKUP_AND_EXTRAPOLATION in ' &
-                            //'the OPTION sub-block.'
-           call PrintErrMsg(option)
-         endif
-        else
-          ! Modify the radionuclide concentration
-          cur_waste_form%rad_concentration(k) = &
-            cur_waste_form%rad_mass_fraction(k) / &
-            cwfm%rad_species_list(k)%formula_weight
-        endif
-
-        inventory_table => inventory_table%next
-
       enddo
       nullify(inventory_table)
 
