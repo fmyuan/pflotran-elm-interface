@@ -17,16 +17,11 @@ private
 ! unsaturated flow", Water Resource Research 28(10):2617-2620.
 ! doi: 10.1029/92WR01310a
 !
-! TODO Inline the function in spline_module to use data structures, avoiding
-! overhead. Also, a hash function would be better than bisection.
-!
-! Numerical Recipes in Fortran 77: The Art of Scientific Computing, 2nd ed. 
-!
 ! **************************************************************************** !
 !
 ! sat_func_base_type        External base type, quasi-abstract
 ! |
-! |-->sf_spline_type        Internal spline type
+! |-->sf_spline_type        Hashed cubic splines type
 !
 ! **************************************************************************** !
 
@@ -44,7 +39,6 @@ type, public, extends(sat_func_base_type) :: sf_spline_type
     procedure, public  :: Saturation            => SFSplineSaturation
     procedure, public  :: D2SatDP2              => SFSplineD2SatDP2
     procedure, public  :: Test                  => SFSplineTest
-    procedure, public  :: Verify                => SFSplineVerify
 end type
 
 contains
@@ -56,20 +50,8 @@ contains
 subroutine SFSplineInit(this)
   implicit none
   class(sf_spline_type) :: this
-
-  nullify(this%sat_poly)
-  nullify(this%pres_poly)
+  ! This method is intentionally left blank.
 end subroutine SFSplineInit
-
-subroutine SFSplineVerify(this,name,option)
-  use PFLOTRAN_Constants_module
-  use Option_module
-  implicit none
-  class(sf_spline_type) :: this
-  character(len=MAXSTRINGLENGTH) :: name
-  type(option_type) :: option
-
-end subroutine SFSplineVerify
 
 ! **************************************************************************** !
 
@@ -82,77 +64,90 @@ function SFSplineCtor(sf_analytic, N) result (new)
   PetscReal :: buffer
   PetscReal :: u(N)
   PetscReal :: sig, p, qn, un
+  PetscReal :: x(N+1), y(N+1), dy2(N+1)
+  PetscReal :: A, B, C, D
   type(option_type) :: option
 
-  ! Passing an array of knots, we seek the cubic polynomial splines to match
-  ! the knots exactly. 
   allocate(new)
   if (.not. associated(new)) return
   allocate(new%spline(N))
 
+  if (.not. allocated(new%spline)) then
+    deallocate(new)
+    nullify(new)
+    return
+  end if
+
+  ! Generate N knots at equal linear spacing h TODO could be truncation error
   new%N = N
   new%h = 1d0/dble(N-1)
-  do I = 1, new%N
-    new%spline(I)%x = dble(I-1)/dble(N-1)
-    call sf_analytic%CapillaryPressure(new%spline(I)%x, new%spline(I)%y, buffer, option)
+
+  ! Find N+1 knots for N splines
+  do I = 1, new%N+1
+!    new%spline(I)%x = dble(I-1)/dble(N-1)
+!    call sf_analytic%CapillaryPressure(new%spline(I)%x, new%spline(I)%y, buffer, option)
+    x(I) = dble(I)/dble(N)
+    call sf_analytic%CapillaryPressure(x(I), y(I), buffer, option)
+  end do
+  ! Calculate 2nd derivatives
+  call spline(x, y, N+1, dy2)
+
+! Assume "natural" boundary condition at unsaturated limit
+!  new%spline(1)%dy2 = 0d0
+!  u(1) = 0d0
+! 
+!  do i = 2,n-1
+!   sig = (new%spline(I)%x-new%spline(I-1)%x)/(new%spline(I+1)%x-new%spline(I-1)%x)
+!   p = sig*new%spline(I-1)%dy2+2d0
+!   new%spline(I)%dy2 = (sig-1d0)/p
+!
+!   u(i) = (6d0*((new%spline(I+1)%y-new%spline(I)%y)/(new%spline(I+1)%x-new%spline(I)%x) - &
+!          (new%spline(I)%y-new%spline(I-1)%y)/(new%spline(I)%x-new%spline(I-1)%x))/ &
+!          (new%spline(I+1)%x-new%spline(I-1)%x) - sig*u(i-1))/p
+!  enddo
+!  qn = 0d0
+!  un = 0d0
+!  new%spline(N)%dy2 = (un-qn*u(n-1))/(qn*new%spline(N-1)%dy2+1d0)
+
+!  do i = n-1,1,-1
+!    new%spline(I)%dy2 = new%spline(I)%dy2*new%spline(I+1)%dy2+u(i)
+!  enddo
+
+  ! While the cubic spline set is complete with just x, y, and dy2,
+  ! Repeated evaluation is more efficient in standard form A*x**3 + B*x**2 + C*x + D
+
+! Store splines in standard polynomial form
+  do i = 1,n-1
+    A =   - dy2(i)  /(6d0*new%h)
+    A = A + dy2(i+1)/(6d0*new%h)
+
+    B =     x(i+1)*dy2(i)  /(2d0*new%h)
+    B = B - x(i)  *dy2(i+1)/(2d0*new%h)
+
+    C =   - x(i+1)**2*dy2(i)  /(2d0*new%h) + new%h*dy2(i)  /6d0 - y(i)  /new%h
+    C = C + x(i)  **2*dy2(i+1)/(2d0*new%h) - new%h*dy2(i+1)/6d0 + y(i+1)/new%h
+
+    D =     x(i+1)**3*dy2(i  )/(6d0*new%h) - x(i+1)*new%h*dy2(i)  /6d0 + x(i+1)*y(i)/new%h
+    D = D - x(i)  **3*dy2(i+1)/(6d0*new%h) + x(i)  *new%h*dy2(i+1)/6d0 - x(i)*y(i+1)/new%h
+
+    new%spline(i)%A = A
+    new%spline(i)%B = B
+    new%spline(i)%C = C
+    new%spline(i)%D = D
   end do
 
-! Calculate 2nd derivitives, as per:
-!     press, w.h., b.p. flannery, s.a. teukolsky, and w.t. vetterling.
-!     1986.  numerical recipes, the art of scientific computing,
-!     cambridge university press, cambridge.  pp. 86-89.
-
-  new%spline(1)%dy2 = 0d0
-  u(1) = 0d0
-  do i = 2,n-1
-   sig = (new%spline(I)%x-new%spline(I-1)%x)/(new%spline(I+1)%x-new%spline(I-1)%x)
-   p = sig*new%spline(I-1)%dy2+2d0
-   new%spline(I)%dy2 = (sig-1d0)/p
-
-   u(i) = (6d0*((new%spline(I+1)%y-new%spline(I)%y)/(new%spline(I+1)%x-new%spline(I)%x) - &
-   (new%spline(I)%y-new%spline(I-1)%y)/(new%spline(I)%x-new%spline(I-1)%x))/ &
-   (new%spline(I+1)%x-new%spline(I-1)%x) - sig*u(i-1))/p
-  enddo
-  qn = 0d0
-  un = 0d0
-  new%spline(N)%dy2 = (un-qn*u(n-1))/(qn*new%spline(N-1)%dy2+1d0)
-
-  do i = n-1,1,-1
-    new%spline(I)%dy2 = new%spline(I)%dy2*new%spline(I+1)%dy2+u(i)
-  enddo
-
   new%analytical_derivative_available = PETSC_TRUE
+
+  ! Unused pointers and attributes in base class
   nullify(new%sat_poly)
   nullify(new%pres_poly)
+  new%Sr = 0d0
+  call new%CapillaryPressure(0d0, new%Pcmax, buffer, option) ! Popuplate Pcmax just in case
+  new%calc_int_tension = PETSC_FALSE ! Default to false unless overriden elsewhere
 
 end function SFSplineCtor
 
 ! **************************************************************************** !
-
-subroutine SFSPlinePcV(this, N, Sw, Pc)
-  implicit none
-  class(sf_spline_type)  :: this
-  PetscInt,  intent(in)  :: N
-  PetscReal, intent(in)  :: Sw(N)
-  PetscReal, intent(out) :: Pc(N)
-  PetscInt :: klo(N), khi(N)
-  PetscReal :: a(N), b(N), c(N), d(N)
-
-  ! Possibly, like BLAS-LAPACK, we may need to cut the local variables to some register width.
-  ! E.g. set to be 4x wide, do the modulo 4 as scalar, then do the rest 4 at a time
-  ! The problem is Sw and Pc may have no logical packing.
-
-  klo = max(ceiling(Sw/this%h),1)
-  khi = klo + 1
-
-  a = (this%spline(khi)%x-Sw)/this%h
-  b = (Sw-this%spline(klo)%x)/this%h
-  c = (a**3-a)*this%h*this%h/6d0
-  d = (b**3-b)*this%h*this%h/6d0
-
-  Pc = a*this%spline(klo)%y + b*this%spline(khi)%y + c*this%spline(klo)%dy2 + d*this%spline(khi)%dy2
-
-end subroutine
 
 subroutine SFSplineCapillaryPressure(this, liquid_saturation, &
                                    capillary_pressure, dPc_dSatl, option)
@@ -162,8 +157,35 @@ subroutine SFSplineCapillaryPressure(this, liquid_saturation, &
   PetscReal, intent(in)   :: liquid_saturation
   PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
   type(option_type), intent(inout) :: option
-  PetscInt :: klo,khi
-  PetscReal :: h,a,b,c,d,x,y,dy
+  PetscInt :: i ! This really should not be a huge integer
+  PetscReal :: x, y, dy
+
+! Define alias because this is problematically long
+  x = liquid_saturation
+
+! Natural table index is found using a hash function
+  i = max(ceiling(x/this%h),1) ! TODO check if min/max bounds checking are necessary
+  
+  y  = ((this%spline(i)%A*x + this%spline(i)%B)*x + this%spline(i)%C)*x + this%spline(i)%D
+
+  dy = (3d0*this%spline(i)%A*x + 2d0*this%spline(i)%B) * x + this%spline(i)%C
+
+! Again, alias because this is excessively long. Compiler should inline
+  capillary_pressure = y
+  dPc_dSatl = dy
+
+end subroutine SFSplineCapillaryPressure
+
+!subroutine SFSplineCapillaryPressure(this, liquid_saturation, &
+!                                   capillary_pressure, dPc_dSatl, option)
+!  implicit none
+
+!  class(sf_spline_type) :: this
+!  PetscReal, intent(in)   :: liquid_saturation
+!  PetscReal, intent(out)  :: capillary_pressure, dPc_dSatl
+!  type(option_type), intent(inout) :: option
+!  PetscInt :: klo,khi, i
+!  PetscReal :: h,a,b,c,d,x,y,dy
 
 ! Evalute the cubic spline at index I
   
@@ -172,26 +194,36 @@ subroutine SFSplineCapillaryPressure(this, liquid_saturation, &
 !     press, w.h., b.p. flannery, s.a. teukolsky, and w.t. vetterling.
 !     1986.  numerical recipes, the art of scientific computing,
 !     cambridge university press, cambridge.  pp. 86-89.
-  x = liquid_saturation
+!  x = liquid_saturation
 
 ! Table index is found using a hash function instead of bisection
-  klo = max(ceiling(x/this%h),1)
-  khi = klo+1
+!  klo = max(ceiling(x/this%h),1)
+!  khi = klo+1
 
-  a = (this%spline(khi)%x-x)/this%h
-  b = (x-this%spline(klo)%x)/this%h
-  c = (a**3-a)*this%h*this%h/6d0
-  d = (b**3-b)*this%h*this%h/6d0
+!  i = max(ceiling(x/this%h),1) ! Only N-1 polynomials for N knots
 
-  y = a*this%spline(klo)%y + b*this%spline(khi)%y + c*this%spline(klo)%dy2 + d*this%spline(khi)%dy2
+!  a = (this%spline(khi)%x-x)/this%h
+!  b = (x-this%spline(klo)%x)/this%h
+!  c = (a**3-a)*this%h*this%h/6d0
+!  d = (b**3-b)*this%h*this%h/6d0
 
-  dy = (this%spline(khi)%y-this%spline(klo)%y)/this%h + this%h/6d0 * &
-     (-(3d0*a*a-1)*this%spline(klo)%dy2 + (3d0*b*b-1)*this%spline(khi)%dy2)
+!  y = this%spline(i)%A*x + this%spline(i)%B
 
-  capillary_pressure = y
-  dPc_dSatl = dy
+!  dy = 3d0*this%spline(i)%A*x + 2d0*this%spline(i)%B
 
-end subroutine SFSplineCapillaryPressure
+!  y = y*x*x + this%spline(i)%C*x + this%spline(i)%D
+
+!  dy = dy*x*x + this%spline(i)%C
+
+!  y = a*this%spline(klo)%y + b*this%spline(khi)%y + c*this%spline(klo)%dy2 + d*this%spline(khi)%dy2
+
+!  dy = (this%spline(khi)%y-this%spline(klo)%y)/this%h + this%h/6d0 * &
+!     (-(3d0*a*a-1)*this%spline(klo)%dy2 + (3d0*b*b-1)*this%spline(khi)%dy2)
+
+!  capillary_pressure = y
+!  dPc_dSatl = dy
+
+!end subroutine SFSplineCapillaryPressure
 
 ! **************************************************************************** !
 
