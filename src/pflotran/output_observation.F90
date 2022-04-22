@@ -41,6 +41,7 @@ subroutine OutputObservationInit(num_steps)
   ! 
 
   use Option_module
+  use Output_Obs_H5_module
 
   implicit none
   
@@ -63,6 +64,9 @@ subroutine OutputObservationInit(num_steps)
     observation_aggregate_first = PETSC_FALSE
   endif
 
+
+  call OutputObsH5Init(num_steps)
+
 end subroutine OutputObservationInit
 
 ! ************************************************************************** !
@@ -77,6 +81,7 @@ subroutine OutputObservation(realization_base)
 
   use Realization_Base_class, only : realization_base_type
   use Option_module
+  use Output_Obs_H5_module
   
   implicit none
   
@@ -86,6 +91,11 @@ subroutine OutputObservation(realization_base)
     call OutputObservationTecplotColumnTXT(realization_base)
     call OutputAggregateToFile(realization_base)
     call OutputIntegralFlux(realization_base)
+
+    if (realization_base%output_option%print_obs_hdf5) then
+      call OutputObsH5(realization_base)
+    endif
+      
     if (realization_base%option%use_mc) then
       call OutputObservationTecplotSecTXT(realization_base)
     endif
