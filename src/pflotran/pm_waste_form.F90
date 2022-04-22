@@ -474,6 +474,7 @@ module PM_Waste_Form_class
   type, public :: crit_inventory_lookup_type
     class(lookup_table_general_type), pointer :: lookup
     type(crit_inventory_lookup_type), pointer :: next
+    character(len=MAXWORDLENGTH) :: name
   contains
     procedure, public :: Evaluate => CritInventoryEvaluate
   end type crit_inventory_lookup_type
@@ -3247,6 +3248,7 @@ subroutine PMWFInitializeTimestep(this)
   class(dataset_ascii_type), pointer :: dataset
   class(crit_inventory_type), pointer :: crit_inventory
   type(crit_inventory_lookup_type), pointer :: inventory_table
+  type(rad_species_type), pointer :: rad_species(:)
   
   avg_temp_global = UNINITIALIZED_DOUBLE
   avg_sat_global = UNINITIALIZED_DOUBLE
@@ -3515,11 +3517,23 @@ subroutine PMWFInitializeTimestep(this)
         call PrintErrMsg(option)
       endif
       
-      k = 1 ! index for cur_waste_form%rad_mass_fraction(:)
-      inventory_table => CritInventoryLookupCreate()
-      inventory_table = crit_inventory%radionuclide_table
+      inventory_table => crit_inventory%radionuclide_table
       do
         if (.not. associated (inventory_table)) exit
+
+        ! find index for cur_waste_form%rad_mass_fraction(:)
+        k = 0
+        rad_species => cwfm%rad_species_list
+        do j = 1, num_species
+          if (rad_species(j)%name == inventory_table%name) k = j
+        enddo
+        if (k < 1) then
+          option%io_buffer = 'Species "'// trim(inventory_table%name) // '" ' &
+                           //'in criticality inventory lookup table "' &
+                           //trim(crit_inventory%file_name) &
+                           //'" was not found in the waste form species list.'
+          call PrintErrMsg(option)
+        endif
 
         cur_waste_form%rad_mass_fraction(k) = &
           inventory_table%Evaluate(cur_criticality%crit_event%crit_start, &
@@ -3550,7 +3564,6 @@ subroutine PMWFInitializeTimestep(this)
             cwfm%rad_species_list(k)%formula_weight
         endif
 
-        k = k + 1
         inventory_table => inventory_table%next
 
       enddo
@@ -7301,8 +7314,10 @@ subroutine CritInventoryRead(this,filename,option)
   PetscReal, pointer :: tmpaxis2(:)
   PetscReal, pointer :: tmpaxis3(:)
   PetscReal, pointer :: tmpdata(:) ! temp inventory data pointer from input read
-  type(irregular_array_type), allocatable :: tmpdata1(:) ! saves data - old
-  type(irregular_array_type), allocatable :: tmpdata2(:) ! saves data - new
+  type(lookup_irregular_array_type), allocatable :: tmpdata1(:) ! saves data - old
+  type(lookup_irregular_array_type), allocatable :: tmpdata2(:) ! saves data - new
+  character(len=MAXWORDLENGTH), allocatable :: tmpname1(:)
+  character(len=MAXWORDLENGTH), allocatable :: tmpname2(:)
   PetscInt :: tmpdatarank ! rank of array before new inventory is detected
   PetscInt :: mode
   PetscInt, parameter :: mode_lp = 1
@@ -7321,6 +7336,8 @@ subroutine CritInventoryRead(this,filename,option)
   tmpdatarank = 1
   allocate(tmpdata1(tmpdatarank))
   allocate(tmpdata2(tmpdatarank))
+  allocate(tmpname1(tmpdatarank))
+  allocate(tmpname2(tmpdatarank))
 
   if (len_trim(filename) < 1) then
     option%io_buffer = 'Filename must be specified for criticality inventory ' &
@@ -7329,7 +7346,7 @@ subroutine CritInventoryRead(this,filename,option)
   endif
 
   ! this%lookup_table => LookupTableCreateGeneral(THREE_INTEGER) !3D interpolation
-  error_string = 'criticality inventory lookup table'
+  error_string = 'criticality inventory lookup table "' // trim(filename) // '"'
   input => InputCreate(IUNIT_TEMP,filename,option)
   input%ierr = 0
   do
@@ -7385,21 +7402,21 @@ subroutine CritInventoryRead(this,filename,option)
       case('TIME_UNITS')
         internal_units = 'sec'
         call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'UNITS','CONDITION')
+        call InputErrorMsg(input,option,'time units',error_string)
         time_units_conversion = UnitsConvertToInternal(word, &
                                 internal_units,option)
     !-------------------------------------      
       case('POWER_UNITS')
         internal_units = 'MW'
         call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'UNITS','CONDITION')
+        call InputErrorMsg(input,option,'power units',error_string)
         power_units_conversion = UnitsConvertToInternal(word, &
                                  internal_units,option)
     !-------------------------------------      
       case('DATA_UNITS')
         internal_units = 'g/g'
         call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'UNITS','CONDITION')
+        call InputErrorMsg(input,option,'data units',error_string)
         data_units_conversion = UnitsConvertToInternal(word, &
                                  internal_units,option)
     !-------------------------------------      
@@ -7476,9 +7493,11 @@ subroutine CritInventoryRead(this,filename,option)
 
         write(str1,*) ict
 
-        string = 'INVENTORY (#' &
-               // trim(adjustl(str1)) &
-               //') in criticality inventory lookup table'
+        string = 'INVENTORY (#'// trim(adjustl(str1)) //')'
+
+        ! Get species name
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,string //': species name',error_string)
 
         ! Re-allocate temporary arrays of data
         if (ict > tmpdatarank) then
@@ -7489,6 +7508,15 @@ subroutine CritInventoryRead(this,filename,option)
           if (allocated(tmpdata1)) deallocate(tmpdata1)
           allocate(tmpdata1(ict))
           tmpdata1(1:tmpdatarank) = tmpdata2(1:tmpdatarank)
+
+          tmpname1(1:tmpdatarank) = tmpname2(1:tmpdatarank)
+          if (allocated(tmpname2)) deallocate(tmpname2)
+          allocate(tmpname2(ict))
+          tmpname2(1:tmpdatarank) = tmpname1(1:tmpdatarank)
+          if (allocated(tmpname1)) deallocate(tmpname1)
+          allocate(tmpname1(ict))
+          tmpname1(1:tmpdatarank) = tmpname2(1:tmpdatarank)
+
           tmpdatarank = ict
         endif
 
@@ -7496,13 +7524,13 @@ subroutine CritInventoryRead(this,filename,option)
 
         call UtilityReadArray(tmpdata, &
                               NEG_ONE_INTEGER, &
-                              string,input,option)
+                              string // " : " // error_string,input,option)
         allocate(tmpdata2(ict)%data(1:size(tmpdata)))
 
-        tmpdata2(ict)%data = tmpdata
+        tmpname2(ict) = word ! save species name
+        tmpdata2(ict)%data = tmpdata ! save data from inventory block
     !-------------------------------------
       case default
-        error_string = trim(error_string) // ': ' // filename
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
@@ -7603,6 +7631,7 @@ subroutine CritInventoryRead(this,filename,option)
 
     new_inventory  => CritInventoryLookupCreate()
 
+    new_inventory%name = tmpname2(i)
     new_inventory%lookup => LookupTableCreateGeneral(THREE_INTEGER)
     new_inventory%lookup%dims(1) = this%num_start_times
     new_inventory%lookup%dims(2) = this%num_powers

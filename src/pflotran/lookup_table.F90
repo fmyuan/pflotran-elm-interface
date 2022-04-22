@@ -55,17 +55,17 @@ module Lookup_Table_module
     procedure, public :: AxesAreSMInc => AxesAreSMIncUniform
   end type lookup_table_uniform_type
 
-  type, public :: irregular_array_type
+  type, public :: lookup_irregular_array_type
     ! implements an irregular (or jagged) array
     PetscReal, pointer :: data(:)
-  end type irregular_array_type
+  end type lookup_irregular_array_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
     class(lookup_table_axis2_general_type), pointer :: axis2
     class(lookup_table_axis3_general_type), pointer :: axis3
     PetscInt :: mode ! interpolation mode
     PetscReal, pointer :: data_references(:,:,:) ! reference data values from interpolation indices
-    type(irregular_array_type), allocatable :: partition(:) ! if allocated, data is partitioned
+    type(lookup_irregular_array_type), allocatable :: partition(:) ! if allocated, data is partitioned
   contains
     procedure, public :: Sample => LookupTableEvaluateGeneral
     procedure, public :: SampleAndGradient => ValAndGradGeneral
@@ -89,7 +89,7 @@ module Lookup_Table_module
     PetscInt, allocatable :: bounds(:) ! bounds of axis3 partitions
     PetscInt, allocatable :: saved_index_partition(:,:) ! index of partition per i, j coordinate
     PetscInt, allocatable :: saved_indices3(:,:,:) ! left/right index k per i, j coordinate
-    type(irregular_array_type), allocatable :: partition(:) ! if allocated, axis 3 is partitioned
+    type(lookup_irregular_array_type), allocatable :: partition(:) ! if allocated, axis 3 is partitioned
   end type lookup_table_axis3_general_type
 
   type, public :: lookup_table_var_type
@@ -1642,8 +1642,8 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
   ! ----------------------------------
   PetscReal, pointer :: x(:)  ! lookup1 table
   PetscReal, pointer :: y(:)  ! lookup2 table
-  PetscReal, pointer :: z0(:) ! lookup3 table - full
-  type(irregular_array_type) :: za(4)  ! axis3 of interest, needed for partitions
+  PetscReal, pointer :: z(:)  ! lookup3 table (full)
+  type(lookup_irregular_array_type) :: za(4)  ! axis3 of interest (partitions)
   PetscReal :: F(8)  ! reference data
   PetscInt  :: i, j, k, m
   PetscInt  :: i1, i2
@@ -1695,7 +1695,7 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
 
   x  => this%axis1%values ! axis1 values
   y  => this%axis2%values ! axis2 values
-  z0 => this%axis3%values ! axis3 values (full)
+  z  => this%axis3%values ! axis3 values (full)
 
   ! retrieve i and j indices (pivot variables)
   i1 = this%axis1%saved_index
@@ -1722,7 +1722,7 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
       pselect = this%axis3%saved_index_partition(i, j)
       za(m)%data => this%axis3%partition(pselect)%data
     else
-      za(m)%data => this%axis3%values
+      za(m)%data => z
     endif
   enddo
 
@@ -1797,7 +1797,7 @@ subroutine LookupTableInterpolate3DLP(this, lookup1, lookup2, lookup3, result)
 
   if (associated(x)) nullify(x)
   if (associated(y)) nullify(y)
-  if (associated(z0)) nullify(z0)
+  if (associated(z)) nullify(z)
 
 end subroutine LookupTableInterpolate3DLP
 
@@ -1821,8 +1821,8 @@ subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
   ! ----------------------------------
   PetscReal, pointer :: x(:)  ! lookup1 table
   PetscReal, pointer :: y(:)  ! lookup2 table
-  PetscReal, pointer :: z0(:) ! lookup3 table - full
-  type(irregular_array_type) :: za(4)  ! axis3 of interest, needed for partitions
+  PetscReal, pointer :: z(:)  ! lookup3 table (full)
+  type(lookup_irregular_array_type) :: za(4)  ! axis3 of interest (partitions)
   PetscReal :: F(8)  ! reference data
   PetscInt  :: i, j, k, m ! iterators
   PetscInt  :: i1, i2
@@ -1879,7 +1879,7 @@ subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
 
   x  => this%axis1%values ! axis1 values
   y  => this%axis2%values ! axis2 values
-  z0 => this%axis3%values ! axis3 values (full)
+  z  => this%axis3%values ! axis3 values (full)
 
   ! retrieve i and j indices (pivot variables)
   i1 = this%axis1%saved_index
@@ -1917,7 +1917,7 @@ subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
       pselect = this%axis3%saved_index_partition(i, j)
       za(m)%data => this%axis3%partition(pselect)%data
     else
-      za(m)%data => this%axis3%values
+      za(m)%data => z
     endif
     zlog(m)   = za(m)%data(k1)
     zlog(m+4) = za(m)%data(k2)
@@ -1964,7 +1964,7 @@ subroutine LookupTableInterpolate3DTrilinear(this, lookup1, lookup2, lookup3, &
   
   if (associated(x)) nullify(x)
   if (associated(y)) nullify(y)
-  if (associated(z0)) nullify(z0)
+  if (associated(z)) nullify(z)
 
 end subroutine LookupTableInterpolate3DTrilinear
 
