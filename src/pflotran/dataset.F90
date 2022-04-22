@@ -122,6 +122,11 @@ subroutine DatasetScreenForNonCellIndexed(datasets,option)
   nullify(prev_dataset)
   do
     if (.not.associated(cur_dataset)) exit
+    if (len_trim(cur_dataset%filename) == 0) then
+      option%io_buffer = 'No filename specified for dataset "' // &
+        trim(cur_dataset%name) // '".'
+      call PrintErrMsg(option)
+    endif
     nullify(dataset_gridded_hdf5)
     swapped = PETSC_FALSE
     select type(cur_dataset)

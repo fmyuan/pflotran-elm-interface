@@ -198,6 +198,7 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox_wipp_well.o
 
 io_obj = \
+    ${common_src}output_obs_h5.o \
 	${common_src}hdf5.o \
 	${common_src}hdf5_aux.o \
 	${common_src}output.o \
@@ -235,7 +236,7 @@ misc_obj = \
 	${common_src}inversion_base.o \
 	${common_src}inversion_ert.o \
 	${common_src}inversion_measurement_aux.o \
-	${common_src}inversion_perturbation.o \
+	${common_src}inversion_parameter.o \
 	${common_src}inversion_subsurface.o \
 	${common_src}inversion_tao.o \
 	${common_src}inversion_ts_aux.o \
