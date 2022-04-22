@@ -1,0 +1,58 @@
+-- GENERIC: Temperature --
+      Max:   3.6085113698387E+01
+      Min:   3.6084622374928E+01
+     Mean:   3.6084855100449E+01
+        1:   3.6084622374928E+01
+        2:   3.6085113698387E+01
+        3:   3.6084829228034E+01
+-- CONCENTRATION: Total I-129 --
+      Max:   1.0396057969238E-20
+      Min:   9.7864554137033E-21
+     Mean:   9.9999994427200E-21
+        1:   9.7864554137033E-21
+        2:   1.0396057969238E-20
+        3:   9.8174849452188E-21
+-- CONCENTRATION: Total U-233 --
+      Max:   1.0000115075848E-20
+      Min:   9.9998208074721E-21
+     Mean:   9.9999427508705E-21
+        1:   9.9998923692915E-21
+        2:   1.0000115075848E-20
+        3:   9.9998208074721E-21
+-- CONCENTRATION: Total Tc-99 --
+      Max:   9.9999961947519E-21
+      Min:   9.9998930147018E-21
+     Mean:   9.9999548369551E-21
+        1:   9.9999753014117E-21
+        2:   9.9999961947519E-21
+        3:   9.9998930147018E-21
+-- CONCENTRATION: Total C-tracer --
+      Max:   1.0396058548585E-20
+      Min:   9.7864559590786E-21
+     Mean:   9.9999999999957E-21
+        1:   9.7864559590786E-21
+        2:   1.0396058548585E-20
+        3:   9.8174854923234E-21
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+        2:         1
+        3:         1
+-- SOLUTION: Flow --
+   Time (seconds):   5.4689407348633E-02
+   Time Steps:          122
+   Newton Iterations:          309
+   Linear Solver Iterations:          309
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.3882711347225E+07
+   Residual 2-Norm:   1.4686751665325E-11
+-- SOLUTION: Transport --
+   Time (seconds):   2.7541160583496E-02
+   Time Steps:          122
+   Newton Iterations:          122
+   Linear Solver Iterations:          122
+   Time Step Cuts:            0
+   Solution 2-Norm:   4.9351224192789E-20
+   Residual 2-Norm:   1.1381675110739E-38
