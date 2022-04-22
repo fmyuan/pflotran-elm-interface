@@ -59,7 +59,6 @@ subroutine EOSRead(input,option)
   PetscBool :: rks_hydrogen = PETSC_TRUE
   PetscBool :: rks_use_effective_properties = PETSC_TRUE
   PetscBool :: rks_use_cubic_root_solution = PETSC_FALSE
-  PetscBool :: hsb_compute_salinity = PETSC_TRUE
   PetscReal :: temparray(10)
   PetscReal :: test_t_high, test_t_low, test_p_high, test_p_low
   PetscInt :: test_n_temp, test_n_pres
