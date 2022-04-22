@@ -988,6 +988,8 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
         tempreal = material_property%permeability(1,1)
       else
         material_property%permeability(1,1) = tempreal
+        material_property%permeability(2,2) = tempreal
+        material_property%permeability(3,3) = tempreal
       endif
     case(POROSITY)
       if (iflag == GET_MATERIAL_VALUE) then

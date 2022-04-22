@@ -988,6 +988,11 @@ subroutine InversionZFlowCalculateUpdate(this)
                             ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(del_param_vec,vec2_ptr,ierr);CHKERRQ(ierr)
 
+    call InvSubsurfScatParamToDistParam(this, &
+                                        this%parameter_vec, &
+                                        this%dist_parameter_vec, &
+                                        INVSUBSCATREVERSE)
+
   endif
 
 end subroutine InversionZFlowCalculateUpdate
@@ -1028,6 +1033,14 @@ subroutine InversionZFlowCGLSSolve(this)
 
   this%del_perm = 0.0d0
 
+  alpha = 0.d0
+  gbeta = 0.d0
+  gamma = 0.d0
+  delta = 0.d0
+  gamma1 = 0.d0
+  delta1 = 0.d0
+  delta2 = 0.d0
+
   timer => TimerCreate()
   call timer%Start()
 
@@ -1066,7 +1079,9 @@ subroutine InversionZFlowCGLSSolve(this)
     call InversionZFlowComputeMatVecProductJp(this)
 
     delta1 = dot_product(this%q(1:nm),this%q(1:nm))
-    delta2 = dot_product(this%q(nm+1:nm+ncons),this%q(nm+1:nm+ncons))
+    if (ncons > 0) &
+      delta2 = dot_product(this%q(nm+1:nm+ncons),this%q(nm+1:nm+ncons))
+
     call MPI_Allreduce(MPI_IN_PLACE,delta2,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
     delta = delta1 + delta2
@@ -1436,96 +1451,101 @@ subroutine InversionZFlowAllocateWm(this)
 
   constrained_block => this%constrained_block
 
-  num_constraints = 0
-  do local_id=1,grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    do iconblock=1,constrained_block%num_constrained_block
-      if (constrained_block%structure_metric(iconblock) > 0) then
-        if (constrained_block%material_id(iconblock) == &
-            patch%imat(ghosted_id)) then
-          if (constrained_block%structure_metric(iconblock) == 3 .or. &
-              constrained_block%structure_metric(iconblock) == 4) then
-            num_constraints = num_constraints + 1
-          else
-            num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
-            do inbr=1,num_neighbor
-              ghosted_id_nbr = abs( &
-                            grid%cell_neighbors_local_ghosted(inbr,local_id))
-              if (patch%imat(ghosted_id_nbr) <= 0) cycle
-              if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
-                do ilink=1,constrained_block%block_link(iconblock,1)
-                  if (constrained_block%block_link(iconblock,ilink+1) == &
-                      patch%imat(ghosted_id_nbr)) then
+  if (this%qoi_is_full_vector) then
+    num_constraints = 0
+    do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      do iconblock=1,constrained_block%num_constrained_block
+        if (constrained_block%structure_metric(iconblock) > 0) then
+          if (constrained_block%material_id(iconblock) == &
+              patch%imat(ghosted_id)) then
+            if (constrained_block%structure_metric(iconblock) == 3 .or. &
+                constrained_block%structure_metric(iconblock) == 4) then
+              num_constraints = num_constraints + 1
+            else
+              num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
+              do inbr=1,num_neighbor
+                ghosted_id_nbr = abs( &
+                              grid%cell_neighbors_local_ghosted(inbr,local_id))
+                if (patch%imat(ghosted_id_nbr) <= 0) cycle
+                if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
+                  do ilink=1,constrained_block%block_link(iconblock,1)
+                    if (constrained_block%block_link(iconblock,ilink+1) == &
+                        patch%imat(ghosted_id_nbr)) then
+                      num_constraints = num_constraints + 1
+                    endif
+                  enddo
+                else
+                  if (constrained_block%structure_metric(iconblock) < 9 .or. &
+                      constrained_block%structure_metric(iconblock) > 10) then
                     num_constraints = num_constraints + 1
                   endif
-                enddo
-              else
-                if (constrained_block%structure_metric(iconblock) < 9 .or. &
-                    constrained_block%structure_metric(iconblock) > 10) then
-                  num_constraints = num_constraints + 1
                 endif
-              endif
-            enddo
+              enddo
+            endif
           endif
         endif
-      endif
+      enddo
     enddo
-  enddo
 
-  this%num_constraints_local = num_constraints
-  call MPI_Allreduce(num_constraints,this%num_constraints_total, &
-                     ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-  allocate(this%Wm(num_constraints))
-  allocate(this%rblock(num_constraints,THREE_INTEGER))
-  this%Wm = 0.d0
-  this%rblock = 0
+    this%num_constraints_local = num_constraints
+    call MPI_Allreduce(num_constraints,this%num_constraints_total, &
+                       ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+    allocate(this%Wm(num_constraints))
+    allocate(this%rblock(num_constraints,THREE_INTEGER))
+    this%Wm = 0.d0
+    this%rblock = 0
 
-  ! repeat once num_constraints is known
-  num_constraints = 0
-  do local_id=1,grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    do iconblock=1,constrained_block%num_constrained_block
-      if (constrained_block%structure_metric(iconblock) > 0) then
-        if (constrained_block%material_id(iconblock) == &
-            patch%imat(ghosted_id)) then
-          if (constrained_block%structure_metric(iconblock) == 3 .or. &
-              constrained_block%structure_metric(iconblock) == 4) then
-            num_constraints = num_constraints + 1
-            this%rblock(num_constraints,1) = ghosted_id
-            this%rblock(num_constraints,3) = iconblock
-          else
-            num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
-            do inbr=1,num_neighbor
-              ghosted_id_nbr = abs( &
-                            grid%cell_neighbors_local_ghosted(inbr,local_id))
-              if (patch%imat(ghosted_id_nbr) <= 0) cycle
-              if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
-                do ilink=1,constrained_block%block_link(iconblock,1)
-                  if (constrained_block%block_link(iconblock,ilink+1) == &
-                      patch%imat(ghosted_id_nbr)) then
+    ! repeat once num_constraints is known
+    num_constraints = 0
+    do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      do iconblock=1,constrained_block%num_constrained_block
+        if (constrained_block%structure_metric(iconblock) > 0) then
+          if (constrained_block%material_id(iconblock) == &
+              patch%imat(ghosted_id)) then
+            if (constrained_block%structure_metric(iconblock) == 3 .or. &
+                constrained_block%structure_metric(iconblock) == 4) then
+              num_constraints = num_constraints + 1
+              this%rblock(num_constraints,1) = ghosted_id
+              this%rblock(num_constraints,3) = iconblock
+            else
+              num_neighbor = grid%cell_neighbors_local_ghosted(0,local_id)
+              do inbr=1,num_neighbor
+                ghosted_id_nbr = abs( &
+                              grid%cell_neighbors_local_ghosted(inbr,local_id))
+                if (patch%imat(ghosted_id_nbr) <= 0) cycle
+                if (patch%imat(ghosted_id_nbr) /= patch%imat(ghosted_id)) then
+                  do ilink=1,constrained_block%block_link(iconblock,1)
+                    if (constrained_block%block_link(iconblock,ilink+1) == &
+                        patch%imat(ghosted_id_nbr)) then
+                      num_constraints = num_constraints + 1
+                      this%rblock(num_constraints,1) = ghosted_id
+                      this%rblock(num_constraints,2) = ghosted_id_nbr
+                      this%rblock(num_constraints,3) = iconblock
+                    endif
+                  enddo
+                else
+                  if (constrained_block%structure_metric(iconblock) < 9 .or. &
+                      constrained_block%structure_metric(iconblock) > 10) then
                     num_constraints = num_constraints + 1
                     this%rblock(num_constraints,1) = ghosted_id
                     this%rblock(num_constraints,2) = ghosted_id_nbr
                     this%rblock(num_constraints,3) = iconblock
                   endif
-                enddo
-              else
-                if (constrained_block%structure_metric(iconblock) < 9 .or. &
-                    constrained_block%structure_metric(iconblock) > 10) then
-                  num_constraints = num_constraints + 1
-                  this%rblock(num_constraints,1) = ghosted_id
-                  this%rblock(num_constraints,2) = ghosted_id_nbr
-                  this%rblock(num_constraints,3) = iconblock
                 endif
-              endif
-            enddo
+              enddo
+            endif
           endif
         endif
-      endif
+      enddo
     enddo
-  enddo
+  else
+    this%num_constraints_local = 0
+    this%num_constraints_total = 0
+  endif
 
 end subroutine InversionZFlowAllocateWm
 
