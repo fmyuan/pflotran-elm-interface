@@ -849,6 +849,9 @@ subroutine InvSubsurfConnectToForwardRun(this)
       do i = 1, size(this%parameters)
         call InvSubsurfCopyParameterValue(this,i,OVERWRITE_MATERIAL_VALUE)
       enddo
+      ! update material auxvars
+      call InitSubsurfAssignMatIDsToRegns(this%realization)
+      call InitSubsurfAssignMatProperties(this%realization)
     endif
   endif
 
@@ -1013,7 +1016,7 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
           tempreal2 = cc%liq_rel_perm_function%GetResidualSaturation()
           if (.not.Equal(tempreal,tempreal2)) then
             string = 'Saturation and relative permeability function &
-              &residual saturations much match in characteristic &
+              &residual saturations must match in characteristic &
               &curve "' // trim(cc%name)
             call this%driver%PrintErrMsg(string)
           endif
