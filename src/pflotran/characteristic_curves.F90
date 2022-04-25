@@ -992,11 +992,11 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   if (spline) then ! Create cubic approximation for any saturation function
     if (associated(sf_swap)) then ! Splining a loop-invariant replacement
-      sf_swap2 => SFSplineCtor(sf_swap, 101)
+      sf_swap2 => SFSplineCtor(sf_swap, 100)
       deallocate(sf_swap)
       sf_swap => sf_swap2
     else
-      sf_swap => SFSplineCtor(saturation_function, 101)
+      sf_swap => SFSplineCtor(saturation_function, 100)
     end if
     ! The calling CCRead will deallocated saturation_function
     sf_swap%calc_int_tension = tension
@@ -1022,7 +1022,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   character(len=MAXWORDLENGTH) :: phase_keyword
   type(input_type), pointer :: input
   type(option_type) :: option
-  class(rel_perm_func_base_type), pointer :: rpf_swap
+  class(rel_perm_func_base_type), pointer :: rpf_swap, rpf_swap2
 
   character(len=MAXWORDLENGTH) :: keyword, new_phase_keyword
   character(len=MAXWORDLENGTH) :: internal_units
@@ -1030,6 +1030,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   character(len=MAXSTRINGLENGTH) :: table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
+  PetscBool :: spline
 
   ! Lexicon for compiled variables
   PetscBool :: loop_invariant
@@ -1038,6 +1039,7 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   nullify(rpf_swap)
 
   ! Default values for unspecified parameters
+  spline = PETSC_FALSE
   loop_invariant = PETSC_FALSE
   m = 0d0
   Srg = 0d0
@@ -1148,6 +1150,8 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
         call StringToUpper(phase_keyword)
       case('SMOOTH')
         smooth = PETSC_TRUE
+      case('SPLINE')
+        spline = PETSC_TRUE
       case default
         found = PETSC_FALSE
     end select
@@ -1799,6 +1803,16 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
   if (smooth) then
     call permeability_function%SetupPolynomials(option,error_string)
   endif
+
+  if (spline) then ! Create cubic approximation for any saturation function
+    if (associated(rpf_swap)) then ! Splining a loop-invariant replacement
+      rpf_swap2 => RPFSplineCtor(permeability_function, 100)
+      deallocate(rpf_swap)
+      rpf_swap => rpf_swap2
+    else
+      rpf_swap => RPFSplineCtor(permeability_function, 100)
+    end if
+  end if
 
 end function PermeabilityFunctionRead
 

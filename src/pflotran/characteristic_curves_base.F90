@@ -48,6 +48,7 @@ module Characteristic_Curves_Base_module
 !-----------------------------------------------------------------------------
   type, public :: rel_perm_func_base_type
     type(polynomial_type), pointer :: poly
+    type(spline_type), dimension(:), allocatable :: spline
     PetscReal :: Sr
     PetscReal :: Srg
     PetscBool :: analytical_derivative_available
@@ -579,6 +580,8 @@ subroutine PermeabilityFunctionDestroy(rpf)
   class(rel_perm_func_base_type), pointer :: rpf
 
   if (.not.associated(rpf)) return
+
+  if (allocated(rpf%spline)) deallocate(rpf%spline)
 
   call PolynomialDestroy(rpf%poly)
   deallocate(rpf)
