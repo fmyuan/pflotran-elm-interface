@@ -167,7 +167,7 @@ subroutine EOSRead(input,option)
                 enddo
                 call InputPopBlock(input,option)
               case('IFC67','DEFAULT','BATZLE_AND_WANG','TGDPB01','PLANAR', &
-                              'TRANGENSTEIN','IF97')
+                              'TRANGENSTEIN','IF97','SPARROW','DRIESNER')
               case default
                 call InputKeywordUnrecognized(input,word,'EOS,WATER,DENSITY',option)
             end select
@@ -184,6 +184,8 @@ subroutine EOSRead(input,option)
                 call InputReadAndConvertUnits(input,temparray(1), &
                                'J/kmol','EOS,WATER,ENTHALPY,CONSTANT',option)
               case('IFC67','PAINTER','DEFAULT','PLANAR','IF97')
+              case('SPARROW','DRIESNER')
+                option%flow%enthalpy_depends_on_salinity = PETSC_TRUE
               case default
                 call InputKeywordUnrecognized(input,word, &
                                               'EOS,WATER,ENTHALPY',option)
@@ -200,7 +202,7 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,VISCOSITY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                               'Pa-s','EOS,WATER,VISCOSITY,CONSTANT',option)
-              case('DEFAULT','BATZLE_AND_WANG','GRABOWSKI')
+              case('DEFAULT','BATZLE_AND_WANG','GRABOWSKI','KESTIN')
               case default
                 call InputKeywordUnrecognized(input,word, &
                                               'EOS,WATER,VISCOSITY', &
@@ -242,6 +244,25 @@ subroutine EOSRead(input,option)
                        'EOS,WATER,STEAM_ENTHALPY',option)
             end select
             call EOSWaterSetSteamEnthalpy(word,temparray)
+          case('SATURATION_PRESSURE')
+            call InputReadCard(input,option,word)
+            call InputErrorMsg(input,option,'SATURATION_PRESSURE','EOS,WATER')
+            call StringToUpper(word)
+            select case(trim(word))
+              case('HAAS','SPARROW')
+                option%flow%sat_pres_depends_on_salinity = PETSC_TRUE
+              case('IFC67','IF97','WAGNER_AND_PRUSS')
+              case default
+                call InputKeywordUnrecognized(input,word, &
+                       'EOS,WATER,SATURATION_PRESSURE', &
+                       option)
+            end select
+            call EOSWaterSetSaturationPressure(word,temparray)
+          case('SALINITY')
+            call InputReadCard(input,option,word)
+            call InputErrorMsg(input,option,'SALINITY','EOS,WATER,SALINITY')
+            call StringToUpper(word)
+            call EOSWaterSetSalinity(input,trim(word),option)
           case('TEST')
             if (option%comm%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)

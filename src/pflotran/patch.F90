@@ -6912,7 +6912,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
     ! NUCLEAR_WASTE_TRANSPORT:
     case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC, &
-         MNRL_VOLUME_FRACTION)
+         MNRL_VOLUME_FRACTION,NWT_AUXILIARY)
       select case(ivar)
         case(TOTAL_BULK_CONC)
           value = patch%aux%NWT%auxvars(ghosted_id)%total_bulk_conc(isubvar)
@@ -6924,6 +6924,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = patch%aux%NWT%auxvars(ghosted_id)%sorb_eq_conc(isubvar)
         case(MNRL_VOLUME_FRACTION)
           value = patch%aux%NWT%auxvars(ghosted_id)%mnrl_vol_frac(isubvar)
+        case(NWT_AUXILIARY)
+          value = patch%aux%NWT%auxvars(ghosted_id)%auxiliary_data(isubvar)
       end select
       if ( (patch%aux%NWT%truncate_output) .and. &
            ((value < 1.d-99) .and. (value > 0.d0)) ) then

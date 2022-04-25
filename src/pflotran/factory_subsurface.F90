@@ -1387,11 +1387,6 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
     call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
 
-    found = PETSC_FALSE
-    call PMBaseReadSimOptionsSelectCase(pm,input,word,found, &
-                                        error_string,option)
-    if (found) cycle
-
     select case(word)
       case('TYPE')
         call InputReadCard(input,option,word,PETSC_FALSE)
@@ -1406,6 +1401,14 @@ subroutine FactorySubsurfaceReadWasteFormPM(input,option,pm)
               & TYPE GLASS or TYPE FMDM no longer supported.'
             call PrintErrMsg(option)
         end select
+        pm%option => option 
+      case('OPTIONS')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'TYPE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        call pm%ReadSimulationOptionsBlock(input)   
       case default
         option%io_buffer = 'Keyword ' // trim(word) // &
               ' not recognized for the ' // trim(error_string) // ' block.'

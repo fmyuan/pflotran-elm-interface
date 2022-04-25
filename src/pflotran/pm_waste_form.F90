@@ -470,6 +470,38 @@ module PM_Waste_Form_class
 
 ! -------------------------------------------------------------------
 
+  ! Provide one lookup table per nuclide
+  type, public :: crit_inventory_lookup_type
+    class(lookup_table_general_type), pointer :: lookup
+    type(crit_inventory_lookup_type), pointer :: next
+    character(len=MAXWORDLENGTH) :: name
+  contains
+    procedure, public :: Evaluate => CritInventoryEvaluate
+  end type crit_inventory_lookup_type
+
+  ! Stores variables for the criticality inventory lookup table
+  type, public :: crit_inventory_type
+    character(len=MAXSTRINGLENGTH) :: file_name
+    PetscInt :: total_points
+    PetscInt :: num_start_times
+    PetscInt :: num_powers
+    PetscInt :: num_real_times
+    PetscInt :: num_species
+    PetscReal :: start_time_datamax
+    PetscReal :: power_datamax
+    PetscReal :: real_time_datamax
+    PetscBool :: switch_implicit
+    PetscBool :: allow_implicit
+    PetscBool :: allow_extrap
+    PetscBool :: continue_lookup
+    type(crit_inventory_lookup_type), pointer :: radionuclide_table
+    class(crit_inventory_type), pointer :: next
+  contains
+    procedure, public :: Read => CritInventoryRead
+  end type crit_inventory_type
+
+! -------------------------------------------------------------------
+
 ! Stores variables relevant to criticality calculations
   type, public :: crit_mechanism_base_type
     character(len=MAXWORDLENGTH) :: mech_name
@@ -486,6 +518,7 @@ module PM_Waste_Form_class
     class(dataset_ascii_type), pointer :: rad_dataset
     class(dataset_ascii_type), pointer :: heat_dataset
     class(crit_heat_type), pointer :: crit_heat_dataset
+    class(crit_inventory_type), pointer :: inventory_dataset
     class(crit_mechanism_base_type), pointer :: next
   end type crit_mechanism_base_type
 
@@ -3210,7 +3243,12 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal :: t_low, t_high
   PetscReal, pointer :: times(:)
   PetscBool :: dataset_solution
+  PetscBool :: expanded_dataset_solution
+  PetscBool :: switch_to_implicit ! warning message for switch to implicit soln
   class(dataset_ascii_type), pointer :: dataset
+  class(crit_inventory_type), pointer :: crit_inventory
+  type(crit_inventory_lookup_type), pointer :: inventory_table
+  type(rad_species_type), pointer :: rad_species(:)
   
   avg_temp_global = UNINITIALIZED_DOUBLE
   avg_sat_global = UNINITIALIZED_DOUBLE
@@ -3431,13 +3469,102 @@ subroutine PMWFInitializeTimestep(this)
         (option%time >= cur_waste_form%decay_start_time)) then !--------------
 
     dataset_solution = PETSC_FALSE
+    expanded_dataset_solution = PETSC_FALSE
+    switch_to_implicit = PETSC_FALSE
     if (associated(cur_waste_form%criticality_mechanism)) then
-      if (associated(cur_waste_form%criticality_mechanism%rad_dataset)) then 
+      cur_criticality => cur_waste_form%criticality_mechanism
+      if (associated(cur_criticality%rad_dataset)) then 
         dataset_solution = PETSC_TRUE
+        if (this%implicit_solution) this%implicit_solution = PETSC_FALSE
+      endif 
+      if (associated(cur_criticality%inventory_dataset)) then 
+        crit_inventory => cur_criticality%inventory_dataset
+        if (crit_inventory%switch_implicit) then
+          ! extrapolation detected in the expanded dataset - switch to implicit
+          this%implicit_solution = PETSC_TRUE
+        elseif (.not. crit_inventory%continue_lookup .and. &
+                option%time > cur_criticality%crit_event%crit_end) then
+          ! use implicit solution if the criticality end time is exceeded
+          this%implicit_solution = PETSC_TRUE
+          crit_inventory%switch_implicit = PETSC_TRUE ! stop using lookup table
+          switch_to_implicit =  PETSC_TRUE ! give warning message
+        else
+          ! use 3D lookup table (expanded dataset) for radionuclide inventories
+          expanded_dataset_solution = PETSC_TRUE
+          if (this%implicit_solution) this%implicit_solution = PETSC_FALSE
+        endif
       endif 
     endif
 
-    if (dataset_solution) then
+    if (expanded_dataset_solution) then
+      ! interpolate radionuclide inventories using lookup tables from external
+      !   neutronics calculations
+
+      ! check number of species
+      if (num_species > crit_inventory%num_species) then
+        option%io_buffer = 'Number of species listed in the criticality ' &
+                         //'inventory lookup table "' &
+                         //trim(crit_inventory%file_name) &
+                         //'" is less than the number specified ' &
+                         //'in Waste Form Process Model.' 
+        call PrintErrMsg(option)
+      endif
+      
+      rad_species => cwfm%rad_species_list
+      do j = 1, num_species
+        k = 0
+        inventory_table => crit_inventory%radionuclide_table
+        do
+          if (.not. associated (inventory_table)) exit
+  
+          ! find index for cur_waste_form%rad_mass_fraction(:)
+          if (rad_species(j)%name == inventory_table%name) then
+            k = j
+
+            cur_waste_form%rad_mass_fraction(k) = &
+              inventory_table%Evaluate(cur_criticality%crit_event%crit_start, &
+                                       cur_criticality%crit_heat, &
+                                       option%time)
+
+            if (inventory_table%lookup%axis3%extrapolate .and. &
+                .not. crit_inventory%allow_extrap) then
+             ! Fallback options if extrapolation is detected
+             if (crit_inventory%allow_implicit) then
+               ! Resort to implicit solution
+               this%implicit_solution = PETSC_TRUE
+               crit_inventory%switch_implicit = PETSC_TRUE
+               switch_to_implicit =  PETSC_TRUE
+             else
+               ! Alert user that extrapolation has been attempted
+               option%io_buffer = 'Extrapolation of inventory lookup table "' &
+                                // trim(crit_inventory%file_name) // '" ' &
+                                //'has been detected. Extrapolation can be ' &
+                                //'enabled with keyword '&
+                                //'USE_LOOKUP_AND_EXTRAPOLATION in the OPTION '&
+                                //'sub-block.'
+               call PrintErrMsg(option)
+             endif
+            else
+              ! Modify the radionuclide concentration
+              cur_waste_form%rad_concentration(k) = &
+                cur_waste_form%rad_mass_fraction(k) / &
+                cwfm%rad_species_list(k)%formula_weight
+            endif
+          endif
+
+          inventory_table => inventory_table%next
+        enddo
+        if (k == 0) then
+          option%io_buffer = 'Radionuclide "'// trim(rad_species(j)%name) &
+                           //'" in the waste form species list was not found ' &
+                           //'in criticality inventory lookup table "' &
+                           //trim(crit_inventory%file_name) // '"'
+          call PrintErrMsg(option)
+        endif
+      enddo
+      nullify(inventory_table)
+
+    elseif (dataset_solution) then
       !Import radionuclide inventory from external neutronics code calculations
       dataset => cur_waste_form%criticality_mechanism%rad_dataset
       times => dataset%time_storage%times
@@ -3563,7 +3690,21 @@ subroutine PMWFInitializeTimestep(this)
         enddo ! parent loop
       enddo     
 
-    else !--------------------------------------------------------------------
+    endif !--------------------------------------------------------------------
+
+    ! Warning message for switch to implicit solution from lookup table
+    if (switch_to_implicit) then
+      if (associated(cur_waste_form%criticality_mechanism%inventory_dataset)) &
+        then
+        crit_inventory => cur_waste_form%criticality_mechanism%inventory_dataset
+        option%io_buffer = 'Switching from inventory lookup table "' &
+                         // trim(crit_inventory%file_name) &
+                         //'" to implicit solution.'
+        call PrintWrnMsg(option)
+      endif
+    endif
+
+    if (this%implicit_solution) then 
 
     ! implicit solution based on Bateman's equations and Newton's method
 
@@ -6014,6 +6155,11 @@ subroutine CritMechInputRecord(this)
       endif
     endif
     
+    if (associated(cur_crit_mech%inventory_dataset)) then
+      write(id,'(a29)',advance='no') 'crit. inv. lookup table: '
+      write(id,'(a)') trim(adjustl(cur_crit_mech%inventory_dataset%file_name))
+    endif
+    
     if (associated(cur_crit_mech%crit_heat_dataset)) then
       write(id,'(a29)',advance='no') 'crit. heat lookup table: '
       write(id,'(a)') trim(adjustl(cur_crit_mech%crit_heat_dataset%file_name))
@@ -6355,6 +6501,7 @@ subroutine CriticalityMechInit(this)
   nullify(this%rad_dataset)
   nullify(this%heat_dataset)
   nullify(this%crit_heat_dataset)
+  nullify(this%inventory_dataset)
 
 end subroutine CriticalityMechInit
 
@@ -6592,6 +6739,84 @@ subroutine ReadCriticalityMech(pmwf,input,option,keyword,error_string,found)
                           internal_units,error_string,option)
                   new_crit_mech%rad_dataset%time_storage% &
                           time_interpolation_method = 2
+              !-----------------------------
+                case('EXPANDED_DATASET')
+                  allocate(new_crit_mech%inventory_dataset)
+                  new_crit_mech%inventory_dataset => CritInventoryCreate()
+                  call InputReadFilename(input,option,new_crit_mech% &
+                         inventory_dataset%file_name)
+                  call new_crit_mech%inventory_dataset%Read(new_crit_mech% &
+                                                            inventory_dataset% &
+                                                            file_name,option)
+              !-----------------------------
+                case('OPTION')
+                  call InputPushBlock(input,option)
+                  do
+                    call InputReadPflotranString(input,option)
+                    if (InputError(input)) exit
+                    if (InputCheckExit(input,option)) exit
+                    call InputReadCard(input,option,word,PETSC_FALSE)
+                    select case(trim(word))
+                    !-----------------------------
+                      case('USE_LOOKUP_AND_IMPLICIT')
+                        ! Implicit solution becomes fallback if extrapolation
+                        !   is needed from real time array
+                        if (associated(new_crit_mech%inventory_dataset)) then
+                          new_crit_mech%inventory_dataset%allow_implicit = &
+                            PETSC_TRUE
+                          ! Detect conflicting options
+                          if (new_crit_mech%inventory_dataset%allow_extrap) then
+                            option%io_buffer = 'Option "' // trim(word) // &
+                                               '" conflicts with others listed.'
+                            call PrintErrMsg(option)
+                          endif
+                        else
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+                    !-----------------------------
+                      case('USE_LOOKUP_AND_EXTRAPOLATION')
+                        ! Allow extrapolation from lookup table
+                        if (associated(new_crit_mech%inventory_dataset)) then
+                          new_crit_mech%inventory_dataset%allow_extrap = &
+                            PETSC_TRUE
+                          ! Detect conflicting options
+                          if (new_crit_mech%inventory_dataset% &
+                              allow_implicit) then
+                            option%io_buffer = 'Option "' // trim(word) // &
+                                               '" conflicts with others listed.'
+                            call PrintErrMsg(option)
+                          endif
+                        else
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+                    !-----------------------------
+                      case('USE_LOOKUP_AFTER_CRITICALITY')
+                        ! This allows the lookup table to be used after the
+                        !   criticality end time. Otherwise, the implicit
+                        !   solution is used after the criticality event.
+                        if (associated(new_crit_mech%inventory_dataset)) then
+                          new_crit_mech%inventory_dataset%continue_lookup = &
+                            PETSC_TRUE
+                        else
+                          option%io_buffer = 'Option "' // trim(word) // &
+                                             '" requires specification of ' //&
+                                             'EXPANDED_DATASET.'
+                          call PrintErrMsg(option)
+                        endif
+                    !-----------------------------
+                      case default
+                        call InputKeywordUnrecognized(input,word,error_string, &
+                                                      option)
+                    !-----------------------------
+                    end select
+                  enddo
+                  call InputPopBlock(input,option)
               !-----------------------------
                 case default
                   call InputKeywordUnrecognized(input,word,error_string,option)
@@ -7050,6 +7275,741 @@ end subroutine CritHeatRead
 
 ! ************************************************************************** !
 
+subroutine CritInventoryRead(this,filename,option)
+  !
+  ! Reads in tables of time-dependent radionuclide inventories parametrized by
+  !   the criticality start time and power output.
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/16/2022
+  !
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Units_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(crit_inventory_type) :: this
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(option_type) :: option
+  ! ----------------------------------
+  character(len=MAXSTRINGLENGTH) :: string, error_string, str1, str2, str3
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
+  type(input_type), pointer :: input
+  PetscInt :: i
+  PetscInt :: ict
+  PetscInt :: num_partitions
+  PetscInt :: arr_size
+  PetscReal :: time_units_conversion
+  PetscReal :: power_units_conversion
+  PetscReal :: data_units_conversion
+  PetscReal, pointer :: tmpaxis1(:)
+  PetscReal, pointer :: tmpaxis2(:)
+  PetscReal, pointer :: tmpaxis3(:)
+  PetscReal, pointer :: tmpdata(:) ! temp inventory data pointer from input read
+  type(lookup_irregular_array_type), allocatable :: tmpdata1(:) ! saves data - old
+  type(lookup_irregular_array_type), allocatable :: tmpdata2(:) ! saves data - new
+  character(len=MAXWORDLENGTH), allocatable :: tmpname1(:)
+  character(len=MAXWORDLENGTH), allocatable :: tmpname2(:)
+  PetscInt :: tmpdatarank ! rank of array before new inventory is detected
+  PetscInt :: mode
+  PetscInt, parameter :: mode_lp = 1
+  PetscInt, parameter :: mode_tl = 2
+  type(crit_inventory_lookup_type), pointer :: cur_inventory, new_inventory
+  ! ----------------------------------
+
+  ict = 0
+  num_partitions = 0
+  arr_size = 0
+  time_units_conversion  = 1.d0
+  power_units_conversion = 1.d0
+  data_units_conversion  = 1.d0
+  mode = UNINITIALIZED_INTEGER
+
+  tmpdatarank = 1
+  allocate(tmpdata1(tmpdatarank))
+  allocate(tmpdata2(tmpdatarank))
+  allocate(tmpname1(tmpdatarank))
+  allocate(tmpname2(tmpdatarank))
+
+  if (len_trim(filename) < 1) then
+    option%io_buffer = 'Filename must be specified for criticality inventory ' &
+                     //'lookup table.'
+    call PrintErrMsg(option)
+  endif
+
+  ! this%lookup_table => LookupTableCreateGeneral(THREE_INTEGER) !3D interpolation
+  error_string = 'criticality inventory lookup table "' // trim(filename) // '"'
+  input => InputCreate(IUNIT_TEMP,filename,option)
+  input%ierr = 0
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+    !-------------------------------------
+      case('MODE')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'interpolation mode',error_string)
+        call StringToUpper(word)
+        select case(word)
+        !-------------------------------------
+          case('POLYNOMIAL','LAGRANGE_POLYNOMIAL')
+            mode = mode_lp
+        !-------------------------------------
+          case('LINEAR','TRILINEAR')
+            mode = mode_tl
+        !-------------------------------------
+          case default
+            call InputKeywordUnrecognized(input,word, &
+                   'interpolation mode',option)
+        end select
+    !-------------------------------------
+      case('NUM_START_TIMES')
+        call InputReadInt(input,option,this%num_start_times)
+        call InputErrorMsg(input,option,'number of start times',error_string)
+    !-------------------------------------
+      case('NUM_POWERS')
+        call InputReadInt(input,option,this%num_powers)
+        call InputErrorMsg(input,option,'number of power outputs',error_string)
+    !-------------------------------------      
+      case('NUM_REAL_TIMES')
+        call InputReadInt(input,option,this%num_real_times)
+        call InputErrorMsg(input,option,'maximum length of inventory ' &
+                                      //'evaluation times',error_string)
+    !-------------------------------------      
+      case('TOTAL_POINTS')
+        call InputReadInt(input,option,this%total_points)
+        call InputErrorMsg(input,option,'total inventory evaluation points', &
+                           error_string)
+    !-------------------------------------      
+      case('NUM_SPECIES')
+        call InputReadInt(input,option,this%num_species)
+        call InputErrorMsg(input,option,'number of species in inventory', &
+                           error_string)
+    !-------------------------------------      
+      case('TIME_UNITS')
+        internal_units = 'sec'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'time units',error_string)
+        time_units_conversion = UnitsConvertToInternal(word, &
+                                internal_units,option)
+    !-------------------------------------      
+      case('POWER_UNITS')
+        internal_units = 'MW'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'power units',error_string)
+        power_units_conversion = UnitsConvertToInternal(word, &
+                                 internal_units,option)
+    !-------------------------------------      
+      case('DATA_UNITS')
+        internal_units = 'g/g'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'data units',error_string)
+        data_units_conversion = UnitsConvertToInternal(word, &
+                                 internal_units,option)
+    !-------------------------------------      
+      case('START_TIME')
+        string = 'START_TIME in criticality inventory lookup table "' &
+                 // trim(filename) // '"'
+
+        nullify(tmpaxis1)
+
+        call UtilityReadArray(tmpaxis1, &
+                              NEG_ONE_INTEGER,string, &
+                              input,option)
+    !-------------------------------------      
+      case('POWER')
+        string = 'POWER in criticality inventory lookup table "' &
+                 // trim(filename) // '"'
+
+        nullify(tmpaxis2)
+
+        call UtilityReadArray(tmpaxis2, &
+                              NEG_ONE_INTEGER, &
+                              string,input,option)
+    !-------------------------------------      
+      case('REAL_TIME')
+        string = 'REAL_TIME in criticality inventory lookup table "' &
+                 // trim(filename) // '"'
+
+        nullify(tmpaxis3)
+
+        call UtilityReadArray(tmpaxis3, &
+                              NEG_ONE_INTEGER, &
+                              string,input,option)
+    !-------------------------------------      
+      case('INVENTORY','INVENTORIES')
+        ! NEST ORDER
+        !
+        ! I  start time i
+        ! I  start time i+1
+        ! I  ...
+        ! I  start time imax
+        !
+        ! J    power output j
+        ! J    power output j+1
+        ! J    ...
+        ! J    power output jmax
+        !
+        ! K      start i    power j   : times(i   ,j   )
+        ! K      start i    power j+1 : times(i   ,j+1 )
+        ! K      ...
+        ! K      start i    power jmax: times(i  ,jmax )
+        ! K      start i+1  power j   : times(i+1,j    )
+        ! K      ...
+        ! K      start imax power jmax: times(imax,jmax)
+        !
+        !  There is a lookup table for each nuclide z
+        !      lookup_table(1)
+        ! I,J,K    start i    power j    nuclide z   : inventory(t) for times(i   ,j   )
+        ! I,J,K    start i    power j+1  nuclide z   : inventory(t) for times(i   ,j+1 )
+        ! I,J,K    start i    power j+2  nuclide z   : inventory(t) for times(i   ,j+2 )
+        ! I,J,K    ...
+        ! I,J,K    start i    power jmax nuclide z   : inventory(t) for times(i   ,jmax)
+        ! I,J,K    start i+1  power j    nuclide z   : inventory(t) for times(i+1 ,jmax)
+        ! I,J,K    start i+1  power j+1  nuclide z   : inventory(t) for times(i+1 ,j+1 )
+        ! I,J,K    ...
+        ! I,J,K    start imax power jmax nuclide z   : inventory(t) for times(imax,jmax)
+        !      lookup_table(2)
+        ! I,J,K    start i    power j    nuclide z+1 : inventory(t) for times(i   ,j   )
+        ! I,J,K    start i    power j+1  nuclide z+1 : inventory(t) for times(i   ,j+1 )
+        ! I,J,K    ...
+        ! I,J,K
+        ! I,J,K    start imax power jmax nuclide zmax: inventory(t) for times(imax,jmax)
+
+        ict = ict + 1
+
+        write(str1,*) ict
+
+        string = 'INVENTORY (#'// trim(adjustl(str1)) //')'
+
+        ! Get species name
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,string //': species name',error_string)
+
+        ! Re-allocate temporary arrays of data
+        if (ict > tmpdatarank) then
+          tmpdata1(1:tmpdatarank) = tmpdata2(1:tmpdatarank)
+          if (allocated(tmpdata2)) deallocate(tmpdata2)
+          allocate(tmpdata2(ict))
+          tmpdata2(1:tmpdatarank) = tmpdata1(1:tmpdatarank)
+          if (allocated(tmpdata1)) deallocate(tmpdata1)
+          allocate(tmpdata1(ict))
+          tmpdata1(1:tmpdatarank) = tmpdata2(1:tmpdatarank)
+
+          tmpname1(1:tmpdatarank) = tmpname2(1:tmpdatarank)
+          if (allocated(tmpname2)) deallocate(tmpname2)
+          allocate(tmpname2(ict))
+          tmpname2(1:tmpdatarank) = tmpname1(1:tmpdatarank)
+          if (allocated(tmpname1)) deallocate(tmpname1)
+          allocate(tmpname1(ict))
+          tmpname1(1:tmpdatarank) = tmpname2(1:tmpdatarank)
+
+          tmpdatarank = ict
+        endif
+
+        nullify(tmpdata)
+
+        call UtilityReadArray(tmpdata, &
+                              NEG_ONE_INTEGER, &
+                              string // " : " // error_string,input,option)
+        allocate(tmpdata2(ict)%data(1:size(tmpdata)))
+
+        tmpname2(ict) = word ! save species name
+        tmpdata2(ict)%data = tmpdata ! save data from inventory block
+    !-------------------------------------
+      case default
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
+  enddo
+  call InputDestroy(input)
+  
+  ! Check for errors after input read
+  if (Uninitialized(this%num_start_times)) then
+    this%num_start_times = size(tmpaxis1)
+  elseif (this%num_start_times /= size(tmpaxis1)) then
+    write(str1,*) size(tmpaxis1)
+    option%io_buffer = 'Number of start times listed in START_TIME ('&
+                     // trim(adjustl(str1)) &
+                     //') does not match NUM_START_TIMES in "' &
+                     // trim(filename) // '".'
+    call PrintErrMsg(option)
+  endif
+
+  if (Uninitialized(this%num_powers)) then
+    this%num_powers = size(tmpaxis2)
+  elseif (this%num_powers /= size(tmpaxis2)) then
+    write(str1,*) size(tmpaxis2)
+    option%io_buffer = 'Number of powers listed in POWER ('&
+                     // trim(adjustl(str1)) &
+                     //') does not match NUM_POWERS in "' &
+                     // trim(filename) // '".'
+    call PrintErrMsg(option)
+  endif
+
+  if (Uninitialized(this%total_points) .and. &
+      Uninitialized(this%num_real_times)) then
+    this%total_points = size(tmpaxis3)
+  endif
+
+  if (Initialized(this%total_points)) then
+    arr_size = this%total_points
+  else
+    if (Uninitialized(this%num_real_times)) then
+      option%io_buffer = 'NUM_REAL_TIMES must be specified in "' &
+                       // trim(filename) // '" to provide axis3 dimension. '&
+                       //'TOTAL_POINTS may also be used if the axis3 lengths '&
+                       //'are non-uniform.'
+      call PrintErrMsg(option)
+    endif
+    arr_size = this%num_start_times*this%num_powers*this%num_real_times
+  endif
+
+  if (size(tmpaxis3) /= arr_size) then
+    write(str1,*) size(tmpaxis3)
+    if (Initialized(this%total_points)) then
+      option%io_buffer = 'Number of points listed for REAL_TIME ('&
+                       // trim(adjustl(str1)) &
+                       //') does not match TOTAL_POINTS in "' &
+                       // trim(filename) // '".'
+                       call PrintErrMsg(option)
+    else
+      option%io_buffer = 'Number of points listed for REAL_TIME ('&
+                       // trim(adjustl(str1)) &
+                       //') does not match ' &
+                       //'NUM_START_TIMES * NUM_POWERS * NUM_REAL_TIMES in "' &
+                       // trim(filename) // '".'
+                       call PrintWrnMsg(option)
+    endif
+  endif
+
+  if (Uninitialized(this%num_species)) then
+    if (ict > 0) then
+      this%num_species = ict
+    else
+      option%io_buffer = 'No INVENTORY blocks were detected in "' &
+                       // trim(filename) // '".'
+      call PrintErrMsg(option)
+    endif
+  endif
+
+  if (ict /= this%num_species) then
+    write(str1,*)ict
+    write(str2,*)this%num_species
+    option%io_buffer = 'Total number of inventories in data table (' &
+                     // trim(adjustl(str1)) &
+                     //') does not match NUM_SPECIES specified (' &
+                     // trim(adjustl(str2)) //') in "'// trim(filename) // '".'
+    call PrintErrMsg(option)
+  endif
+
+  ! Adjust units of axes if neccessary and record maxima
+  tmpaxis1 = tmpaxis1 * time_units_conversion
+  tmpaxis2 = tmpaxis2 * power_units_conversion
+  tmpaxis3 = tmpaxis3 * time_units_conversion
+  this%start_time_datamax = maxval(tmpaxis1)
+  this%power_datamax = maxval(tmpaxis2)
+  this%real_time_datamax = maxval(tmpaxis3)
+
+  ! Setup nuclide lookup tables after file read
+  num_partitions = (this%num_start_times*this%num_powers)
+
+  cur_inventory => CritInventoryLookupCreate()
+  do i = 1, this%num_species
+
+    new_inventory  => CritInventoryLookupCreate()
+
+    new_inventory%name = tmpname2(i)
+    new_inventory%lookup => LookupTableCreateGeneral(THREE_INTEGER)
+    new_inventory%lookup%dims(1) = this%num_start_times
+    new_inventory%lookup%dims(2) = this%num_powers
+    new_inventory%lookup%dims(3) = this%num_real_times
+    new_inventory%lookup%axis3%num_partitions = num_partitions
+
+    allocate(new_inventory%lookup%axis1%values(this%num_start_times))
+    allocate(new_inventory%lookup%axis2%values(this%num_powers))
+    allocate(new_inventory%lookup%axis3%values(arr_size))
+    allocate(new_inventory%lookup%data(arr_size))
+
+    if (Initialized(this%total_points)) then
+      allocate(new_inventory%lookup%axis3%bounds(num_partitions))
+      allocate(new_inventory%lookup%axis3%partition(num_partitions))
+    endif
+
+    if (Initialized(mode)) then
+      new_inventory%lookup%mode = mode
+    endif
+
+    new_inventory%lookup%axis1%values => tmpaxis1
+
+    new_inventory%lookup%axis2%values => tmpaxis2
+
+    new_inventory%lookup%axis3%values => tmpaxis3
+
+    if (Initialized(this%total_points)) then
+      call CritInventoryRealTimeSections(new_inventory%lookup,filename,option)
+    endif
+
+    call CritInventoryCheckDuplicates(new_inventory%lookup,filename,option)
+
+    if (size(tmpdata2(i)%data) /= arr_size) then
+      write(str1,*) i
+      write(str2,*) size(tmpdata2(i)%data)
+      write(str3,*) arr_size
+      option%io_buffer = 'Number of inventories listed for nuclide #' &
+                       // trim(adjustl(str1)) // ' (' &
+                       // trim(adjustl(str2)) // ') ' &
+                       //'does not match length of REAL_TIME array (' &
+                       // trim(adjustl(str3)) //') in "'// trim(filename) //'".'
+      call PrintErrMsg(option)
+    endif
+
+    new_inventory%lookup%data = tmpdata2(i)%data * data_units_conversion
+
+    if (Initialized(this%total_points)) then
+      write(str1,*) i
+      error_string = trim(filename) //' for nuclide #' &
+        // trim(adjustl(str1))
+      call CritInventoryDataSections(new_inventory%lookup, &
+                                     error_string,option)
+    endif
+
+    ! Add lookup table to linked list
+    if (associated(this%radionuclide_table)) then
+      cur_inventory => this%radionuclide_table
+      do 
+        if (.not. associated(cur_inventory%next)) exit
+        cur_inventory => cur_inventory%next
+      enddo
+      cur_inventory%next => new_inventory
+    else
+      this%radionuclide_table => new_inventory
+    endif
+
+    nullify(new_inventory)
+
+  enddo
+  nullify(cur_inventory)
+
+  if (associated(tmpaxis1)) nullify(tmpaxis1)
+  if (associated(tmpaxis2)) nullify(tmpaxis2)
+  if (associated(tmpaxis3)) nullify(tmpaxis3)
+  if (associated(tmpdata))  nullify(tmpdata)
+  if (allocated(tmpdata1)) deallocate(tmpdata1)
+  if (allocated(tmpdata2)) deallocate(tmpdata2)
+
+end subroutine CritInventoryRead
+
+! ************************************************************************** !
+
+subroutine CritInventoryRealTimeSections(this,string,option)
+  !
+  ! Partition of monontically increasing real time values (axis3) for
+  !   criticality inventory lookup tables
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type), pointer :: this ! lookup table
+  character(len=MAXSTRINGLENGTH), intent(in) :: string
+  class (option_type), intent(inout) :: option
+  ! ----------------------------------
+  PetscReal, pointer :: array(:)    ! array of real times
+  PetscInt  :: i, j, k, l
+  PetscInt  :: sz
+  PetscInt  :: bnd1, bnd2
+  PetscReal :: tmp1, tmp2
+  character(len=MAXSTRINGLENGTH) :: str1, str2
+  ! ----------------------------------
+
+  ! This subroutine only operates upon axis3
+  if (.not. associated(this%axis3)) return
+
+  ! This subroutine is not needed if the axis3 does not need to be partitioned
+  if (this%axis3%num_partitions <= 0) return
+
+  ! Allocate axis3 objects
+  if (.not. allocated(this%axis3%bounds)) then
+    allocate(this%axis3%bounds(this%axis3%num_partitions))
+  endif
+  
+  if (.not. allocated(this%axis3%partition)) then
+    allocate(this%axis3%partition(this%axis3%num_partitions))
+  endif
+  
+  if (associated(this%axis3%values)) then
+    array => this%axis3%values
+  else
+    option%io_buffer = 'Values for REAL_TIME (axis3) were not associated in '&
+                     // trim(string) // '.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! Assuming monotonic real times, identify bounds for the different partitions
+  j = 1
+  tmp1 = 0.d0
+  tmp2 = 0.d0
+  do i = 1, size(array)
+    tmp1 = array(i)
+    if (i > 1) then
+      if (tmp1 < tmp2) then
+        this%axis3%bounds(j) = i - 1
+        j = j + 1
+    else
+      if (j > this%axis3%num_partitions .and. i == size(array)) then
+        option%io_buffer = 'Values for REAL_TIME must monotonically '&
+                         //'increase for each inventory evaluation ' &
+                         //'in the table for ' // trim(string) // '.'
+        call PrintErrMsg(option)
+      endif
+    endif
+    endif
+    tmp2 = tmp1 ! store previous axis3 value
+  enddo
+  ! The last bound is the size of the unparitioned array
+  this%axis3%bounds(j) = size(array)
+  
+  ! Partition the array
+  j = 1
+  sz = 0
+  bnd1 = 0
+  bnd2 = 0
+  do i = 1, size(this%axis3%bounds)
+    if (i == 1) then
+      bnd1 = 1 ! start of unpartitioned array
+    else
+      bnd1 = this%axis3%bounds(i-1) + 1
+    endif
+    bnd2 = this%axis3%bounds(i)
+    sz = abs(bnd2 - bnd1) + 1
+    l = 1
+    allocate(this%axis3%partition(j)%data(sz))
+    do k = bnd1, bnd2
+      this%axis3%partition(j)%data(l) = array(k)
+      l = l + 1
+    enddo
+    j = j + 1
+  enddo
+  
+  if (associated(array)) nullify(array)
+  
+end subroutine CritInventoryRealTimeSections
+
+! ************************************************************************** !
+
+subroutine CritInventoryDataSections(this,string,option)
+  !
+  ! Partition of nuclide inventory data for criticality inventory lookup tables
+  !
+  ! Author: Alex Salazar III
+  ! Date: 02/18/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type), pointer :: this ! lookup table
+  character(len=MAXSTRINGLENGTH), intent(in) :: string
+  class (option_type), intent(inout) :: option
+  ! ----------------------------------
+  PetscReal, pointer :: array(:)    ! array of real times
+  PetscInt  :: i, j, k, l
+  PetscInt  :: szlim, sz
+  PetscInt  :: bnd1, bnd2
+  PetscReal :: tmp1, tmp2
+  character(len=MAXSTRINGLENGTH) :: str1, str2
+  ! ----------------------------------
+
+  ! This subroutine is not needed if axis3 was not partitioned
+  if (this%axis3%num_partitions <= 0) return
+
+  ! Verify inventory data values are associated
+  if (associated(this%data)) then
+    array => this%data
+    szlim = size(this%data)
+  else
+    option%io_buffer = 'Values for inventory data were not associated in ' & 
+                     // trim(string) // '.'
+    call PrintErrMsg(option)
+  endif
+
+  ! Verify axis3 partition bounds exist
+  if (.not. allocated(this%axis3%bounds)) then
+    option%io_buffer = 'Boundaries for axis3 were not defined in ' &
+                      // trim(string) // '.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! Allocate data partition based on axis3 partitions if needed
+  if (.not. allocated(this%partition)) then
+    allocate(this%partition(this%axis3%num_partitions))
+  endif
+  
+  if (szlim /= maxval(this%axis3%bounds)) then
+    option%io_buffer = 'Array length mismatch between axis3 values and data ' &
+                     //'in ' // trim(string) // '.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! Partition the array
+  j = 1
+  sz = 0
+  bnd1 = 0
+  bnd2 = 0
+  do i = 1, size(this%axis3%bounds)
+    if (i == 1) then
+      bnd1 = 1 ! start of unpartitioned array
+    else
+      bnd1 = this%axis3%bounds(i-1) + 1
+    endif
+    bnd2 = this%axis3%bounds(i)
+    sz = abs(bnd2 - bnd1) + 1
+    l = 1
+    allocate(this%partition(j)%data(sz))
+    do k = bnd1, bnd2
+      this%partition(j)%data(l) = array(k)
+      l = l + 1
+    enddo
+    j = j + 1
+  enddo
+  
+  if (associated(array)) nullify(array)
+  
+end subroutine CritInventoryDataSections
+
+! ************************************************************************** !
+
+subroutine CritInventoryCheckDuplicates(this,string,option)
+  !
+  ! Checks for duplicate entries within the lookup table axes
+  !
+  ! Author: Alex Salazar III
+  ! Date: 03/01/2022
+  !
+  use Option_module
+  !
+  implicit none
+  ! ----------------------------------
+  class(lookup_table_general_type), pointer :: this ! lookup table
+  character(len=MAXSTRINGLENGTH), intent(in) :: string
+  type(option_type), intent(inout) :: option
+  ! ----------------------------------
+  PetscReal, pointer :: values(:) ! values under inspection
+  PetscInt :: i, j, k ! iterators
+  PetscReal :: ref1, ref2 ! comparison
+  PetscInt :: kstart, kend ! start and end of axis3 array to interpolate
+  PetscInt :: nk ! number of lists expected in axis3
+  character(len=MAXSTRINGLENGTH) :: sref1, sref2
+  ! ----------------------------------
+
+  ! Check axis1 for duplicates
+  if (associated(this%axis1)) then
+    values => this%axis1%values
+    do i = 1, size(values)
+      ref1 = values(i)
+      do j = 1, size(values)
+        if (i == j) cycle
+        ref2 = values(j)
+        if (ref1 == ref2) then
+          write(sref1,'(es12.5)') ref1
+          option%io_buffer = 'Duplicate entry (' // trim(adjustl(sref1)) &
+                           //') detected in axis1 for "' & 
+                           // trim(string) // '".'
+          call PrintErrMsg(option)
+        end if
+      enddo
+    end do
+  endif
+
+  ! Check axis2 for duplicates
+  if (associated(this%axis2)) then
+    values => this%axis2%values
+    do i = 1, size(values)
+      ref1 = values(i)
+      do j = 1, size(values)
+        if (i == j) cycle
+        ref2 = values(j)
+        if (ref1 == ref2) then
+          write(sref1,'(es12.5)') ref1
+          option%io_buffer = 'Duplicate entry (' // trim(adjustl(sref1)) &
+                           //') detected in axis2 for "' & 
+                           // trim(string) // '".'
+          call PrintErrMsg(option)
+        end if
+      enddo
+    end do
+  endif
+
+  ! Check axis3 for duplicates
+  if (associated(this%axis3)) then
+    
+    if (allocated(this%axis3%partition)) then
+      ! ---> axis3 is has defined partitions (non-rectangular)
+      do k = 1, size(this%axis3%partition)
+        values => this%axis3%partition(k)%data
+        do i = 1, size(values)
+          ref1 = values(i)
+          do j = 1, size(values)
+            if (i == j) cycle
+            ref2 = values(j)
+            if (ref1 == ref2) then
+              write(sref1,'(es12.5)') ref1
+              write(sref2,'(i3)') k
+              option%io_buffer = 'Duplicate entry (' // trim(adjustl(sref1)) &
+                               //') detected in partition ' &
+                               // trim(adjustl(sref2)) //' of axis3 for "' & 
+                               // trim(string) // '".'
+              call PrintErrMsg(option)
+            end if
+          enddo
+        end do
+      enddo
+      
+    else
+      ! ---> axis3 is described by the dim(3) value (rectangular)
+      nk = size(this%axis3%values)/this%dims(3)
+      kstart = 0
+      kend = 0
+      do k = 1, nk
+        kstart = (k - 1)*this%dims(3) + 1
+        kend = k*this%dims(3)
+        
+        values => this%axis3%values(kstart:kend)
+        do i = 1, size(values)
+          ref1 = values(i)
+          do j = 1, size(values)
+            if (i == j) cycle
+            ref2 = values(j)
+            if (ref1 == ref2) then
+              write(sref1,'(es12.5)') ref1
+              write(sref2,'(i3)') k
+              option%io_buffer = 'Duplicate entry (' // trim(adjustl(sref1)) &
+                               //') detected in dataset ' &
+                               // trim(adjustl(sref2)) //' of axis3 for "' & 
+                               // trim(string) // '".'
+              call PrintErrMsg(option)
+            end if
+          enddo
+        end do
+      enddo
+    endif
+  endif
+
+end subroutine CritInventoryCheckDuplicates
+
+! ************************************************************************** !
+
 function CritHeatEvaluate(this,start_time,temperature)
   ! 
   ! Author: Alex Salazar III
@@ -7067,6 +8027,27 @@ function CritHeatEvaluate(this,start_time,temperature)
   CritHeatEvaluate = this%lookup_table%Sample(start_time,temperature)
   
 end function CritHeatEvaluate
+
+! ************************************************************************** !
+
+function CritInventoryEvaluate(this,start_time,power,time)
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 02/21/2022
+  !
+
+  implicit none
+
+  class(crit_inventory_lookup_type) :: this
+  PetscReal :: start_time
+  PetscReal :: power
+  PetscReal :: time
+
+  PetscReal :: CritInventoryEvaluate
+
+  CritInventoryEvaluate = this%lookup%Sample(start_time,power,time)
+
+end function CritInventoryEvaluate
 
 ! ************************************************************************** !
 
@@ -7095,6 +8076,64 @@ function CritHeatCreate()
   CritHeatCreate => ch
 
 end function CritHeatCreate
+
+! ************************************************************************** !
+
+function CritInventoryCreate()
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 02/16/2022
+  ! 
+
+  implicit none
+  
+  class(crit_inventory_type), pointer :: CritInventoryCreate
+  class(crit_inventory_type), pointer :: ci
+  
+  PetscInt :: i
+  
+  allocate(ci)
+  nullify(ci%next)
+  nullify(ci%radionuclide_table)
+
+  ci%file_name = ''
+  ci%total_points    = UNINITIALIZED_INTEGER
+  ci%num_start_times = UNINITIALIZED_INTEGER
+  ci%num_powers      = UNINITIALIZED_INTEGER
+  ci%num_real_times  = UNINITIALIZED_INTEGER
+  ci%num_species     = UNINITIALIZED_INTEGER
+  ci%start_time_datamax = UNINITIALIZED_DOUBLE
+  ci%power_datamax      = UNINITIALIZED_DOUBLE
+  ci%real_time_datamax  = UNINITIALIZED_DOUBLE
+  ci%switch_implicit = PETSC_FALSE
+  ci%allow_implicit = PETSC_FALSE
+  ci%allow_extrap   = PETSC_FALSE
+  ci%continue_lookup = PETSC_FALSE
+
+  CritInventoryCreate => ci
+
+end function CritInventoryCreate
+
+! ************************************************************************** !
+
+function CritInventoryLookupCreate()
+  ! 
+  ! Author: Alex Salazar III
+  ! Date: 04/19/2022
+  ! 
+
+  implicit none
+
+  class(crit_inventory_lookup_type), pointer :: CritInventoryLookupCreate
+  class(crit_inventory_lookup_type), pointer :: cl
+
+  allocate(cl)
+  nullify(cl%next)
+  nullify(cl%lookup)
+
+  CritInventoryLookupCreate => cl
+
+end function CritInventoryLookupCreate
 
 ! ************************************************************************** !
 

@@ -1,0 +1,200 @@
+#dual continuum. single fracture. planar geometry
+#Based on Tang et al (1981) analytical solution
+
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      Mode GIRT
+      OPTIONS
+        MULTIPLE_CONTINUUM
+      /
+    /
+    UFD_DECAY ufd_decay
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 5
+END
+
+#=========================== useful tranport parameters ==================
+SPECIFIED_VELOCITY #Darcy flux / specific discharge (vol/area/time)
+  UNIFORM? YES
+  DATASET 5d-7 0.d0 0.d0 m/d
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    A1
+  /
+  MINERALS
+    A1(s)
+  /
+  MINERAL_KINETICS
+    A1(s)
+      RATE_CONSTANT 0.d0
+    /
+  /
+  DATABASE ../../ufd/abc.dat
+  ACTIVITY_COEFFICIENTS OFF
+  OUTPUT
+    TOTAL
+    all
+  /
+END
+
+#=========================== solver options ===================================
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 2 1 1 
+  BOUNDS 
+    0.d0   0.d0  0.d0
+    1.d0 1.0d0 1.0d0 
+  /                  
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.6d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 1d0
+  TORTUOSITY 1.0d0 
+  ROCK_DENSITY 2700.d0 #kg/m3
+  LONGITUDINAL_DISPERSIVITY 0.5 #m
+
+  SECONDARY_CONTINUUM
+    TYPE SLAB 
+    LENGTH 1 #half distance between fractures - BC location in the matrix
+    AREA 1.0 #fracture/matrix interfacial area per unit (bulk) volume (1/(b+L))
+    NUM_CELLS 5 #in secondary continuum (matrix)
+    EPSILON 0.00005 #fracture volume fraction (b/(L+b))
+    LIQUID_DIFFUSION_COEFFICIENT 1.6d-10  #effective diffusion coefficient, includes tortuosity
+    POROSITY 0.01 #diffusion coefficient and porosity are multiplied, no tortuosity in eqn
+   /
+
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 101.d0 d
+  INITIAL_TIMESTEP_SIZE 0.006d0 d
+  MAXIMUM_TIMESTEP_SIZE 0.5d0 d 
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+     -1.d20 -1.d20 -1.d20
+     1.d20 1.d20 1.d20
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 -1.d20 -1.d20
+    0.d0 1.d20 1.d20
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    1.d0 -1.d20 -1.d20
+    1.d0 1.d20 1.d20
+  /
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION background_conc
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial_constraint
+  /
+END
+
+TRANSPORT_CONDITION inlet_conc
+  TYPE dirichlet_zero_gradient
+  TIME_UNITS y
+  CONSTRAINT_LIST
+    0.d0 inlet_constraint
+  /
+END
+
+#=========================== constraints ======================================
+CONSTRAINT initial_constraint
+  CONCENTRATIONS
+    A1   1.d-10  T
+  /
+  MINERALS
+    A1(s)   0.d0  1.d0
+  /
+END
+
+CONSTRAINT inlet_constraint
+  CONCENTRATIONS
+    A1   1.0  T
+  /
+  MINERALS
+    A1(s)   0.d0  1.d0
+  /
+END
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION background_conc
+  REGION all
+END
+
+BOUNDARY_CONDITION outlet
+  TRANSPORT_CONDITION background_conc
+  REGION east
+END
+
+BOUNDARY_CONDITION inlet
+  TRANSPORT_CONDITION inlet_conc
+  REGION west
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+SECONDARY_CONSTRAINT sec
+  CONCENTRATIONS
+    A1   1.d-10  T
+  /
+  MINERALS
+    A1(s)   0.d0  1.d0
+  /
+END
+
+END_SUBSURFACE
+
+UFD_DECAY
+  IMPLICIT_SOLUTION
+  ELEMENT A
+    SOLUBILITY 1.0d-1
+    KD
+      soil1 5000.d0 50.d0
+    /
+  /
+  ISOTOPE A1
+    ELEMENT A
+    DECAY_RATE 1.779d-9 ! 1 s
+  /
+END
