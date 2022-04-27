@@ -1468,8 +1468,8 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
   PetscInt :: local_id
   PetscInt :: offset
   PetscReal :: tempreal
-  Vec :: work
-  Vec :: work2
+  Vec :: ndof_vec1
+  Vec :: ndof_vec2
   Vec :: dResdKLambda
   PetscViewer :: viewer
   class(timer_type), pointer :: timer
@@ -1492,10 +1492,6 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
   timer => TimerCreate()
 
   call timer%Start()
-
-  work = this%realization%field%work ! DO NOT DESTROY!
-  call VecDuplicate(this%realization%field%flow_xx, &
-                    dResdKLambda,ierr);CHKERRQ(ierr)
 
   if (this%debug_adjoint) then
     string = 'dResdK_ts' // &
@@ -1530,6 +1526,8 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
       endif
     endif
     if (this%qoi_is_full_vector) then
+      call VecDuplicate(this%realization%field%flow_xx, &
+                        dResdKLambda,ierr);CHKERRQ(ierr)
       call MatMultTranspose(inversion_forward_ts_aux%dResdparam, &
                             inversion_forward_ts_aux%lambda(imeasurement), &
                             dResdKLambda,ierr);CHKERRQ(ierr)
@@ -1547,35 +1545,35 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
                          vec_ptr(offset+1),ADD_VALUES,ierr);CHKERRQ(ierr)
       enddo
       call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
     else
-      call VecDuplicate(work,work2,ierr);CHKERRQ(ierr)
+      call VecDuplicate(this%realization%field%flow_xx, &
+                        ndof_vec1,ierr);CHKERRQ(ierr)
+      call VecDuplicate(ndof_vec1,ndof_vec2,ierr);CHKERRQ(ierr)
       do iparameter = 1, size(this%parameters)
-        call VecZeroEntries(work,ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(work,vec_ptr,ierr);CHKERRQ(ierr)
+        call VecZeroEntries(ndof_vec1,ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
         do local_id = 1, grid%nlmax
           if (patch%imat(grid%nL2G(local_id)) == &
               this%parameters(iparameter)%imat) then
             vec_ptr(local_id) = 1.d0
           endif
         enddo
-        call VecRestoreArrayF90(work,vec_ptr,ierr);CHKERRQ(ierr)
-        call MatMult(inversion_forward_ts_aux%dResdparam,work,work2, &
-                     ierr);CHKERRQ(ierr)
-        call VecDot(work2,inversion_forward_ts_aux%lambda(imeasurement), &
-                    tempreal,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
+        call MatMult(inversion_forward_ts_aux%dResdparam,ndof_vec1, &
+                     ndof_vec2,ierr);CHKERRQ(ierr)
+        call VecDot(ndof_vec2,inversion_forward_ts_aux%lambda(imeasurement), &
+                     tempreal,ierr);CHKERRQ(ierr)
         if (option%comm%myrank == option%driver%io_rank) then
           call MatSetValue(inversion_aux%JsensitivityT,iparameter-1, &
                            imeasurement-1,tempreal,ADD_VALUES,&
                            ierr);CHKERRQ(ierr)
         endif
       enddo
-      call VecDestroy(work2,ierr);CHKERRQ(ierr)
+      call VecDestroy(ndof_vec1,ierr);CHKERRQ(ierr)
+      call VecDestroy(ndof_vec2,ierr);CHKERRQ(ierr)
     endif
   enddo
-
-  if (dResdKLambda /= PETSC_NULL_VEC) then
-    call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
-  endif
 
   call timer%Stop()
   option%io_buffer = '    ' // &
