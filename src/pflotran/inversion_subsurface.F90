@@ -528,6 +528,18 @@ subroutine InversionSubsurfInitialize(this)
           num_parameters = num_parameters + patch%grid%nmax
         endif
       enddo
+      if (.not.associated(this%perturbation)) then
+        do i = 1, size(this%parameters)
+          if (i == 1) then
+            temp_int = this%parameters(i)%iparameter
+          else
+            if (temp_int /= this%parameters(i)%iparameter) then
+              call this%driver%PrintErrMsg('Inversion by mulitiple different &
+                &parameters only supported for perturbation.')
+            endif
+          endif
+        enddo
+      endif
       if (num_parameters == patch%grid%nmax) then
         this%qoi_is_full_vector = PETSC_TRUE
         this%num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
