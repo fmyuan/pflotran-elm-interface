@@ -329,7 +329,7 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,isotherm, &
       ! NOTE: mineral volume fraction here is solely a scaling factor.  It has 
       ! nothing to do with the soil volume; that is calculated through as a 
       ! function of porosity.
-      kd_kgw_m3b = isotherm_rxn%eqisothermcoeff(irxn) * &
+      kd_kgw_m3b = kd_kgw_m3b * &
                    (rt_auxvar%mnrl_volfrac(isotherm%eqkdmineral(irxn)))
     endif
     select case(isotherm%eqisothermtype(irxn))
