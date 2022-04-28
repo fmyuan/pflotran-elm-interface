@@ -30,7 +30,7 @@ petsc:
     - docker --version
     - export PETSC_VERSION=$(cat ./.gitlab/petsc-git-version.txt)
     - export IMAGE=$CI_REGISTRY_IMAGE:$PETSC_VERSION
-    - docker pull $IMAGE || true
+#    - docker pull $IMAGE || true
     - >
       docker build 
       -f ./.gitlab/dockerfile-petsc 
