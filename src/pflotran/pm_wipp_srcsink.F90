@@ -484,7 +484,6 @@ module PM_WIPP_SrcSink_class
     type(radiolysis_parameter_type) :: radiolysis_parameters
     class(realization_subsurface_type), pointer :: realization
   contains
-    procedure, public :: PMWSSSetRealization
     procedure, public :: Setup => PMWSSSetup
     procedure, public :: ReadPMBlock => PMWSSReadPMBlock
     procedure, public :: InitializeRun => PMWSSInitializeRun
@@ -1343,6 +1342,8 @@ subroutine PMWSSReadPMBlock(this,input)
         call InputReadAndConvertUnits(input,double,'sec',trim(error_string) &
                                       // ',OUTPUT_START_TIME units',option)
         this%output_start_time = double
+      case('SKIP_RESTART')
+        this%skip_restart = PETSC_TRUE 
       case('RATE_UPDATE_FREQUENCY')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)

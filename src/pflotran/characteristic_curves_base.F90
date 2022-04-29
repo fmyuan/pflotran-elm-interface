@@ -36,6 +36,13 @@ module Characteristic_Curves_Base_module
     procedure, public :: Saturation => SFBaseSaturation
     procedure, public :: EffectiveSaturation => SFBaseEffectiveSaturation
     procedure, public :: D2SatDP2 => SFBaseD2SatDP2
+!    procedure, public :: CalcInterfacialTension => SFBaseSurfaceTension
+    procedure, public :: GetResidualSaturation => SFBaseGetResidualSaturation
+    procedure, public :: GetAlpha_ => SFBaseGetNeedsToBeExtended
+    procedure, public :: GetM_ => SFBaseGetNeedsToBeExtended
+    procedure, public :: SetResidualSaturation => SFBaseSetResidualSaturation
+    procedure, public :: SetAlpha_ => SFBaseSetNeedsToBeExtended
+    procedure, public :: SetM_ => SFBaseSetNeedsToBeExtended
   end type sat_func_base_type
 
 !-----------------------------------------------------------------------------
@@ -56,6 +63,10 @@ module Characteristic_Curves_Base_module
                            RPFBaseLiqEffectiveSaturation
     procedure, public :: EffectiveGasSaturation => &
                            RPFBaseGasEffectiveSaturation
+    procedure, public :: GetResidualSaturation => RPFBaseGetResidualSaturation
+    procedure, public :: GetM_ => RPFBaseGetNeedsToBeExtended
+    procedure, public :: SetResidualSaturation => RPFBaseSetResidualSaturation
+    procedure, public :: SetM_ => RPFBaseSetNeedsToBeExtended
   end type rel_perm_func_base_type
 
   public :: PolynomialCreate, &
@@ -258,6 +269,62 @@ end subroutine SFBaseSaturation
 
 ! ************************************************************************** !
 
+function SFBaseGetResidualSaturation(this)
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+
+  PetscReal :: SFBaseGetResidualSaturation
+
+  SFBaseGetResidualSaturation = this%Sr
+
+end function SFBaseGetResidualSaturation
+
+! ************************************************************************** !
+
+function SFBaseGetNeedsToBeExtended(this)
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+
+  PetscReal :: SFBaseGetNeedsToBeExtended
+
+  print *, 'A SFBaseGetXXX routine needs to be extended'
+  stop
+
+end function SFBaseGetNeedsToBeExtended
+
+! ************************************************************************** !
+
+subroutine SFBaseSetResidualSaturation(this,tempreal)
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  PetscReal :: tempreal
+
+  this%Sr = tempreal
+
+end subroutine SFBaseSetResidualSaturation
+
+! ************************************************************************** !
+
+subroutine SFBaseSetNeedsToBeExtended(this,tempreal)
+
+  implicit none
+
+  class(sat_func_base_type) :: this
+  PetscReal :: tempreal
+
+  print *, 'A SFBaseSetXXX routine needs to be extended'
+  stop
+
+end subroutine SFBaseSetNeedsToBeExtended
+
+! ************************************************************************** !
+
 subroutine SFBaseEffectiveSaturation(this,liquid_saturation, &
                                      effective_saturation,deffsat_dsat, &
                                      option)
@@ -411,6 +478,62 @@ subroutine RPFBaseRelPerm(this,liquid_saturation,relative_permeability, &
   call PrintErrMsg(option)
 
 end subroutine RPFBaseRelPerm
+
+! ************************************************************************** !
+
+function RPFBaseGetResidualSaturation(this)
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+
+  PetscReal :: RPFBaseGetResidualSaturation
+
+  RPFBaseGetResidualSaturation = this%Sr
+
+end function RPFBaseGetResidualSaturation
+
+! ************************************************************************** !
+
+function RPFBaseGetNeedsToBeExtended(this)
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+
+  PetscReal :: RPFBaseGetNeedsToBeExtended
+
+  print *, 'A RPFBaseGetXXX routine needs to be extended'
+  stop
+
+end function RPFBaseGetNeedsToBeExtended
+
+! ************************************************************************** !
+
+subroutine RPFBaseSetResidualSaturation(this,tempreal)
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+  PetscReal :: tempreal
+
+  this%Sr = tempreal
+
+end subroutine RPFBaseSetResidualSaturation
+
+! ************************************************************************** !
+
+subroutine RPFBaseSetNeedsToBeExtended(this,tempreal)
+
+  implicit none
+
+  class(rel_perm_func_base_type) :: this
+  PetscReal :: tempreal
+
+  print *, 'A RPFBaseSetXXX routine needs to be extended'
+  stop
+
+end subroutine RPFBaseSetNeedsToBeExtended
 
 ! ************************************************************************** !
 

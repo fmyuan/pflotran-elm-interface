@@ -2319,7 +2319,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           else
           ! liquid pressure; 1st dof --------------------- !
             select case(hydrate%liquid_pressure%itype)
-              case(DIRICHLET_BC)
+              case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
                 call PatchGetCouplerValueFromDataset(coupler,option, &
                   patch%grid,hydrate%liquid_pressure%dataset,iconn,liq_pressure)
                 coupler%flow_aux_real_var(ONE_INTEGER,iconn) = liq_pressure
@@ -2371,12 +2371,13 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           temperature = UNINITIALIZED_DOUBLE
           ! gas pressure; 1st dof ------------------------ !
           select case(hydrate%gas_pressure%itype)
-            case(DIRICHLET_BC)
+            case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                   patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
               coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
               dof1 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = &
+                      hydrate%gas_pressure%itype !DIRICHLET_BC
             case default
               string = GetSubConditionName(hydrate%gas_pressure%itype)
               option%io_buffer = &
@@ -2568,7 +2569,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
         case(GA_STATE, HG_STATE)
           ! gas pressure; 1st dof ------------------------ !
           select case(hydrate%gas_pressure%itype)
-            case(DIRICHLET_BC)
+            case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC)
               call PatchGetCouplerValueFromDataset(coupler,option, &
                      patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
               coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
@@ -6890,7 +6891,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
 
     ! NUCLEAR_WASTE_TRANSPORT:
     case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC, &
-         MNRL_VOLUME_FRACTION)
+         MNRL_VOLUME_FRACTION,NWT_AUXILIARY)
       select case(ivar)
         case(TOTAL_BULK_CONC)
           value = patch%aux%NWT%auxvars(ghosted_id)%total_bulk_conc(isubvar)
@@ -6902,6 +6903,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
           value = patch%aux%NWT%auxvars(ghosted_id)%sorb_eq_conc(isubvar)
         case(MNRL_VOLUME_FRACTION)
           value = patch%aux%NWT%auxvars(ghosted_id)%mnrl_vol_frac(isubvar)
+        case(NWT_AUXILIARY)
+          value = patch%aux%NWT%auxvars(ghosted_id)%auxiliary_data(isubvar)
       end select
       if ( (patch%aux%NWT%truncate_output) .and. &
            ((value < 1.d-99) .and. (value > 0.d0)) ) then

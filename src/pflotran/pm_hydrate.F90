@@ -365,6 +365,9 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE COMPOSITE THERMAL CONDUCTIVITY MODEL',option)
         end select
+      case('BC_REFERENCE_PRESSURE')
+        call InputReadDouble(input,option,hydrate_bc_reference_pressure)
+        call InputErrorMsg(input,option,'BC Reference Pressure',error_string)
       case default
         call InputKeywordUnrecognized(input,word,'HYDRATE block',option)
     end select
