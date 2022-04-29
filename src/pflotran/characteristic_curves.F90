@@ -992,11 +992,11 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   if (spline) then ! Create cubic approximation for any saturation function
     if (associated(sf_swap)) then ! Splining a loop-invariant replacement
-      sf_swap2 => SFSplineCtor(sf_swap, 100)
+      sf_swap2 => SFSplineCtor(sf_swap, 101)
       deallocate(sf_swap)
       sf_swap => sf_swap2
     else
-      sf_swap => SFSplineCtor(saturation_function, 100)
+      sf_swap => SFSplineCtor(saturation_function, 101)
     end if
     ! The calling CCRead will deallocated saturation_function
     sf_swap%calc_int_tension = tension
@@ -1806,11 +1806,11 @@ function PermeabilityFunctionRead(permeability_function,phase_keyword, &
 
   if (spline) then ! Create cubic approximation for any saturation function
     if (associated(rpf_swap)) then ! Splining a loop-invariant replacement
-      rpf_swap2 => RPFSplineCtor(permeability_function, 100)
+      rpf_swap2 => RPFSplineCtor(permeability_function, 101)
       deallocate(rpf_swap)
       rpf_swap => rpf_swap2
     else
-      rpf_swap => RPFSplineCtor(permeability_function, 100)
+      rpf_swap => RPFSplineCtor(permeability_function, 101)
     end if
   end if
 

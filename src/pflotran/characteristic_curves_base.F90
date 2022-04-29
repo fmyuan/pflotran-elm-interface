@@ -17,7 +17,7 @@ module Characteristic_Curves_Base_module
   end type polynomial_type
 
   type, public :: spline_type
-    PetscReal :: A, B, C, D
+    PetscReal :: x, y, d2y
   end type spline_type
 
 !-----------------------------------------------------------------------------
