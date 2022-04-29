@@ -82,10 +82,6 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
   do
     if (.not.associated(cur_patch)) exit
     grid => cur_patch%grid
-    if (option%flow%mtf_active) then
-      allocate(cur_patch%mtf_id(grid%ngmax))
-      cur_patch%mtf_id = UNINITIALIZED_INTEGER
-    endif
     if (.not.associated(cur_patch%imat)) then
       allocate(cur_patch%imat(grid%ngmax))
       ! initialize to "unset"

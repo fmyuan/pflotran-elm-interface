@@ -221,6 +221,9 @@ subroutine PMMaterialTransformSetup(this)
   ! create null material property for inactive cells
   null_material_property => MaterialPropertyCreate(option)
   ! cell mapping for material transform id and initialize auxilary variables
+
+  allocate(patch%mtf_id(grid%ngmax))
+
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
@@ -239,11 +242,8 @@ subroutine PMMaterialTransformSetup(this)
       endif
     endif
 
-    if (associated(patch%mtf_id)) then
-      patch%mtf_id(ghosted_id) = &  
-        cur_material_property%material_transform_id
-      call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
-    endif
+    patch%mtf_id(ghosted_id) = cur_material_property%material_transform_id
+    call RealLocalToLocalWithArray(this%realization,MTF_ID_ARRAY)
 
   enddo
 
