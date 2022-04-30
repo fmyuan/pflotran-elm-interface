@@ -153,6 +153,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_with_sedimentation = PETSC_FALSE
   PetscBool, public :: hydrate_no_pc = PETSC_FALSE
   PetscBool, public :: hydrate_with_methanogenesis = PETSC_FALSE
+  PetscBool, public :: hydrate_compute_surface_tension = PETSC_FALSE
 
   type, public :: hydrate_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
@@ -873,9 +874,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       
       !IFT calculation
       sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(hyd_auxvar%temp,sigma)
+      if (hydrate_compute_surface_tension) then
+       call EOSWaterSurfaceTension(hyd_auxvar%temp,sigma)
       endif
       hyd_auxvar%pres(cpid) = hyd_auxvar%pres(cpid)*sigma
 
@@ -1133,9 +1133,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       !IFT calculation
       sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(hyd_auxvar%temp,sigma)
+      if (hydrate_compute_surface_tension) then
+       call EOSWaterSurfaceTension(hyd_auxvar%temp,sigma)
       endif
       hyd_auxvar%pres(cpid) = hyd_auxvar%pres(cpid)*sigma
 
@@ -1279,9 +1278,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       
       !IFT calculation
       sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(hyd_auxvar%temp,sigma)
+      if (hydrate_compute_surface_tension) then
+       call EOSWaterSurfaceTension(hyd_auxvar%temp,sigma)
       endif
       hyd_auxvar%pres(cpid) = hyd_auxvar%pres(cpid)*sigma
 
@@ -1373,9 +1371,8 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       endif
       !IFT calculation
       sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(hyd_auxvar%temp,sigma)
+      if (hydrate_compute_surface_tension) then
+       call EOSWaterSurfaceTension(hyd_auxvar%temp,sigma)
       endif
       hyd_auxvar%pres(cpid) = hyd_auxvar%pres(cpid)*sigma
 

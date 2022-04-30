@@ -264,7 +264,9 @@ module EOS_Water_module
             EOSWaterSetWaterTab, &
             EOSWaterSetSurfaceDensity, &
             EOSWaterGetSurfaceDensity, &
-            EOSWaterTableProcess
+            EOSWaterTableProcess, &
+            EOSWaterSurfaceTension, &
+            EOSWaterKelvin
 
   public :: TestEOSWaterBatzleAndWang, &
             EOSWaterTest, &
@@ -4800,6 +4802,80 @@ subroutine EOSWaterSteamTest(temp_low,temp_high,pres_low,pres_high, &
   deallocate(saturation_pressure_array)
 
 end subroutine EOSWaterSteamTest
+
+! ************************************************************************** !
+
+subroutine EOSWaterSurfaceTension(T,sigma)
+  !
+  ! Surface tension of water equation from Revised Release on Surface
+  ! Tension of Ordinary Water Substance, June 2014. Valid from -25C to
+  ! 373 C
+  !
+  ! Author: Michael Nole
+  ! 
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(out) :: sigma
+
+  PetscReal, parameter :: Tc = 647.096d0
+  PetscReal, parameter :: B = 235.8d0
+  PetscReal, parameter :: b_2 = -0.625d0
+  PetscReal, parameter :: mu = 1.256d0
+  PetscReal, parameter :: sigma_base = 0.073d0
+  PetscReal :: Temp
+  PetscReal :: tao
+
+  Temp=T+273.15d0
+
+  if (T <= 373.d0) then
+    tao = 1.d0-Temp/Tc
+    sigma = B*(tao**mu)*(1+b_2*tao)
+    sigma = sigma * 1.d-3
+  else
+    sigma = 0.d0
+  endif
+  sigma= sigma/sigma_base
+
+  !TOUGH3 way (not pressure-dependent)
+  !if (Temp >= 101) sigma = 0
+
+end subroutine EOSWaterSurfaceTension
+
+
+
+! ************************************************************************** !
+
+subroutine EOSWaterKelvin(Pc,rhow,T,Psat,Pv)
+  !
+  ! Kelvin equation for vapor pressure lowering
+  ! vis-a-vis the Young-Laplace equation where
+  ! Kelvin Eqn: ln(P/P_sat) = 2*sigma*Vm/(rRT)
+  ! Y-L Eqn: Pc = 2*sigma*cos(theta)/r
+  ! cos(theta) -> 1
+  !
+  ! Author: Michael Nole
+  ! Date: 02/04/22
+  !
+
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+  PetscReal, intent(in) :: Pc, T, Psat, rhow
+  PetscReal, intent(out) :: Pv
+
+  PetscReal :: sigma, vp_factor, T_temp
+
+  T_temp = T + 273.15d0
+
+  ! For water:
+  vp_factor = Pc / (rhow * 1000.d0 * IDEAL_GAS_CONSTANT * T_temp)
+
+  Pv = exp(vp_factor) * Psat
+
+end subroutine EOSWaterKelvin
 
 ! ************************************************************************** !
 

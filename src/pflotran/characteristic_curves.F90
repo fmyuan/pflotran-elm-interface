@@ -370,7 +370,7 @@ function SaturationFunctionRead(saturation_function,input,option) &
 
   ! Lexicon of compiled parameters
   character(len=MAXWORDLENGTH) :: unsat_ext
-  PetscBool :: loop_invariant, tension
+  PetscBool :: loop_invariant
   PetscInt :: vg_rpf_opt
   PetscReal :: alpha, m, Pcmax, Slj, Sr, Srg
 
@@ -382,7 +382,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
   nullify(sf_swap)
   ! Default values for unspecified parameters
   loop_invariant = PETSC_FALSE
-  tension = PETSC_FALSE
   unsat_ext = ''
   vg_rpf_opt = 1 ! Mualem. Burdine option in progress
   alpha = 0d0
@@ -455,9 +454,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
         saturation_function%Pcmax = Pcmax
         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
                             error_string)
-      case('CALCULATE_INTERFACIAL_TENSION')
-        tension = PETSC_TRUE
-        saturation_function%calc_int_tension = PETSC_TRUE
       case('SMOOTH')
         smooth = PETSC_TRUE
       case default
@@ -937,15 +933,6 @@ function SaturationFunctionRead(saturation_function,input,option) &
       end select
     end if
 
-    ! If successful, write tension option to the new object
-    if (associated(sf_swap)) then
-      sf_swap%calc_int_tension = tension
-    else
-    ! Throw an error the contructor failed. Most likley an invalid parameter
-      option%io_buffer = 'Construction of the saturation function object &
-      & failed.'
-      call PrintErrMsg(option)
-    end if
   else if (unsat_ext /= '') then
     ! Throw an error if unsaturated extensions are with loop_invariant
     option%io_buffer = 'Unsaturated extensions are unavailable without the &
