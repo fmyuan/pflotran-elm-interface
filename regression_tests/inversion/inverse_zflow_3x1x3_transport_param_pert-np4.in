@@ -1,0 +1,9 @@
+SIMULATION
+  SIMULATION_TYPE INVERSE
+  INVERSION ZFLOW
+    PERTURBATION
+    /
+    EXTERNAL_FILE inverse_zflow_3x1x3_transport_param_parallel.txt
+  /
+END
+

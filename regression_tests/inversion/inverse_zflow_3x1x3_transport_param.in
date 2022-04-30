@@ -1,0 +1,7 @@
+SIMULATION
+  SIMULATION_TYPE INVERSE
+  INVERSION ZFLOW
+    EXTERNAL_FILE inverse_zflow_3x1x3_transport_param.txt
+  /
+END
+

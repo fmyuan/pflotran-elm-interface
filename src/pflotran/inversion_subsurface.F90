@@ -70,7 +70,6 @@ module Inversion_Subsurface_class
     procedure, public :: CalculateSensitivity => InvSubsurfCalculateSensitivity
     procedure, public :: ScaleSensitivity => InvSuburfSkipThisOnly
     procedure, public :: CalculateUpdate => InvSuburfSkipThisOnly
-    procedure, public :: UpdateParameters => InvSuburfSkipThisOnly
     procedure, public :: UpdateRegularizationParameters => &
                            InvSuburfSkipThisOnly
     procedure, public :: Strip => InversionSubsurfaceStrip
@@ -529,6 +528,18 @@ subroutine InversionSubsurfInitialize(this)
           num_parameters = num_parameters + patch%grid%nmax
         endif
       enddo
+      if (.not.associated(this%perturbation)) then
+        do i = 1, size(this%parameters)
+          if (i == 1) then
+            temp_int = this%parameters(i)%iparameter
+          else
+            if (temp_int /= this%parameters(i)%iparameter) then
+              call this%driver%PrintErrMsg('Inversion by mulitiple different &
+                &parameters only supported for perturbation.')
+            endif
+          endif
+        enddo
+      endif
       if (num_parameters == patch%grid%nmax) then
         this%qoi_is_full_vector = PETSC_TRUE
         this%num_parameters_local = patch%grid%nlmax*this%n_qoi_per_cell
@@ -792,16 +803,14 @@ subroutine InvSubsurfConnectToForwardRun(this)
   use Discretization_module
   use Init_Subsurface_module
   use Material_module
+  use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
 
-  type(discretization_type), pointer :: discretization
-  Vec :: work
-  Vec :: temp_vec
-  PetscReal, pointer :: vec_ptr(:)
   PetscReal :: rmin, rmax
   PetscInt :: iqoi(2)
-  PetscInt :: i
+  PetscInt :: i, iparameter
+  character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 
   call this%forward_simulation%InitializeRun()
@@ -850,6 +859,9 @@ subroutine InvSubsurfConnectToForwardRun(this)
       do i = 1, size(this%parameters)
         call InvSubsurfCopyParameterValue(this,i,OVERWRITE_MATERIAL_VALUE)
       enddo
+      ! update material auxvars
+      call InitSubsurfAssignMatIDsToRegns(this%realization)
+      call InitSubsurfAssignMatProperties(this%realization)
     endif
   endif
 
@@ -929,11 +941,54 @@ subroutine InvSubsurfConnectToForwardRun(this)
         call InitSubsurfAssignMatProperties(this%realization)
       endif
     endif
+  else ! set adjoint variable
+    ! pass in first parameter as an earlier check prevents adjoint-based
+    ! inversion for more than one parameter type
+    call InvSubsurfSetAdjointVariable(this,this%parameters(1)%iparameter)
   endif
 
   this%first_inversion_interation = PETSC_FALSE
 
 end subroutine InvSubsurfConnectToForwardRun
+
+! ************************************************************************** !
+
+subroutine InvSubsurfSetAdjointVariable(this,iparameter)
+  !
+  ! Sets the adjoint variable for a process model
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/30/22
+
+  use String_module
+  use Variables_module, only : PERMEABILITY, POROSITY
+  use ZFlow_Aux_module
+
+  class(inversion_subsurface_type) :: this
+  PetscInt :: iparameter
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  select case(this%realization%option%iflowmode)
+    case(ZFLOW_MODE)
+    case default
+      string = 'Flow mode "' // trim(this%realization%option%flowmode) // &
+        '" not supported for inversion (InvSubsurfSetAdjointVariable).'
+    call this%driver%PrintErrMsg(string)
+  end select
+
+  select case(iparameter)
+    case(PERMEABILITY)
+      zflow_adjoint_parameter = ZFLOW_ADJOINT_PERMEABILITY
+    case(POROSITY)
+      zflow_adjoint_parameter = ZFLOW_ADJOINT_POROSITY
+    case default
+      string = 'Unrecognized variable in InvSubsurfSetAdjointVariable: ' // &
+               trim(StringWrite(iparameter))
+    call this%driver%PrintErrMsg(string)
+  end select
+
+end subroutine InvSubsurfSetAdjointVariable
 
 ! ************************************************************************** !
 
@@ -989,6 +1044,8 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
         tempreal = material_property%permeability(1,1)
       else
         material_property%permeability(1,1) = tempreal
+        material_property%permeability(2,2) = tempreal
+        material_property%permeability(3,3) = tempreal
       endif
     case(POROSITY)
       if (iflag == GET_MATERIAL_VALUE) then
@@ -1012,7 +1069,7 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
           tempreal2 = cc%liq_rel_perm_function%GetResidualSaturation()
           if (.not.Equal(tempreal,tempreal2)) then
             string = 'Saturation and relative permeability function &
-              &residual saturations much match in characteristic &
+              &residual saturations must match in characteristic &
               &curve "' // trim(cc%name)
             call this%driver%PrintErrMsg(string)
           endif
@@ -1022,8 +1079,8 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
         endif
       end select
     case default
-      string = 'Unrecoginized variable in &
-        &InvSubsurfConnectToForwardRun: ' // &
+      string = 'Unrecognized variable in &
+        &InvSubsurfCopyParameterValue: ' // &
         trim(StringWrite(this%parameters(iparam)%iparameter))
       call this%driver%PrintErrMsg(string)
   end select
@@ -1464,8 +1521,8 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
   PetscInt :: local_id
   PetscInt :: offset
   PetscReal :: tempreal
-  Vec :: work
-  Vec :: work2
+  Vec :: ndof_vec1
+  Vec :: ndof_vec2
   Vec :: dResdKLambda
   PetscViewer :: viewer
   class(timer_type), pointer :: timer
@@ -1488,10 +1545,6 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
   timer => TimerCreate()
 
   call timer%Start()
-
-  work = this%realization%field%work ! DO NOT DESTROY!
-  call VecDuplicate(this%realization%field%flow_xx, &
-                    dResdKLambda,ierr);CHKERRQ(ierr)
 
   if (this%debug_adjoint) then
     string = 'dResdK_ts' // &
@@ -1526,6 +1579,8 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
       endif
     endif
     if (this%qoi_is_full_vector) then
+      call VecDuplicate(this%realization%field%flow_xx, &
+                        dResdKLambda,ierr);CHKERRQ(ierr)
       call MatMultTranspose(inversion_forward_ts_aux%dResdparam, &
                             inversion_forward_ts_aux%lambda(imeasurement), &
                             dResdKLambda,ierr);CHKERRQ(ierr)
@@ -1543,35 +1598,36 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
                          vec_ptr(offset+1),ADD_VALUES,ierr);CHKERRQ(ierr)
       enddo
       call VecRestoreArrayF90(dResdKLambda,vec_ptr,ierr);CHKERRQ(ierr)
+      call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
     else
-      call VecDuplicate(work,work2,ierr);CHKERRQ(ierr)
+      call VecDuplicate(this%realization%field%flow_xx, &
+                        ndof_vec1,ierr);CHKERRQ(ierr)
+      call VecDuplicate(ndof_vec1,ndof_vec2,ierr);CHKERRQ(ierr)
       do iparameter = 1, size(this%parameters)
-        call VecZeroEntries(work,ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(work,vec_ptr,ierr);CHKERRQ(ierr)
+        call VecZeroEntries(ndof_vec1,ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
         do local_id = 1, grid%nlmax
           if (patch%imat(grid%nL2G(local_id)) == &
               this%parameters(iparameter)%imat) then
-            vec_ptr(local_id) = 1.d0
+            offset = (local_id-1)*option%nflowdof
+            vec_ptr(offset+1:offset+option%nflowdof) = 1.d0
           endif
         enddo
-        call VecRestoreArrayF90(work,vec_ptr,ierr);CHKERRQ(ierr)
-        call MatMult(inversion_forward_ts_aux%dResdparam,work,work2, &
-                     ierr);CHKERRQ(ierr)
-        call VecDot(work2,inversion_forward_ts_aux%lambda(imeasurement), &
-                    tempreal,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
+        call MatMult(inversion_forward_ts_aux%dResdparam,ndof_vec1, &
+                     ndof_vec2,ierr);CHKERRQ(ierr)
+        call VecDot(ndof_vec2,inversion_forward_ts_aux%lambda(imeasurement), &
+                     tempreal,ierr);CHKERRQ(ierr)
         if (option%comm%myrank == option%driver%io_rank) then
           call MatSetValue(inversion_aux%JsensitivityT,iparameter-1, &
                            imeasurement-1,tempreal,ADD_VALUES,&
                            ierr);CHKERRQ(ierr)
         endif
       enddo
-      call VecDestroy(work2,ierr);CHKERRQ(ierr)
+      call VecDestroy(ndof_vec1,ierr);CHKERRQ(ierr)
+      call VecDestroy(ndof_vec2,ierr);CHKERRQ(ierr)
     endif
   enddo
-
-  if (dResdKLambda /= PETSC_NULL_VEC) then
-    call VecDestroy(dResdKLambda,ierr);CHKERRQ(ierr)
-  endif
 
   call timer%Stop()
   option%io_buffer = '    ' // &
