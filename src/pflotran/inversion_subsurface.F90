@@ -803,16 +803,14 @@ subroutine InvSubsurfConnectToForwardRun(this)
   use Discretization_module
   use Init_Subsurface_module
   use Material_module
+  use ZFlow_Aux_module
 
   class(inversion_subsurface_type) :: this
 
-  type(discretization_type), pointer :: discretization
-  Vec :: work
-  Vec :: temp_vec
-  PetscReal, pointer :: vec_ptr(:)
   PetscReal :: rmin, rmax
   PetscInt :: iqoi(2)
-  PetscInt :: i
+  PetscInt :: i, iparameter
+  character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
 
   call this%forward_simulation%InitializeRun()
@@ -943,11 +941,54 @@ subroutine InvSubsurfConnectToForwardRun(this)
         call InitSubsurfAssignMatProperties(this%realization)
       endif
     endif
+  else ! set adjoint variable
+    ! pass in first parameter as an earlier check prevents adjoint-based
+    ! inversion for more than one parameter type
+    call InvSubsurfSetAdjointVariable(this,this%parameters(1)%iparameter)
   endif
 
   this%first_inversion_interation = PETSC_FALSE
 
 end subroutine InvSubsurfConnectToForwardRun
+
+! ************************************************************************** !
+
+subroutine InvSubsurfSetAdjointVariable(this,iparameter)
+  !
+  ! Sets the adjoint variable for a process model
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/30/22
+
+  use String_module
+  use Variables_module, only : PERMEABILITY, POROSITY
+  use ZFlow_Aux_module
+
+  class(inversion_subsurface_type) :: this
+  PetscInt :: iparameter
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  select case(this%realization%option%iflowmode)
+    case(ZFLOW_MODE)
+    case default
+      string = 'Flow mode "' // trim(this%realization%option%flowmode) // &
+        '" not supported for inversion (InvSubsurfSetAdjointVariable).'
+    call this%driver%PrintErrMsg(string)
+  end select
+
+  select case(iparameter)
+    case(PERMEABILITY)
+      zflow_adjoint_parameter = ZFLOW_ADJOINT_PERMEABILITY
+    case(POROSITY)
+      zflow_adjoint_parameter = ZFLOW_ADJOINT_POROSITY
+    case default
+      string = 'Unrecognized variable in InvSubsurfSetAdjointVariable: ' // &
+               trim(StringWrite(iparameter))
+    call this%driver%PrintErrMsg(string)
+  end select
+
+end subroutine InvSubsurfSetAdjointVariable
 
 ! ************************************************************************** !
 
@@ -1038,8 +1079,8 @@ subroutine InvSubsurfCopyParameterValue(this,iparam,iflag)
         endif
       end select
     case default
-      string = 'Unrecoginized variable in &
-        &InvSubsurfConnectToForwardRun: ' // &
+      string = 'Unrecognized variable in &
+        &InvSubsurfCopyParameterValue: ' // &
         trim(StringWrite(this%parameters(iparam)%iparameter))
       call this%driver%PrintErrMsg(string)
   end select
@@ -1568,7 +1609,8 @@ subroutine InvSubsurfAdjointAddSensitivity(this,inversion_forward_ts_aux)
         do local_id = 1, grid%nlmax
           if (patch%imat(grid%nL2G(local_id)) == &
               this%parameters(iparameter)%imat) then
-            vec_ptr(local_id) = 1.d0
+            offset = (local_id-1)*option%nflowdof
+            vec_ptr(offset+1:offset+option%nflowdof) = 1.d0
           endif
         enddo
         call VecRestoreArrayF90(ndof_vec1,vec_ptr,ierr);CHKERRQ(ierr)
